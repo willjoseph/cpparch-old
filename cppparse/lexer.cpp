@@ -79,6 +79,11 @@ LexContext& createContext(std::string& instring, const char* input)
 	return *(new LexContext(instring, input));
 }
 
+void release(LexContext& context)
+{
+	delete &context;
+}
+
 LexIterator& createBegin(LexContext& lexer)
 {
 	return *(new LexIterator(lexer.begin()));
@@ -87,6 +92,11 @@ LexIterator& createBegin(LexContext& lexer)
 LexIterator& createEnd(LexContext& lexer)
 {
 	return *(new LexIterator(lexer.end()));
+}
+
+void release(LexIterator& i)
+{
+	delete &i;
 }
 
 bool operator==(const LexIterator& l, const LexIterator& r)

@@ -1,5 +1,5 @@
 
-#include "lexer.h"
+#include "parser.h"
 
 #include <iostream>
 #include <fstream>
@@ -29,6 +29,9 @@ int main(int argc, char *argv[])
 		instring = std::string(std::istreambuf_iterator<char>(instream.rdbuf()),
 			std::istreambuf_iterator<char>());
 
+#if 1
+		parseFile(instring, input);
+#else
 		LexContext& context = createContext(instring, input);
 		LexIterator& first = createBegin(context);
 		LexIterator& last = createEnd(context);
@@ -41,6 +44,7 @@ int main(int argc, char *argv[])
 			increment(first);
 		}
 		//]
+#endif
 	}
 	catch(LexError&)
 	{

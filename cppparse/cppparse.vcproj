@@ -192,6 +192,14 @@
 				RelativePath=".\lexer.h"
 				>
 			</File>
+			<File
+				RelativePath=".\parser.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\parser.h"
+				>
+			</File>
 		</Filter>
 	</Files>
 	<Globals>
