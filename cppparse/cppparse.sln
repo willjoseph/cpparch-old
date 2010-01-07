@@ -1,0 +1,24 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 9.00
+# Visual Studio 2005
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cppparse", "cppparse.vcproj", "{4F894837-7C14-462F-9183-5A4709FAC74D}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "boost_ref", "..\boost_ref\boost_ref.vcproj", "{2DF716DA-48FE-4411-8E0E-9AD8458C3E89}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{4F894837-7C14-462F-9183-5A4709FAC74D}.Debug|Win32.ActiveCfg = Debug|Win32
+		{4F894837-7C14-462F-9183-5A4709FAC74D}.Debug|Win32.Build.0 = Debug|Win32
+		{4F894837-7C14-462F-9183-5A4709FAC74D}.Release|Win32.ActiveCfg = Release|Win32
+		{4F894837-7C14-462F-9183-5A4709FAC74D}.Release|Win32.Build.0 = Release|Win32
+		{2DF716DA-48FE-4411-8E0E-9AD8458C3E89}.Debug|Win32.ActiveCfg = Debug|Win32
+		{2DF716DA-48FE-4411-8E0E-9AD8458C3E89}.Release|Win32.ActiveCfg = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
