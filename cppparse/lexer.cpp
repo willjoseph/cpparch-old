@@ -94,6 +94,16 @@ LexIterator& createEnd(LexContext& lexer)
 	return *(new LexIterator(lexer.end()));
 }
 
+LexIterator& cloneIterator(LexIterator& i)
+{
+	return *(new LexIterator(i));
+}
+
+void assignIterator(LexIterator& i, LexIterator& other)
+{
+	i = other;
+}
+
 void release(LexIterator& i)
 {
 	delete &i;

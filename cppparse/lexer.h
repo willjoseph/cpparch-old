@@ -23,6 +23,8 @@ LexContext& createContext(std::string& instring, const char* input);
 void release(LexContext& context);
 LexIterator& createBegin(LexContext& lexer);
 LexIterator& createEnd(LexContext& lexer);
+LexIterator& cloneIterator(LexIterator& i);
+void assignIterator(LexIterator& i, LexIterator& other);
 void release(LexIterator& i);
 bool operator==(const LexIterator& l, const LexIterator& r);
 inline bool operator!=(const LexIterator& l, const LexIterator& r)

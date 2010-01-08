@@ -5,15 +5,10 @@
 #include <fstream>
 #include <string>
 
-int main(int argc, char *argv[])
+typedef int (*VerifyFunc)(cpp::declaration_seq* declarations);
+
+int runTest(const char* input, VerifyFunc verify)
 {
-	if (2 != argc) {
-		std::cerr << "Usage: cppparse infile" << std::endl;
-		return -1;
-	}
-
-	const char* input = argv[1];
-
 	try {
 		//[quick_start_main
 		//  The following preprocesses the given input file.
@@ -30,7 +25,7 @@ int main(int argc, char *argv[])
 			std::istreambuf_iterator<char>());
 
 #if 1
-		parseFile(instring, input);
+		return verify(parseFile(instring, input));
 #else
 		LexContext& context = createContext(instring, input);
 		LexIterator& first = createBegin(context);
@@ -69,4 +64,65 @@ int main(int argc, char *argv[])
 	}
 
 	return 0;
+}
+
+struct Test
+{
+	const char* input;
+	VerifyFunc verify;
+};
+
+template<typename T>
+inline T* verifyNotNull(T* p)
+{
+	PARSE_ASSERT(p != 0);
+	return p;
+}
+#define VERIFY_CAST(Type, p) verifyNotNull(dynamic_cast<Type*>(p))
+
+int verifyFunctionDefinition(cpp::declaration_seq* declarations)
+{
+	return 0;
+}
+
+int verifyNamespace(cpp::declaration_seq* declarations)
+{
+	cpp::namespace_definition* result = VERIFY_CAST(cpp::namespace_definition, declarations->item);
+	PARSE_ASSERT(result->id.value == "Name");
+	PARSE_ASSERT(result->body == 0);
+	return 0;
+}
+
+int verifyNull(cpp::declaration_seq* declarations)
+{
+	return 0;
+}
+
+int main(int argc, char *argv[])
+{
+	if(argc == 1)
+	{
+		const Test tests[] = {
+			{ "test/test_namespace.cpp", verifyNamespace },
+			{ "test/test_function_definition.cpp", verifyFunctionDefinition },
+		};
+		for(const Test* p = tests; p != tests + (sizeof(tests) / sizeof(*tests)); ++p)
+		{
+			int result = runTest(p->input, p->verify);
+			if(result != 0)
+			{
+				return result;
+			}
+		}
+		return 0;
+	}
+
+	if (2 != argc) {
+		std::cerr << "Usage: cppparse infile" << std::endl;
+		return -1;
+	}
+
+	const char* input = argv[1];
+
+	return runTest(input, verifyNull);
 }

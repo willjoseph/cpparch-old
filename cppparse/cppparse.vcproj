@@ -185,6 +185,14 @@
 				>
 			</File>
 			<File
+				RelativePath=".\cpptree.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\cpptree.h"
+				>
+			</File>
+			<File
 				RelativePath=".\lexer.cpp"
 				>
 			</File>
