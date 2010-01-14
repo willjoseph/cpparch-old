@@ -1,0 +1,2 @@
+
+Class::Scope::p x;
