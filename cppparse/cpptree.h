@@ -1,0 +1,1408 @@
+
+#ifndef INCLUDED_CPPPARSE_CPPTREE_H
+#define INCLUDED_CPPPARSE_CPPTREE_H
+
+#include <string>
+
+
+namespace cpp
+{
+	struct template_argument
+	{
+		virtual ~template_argument()
+		{
+		}
+	};
+
+	struct template_parameter
+	{
+		virtual ~template_parameter()
+		{
+		}
+	};
+
+	struct declarator
+	{
+		virtual ~declarator()
+		{
+		}
+	};
+
+	struct direct_declarator_prefix : public declarator
+	{
+	};
+
+	struct declarator_id : public direct_declarator_prefix
+	{
+	};
+
+	struct condition
+	{
+		virtual ~condition()
+		{
+		}
+	};
+
+	struct expression : public condition
+	{
+	};
+
+	struct initializer
+	{
+		virtual ~initializer()
+		{
+		}
+	};
+
+	struct initializer_clause : public initializer
+	{
+	};
+
+	struct assignment_expression : public expression, public template_argument, public initializer_clause
+	{
+	};
+
+	struct constant_expression
+	{
+	};
+
+	struct conditional_expression : public assignment_expression, public constant_expression
+	{
+	};
+
+	struct logical_or_expression : public conditional_expression
+	{
+	};
+
+	struct logical_and_expression : public logical_or_expression
+	{
+	};
+
+	struct inclusive_or_expression : public logical_and_expression
+	{
+	};
+
+	struct exclusive_or_expression : public inclusive_or_expression
+	{
+	};
+
+	struct and_expression : public exclusive_or_expression
+	{
+	};
+
+	struct equality_expression : public and_expression
+	{
+	};
+
+	struct relational_expression : public equality_expression
+	{
+	};
+
+	struct shift_expression : public relational_expression
+	{
+	};
+
+	struct additive_expression : public shift_expression
+	{
+	};
+
+	class multiplicative_expression : public additive_expression
+	{
+	};
+
+	struct pm_expression : public multiplicative_expression
+	{
+	};
+
+	struct cast_expression : public pm_expression
+	{
+	};
+
+	struct unary_expression : public cast_expression
+	{
+	};
+
+	struct postfix_expression : public unary_expression
+	{
+	};
+
+	struct postfix_expression_prefix : public postfix_expression
+	{
+	};
+
+	struct primary_expression : public postfix_expression_prefix
+	{
+	};
+
+	struct id_expression : public declarator_id, public primary_expression
+	{
+	};
+
+	struct unqualified_id : public id_expression
+	{
+	};
+
+	struct qualified_id : public id_expression
+	{
+	};
+
+	struct template_id : public unqualified_id
+	{
+	};
+
+	struct mem_initializer_id
+	{
+		virtual ~mem_initializer_id()
+		{
+		}
+	};
+
+	struct type_name
+	{
+		virtual ~type_name()
+		{
+		}
+	};
+
+	struct class_name : public type_name
+	{
+	};
+
+	struct identifier : public unqualified_id, public mem_initializer_id, public class_name
+	{
+		std::string value;
+	};
+
+	struct nested_name_specifier_prefix
+	{
+		identifier* name;
+	};
+
+	struct nested_name_specifier_suffix
+	{
+		bool isTemplate;
+		class_name* name;
+		nested_name_specifier_suffix* next;
+	};
+
+	struct nested_name_specifier
+	{
+		nested_name_specifier_prefix* prefix;
+		nested_name_specifier_suffix* suffix;
+	};
+
+	struct template_name : public identifier
+	{
+	};
+
+	struct type_specifier
+	{
+		virtual ~type_specifier()
+		{
+		}
+	};
+
+	struct type_specifier_noncv : public type_specifier
+	{
+	};
+
+	struct decl_specifier_suffix
+	{
+		virtual ~decl_specifier_suffix()
+		{
+		}
+	};
+
+	struct decl_specifier_nontype : public decl_specifier_suffix
+	{
+	};
+
+	struct decl_specifier_prefix_seq
+	{
+		decl_specifier_nontype* item;
+		decl_specifier_prefix_seq* next;
+	};
+
+	struct decl_specifier_suffix_seq
+	{
+		decl_specifier_suffix* item;
+		decl_specifier_suffix_seq* next;
+	};
+
+	struct decl_specifier_seq
+	{
+		decl_specifier_prefix_seq* prefix;
+		type_specifier_noncv* type;
+		decl_specifier_suffix_seq* suffix;
+	};
+
+	struct simple_type_specifier : public type_specifier_noncv
+	{
+	};
+
+	struct template_argument_list
+	{
+		template_argument* item;
+		template_argument_list* next;
+	};
+
+	struct operator_function_id : public unqualified_id
+	{
+		// operation omitted for brevity
+		template_argument_list* args; // NULL if not template
+	};
+
+	struct qualified_id_default : public qualified_id
+	{
+		bool isGlobal;
+		bool isTemplate;
+		nested_name_specifier* context;
+		unqualified_id* id;
+	};
+
+	struct qualified_id_global : public qualified_id
+	{
+		identifier* id;
+	};
+
+	struct qualified_id_global_template : public qualified_id
+	{
+		template_id* id;
+	};
+
+	struct qualified_id_global_op_func : public qualified_id
+	{
+		operator_function_id* id;
+	};
+
+	struct class_key
+	{
+		enum { CLASS, STRUCT, UNION } value;
+	};
+
+	struct access_specifier
+	{
+		enum { PRIVATE, PROTECTED, PUBLIC } value;
+	};
+
+	struct base_specifier
+	{
+		bool isGlobal;
+		access_specifier access;
+		nested_name_specifier* context;
+		class_name* id;
+	};
+
+
+	struct base_specifier_list
+	{
+		base_specifier* item;
+		base_specifier_list* next;
+	};
+
+	struct base_clause : public base_specifier_list
+	{
+	};
+
+	struct class_head
+	{
+		virtual ~class_head()
+		{
+		}
+	};
+
+	struct class_head_default : public class_head
+	{
+		class_key* key;
+		identifier* id;
+		base_clause* base;
+	};
+
+	struct class_head_nested : public class_head
+	{
+		class_key* key;
+		nested_name_specifier* context;
+		identifier* id;
+		base_clause* base;
+	};
+
+	struct simple_template_id : public template_id, public class_name
+	{
+		template_name id;
+		template_argument_list* args;
+	};
+
+	struct class_head_template : public class_head
+	{
+		nested_name_specifier* context;
+		simple_template_id id;
+		base_clause* base;
+	};
+
+	struct type_specifier_suffix
+	{
+		virtual ~type_specifier_suffix()
+		{
+		}
+	};
+
+	struct cv_qualifier : public type_specifier, public decl_specifier_nontype, public type_specifier_suffix
+	{
+		enum { CONST, VOLATILE } value;
+	};
+
+	struct cv_qualifier_seq
+	{
+		cv_qualifier* item;
+		cv_qualifier_seq* next;
+	};
+
+	struct ptr_operator
+	{
+		bool isGlobal;
+		bool isRef;
+		nested_name_specifier* context;
+		cv_qualifier_seq* qual;
+	};
+
+	struct type_specifier_prefix_seq
+	{
+		cv_qualifier* item;
+		type_specifier_prefix_seq* next;
+	};
+
+	struct type_specifier_suffix_seq
+	{
+		type_specifier_suffix* item;
+		type_specifier_suffix_seq* next;
+	};
+
+	struct type_specifier_seq
+	{
+		type_specifier_prefix_seq* prefix;
+		type_specifier_noncv* type;
+		type_specifier_suffix_seq* suffix;
+	};
+
+	struct abstract_declarator
+	{
+		virtual ~abstract_declarator()
+		{
+		}
+	};
+
+	struct abstract_declarator_default : public abstract_declarator
+	{
+		ptr_operator* op;
+		abstract_declarator* decl;
+	};
+
+	struct direct_abstract_declarator : public abstract_declarator
+	{
+	};
+
+	struct type_id : public template_argument
+	{
+		type_specifier_seq* spec;
+		abstract_declarator* decl;
+	};
+
+	struct throw_expression : public assignment_expression
+	{
+		assignment_expression* expr;
+	};
+
+	struct expression_comma : public expression
+	{
+		assignment_expression* left;
+		expression_comma* right;
+	};
+
+	struct member_declarator_suffix
+	{
+		virtual ~member_declarator_suffix()
+		{
+		}
+	};
+
+	struct constant_initializer : public member_declarator_suffix
+	{
+		constant_expression* expr;
+	};
+
+	struct literal : public primary_expression
+	{
+		std::string value;
+	};
+
+	struct primary_expression_builtin : public primary_expression
+	{
+		// always 'this'
+	};
+
+	struct primary_expression_parenthesis : public primary_expression
+	{
+		expression* expr;
+	};
+
+	struct initializer_list
+	{
+		initializer_clause* item;
+		initializer_list* next;
+	};
+
+	struct initializer_clause_list : public initializer_clause
+	{
+		initializer_list* list;
+	};
+
+	struct expression_list : public initializer
+	{
+		assignment_expression* item;
+		expression_list* next;
+	};
+
+	struct initializer_default : public initializer
+	{
+		initializer_clause* clause;
+	};
+
+	struct initializer_parenthesis : public initializer
+	{
+		expression_list* list;
+	};
+
+	struct postfix_expression_suffix
+	{
+		virtual ~postfix_expression_suffix()
+		{
+		}
+	};
+
+	struct postfix_expression_suffix_seq
+	{
+		postfix_expression_suffix* item;
+		postfix_expression_suffix_seq* next;
+	};
+
+	struct postfix_expression_default : public postfix_expression
+	{
+		postfix_expression_prefix* expr;
+		postfix_expression_suffix_seq* suffix;
+	};
+
+	struct postfix_expression_index : public postfix_expression_suffix
+	{
+		expression* index;
+	};
+
+	struct postfix_expression_call : public postfix_expression_suffix
+	{
+		expression_list* args;
+	};
+
+	struct member_operator
+	{
+		enum { DOT, ARROW } value;
+	};
+
+	struct postfix_expression_member : public postfix_expression_suffix
+	{
+		member_operator* op;
+		bool isTemplate;
+		id_expression* id;
+	};
+
+	struct psuedo_destructor_name
+	{
+		bool isGlobal;
+		nested_name_specifier* context;
+	};
+
+	struct psuedo_destructor_name_default : public psuedo_destructor_name
+	{
+		type_name* type;
+	};
+
+	struct psuedo_destructor_name_template : public psuedo_destructor_name
+	{
+		simple_template_id id;
+		type_name* type;
+	};
+
+	struct postfix_expression_destructor : public postfix_expression_suffix
+	{
+		psuedo_destructor_name* destructor;
+	};
+
+	struct postfix_expression_simple : public postfix_expression_suffix
+	{
+		enum { PLUSPLUS, MINUSMINUS } value;
+	};
+
+	struct postfix_expression_construct : public postfix_expression_prefix
+	{
+		simple_type_specifier* type;
+		expression_list* args;
+	};
+
+	struct cast_operation
+	{
+		enum { DYNAMIC, STATIC, REINTERPRET, CONST } value;
+	};
+
+	struct postfix_expression_cast : public postfix_expression_prefix
+	{
+		cast_operation* op;
+		type_id* type;
+		expression* expr;
+	};
+
+	struct postfix_expression_typeid : public postfix_expression_prefix
+	{
+		expression* expr;
+	};
+
+	struct postfix_expression_typeidtype : public postfix_expression_prefix
+	{
+		type_id* type;
+	};
+
+	struct new_expression : public unary_expression
+	{
+		bool isGlobal;
+		expression_list* place;
+		type_id id;
+		expression_list* init;
+	};
+
+	struct delete_expression : public unary_expression
+	{
+		bool isGlobal;
+		bool isArray;
+		cast_expression* expr;
+	};
+
+	struct unary_operator : public unary_expression
+	{
+		enum { PLUSPLUS, MINUSMINUS, STAR, AND, PLUS, MINUS, NOT, COMPL } value;
+	};
+
+	struct unary_expression_op : public unary_expression
+	{
+		unary_operator* op;
+		cast_expression* expr;
+	};
+
+	struct unary_expression_sizeof : public unary_expression
+	{
+		unary_expression* expr;
+	};
+
+	struct unary_expression_sizeoftype : public unary_expression
+	{
+		type_id* id;
+	};
+
+	struct cast_expression_default : public cast_expression
+	{
+		type_id* id;
+		cast_expression* expr;
+	};
+
+	struct pm_operator
+	{
+		enum { DOTSTAR, ARROWSTAR } value;
+	};
+
+	struct pm_expression_default : public pm_expression
+	{
+		cast_expression* left;
+		pm_operator* op;
+		pm_expression* right;
+	};
+
+	struct multiplicative_operator
+	{
+		enum { STAR, DIVIDE, PERCENT } value;
+	};
+
+	struct multiplicative_expression_default : public multiplicative_expression
+	{
+		pm_expression* left;
+		multiplicative_operator* op;
+		multiplicative_expression* right;
+	};
+
+	struct additive_operator
+	{
+		enum { PLUS, MINUS } value;
+	};
+
+	struct additive_expression_default : public additive_expression
+	{
+		multiplicative_expression* left;
+		additive_operator* op;
+		additive_expression* right;
+	};
+
+	struct shift_operator
+	{
+		enum { SHIFTLEFT, SHIFTRIGHT } value;
+	};
+
+	struct shift_expression_default : public shift_expression
+	{
+		additive_expression* left;
+		shift_operator* op;
+		shift_expression* right;
+	};
+
+	struct relational_operator
+	{
+		enum { LESS, GREATER, LESSEQUAL, GREATEREQUAL } value;
+	};
+
+	struct relational_expression_default : public relational_expression
+	{
+		shift_expression* left;
+		relational_operator* op;
+		relational_expression* right;
+	};
+
+	struct equality_operator
+	{
+		enum { EQUAL, NOTEQUAL } value;
+	};
+
+	struct equality_expression_default : public equality_expression
+	{
+		relational_expression* left;
+		equality_operator* op;
+		equality_expression* right;
+	};
+
+	struct and_expression_default : public and_expression
+	{
+		equality_expression* left;
+		and_expression* right;
+	};
+
+	struct exclusive_or_expression_default : public exclusive_or_expression
+	{
+		and_expression* left;
+		exclusive_or_expression* right;
+	};
+
+	struct inclusive_or_expression_default : public inclusive_or_expression
+	{
+		exclusive_or_expression* left;
+		inclusive_or_expression* right;
+	};
+
+	struct logical_and_expression_default : public logical_and_expression
+	{
+		inclusive_or_expression* left;
+		logical_and_expression* right;
+	};
+
+	struct logical_or_expression_default : public logical_or_expression
+	{
+		logical_and_expression* left;
+		logical_or_expression* right;
+	};
+
+	struct conditional_expression_default : public conditional_expression
+	{
+		logical_or_expression* test;
+		expression* pass;
+		assignment_expression* fail;
+	};
+
+	struct assignment_operator
+	{
+		enum { ASSIGN, STAR, DIVIDE, PERCENT, PLUS, MINUS, SHIFTRIGHT, SHIFTLEFT, AND, XOR, OR } value;
+	};
+
+	struct assignment_expression_default : public assignment_expression
+	{
+		conditional_expression* left;
+		assignment_operator* op;
+		assignment_expression* right;
+	};
+
+
+
+
+	struct conversion_declarator
+	{
+		ptr_operator* op;
+		conversion_declarator* decl;
+	};
+
+	struct conversion_type_id
+	{
+		type_specifier_seq* spec;
+		conversion_declarator* decl;
+	};
+
+	struct conversion_function_id : public unqualified_id, public conversion_type_id
+	{
+	};
+
+	struct destructor_id : public unqualified_id 
+	{
+		class_name* name;
+	};
+
+	struct declarator_id_nested : public declarator_id
+	{
+		bool isGlobal;
+		nested_name_specifier* context;
+		class_name* name;
+	};
+
+	struct parameter_declaration_clause;
+
+	struct type_id_list
+	{
+		type_id* item;
+		type_id_list* next;
+	};
+
+	struct exception_specification
+	{
+		type_id_list* types;
+	};
+
+	struct declarator_suffix
+	{
+		virtual ~declarator_suffix()
+		{
+		}
+	};
+
+	struct declarator_suffix_function : public declarator_suffix
+	{
+		parameter_declaration_clause* params;
+		cv_qualifier_seq* qual;
+		exception_specification* except;
+	};
+
+	struct declarator_suffix_array : public declarator_suffix
+	{
+		constant_expression* size;
+	};
+
+	struct declarator_suffix_seq : public declarator_suffix
+	{
+		declarator_suffix* item;
+		declarator_suffix_seq* next;
+	};
+
+	struct direct_declarator : public declarator
+	{
+		direct_declarator_prefix* prefix;
+		declarator_suffix_seq* suffix;
+	};
+
+	struct direct_declarator_parenthesis : public direct_declarator_prefix
+	{
+		declarator* decl;
+	};
+
+	struct declarator_ptr : public declarator
+	{
+		ptr_operator* op;
+		declarator* decl;
+	};
+
+	struct statement
+	{
+		virtual ~statement()
+		{
+		}
+	};
+
+	struct statement_seq
+	{
+		statement* item;
+		statement_seq* next;
+	};
+
+	struct function_body
+	{
+		virtual ~function_body()
+		{
+		}
+	};
+
+	struct compound_statement : public statement, public function_body
+	{
+		statement_seq* body;
+	};
+
+	struct exception_declaration
+	{
+		type_specifier_seq* type; // if NULL, all exceptions
+	};
+
+	struct exception_declaration_default : public exception_declaration
+	{
+		declarator* decl;
+	};
+
+	struct exception_declaration_abstract : public exception_declaration
+	{
+		abstract_declarator* decl;
+	};
+
+	struct handler_seq
+	{
+		exception_declaration* decl;
+		compound_statement* body;
+		handler_seq* next;
+	};
+
+	struct declaration
+	{
+		virtual ~declaration()
+		{
+		}
+	};
+
+	struct mem_initializer
+	{
+		expression_list* args;
+	};
+
+	struct mem_initializer_list
+	{
+		mem_initializer* item;
+		mem_initializer_list* next;
+	};
+
+	struct ctor_initializer : public mem_initializer_list
+	{
+	};
+
+	struct member_function_definition
+	{
+		virtual ~member_function_definition()
+		{
+		}
+	};
+
+	struct function_definition : public declaration, public member_function_definition
+	{
+		decl_specifier_seq* spec;
+		declarator* decl;
+		function_body* body;
+		handler_seq* handlers;
+	};
+
+
+	struct member_declarator
+	{
+		virtual ~member_declarator()
+		{
+		}
+	};
+
+	struct pure_specifier
+	{
+	};
+
+	struct member_declarator_pure : public member_declarator_suffix
+	{
+	};
+
+	struct member_declarator_default : public member_declarator
+	{
+		declarator* decl;
+		member_declarator_suffix* suffix;
+	};
+
+	struct member_declarator_bitfield : public member_declarator
+	{
+		identifier id; // may be empty
+		constant_expression width;
+	};
+
+	struct member_declarator_list
+	{
+		member_declarator* item;
+		member_declarator_list* next;
+	};
+
+	struct member_declaration
+	{
+		virtual ~member_declaration()
+		{
+		}
+	};
+
+	struct member_declaration_default : public member_declaration
+	{
+		decl_specifier_seq* spec;
+		member_declarator_list* decl;
+	};
+
+	struct member_declaration_nested : public member_declaration
+	{
+		bool isGlobal;
+		bool isTemplate;
+		nested_name_specifier* context;
+		unqualified_id id;
+	};
+
+	struct function_specifier : public decl_specifier_nontype
+	{
+		enum { INLINE, VIRTUAL, EXPLICIT } value;
+	};
+
+	struct ctor_specifier_seq
+	{
+		function_specifier* item;
+		ctor_specifier_seq* next;
+	};
+
+	struct constructor_definition : public declaration, public member_function_definition
+	{
+		ctor_specifier_seq* spec;
+		declarator* decl;
+		ctor_initializer* init;
+		function_body* body;
+		handler_seq* handlers;
+	};
+
+	struct member_declaration_inline : public member_declaration
+	{
+		member_function_definition* func;
+	};
+
+	struct member_declaration_ctor : public member_declaration
+	{
+		ctor_specifier_seq* spec;
+		member_declarator_list* decl;
+	};
+
+	struct member_specification
+	{
+		virtual ~member_specification()
+		{
+		}
+	};
+
+	struct member_specification_list : public member_specification
+	{
+		member_declaration* item;
+		member_specification* next;
+	};
+
+	struct member_specification_access : public member_specification
+	{
+		access_specifier* access;
+		member_specification* next;
+	};
+
+	struct class_specifier : public type_specifier_noncv
+	{
+		class_head* head;
+		member_specification* members;
+	};
+
+	struct enumerator_definition
+	{
+		identifier id;
+		constant_expression* init;
+	};
+
+	struct enumerator_list
+	{
+		enumerator_definition* item;
+		enumerator_list* next;
+	};
+
+	struct enum_specifier : public type_specifier_noncv
+	{
+		identifier id; // may be empty
+		enumerator_list* values;
+	};
+
+	struct elaborated_type_specifier : public type_specifier_noncv
+	{
+	};
+
+	struct elaborated_type_specifier_default : public elaborated_type_specifier
+	{
+		// enum/class/struct/union omitted for brevity
+		bool isGlobal;
+		nested_name_specifier* context;
+		identifier id;
+	};
+
+	struct elaborated_type_specifier_template : public elaborated_type_specifier
+	{
+		class_key key;
+		bool isGlobal;
+		nested_name_specifier* context;
+		simple_template_id id;
+	};
+
+	struct typename_specifier : public type_specifier_noncv
+	{
+	};
+
+	struct typename_specifier_default : public typename_specifier
+	{
+		bool isGlobal;
+		nested_name_specifier* context;
+		identifier id;
+	};
+
+	struct typename_specifier_template : public typename_specifier
+	{
+		bool isGlobal;
+		nested_name_specifier* context;
+		simple_template_id id;
+	};
+
+	struct parameter_declaration : public template_parameter
+	{
+	};
+
+	struct type_parameter : public template_parameter
+	{
+	};
+
+	struct type_parameter_default : public type_parameter
+	{
+		enum { CLASS, TYPENAME } key;
+		identifier id; // may be empty;
+		type_id* init; // if NULL, no initializer
+	};
+
+	struct template_parameter_list
+	{
+		template_parameter* item;
+		template_parameter_list* next;
+	};
+
+	struct type_parameter_template : public type_parameter
+	{
+		template_parameter_list* params;
+		identifier id; // may be empty;
+		type_id* init; // if NULL, no initializer
+	};
+
+	struct parameter_declaration_default : public parameter_declaration
+	{
+		decl_specifier_seq* spec;
+		declarator* decl;
+		assignment_expression* init;
+	};
+
+	struct parameter_declaration_abstract : public parameter_declaration
+	{
+		decl_specifier_seq* spec;
+		abstract_declarator* decl;
+		assignment_expression* init;
+	};
+
+	struct parameter_declaration_list
+	{
+		parameter_declaration* item;
+		parameter_declaration_list* next;
+	};
+
+	struct parameter_declaration_clause
+	{
+		bool isEllipsis;
+		parameter_declaration_list* list;
+	};
+
+	struct direct_abstract_declarator_function : public direct_abstract_declarator
+	{
+		direct_abstract_declarator* decl;
+		parameter_declaration_clause* params;
+		cv_qualifier_seq* qual;
+		exception_specification* except;
+	};
+
+	struct direct_abstract_declarator_array : public direct_abstract_declarator
+	{
+		direct_abstract_declarator* decl;
+		constant_expression* size;
+	};
+
+	struct direct_abstract_declarator_parenthesis : public direct_abstract_declarator
+	{
+		abstract_declarator* decl;
+	};
+
+	struct template_id_operator : public template_id
+	{
+		operator_function_id* id;
+		template_argument_list* args;
+	};
+
+	struct decl_specifier_default : public decl_specifier_nontype
+	{
+		enum { FRIEND, TYPEDEF } value;
+	};
+
+	struct storage_class_specifier : public decl_specifier_nontype
+	{
+		enum { REGISTER, STATIC, EXTERN, MUTABLE } value;
+	};
+
+	struct namespace_name
+	{
+		identifier id;
+	};
+
+	struct nested_name_specifier_nested : public nested_name_specifier
+	{
+		nested_name_specifier* context;
+		identifier id;
+	};
+
+	struct nested_name_specifier_template : public nested_name_specifier
+	{
+		nested_name_specifier* context;
+		simple_template_id id;
+	};
+
+	struct simple_type_specifier_name : public simple_type_specifier
+	{
+		bool isGlobal;
+		nested_name_specifier* context;
+		type_name* id;
+	};
+
+	struct simple_type_specifier_template : public simple_type_specifier
+	{
+		bool isGlobal;
+		nested_name_specifier* context;
+		simple_template_id* id;
+	};
+
+	struct simple_type_specifier_builtin : public simple_type_specifier, public decl_specifier_suffix, public type_specifier_suffix
+	{
+		enum { CHAR, WCHAR_T, BOOL, SHORT, INT, LONG, SIGNED, UNSIGNED, FLOAT, DOUBLE, VOID, AUTO } value;
+	};
+
+	struct declaration_statement : public statement
+	{
+	};
+
+	struct block_declaration : public declaration_statement, public declaration
+	{
+	};
+
+	typedef std::string string_literal;
+
+	struct asm_definition : public block_declaration
+	{
+		string_literal str;
+	};
+
+
+	struct namespace_alias_definition : public block_declaration
+	{
+		identifier id;
+		bool isGlobal;
+		nested_name_specifier* context;
+		namespace_name* name;
+	};
+
+	struct using_declaration : public block_declaration, public member_declaration
+	{
+		bool isTypename;
+		bool isGlobal;
+		nested_name_specifier* context;
+		unqualified_id* id;
+	};
+
+	struct using_directive : public block_declaration
+	{
+		bool isGlobal;
+		nested_name_specifier* context;
+		namespace_name* name;
+	};
+
+	struct for_init_statement
+	{
+		virtual ~for_init_statement()
+		{
+		}
+	};
+
+	struct init_declarator
+	{
+		declarator* decl;
+		initializer* init;
+	};
+
+	struct init_declarator_list
+	{
+		init_declarator* item;
+		init_declarator_list* next;
+	};
+
+	struct simple_declaration : public block_declaration, public for_init_statement
+	{
+		decl_specifier_seq* spec;
+		init_declarator_list* decl;
+	};
+
+	struct mem_initializer_id_base : public mem_initializer_id
+	{
+		bool isGlobal;
+		nested_name_specifier* context;
+		class_name* name;
+	};
+
+	struct labeled_statement : public statement
+	{
+	};
+
+	struct labeled_statement_id : public labeled_statement
+	{
+		identifier* label;
+		statement* body;
+	};
+
+	struct labeled_statement_case : public labeled_statement
+	{
+		constant_expression* label;
+		statement* body;
+	};
+
+	struct labeled_statement_default : public labeled_statement
+	{
+		statement* body;
+	};
+
+	struct expression_statement : public statement, public for_init_statement
+	{
+		expression* expr;
+	};
+
+	struct selection_statement : public statement
+	{
+	};
+
+	struct condition_init : public condition
+	{
+		type_specifier_seq* type;
+		declarator* decl;
+		assignment_expression* init;
+	};
+
+	struct selection_statement_if : public selection_statement
+	{
+		condition* cond;
+		statement* body;
+		statement* fail;
+	};
+
+	struct selection_statement_switch : public selection_statement
+	{
+		condition* cond;
+		statement* body;
+	};
+
+	struct iteration_statement : public statement
+	{
+	};
+
+	struct iteration_statement_while : public iteration_statement
+	{
+		condition* cond;
+		statement* body;
+	};
+
+	struct iteration_statement_dowhile : public iteration_statement
+	{
+		expression* cond;
+		statement* body;
+	};
+
+	struct iteration_statement_for : public iteration_statement
+	{
+		for_init_statement* init;
+		condition* cond;
+		expression* incr;
+		statement* body;
+	};
+
+	struct jump_statement : public statement
+	{
+	};
+
+	struct jump_statement_default : public jump_statement
+	{
+		enum { BREAK, CONTINUE } value;
+	};
+
+	struct jump_statement_return : public jump_statement
+	{
+		expression* expr;
+	};
+
+	struct jump_statement_goto : public jump_statement
+	{
+		identifier label;
+	};
+
+	struct try_block : public statement
+	{
+		compound_statement* body;
+		handler_seq* handlers;
+	};
+
+
+	struct declaration_seq
+	{
+		declaration* item;
+		declaration_seq* next;
+	};
+
+	struct template_declaration : public declaration, public member_declaration
+	{
+		bool isExport;
+		template_parameter_list* params;
+		declaration* decl;
+	};
+
+	struct explicit_instantiation : public declaration
+	{
+		bool isExtern;
+		declaration* decl;
+	};
+
+	struct explicit_specialization : public declaration
+	{
+		declaration* decl;
+	};
+
+	struct linkage_specification : public declaration
+	{
+		string_literal str;
+		declaration_seq* decl;
+	};
+
+	typedef declaration_seq namespace_body;
+
+	struct namespace_definition : public declaration
+	{
+		identifier* id;
+		namespace_body* body;
+	};
+}
+
+#endif
+
+
