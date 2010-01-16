@@ -87,6 +87,17 @@ struct LinearAllocator
 	}
 };
 
+struct BacktrackStats
+{
+	size_t count;
+	const char* symbol;
+	LexFilePosition position;
+	BacktrackStats()
+		: count(0)
+	{
+	}
+};
+
 struct Scanner
 {
 	LinearAllocator allocator;
@@ -105,6 +116,8 @@ struct Scanner
 	Positions stacktrace;
 	Positions::iterator stackpos;
 
+	BacktrackStats stats;
+
 	Scanner(LexContext& context)
 		: first(createBegin(context)), last(createEnd(context)), position(history.end()), stackpos(stacktrace.end())
 	{
@@ -118,9 +131,15 @@ struct Scanner
 		release(first);
 		release(last);
 	}
-	void backtrack(size_t count)
+	void backtrack(size_t count, const char* symbol)
 	{
 		position -= count;
+		if(count > stats.count)
+		{
+			stats.count = count;
+			stats.symbol = symbol;
+			stats.position = (*position).position;
+		};
 	}
 	void push()
 	{
@@ -265,14 +284,14 @@ struct Parser : public ParserState
 		scanner.increment();
 	}
 
-	void backtrack()
+	void backtrack(const char* symbol)
 	{
-		scanner.backtrack(position);
+		scanner.backtrack(position, symbol);
 		scanner.allocator.position = allocation;
 	}
 };
 
-inline void printPosition(Scanner& scanner, const LexFilePosition& position)
+inline void printPosition(const LexFilePosition& position)
 {
 	std::cout << position.get_file() << "(" << position.get_line() << "): ";
 }
@@ -285,8 +304,8 @@ inline void printError(Parser& parser)
 	}
 	printPosition(parser.scanner, scanner.history[parser.scanner.stacktrace.back()].position);
 #endif
-	printPosition(parser.scanner, get_position(dereference(parser.scanner.first)));
-	std::cout << "parse error: '" << get_value(dereference(parser.scanner.first)) << "'" << std::endl;
+	printPosition(get_position(dereference(parser.scanner.first)));
+	std::cout << "syntax error: '" << get_value(dereference(parser.scanner.first)) << "'" << std::endl;
 	printSequence(parser.scanner.position, parser.scanner.history.end()); // rejected tokens
 }
 
@@ -365,7 +384,7 @@ T* parseNodeInternal(Parser& parser, T* p, bool print)
 		}
 #endif
 
-		tmp.backtrack();
+		tmp.backtrack(SYMBOL_NAME(T));
 	}
 	return p;
 }

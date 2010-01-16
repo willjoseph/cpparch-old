@@ -1,6 +1,22 @@
 
 class A
 {
+public:
+	explicit A()
+		: a(0)
+	{
+	}
+	__thiscall ~A()
+	{
+	}
+	A& operator=(const A&)
+	{
+		return *this;
+	}
+};
+
+class A
+{
 	explicit A(R(T::*m)()) // 'ptr-operator' with 'nested-name-specifier' aka ptr-to-member
 	{
 	}
@@ -92,18 +108,3 @@ void function(int arg, ...)
 
 void function(void(*)(void));
 
-class A
-{
-public:
-	explicit A()
-		: a(0)
-	{
-	}
-	__thiscall ~A()
-	{
-	}
-	A& operator=(const A&)
-	{
-		return *this;
-	}
-};

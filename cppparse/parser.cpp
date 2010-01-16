@@ -145,7 +145,7 @@ inline cpp::nested_name_specifier_suffix* parseNode(Parser& parser, cpp::nested_
 inline cpp::nested_name_specifier* parseNode(Parser& parser, cpp::nested_name_specifier* result)
 {
 	PARSE_REQUIRED(parser, result->prefix);
-	PARSE_OPTIONAL(parser, result->suffix);
+	PARSE_OPTIONAL(parser, result->suffix);  // TODO: shared-prefix ambiguity between nested-name-specifier and 'identifier'
 	return result;
 }
 
@@ -314,11 +314,24 @@ inline cpp::member_declarator_list* parseNode(Parser& parser, cpp::member_declar
 	return result;
 }
 
+inline cpp::member_declaration_suffix_default* parseNode(Parser& parser, cpp::member_declaration_suffix_default* result)
+{
+	PARSE_OPTIONAL(parser, result->decl);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_SEMICOLON);
+	return result;
+}
+
+inline cpp::member_declaration_suffix* parseNode(Parser& parser, cpp::member_declaration_suffix* result)
+{
+	PARSE_SELECT(parser, cpp::member_declaration_suffix_default);
+	PARSE_SELECT(parser, cpp::function_definition_suffix);
+	return NULL;
+}
+
 inline cpp::member_declaration_default* parseNode(Parser& parser, cpp::member_declaration_default* result)
 {
 	PARSE_OPTIONAL(parser, result->spec);
-	PARSE_OPTIONAL(parser, result->decl);
-	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_SEMICOLON);
+	PARSE_REQUIRED(parser, result->suffix);
 	return result;
 }
 
@@ -429,13 +442,6 @@ inline cpp::constructor_definition* parseNode(Parser& parser, cpp::constructor_d
 		PARSE_REQUIRED(parser, result->handlers);
 	}
 	return result;
-}
-
-inline cpp::member_function_definition* parseNode(Parser& parser, cpp::member_function_definition* result)
-{
-	PARSE_SELECT(parser, cpp::constructor_definition); // TODO: check for ambiguity
-	PARSE_SELECT(parser, cpp::function_definition);
-	return NULL;
 }
 
 inline cpp::member_declaration_inline* parseNode(Parser& parser, cpp::member_declaration_inline* result)
@@ -1867,9 +1873,8 @@ inline cpp::declarator* parseNode(Parser& parser, cpp::declarator* result)
 	return NULL;
 }
 
-inline cpp::function_definition* parseNode(Parser& parser, cpp::function_definition* result)
+inline cpp::function_definition_suffix* parseNode(Parser& parser, cpp::function_definition_suffix* result)
 {
-	PARSE_OPTIONAL(parser, result->spec);
 	PARSE_REQUIRED(parser, result->decl);
 	bool isTry;
 	PARSE_TOKEN_OPTIONAL(parser, isTry, boost::wave::T_TRY);
@@ -1879,6 +1884,13 @@ inline cpp::function_definition* parseNode(Parser& parser, cpp::function_definit
 	{
 		PARSE_REQUIRED(parser, result->handlers);
 	}
+	return result;
+}
+
+inline cpp::function_definition* parseNode(Parser& parser, cpp::function_definition* result)
+{
+	PARSE_OPTIONAL(parser, result->spec);
+	PARSE_REQUIRED(parser, result->suffix);
 	return result;
 }
 
@@ -2007,11 +2019,17 @@ inline cpp::init_declarator_list* parseNode(Parser& parser, cpp::init_declarator
 	return result;
 }
 
+inline cpp::simple_declaration_suffix* parseNode(Parser& parser, cpp::simple_declaration_suffix* result)
+{
+	PARSE_OPTIONAL(parser, result->decl);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_SEMICOLON);
+	return result;
+}
+
 inline cpp::simple_declaration* parseNode(Parser& parser, cpp::simple_declaration* result)
 {
 	PARSE_OPTIONAL(parser, result->spec);
-	PARSE_OPTIONAL(parser, result->decl);
-	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_SEMICOLON);
+	PARSE_REQUIRED(parser, result->suffix);
 	return result;
 }
 
@@ -2085,6 +2103,20 @@ inline cpp::block_declaration* parseNode(Parser& parser, cpp::block_declaration*
 	return NULL;
 }
 
+inline cpp::general_declaration_suffix* parseNode(Parser& parser, cpp::general_declaration_suffix* result)
+{
+	PARSE_SELECT(parser, cpp::function_definition_suffix);
+	PARSE_SELECT(parser, cpp::simple_declaration_suffix);
+	return NULL;
+}
+
+inline cpp::general_declaration* parseNode(Parser& parser, cpp::general_declaration* result)
+{
+	PARSE_OPTIONAL(parser, result->spec);
+	PARSE_REQUIRED(parser, result->suffix);
+	return result;
+}
+
 inline cpp::declaration* parseNode(Parser& parser, cpp::declaration* result)
 {
 	PARSE_SELECT(parser, cpp::linkage_specification);
@@ -2092,7 +2124,7 @@ inline cpp::declaration* parseNode(Parser& parser, cpp::declaration* result)
 	PARSE_SELECT(parser, cpp::template_declaration);
 	PARSE_SELECT(parser, cpp::explicit_specialization);
 	PARSE_SELECT(parser, cpp::namespace_definition);
-	PARSE_SELECT(parser, cpp::function_definition);
+	PARSE_SELECT(parser, cpp::general_declaration);
 	PARSE_SELECT(parser, cpp::constructor_definition);
 	PARSE_SELECT(parser, cpp::block_declaration);
 	return NULL;

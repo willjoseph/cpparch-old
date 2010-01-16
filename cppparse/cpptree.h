@@ -1061,19 +1061,37 @@ namespace cpp
 		mem_initializer_list* list;
 	};
 
-	struct member_function_definition
+	struct general_declaration_suffix
 	{
-		virtual ~member_function_definition()
+		virtual ~general_declaration_suffix()
 		{
 		}
 	};
 
-	struct function_definition : public declaration, public member_function_definition
+	struct general_declaration : public declaration
 	{
 		decl_specifier_seq* spec;
+		general_declaration_suffix* suffix;
+	};
+
+	struct member_declaration_suffix
+	{
+		virtual ~member_declaration_suffix()
+		{
+		}
+	};
+
+	struct function_definition_suffix : public general_declaration_suffix, public member_declaration_suffix
+	{
 		declarator* decl;
 		function_body* body;
 		handler_seq* handlers;
+	};
+
+	struct function_definition : public declaration
+	{
+		decl_specifier_seq* spec;
+		function_definition_suffix* suffix;
 	};
 
 
@@ -1120,6 +1138,11 @@ namespace cpp
 	struct member_declaration_default : public member_declaration
 	{
 		decl_specifier_seq* spec;
+		member_declaration_suffix* suffix;
+	};
+
+	struct member_declaration_suffix_default : public member_declaration_suffix
+	{
 		member_declarator_list* decl;
 	};
 
@@ -1142,7 +1165,7 @@ namespace cpp
 		ctor_specifier_seq* next;
 	};
 
-	struct constructor_definition : public declaration, public member_function_definition
+	struct constructor_definition : public declaration
 	{
 		ctor_specifier_seq* spec;
 		declarator* decl;
@@ -1153,7 +1176,7 @@ namespace cpp
 
 	struct member_declaration_inline : public member_declaration
 	{
-		member_function_definition* func;
+		constructor_definition* func;
 	};
 
 	struct member_declaration_ctor : public member_declaration
@@ -1424,10 +1447,15 @@ namespace cpp
 		init_declarator_list* next;
 	};
 
+	struct simple_declaration_suffix : public general_declaration_suffix
+	{
+		init_declarator_list* decl;
+	};
+
 	struct simple_declaration : public block_declaration, public for_init_statement
 	{
 		decl_specifier_seq* spec;
-		init_declarator_list* decl;
+		simple_declaration_suffix* suffix;
 	};
 
 	struct mem_initializer_id_base : public mem_initializer_id

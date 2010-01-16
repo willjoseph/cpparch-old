@@ -60,7 +60,9 @@ int runTest(const Test& test)
 		add_macro_definition(context, "_MSC_VER=1400", true); // Visual C++ 2005
 #if 1
 		Scanner scanner(context);
-		return test.verify(test.parse(scanner));
+		int result = test.verify(test.parse(scanner));
+		printPosition(scanner.stats.position);
+		std::cout << "backtrack: " << scanner.stats.symbol << ": " << scanner.stats.count << std::endl;
 #else
 		LexIterator& first = createBegin(context);
 		LexIterator& last = createEnd(context);
@@ -120,8 +122,8 @@ int verifyFunctionDefinition(cpp::declaration_seq* result)
 {
 	cpp::function_definition* func = VERIFY_CAST(cpp::function_definition, verifyNotNull(result)->item);
 	PARSE_ASSERT(VERIFY_CAST(cpp::simple_type_specifier_builtin, verifyNotNull(func->spec)->type)->value == cpp::simple_type_specifier_builtin::VOID);
-	verifyIdentifier(VERIFY_CAST(cpp::direct_declarator, func->decl)->prefix, "function");
-	cpp::compound_statement* body = VERIFY_CAST(cpp::compound_statement, func->body);
+	verifyIdentifier(VERIFY_CAST(cpp::direct_declarator, func->suffix->decl)->prefix, "function");
+	cpp::compound_statement* body = VERIFY_CAST(cpp::compound_statement, func->suffix->body);
 	return 0;
 }
 
@@ -140,17 +142,17 @@ int verifyPtr(cpp::declaration_seq* result)
 	PARSE_ASSERT(decl->spec->type != 0);
 	cpp::simple_type_specifier_builtin* spec = VERIFY_CAST(cpp::simple_type_specifier_builtin, decl->spec->type);
 	PARSE_ASSERT(spec->value == cpp::simple_type_specifier_builtin::VOID);
-	PARSE_ASSERT(decl->decl != 0);
-	PARSE_ASSERT(decl->decl->item != 0);
-	PARSE_ASSERT(decl->decl->item->decl != 0);
-	cpp::declarator_ptr* declr = VERIFY_CAST(cpp::declarator_ptr, decl->decl->item->decl);
+	PARSE_ASSERT(decl->suffix->decl != 0);
+	PARSE_ASSERT(decl->suffix->decl->item != 0);
+	PARSE_ASSERT(decl->suffix->decl->item->decl != 0);
+	cpp::declarator_ptr* declr = VERIFY_CAST(cpp::declarator_ptr, decl->suffix->decl->item->decl);
 	PARSE_ASSERT(declr->op != 0);
 	PARSE_ASSERT(declr->decl != 0);
 	cpp::direct_declarator* dir = VERIFY_CAST(cpp::direct_declarator, declr->decl);
 	PARSE_ASSERT(dir->prefix != 0);
 	cpp::identifier* id = VERIFY_CAST(cpp::identifier, dir->prefix);
 	PARSE_ASSERT(dir->suffix == 0);
-	PARSE_ASSERT(decl->decl->item->init == 0);
+	PARSE_ASSERT(decl->suffix->decl->item->init == 0);
 	return 0;
 }
 
@@ -225,8 +227,8 @@ int verifyFor(cpp::statement_seq* result)
 	{
 		cpp::simple_declaration* decl = VERIFY_CAST(cpp::simple_declaration, stmt->init);
 		verifyIdentifier(VERIFY_CAST(cpp::simple_type_specifier_name, decl->spec->type)->id, "Type");
-		verifyIdentifier(VERIFY_CAST(cpp::direct_declarator, decl->decl->item->decl)->prefix, "x");
-		cpp::initializer_default* init = VERIFY_CAST(cpp::initializer_default, decl->decl->item->init);
+		verifyIdentifier(VERIFY_CAST(cpp::direct_declarator, decl->suffix->decl->item->decl)->prefix, "x");
+		cpp::initializer_default* init = VERIFY_CAST(cpp::initializer_default, decl->suffix->decl->item->init);
 		verifyIdentifier(VERIFY_CAST(cpp::postfix_expression_default, init->clause)->expr, "y");
 	}
 	cpp::compound_statement* body = VERIFY_CAST(cpp::compound_statement, stmt->body);
