@@ -21,7 +21,14 @@ namespace cpp
 		}
 	};
 
-	struct declarator
+	struct exception_declarator
+	{
+		virtual ~exception_declarator()
+		{
+		}
+	};
+
+	struct declarator : public exception_declarator
 	{
 		virtual ~declarator()
 		{
@@ -106,7 +113,7 @@ namespace cpp
 	{
 	};
 
-	class multiplicative_expression : public additive_expression
+	struct multiplicative_expression : public additive_expression
 	{
 	};
 
@@ -191,10 +198,6 @@ namespace cpp
 		nested_name_specifier_suffix* suffix;
 	};
 
-	struct template_name : public identifier
-	{
-	};
-
 	struct type_specifier
 	{
 		virtual ~type_specifier()
@@ -246,10 +249,45 @@ namespace cpp
 		template_argument_list* next;
 	};
 
+	struct overloadable_operator
+	{
+		virtual ~overloadable_operator()
+		{
+		}
+	};
+
+	struct array_operator : public overloadable_operator
+	{
+	};
+
+	struct function_operator : public overloadable_operator
+	{
+	};
+
+	struct comma_operator : public overloadable_operator
+	{
+	};
+
+	struct new_operator : public overloadable_operator
+	{
+		array_operator* array;
+	};
+
+	struct delete_operator : public overloadable_operator
+	{
+		array_operator* array;
+	};
+
 	struct operator_function_id : public unqualified_id
 	{
-		// operation omitted for brevity
+		overloadable_operator* op;
 		template_argument_list* args; // NULL if not template
+	};
+
+	struct template_id_operator_function : public template_id
+	{
+		operator_function_id* id;
+		template_argument_list* args;
 	};
 
 	struct qualified_id_default : public qualified_id
@@ -275,9 +313,21 @@ namespace cpp
 		operator_function_id* id;
 	};
 
-	struct class_key
+	struct elaborated_type_specifier_key
+	{
+		virtual ~elaborated_type_specifier_key()
+		{
+		}
+	};
+
+	struct class_key : public elaborated_type_specifier_key
 	{
 		enum { CLASS, STRUCT, UNION } value;
+	};
+
+	struct enum_key : public elaborated_type_specifier_key
+	{
+		// always 'enum'
 	};
 
 	struct access_specifier
@@ -285,10 +335,29 @@ namespace cpp
 		enum { PRIVATE, PROTECTED, PUBLIC } value;
 	};
 
+	struct base_specifier_prefix
+	{
+		virtual ~base_specifier_prefix()
+		{
+		}
+	};
+
+	struct base_specifier_access_virtual : public base_specifier_prefix
+	{
+		access_specifier* access; // required
+		bool isVirtual;
+	};
+
+	struct base_specifier_virtual_access : public base_specifier_prefix
+	{
+		// always virtual
+		access_specifier* access; // optional
+	};
+
 	struct base_specifier
 	{
+		base_specifier_prefix* prefix;
 		bool isGlobal;
-		access_specifier access;
 		nested_name_specifier* context;
 		class_name* id;
 	};
@@ -300,8 +369,9 @@ namespace cpp
 		base_specifier_list* next;
 	};
 
-	struct base_clause : public base_specifier_list
+	struct base_clause
 	{
+		base_specifier_list* list;
 	};
 
 	struct class_head
@@ -328,7 +398,7 @@ namespace cpp
 
 	struct simple_template_id : public template_id, public class_name
 	{
-		template_name id;
+		identifier* id;
 		template_argument_list* args;
 	};
 
@@ -384,21 +454,27 @@ namespace cpp
 		type_specifier_suffix_seq* suffix;
 	};
 
-	struct abstract_declarator
+	struct abstract_declarator : public exception_declarator
 	{
-		virtual ~abstract_declarator()
-		{
-		}
 	};
 
-	struct abstract_declarator_default : public abstract_declarator
+	struct abstract_declarator_ptr : public abstract_declarator
 	{
 		ptr_operator* op;
 		abstract_declarator* decl;
 	};
 
+	struct abstract_declarator_parenthesis : public abstract_declarator
+	{
+		abstract_declarator* decl;
+	};
+
+	struct declarator_suffix_seq;
+
 	struct direct_abstract_declarator : public abstract_declarator
 	{
+		abstract_declarator_parenthesis* prefix;
+		declarator_suffix_seq* suffix;
 	};
 
 	struct type_id : public template_argument
@@ -432,7 +508,7 @@ namespace cpp
 
 	struct literal : public primary_expression
 	{
-		std::string value;
+		enum { INTEGER, CHARACTER, FLOATING, STRING, TRUE, FALSE } value;
 	};
 
 	struct primary_expression_builtin : public primary_expression
@@ -501,7 +577,7 @@ namespace cpp
 		expression_list* args;
 	};
 
-	struct member_operator
+	struct member_operator : public overloadable_operator
 	{
 		enum { DOT, ARROW } value;
 	};
@@ -515,8 +591,6 @@ namespace cpp
 
 	struct psuedo_destructor_name
 	{
-		bool isGlobal;
-		nested_name_specifier* context;
 	};
 
 	struct psuedo_destructor_name_default : public psuedo_destructor_name
@@ -532,10 +606,13 @@ namespace cpp
 
 	struct postfix_expression_destructor : public postfix_expression_suffix
 	{
-		psuedo_destructor_name* destructor;
+		bool isGlobal;
+		nested_name_specifier* context;
+		type_name* type;
+		//psuedo_destructor_name* destructor;
 	};
 
-	struct postfix_expression_simple : public postfix_expression_suffix
+	struct postfix_operator : public postfix_expression_suffix, public overloadable_operator
 	{
 		enum { PLUSPLUS, MINUSMINUS } value;
 	};
@@ -546,14 +623,14 @@ namespace cpp
 		expression_list* args;
 	};
 
-	struct cast_operation
+	struct cast_operator
 	{
 		enum { DYNAMIC, STATIC, REINTERPRET, CONST } value;
 	};
 
 	struct postfix_expression_cast : public postfix_expression_prefix
 	{
-		cast_operation* op;
+		cast_operator* op;
 		type_id* type;
 		expression* expr;
 	};
@@ -568,11 +645,54 @@ namespace cpp
 		type_id* type;
 	};
 
+	struct new_type
+	{
+		virtual ~new_type()
+		{
+		}
+	};
+
+	struct new_declarator
+	{
+		virtual ~new_declarator()
+		{
+		}
+	};
+
+	struct new_declarator_suffix
+	{
+		constant_expression* expr;
+		new_declarator_suffix* next;
+	};
+
+	struct direct_new_declarator : public new_declarator
+	{
+		expression* expr;
+		new_declarator_suffix* suffix;
+	};
+
+	struct new_declarator_ptr : public new_declarator
+	{
+		ptr_operator* op;
+		new_declarator* decl;
+	};
+
+	struct new_type_default : public new_type
+	{
+		type_specifier_seq* spec;
+		new_declarator* decl;
+	};
+
+	struct new_type_parenthesis : public new_type
+	{
+		type_id* id;
+	};
+
 	struct new_expression : public unary_expression
 	{
 		bool isGlobal;
 		expression_list* place;
-		type_id id;
+		new_type* type;
 		expression_list* init;
 	};
 
@@ -583,7 +703,7 @@ namespace cpp
 		cast_expression* expr;
 	};
 
-	struct unary_operator : public unary_expression
+	struct unary_operator : public unary_expression, public overloadable_operator
 	{
 		enum { PLUSPLUS, MINUSMINUS, STAR, AND, PLUS, MINUS, NOT, COMPL } value;
 	};
@@ -601,7 +721,7 @@ namespace cpp
 
 	struct unary_expression_sizeoftype : public unary_expression
 	{
-		type_id* id;
+		type_id* type;
 	};
 
 	struct cast_expression_default : public cast_expression
@@ -610,7 +730,7 @@ namespace cpp
 		cast_expression* expr;
 	};
 
-	struct pm_operator
+	struct pm_operator : public overloadable_operator
 	{
 		enum { DOTSTAR, ARROWSTAR } value;
 	};
@@ -622,7 +742,7 @@ namespace cpp
 		pm_expression* right;
 	};
 
-	struct multiplicative_operator
+	struct multiplicative_operator : public overloadable_operator
 	{
 		enum { STAR, DIVIDE, PERCENT } value;
 	};
@@ -634,7 +754,7 @@ namespace cpp
 		multiplicative_expression* right;
 	};
 
-	struct additive_operator
+	struct additive_operator : public overloadable_operator
 	{
 		enum { PLUS, MINUS } value;
 	};
@@ -646,7 +766,7 @@ namespace cpp
 		additive_expression* right;
 	};
 
-	struct shift_operator
+	struct shift_operator : public overloadable_operator
 	{
 		enum { SHIFTLEFT, SHIFTRIGHT } value;
 	};
@@ -658,7 +778,7 @@ namespace cpp
 		shift_expression* right;
 	};
 
-	struct relational_operator
+	struct relational_operator : public overloadable_operator
 	{
 		enum { LESS, GREATER, LESSEQUAL, GREATEREQUAL } value;
 	};
@@ -670,7 +790,7 @@ namespace cpp
 		relational_expression* right;
 	};
 
-	struct equality_operator
+	struct equality_operator : public overloadable_operator
 	{
 		enum { EQUAL, NOTEQUAL } value;
 	};
@@ -719,7 +839,7 @@ namespace cpp
 		assignment_expression* fail;
 	};
 
-	struct assignment_operator
+	struct assignment_operator : public overloadable_operator
 	{
 		enum { ASSIGN, STAR, DIVIDE, PERCENT, PLUS, MINUS, SHIFTRIGHT, SHIFTLEFT, AND, XOR, OR } value;
 	};
@@ -740,14 +860,10 @@ namespace cpp
 		conversion_declarator* decl;
 	};
 
-	struct conversion_type_id
+	struct conversion_function_id : public unqualified_id
 	{
 		type_specifier_seq* spec;
 		conversion_declarator* decl;
-	};
-
-	struct conversion_function_id : public unqualified_id, public conversion_type_id
-	{
 	};
 
 	struct destructor_id : public unqualified_id 
@@ -844,17 +960,20 @@ namespace cpp
 
 	struct exception_declaration
 	{
-		type_specifier_seq* type; // if NULL, all exceptions
+		virtual ~exception_declaration()
+		{
+		}
 	};
 
 	struct exception_declaration_default : public exception_declaration
 	{
-		declarator* decl;
+		type_specifier_seq* type;
+		exception_declarator* decl;
 	};
 
-	struct exception_declaration_abstract : public exception_declaration
+	struct exception_declaration_all : public exception_declaration
 	{
-		abstract_declarator* decl;
+		// always '...'
 	};
 
 	struct handler_seq
@@ -864,15 +983,22 @@ namespace cpp
 		handler_seq* next;
 	};
 
-	struct declaration
+	struct linkage_specification_suffix
 	{
-		virtual ~declaration()
+		virtual ~linkage_specification_suffix()
 		{
 		}
 	};
 
+	struct declaration : public linkage_specification_suffix
+	{
+	};
+
 	struct mem_initializer
 	{
+		bool isGlobal;
+		nested_name_specifier* context;
+		identifier* id;
 		expression_list* args;
 	};
 
@@ -882,8 +1008,9 @@ namespace cpp
 		mem_initializer_list* next;
 	};
 
-	struct ctor_initializer : public mem_initializer_list
+	struct ctor_initializer
 	{
+		mem_initializer_list* list;
 	};
 
 	struct member_function_definition
@@ -925,8 +1052,8 @@ namespace cpp
 
 	struct member_declarator_bitfield : public member_declarator
 	{
-		identifier id; // may be empty
-		constant_expression width;
+		identifier* id;
+		constant_expression* width;
 	};
 
 	struct member_declarator_list
@@ -953,7 +1080,7 @@ namespace cpp
 		bool isGlobal;
 		bool isTemplate;
 		nested_name_specifier* context;
-		unqualified_id id;
+		unqualified_id* id;
 	};
 
 	struct function_specifier : public decl_specifier_nontype
@@ -1014,7 +1141,7 @@ namespace cpp
 
 	struct enumerator_definition
 	{
-		identifier id;
+		identifier* id;
 		constant_expression* init;
 	};
 
@@ -1026,7 +1153,7 @@ namespace cpp
 
 	struct enum_specifier : public type_specifier_noncv
 	{
-		identifier id; // may be empty
+		identifier* id; // may be empty
 		enumerator_list* values;
 	};
 
@@ -1036,18 +1163,19 @@ namespace cpp
 
 	struct elaborated_type_specifier_default : public elaborated_type_specifier
 	{
-		// enum/class/struct/union omitted for brevity
+		elaborated_type_specifier_key* key;
 		bool isGlobal;
 		nested_name_specifier* context;
-		identifier id;
+		identifier* id;
 	};
 
 	struct elaborated_type_specifier_template : public elaborated_type_specifier
 	{
-		class_key key;
+		class_key* key;
 		bool isGlobal;
 		nested_name_specifier* context;
-		simple_template_id id;
+		bool isTemplate;
+		simple_template_id* id;
 	};
 
 	struct typename_specifier : public type_specifier_noncv
@@ -1076,11 +1204,16 @@ namespace cpp
 	{
 	};
 
+	struct type_parameter_key
+	{
+		enum { CLASS, TYPENAME } value;
+	};
+
 	struct type_parameter_default : public type_parameter
 	{
-		enum { CLASS, TYPENAME } key;
-		identifier id; // may be empty;
-		type_id* init; // if NULL, no initializer
+		type_parameter_key* key;
+		identifier* id;
+		type_id* init;
 	};
 
 	struct template_parameter_list
@@ -1092,8 +1225,8 @@ namespace cpp
 	struct type_parameter_template : public type_parameter
 	{
 		template_parameter_list* params;
-		identifier id; // may be empty;
-		type_id* init; // if NULL, no initializer
+		identifier* id;
+		id_expression* init;
 	};
 
 	struct parameter_declaration_default : public parameter_declaration
@@ -1157,11 +1290,6 @@ namespace cpp
 		enum { REGISTER, STATIC, EXTERN, MUTABLE } value;
 	};
 
-	struct namespace_name
-	{
-		identifier id;
-	};
-
 	struct nested_name_specifier_nested : public nested_name_specifier
 	{
 		nested_name_specifier* context;
@@ -1201,23 +1329,35 @@ namespace cpp
 	{
 	};
 
-	typedef std::string string_literal;
+	struct string_literal
+	{
+		std::string value;
+	};
 
 	struct asm_definition : public block_declaration
 	{
-		string_literal str;
+		string_literal* str;
 	};
 
 
 	struct namespace_alias_definition : public block_declaration
 	{
-		identifier id;
+		identifier* alias;
 		bool isGlobal;
 		nested_name_specifier* context;
-		namespace_name* name;
+		identifier* id;
 	};
 
 	struct using_declaration : public block_declaration, public member_declaration
+	{
+	};
+
+	struct using_declaration_global : public using_declaration
+	{
+		unqualified_id* id;
+	};
+
+	struct using_declaration_nested : public using_declaration
 	{
 		bool isTypename;
 		bool isGlobal;
@@ -1229,7 +1369,7 @@ namespace cpp
 	{
 		bool isGlobal;
 		nested_name_specifier* context;
-		namespace_name* name;
+		identifier* id;
 	};
 
 	struct for_init_statement
@@ -1342,9 +1482,14 @@ namespace cpp
 	{
 	};
 
-	struct jump_statement_default : public jump_statement
+	struct jump_statement_key
 	{
 		enum { BREAK, CONTINUE } value;
+	};
+
+	struct jump_statement_simple : public jump_statement
+	{
+		jump_statement_key* key;
 	};
 
 	struct jump_statement_return : public jump_statement
@@ -1354,7 +1499,7 @@ namespace cpp
 
 	struct jump_statement_goto : public jump_statement
 	{
-		identifier label;
+		identifier* id;
 	};
 
 	struct try_block : public statement
@@ -1362,7 +1507,6 @@ namespace cpp
 		compound_statement* body;
 		handler_seq* handlers;
 	};
-
 
 	struct declaration_seq
 	{
@@ -1388,10 +1532,15 @@ namespace cpp
 		declaration* decl;
 	};
 
+	struct linkage_specification_compound : public linkage_specification_suffix
+	{
+		declaration_seq* decl;
+	};
+
 	struct linkage_specification : public declaration
 	{
-		string_literal str;
-		declaration_seq* decl;
+		string_literal* str;
+		linkage_specification_suffix* suffix;
 	};
 
 	typedef declaration_seq namespace_body;
@@ -1400,6 +1549,51 @@ namespace cpp
 	{
 		identifier* id;
 		namespace_body* body;
+	};
+
+	struct extended_decl_modifier
+	{
+		virtual ~extended_decl_modifier()
+		{
+		}
+	};
+
+	struct extended_decl_modifier_simple : public extended_decl_modifier
+	{
+		enum { APPDOMAIN, DEPRECATED, DLLIMPORT, DLLEXPORT,
+			JITINTRINSIC, NAKED, NOALIAS, NOINLINE, NORETURN,
+			NOTHROW, NOVTABLE, PROCESS, RESTRICT, SELECTANY, THREAD } value;
+	};
+
+	struct extended_decl_modifier_align : public extended_decl_modifier
+	{
+		// always 'decimal-integer'
+	};
+
+	struct extended_decl_modifier_allocate : public extended_decl_modifier
+	{
+		// always 'string-literal'
+	};
+
+	struct extended_decl_modifier_uuid : public extended_decl_modifier
+	{
+		// always 'string-literal'
+	};
+
+	struct extended_decl_modifier_property : public extended_decl_modifier
+	{
+		// TODO
+	};
+
+	struct extended_decl_modifier_seq
+	{
+		extended_decl_modifier* item;
+		extended_decl_modifier_seq* next;
+	};
+
+	struct extended_decl_specifier : public decl_specifier_nontype
+	{
+		extended_decl_modifier_seq* mods;
 	};
 }
 

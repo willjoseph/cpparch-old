@@ -39,6 +39,13 @@ struct LexContext : public context_type
 	LexContext(std::string& instring, const char* input)
 		: context_type(instring.begin(), instring.end(), input)
 	{
+		set_language(boost::wave::language_support(
+			boost::wave::support_normal
+			| boost::wave::support_option_variadics
+			| (boost::wave::support_option_mask &
+				~(boost::wave::support_option_emit_line_directives
+					| boost::wave::support_option_single_line
+					| boost::wave::support_option_emit_pragma_directives))));
 	}
 };
 
@@ -77,6 +84,21 @@ context_type::iterator_type& makeBase(LexIterator& i)
 LexContext& createContext(std::string& instring, const char* input)
 {
 	return *(new LexContext(instring, input));
+}
+
+bool add_include_path(LexContext& context, char const *path)
+{
+	return context.add_include_path(path);
+}
+
+bool add_sysinclude_path(LexContext& context, char const *path)
+{
+	return context.add_sysinclude_path(path);
+}
+
+bool add_macro_definition(LexContext& context, const char* macrostring, bool is_predefined)
+{
+	return context.add_macro_definition(macrostring, is_predefined);
 }
 
 void release(LexContext& context)
@@ -130,7 +152,16 @@ void increment(LexIterator& i)
 
 const LexToken& dereference(const LexIterator& i)
 {
-	return makeToken(*i);
+	try {
+		return makeToken(*i);
+	}
+	catch (boost::wave::cpp_exception const& e) {
+		// some preprocessing error
+		std::cerr 
+			<< e.file_name() << "(" << e.line_no() << "): "
+			<< e.description() << std::endl;
+		throw LexError();
+	}
 }
 
 const char* get_value(const LexToken& token)
@@ -141,4 +172,9 @@ const char* get_value(const LexToken& token)
 LexTokenId get_id(const LexToken& token)
 {
 	return token;
+}
+
+LexFilePosition get_position(const LexToken& token)
+{
+	return token.get_position();
 }

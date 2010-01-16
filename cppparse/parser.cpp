@@ -67,6 +67,11 @@ inline cpp::simple_type_specifier_builtin* parseNode(Parser& parser, cpp::simple
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_DOUBLE, cpp::simple_type_specifier_builtin::DOUBLE);
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_VOID, cpp::simple_type_specifier_builtin::VOID);
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_AUTO, cpp::simple_type_specifier_builtin::AUTO);
+
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_MSEXT_INT8, cpp::simple_type_specifier_builtin::INT);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_MSEXT_INT16, cpp::simple_type_specifier_builtin::INT);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_MSEXT_INT32, cpp::simple_type_specifier_builtin::INT);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_MSEXT_INT64, cpp::simple_type_specifier_builtin::INT);
 	return NULL;
 }
 
@@ -90,10 +95,33 @@ inline cpp::class_name* parseNode(Parser& parser, cpp::class_name* result)
 	return NULL;
 }
 
+inline cpp::template_argument* parseNode(Parser& parser, cpp::template_argument* result)
+{
+	PARSE_SELECT(parser, cpp::assignment_expression);
+	PARSE_SELECT(parser, cpp::type_id);
+	PARSE_SELECT(parser, cpp::id_expression);
+	return NULL;
+}
+
+inline cpp::template_argument_list* parseNode(Parser& parser, cpp::template_argument_list* result)
+{
+	PARSE_REQUIRED(parser, result->item);
+	result->next = NULL;
+	if(TOKEN_EQUAL(parser, boost::wave::T_COMMA))
+	{
+		parser.increment();
+		PARSE_REQUIRED(parser, result->next);
+	}
+	return result;
+}
+
 inline cpp::simple_template_id* parseNode(Parser& parser, cpp::simple_template_id* result)
 {
-	// TODO
-	return NULL;
+	PARSE_REQUIRED(parser, result->id);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_LESS);
+	PARSE_REQUIRED(parser, result->args);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_GREATER);
+	return result;
 }
 
 inline cpp::nested_name_specifier_prefix* parseNode(Parser& parser, cpp::nested_name_specifier_prefix* result)
@@ -146,16 +174,79 @@ inline cpp::simple_type_specifier* parseNode(Parser& parser, cpp::simple_type_sp
 
 inline cpp::using_declaration* parseNode(Parser& parser, cpp::using_declaration* result);
 inline cpp::function_definition* parseNode(Parser& parser, cpp::function_definition* result);
+inline cpp::parameter_declaration* parseNode(Parser& parser, cpp::parameter_declaration* result);
+
+inline cpp::type_parameter_key* parseNode(Parser& parser, cpp::type_parameter_key* result)
+{
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_CLASS, cpp::type_parameter_key::CLASS);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_TYPENAME, cpp::type_parameter_key::TYPENAME);
+	return NULL;
+}
+
+inline cpp::type_parameter_default* parseNode(Parser& parser, cpp::type_parameter_default* result)
+{
+	PARSE_REQUIRED(parser, result->key);
+	PARSE_OPTIONAL(parser, result->id);
+	result->init = NULL;
+	if(TOKEN_EQUAL(parser, boost::wave::T_ASSIGN))
+	{
+		parser.increment();
+		PARSE_REQUIRED(parser, result->init);
+	}
+	return result;
+}
+
+inline cpp::type_parameter_template* parseNode(Parser& parser, cpp::type_parameter_template* result)
+{
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_TEMPLATE);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_LESS);
+	PARSE_REQUIRED(parser, result->params);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_GREATER);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_CLASS);
+	PARSE_OPTIONAL(parser, result->id);
+	result->init = NULL;
+	if(TOKEN_EQUAL(parser, boost::wave::T_ASSIGN))
+	{
+		parser.increment();
+		PARSE_REQUIRED(parser, result->init);
+	}
+	return result;
+}
+
+inline cpp::type_parameter* parseNode(Parser& parser, cpp::type_parameter* result)
+{
+	PARSE_SELECT(parser, cpp::type_parameter_default);
+	PARSE_SELECT(parser, cpp::type_parameter_template);
+	return NULL;
+}
+
+inline cpp::template_parameter* parseNode(Parser& parser, cpp::template_parameter* result)
+{
+	PARSE_SELECT(parser, cpp::type_parameter);
+	PARSE_SELECT(parser, cpp::parameter_declaration);
+	return NULL;
+}
+
+inline cpp::template_parameter_list* parseNode(Parser& parser, cpp::template_parameter_list* result)
+{
+	PARSE_REQUIRED(parser, result->item);
+	PARSE_OPTIONAL(parser, result->next);
+	return result;
+}
 
 inline cpp::template_declaration* parseNode(Parser& parser, cpp::template_declaration* result)
 {
-	// TODO
-	return NULL;
+	PARSE_TOKEN_OPTIONAL(parser, result->isExport, boost::wave::T_EXPORT);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_TEMPLATE);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_LESS);
+	PARSE_REQUIRED(parser, result->params);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_GREATER);
+	return result;
 }
 
 inline cpp::constant_expression* parseNode(Parser& parser, cpp::constant_expression* result)
 {
-	// TODO
+	PARSE_SELECT(parser, cpp::conditional_expression);
 	return NULL;
 }
 
@@ -163,14 +254,14 @@ inline cpp::member_declarator_pure* parseNode(Parser& parser, cpp::member_declar
 {
 	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_ASSIGN);
 	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_DECIMALINT); // TODO: check value is zero
-	return NULL;
+	return result;
 }
 
 inline cpp::constant_initializer* parseNode(Parser& parser, cpp::constant_initializer* result)
 {
 	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_ASSIGN);
 	PARSE_REQUIRED(parser, result->expr);
-	return NULL;
+	return result;
 }
 
 inline cpp::member_declarator_suffix* parseNode(Parser& parser, cpp::member_declarator_suffix* result)
@@ -182,8 +273,10 @@ inline cpp::member_declarator_suffix* parseNode(Parser& parser, cpp::member_decl
 
 inline cpp::member_declarator_bitfield* parseNode(Parser& parser, cpp::member_declarator_bitfield* result)
 {
-	// TODO
-	return NULL;
+	PARSE_OPTIONAL(parser, result->id);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_COLON);
+	PARSE_REQUIRED(parser, result->width);
+	return result;
 }
 
 inline cpp::declarator* parseNode(Parser& parser, cpp::declarator* result);
@@ -225,8 +318,12 @@ inline cpp::member_declaration_default* parseNode(Parser& parser, cpp::member_de
 
 inline cpp::member_declaration_nested* parseNode(Parser& parser, cpp::member_declaration_nested* result)
 {
-	// TODO
-	return NULL;
+	PARSE_TOKEN_OPTIONAL(parser, result->isGlobal, boost::wave::T_COLON_COLON);
+	PARSE_REQUIRED(parser, result->context);
+	PARSE_TOKEN_OPTIONAL(parser, result->isTemplate, boost::wave::T_TEMPLATE);
+	PARSE_REQUIRED(parser, result->id);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_SEMICOLON);
+	return result;
 }
 
 inline cpp::ctor_specifier_seq* parseNode(Parser& parser, cpp::ctor_specifier_seq* result)
@@ -236,10 +333,34 @@ inline cpp::ctor_specifier_seq* parseNode(Parser& parser, cpp::ctor_specifier_se
 	return result;
 }
 
+inline cpp::mem_initializer* parseNode(Parser& parser, cpp::mem_initializer* result)
+{
+	PARSE_TOKEN_OPTIONAL(parser, result->isGlobal, boost::wave::T_COLON_COLON);
+	PARSE_OPTIONAL(parser, result->context);
+	PARSE_REQUIRED(parser, result->id);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_LEFTPAREN);
+	PARSE_OPTIONAL(parser, result->args);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_RIGHTPAREN);
+	return result;
+}
+
+inline cpp::mem_initializer_list* parseNode(Parser& parser, cpp::mem_initializer_list* result)
+{
+	PARSE_REQUIRED(parser, result->item);
+	result->next = NULL;
+	if(TOKEN_EQUAL(parser, boost::wave::T_COMMA))
+	{
+		parser.increment();
+		PARSE_REQUIRED(parser, result->next);
+	}
+	return result;
+}
+
 inline cpp::ctor_initializer* parseNode(Parser& parser, cpp::ctor_initializer* result)
 {
-	// TODO
-	return NULL;
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_COLON);
+	PARSE_REQUIRED(parser, result->list);
+	return result;
 }
 
 inline cpp::compound_statement* parseNode(Parser& parser, cpp::compound_statement* result);
@@ -250,10 +371,42 @@ inline cpp::function_body* parseNode(Parser& parser, cpp::function_body* result)
 	return NULL;
 }
 
+inline cpp::exception_declarator* parseNode(Parser& parser, cpp::exception_declarator* result)
+{
+	PARSE_SELECT(parser, cpp::declarator);
+	PARSE_SELECT(parser, cpp::abstract_declarator);
+	return NULL;
+}
+
+inline cpp::exception_declaration_default* parseNode(Parser& parser, cpp::exception_declaration_default* result)
+{
+	PARSE_REQUIRED(parser, result->type);
+	PARSE_REQUIRED(parser, result->decl);
+	return result;
+}
+
+inline cpp::exception_declaration_all* parseNode(Parser& parser, cpp::exception_declaration_all* result)
+{
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_ELLIPSIS);
+	return result;
+}
+
+inline cpp::exception_declaration* parseNode(Parser& parser, cpp::exception_declaration* result)
+{
+	PARSE_SELECT(parser, cpp::exception_declaration_all);
+	PARSE_SELECT(parser, cpp::exception_declaration_default);
+	return NULL;
+}
+
 inline cpp::handler_seq* parseNode(Parser& parser, cpp::handler_seq* result)
 {
-	// TODO
-	return NULL;
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_CATCH);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_LEFTPAREN);
+	PARSE_REQUIRED(parser, result->decl);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_RIGHTPAREN);
+	PARSE_REQUIRED(parser, result->body);
+	PARSE_OPTIONAL(parser, result->next);
+	return result;
 }
 
 inline cpp::constructor_definition* parseNode(Parser& parser, cpp::constructor_definition* result)
@@ -298,10 +451,10 @@ inline cpp::member_declaration* parseNode(Parser& parser, cpp::member_declaratio
 {
 	PARSE_SELECT(parser, cpp::using_declaration);
 	PARSE_SELECT(parser, cpp::template_declaration);
+	PARSE_SELECT(parser, cpp::member_declaration_inline); // shared-prefix ambiguity: 
 	PARSE_SELECT(parser, cpp::member_declaration_ctor); // this matches a constructor: Class(Type);
 	PARSE_SELECT(parser, cpp::member_declaration_default); // this matches a member: Type(member);
 	PARSE_SELECT(parser, cpp::member_declaration_nested);
-	PARSE_SELECT(parser, cpp::member_declaration_inline);
 	return NULL;
 }
 
@@ -325,6 +478,7 @@ inline cpp::access_specifier* parseNode(Parser& parser, cpp::access_specifier* r
 inline cpp::member_specification_access* parseNode(Parser& parser, cpp::member_specification_access* result)
 {
 	PARSE_REQUIRED(parser, result->access);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_COLON);
 	PARSE_OPTIONAL(parser, result->next);
 	return result;
 }
@@ -344,10 +498,53 @@ inline cpp::class_key* parseNode(Parser& parser, cpp::class_key* result)
 	return NULL;
 }
 
+inline cpp::base_specifier_access_virtual* parseNode(Parser& parser, cpp::base_specifier_access_virtual* result)
+{
+	PARSE_REQUIRED(parser, result->access);
+	PARSE_TOKEN_OPTIONAL(parser, result->isVirtual, boost::wave::T_VIRTUAL);
+	return result;
+}
+
+inline cpp::base_specifier_virtual_access* parseNode(Parser& parser, cpp::base_specifier_virtual_access* result)
+{
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_VIRTUAL);
+	PARSE_OPTIONAL(parser, result->access);
+	return result;
+}
+
+inline cpp::base_specifier_prefix* parseNode(Parser& parser, cpp::base_specifier_prefix* result)
+{
+	PARSE_SELECT(parser, cpp::base_specifier_access_virtual);
+	PARSE_SELECT(parser, cpp::base_specifier_virtual_access);
+	return NULL;
+}
+
+inline cpp::base_specifier* parseNode(Parser& parser, cpp::base_specifier* result)
+{
+	PARSE_OPTIONAL(parser, result->prefix);
+	PARSE_TOKEN_OPTIONAL(parser, result->isGlobal, boost::wave::T_COLON_COLON);
+	PARSE_OPTIONAL(parser, result->context);
+	PARSE_REQUIRED(parser, result->id);
+	return result;
+}
+
+inline cpp::base_specifier_list* parseNode(Parser& parser, cpp::base_specifier_list* result)
+{
+	PARSE_REQUIRED(parser, result->item);
+	result->next = NULL;
+	if(TOKEN_EQUAL(parser, boost::wave::T_COMMA))
+	{
+		parser.increment();
+		PARSE_REQUIRED(parser, result->next);
+	}
+	return result;
+}
+
 inline cpp::base_clause* parseNode(Parser& parser, cpp::base_clause* result)
 {
-	// TODO
-	return NULL;
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_COLON);
+	PARSE_REQUIRED(parser, result->list);
+	return result;
 }
 
 inline cpp::class_head_default* parseNode(Parser& parser, cpp::class_head_default* result)
@@ -383,15 +580,76 @@ inline cpp::class_specifier* parseNode(Parser& parser, cpp::class_specifier* res
 	return result;
 }
 
+inline cpp::enumerator_definition* parseNode(Parser& parser, cpp::enumerator_definition* result)
+{
+	PARSE_REQUIRED(parser, result->id);
+	result->init = NULL;
+	if(TOKEN_EQUAL(parser, boost::wave::T_ASSIGN))
+	{
+		parser.increment();
+		PARSE_REQUIRED(parser, result->init);
+	}
+	return result;
+}
+
+inline cpp::enumerator_list* parseNode(Parser& parser, cpp::enumerator_list* result)
+{
+	PARSE_REQUIRED(parser, result->item);
+	result->next = NULL;
+	if(TOKEN_EQUAL(parser, boost::wave::T_COMMA))
+	{
+		parser.increment();
+		PARSE_OPTIONAL(parser, result->next); // optional because trailing-comma is allowed
+	}
+	return result;
+}
+
 inline cpp::enum_specifier* parseNode(Parser& parser, cpp::enum_specifier* result)
 {
-	// TODO
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_ENUM);
+	PARSE_OPTIONAL(parser, result->id);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_LEFTBRACE);
+	PARSE_OPTIONAL(parser, result->values);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_RIGHTBRACE);
+	return result;
+}
+
+inline cpp::enum_key* parseNode(Parser& parser, cpp::enum_key* result)
+{
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_ENUM);
+	return result;
+}
+
+inline cpp::elaborated_type_specifier_key* parseNode(Parser& parser, cpp::elaborated_type_specifier_key* result)
+{
+	PARSE_SELECT(parser, cpp::class_key);
+	PARSE_SELECT(parser, cpp::enum_key);
 	return NULL;
+}
+
+inline cpp::elaborated_type_specifier_default* parseNode(Parser& parser, cpp::elaborated_type_specifier_default* result)
+{
+	PARSE_REQUIRED(parser, result->key);
+	PARSE_TOKEN_OPTIONAL(parser, result->isGlobal, boost::wave::T_COLON_COLON);
+	PARSE_OPTIONAL(parser, result->context);
+	PARSE_REQUIRED(parser, result->id);
+	return result;
+}
+
+inline cpp::elaborated_type_specifier_template* parseNode(Parser& parser, cpp::elaborated_type_specifier_template* result)
+{
+	PARSE_REQUIRED(parser, result->key);
+	PARSE_TOKEN_OPTIONAL(parser, result->isGlobal, boost::wave::T_COLON_COLON);
+	PARSE_OPTIONAL(parser, result->context);
+	PARSE_TOKEN_OPTIONAL(parser, result->isTemplate, boost::wave::T_TEMPLATE);
+	PARSE_REQUIRED(parser, result->id);
+	return result;
 }
 
 inline cpp::elaborated_type_specifier* parseNode(Parser& parser, cpp::elaborated_type_specifier* result)
 {
-	// TODO
+	PARSE_SELECT(parser, cpp::elaborated_type_specifier_template); // TODO: shared-prefix ambiguity: match template first
+	PARSE_SELECT(parser, cpp::elaborated_type_specifier_default);
 	return NULL;
 }
 
@@ -411,12 +669,70 @@ inline cpp::type_specifier* parseNode(Parser& parser, cpp::type_specifier* resul
 	return NULL;
 }
 
+inline cpp::extended_decl_modifier_simple* parseNode(Parser& parser, cpp::extended_decl_modifier_simple* result)
+{
+	// TODO
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_IDENTIFIER, cpp::extended_decl_modifier_simple::NAKED);
+	return NULL;
+}
+
+inline cpp::extended_decl_modifier_align* parseNode(Parser& parser, cpp::extended_decl_modifier_align* result)
+{
+	// TODO
+	return NULL;
+}
+
+inline cpp::extended_decl_modifier_allocate* parseNode(Parser& parser, cpp::extended_decl_modifier_allocate* result)
+{
+	// TODO
+	return NULL;
+}
+
+inline cpp::extended_decl_modifier_uuid* parseNode(Parser& parser, cpp::extended_decl_modifier_uuid* result)
+{
+	// TODO
+	return NULL;
+}
+
+inline cpp::extended_decl_modifier_property* parseNode(Parser& parser, cpp::extended_decl_modifier_property* result)
+{
+	// TODO
+	return NULL;
+}
+
+inline cpp::extended_decl_modifier* parseNode(Parser& parser, cpp::extended_decl_modifier* result)
+{
+	PARSE_SELECT(parser, cpp::extended_decl_modifier_simple);
+	PARSE_SELECT(parser, cpp::extended_decl_modifier_align);
+	PARSE_SELECT(parser, cpp::extended_decl_modifier_allocate);
+	PARSE_SELECT(parser, cpp::extended_decl_modifier_uuid);
+	PARSE_SELECT(parser, cpp::extended_decl_modifier_property);
+	return NULL;
+}
+
+inline cpp::extended_decl_modifier_seq* parseNode(Parser& parser, cpp::extended_decl_modifier_seq* result)
+{
+	PARSE_REQUIRED(parser, result->item);
+	PARSE_OPTIONAL(parser, result->next);
+	return result;
+}
+
+inline cpp::extended_decl_specifier* parseNode(Parser& parser, cpp::extended_decl_specifier* result)
+{
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_MSEXT_DECLSPEC);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_LEFTPAREN);
+	PARSE_OPTIONAL(parser, result->mods);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_RIGHTPAREN);
+	return result;
+}
+
 inline cpp::decl_specifier_nontype* parseNode(Parser& parser, cpp::decl_specifier_nontype* result)
 {
 	PARSE_SELECT(parser, cpp::storage_class_specifier);
 	PARSE_SELECT(parser, cpp::decl_specifier_default);
 	PARSE_SELECT(parser, cpp::function_specifier);
 	PARSE_SELECT(parser, cpp::cv_qualifier);
+	PARSE_SELECT(parser, cpp::extended_decl_specifier);
 	return NULL;
 }
 
@@ -489,7 +805,8 @@ inline cpp::declarator* parseNode(Parser& parser, cpp::declarator* result);
 
 inline cpp::throw_expression* parseNode(Parser& parser, cpp::throw_expression* result)
 {
-	// TODO
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_THROW);
+	PARSE_OPTIONAL(parser, result->expr);
 	return NULL;
 }
 
@@ -517,7 +834,13 @@ inline cpp::unary_expression_op* parseNode(Parser& parser, cpp::unary_expression
 
 inline cpp::literal* parseNode(Parser& parser, cpp::literal* result)
 {
-	// TODO
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_PP_NUMBER, cpp::literal::INTEGER);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_INTLIT, cpp::literal::INTEGER);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_CHARLIT, cpp::literal::CHARACTER);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_FLOATLIT, cpp::literal::FLOATING);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_STRINGLIT, cpp::literal::STRING);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_TRUE, cpp::literal::TRUE);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_FALSE, cpp::literal::FALSE);
 	return NULL;
 }
 
@@ -599,14 +922,17 @@ inline cpp::postfix_expression_member* parseNode(Parser& parser, cpp::postfix_ex
 
 inline cpp::postfix_expression_destructor* parseNode(Parser& parser, cpp::postfix_expression_destructor* result)
 {
-	// TODO
-	return NULL;
+	PARSE_TOKEN_OPTIONAL(parser, result->isGlobal, boost::wave::T_COLON_COLON);
+	PARSE_OPTIONAL(parser, result->context);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_COMPL);
+	PARSE_REQUIRED(parser, result->type);
+	return result;
 }
 
-inline cpp::postfix_expression_simple* parseNode(Parser& parser, cpp::postfix_expression_simple* result)
+inline cpp::postfix_operator* parseNode(Parser& parser, cpp::postfix_operator* result)
 {
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_PLUSPLUS, cpp::postfix_expression_simple::PLUSPLUS);
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_MINUSMINUS, cpp::postfix_expression_simple::MINUSMINUS);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_PLUSPLUS, cpp::postfix_operator::PLUSPLUS);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_MINUSMINUS, cpp::postfix_operator::MINUSMINUS);
 	return NULL;
 }
 
@@ -619,12 +945,12 @@ inline cpp::postfix_expression_construct* parseNode(Parser& parser, cpp::postfix
 	return result;
 }
 
-inline cpp::cast_operation* parseNode(Parser& parser, cpp::cast_operation* result)
+inline cpp::cast_operator* parseNode(Parser& parser, cpp::cast_operator* result)
 {
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_DYNAMICCAST, cpp::cast_operation::DYNAMIC);
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_STATICCAST, cpp::cast_operation::STATIC);
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_REINTERPRETCAST, cpp::cast_operation::REINTERPRET);
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_CONSTCAST, cpp::cast_operation::CONST);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_DYNAMICCAST, cpp::cast_operator::DYNAMIC);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_STATICCAST, cpp::cast_operator::STATIC);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_REINTERPRETCAST, cpp::cast_operator::REINTERPRET);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_CONSTCAST, cpp::cast_operator::CONST);
 	return NULL;
 }
 
@@ -664,7 +990,7 @@ inline cpp::postfix_expression_suffix* parseNode(Parser& parser, cpp::postfix_ex
 	PARSE_SELECT(parser, cpp::postfix_expression_call);
 	PARSE_SELECT(parser, cpp::postfix_expression_member);
 	PARSE_SELECT(parser, cpp::postfix_expression_destructor);
-	PARSE_SELECT(parser, cpp::postfix_expression_simple);
+	PARSE_SELECT(parser, cpp::postfix_operator);
 	return NULL;
 }
 
@@ -701,26 +1027,99 @@ inline cpp::postfix_expression* parseNode(Parser& parser, cpp::postfix_expressio
 
 inline cpp::unary_expression_sizeoftype* parseNode(Parser& parser, cpp::unary_expression_sizeoftype* result)
 {
-	// TODO
-	return NULL;
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_SIZEOF);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_LEFTPAREN);
+	PARSE_REQUIRED(parser, result->type);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_RIGHTPAREN);
+	return result;
 }
 
 inline cpp::unary_expression_sizeof* parseNode(Parser& parser, cpp::unary_expression_sizeof* result)
 {
-	// TODO
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_SIZEOF);
+	PARSE_REQUIRED(parser, result->expr);
+	return result;
+}
+
+inline cpp::new_declarator_suffix* parseNode(Parser& parser, cpp::new_declarator_suffix* result)
+{
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_LEFTBRACKET);
+	PARSE_REQUIRED(parser, result->expr);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_RIGHTBRACKET);
+	PARSE_OPTIONAL(parser, result->next);
+	return result;
+}
+
+inline cpp::direct_new_declarator* parseNode(Parser& parser, cpp::direct_new_declarator* result)
+{
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_LEFTBRACKET);
+	PARSE_REQUIRED(parser, result->expr);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_RIGHTBRACKET);
+	PARSE_OPTIONAL(parser, result->suffix);
+	return result;
+}
+
+inline cpp::new_declarator_ptr* parseNode(Parser& parser, cpp::new_declarator_ptr* result)
+{
+	PARSE_REQUIRED(parser, result->op);
+	PARSE_OPTIONAL(parser, result->decl);
+	return result;
+}
+
+inline cpp::new_declarator* parseNode(Parser& parser, cpp::new_declarator* result)
+{
+	PARSE_SELECT(parser, cpp::direct_new_declarator);
+	PARSE_SELECT(parser, cpp::new_declarator_ptr);
+	return NULL;
+}
+
+inline cpp::new_type_default* parseNode(Parser& parser, cpp::new_type_default* result)
+{
+	PARSE_REQUIRED(parser, result->spec);
+	PARSE_OPTIONAL(parser, result->decl);
+	return result;
+}
+
+inline cpp::new_type_parenthesis* parseNode(Parser& parser, cpp::new_type_parenthesis* result)
+{
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_LEFTPAREN);
+	PARSE_REQUIRED(parser, result->id);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_RIGHTPAREN);
+	return result;
+}
+
+inline cpp::new_type* parseNode(Parser& parser, cpp::new_type* result)
+{
+	PARSE_SELECT(parser, cpp::new_type_parenthesis);
+	PARSE_SELECT(parser, cpp::new_type_default);
 	return NULL;
 }
 
 inline cpp::new_expression* parseNode(Parser& parser, cpp::new_expression* result)
 {
-	// TODO
-	return NULL;
+	PARSE_TOKEN_OPTIONAL(parser, result->isGlobal, boost::wave::T_COLON_COLON);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_NEW);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_LEFTPAREN);
+	PARSE_REQUIRED(parser, result->place);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_RIGHTPAREN);
+	PARSE_REQUIRED(parser, result->type);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_LEFTPAREN);
+	PARSE_REQUIRED(parser, result->init);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_RIGHTPAREN);
+	return result;
 }
 
 inline cpp::delete_expression* parseNode(Parser& parser, cpp::delete_expression* result)
 {
-	// TODO
-	return NULL;
+	PARSE_TOKEN_OPTIONAL(parser, result->isGlobal, boost::wave::T_COLON_COLON);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_DELETE);
+	PARSE_TOKEN_OPTIONAL(parser, result->isArray, boost::wave::T_LEFTBRACKET);
+	if(result->isArray)
+	{
+		PARSE_TOKEN_REQUIRED(parser, boost::wave::T_RIGHTBRACKET);
+	}
+	PARSE_REQUIRED(parser, result->expr);
+	return result;
 }
 
 inline cpp::unary_expression* parseNode(Parser& parser, cpp::unary_expression* result)
@@ -736,8 +1135,9 @@ inline cpp::unary_expression* parseNode(Parser& parser, cpp::unary_expression* r
 
 inline cpp::type_id* parseNode(Parser& parser, cpp::type_id* result)
 {
-	// TODO
-	return NULL;
+	PARSE_REQUIRED(parser, result->spec);
+	PARSE_OPTIONAL(parser, result->decl);
+	return result;
 }
 
 inline cpp::cast_expression_default* parseNode(Parser& parser, cpp::cast_expression_default* result)
@@ -1064,22 +1464,31 @@ inline cpp::parameter_declaration_default* parseNode(Parser& parser, cpp::parame
 
 inline cpp::abstract_declarator* parseNode(Parser& parser, cpp::abstract_declarator* result);
 
-inline cpp::abstract_declarator_default* parseNode(Parser& parser, cpp::abstract_declarator_default* result)
+inline cpp::abstract_declarator_ptr* parseNode(Parser& parser, cpp::abstract_declarator_ptr* result)
 {
 	PARSE_REQUIRED(parser, result->op);
 	PARSE_OPTIONAL(parser, result->decl);
 	return result;
 }
 
+inline cpp::abstract_declarator_parenthesis* parseNode(Parser& parser, cpp::abstract_declarator_parenthesis* result)
+{
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_LEFTPAREN);
+	PARSE_REQUIRED(parser, result->decl);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_RIGHTPAREN);
+	return result;
+}
+
 inline cpp::direct_abstract_declarator* parseNode(Parser& parser, cpp::direct_abstract_declarator* result)
 {
-	// TODO
-	return NULL;
+	PARSE_OPTIONAL(parser, result->prefix);
+	PARSE_REQUIRED(parser, result->suffix);
+	return result;
 }
 
 inline cpp::abstract_declarator* parseNode(Parser& parser, cpp::abstract_declarator* result)
 {
-	PARSE_SELECT(parser, cpp::abstract_declarator_default);
+	PARSE_SELECT(parser, cpp::abstract_declarator_ptr);
 	PARSE_SELECT(parser, cpp::direct_abstract_declarator);
 	return NULL;
 }
@@ -1110,38 +1519,49 @@ inline cpp::parameter_declaration_list* parseNode(Parser& parser, cpp::parameter
 	if(TOKEN_EQUAL(parser, boost::wave::T_COMMA))
 	{
 		parser.increment();
-		PARSE_REQUIRED(parser, result->next);
+		if(TOKEN_EQUAL(parser, boost::wave::T_ELLIPSIS))
+		{
+			parser.increment();
+		}
+		else
+		{
+			PARSE_REQUIRED(parser, result->next);
+		}
 	}
 	return result;
 }
 
 inline cpp::parameter_declaration_clause* parseNode(Parser& parser, cpp::parameter_declaration_clause* result)
 {
-	PARSE_OPTIONAL(parser, result->list);
-	if(result->list != NULL
-		&& TOKEN_EQUAL(parser, boost::wave::T_COMMA))
+	PARSE_REQUIRED(parser, result->list);
+	PARSE_TOKEN_OPTIONAL(parser, result->isEllipsis, boost::wave::T_ELLIPSIS);
+	return result;
+}
+
+inline cpp::type_id_list* parseNode(Parser& parser, cpp::type_id_list* result)
+{
+	PARSE_REQUIRED(parser, result->item);
+	if(TOKEN_EQUAL(parser, boost::wave::T_COMMA))
 	{
 		parser.increment();
-		PARSE_TOKEN_REQUIRED(parser, boost::wave::T_ELLIPSIS);
-		result->isEllipsis = true;
-	}
-	else
-	{
-		PARSE_TOKEN_OPTIONAL(parser, result->isEllipsis, boost::wave::T_ELLIPSIS);
+		PARSE_REQUIRED(parser, result->next);
 	}
 	return result;
 }
 
 inline cpp::exception_specification* parseNode(Parser& parser, cpp::exception_specification* result)
 {
-	// TODO
-	return NULL;
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_THROW);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_LEFTPAREN);
+	PARSE_OPTIONAL(parser, result->types);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_RIGHTPAREN);
+	return result;
 }
 
 inline cpp::declarator_suffix_function* parseNode(Parser& parser, cpp::declarator_suffix_function* result)
 {
 	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_LEFTPAREN);
-	PARSE_REQUIRED(parser, result->params);
+	PARSE_OPTIONAL(parser, result->params);
 	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_RIGHTPAREN);
 	PARSE_OPTIONAL(parser, result->qual);
 	PARSE_OPTIONAL(parser, result->except);
@@ -1170,22 +1590,110 @@ inline cpp::direct_declarator_parenthesis* parseNode(Parser& parser, cpp::direct
 	return result;
 }
 
+inline cpp::comma_operator* parseNode(Parser& parser, cpp::comma_operator* result)
+{
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_COMMA);
+	return result;
+};
+
+inline cpp::function_operator* parseNode(Parser& parser, cpp::function_operator* result)
+{
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_LEFTPAREN);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_RIGHTPAREN);
+	return result;
+};
+
+inline cpp::array_operator* parseNode(Parser& parser, cpp::array_operator* result)
+{
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_LEFTBRACKET);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_RIGHTBRACKET);
+	return result;
+};
+
+inline cpp::new_operator* parseNode(Parser& parser, cpp::new_operator* result)
+{
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_NEW);
+	PARSE_OPTIONAL(parser, result->array);
+	return result;
+};
+
+inline cpp::delete_operator* parseNode(Parser& parser, cpp::delete_operator* result)
+{
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_DELETE);
+	PARSE_OPTIONAL(parser, result->array);
+	return result;
+};
+
+inline cpp::overloadable_operator* parseNode(Parser& parser, cpp::overloadable_operator* result)
+{
+	PARSE_SELECT(parser, cpp::assignment_operator);
+	PARSE_SELECT(parser, cpp::member_operator);
+	PARSE_SELECT(parser, cpp::postfix_operator);
+	PARSE_SELECT(parser, cpp::unary_operator);
+	PARSE_SELECT(parser, cpp::pm_operator);
+	PARSE_SELECT(parser, cpp::multiplicative_operator);
+	PARSE_SELECT(parser, cpp::additive_operator);
+	PARSE_SELECT(parser, cpp::shift_operator);
+	PARSE_SELECT(parser, cpp::relational_operator);
+	PARSE_SELECT(parser, cpp::equality_operator);
+	PARSE_SELECT(parser, cpp::multiplicative_operator);
+	PARSE_SELECT(parser, cpp::new_operator);
+	PARSE_SELECT(parser, cpp::delete_operator);
+	PARSE_SELECT(parser, cpp::comma_operator);
+	PARSE_SELECT(parser, cpp::function_operator);
+	PARSE_SELECT(parser, cpp::array_operator);
+	return NULL;
+};
+
 inline cpp::operator_function_id* parseNode(Parser& parser, cpp::operator_function_id* result)
 {
-	// TODO
-	return NULL;
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_OPERATOR);
+	PARSE_REQUIRED(parser, result->op);
+	if(TOKEN_EQUAL(parser, boost::wave::T_LESS))
+	{
+		parser.increment();
+		PARSE_OPTIONAL(parser, result->args);
+		PARSE_TOKEN_REQUIRED(parser, boost::wave::T_GREATER);
+	}
+	return result;
+}
+
+inline cpp::conversion_declarator* parseNode(Parser& parser, cpp::conversion_declarator* result)
+{
+	PARSE_REQUIRED(parser, result->op);
+	PARSE_OPTIONAL(parser, result->decl);
+	return result;
 }
 
 inline cpp::conversion_function_id* parseNode(Parser& parser, cpp::conversion_function_id* result)
 {
-	// TODO
-	return NULL;
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_OPERATOR);
+	PARSE_REQUIRED(parser, result->spec);
+	PARSE_OPTIONAL(parser, result->decl);
+	return result;
+}
+
+inline cpp::template_id_operator_function* parseNode(Parser& parser, cpp::template_id_operator_function* result)
+{
+	PARSE_REQUIRED(parser, result->id);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_LESS);
+	PARSE_OPTIONAL(parser, result->args);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_GREATER);
+	return result;
 }
 
 inline cpp::template_id* parseNode(Parser& parser, cpp::template_id* result)
 {
-	// TODO
+	PARSE_SELECT(parser, cpp::simple_template_id);
+	PARSE_SELECT(parser, cpp::template_id_operator_function);
 	return NULL;
+}
+
+inline cpp::destructor_id* parseNode(Parser& parser, cpp::destructor_id* result)
+{
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_COMPL);
+	PARSE_REQUIRED(parser, result->name);
+	return result;
 }
 
 inline cpp::unqualified_id* parseNode(Parser& parser, cpp::unqualified_id* result)
@@ -1193,7 +1701,7 @@ inline cpp::unqualified_id* parseNode(Parser& parser, cpp::unqualified_id* resul
 	PARSE_SELECT(parser, cpp::identifier);
 	PARSE_SELECT(parser, cpp::operator_function_id);
 	PARSE_SELECT(parser, cpp::conversion_function_id);
-	//TODO PARSE_SELECT(parser, cpp::destructor_id);
+	PARSE_SELECT(parser, cpp::destructor_id);
 	PARSE_SELECT(parser, cpp::template_id);
 	return NULL;
 }
@@ -1294,28 +1802,56 @@ inline cpp::function_definition* parseNode(Parser& parser, cpp::function_definit
 	return result;
 }
 
+inline cpp::linkage_specification_compound* parseNode(Parser& parser, cpp::linkage_specification_compound* result)
+{
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_LEFTBRACE);
+	PARSE_OPTIONAL(parser, result->decl);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_RIGHTBRACE);
+	return result;
+}
+
+inline cpp::linkage_specification_suffix* parseNode(Parser& parser, cpp::linkage_specification_suffix* result)
+{
+	PARSE_SELECT(parser, cpp::linkage_specification_compound);
+	PARSE_SELECT(parser, cpp::declaration);
+	return NULL;
+}
+
 inline cpp::linkage_specification* parseNode(Parser& parser, cpp::linkage_specification* result)
 {
-	// TODO
-	return NULL;
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_EXTERN);
+	PARSE_REQUIRED(parser, result->str);
+	PARSE_REQUIRED(parser, result->suffix);
+	return result;
 }
 
 inline cpp::explicit_instantiation* parseNode(Parser& parser, cpp::explicit_instantiation* result)
 {
-	// TODO
-	return NULL;
+	PARSE_TOKEN_OPTIONAL(parser, result->isExtern, boost::wave::T_EXTERN);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_TEMPLATE);
+	PARSE_REQUIRED(parser, result->decl);
+	return result;
 }
 
 inline cpp::explicit_specialization* parseNode(Parser& parser, cpp::explicit_specialization* result)
 {
-	// TODO
-	return NULL;
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_TEMPLATE);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_LESS);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_GREATER);
+	PARSE_REQUIRED(parser, result->decl);
+	return result;
 }
 
 inline cpp::expression_list* parseNode(Parser& parser, cpp::expression_list* result)
 {
-	// TODO
-	return NULL;
+	PARSE_REQUIRED(parser, result->item);
+	result->next = NULL;
+	if(TOKEN_EQUAL(parser, boost::wave::T_COMMA))
+	{
+		parser.increment();
+		PARSE_REQUIRED(parser, result->next);
+	}
+	return result;
 }
 
 inline cpp::initializer_clause* parseNode(Parser& parser, cpp::initializer_clause* result);
@@ -1324,7 +1860,7 @@ inline cpp::initializer_list* parseNode(Parser& parser, cpp::initializer_list* r
 {
 	PARSE_REQUIRED(parser, result->item);
 	PARSE_OPTIONAL(parser, result->next);
-	return NULL;
+	return result;
 }
 
 inline cpp::initializer_clause_list* parseNode(Parser& parser, cpp::initializer_clause_list* result)
@@ -1333,14 +1869,14 @@ inline cpp::initializer_clause_list* parseNode(Parser& parser, cpp::initializer_
 	if(TOKEN_EQUAL(parser, boost::wave::T_RIGHTBRACE))
 	{
 		parser.increment();
-		result->list = 0;
+		result->list = NULL;
 		return result;
 	}
 	PARSE_REQUIRED(parser, result->list);
 	bool trailingComma;
 	PARSE_TOKEN_OPTIONAL(parser, trailingComma, boost::wave::T_COMMA);
 	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_RIGHTBRACE);
-	return NULL;
+	return result;
 }
 
 inline cpp::initializer_clause* parseNode(Parser& parser, cpp::initializer_clause* result)
@@ -1385,6 +1921,7 @@ inline cpp::init_declarator_list* parseNode(Parser& parser, cpp::init_declarator
 	result->next = NULL;
 	if(TOKEN_EQUAL(parser, boost::wave::T_COMMA))
 	{
+		parser.increment();
 		PARSE_REQUIRED(parser, result->next);
 	}
 	return result;
@@ -1398,28 +1935,75 @@ inline cpp::simple_declaration* parseNode(Parser& parser, cpp::simple_declaratio
 	return result;
 }
 
+inline cpp::string_literal* parseNode(Parser& parser, cpp::string_literal* result)
+{
+	if(TOKEN_EQUAL(parser, boost::wave::T_STRINGLIT))
+	{
+		result->value = parser.get_value();
+		parser.increment();
+		return result;
+	}
+	return NULL;
+}
+
 inline cpp::asm_definition* parseNode(Parser& parser, cpp::asm_definition* result)
 {
-	// TODO
-	return NULL;
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_ASM);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_LEFTPAREN);
+	PARSE_REQUIRED(parser, result->str);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_RIGHTPAREN);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_SEMICOLON);
+	return result;
 }
 
 inline cpp::namespace_alias_definition* parseNode(Parser& parser, cpp::namespace_alias_definition* result)
 {
-	// TODO
-	return NULL;
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_NAMESPACE);
+	PARSE_REQUIRED(parser, result->alias);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_ASSIGN);
+	PARSE_TOKEN_OPTIONAL(parser, result->isGlobal, boost::wave::T_COLON_COLON);
+	PARSE_OPTIONAL(parser, result->context);
+	PARSE_REQUIRED(parser, result->id);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_SEMICOLON);
+	return result;
+}
+
+inline cpp::using_declaration_global* parseNode(Parser& parser, cpp::using_declaration_global* result)
+{
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_USING);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_COLON_COLON);
+	PARSE_REQUIRED(parser, result->id);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_SEMICOLON);
+	return result;
+}
+
+inline cpp::using_declaration_nested* parseNode(Parser& parser, cpp::using_declaration_nested* result)
+{
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_USING);
+	PARSE_TOKEN_OPTIONAL(parser, result->isTypename, boost::wave::T_TYPENAME);
+	PARSE_TOKEN_OPTIONAL(parser, result->isGlobal, boost::wave::T_COLON_COLON);
+	PARSE_REQUIRED(parser, result->context);
+	PARSE_REQUIRED(parser, result->id);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_SEMICOLON);
+	return result;
 }
 
 inline cpp::using_declaration* parseNode(Parser& parser, cpp::using_declaration* result)
 {
-	// TODO
+	PARSE_SELECT(parser, cpp::using_declaration_global);
+	PARSE_SELECT(parser, cpp::using_declaration_nested);
 	return NULL;
 }
 
 inline cpp::using_directive* parseNode(Parser& parser, cpp::using_directive* result)
 {
-	// TODO
-	return NULL;
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_USING);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_NAMESPACE);
+	PARSE_TOKEN_OPTIONAL(parser, result->isGlobal, boost::wave::T_COLON_COLON);
+	PARSE_OPTIONAL(parser, result->context);
+	PARSE_REQUIRED(parser, result->id);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_SEMICOLON);
+	return result;
 }
 
 inline cpp::block_declaration* parseNode(Parser& parser, cpp::block_declaration* result)
@@ -1630,9 +2214,41 @@ inline cpp::iteration_statement* parseNode(Parser& parser, cpp::iteration_statem
 	return NULL;
 }
 
+inline cpp::jump_statement_key* parseNode(Parser& parser, cpp::jump_statement_key* result)
+{
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_BREAK, cpp::jump_statement_key::BREAK);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_CONTINUE, cpp::jump_statement_key::CONTINUE);
+	return NULL;
+}
+
+inline cpp::jump_statement_simple* parseNode(Parser& parser, cpp::jump_statement_simple* result)
+{
+	PARSE_REQUIRED(parser, result->key);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_SEMICOLON);
+	return result;
+}
+
+inline cpp::jump_statement_return* parseNode(Parser& parser, cpp::jump_statement_return* result)
+{
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_RETURN);
+	PARSE_OPTIONAL(parser, result->expr);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_SEMICOLON);
+	return result;
+}
+
+inline cpp::jump_statement_goto* parseNode(Parser& parser, cpp::jump_statement_goto* result)
+{
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_GOTO);
+	PARSE_REQUIRED(parser, result->id);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_SEMICOLON);
+	return result;
+}
+
 inline cpp::jump_statement* parseNode(Parser& parser, cpp::jump_statement* result)
 {
-	// TODO
+	PARSE_SELECT(parser, cpp::jump_statement_simple);
+	PARSE_SELECT(parser, cpp::jump_statement_return);
+	PARSE_SELECT(parser, cpp::jump_statement_goto);
 	return NULL;
 }
 
@@ -1672,35 +2288,33 @@ inline cpp::statement_seq* parseNode(Parser& parser, cpp::statement_seq* result)
 }
 
 
-cpp::declaration_seq* parseFile(std::string& instring, const char* input)
+cpp::declaration_seq* parseFile(LexContext& context)
 {
-	LexContext& context = createContext(instring, input);
-
 	Scanner scanner(context);
 	Parser parser(scanner);
 
-	cpp::declaration_seq* result = parseNode(parser, new cpp::declaration_seq);
+	cpp::declaration_seq* result = NULL;
+	PARSE_OPTIONAL(parser, result);
 #ifdef _DEBUG
-	if(result == 0)
+	if(!scanner.finished())
 	{
-		int bleh = 0;
+		printError(scanner);
 	}
 #endif
 	return result;
 }
 
-cpp::statement_seq* parseFunction(std::string& instring, const char* input)
+cpp::statement_seq* parseFunction(LexContext& context)
 {
-	LexContext& context = createContext(instring, input);
-
 	Scanner scanner(context);
 	Parser parser(scanner);
 
-	cpp::statement_seq* result = parseNode(parser, new cpp::statement_seq);
+	cpp::statement_seq* result = NULL;
+	PARSE_OPTIONAL(parser, result);
 #ifdef _DEBUG
-	if(result == 0)
+	if(!scanner.finished())
 	{
-		int bleh = 0;
+		printError(scanner);
 	}
 #endif
 	return result;

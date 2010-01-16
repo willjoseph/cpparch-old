@@ -7,7 +7,7 @@
 
 typedef int (*VerifyFunc)(void* output);
 
-typedef void* (*ParseFunc)(std::string& instring, const char* input);
+typedef void* (*ParseFunc)(LexContext& context);
 
 struct Test
 {
@@ -17,7 +17,7 @@ struct Test
 };
 
 template<typename Result>
-Test makeTest(const char* input, int (*verify)(Result*), Result* (*parse)(std::string& instring, const char* input))
+Test makeTest(const char* input, int (*verify)(Result*), Result* (*parse)(LexContext&))
 {
 	Test result = { input, VerifyFunc(verify), ParseFunc(parse) };
 	return result;
@@ -40,10 +40,21 @@ int runTest(const Test& test)
 		instring = std::string(std::istreambuf_iterator<char>(instream.rdbuf()),
 			std::istreambuf_iterator<char>());
 
-#if 1
-		return test.verify(test.parse(instring, test.input));
-#else
 		LexContext& context = createContext(instring, test.input);
+		add_sysinclude_path(context, "C:\\Program Files\\Microsoft Visual Studio 8\\VC\\include");
+		add_macro_definition(context, "__thiscall=", true);
+		add_macro_definition(context, "__clrcall=", true);
+		add_macro_definition(context, "__cdecl=", true);
+		add_macro_definition(context, "__pragma(arg)=", true);
+		// optional: _DEBUG, _DLL, /Ze=_MSC_EXTENSIONS, /MT=_MT, /Zc:wchar_t=_NATIVE_WCHAR_T_DEFINED/_WCHAR_T_DEFINED
+		add_macro_definition(context, "_WIN32", true);
+		add_macro_definition(context, "__FUNCTION__=\"<function-sig>\"", true);
+		add_macro_definition(context, "_INTEGRAL_MAX_BITS=32", true);
+		add_macro_definition(context, "_M_IX86=600", true); // /GB: Blend
+		add_macro_definition(context, "_MSC_VER=1400", true); // Visual C++ 2005
+#if 1
+		return test.verify(test.parse(context));
+#else
 		LexIterator& first = createBegin(context);
 		LexIterator& last = createEnd(context);
 
@@ -56,6 +67,7 @@ int runTest(const Test& test)
 		}
 		//]
 #endif
+		release(context);
 	}
 	catch(LexError&)
 	{
@@ -64,10 +76,11 @@ int runTest(const Test& test)
 			<< std::endl;
 		return 1;
 	}
-	catch(std::exception const&)
+	catch(std::exception const& e)
 	{
 		std::cerr 
-			<< "exception caught"
+			<< "exception caught: "
+			<< e.what()
 			<< std::endl;
 		return 1;
 	}
@@ -218,14 +231,16 @@ int main(int argc, char *argv[])
 	if(argc == 1)
 	{
 		const Test tests[] = {
-			makeTest("test/test_amb_ones_comp.cpp", verifyAmbOnesComp, parseFunction),
+			makeTest("test/test_error.cpp", verifyNull, parseFile),
+			makeTest("test/test_iostream.cpp", verifyNull, parseFile),
+			makeTest("test/test_amb_constructor.cpp", verifyAmbConstructor, parseFile),
 			makeTest("test/test_amb_func_cast.cpp", verifyAmbFuncCast, parseFunction),
+			makeTest("test/test_amb_ones_comp.cpp", verifyAmbOnesComp, parseFunction),
 			makeTest("test/test_for.cpp", verifyFor, parseFunction),
 			makeTest("test/test_if.cpp", verifyIf, parseFunction),
 			makeTest("test/test_function_definition.cpp", verifyFunctionDefinition, parseFile),
 			makeTest("test/test_amb_cast_expr.cpp", verifyAmbCastExpr, parseFunction),
 			makeTest("test/test_ptr.cpp", verifyPtr, parseFile),
-			makeTest("test/test_amb_constructor.cpp", verifyAmbConstructor, parseFile),
 			makeTest("test/test_amb_decl_spec.cpp", verifyAmbDeclSpec, parseFile),
 			makeTest("test/test_namespace.cpp", verifyNamespace, parseFile),
 		};
