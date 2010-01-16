@@ -875,7 +875,7 @@ inline cpp::primary_expression_parenthesis* parseNode(Parser& parser, cpp::prima
 	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_LEFTPAREN);
 	PARSE_REQUIRED(parser, result->expr);
 	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_RIGHTPAREN);
-	return NULL;
+	return result;
 }
 
 inline cpp::id_expression* parseNode(Parser& parser, cpp::id_expression* result);
@@ -1444,8 +1444,8 @@ inline cpp::assignment_expression_default* parseNode(Parser& parser, cpp::assign
 
 inline cpp::assignment_expression* parseNode(Parser& parser, cpp::assignment_expression* result)
 {
+	PARSE_SELECT(parser, cpp::assignment_expression_default); // TODO: shared-prefix ambiguity: 'assignment'/'conditional' both start with 'logical'
 	PARSE_SELECT(parser, cpp::conditional_expression);
-	PARSE_SELECT(parser, cpp::assignment_expression_default);
 	PARSE_SELECT(parser, cpp::throw_expression);
 	return NULL;
 }

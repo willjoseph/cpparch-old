@@ -46,6 +46,7 @@ int runTest(const Test& test)
 		add_macro_definition(context, "__clrcall=", true);
 		add_macro_definition(context, "__cdecl=", true);
 		add_macro_definition(context, "__pragma(arg)=", true);
+		add_macro_definition(context, "__inline=", true);
 		// optional: _DEBUG, _DLL, /Ze=_MSC_EXTENSIONS, /MT=_MT, /Zc:wchar_t=_NATIVE_WCHAR_T_DEFINED/_WCHAR_T_DEFINED
 		add_macro_definition(context, "_WIN32", true);
 		add_macro_definition(context, "__FUNCTION__=\"<function-sig>\"", true);
