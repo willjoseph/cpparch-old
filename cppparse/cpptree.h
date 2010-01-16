@@ -427,11 +427,16 @@ namespace cpp
 		cv_qualifier_seq* next;
 	};
 
+	struct ptr_operator_key
+	{
+		enum { PTR, REF } value;
+	};
+
 	struct ptr_operator
 	{
 		bool isGlobal;
-		bool isRef;
 		nested_name_specifier* context;
+		ptr_operator_key* key;
 		cv_qualifier_seq* qual;
 	};
 

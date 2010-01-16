@@ -42,13 +42,16 @@ int runTest(const Test& test)
 
 		LexContext& context = createContext(instring, test.input);
 		add_sysinclude_path(context, "C:\\Program Files\\Microsoft Visual Studio 8\\VC\\include");
+		add_macro_definition(context, "__fastcall=", true);
 		add_macro_definition(context, "__thiscall=", true);
 		add_macro_definition(context, "__clrcall=", true);
+		add_macro_definition(context, "__stdcall=", true);
 		add_macro_definition(context, "__cdecl=", true);
 		add_macro_definition(context, "__pragma(arg)=", true);
 		add_macro_definition(context, "__inline=", true);
 		add_macro_definition(context, "__w64=", true);
 		// optional: _DEBUG, _DLL, /Ze=_MSC_EXTENSIONS, /MT=_MT, /Zc:wchar_t=_NATIVE_WCHAR_T_DEFINED/_WCHAR_T_DEFINED
+		add_macro_definition(context, "_DEBUG", true);
 		add_macro_definition(context, "_WIN32", true);
 		add_macro_definition(context, "__FUNCTION__=\"<function-sig>\"", true);
 		add_macro_definition(context, "_INTEGRAL_MAX_BITS=32", true);
@@ -234,6 +237,8 @@ int main(int argc, char *argv[])
 	{
 		const Test tests[] = {
 			makeTest("test/test_error.cpp", verifyNull, parseFile),
+			makeTest("test/test_map.cpp", verifyNull, parseFile),
+			makeTest("test/test_vector.cpp", verifyNull, parseFile),
 			makeTest("test/test_iostream.cpp", verifyNull, parseFile),
 			makeTest("test/test_amb_constructor.cpp", verifyAmbConstructor, parseFile),
 			makeTest("test/test_amb_func_cast.cpp", verifyAmbFuncCast, parseFunction),

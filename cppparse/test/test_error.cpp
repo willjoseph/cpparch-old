@@ -1,4 +1,15 @@
 
+class A
+{
+	explicit A(R(T::*m)()) // 'ptr-operator' with 'nested-name-specifier' aka ptr-to-member
+	{
+	}
+};
+
+inline Type<R(*)(A)> function() // ambiguity: 'template-argument' may be 'type-id' or 'primary-expression'
+{
+}
+
 class basic_streambuf
 {
 	basic_streambuf()

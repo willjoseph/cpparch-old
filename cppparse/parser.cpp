@@ -98,8 +98,8 @@ inline cpp::type_name* parseNode(Parser& parser, cpp::type_name* result)
 
 inline cpp::template_argument* parseNode(Parser& parser, cpp::template_argument* result)
 {
+	PARSE_SELECT(parser, cpp::type_id); // TODO: ambiguity: 'type-id' and 'primary-expression' may both be 'identifier'. Prefer type-id to handle 'T(*)()'.
 	PARSE_SELECT(parser, cpp::assignment_expression);
-	PARSE_SELECT(parser, cpp::type_id);
 	PARSE_SELECT(parser, cpp::id_expression);
 	return NULL;
 }
@@ -789,25 +789,21 @@ inline cpp::cv_qualifier_seq* parseNode(Parser& parser, cpp::cv_qualifier_seq* r
 	return result;
 }
 
+inline cpp::ptr_operator_key* parseNode(Parser& parser, cpp::ptr_operator_key* result)
+{
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_STAR, cpp::ptr_operator_key::PTR);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_AND, cpp::ptr_operator_key::REF);
+	return NULL;
+}
+
+
 inline cpp::ptr_operator* parseNode(Parser& parser, cpp::ptr_operator* result)
 {
-	// TODO: 'ClassName*' form
-	result->isGlobal = false;
-	result->isRef = TOKEN_EQUAL(parser, boost::wave::T_AND);
-	result->context = NULL;
-	if(result->isRef)
-	{
-		parser.increment();
-		result->qual = NULL;
-		return result;
-	}
-	if(TOKEN_EQUAL(parser, boost::wave::T_STAR))
-	{
-		parser.increment();
-		PARSE_OPTIONAL(parser, result->qual);
-		return result;
-	}
-	return NULL;
+	PARSE_TOKEN_OPTIONAL(parser, result->isGlobal, boost::wave::T_COLON_COLON);
+	PARSE_OPTIONAL(parser, result->context);
+	PARSE_REQUIRED(parser, result->key); // TODO: disallow '&' following 'nested-name-specifier'
+	PARSE_OPTIONAL(parser, result->qual);
+	return result;
 }
 
 inline cpp::declarator_suffix_array* parseNode(Parser& parser, cpp::declarator_suffix_array* result)
@@ -1530,7 +1526,7 @@ inline cpp::conditional_expression* parseNode(Parser& parser, cpp::conditional_e
 inline cpp::assignment_expression* parseNode(Parser& parser, cpp::assignment_expression* result)
 {
 	PARSE_SELECT(parser, cpp::throw_expression);
-	PARSE_SELECT(parser, cpp::logical_or_expression_precedent);
+	PARSE_PREFIX(parser, cpp::logical_or_expression_precedent);
 	return NULL;
 }
 
@@ -2372,12 +2368,10 @@ cpp::declaration_seq* parseFile(LexContext& context)
 
 	cpp::declaration_seq* result = NULL;
 	PARSE_OPTIONAL(parser, result);
-#ifdef _DEBUG
 	if(!scanner.finished())
 	{
 		printError(parser);
 	}
-#endif
 	return result;
 }
 
@@ -2388,12 +2382,10 @@ cpp::statement_seq* parseFunction(LexContext& context)
 
 	cpp::statement_seq* result = NULL;
 	PARSE_OPTIONAL(parser, result);
-#ifdef _DEBUG
 	if(!scanner.finished())
 	{
 		printError(parser);
 	}
-#endif
 	return result;
 }
 

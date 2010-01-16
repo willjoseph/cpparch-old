@@ -61,7 +61,6 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="libboost_wave-vc80-mt-gd-1_41.lib"
 				LinkIncremental="2"
 				AdditionalLibraryDirectories="..\..\boost_1_41_0\stage\lib"
 				GenerateDebugInformation="true"
@@ -137,9 +136,9 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="libboost_wave-vc80-mt-gd-1_41.lib"
 				LinkIncremental="1"
 				AdditionalLibraryDirectories="..\..\boost_1_41_0\stage\lib"
+				IgnoreDefaultLibraryNames=""
 				GenerateDebugInformation="true"
 				SubSystem="1"
 				OptimizeReferences="2"
