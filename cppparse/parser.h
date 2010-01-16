@@ -47,8 +47,12 @@ struct Scanner
 	typedef std::set<std::string> Identifiers;
 	Identifiers identifiers;
 
+	typedef std::vector<size_t> Positions;
+	Positions stacktrace;
+	Positions::iterator stackpos;
+
 	Scanner(LexContext& context)
-		: first(createBegin(context)), last(createEnd(context)), position(history.end())
+		: first(createBegin(context)), last(createEnd(context)), position(history.end()), stackpos(stacktrace.end())
 	{
 		if(isWhiteSpace(get_id()))
 		{
@@ -63,12 +67,16 @@ struct Scanner
 	void backtrack(size_t count)
 	{
 		position -= count;
-#ifdef _DEBUG
-		if(count != 0)
-		{
-			int bleh = 0;
-		}
-#endif
+	}
+	void push()
+	{
+		stacktrace.erase(stackpos, stacktrace.end());
+		stacktrace.push_back(position - history.begin());
+		stackpos = stacktrace.end();
+	}
+	void pop()
+	{
+		*--stackpos = position - history.begin();
 	}
 
 	const char* makeIdentifier(const char* value)
@@ -156,30 +164,30 @@ inline void printSequence(Scanner::Tokens::const_iterator first, Scanner::Tokens
 
 inline void printSequence(Scanner& scanner, size_t position)
 {
-	position = std::min(scanner.history.size(), position);
+	position = std::min(std::min(scanner.history.size(), size_t(32)), position);
 	printSequence(scanner.position - position, scanner.position);
 }
 
-inline void printError(Scanner& scanner)
+struct ParserState
 {
-	std::cout << scanner.get_position().get_file() << "(" << scanner.get_position().get_line() << "): parse error: '" << get_value(dereference(scanner.first)) << "'" << std::endl;
-	printSequence(scanner.position, scanner.history.end()); // rejected tokens
-}
+	bool inTemplateArgumentList;
+	ParserState()
+		: inTemplateArgumentList(false)
+	{
+	}
+};
 
-struct Parser
+struct Parser : public ParserState
 {
 	Scanner& scanner;
 	size_t position;
-
-	const char* symbol;
-	LexTokenId token;
 
 	Parser(Scanner& scanner)
 		: scanner(scanner), position(0)
 	{
 	}
 	Parser(const Parser& other)
-		: scanner(other.scanner), position(0)
+		: ParserState(other), scanner(other.scanner), position(0)
 	{
 	}
 
@@ -190,6 +198,10 @@ struct Parser
 	const char* get_value()
 	{
 		return scanner.get_value();
+	}
+	LexFilePosition get_position()
+	{
+		return scanner.get_position();
 	}
 
 	void increment()
@@ -203,6 +215,24 @@ struct Parser
 		scanner.backtrack(position);
 	}
 };
+
+inline void printPosition(Scanner& scanner, const LexFilePosition& position)
+{
+	std::cout << position.get_file() << "(" << position.get_line() << "): ";
+}
+
+inline void printError(Parser& parser)
+{
+#if 0
+	for(Scanner::Positions::const_iterator i = parser.scanner.backtrace.begin(); i != parser.scanner.backtrace.end(); ++i)
+	{
+	}
+	printPosition(parser.scanner, scanner.history[parser.scanner.stacktrace.back()].position);
+#endif
+	printPosition(parser.scanner, get_position(dereference(parser.scanner.first)));
+	std::cout << "parse error: '" << get_value(dereference(parser.scanner.first)) << "'" << std::endl;
+	printSequence(parser.scanner.position, parser.scanner.history.end()); // rejected tokens
+}
 
 inline void printSequence(Parser& parser)
 {
@@ -259,11 +289,12 @@ template<typename T>
 T* parseNodeInternal(Parser& parser, T* p, bool print)
 {
 	Parser tmp(parser);
-	tmp.symbol = SYMBOL_NAME(T);
+	parser.scanner.push();
 	p = parseNode(tmp, new T);
+	parser.scanner.pop();
 	if(p != NULL)
 	{
-#ifdef _DEBUG
+#if 0
 		if(print)
 		{
 			printMatch(SYMBOL_NAME(T));
@@ -283,20 +314,18 @@ T* parseNodeInternal(Parser& parser, T* p, bool print)
 		}
 #endif
 
-		parser.symbol = tmp.symbol;
-		parser.token = tmp.token;
 		tmp.backtrack();
 	}
 	return p;
 }
 
 #define TOKEN_EQUAL(parser, token) isToken(parser.get_id(), token)
-#define PARSE_TOKEN_REQUIRED(parser, token_) if(TOKEN_EQUAL(parser, token_)) { parser.increment(); } else { parser.token = token_; return NULL; }
+#define PARSE_TOKEN_REQUIRED(parser, token_) if(TOKEN_EQUAL(parser, token_)) { parser.increment(); } else { return NULL; }
 #define PARSE_TOKEN_OPTIONAL(parser, result, token) result = false; if(TOKEN_EQUAL(parser, token)) { result = true; parser.increment(); }
 #define PARSE_SELECT_TOKEN(parser, p, token, value_) if(TOKEN_EQUAL(parser, token)) { p->value = value_; parser.increment(); return p; }
 #define PARSE_OPTIONAL(parser, p) (p) = parseNodeInternal(parser, p, true)
 #define PARSE_REQUIRED(parser, p) if(((p) = parseNodeInternal(parser, p, true)) == 0) { return NULL; }
-#define PARSE_SELECT(parser, Type) if(Type* p = parseNodeInternal(parser, NullPtr<Type>::VALUE, true)) { /*parser.symbol = #Type;*/ return p; }
+#define PARSE_SELECT(parser, Type) if(Type* p = parseNodeInternal(parser, NullPtr<Type>::VALUE, true)) { return p; }
 // Type must have members 'left' and 'right', and 'typeof(left)' must by substitutable for 'Type'
 #define PARSE_PREFIX(parser, Type) if(Type* p = parseNodeInternal(parser, NullPtr<Type>::VALUE, true)) { if(p->right == NULL) return p->left; return p; }
 

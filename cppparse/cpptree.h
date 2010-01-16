@@ -182,13 +182,13 @@ namespace cpp
 
 	struct nested_name_specifier_prefix
 	{
-		identifier* name;
+		type_name* id;
 	};
 
 	struct nested_name_specifier_suffix
 	{
 		bool isTemplate;
-		class_name* name;
+		class_name* id;
 		nested_name_specifier_suffix* next;
 	};
 
@@ -392,7 +392,7 @@ namespace cpp
 	{
 		class_key* key;
 		nested_name_specifier* context;
-		identifier* id;
+		class_name* id;
 		base_clause* base;
 	};
 
@@ -508,7 +508,16 @@ namespace cpp
 
 	struct literal : public primary_expression
 	{
-		enum { INTEGER, CHARACTER, FLOATING, STRING, TRUE, FALSE } value;
+	};
+
+	struct numeric_literal : public literal
+	{
+		enum { INTEGER, CHARACTER, FLOATING, BOOLEAN } value;
+	};
+
+	struct string_literal : public literal
+	{
+		std::string value;
 	};
 
 	struct primary_expression_builtin : public primary_expression
@@ -688,12 +697,28 @@ namespace cpp
 		type_id* id;
 	};
 
+	struct new_initializer
+	{
+		expression_list* expr;
+	};
+
 	struct new_expression : public unary_expression
+	{
+	};
+
+	struct new_expression_placement : public new_expression
 	{
 		bool isGlobal;
 		expression_list* place;
 		new_type* type;
-		expression_list* init;
+		new_initializer* init;
+	};
+
+	struct new_expression_default : public new_expression
+	{
+		bool isGlobal;
+		new_type* type;
+		new_initializer* init;
 	};
 
 	struct delete_expression : public unary_expression
@@ -832,11 +857,29 @@ namespace cpp
 		logical_or_expression* right;
 	};
 
+	struct logical_or_expression_suffix
+	{
+		virtual ~logical_or_expression_suffix()
+		{
+		}
+	};
+
+	struct conditional_expression_rhs : public logical_or_expression_suffix
+	{
+		expression* mid;
+		assignment_expression* right;
+	};
+
 	struct conditional_expression_default : public conditional_expression
 	{
-		logical_or_expression* test;
-		expression* pass;
-		assignment_expression* fail;
+		logical_or_expression* left;
+		conditional_expression_rhs* right;
+	};
+
+	struct logical_or_expression_precedent : public conditional_expression
+	{
+		logical_or_expression* left;
+		logical_or_expression_suffix* right;
 	};
 
 	struct assignment_operator : public overloadable_operator
@@ -844,9 +887,8 @@ namespace cpp
 		enum { ASSIGN, STAR, DIVIDE, PERCENT, PLUS, MINUS, SHIFTRIGHT, SHIFTLEFT, AND, XOR, OR } value;
 	};
 
-	struct assignment_expression_default : public assignment_expression
+	struct assignment_expression_rhs : public logical_or_expression_suffix
 	{
-		conditional_expression* left;
 		assignment_operator* op;
 		assignment_expression* right;
 	};
@@ -998,7 +1040,7 @@ namespace cpp
 	{
 		bool isGlobal;
 		nested_name_specifier* context;
-		identifier* id;
+		class_name* id;
 		expression_list* args;
 	};
 
@@ -1180,20 +1222,10 @@ namespace cpp
 
 	struct typename_specifier : public type_specifier_noncv
 	{
-	};
-
-	struct typename_specifier_default : public typename_specifier
-	{
 		bool isGlobal;
 		nested_name_specifier* context;
-		identifier id;
-	};
-
-	struct typename_specifier_template : public typename_specifier
-	{
-		bool isGlobal;
-		nested_name_specifier* context;
-		simple_template_id id;
+		bool isTemplate;
+		type_name* id; // NOTE: only 'identifier' is allowed if 'isTemplate' is true
 	};
 
 	struct parameter_declaration : public template_parameter
@@ -1327,11 +1359,6 @@ namespace cpp
 
 	struct block_declaration : public declaration_statement, public declaration
 	{
-	};
-
-	struct string_literal
-	{
-		std::string value;
 	};
 
 	struct asm_definition : public block_declaration

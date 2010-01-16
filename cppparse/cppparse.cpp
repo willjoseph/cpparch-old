@@ -47,6 +47,7 @@ int runTest(const Test& test)
 		add_macro_definition(context, "__cdecl=", true);
 		add_macro_definition(context, "__pragma(arg)=", true);
 		add_macro_definition(context, "__inline=", true);
+		add_macro_definition(context, "__w64=", true);
 		// optional: _DEBUG, _DLL, /Ze=_MSC_EXTENSIONS, /MT=_MT, /Zc:wchar_t=_NATIVE_WCHAR_T_DEFINED/_WCHAR_T_DEFINED
 		add_macro_definition(context, "_WIN32", true);
 		add_macro_definition(context, "__FUNCTION__=\"<function-sig>\"", true);
@@ -176,8 +177,8 @@ int verifyAmbDeclSpec(cpp::declaration_seq* result)
 	cpp::simple_declaration* decl = VERIFY_CAST(cpp::simple_declaration, verifyNotNull(result)->item);
 	cpp::simple_type_specifier_name* spec = VERIFY_CAST(cpp::simple_type_specifier_name, verifyNotNull(decl->spec)->type);
 	PARSE_ASSERT(spec->context);
-	verifyIdentifier(verifyNotNull(spec->context->prefix)->name, "Class");
-	verifyIdentifier(verifyNotNull(spec->context->suffix)->name, "Scope");
+	verifyIdentifier(verifyNotNull(spec->context->prefix)->id, "Class");
+	verifyIdentifier(verifyNotNull(spec->context->suffix)->id, "Scope");
 	verifyIdentifier(spec->id, "p");
 	return 0;
 }
