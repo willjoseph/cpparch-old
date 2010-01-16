@@ -7,7 +7,7 @@
 
 typedef int (*VerifyFunc)(void* output);
 
-typedef void* (*ParseFunc)(LexContext& context);
+typedef void* (*ParseFunc)(Scanner& scanner);
 
 struct Test
 {
@@ -17,7 +17,7 @@ struct Test
 };
 
 template<typename Result>
-Test makeTest(const char* input, int (*verify)(Result*), Result* (*parse)(LexContext&))
+Test makeTest(const char* input, int (*verify)(Result*), Result* (*parse)(Scanner&))
 {
 	Test result = { input, VerifyFunc(verify), ParseFunc(parse) };
 	return result;
@@ -36,6 +36,7 @@ int runTest(const Test& test)
 			std::cerr << "Could not open input file: " << test.input << std::endl;
 			return -2;
 		}
+		std::cout << "reading input file: " << test.input << std::endl;
 		instream.unsetf(std::ios::skipws);
 		instring = std::string(std::istreambuf_iterator<char>(instream.rdbuf()),
 			std::istreambuf_iterator<char>());
@@ -58,7 +59,8 @@ int runTest(const Test& test)
 		add_macro_definition(context, "_M_IX86=600", true); // /GB: Blend
 		add_macro_definition(context, "_MSC_VER=1400", true); // Visual C++ 2005
 #if 1
-		return test.verify(test.parse(context));
+		Scanner scanner(context);
+		return test.verify(test.parse(scanner));
 #else
 		LexIterator& first = createBegin(context);
 		LexIterator& last = createEnd(context);
@@ -67,7 +69,7 @@ int runTest(const Test& test)
 		//  [first, last)
 		while (first != last) {
 			const LexToken& token = dereference(first);
-			std::cout << get_value(token);
+			//std::cout << get_value(token);
 			increment(first);
 		}
 		//]

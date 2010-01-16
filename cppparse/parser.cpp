@@ -858,18 +858,14 @@ inline cpp::numeric_literal* parseNode(Parser& parser, cpp::numeric_literal* res
 
 inline cpp::string_literal* parseNode(Parser& parser, cpp::string_literal* result)
 {
-	cpp::string_literal* p = NULL;
-	for(;;)
+	if(TOKEN_EQUAL(parser, boost::wave::T_STRINGLIT))
 	{
-		if(!TOKEN_EQUAL(parser, boost::wave::T_STRINGLIT))
-		{
-			return p;
-		}
 		parser.increment();
-		result->value += parser.get_value();
-		p = result;
+		result->value = parser.get_value();
+		PARSE_OPTIONAL(parser, result->next);
+		return result;
 	}
-	return result;
+	return NULL;
 }
 
 inline cpp::literal* parseNode(Parser& parser, cpp::literal* result)
@@ -2361,9 +2357,8 @@ inline cpp::statement_seq* parseNode(Parser& parser, cpp::statement_seq* result)
 }
 
 
-cpp::declaration_seq* parseFile(LexContext& context)
+cpp::declaration_seq* parseFile(Scanner& scanner)
 {
-	Scanner scanner(context);
 	Parser parser(scanner);
 
 	cpp::declaration_seq* result = NULL;
@@ -2375,9 +2370,8 @@ cpp::declaration_seq* parseFile(LexContext& context)
 	return result;
 }
 
-cpp::statement_seq* parseFunction(LexContext& context)
+cpp::statement_seq* parseFunction(Scanner& scanner)
 {
-	Scanner scanner(context);
 	Parser parser(scanner);
 
 	cpp::statement_seq* result = NULL;

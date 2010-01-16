@@ -35,8 +35,62 @@ struct Token
 	}
 };
 
+struct Page
+{
+	enum { SIZE = 128 * 1024 };
+	char buffer[SIZE]; // debug padding
+
+	Page()
+	{
+#ifdef _DEBUG
+		std::uninitialized_fill(buffer, buffer + SIZE, 0xbabababa);
+#endif
+	}
+};
+
+struct LinearAllocator
+{
+	typedef std::vector<Page*> Pages;
+	Pages pages;
+	size_t position;
+	LinearAllocator()
+		: position(0)
+	{
+	}
+	~LinearAllocator()
+	{
+		for(Pages::iterator i = pages.begin(); i != pages.end(); ++i)
+		{
+			Page* p = *i;
+			delete p; // TODO: fix heap-corruption assert
+		}
+	}
+	Page* getPage(size_t index)
+	{
+		if(index == pages.size())
+		{
+			pages.push_back(new Page);
+		}
+		return pages[index];
+	}
+	void* allocate(size_t size)
+	{
+		size_t available = sizeof(Page) - position % sizeof(Page);
+		if(size > available)
+		{
+			position += available;
+		}
+		Page* page = getPage(position / sizeof(Page));
+		void* p = page->buffer + position % sizeof(Page);
+		position += size;
+		return p;
+	}
+};
+
 struct Scanner
 {
+	LinearAllocator allocator;
+
 	LexIterator& first;
 	LexIterator& last;
 
@@ -181,13 +235,14 @@ struct Parser : public ParserState
 {
 	Scanner& scanner;
 	size_t position;
+	size_t allocation;
 
 	Parser(Scanner& scanner)
-		: scanner(scanner), position(0)
+		: scanner(scanner), position(0), allocation(0)
 	{
 	}
 	Parser(const Parser& other)
-		: ParserState(other), scanner(other.scanner), position(0)
+		: ParserState(other), scanner(other.scanner), position(0), allocation(scanner.allocator.position)
 	{
 	}
 
@@ -213,6 +268,7 @@ struct Parser : public ParserState
 	void backtrack()
 	{
 		scanner.backtrack(position);
+		scanner.allocator.position = allocation;
 	}
 };
 
@@ -269,12 +325,6 @@ inline void printRejected(const char* symbol)
 }
 
 template<typename T>
-T* createNode(T*)
-{
-	return new T;
-}
-
-template<typename T>
 struct NullPtr
 {
 	static T* VALUE;
@@ -290,7 +340,8 @@ T* parseNodeInternal(Parser& parser, T* p, bool print)
 {
 	Parser tmp(parser);
 	parser.scanner.push();
-	p = parseNode(tmp, new T);
+	p = new(parser.scanner.allocator.allocate(sizeof(T))) T;
+	p = parseNode(tmp, p);
 	parser.scanner.pop();
 	if(p != NULL)
 	{
@@ -329,8 +380,8 @@ T* parseNodeInternal(Parser& parser, T* p, bool print)
 // Type must have members 'left' and 'right', and 'typeof(left)' must by substitutable for 'Type'
 #define PARSE_PREFIX(parser, Type) if(Type* p = parseNodeInternal(parser, NullPtr<Type>::VALUE, true)) { if(p->right == NULL) return p->left; return p; }
 
-cpp::declaration_seq* parseFile(LexContext& context);
-cpp::statement_seq* parseFunction(LexContext& context);
+cpp::declaration_seq* parseFile(Scanner& scanner);
+cpp::statement_seq* parseFunction(Scanner& scanner);
 
 #endif
 

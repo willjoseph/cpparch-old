@@ -177,7 +177,7 @@ namespace cpp
 
 	struct identifier : public unqualified_id, public mem_initializer_id, public class_name
 	{
-		std::string value;
+		const char* value;
 	};
 
 	struct nested_name_specifier_prefix
@@ -522,7 +522,8 @@ namespace cpp
 
 	struct string_literal : public literal
 	{
-		std::string value;
+		const char* value;
+		string_literal* next;
 	};
 
 	struct primary_expression_builtin : public primary_expression
