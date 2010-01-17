@@ -4,64 +4,57 @@
 
 #include <string>
 
-
 namespace cpp
 {
-	struct template_argument
+	template<typename T>
+	struct choice
 	{
-		virtual ~template_argument()
+		virtual ~choice()
 		{
 		}
 	};
 
-	struct template_parameter
-	{
-		virtual ~template_parameter()
-		{
-		}
-	};
-
-	struct exception_declarator
-	{
-		virtual ~exception_declarator()
-		{
-		}
-	};
-
-	struct declarator : public exception_declarator
-	{
-		virtual ~declarator()
-		{
-		}
-	};
-
-	struct direct_declarator_prefix : public declarator
+	struct terminal_choice
 	{
 	};
 
-	struct declarator_id : public direct_declarator_prefix
+	struct template_argument : public choice<template_argument>
 	{
 	};
 
-	struct condition
-	{
-		virtual ~condition()
-		{
-		}
-	};
-
-	struct expression : public condition
+	struct template_parameter : public choice<template_parameter>
 	{
 	};
 
-	struct initializer
+	struct exception_declarator : public choice<exception_declarator>
 	{
-		virtual ~initializer()
-		{
-		}
 	};
 
-	struct initializer_clause : public initializer
+	struct declarator : public choice<declarator>, public exception_declarator
+	{
+	};
+
+	struct direct_declarator_prefix : public choice<direct_declarator_prefix>, public declarator
+	{
+	};
+
+	struct declarator_id : public choice<declarator_id>, public direct_declarator_prefix
+	{
+	};
+
+	struct condition : public choice<condition>
+	{
+	};
+
+	struct expression : public choice<expression>, public condition
+	{
+	};
+
+	struct initializer : public choice<initializer>
+	{
+	};
+
+	struct initializer_clause : public choice<initializer_clause>, public initializer
 	{
 	};
 
@@ -73,105 +66,99 @@ namespace cpp
 	{
 	};
 
-	struct conditional_expression : public assignment_expression, public constant_expression
+	struct conditional_expression : public choice<conditional_expression>, public assignment_expression, public constant_expression
 	{
 	};
 
-	struct logical_or_expression : public conditional_expression
+	struct logical_or_expression : public choice<logical_or_expression>, public conditional_expression
 	{
 	};
 
-	struct logical_and_expression : public logical_or_expression
+	struct logical_and_expression : public choice<logical_and_expression>, public logical_or_expression
 	{
 	};
 
-	struct inclusive_or_expression : public logical_and_expression
+	struct inclusive_or_expression : public choice<inclusive_or_expression>, public logical_and_expression
 	{
 	};
 
-	struct exclusive_or_expression : public inclusive_or_expression
+	struct exclusive_or_expression : public choice<exclusive_or_expression>, public inclusive_or_expression
 	{
 	};
 
-	struct and_expression : public exclusive_or_expression
+	struct and_expression : public choice<and_expression>, public exclusive_or_expression
 	{
 	};
 
-	struct equality_expression : public and_expression
+	struct equality_expression : public choice<equality_expression>, public and_expression
 	{
 	};
 
-	struct relational_expression : public equality_expression
+	struct relational_expression : public choice<relational_expression>, public equality_expression
 	{
 	};
 
-	struct shift_expression : public relational_expression
+	struct shift_expression : public choice<shift_expression>, public relational_expression
 	{
 	};
 
-	struct additive_expression : public shift_expression
+	struct additive_expression : public choice<additive_expression>, public shift_expression
 	{
 	};
 
-	struct multiplicative_expression : public additive_expression
+	struct multiplicative_expression : public choice<multiplicative_expression>, public additive_expression
 	{
 	};
 
-	struct pm_expression : public multiplicative_expression
+	struct pm_expression : public choice<pm_expression>, public multiplicative_expression
 	{
 	};
 
-	struct cast_expression : public pm_expression
+	struct cast_expression : public choice<cast_expression>, public pm_expression
 	{
 	};
 
-	struct unary_expression : public cast_expression
+	struct unary_expression : public choice<unary_expression>, public cast_expression
 	{
 	};
 
-	struct postfix_expression : public unary_expression
+	struct postfix_expression : public choice<postfix_expression>, public unary_expression
 	{
 	};
 
-	struct postfix_expression_prefix : public postfix_expression
+	struct postfix_expression_prefix : public choice<postfix_expression_prefix>, public postfix_expression
 	{
 	};
 
-	struct primary_expression : public postfix_expression_prefix
+	struct primary_expression : public choice<primary_expression>, public postfix_expression_prefix
 	{
 	};
 
-	struct id_expression : public declarator_id, public primary_expression
+	struct id_expression : public choice<id_expression>, public declarator_id, public primary_expression
 	{
 	};
 
-	struct unqualified_id : public id_expression
+	struct unqualified_id : public choice<unqualified_id>, public id_expression
 	{
 	};
 
-	struct qualified_id : public id_expression
+	struct qualified_id : public choice<qualified_id>, public id_expression
 	{
 	};
 
-	struct template_id : public unqualified_id
+	struct template_id : public choice<template_id>, public unqualified_id
 	{
 	};
 
-	struct mem_initializer_id
+	struct mem_initializer_id : public choice<mem_initializer_id>
 	{
-		virtual ~mem_initializer_id()
-		{
-		}
 	};
 
-	struct type_name
+	struct type_name : public choice<type_name>
 	{
-		virtual ~type_name()
-		{
-		}
 	};
 
-	struct class_name : public type_name
+	struct class_name : public choice<class_name>, public type_name
 	{
 	};
 
@@ -198,25 +185,19 @@ namespace cpp
 		nested_name_specifier_suffix* suffix;
 	};
 
-	struct type_specifier
-	{
-		virtual ~type_specifier()
-		{
-		}
-	};
-
-	struct type_specifier_noncv : public type_specifier
+	struct type_specifier : public choice<type_specifier>
 	{
 	};
 
-	struct decl_specifier_suffix
+	struct type_specifier_noncv : public choice<type_specifier_noncv>, public type_specifier
 	{
-		virtual ~decl_specifier_suffix()
-		{
-		}
 	};
 
-	struct decl_specifier_nontype : public decl_specifier_suffix
+	struct decl_specifier_suffix : public choice<decl_specifier_suffix>
+	{
+	};
+
+	struct decl_specifier_nontype : public choice<decl_specifier_nontype>, public decl_specifier_suffix
 	{
 	};
 
@@ -239,7 +220,7 @@ namespace cpp
 		decl_specifier_suffix_seq* suffix;
 	};
 
-	struct simple_type_specifier : public type_specifier_noncv
+	struct simple_type_specifier : public choice<simple_type_specifier>, public type_specifier_noncv
 	{
 	};
 
@@ -249,22 +230,19 @@ namespace cpp
 		template_argument_list* next;
 	};
 
-	struct overloadable_operator
-	{
-		virtual ~overloadable_operator()
-		{
-		}
-	};
-
-	struct array_operator : public overloadable_operator
+	struct overloadable_operator : public choice<overloadable_operator>
 	{
 	};
 
-	struct function_operator : public overloadable_operator
+	struct array_operator : public choice<array_operator>, public overloadable_operator
 	{
 	};
 
-	struct comma_operator : public overloadable_operator
+	struct function_operator : public choice<function_operator>, public overloadable_operator
+	{
+	};
+
+	struct comma_operator : public choice<comma_operator>, public overloadable_operator
 	{
 	};
 
@@ -313,14 +291,11 @@ namespace cpp
 		operator_function_id* id;
 	};
 
-	struct elaborated_type_specifier_key
+	struct elaborated_type_specifier_key : public choice<elaborated_type_specifier_key>
 	{
-		virtual ~elaborated_type_specifier_key()
-		{
-		}
 	};
 
-	struct class_key : public elaborated_type_specifier_key
+	struct class_key : public terminal_choice, public elaborated_type_specifier_key
 	{
 		enum { CLASS, STRUCT, UNION } value;
 	};
@@ -330,16 +305,13 @@ namespace cpp
 		// always 'enum'
 	};
 
-	struct access_specifier
+	struct access_specifier : public terminal_choice
 	{
 		enum { PRIVATE, PROTECTED, PUBLIC } value;
 	};
 
-	struct base_specifier_prefix
+	struct base_specifier_prefix : public choice<base_specifier_prefix>
 	{
-		virtual ~base_specifier_prefix()
-		{
-		}
 	};
 
 	struct base_specifier_access_virtual : public base_specifier_prefix
@@ -374,11 +346,8 @@ namespace cpp
 		base_specifier_list* list;
 	};
 
-	struct class_head
+	struct class_head : public choice<class_head>
 	{
-		virtual ~class_head()
-		{
-		}
 	};
 
 	struct class_head_default : public class_head
@@ -409,14 +378,11 @@ namespace cpp
 		base_clause* base;
 	};
 
-	struct type_specifier_suffix
+	struct type_specifier_suffix : public choice<type_specifier_suffix>
 	{
-		virtual ~type_specifier_suffix()
-		{
-		}
 	};
 
-	struct cv_qualifier : public type_specifier, public decl_specifier_nontype, public type_specifier_suffix
+	struct cv_qualifier : public terminal_choice, public type_specifier, public decl_specifier_nontype, public type_specifier_suffix
 	{
 		enum { CONST, VOLATILE } value;
 	};
@@ -427,7 +393,7 @@ namespace cpp
 		cv_qualifier_seq* next;
 	};
 
-	struct ptr_operator_key
+	struct ptr_operator_key : public terminal_choice
 	{
 		enum { PTR, REF } value;
 	};
@@ -459,7 +425,7 @@ namespace cpp
 		type_specifier_suffix_seq* suffix;
 	};
 
-	struct abstract_declarator : public exception_declarator
+	struct abstract_declarator : public choice<abstract_declarator>, public exception_declarator
 	{
 	};
 
@@ -499,11 +465,8 @@ namespace cpp
 		expression_comma* right;
 	};
 
-	struct member_declarator_suffix
+	struct member_declarator_suffix : public choice<member_declarator_suffix>
 	{
-		virtual ~member_declarator_suffix()
-		{
-		}
 	};
 
 	struct constant_initializer : public member_declarator_suffix
@@ -511,11 +474,11 @@ namespace cpp
 		constant_expression* expr;
 	};
 
-	struct literal : public primary_expression
+	struct literal : public choice<literal>, public primary_expression
 	{
 	};
 
-	struct numeric_literal : public literal
+	struct numeric_literal : public terminal_choice, public literal
 	{
 		enum { INTEGER, CHARACTER, FLOATING, BOOLEAN } value;
 	};
@@ -563,11 +526,8 @@ namespace cpp
 		expression_list* list;
 	};
 
-	struct postfix_expression_suffix
+	struct postfix_expression_suffix : public choice<postfix_expression_suffix>
 	{
-		virtual ~postfix_expression_suffix()
-		{
-		}
 	};
 
 	struct postfix_expression_suffix_seq
@@ -592,7 +552,7 @@ namespace cpp
 		expression_list* args;
 	};
 
-	struct member_operator : public overloadable_operator
+	struct member_operator : public terminal_choice, public overloadable_operator
 	{
 		enum { DOT, ARROW } value;
 	};
@@ -627,7 +587,7 @@ namespace cpp
 		//psuedo_destructor_name* destructor;
 	};
 
-	struct postfix_operator : public postfix_expression_suffix, public overloadable_operator
+	struct postfix_operator : public terminal_choice, public postfix_expression_suffix, public overloadable_operator
 	{
 		enum { PLUSPLUS, MINUSMINUS } value;
 	};
@@ -638,7 +598,7 @@ namespace cpp
 		expression_list* args;
 	};
 
-	struct cast_operator
+	struct cast_operator : public terminal_choice
 	{
 		enum { DYNAMIC, STATIC, REINTERPRET, CONST } value;
 	};
@@ -660,18 +620,12 @@ namespace cpp
 		type_id* type;
 	};
 
-	struct new_type
+	struct new_type : public choice<new_type>
 	{
-		virtual ~new_type()
-		{
-		}
 	};
 
-	struct new_declarator
+	struct new_declarator : public choice<new_declarator>
 	{
-		virtual ~new_declarator()
-		{
-		}
 	};
 
 	struct new_declarator_suffix
@@ -708,7 +662,7 @@ namespace cpp
 		expression_list* expr;
 	};
 
-	struct new_expression : public unary_expression
+	struct new_expression : public choice<new_expression>, public unary_expression
 	{
 	};
 
@@ -734,7 +688,7 @@ namespace cpp
 		cast_expression* expr;
 	};
 
-	struct unary_operator : public unary_expression, public overloadable_operator
+	struct unary_operator : public terminal_choice, public unary_expression, public overloadable_operator
 	{
 		enum { PLUSPLUS, MINUSMINUS, STAR, AND, PLUS, MINUS, NOT, COMPL } value;
 	};
@@ -761,7 +715,7 @@ namespace cpp
 		cast_expression* expr;
 	};
 
-	struct pm_operator : public overloadable_operator
+	struct pm_operator : public terminal_choice, public overloadable_operator
 	{
 		enum { DOTSTAR, ARROWSTAR } value;
 	};
@@ -773,7 +727,7 @@ namespace cpp
 		pm_expression* right;
 	};
 
-	struct multiplicative_operator : public overloadable_operator
+	struct multiplicative_operator : public terminal_choice, public overloadable_operator
 	{
 		enum { STAR, DIVIDE, PERCENT } value;
 	};
@@ -785,7 +739,7 @@ namespace cpp
 		multiplicative_expression* right;
 	};
 
-	struct additive_operator : public overloadable_operator
+	struct additive_operator : public terminal_choice, public overloadable_operator
 	{
 		enum { PLUS, MINUS } value;
 	};
@@ -797,7 +751,7 @@ namespace cpp
 		additive_expression* right;
 	};
 
-	struct shift_operator : public overloadable_operator
+	struct shift_operator : public terminal_choice, public overloadable_operator
 	{
 		enum { SHIFTLEFT, SHIFTRIGHT } value;
 	};
@@ -809,7 +763,7 @@ namespace cpp
 		shift_expression* right;
 	};
 
-	struct relational_operator : public overloadable_operator
+	struct relational_operator : public terminal_choice, public overloadable_operator
 	{
 		enum { LESS, GREATER, LESSEQUAL, GREATEREQUAL } value;
 	};
@@ -821,7 +775,7 @@ namespace cpp
 		relational_expression* right;
 	};
 
-	struct equality_operator : public overloadable_operator
+	struct equality_operator : public terminal_choice, public overloadable_operator
 	{
 		enum { EQUAL, NOTEQUAL } value;
 	};
@@ -863,11 +817,8 @@ namespace cpp
 		logical_or_expression* right;
 	};
 
-	struct logical_or_expression_suffix
+	struct logical_or_expression_suffix : public choice<logical_or_expression_suffix>
 	{
-		virtual ~logical_or_expression_suffix()
-		{
-		}
 	};
 
 	struct conditional_expression_rhs : public logical_or_expression_suffix
@@ -888,7 +839,7 @@ namespace cpp
 		logical_or_expression_suffix* right;
 	};
 
-	struct assignment_operator : public overloadable_operator
+	struct assignment_operator : public terminal_choice, public overloadable_operator
 	{
 		enum { ASSIGN, STAR, DIVIDE, PERCENT, PLUS, MINUS, SHIFTRIGHT, SHIFTLEFT, AND, XOR, OR } value;
 	};
@@ -939,11 +890,8 @@ namespace cpp
 		type_id_list* types;
 	};
 
-	struct declarator_suffix
+	struct declarator_suffix : public choice<declarator_suffix>
 	{
-		virtual ~declarator_suffix()
-		{
-		}
 	};
 
 	struct declarator_suffix_function : public declarator_suffix
@@ -981,11 +929,8 @@ namespace cpp
 		declarator* decl;
 	};
 
-	struct statement
+	struct statement : public choice<statement>
 	{
-		virtual ~statement()
-		{
-		}
 	};
 
 	struct statement_seq
@@ -994,11 +939,8 @@ namespace cpp
 		statement_seq* next;
 	};
 
-	struct function_body
+	struct function_body : public choice<function_body>
 	{
-		virtual ~function_body()
-		{
-		}
 	};
 
 	struct compound_statement : public statement, public function_body
@@ -1006,11 +948,8 @@ namespace cpp
 		statement_seq* body;
 	};
 
-	struct exception_declaration
+	struct exception_declaration : public choice<exception_declaration>
 	{
-		virtual ~exception_declaration()
-		{
-		}
 	};
 
 	struct exception_declaration_default : public exception_declaration
@@ -1031,14 +970,11 @@ namespace cpp
 		handler_seq* next;
 	};
 
-	struct linkage_specification_suffix
+	struct linkage_specification_suffix : public choice<linkage_specification_suffix>
 	{
-		virtual ~linkage_specification_suffix()
-		{
-		}
 	};
 
-	struct declaration : public linkage_specification_suffix
+	struct declaration : public choice<declaration>, public linkage_specification_suffix
 	{
 	};
 
@@ -1061,11 +997,8 @@ namespace cpp
 		mem_initializer_list* list;
 	};
 
-	struct general_declaration_suffix
+	struct general_declaration_suffix : public choice<general_declaration_suffix>
 	{
-		virtual ~general_declaration_suffix()
-		{
-		}
 	};
 
 	struct general_declaration : public declaration
@@ -1074,11 +1007,8 @@ namespace cpp
 		general_declaration_suffix* suffix;
 	};
 
-	struct member_declaration_suffix
+	struct member_declaration_suffix : public choice<member_declaration_suffix>
 	{
-		virtual ~member_declaration_suffix()
-		{
-		}
 	};
 
 	struct function_definition_suffix : public general_declaration_suffix, public member_declaration_suffix
@@ -1095,18 +1025,16 @@ namespace cpp
 	};
 
 
-	struct member_declarator
+	struct member_declarator : public choice<member_declarator>
 	{
-		virtual ~member_declarator()
-		{
-		}
 	};
 
 	struct pure_specifier
 	{
+		// always '= 0'
 	};
 
-	struct member_declarator_pure : public member_declarator_suffix
+	struct member_declarator_pure : public choice<member_declarator_pure>, public member_declarator_suffix
 	{
 	};
 
@@ -1128,11 +1056,8 @@ namespace cpp
 		member_declarator_list* next;
 	};
 
-	struct member_declaration
+	struct member_declaration : public choice<member_declaration>
 	{
-		virtual ~member_declaration()
-		{
-		}
 	};
 
 	struct member_declaration_default : public member_declaration
@@ -1154,7 +1079,7 @@ namespace cpp
 		unqualified_id* id;
 	};
 
-	struct function_specifier : public decl_specifier_nontype
+	struct function_specifier : public terminal_choice, public decl_specifier_nontype
 	{
 		enum { INLINE, VIRTUAL, EXPLICIT } value;
 	};
@@ -1185,11 +1110,8 @@ namespace cpp
 		member_declarator_list* decl;
 	};
 
-	struct member_specification
+	struct member_specification : public choice<member_specification>
 	{
-		virtual ~member_specification()
-		{
-		}
 	};
 
 	struct member_specification_list : public member_specification
@@ -1228,7 +1150,7 @@ namespace cpp
 		enumerator_list* values;
 	};
 
-	struct elaborated_type_specifier : public type_specifier_noncv
+	struct elaborated_type_specifier : public choice<elaborated_type_specifier>, public type_specifier_noncv
 	{
 	};
 
@@ -1257,15 +1179,15 @@ namespace cpp
 		type_name* id; // NOTE: only 'identifier' is allowed if 'isTemplate' is true
 	};
 
-	struct parameter_declaration : public template_parameter
+	struct parameter_declaration : public choice<parameter_declaration>, public template_parameter
 	{
 	};
 
-	struct type_parameter : public template_parameter
+	struct type_parameter : public choice<type_parameter>, public template_parameter
 	{
 	};
 
-	struct type_parameter_key
+	struct type_parameter_key : public terminal_choice
 	{
 		enum { CLASS, TYPENAME } value;
 	};
@@ -1341,12 +1263,12 @@ namespace cpp
 		template_argument_list* args;
 	};
 
-	struct decl_specifier_default : public decl_specifier_nontype
+	struct decl_specifier_default : public terminal_choice, public decl_specifier_nontype
 	{
 		enum { FRIEND, TYPEDEF } value;
 	};
 
-	struct storage_class_specifier : public decl_specifier_nontype
+	struct storage_class_specifier : public terminal_choice, public decl_specifier_nontype
 	{
 		enum { REGISTER, STATIC, EXTERN, MUTABLE } value;
 	};
@@ -1377,16 +1299,16 @@ namespace cpp
 		simple_template_id* id;
 	};
 
-	struct simple_type_specifier_builtin : public simple_type_specifier, public decl_specifier_suffix, public type_specifier_suffix
+	struct simple_type_specifier_builtin : public terminal_choice, public simple_type_specifier, public decl_specifier_suffix, public type_specifier_suffix
 	{
 		enum { CHAR, WCHAR_T, BOOL, SHORT, INT, LONG, SIGNED, UNSIGNED, FLOAT, DOUBLE, VOID, AUTO } value;
 	};
 
-	struct declaration_statement : public statement
+	struct declaration_statement : public choice<declaration_statement>, public statement
 	{
 	};
 
-	struct block_declaration : public declaration_statement, public declaration
+	struct block_declaration : public choice<block_declaration>, public declaration_statement, public declaration
 	{
 	};
 
@@ -1409,7 +1331,7 @@ namespace cpp
 		identifier* id;
 	};
 
-	struct using_declaration : public block_declaration, public member_declaration
+	struct using_declaration : public choice<using_declaration>, public block_declaration, public member_declaration
 	{
 	};
 
@@ -1433,11 +1355,8 @@ namespace cpp
 		identifier* id;
 	};
 
-	struct for_init_statement
+	struct for_init_statement : public choice<for_init_statement>
 	{
-		virtual ~for_init_statement()
-		{
-		}
 	};
 
 	struct init_declarator
@@ -1470,7 +1389,7 @@ namespace cpp
 		class_name* name;
 	};
 
-	struct labeled_statement : public statement
+	struct labeled_statement : public choice<labeled_statement>, public statement
 	{
 	};
 
@@ -1496,7 +1415,7 @@ namespace cpp
 		expression* expr;
 	};
 
-	struct selection_statement : public statement
+	struct selection_statement : public choice<selection_statement>, public statement
 	{
 	};
 
@@ -1520,7 +1439,7 @@ namespace cpp
 		statement* body;
 	};
 
-	struct iteration_statement : public statement
+	struct iteration_statement : public choice<iteration_statement>, public statement
 	{
 	};
 
@@ -1544,11 +1463,11 @@ namespace cpp
 		statement* body;
 	};
 
-	struct jump_statement : public statement
+	struct jump_statement : public choice<jump_statement>, public statement
 	{
 	};
 
-	struct jump_statement_key
+	struct jump_statement_key : public terminal_choice
 	{
 		enum { BREAK, CONTINUE } value;
 	};
@@ -1615,51 +1534,6 @@ namespace cpp
 	{
 		identifier* id;
 		namespace_body* body;
-	};
-
-	struct extended_decl_modifier
-	{
-		virtual ~extended_decl_modifier()
-		{
-		}
-	};
-
-	struct extended_decl_modifier_simple : public extended_decl_modifier
-	{
-		enum { APPDOMAIN, DEPRECATED, DLLIMPORT, DLLEXPORT,
-			JITINTRINSIC, NAKED, NOALIAS, NOINLINE, NORETURN,
-			NOTHROW, NOVTABLE, PROCESS, RESTRICT, SELECTANY, THREAD } value;
-	};
-
-	struct extended_decl_modifier_align : public extended_decl_modifier
-	{
-		// always 'decimal-integer'
-	};
-
-	struct extended_decl_modifier_allocate : public extended_decl_modifier
-	{
-		// always 'string-literal'
-	};
-
-	struct extended_decl_modifier_uuid : public extended_decl_modifier
-	{
-		// always 'string-literal'
-	};
-
-	struct extended_decl_modifier_property : public extended_decl_modifier
-	{
-		// TODO
-	};
-
-	struct extended_decl_modifier_seq
-	{
-		extended_decl_modifier* item;
-		extended_decl_modifier_seq* next;
-	};
-
-	struct extended_decl_specifier : public decl_specifier_nontype
-	{
-		extended_decl_modifier_seq* mods;
 	};
 }
 

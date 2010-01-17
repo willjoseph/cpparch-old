@@ -355,12 +355,41 @@ T* NullPtr<T>::VALUE = NULL;
 #define SYMBOL_NAME(T) (typeid(T).name() + 12)
 
 template<typename T>
-T* parseNodeInternal(Parser& parser, T* p, bool print)
+struct SymbolAllocator
+{
+	LinearAllocator& allocator;
+	SymbolAllocator(LinearAllocator& allocator)
+		: allocator(allocator)
+	{
+	}
+
+	T* allocate(cpp::terminal_choice*)
+	{
+		return NULL;
+	}
+	T* allocate(cpp::choice<T>*)
+	{
+		return NULL;
+	}
+	T* allocate(void*)
+	{
+		return new(allocator.allocate(sizeof(T))) T;
+	}
+};
+
+template<typename T>
+T* createSymbol(Parser& parser, T*)
+{
+	return new(parser.scanner.allocator.allocate(sizeof(T))) T;
+}
+
+template<typename T>
+T* parseSymbolInternal(Parser& parser, T* p, bool print)
 {
 	Parser tmp(parser);
 	parser.scanner.push();
-	p = new(parser.scanner.allocator.allocate(sizeof(T))) T;
-	p = parseNode(tmp, p);
+	p = SymbolAllocator<T>(parser.scanner.allocator).allocate(p);
+	p = parseSymbol(tmp, p);
 	parser.scanner.pop();
 	if(p != NULL)
 	{
@@ -392,12 +421,12 @@ T* parseNodeInternal(Parser& parser, T* p, bool print)
 #define TOKEN_EQUAL(parser, token) isToken(parser.get_id(), token)
 #define PARSE_TOKEN_REQUIRED(parser, token_) if(TOKEN_EQUAL(parser, token_)) { parser.increment(); } else { return NULL; }
 #define PARSE_TOKEN_OPTIONAL(parser, result, token) result = false; if(TOKEN_EQUAL(parser, token)) { result = true; parser.increment(); }
-#define PARSE_SELECT_TOKEN(parser, p, token, value_) if(TOKEN_EQUAL(parser, token)) { p->value = value_; parser.increment(); return p; }
-#define PARSE_OPTIONAL(parser, p) (p) = parseNodeInternal(parser, p, true)
-#define PARSE_REQUIRED(parser, p) if(((p) = parseNodeInternal(parser, p, true)) == 0) { return NULL; }
-#define PARSE_SELECT(parser, Type) if(Type* p = parseNodeInternal(parser, NullPtr<Type>::VALUE, true)) { return p; }
+#define PARSE_SELECT_TOKEN(parser, p, token, value_) if(TOKEN_EQUAL(parser, token)) { p = createSymbol(parser, p); p->value = value_; parser.increment(); return p; }
+#define PARSE_OPTIONAL(parser, p) (p) = parseSymbolInternal(parser, p, true)
+#define PARSE_REQUIRED(parser, p) if(((p) = parseSymbolInternal(parser, p, true)) == 0) { return NULL; }
+#define PARSE_SELECT(parser, Type) if(Type* p = parseSymbolInternal(parser, NullPtr<Type>::VALUE, true)) { return p; }
 // Type must have members 'left' and 'right', and 'typeof(left)' must by substitutable for 'Type'
-#define PARSE_PREFIX(parser, Type) if(Type* p = parseNodeInternal(parser, NullPtr<Type>::VALUE, true)) { if(p->right == NULL) return p->left; return p; }
+#define PARSE_PREFIX(parser, Type) if(Type* p = parseSymbolInternal(parser, NullPtr<Type>::VALUE, true)) { if(p->right == NULL) return p->left; return p; }
 
 cpp::declaration_seq* parseFile(Scanner& scanner);
 cpp::statement_seq* parseFunction(Scanner& scanner);
