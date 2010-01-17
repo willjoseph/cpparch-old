@@ -1924,7 +1924,12 @@ inline cpp::initializer_clause* parseSymbol(Parser& parser, cpp::initializer_cla
 inline cpp::initializer_list* parseSymbol(Parser& parser, cpp::initializer_list* result)
 {
 	PARSE_REQUIRED(parser, result->item);
-	PARSE_OPTIONAL(parser, result->next);
+	result->next = NULL;
+	if(TOKEN_EQUAL(parser, boost::wave::T_COMMA))
+	{
+		parser.increment();
+		PARSE_OPTIONAL(parser, result->next);
+	}
 	return result;
 }
 
@@ -1938,8 +1943,6 @@ inline cpp::initializer_clause_list* parseSymbol(Parser& parser, cpp::initialize
 		return result;
 	}
 	PARSE_REQUIRED(parser, result->list);
-	bool trailingComma;
-	PARSE_TOKEN_OPTIONAL(parser, trailingComma, boost::wave::T_COMMA);
 	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_RIGHTBRACE);
 	return result;
 }

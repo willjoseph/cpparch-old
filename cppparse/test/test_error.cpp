@@ -1,4 +1,7 @@
 
+// initializer-list
+const int x[] = { 0, 1, 2 };
+
 // member operator-function-definition
 struct plus
 {
