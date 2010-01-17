@@ -1,4 +1,13 @@
 
+// member operator-function-definition
+struct plus
+{
+	T operator()(const T& _Left, const T& _Right) const
+	{
+	}
+};
+
+
 // TODO: long backtrack here: 'nested-name-specifier' vs 'type-id' beginning with 'simple-template-id'
 template <class _Iterator>
 class checked_array_iterator
@@ -11,21 +20,22 @@ class checked_array_iterator
 {
 };
 
+// bitfield member-declaration
+struct A {
+	unsigned x : 1;
+};
 
-typedef union _LARGE_INTEGER {
-	struct {
-		DWORD LowPart;
-		LONG HighPart;
+// list of bitfield member-declarations
+struct A{
+	unsigned x: 1, y : 1;
+};
+
+// member-struct
+struct A {
+	struct B {
 	};
-	LONGLONG QuadPart;
-} LARGE_INTEGER;
+};
 
-
-__inline struct _TEB * NtCurrentTeb( void ) { __asm mov eax, fs:[0x18] }
-
-typedef struct _ImageArchitectureHeader {
-	unsigned int AmaskValue: 1;
-} IMAGE_ARCHITECTURE_HEADER;
 
 
 void test()

@@ -234,16 +234,19 @@ namespace cpp
 	{
 	};
 
-	struct array_operator : public choice<array_operator>, public overloadable_operator
+	struct array_operator : public overloadable_operator
 	{
+		// always '[]'
 	};
 
-	struct function_operator : public choice<function_operator>, public overloadable_operator
+	struct function_operator : public overloadable_operator
 	{
+		// always '()'
 	};
 
-	struct comma_operator : public choice<comma_operator>, public overloadable_operator
+	struct comma_operator : public overloadable_operator
 	{
+		// always ','
 	};
 
 	struct new_operator : public overloadable_operator
