@@ -29,6 +29,10 @@ struct Token
 	const char* value;
 	LexFilePosition position;
 
+	Token()
+		: id(boost::wave::T_UNKNOWN)
+	{
+	}
 	Token(LexTokenId id, const char* value, const LexFilePosition& position)
 		: id(id), value(value), position(position)
 	{
@@ -98,6 +102,63 @@ struct BacktrackStats
 	}
 };
 
+struct TokenBuffer
+{
+	enum { SIZE = 1024 };
+	Token tokens[SIZE];
+	Token* position;
+
+	typedef Token* iterator;
+	typedef const Token* const_iterator;
+
+	TokenBuffer() : position(tokens)
+	{
+	}
+
+	iterator next(iterator i)
+	{
+		++i;
+		return i == tokens + SIZE ? tokens : i;
+	}
+	const_iterator next(const_iterator i) const
+	{
+		++i;
+		return i == tokens + SIZE ? tokens : i;
+	}
+
+	size_t distance(const_iterator i, const_iterator other)
+	{
+		return (i > other) ? SIZE - (i - other) : other - i;
+	}
+
+	const_iterator backtrack(const_iterator i, size_t count)
+	{
+		return (count > size_t(i - tokens)) ? i + (SIZE - count) : i - count;
+	}
+
+	iterator begin()
+	{
+		return next(position);
+	}
+	iterator end()
+	{
+		return position;
+	}
+	const_iterator begin() const
+	{
+		return next(position);
+	}
+	const_iterator end() const
+	{
+		return position;
+	}
+	void push_back(const Token& token)
+	{
+		*position = token;
+		position = next(position);
+	}
+};
+
 struct Scanner
 {
 	LinearAllocator allocator;
@@ -105,7 +166,7 @@ struct Scanner
 	LexIterator& first;
 	LexIterator& last;
 
-	typedef std::vector<Token> Tokens;
+	typedef TokenBuffer Tokens;
 	Tokens history;
 	Tokens::const_iterator position;
 
@@ -117,9 +178,10 @@ struct Scanner
 	Positions::iterator stackpos;
 
 	BacktrackStats stats;
+	bool maxBacktrack;
 
 	Scanner(LexContext& context)
-		: first(createBegin(context)), last(createEnd(context)), position(history.end()), stackpos(stacktrace.end())
+		: first(createBegin(context)), last(createEnd(context)), position(history.end()), stackpos(stacktrace.end()), maxBacktrack(false)
 	{
 		if(isWhiteSpace(get_id()))
 		{
@@ -133,7 +195,16 @@ struct Scanner
 	}
 	void backtrack(size_t count, const char* symbol)
 	{
-		position -= count;
+		if(count == 0)
+		{
+			return;
+		}
+		if(history.distance(position, history.end()) + count >= TokenBuffer::SIZE)
+		{
+			maxBacktrack = true;
+		}
+
+		position = history.backtrack(position, count);
 		if(count > stats.count)
 		{
 			stats.count = count;
@@ -143,13 +214,13 @@ struct Scanner
 	}
 	void push()
 	{
-		stacktrace.erase(stackpos, stacktrace.end());
-		stacktrace.push_back(position - history.begin());
-		stackpos = stacktrace.end();
+		//stacktrace.erase(stackpos, stacktrace.end());
+		//stacktrace.push_back(position - history.begin());
+		//stackpos = stacktrace.end();
 	}
 	void pop()
 	{
-		*--stackpos = position - history.begin();
+		//*--stackpos = position - history.begin();
 	}
 
 	const char* makeIdentifier(const char* value)
@@ -179,7 +250,7 @@ struct Scanner
 	{
 		if(position != history.end())
 		{
-			++position;
+			position = history.next(position);
 		}
 		else
 		{
@@ -218,12 +289,12 @@ inline bool isIdentifier(char c)
 	return isAlphabet(c) || isNumber(c) || c == '_';
 }
 
-inline void printSequence(Scanner::Tokens::const_iterator first, Scanner::Tokens::const_iterator last)
+inline void printSequence(Scanner& scanner)
 {
 	std::cout << "   ";
 	bool space = false;
 	bool endline = false;
-	for( Scanner::Tokens::const_iterator i = first; i != last; ++i)
+	for( Scanner::Tokens::const_iterator i = scanner.position; i != scanner.history.end(); i = scanner.history.next(i))
 	{
 		if(space && isIdentifier(*(*i).value))
 		{
@@ -237,8 +308,8 @@ inline void printSequence(Scanner::Tokens::const_iterator first, Scanner::Tokens
 
 inline void printSequence(Scanner& scanner, size_t position)
 {
-	position = std::min(std::min(scanner.history.size(), size_t(32)), position);
-	printSequence(scanner.position - position, scanner.position);
+	//position = std::min(std::min(scanner.history.size(), size_t(32)), position);
+	//printSequence(scanner.position - position, scanner.position);
 }
 
 struct ParserState
@@ -306,7 +377,7 @@ inline void printError(Parser& parser)
 #endif
 	printPosition(get_position(dereference(parser.scanner.first)));
 	std::cout << "syntax error: '" << get_value(dereference(parser.scanner.first)) << "'" << std::endl;
-	printSequence(parser.scanner.position, parser.scanner.history.end()); // rejected tokens
+	printSequence(parser.scanner); // rejected tokens
 }
 
 inline void printSequence(Parser& parser)
@@ -386,6 +457,7 @@ T* createSymbol(Parser& parser, T*)
 template<typename T>
 T* parseSymbolInternal(Parser& parser, T* p, bool print)
 {
+	PARSE_ASSERT(!parser.scanner.maxBacktrack);
 	Parser tmp(parser);
 	parser.scanner.push();
 	p = SymbolAllocator<T>(parser.scanner.allocator).allocate(p);
