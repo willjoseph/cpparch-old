@@ -1,16 +1,34 @@
 
-// initializer-list
-const int x[] = { 0, 1, 2 };
-
-// member operator-function-definition
-struct plus
+class checked_array_iterator
 {
-	T operator()(const T& _Left, const T& _Right) const
-	{
-	}
+	int x;
+	int x;
+	int x;
+	int x;
+	int x;
+	int x;
+	int x;
+	int x;
+	int x;
+	int x;
+	int x;
+	int x;
+	int x;
+	int x;
+	int x;
+	int x;
+	int x;
+	int x;
+	int x;
+	int x;
+	int x;
+	int x;
+	int x;
+	int x;
+	int x;
 };
 
-
+#if 0
 // TODO: long backtrack here: 'nested-name-specifier' vs 'type-id' beginning with 'simple-template-id'
 template <class _Iterator>
 class checked_array_iterator
@@ -22,6 +40,20 @@ class checked_array_iterator
 	typename iterator_traits<_Iterator>::reference>
 {
 };
+#endif
+
+
+// initializer-list
+const int x[] = { 0, 1, 2 };
+
+// member operator-function-definition
+struct plus
+{
+	T operator()(const T& _Left, const T& _Right) const
+	{
+	}
+};
+
 
 // bitfield member-declaration
 struct A {

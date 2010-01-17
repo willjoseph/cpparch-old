@@ -2096,7 +2096,7 @@ inline cpp::general_declaration_suffix* parseSymbol(Parser& parser, cpp::general
 inline cpp::general_declaration* parseSymbol(Parser& parser, cpp::general_declaration* result)
 {
 	PARSE_OPTIONAL(parser, result->spec);
-	PARSE_REQUIRED(parser, result->decl);
+	PARSE_OPTIONAL(parser, result->decl); // TODO: making this optional permits parsing function-definition with no declarator
 	PARSE_REQUIRED(parser, result->suffix);
 	return result;
 }
