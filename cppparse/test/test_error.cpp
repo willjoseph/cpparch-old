@@ -1,4 +1,50 @@
 
+// TODO: long backtrack here
+template <class _Iterator>
+class checked_array_iterator
+	: public iterator<
+	typename iterator_traits<_Iterator>::iterator_category, 
+	typename iterator_traits<_Iterator>::value_type, 
+	typename iterator_traits<_Iterator>::difference_type, 
+	typename iterator_traits<_Iterator>::pointer, 
+	typename iterator_traits<_Iterator>::reference>
+{
+};
+
+// TODO: long backtrack here
+typedef long
+( * RPC_NEW_HTTP_PROXY_CHANNEL) (
+	RPC_HTTP_REDIRECTOR_STAGE RedirectorStage,
+	unsigned short *ServerName,
+	unsigned short *ServerPort,
+	unsigned short *RemoteUser,
+	unsigned short *AuthType,
+	void *ResourceUuid,
+	void *Metadata,
+	void *SessionId,
+	void *Interface,
+	void *Reserved,
+	unsigned long Flags,
+	unsigned short **NewServerName,
+	unsigned short **NewServerPort
+	);
+
+
+__inline struct _TEB * NtCurrentTeb( void ) { __asm mov eax, fs:[0x18] }
+
+typedef struct _ImageArchitectureHeader {
+	unsigned int AmaskValue: 1;
+} IMAGE_ARCHITECTURE_HEADER;
+
+
+void test()
+{
+	__asm int 3 __asm int 3 // one line
+	__asm { int 3; } // braced
+	__asm { __asm int 3; __asm int 3; }; // nested
+	__asm { __asm { int 3 }; }; // nested
+}
+
 class A
 {
 public:

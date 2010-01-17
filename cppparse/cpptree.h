@@ -1395,6 +1395,11 @@ namespace cpp
 		string_literal* str;
 	};
 
+	struct msext_asm_statement : public statement
+	{
+		msext_asm_statement* inner;
+	};
+
 
 	struct namespace_alias_definition : public block_declaration
 	{

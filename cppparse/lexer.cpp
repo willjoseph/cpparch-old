@@ -1,6 +1,8 @@
 
 #include "lexer.h"
 
+#include <string.h> // strrchr
+
 ///////////////////////////////////////////////////////////////////////////////
 //  Include Wave itself
 #include <boost/wave.hpp>
@@ -20,10 +22,33 @@ typedef boost::wave::cpplexer::lex_token<> token_type;
 //  parametrized with the token type.
 typedef boost::wave::cpplexer::lex_iterator<token_type> lex_iterator_type;
 
+typedef boost::wave::iteration_context_policies::load_file_to_string input_policy_type;
+
+class Hooks : public boost::wave::context_policies::eat_whitespace<token_type>
+{
+public:
+	template <typename ContextT>
+	void opened_include_file(ContextT const &ctx, 
+		std::string const &relname, std::string const& absname,
+		bool is_system_include)
+	{
+		const char* path = strrchr(relname.c_str(), '/');
+		if(path == 0)
+		{
+			path = relname.c_str();
+		}
+		else
+		{
+			++path;
+		}
+		std::cout << "  included: " << path << std::endl;
+	}
+};
+
 //  This is the resulting context type to use. The first template parameter
 //  should match the iterator type to be used during construction of the
 //  corresponding context object (see below).
-typedef boost::wave::context<std::string::iterator, lex_iterator_type>
+typedef boost::wave::context<std::string::iterator, lex_iterator_type, input_policy_type, Hooks>
 context_type;
 
 //  The preprocessor iterator shouldn't be constructed directly. It is 

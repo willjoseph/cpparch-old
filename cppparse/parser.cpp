@@ -68,6 +68,7 @@ inline cpp::simple_type_specifier_builtin* parseNode(Parser& parser, cpp::simple
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_VOID, cpp::simple_type_specifier_builtin::VOID);
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_AUTO, cpp::simple_type_specifier_builtin::AUTO);
 
+	// not handles as macros: types may be used as parameters in overloaded functions or template specialisations
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_MSEXT_INT8, cpp::simple_type_specifier_builtin::INT);
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_MSEXT_INT16, cpp::simple_type_specifier_builtin::INT);
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_MSEXT_INT32, cpp::simple_type_specifier_builtin::INT);
@@ -297,8 +298,8 @@ inline cpp::member_declarator_default* parseNode(Parser& parser, cpp::member_dec
 
 inline cpp::member_declarator* parseNode(Parser& parser, cpp::member_declarator* result)
 {
+	PARSE_SELECT(parser, cpp::member_declarator_bitfield); // TODO: shared prefix ambiguity: 'identifier'
 	PARSE_SELECT(parser, cpp::member_declarator_default);
-	PARSE_SELECT(parser, cpp::member_declarator_bitfield);
 	return NULL;
 }
 
@@ -2368,8 +2369,61 @@ inline cpp::expression_statement* parseNode(Parser& parser, cpp::expression_stat
 	return result;
 }
 
+inline cpp::msext_asm_statement* parseNode(Parser& parser, cpp::msext_asm_statement* result)
+{
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_MSEXT_ASM);
+	bool leadingBrace;
+	PARSE_TOKEN_OPTIONAL(parser, leadingBrace, boost::wave::T_LEFTBRACE);
+	size_t line = parser.get_position().get_line();
+	size_t depth = size_t(leadingBrace);
+	for(;;)
+	{
+		if(!leadingBrace
+			&& parser.get_position().get_line() != line) // HACK!
+		{
+			break;
+		}
+		if(depth == 0
+			&& TOKEN_EQUAL(parser, boost::wave::T_SEMICOLON))
+		{
+			break;
+		}
+		if(depth == size_t(leadingBrace)
+			&& TOKEN_EQUAL(parser, boost::wave::T_RIGHTBRACE))
+		{
+			if(leadingBrace)
+			{
+				parser.increment();
+			}
+			break;
+		}
+		if(TOKEN_EQUAL(parser, boost::wave::T_LEFTBRACE))
+		{
+			parser.increment();
+			++depth;
+		}
+		else if(TOKEN_EQUAL(parser, boost::wave::T_RIGHTBRACE))
+		{
+			parser.increment();
+			--depth;
+		}
+		else if(TOKEN_EQUAL(parser, boost::wave::T_MSEXT_ASM))
+		{
+			PARSE_REQUIRED(parser, result->inner);
+		}
+		else
+		{
+			parser.increment();
+		}
+	}
+	bool trailingSemicolon;
+	PARSE_TOKEN_OPTIONAL(parser, trailingSemicolon, boost::wave::T_SEMICOLON);
+	return result;
+}
+
 inline cpp::statement* parseNode(Parser& parser, cpp::statement* result)
 {
+	PARSE_SELECT(parser, cpp::msext_asm_statement);
 	PARSE_SELECT(parser, cpp::compound_statement);
 	PARSE_SELECT(parser, cpp::declaration_statement);
 	PARSE_SELECT(parser, cpp::labeled_statement);

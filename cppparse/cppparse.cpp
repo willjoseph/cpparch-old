@@ -43,6 +43,7 @@ int runTest(const Test& test)
 
 		LexContext& context = createContext(instring, test.input);
 		add_sysinclude_path(context, "C:\\Program Files\\Microsoft Visual Studio 8\\VC\\include");
+		add_sysinclude_path(context, "C:\\Program Files\\Microsoft Visual Studio 8\\VC\\PlatformSDK\\include");
 		add_macro_definition(context, "__fastcall=", true);
 		add_macro_definition(context, "__thiscall=", true);
 		add_macro_definition(context, "__clrcall=", true);
@@ -50,14 +51,21 @@ int runTest(const Test& test)
 		add_macro_definition(context, "__cdecl=", true);
 		add_macro_definition(context, "__pragma(arg)=", true);
 		add_macro_definition(context, "__inline=", true);
+		add_macro_definition(context, "__forceinline=", true);
 		add_macro_definition(context, "__w64=", true);
+		add_macro_definition(context, "__ptr64=", true);
+		add_macro_definition(context, "__ptr32=", true);
+		add_macro_definition(context, "__wchar_t=wchar_t", true);
+		add_macro_definition(context, "__declspec(modifiers)=", true);
+		
 		// optional: _DEBUG, _DLL, /Ze=_MSC_EXTENSIONS, /MT=_MT, /Zc:wchar_t=_NATIVE_WCHAR_T_DEFINED/_WCHAR_T_DEFINED
 		add_macro_definition(context, "_DEBUG", true);
 		add_macro_definition(context, "_WIN32", true);
 		add_macro_definition(context, "__FUNCTION__=\"<function-sig>\"", true);
 		add_macro_definition(context, "_INTEGRAL_MAX_BITS=32", true);
 		add_macro_definition(context, "_M_IX86=600", true); // /GB: Blend
-		add_macro_definition(context, "_MSC_VER=1400", true); // Visual C++ 2005
+		add_macro_definition(context, "_MSC_VER=1400", true); // Visual C++ 8
+		add_macro_definition(context, "_MSC_FULL_VER=140050727", true); // Visual C++ 8
 #if 1
 		Scanner scanner(context);
 		int result = test.verify(test.parse(scanner));
@@ -241,6 +249,7 @@ int main(int argc, char *argv[])
 	{
 		const Test tests[] = {
 			makeTest("test/test_error.cpp", verifyNull, parseFile),
+			makeTest("test/test_windows.cpp", verifyNull, parseFile),
 			makeTest("test/test_map.cpp", verifyNull, parseFile),
 			makeTest("test/test_vector.cpp", verifyNull, parseFile),
 			makeTest("test/test_iostream.cpp", verifyNull, parseFile),
