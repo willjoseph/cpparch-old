@@ -465,11 +465,11 @@ namespace cpp
 		expression_comma* right;
 	};
 
-	struct member_declarator_suffix : public choice<member_declarator_suffix>
+	struct member_initializer : public choice<member_initializer>
 	{
 	};
 
-	struct constant_initializer : public member_declarator_suffix
+	struct constant_initializer : public member_initializer
 	{
 		constant_expression* expr;
 	};
@@ -1004,6 +1004,7 @@ namespace cpp
 	struct general_declaration : public declaration
 	{
 		decl_specifier_seq* spec;
+		declarator* decl;
 		general_declaration_suffix* suffix;
 	};
 
@@ -1013,7 +1014,6 @@ namespace cpp
 
 	struct function_definition_suffix : public general_declaration_suffix, public member_declaration_suffix
 	{
-		declarator* decl;
 		function_body* body;
 		handler_seq* handlers;
 	};
@@ -1021,6 +1021,7 @@ namespace cpp
 	struct function_definition : public declaration
 	{
 		decl_specifier_seq* spec;
+		declarator* decl;
 		function_definition_suffix* suffix;
 	};
 
@@ -1029,19 +1030,15 @@ namespace cpp
 	{
 	};
 
-	struct pure_specifier
+	struct pure_specifier : public member_initializer
 	{
 		// always '= 0'
-	};
-
-	struct member_declarator_pure : public choice<member_declarator_pure>, public member_declarator_suffix
-	{
 	};
 
 	struct member_declarator_default : public member_declarator
 	{
 		declarator* decl;
-		member_declarator_suffix* suffix;
+		member_initializer* init;
 	};
 
 	struct member_declarator_bitfield : public member_declarator
@@ -1060,15 +1057,32 @@ namespace cpp
 	{
 	};
 
+	struct member_declaration_general : public choice<member_declaration_general>
+	{
+	};
+
 	struct member_declaration_default : public member_declaration
 	{
 		decl_specifier_seq* spec;
+		member_declaration_general* decl;
+	};
+
+	struct member_declaration_general_bitfield : public member_declaration_general
+	{
+		member_declarator_bitfield* item;
+		member_declarator_list* next;
+	};
+
+	struct member_declaration_general_default : public member_declaration_general
+	{
+		declarator* decl;
 		member_declaration_suffix* suffix;
 	};
 
 	struct member_declaration_suffix_default : public member_declaration_suffix
 	{
-		member_declarator_list* decl;
+		member_initializer* init;
+		member_declarator_list* next;
 	};
 
 	struct member_declaration_nested : public member_declaration
@@ -1107,7 +1121,7 @@ namespace cpp
 	struct member_declaration_ctor : public member_declaration
 	{
 		ctor_specifier_seq* spec;
-		member_declarator_list* decl;
+		declarator* decl;
 	};
 
 	struct member_specification : public choice<member_specification>
@@ -1373,12 +1387,14 @@ namespace cpp
 
 	struct simple_declaration_suffix : public general_declaration_suffix
 	{
-		init_declarator_list* decl;
+		initializer* init;
+		init_declarator_list* next;
 	};
 
 	struct simple_declaration : public block_declaration, public for_init_statement
 	{
 		decl_specifier_seq* spec;
+		declarator* decl;
 		simple_declaration_suffix* suffix;
 	};
 

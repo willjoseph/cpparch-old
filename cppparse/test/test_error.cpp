@@ -1,23 +1,5 @@
 
-// TODO: long backtrack here: declarator shared between function-definition and simple-declaration
-typedef long
-( * RPC_NEW_HTTP_PROXY_CHANNEL) (
-								 RPC_HTTP_REDIRECTOR_STAGE RedirectorStage,
-								 unsigned short *ServerName,
-								 unsigned short *ServerPort,
-								 unsigned short *RemoteUser,
-								 unsigned short *AuthType,
-								 void *ResourceUuid,
-								 void *Metadata,
-								 void *SessionId,
-								 void *Interface,
-								 void *Reserved,
-								 unsigned long Flags,
-								 unsigned short **NewServerName,
-								 unsigned short **NewServerPort
-								 );
-
-// TODO: long backtrack here
+// TODO: long backtrack here: 'nested-name-specifier' vs 'type-id' beginning with 'simple-template-id'
 template <class _Iterator>
 class checked_array_iterator
 	: public iterator<
@@ -28,6 +10,15 @@ class checked_array_iterator
 	typename iterator_traits<_Iterator>::reference>
 {
 };
+
+
+typedef union _LARGE_INTEGER {
+	struct {
+		DWORD LowPart;
+		LONG HighPart;
+	};
+	LONGLONG QuadPart;
+} LARGE_INTEGER;
 
 
 __inline struct _TEB * NtCurrentTeb( void ) { __asm mov eax, fs:[0x18] }

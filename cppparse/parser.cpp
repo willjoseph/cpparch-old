@@ -253,7 +253,7 @@ inline cpp::constant_expression* parseSymbol(Parser& parser, cpp::constant_expre
 	return result;
 }
 
-inline cpp::member_declarator_pure* parseSymbol(Parser& parser, cpp::member_declarator_pure* result)
+inline cpp::pure_specifier* parseSymbol(Parser& parser, cpp::pure_specifier* result)
 {
 	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_ASSIGN);
 	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_DECIMALINT); // TODO: check value is zero
@@ -267,10 +267,10 @@ inline cpp::constant_initializer* parseSymbol(Parser& parser, cpp::constant_init
 	return result;
 }
 
-inline cpp::member_declarator_suffix* parseSymbol(Parser& parser, cpp::member_declarator_suffix* result)
+inline cpp::member_initializer* parseSymbol(Parser& parser, cpp::member_initializer* result)
 {
 	PARSE_SELECT(parser, cpp::constant_initializer); // TODO: ambiguity here!
-	PARSE_SELECT(parser, cpp::member_declarator_pure);
+	PARSE_SELECT(parser, cpp::pure_specifier);
 	return result;
 }
 
@@ -288,7 +288,7 @@ inline cpp::decl_specifier_seq* parseSymbol(Parser& parser, cpp::decl_specifier_
 inline cpp::member_declarator_default* parseSymbol(Parser& parser, cpp::member_declarator_default* result)
 {
 	PARSE_REQUIRED(parser, result->decl);
-	PARSE_OPTIONAL(parser, result->suffix);
+	PARSE_OPTIONAL(parser, result->init);
 	return result;
 }
 
@@ -296,6 +296,33 @@ inline cpp::member_declarator* parseSymbol(Parser& parser, cpp::member_declarato
 {
 	PARSE_SELECT(parser, cpp::member_declarator_bitfield); // TODO: shared prefix ambiguity: 'identifier'
 	PARSE_SELECT(parser, cpp::member_declarator_default);
+	return result;
+}
+
+inline cpp::member_declaration_general_bitfield* parseSymbol(Parser& parser, cpp::member_declaration_general_bitfield* result)
+{
+	PARSE_REQUIRED(parser, result->item);
+	result->next = NULL;
+	if(TOKEN_EQUAL(parser, boost::wave::T_COMMA))
+	{
+		parser.increment();
+		PARSE_REQUIRED(parser, result->next);
+	}
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_SEMICOLON);
+	return result;
+}
+
+inline cpp::member_declaration_general_default* parseSymbol(Parser& parser, cpp::member_declaration_general_default* result)
+{
+	PARSE_OPTIONAL(parser, result->decl); // TODO: making this optional permits function-definition without declarator
+	PARSE_REQUIRED(parser, result->suffix);
+	return result;
+}
+
+inline cpp::member_declaration_general* parseSymbol(Parser& parser, cpp::member_declaration_general* result)
+{
+	PARSE_SELECT(parser, cpp::member_declaration_general_bitfield);
+	PARSE_SELECT(parser, cpp::member_declaration_general_default);
 	return result;
 }
 
@@ -313,7 +340,13 @@ inline cpp::member_declarator_list* parseSymbol(Parser& parser, cpp::member_decl
 
 inline cpp::member_declaration_suffix_default* parseSymbol(Parser& parser, cpp::member_declaration_suffix_default* result)
 {
-	PARSE_OPTIONAL(parser, result->decl);
+	PARSE_OPTIONAL(parser, result->init);
+	result->next = NULL;
+	if(TOKEN_EQUAL(parser, boost::wave::T_COMMA))
+	{
+		parser.increment();
+		PARSE_REQUIRED(parser, result->next);
+	}
 	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_SEMICOLON);
 	return result;
 }
@@ -328,7 +361,7 @@ inline cpp::member_declaration_suffix* parseSymbol(Parser& parser, cpp::member_d
 inline cpp::member_declaration_default* parseSymbol(Parser& parser, cpp::member_declaration_default* result)
 {
 	PARSE_OPTIONAL(parser, result->spec);
-	PARSE_REQUIRED(parser, result->suffix);
+	PARSE_REQUIRED(parser, result->decl);
 	return result;
 }
 
@@ -453,6 +486,7 @@ inline cpp::member_declaration_ctor* parseSymbol(Parser& parser, cpp::member_dec
 {
 	PARSE_OPTIONAL(parser, result->spec);
 	PARSE_REQUIRED(parser, result->decl);
+	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_SEMICOLON);
 	return result;
 }
 
@@ -460,8 +494,8 @@ inline cpp::member_declaration* parseSymbol(Parser& parser, cpp::member_declarat
 {
 	PARSE_SELECT(parser, cpp::using_declaration);
 	PARSE_SELECT(parser, cpp::template_declaration);
-	PARSE_SELECT(parser, cpp::member_declaration_inline); // shared-prefix ambiguity: 
-	PARSE_SELECT(parser, cpp::member_declaration_ctor); // this matches a constructor: Class(Type);
+	PARSE_SELECT(parser, cpp::member_declaration_inline);
+	PARSE_SELECT(parser, cpp::member_declaration_ctor); // shared-prefix ambiguity:  this matches a constructor: Class(Type);
 	PARSE_SELECT(parser, cpp::member_declaration_default); // this matches a member: Type(member);
 	PARSE_SELECT(parser, cpp::member_declaration_nested);
 	return result;
@@ -1814,7 +1848,6 @@ inline cpp::declarator* parseSymbol(Parser& parser, cpp::declarator* result)
 
 inline cpp::function_definition_suffix* parseSymbol(Parser& parser, cpp::function_definition_suffix* result)
 {
-	PARSE_REQUIRED(parser, result->decl);
 	bool isTry;
 	PARSE_TOKEN_OPTIONAL(parser, isTry, boost::wave::T_TRY);
 	PARSE_REQUIRED(parser, result->body);
@@ -1829,6 +1862,7 @@ inline cpp::function_definition_suffix* parseSymbol(Parser& parser, cpp::functio
 inline cpp::function_definition* parseSymbol(Parser& parser, cpp::function_definition* result)
 {
 	PARSE_OPTIONAL(parser, result->spec);
+	PARSE_REQUIRED(parser, result->decl);
 	PARSE_REQUIRED(parser, result->suffix);
 	return result;
 }
@@ -1960,7 +1994,13 @@ inline cpp::init_declarator_list* parseSymbol(Parser& parser, cpp::init_declarat
 
 inline cpp::simple_declaration_suffix* parseSymbol(Parser& parser, cpp::simple_declaration_suffix* result)
 {
-	PARSE_OPTIONAL(parser, result->decl);
+	PARSE_OPTIONAL(parser, result->init);
+	result->next = NULL;
+	if(TOKEN_EQUAL(parser, boost::wave::T_COMMA))
+	{
+		parser.increment();
+		PARSE_REQUIRED(parser, result->next);
+	}
 	PARSE_TOKEN_REQUIRED(parser, boost::wave::T_SEMICOLON);
 	return result;
 }
@@ -1968,6 +2008,7 @@ inline cpp::simple_declaration_suffix* parseSymbol(Parser& parser, cpp::simple_d
 inline cpp::simple_declaration* parseSymbol(Parser& parser, cpp::simple_declaration* result)
 {
 	PARSE_OPTIONAL(parser, result->spec);
+	PARSE_OPTIONAL(parser, result->decl);
 	PARSE_REQUIRED(parser, result->suffix);
 	return result;
 }
@@ -2052,6 +2093,7 @@ inline cpp::general_declaration_suffix* parseSymbol(Parser& parser, cpp::general
 inline cpp::general_declaration* parseSymbol(Parser& parser, cpp::general_declaration* result)
 {
 	PARSE_OPTIONAL(parser, result->spec);
+	PARSE_REQUIRED(parser, result->decl);
 	PARSE_REQUIRED(parser, result->suffix);
 	return result;
 }

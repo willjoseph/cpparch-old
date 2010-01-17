@@ -130,7 +130,7 @@ int verifyFunctionDefinition(cpp::declaration_seq* result)
 {
 	cpp::function_definition* func = VERIFY_CAST(cpp::function_definition, verifyNotNull(result)->item);
 	PARSE_ASSERT(VERIFY_CAST(cpp::simple_type_specifier_builtin, verifyNotNull(func->spec)->type)->value == cpp::simple_type_specifier_builtin::VOID);
-	verifyIdentifier(VERIFY_CAST(cpp::direct_declarator, func->suffix->decl)->prefix, "function");
+	verifyIdentifier(VERIFY_CAST(cpp::direct_declarator, func->decl)->prefix, "function");
 	cpp::compound_statement* body = VERIFY_CAST(cpp::compound_statement, func->suffix->body);
 	return 0;
 }
@@ -150,17 +150,15 @@ int verifyPtr(cpp::declaration_seq* result)
 	PARSE_ASSERT(decl->spec->type != 0);
 	cpp::simple_type_specifier_builtin* spec = VERIFY_CAST(cpp::simple_type_specifier_builtin, decl->spec->type);
 	PARSE_ASSERT(spec->value == cpp::simple_type_specifier_builtin::VOID);
-	PARSE_ASSERT(decl->suffix->decl != 0);
-	PARSE_ASSERT(decl->suffix->decl->item != 0);
-	PARSE_ASSERT(decl->suffix->decl->item->decl != 0);
-	cpp::declarator_ptr* declr = VERIFY_CAST(cpp::declarator_ptr, decl->suffix->decl->item->decl);
+	PARSE_ASSERT(decl->decl != 0);
+	cpp::declarator_ptr* declr = VERIFY_CAST(cpp::declarator_ptr, decl->decl);
 	PARSE_ASSERT(declr->op != 0);
 	PARSE_ASSERT(declr->decl != 0);
 	cpp::direct_declarator* dir = VERIFY_CAST(cpp::direct_declarator, declr->decl);
 	PARSE_ASSERT(dir->prefix != 0);
 	cpp::identifier* id = VERIFY_CAST(cpp::identifier, dir->prefix);
 	PARSE_ASSERT(dir->suffix == 0);
-	PARSE_ASSERT(decl->suffix->decl->item->init == 0);
+	PARSE_ASSERT(decl->suffix->init == 0);
 	return 0;
 }
 
@@ -211,8 +209,7 @@ int verifyAmbConstructor(cpp::declaration_seq* result)
 	cpp::class_specifier* spec = VERIFY_CAST(cpp::class_specifier, verifyNotNull(decln->spec)->type);
 	cpp::member_specification_list* members = VERIFY_CAST(cpp::member_specification_list, verifyNotNull(spec->members));
 	cpp::member_declaration_ctor* member = VERIFY_CAST(cpp::member_declaration_ctor, verifyNotNull(members->item));
-	cpp::member_declarator_default* declr = VERIFY_CAST(cpp::member_declarator_default, verifyNotNull(member->decl)->item);
-	verifyIdentifier(VERIFY_CAST(cpp::direct_declarator, declr->decl)->prefix, "A");
+	verifyIdentifier(VERIFY_CAST(cpp::direct_declarator, member->decl)->prefix, "A");
 	return 0;
 }
 
@@ -235,8 +232,8 @@ int verifyFor(cpp::statement_seq* result)
 	{
 		cpp::simple_declaration* decl = VERIFY_CAST(cpp::simple_declaration, stmt->init);
 		verifyIdentifier(VERIFY_CAST(cpp::simple_type_specifier_name, decl->spec->type)->id, "Type");
-		verifyIdentifier(VERIFY_CAST(cpp::direct_declarator, decl->suffix->decl->item->decl)->prefix, "x");
-		cpp::initializer_default* init = VERIFY_CAST(cpp::initializer_default, decl->suffix->decl->item->init);
+		verifyIdentifier(VERIFY_CAST(cpp::direct_declarator, decl->decl)->prefix, "x");
+		cpp::initializer_default* init = VERIFY_CAST(cpp::initializer_default, decl->suffix->init);
 		verifyIdentifier(VERIFY_CAST(cpp::postfix_expression_default, init->clause)->expr, "y");
 	}
 	cpp::compound_statement* body = VERIFY_CAST(cpp::compound_statement, stmt->body);
