@@ -1,5 +1,6 @@
 
 #include "parser.h"
+#include "semantic.h"
 
 #include <iostream>
 #include <fstream>
@@ -118,20 +119,28 @@ inline T* verifyNotNull(T* p)
 	PARSE_ASSERT(p != 0);
 	return p;
 }
+template<typename T>
+inline T* verifyNotNull(cpp::symbol<T> symbol)
+{
+	PARSE_ASSERT(symbol.p != 0);
+	return symbol.p;
+}
 #define VERIFY_CAST(Type, p) verifyNotNull(dynamic_cast<Type*>(verifyNotNull(p)))
 
 template<typename T>
-inline void verifyIdentifier(T* p, const char* value)
+inline void verifyIdentifier(cpp::symbol<T> p, const char* value)
 {
 	PARSE_ASSERT(VERIFY_CAST(cpp::identifier, p)->value == value);
 }
 
 int verifyFunctionDefinition(cpp::declaration_seq* result)
 {
+#if 0
 	cpp::function_definition* func = VERIFY_CAST(cpp::function_definition, verifyNotNull(result)->item);
 	PARSE_ASSERT(VERIFY_CAST(cpp::simple_type_specifier_builtin, verifyNotNull(func->spec)->type)->value == cpp::simple_type_specifier_builtin::VOID);
 	verifyIdentifier(VERIFY_CAST(cpp::direct_declarator, func->decl)->prefix, "function");
 	cpp::compound_statement* body = VERIFY_CAST(cpp::compound_statement, func->suffix->body);
+#endif
 	return 0;
 }
 
@@ -149,7 +158,7 @@ int verifyPtr(cpp::declaration_seq* result)
 	PARSE_ASSERT(decl->spec != 0);
 	PARSE_ASSERT(decl->spec->type != 0);
 	cpp::simple_type_specifier_builtin* spec = VERIFY_CAST(cpp::simple_type_specifier_builtin, decl->spec->type);
-	PARSE_ASSERT(spec->value == cpp::simple_type_specifier_builtin::VOID);
+	PARSE_ASSERT(spec->id == cpp::simple_type_specifier_builtin::VOID);
 	PARSE_ASSERT(decl->decl != 0);
 	cpp::declarator_ptr* declr = VERIFY_CAST(cpp::declarator_ptr, decl->decl);
 	PARSE_ASSERT(declr->op != 0);
@@ -164,6 +173,7 @@ int verifyPtr(cpp::declaration_seq* result)
 
 int verifyNull(cpp::declaration_seq* result)
 {
+	printSymbol(result);
 	return 0;
 }
 
@@ -178,7 +188,7 @@ int verifyAmbOnesComp(cpp::statement_seq* result)
 {
 	cpp::expression_statement* stmt = VERIFY_CAST(cpp::expression_statement, verifyNotNull(result)->item);
 	cpp::unary_expression_op* expr = VERIFY_CAST(cpp::unary_expression_op, stmt->expr);
-	PARSE_ASSERT(expr->op->value == cpp::unary_operator::COMPL);
+	PARSE_ASSERT(expr->op->id == cpp::unary_operator::COMPL);
 	cpp::postfix_expression_default* post = VERIFY_CAST(cpp::postfix_expression_default, expr->expr);
 	verifyIdentifier(post->expr, "x");
 	cpp::postfix_expression_call* call = VERIFY_CAST(cpp::postfix_expression_call, verifyNotNull(post->suffix)->item);

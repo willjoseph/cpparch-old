@@ -215,6 +215,14 @@
 				RelativePath=".\semantic.h"
 				>
 			</File>
+			<File
+				RelativePath=".\visitor.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\visitor.h"
+				>
+			</File>
 		</Filter>
 	</Files>
 	<Globals>

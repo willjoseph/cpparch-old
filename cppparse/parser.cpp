@@ -168,7 +168,6 @@ inline cpp::simple_type_specifier* parseSymbol(Parser& parser, cpp::simple_type_
 }
 
 inline cpp::using_declaration* parseSymbol(Parser& parser, cpp::using_declaration* result);
-inline cpp::function_definition* parseSymbol(Parser& parser, cpp::function_definition* result);
 inline cpp::parameter_declaration* parseSymbol(Parser& parser, cpp::parameter_declaration* result);
 
 inline cpp::type_parameter_key* parseSymbol(Parser& parser, cpp::type_parameter_key* result)
@@ -288,7 +287,7 @@ inline cpp::member_declaration_general_bitfield* parseSymbol(Parser& parser, cpp
 {
 	PARSE_REQUIRED(parser, result->item);
 	PARSE_TERMINAL(parser, result->comma);
-	if(result->comma.parsed)
+	if(result->comma.value != 0)
 	{
 		PARSE_REQUIRED(parser, result->next);
 	}
@@ -322,7 +321,7 @@ inline cpp::member_declaration_suffix_default* parseSymbol(Parser& parser, cpp::
 {
 	PARSE_OPTIONAL(parser, result->init);
 	PARSE_TERMINAL(parser, result->comma);
-	if(result->comma.parsed)
+	if(result->comma.value != 0)
 	{
 		PARSE_REQUIRED(parser, result->next);
 	}
@@ -653,7 +652,7 @@ inline cpp::elaborated_type_specifier_template* parseSymbol(Parser& parser, cpp:
 
 inline cpp::elaborated_type_specifier* parseSymbol(Parser& parser, cpp::elaborated_type_specifier* result)
 {
-	PARSE_SELECT(parser, cpp::elaborated_type_specifier_template); // TODO: shared-prefix ambiguity: match 'simple-template-id' before 'identifier' first
+	PARSE_SELECT(parser, cpp::elaborated_type_specifier_template); // TODO: shared-prefix ambiguity: match 'simple-template-id' before 'identifier'
 	PARSE_SELECT(parser, cpp::elaborated_type_specifier_default);
 	return result;
 }
@@ -1621,7 +1620,6 @@ inline cpp::overloadable_operator* parseSymbol(Parser& parser, cpp::overloadable
 	PARSE_SELECT(parser, cpp::shift_operator);
 	PARSE_SELECT(parser, cpp::relational_operator);
 	PARSE_SELECT(parser, cpp::equality_operator);
-	PARSE_SELECT(parser, cpp::multiplicative_operator);
 	PARSE_SELECT(parser, cpp::new_operator);
 	PARSE_SELECT(parser, cpp::delete_operator);
 	PARSE_SELECT(parser, cpp::comma_operator);
@@ -1788,14 +1786,6 @@ inline cpp::function_definition_suffix* parseSymbol(Parser& parser, cpp::functio
 	return result;
 }
 
-inline cpp::function_definition* parseSymbol(Parser& parser, cpp::function_definition* result)
-{
-	PARSE_OPTIONAL(parser, result->spec);
-	PARSE_REQUIRED(parser, result->decl);
-	PARSE_REQUIRED(parser, result->suffix);
-	return result;
-}
-
 inline cpp::linkage_specification_compound* parseSymbol(Parser& parser, cpp::linkage_specification_compound* result)
 {
 	PARSE_TERMINAL(parser, result->lb);
@@ -1918,7 +1908,7 @@ inline cpp::simple_declaration_suffix* parseSymbol(Parser& parser, cpp::simple_d
 {
 	PARSE_OPTIONAL(parser, result->init);
 	PARSE_TERMINAL(parser, result->comma);
-	if(result->comma.parsed)
+	if(result->comma.value != 0)
 	{
 		PARSE_REQUIRED(parser, result->next);
 	}
@@ -2343,7 +2333,7 @@ cpp::declaration_seq* parseFile(Scanner& scanner)
 {
 	Parser parser(scanner);
 
-	cpp::declaration_seq* result = NULL;
+	cpp::symbol<cpp::declaration_seq> result = NULL;
 	try
 	{
 		PARSE_OPTIONAL(parser, result);
@@ -2362,7 +2352,7 @@ cpp::statement_seq* parseFunction(Scanner& scanner)
 {
 	Parser parser(scanner);
 
-	cpp::statement_seq* result = NULL;
+	cpp::symbol<cpp::statement_seq> result = NULL;
 	try
 	{
 		PARSE_OPTIONAL(parser, result);

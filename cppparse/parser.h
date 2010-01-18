@@ -249,7 +249,7 @@ struct Scanner
 	}
 	const char* get_value()
 	{
-		return position != history.end() ? (*position).value : ::get_value(dereference(first));
+		return position != history.end() ? (*position).value : makeIdentifier(::get_value(dereference(first)));
 	}
 	LexFilePosition get_position()
 	{
@@ -264,7 +264,7 @@ struct Scanner
 		}
 		else
 		{
-			history.push_back(Token(get_id(), makeIdentifier(get_value()), get_position()));
+			history.push_back(Token(get_id(), get_value(), get_position()));
 			position = history.end();
 			for(;;)
 			{
@@ -427,13 +427,11 @@ inline void printRejected(const char* symbol)
 template<typename T>
 struct NullPtr
 {
-	static T* VALUE;
+	static cpp::symbol<T> VALUE;
 };
 
 template<typename T>
-T* NullPtr<T>::VALUE = NULL;
-
-#define SYMBOL_NAME(T) (typeid(T).name() + 12)
+cpp::symbol<T> NullPtr<T>::VALUE = cpp::symbol<T>(NULL);
 
 template<typename T>
 struct SymbolAllocator
@@ -464,9 +462,12 @@ T* createSymbol(Parser& parser, T*)
 	return new(parser.scanner.allocator.allocate(sizeof(T))) T;
 }
 
+#define SYMBOL_NAME(T) (typeid(T).name() + 12)
+
 template<typename T>
-T* parseSymbolInternal(Parser& parser, T* p, bool print)
+T* parseSymbolInternal(Parser& parser, cpp::symbol<T> symbol, bool print)
 {
+	T* p = symbol.p;
 	PARSE_ASSERT(!parser.scanner.maxBacktrack);
 	Parser tmp(parser);
 	parser.scanner.push();
@@ -506,14 +507,15 @@ inline LexTokenId getTokenId(cpp::terminal<id>)
 	return id;
 }
 
-inline bool parseTerminal(Parser& parser, LexTokenId id)
+inline const char* parseTerminal(Parser& parser, LexTokenId id)
 {
 	if(isToken(parser.get_id(), id))
 	{
+		const char* value = parser.get_value();
 		parser.increment();
-		return true;
+		return value;
 	}
-	return false;
+	return NULL;
 }
 
 enum ParseResult
@@ -526,20 +528,22 @@ enum ParseResult
 template<LexTokenId id>
 inline ParseResult parseTerminal(Parser& parser, cpp::terminal<id>& result)
 {
-	return parseTerminal(parser, getTokenId(result)) ? PARSERESULT_PASS : PARSERESULT_FAIL;
+	result.value = parseTerminal(parser, getTokenId(result));
+	return result.value != 0 ? PARSERESULT_PASS : PARSERESULT_FAIL;
 }
 
 template<LexTokenId id>
 inline ParseResult parseTerminal(Parser& parser, cpp::terminal_optional<id>& result)
 {
-	result.parsed = parseTerminal(parser, getTokenId(result));
+	result.value = parseTerminal(parser, getTokenId(result));
 	return PARSERESULT_PASS;
 }
 
 template<LexTokenId id>
 inline ParseResult parseTerminal(Parser& parser, cpp::terminal_suffix<id>& result)
 {
-	return parseTerminal(parser, getTokenId(result)) ? PARSERESULT_PASS : PARSERESULT_SKIP;
+	result.value = parseTerminal(parser, getTokenId(result));
+	return result.value != 0 ? PARSERESULT_PASS : PARSERESULT_SKIP;
 }
 
 
@@ -549,7 +553,7 @@ inline ParseResult parseTerminal(Parser& parser, cpp::terminal_suffix<id>& resul
 
 #define PARSE_TOKEN_REQUIRED(parser, token_) if(TOKEN_EQUAL(parser, token_)) { parser.increment(); } else { return NULL; }
 #define PARSE_TOKEN_OPTIONAL(parser, result, token) result = false; if(TOKEN_EQUAL(parser, token)) { result = true; parser.increment(); }
-#define PARSE_SELECT_TOKEN(parser, p, token, value_) if(TOKEN_EQUAL(parser, token)) { p = createSymbol(parser, p); p->value = value_; parser.increment(); return p; }
+#define PARSE_SELECT_TOKEN(parser, p, token, value_) if(TOKEN_EQUAL(parser, token)) { p = createSymbol(parser, p); p->id = value_; p->value = parser.get_value(); parser.increment(); return p; }
 #define PARSE_OPTIONAL(parser, p) (p) = parseSymbolInternal(parser, p, true)
 #define PARSE_REQUIRED(parser, p) if(((p) = parseSymbolInternal(parser, p, true)) == 0) { return NULL; }
 #define PARSE_SELECT(parser, Type) if(Type* p = parseSymbolInternal(parser, NullPtr<Type>::VALUE, true)) { return p; }
