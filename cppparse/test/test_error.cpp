@@ -1,5 +1,12 @@
 
-class checked_array_iterator
+template <class _Traits>
+class _Char_traits_category
+{
+public:
+	typedef typename _Char_traits_category_helper<_Traits, _Inherits_from_char_traits_base<_Traits>::_Exists>::_Secure_char_traits _Secure_char_traits;
+};
+
+class A
 {
 	int x;
 	int x;

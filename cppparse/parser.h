@@ -11,6 +11,14 @@
 #include <string.h> // strlen
 #include <algorithm> // std::min
 
+struct ParseError
+{
+	ParseError()
+	{
+	}
+};
+
+
 inline bool isEOF(LexTokenId token)
 {
 	return IS_CATEGORY(token, boost::wave::EOFTokenType);
@@ -203,14 +211,16 @@ struct Scanner
 		{
 			maxBacktrack = true;
 		}
-
-		position = history.backtrack(position, count);
-		if(count > stats.count)
+		else
 		{
-			stats.count = count;
-			stats.symbol = symbol;
-			stats.position = (*position).position;
-		};
+			position = history.backtrack(position, count);
+			if(count > stats.count)
+			{
+				stats.count = count;
+				stats.symbol = symbol;
+				stats.position = (*position).position;
+			};
+		}
 	}
 	void push()
 	{
@@ -260,7 +270,7 @@ struct Scanner
 			{
 				if(first == last)
 				{
-					throw LexError();
+					throw ParseError();
 				}
 				::increment(first);
 				if(!isWhiteSpace(get_id())
@@ -385,7 +395,7 @@ inline void printSequence(Parser& parser)
 	printSequence(parser.scanner, parser.position);
 }
 
-#define PARSE_ERROR() throw LexError()
+#define PARSE_ERROR() throw ParseError()
 #define PARSE_ASSERT(condition) if(!(condition)) { PARSE_ERROR(); }
 
 inline bool isToken(LexTokenId token, boost::wave::token_id id)
@@ -490,7 +500,53 @@ T* parseSymbolInternal(Parser& parser, T* p, bool print)
 	return p;
 }
 
+template<LexTokenId id>
+inline LexTokenId getTokenId(cpp::terminal<id>)
+{
+	return id;
+}
+
+inline bool parseTerminal(Parser& parser, LexTokenId id)
+{
+	if(isToken(parser.get_id(), id))
+	{
+		parser.increment();
+		return true;
+	}
+	return false;
+}
+
+enum ParseResult
+{
+	PARSERESULT_PASS,
+	PARSERESULT_FAIL,
+	PARSERESULT_SKIP,
+};
+
+template<LexTokenId id>
+inline ParseResult parseTerminal(Parser& parser, cpp::terminal<id>& result)
+{
+	return parseTerminal(parser, getTokenId(result)) ? PARSERESULT_PASS : PARSERESULT_FAIL;
+}
+
+template<LexTokenId id>
+inline ParseResult parseTerminal(Parser& parser, cpp::terminal_optional<id>& result)
+{
+	result.parsed = parseTerminal(parser, getTokenId(result));
+	return PARSERESULT_PASS;
+}
+
+template<LexTokenId id>
+inline ParseResult parseTerminal(Parser& parser, cpp::terminal_suffix<id>& result)
+{
+	return parseTerminal(parser, getTokenId(result)) ? PARSERESULT_PASS : PARSERESULT_SKIP;
+}
+
+
 #define TOKEN_EQUAL(parser, token) isToken(parser.get_id(), token)
+// TODO: avoid dependency on 'result'
+#define PARSE_TERMINAL(parser, t) switch(parseTerminal(parser, t)) { case PARSERESULT_FAIL: return NULL; case PARSERESULT_SKIP: return result; default: break; }
+
 #define PARSE_TOKEN_REQUIRED(parser, token_) if(TOKEN_EQUAL(parser, token_)) { parser.increment(); } else { return NULL; }
 #define PARSE_TOKEN_OPTIONAL(parser, result, token) result = false; if(TOKEN_EQUAL(parser, token)) { result = true; parser.increment(); }
 #define PARSE_SELECT_TOKEN(parser, p, token, value_) if(TOKEN_EQUAL(parser, token)) { p = createSymbol(parser, p); p->value = value_; parser.increment(); return p; }

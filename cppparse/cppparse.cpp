@@ -33,7 +33,7 @@ int runTest(const Test& test)
 		std::string instring;
 
 		if (!instream.is_open()) {
-			std::cerr << "Could not open input file: " << test.input << std::endl;
+			std::cerr << "Could not lb input file: " << test.input << std::endl;
 			return -2;
 		}
 		std::cout << "reading input file: " << test.input << std::endl;

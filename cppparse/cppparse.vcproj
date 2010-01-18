@@ -208,7 +208,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\research.h"
+				RelativePath=".\semantic.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\semantic.h"
 				>
 			</File>
 		</Filter>
