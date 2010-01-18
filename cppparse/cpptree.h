@@ -18,6 +18,183 @@ typedef boost::wave::token_id LexTokenId;
 #define FOREACH8(a, b, c, d, e, f, g, h) FOREACH_SIGNATURE { func(a); func(b); func(c); func(d); func(e); func(f); func(g); func(h); }
 
 
+template<typename VisitorType, typename T>
+struct VisitorThunk
+{
+	static void visit(void* context, T* p)
+	{
+		static_cast<VisitorType*>(context)->visit(p);
+	}
+};
+
+template<typename T>
+struct VisitorFunc
+{
+	typedef T Type;
+	typedef void (*Thunk)(void* context, T* p);
+	Thunk thunk;
+	explicit VisitorFunc(Thunk thunk)
+		: thunk(thunk)
+	{
+	}
+};
+
+template<typename VisitorFuncTableType>
+struct VisitorCallback
+{
+	void* context;
+	VisitorFuncTableType* table;
+
+	template<typename T>
+	void visit(T* p) const
+	{
+		static_cast<const VisitorFunc<T>*>(table)->thunk(context, p);
+	}
+};
+
+template<typename T>
+struct TypeId
+{
+	typedef T Type;
+};
+
+struct VisitorFuncListEnd
+{
+	template<typename VisitorType>
+	explicit VisitorFuncListEnd(const TypeId<VisitorType>&)
+	{
+	}
+};
+
+template<typename FuncType, typename NextType>
+struct VisitorFuncList : public FuncType, public NextType
+{
+	template<typename VisitorType>
+	explicit VisitorFuncList(const TypeId<VisitorType>& visitorType) :
+	FuncType(VisitorThunk<VisitorType, typename FuncType::Type>::visit),
+		NextType(visitorType)
+	{
+	}
+};
+
+#define VISITORFUNCLIST1(T0) VisitorFuncList<VisitorFunc<T0>, VisitorFuncListEnd>
+#define VISITORFUNCLIST2(T0, T1) VisitorFuncList<VisitorFunc<T0>, VISITORFUNCLIST1(T1)>
+#define VISITORFUNCLIST3(T0, T1, T2) VisitorFuncList<VisitorFunc<T0>, VISITORFUNCLIST2(T1, T2)>
+#define VISITORFUNCLIST4(T0, T1, T2, T3) VisitorFuncList<VisitorFunc<T0>, VISITORFUNCLIST3(T1, T2, T3)>
+
+#define VISITABLE_BASE(Funcs) \
+	typedef Funcs VisitorFuncTable; \
+	typedef VisitorCallback<VisitorFuncTable> Visitor; \
+	virtual void accept(const Visitor& visitor) = 0; \
+	template<typename VisitorType> \
+	void accept(VisitorType& visitor) \
+	{ \
+		static VisitorFuncTable table = VisitorFuncTable(TypeId<VisitorType>()); \
+		Visitor callback = { &visitor, &table }; \
+		accept(callback); \
+	}
+
+#define VISITABLE_DERIVED(Base) \
+	virtual void accept(const Base::Visitor& visitor) \
+	{ \
+		visitor.visit(this); \
+	}
+
+struct Choice1;
+struct Choice2;
+
+struct Choice
+{
+	VISITABLE_BASE(VISITORFUNCLIST2(Choice1, Choice2));
+};
+
+struct Choice1 : public Choice
+{
+	VISITABLE_DERIVED(Choice);
+};
+
+struct Choice2 : public Choice
+{
+	VISITABLE_DERIVED(Choice);
+};
+
+struct MyVisitor
+{
+	void visit(Choice* p)
+	{
+		p->accept(*this);
+	}
+	void visit(Choice1* p)
+	{
+	}
+	void visit(Choice2* p)
+	{
+	}
+};
+
+inline void test__()
+{
+	MyVisitor v;
+	Choice2 c;
+	Choice* p = &c;
+	v.visit(p);
+}
+
+#if 0
+#define VISITABLE_BASE(types) \
+	VISITOR_ABSTRACT(types) \
+	VISITOR_GENERIC(types) \
+	template<typename VisitorType> \
+	void accept(VisitorType& visitor) \
+{ \
+	VisitorGeneric<VisitorType> tmp(visitor); \
+	accept(*static_cast<VisitorAbstract*>(&tmp)); \
+} \
+	virtual void accept(VisitorAbstract& visitor) = 0;
+
+#define VISITABLE_DERIVED(Base) \
+	void accept(Base::VisitorAbstract& visitor) \
+{ \
+	visitor.visit(this); \
+}
+
+#define VISIT_ABSTRACT(Type) virtual void visit(Type* p) = 0;
+#define VISITOR_ABSTRACT(types) \
+	struct VisitorAbstract \
+	{ \
+		types(VISIT_ABSTRACT) \
+	};
+
+#define VISIT_GENERIC(Type) virtual void visit(Type* p) { visitor.visit(p); }
+#define VISITOR_GENERIC(types) \
+	template<typename VisitorType> \
+	struct VisitorGeneric : public VisitorAbstract \
+	{ \
+		VisitorType& visitor; \
+		VisitorGeneric(VisitorType& visitor) \
+		: visitor(visitor) \
+		{ \
+		} \
+		types(VISIT_GENERIC) \
+	};
+#define VISITABLE_BASE(types) \
+	VISITOR_ABSTRACT(types) \
+	VISITOR_GENERIC(types) \
+	template<typename VisitorType> \
+	void accept(VisitorType& visitor) \
+	{ \
+		VisitorGeneric<VisitorType> tmp(visitor); \
+		accept(*static_cast<VisitorAbstract*>(&tmp)); \
+	} \
+	virtual void accept(VisitorAbstract& visitor) = 0;
+
+#define VISITABLE_DERIVED(Base) \
+	void accept(Base::VisitorAbstract& visitor) \
+	{ \
+		visitor.visit(this); \
+	}
+#endif
+
 
 namespace cpp
 {
@@ -70,10 +247,19 @@ namespace cpp
 
 	struct template_argument : public choice<template_argument>
 	{
+		VISITABLE_BASE(VISITORFUNCLIST3(
+			struct assignment_expression,
+			struct type_id,
+			struct id_expression
+		));
 	};
 
 	struct template_parameter : public choice<template_parameter>
 	{
+		VISITABLE_BASE(VISITORFUNCLIST2(
+			struct parameter_declaration,
+			struct type_parameter
+		));
 	};
 
 	struct exception_declarator : public choice<exception_declarator>
@@ -110,6 +296,7 @@ namespace cpp
 
 	struct assignment_expression : public expression, public template_argument, public initializer_clause
 	{
+		VISITABLE_DERIVED(template_argument);
 	};
 
 	struct constant_expression
@@ -186,6 +373,7 @@ namespace cpp
 
 	struct id_expression : public choice<id_expression>, public declarator_id, public primary_expression
 	{
+		VISITABLE_DERIVED(template_argument);
 	};
 
 	struct unqualified_id : public choice<unqualified_id>, public id_expression
@@ -479,14 +667,6 @@ namespace cpp
 		FOREACH4(id, lb, args, rb);
 	};
 
-	struct class_head_template : public class_head
-	{
-		nested_name_specifier* context;
-		simple_template_id id;
-		base_clause* base;
-		FOREACH3(context, id, base);
-	};
-
 	struct type_specifier_suffix : public choice<type_specifier_suffix>
 	{
 	};
@@ -572,6 +752,7 @@ namespace cpp
 		type_specifier_seq* spec;
 		abstract_declarator* decl;
 		FOREACH2(spec, decl);
+		VISITABLE_DERIVED(template_argument);
 	};
 
 	struct throw_expression : public assignment_expression
@@ -644,6 +825,13 @@ namespace cpp
 		initializer_list* list;
 		terminal<boost::wave::T_RIGHTBRACE> rb;
 		FOREACH3(lb, list, rb);
+	};
+
+	struct initializer_clause_empty : public initializer_clause
+	{
+		terminal<boost::wave::T_LEFTBRACE> lb;
+		terminal<boost::wave::T_RIGHTBRACE> rb;
+		FOREACH2(lb, rb);
 	};
 
 	struct expression_list : public initializer
@@ -1085,7 +1273,17 @@ namespace cpp
 
 	struct parameter_declaration_clause;
 
-	struct type_id_list
+	struct exception_type_list : public choice<exception_type_list>
+	{
+	};
+
+	struct exception_type_all : public exception_type_list
+	{
+		terminal<boost::wave::T_ELLIPSIS> key;
+		FOREACH1(key);
+	};
+
+	struct type_id_list : public exception_type_list
 	{
 		type_id* item;
 		terminal_suffix<boost::wave::T_COMMA> comma;
@@ -1097,7 +1295,7 @@ namespace cpp
 	{
 		terminal<boost::wave::T_THROW> key;
 		terminal<boost::wave::T_LEFTPAREN> lp;
-		type_id_list* types;
+		exception_type_list* types;
 		terminal<boost::wave::T_RIGHTPAREN> rp;
 		FOREACH4(key, lp, types, rp);
 	};
@@ -1481,10 +1679,12 @@ namespace cpp
 
 	struct parameter_declaration : public choice<parameter_declaration>, public template_parameter
 	{
+		VISITABLE_DERIVED(template_parameter);
 	};
 
 	struct type_parameter : public choice<type_parameter>, public template_parameter
 	{
+		VISITABLE_DERIVED(template_parameter);
 	};
 
 	struct type_parameter_key : public terminal_choice
@@ -1592,20 +1792,6 @@ namespace cpp
 	struct storage_class_specifier : public terminal_choice, public decl_specifier_nontype
 	{
 		enum { REGISTER, STATIC, EXTERN, MUTABLE } value;
-	};
-
-	struct nested_name_specifier_nested : public nested_name_specifier
-	{
-		nested_name_specifier* context;
-		identifier id;
-		FOREACH2(context, id);
-	};
-
-	struct nested_name_specifier_template : public nested_name_specifier
-	{
-		nested_name_specifier* context;
-		simple_template_id id;
-		FOREACH2(context, id);
 	};
 
 	struct simple_type_specifier_name : public simple_type_specifier
@@ -1726,6 +1912,7 @@ namespace cpp
 	struct simple_declaration_suffix : public general_declaration_suffix
 	{
 		initializer* init;
+		terminal_optional<boost::wave::T_COMMA> comma;
 		init_declarator_list* next;
 		terminal<boost::wave::T_SEMICOLON> semicolon;
 		FOREACH3(init, next, semicolon);

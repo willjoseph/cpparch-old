@@ -1513,6 +1513,12 @@ inline cpp::parameter_declaration_clause* parseSymbol(Parser& parser, cpp::param
 	return result;
 }
 
+inline cpp::exception_type_all* parseSymbol(Parser& parser, cpp::exception_type_all* result)
+{
+	PARSE_TERMINAL(parser, result->key);
+	return result;
+}
+
 inline cpp::type_id_list* parseSymbol(Parser& parser, cpp::type_id_list* result)
 {
 	PARSE_REQUIRED(parser, result->item);
@@ -1521,19 +1527,18 @@ inline cpp::type_id_list* parseSymbol(Parser& parser, cpp::type_id_list* result)
 	return result;
 }
 
+inline cpp::exception_type_list* parseSymbol(Parser& parser, cpp::exception_type_list* result)
+{
+	PARSE_SELECT(parser, cpp::exception_type_all);
+	PARSE_SELECT(parser, cpp::type_id_list);
+	return result;
+}
+
 inline cpp::exception_specification* parseSymbol(Parser& parser, cpp::exception_specification* result)
 {
 	PARSE_TERMINAL(parser, result->key);
 	PARSE_TERMINAL(parser, result->lp);
-	if(TOKEN_EQUAL(parser, boost::wave::T_ELLIPSIS)) // TODO: used in msvc stdc, may not be standard?
-	{
-		result->types = NULL;
-		parser.increment();
-	}
-	else
-	{
-		PARSE_OPTIONAL(parser, result->types);
-	}
+	PARSE_OPTIONAL(parser, result->types);
 	PARSE_TERMINAL(parser, result->rp);
 	return result;
 }
@@ -1852,19 +1857,21 @@ inline cpp::initializer_list* parseSymbol(Parser& parser, cpp::initializer_list*
 inline cpp::initializer_clause_list* parseSymbol(Parser& parser, cpp::initializer_clause_list* result)
 {
 	PARSE_TERMINAL(parser, result->lb);
-	if(TOKEN_EQUAL(parser, boost::wave::T_RIGHTBRACE))
-	{
-		parser.increment();
-		result->list = NULL;
-		return result;
-	}
 	PARSE_REQUIRED(parser, result->list);
+	PARSE_TERMINAL(parser, result->rb);
+	return result;
+}
+
+inline cpp::initializer_clause_empty* parseSymbol(Parser& parser, cpp::initializer_clause_empty* result)
+{
+	PARSE_TERMINAL(parser, result->lb);
 	PARSE_TERMINAL(parser, result->rb);
 	return result;
 }
 
 inline cpp::initializer_clause* parseSymbol(Parser& parser, cpp::initializer_clause* result)
 {
+	PARSE_SELECT(parser, cpp::initializer_clause_empty);
 	PARSE_SELECT(parser, cpp::initializer_clause_list);
 	PARSE_SELECT(parser, cpp::assignment_expression);
 	return result;
@@ -1910,10 +1917,9 @@ inline cpp::init_declarator_list* parseSymbol(Parser& parser, cpp::init_declarat
 inline cpp::simple_declaration_suffix* parseSymbol(Parser& parser, cpp::simple_declaration_suffix* result)
 {
 	PARSE_OPTIONAL(parser, result->init);
-	result->next = NULL;
-	if(TOKEN_EQUAL(parser, boost::wave::T_COMMA))
+	PARSE_TERMINAL(parser, result->comma);
+	if(result->comma.parsed)
 	{
-		parser.increment();
 		PARSE_REQUIRED(parser, result->next);
 	}
 	PARSE_TERMINAL(parser, result->semicolon);
