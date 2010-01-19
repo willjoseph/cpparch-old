@@ -6,7 +6,7 @@
 #include <fstream>
 #include <string>
 
-typedef int (*VerifyFunc)(void* output);
+typedef int (*VerifyFunc)(void* output, const char* path);
 
 typedef void* (*ParseFunc)(Lexer& lexer);
 
@@ -18,11 +18,43 @@ struct Test
 };
 
 template<typename Result>
-Test makeTest(const char* input, int (*verify)(Result*), Result* (*parse)(Lexer&))
+Test makeTest(const char* input, int (*verify)(Result*, const char*), Result* (*parse)(Lexer&))
 {
 	Test result = { input, VerifyFunc(verify), ParseFunc(parse) };
 	return result;
 }
+
+struct StringRange
+{
+	const char* first;
+	const char* last;
+	StringRange(const char* first, const char* last)
+		: first(first), last(last)
+	{
+	}
+};
+
+StringRange makeRange(const char* s)
+{
+	return StringRange(s, s + strlen(s));
+}
+
+struct Concatenate
+{
+	typedef std::vector<char> Buffer;
+	Buffer buffer;
+	Concatenate(const StringRange& left, const StringRange& right)
+	{
+		buffer.reserve((left.last - left.first) + (right.last - right.first) + 1);
+		buffer.insert(buffer.end(), left.first, left.last);
+		buffer.insert(buffer.end(), right.first, right.last);
+		buffer.push_back('\0');
+	}
+	const char* c_str() const
+	{
+		return &(*buffer.begin());
+	}
+};
 
 int runTest(const Test& test)
 {
@@ -68,8 +100,9 @@ int runTest(const Test& test)
 		add_macro_definition(context, "_MSC_VER=1400", true); // Visual C++ 8
 		add_macro_definition(context, "_MSC_FULL_VER=140050727", true); // Visual C++ 8
 #if 1
-		Lexer lexer(context);
-		int result = test.verify(test.parse(lexer));
+		StringRange root(test.input, strrchr(test.input, '.'));
+		Lexer lexer(context, Concatenate(root, makeRange(".prepro.cpp")).c_str());
+		int result = test.verify(test.parse(lexer), Concatenate(root, makeRange(".verify.cpp")).c_str());
 		printPosition(lexer.stats.position);
 		std::cout << "backtrack: " << lexer.stats.symbol << ": " << lexer.stats.count << std::endl;
 #else
@@ -133,8 +166,9 @@ inline void verifyIdentifier(cpp::symbol<T> p, const char* value)
 	PARSE_ASSERT(strcmp(VERIFY_CAST(cpp::identifier, p)->value.value, value) == 0);
 }
 
-int verifyFunctionDefinition(cpp::declaration_seq* result)
+int verifyFunctionDefinition(cpp::declaration_seq* result, const char* path)
 {
+	printSymbol(result, path);
 #if 0
 	cpp::function_definition* func = VERIFY_CAST(cpp::function_definition, verifyNotNull(result)->item);
 	PARSE_ASSERT(VERIFY_CAST(cpp::simple_type_specifier_builtin, verifyNotNull(func->spec)->type)->value == cpp::simple_type_specifier_builtin::VOID);
@@ -144,16 +178,18 @@ int verifyFunctionDefinition(cpp::declaration_seq* result)
 	return 0;
 }
 
-int verifyNamespace(cpp::declaration_seq* result)
+int verifyNamespace(cpp::declaration_seq* result, const char* path)
 {
+	printSymbol(result, path);
 	cpp::namespace_definition* def = VERIFY_CAST(cpp::namespace_definition, verifyNotNull(result)->item);
 	//PARSE_ASSERT(def->id->value != "");
 	PARSE_ASSERT(def->body == 0);
 	return 0;
 }
 
-int verifyPtr(cpp::declaration_seq* result)
+int verifyPtr(cpp::declaration_seq* result, const char* path)
 {
+	printSymbol(result, path);
 	cpp::simple_declaration* decl = VERIFY_CAST(cpp::simple_declaration, verifyNotNull(result)->item);
 	PARSE_ASSERT(decl->spec != 0);
 	PARSE_ASSERT(decl->spec->type != 0);
@@ -171,21 +207,23 @@ int verifyPtr(cpp::declaration_seq* result)
 	return 0;
 }
 
-int verifyNull(cpp::declaration_seq* result)
+int verifyNull(cpp::declaration_seq* result, const char* path)
 {
-	printSymbol(result);
+	printSymbol(result, path);
 	return 0;
 }
 
-int verifyAmbFuncCast(cpp::statement_seq* result)
+int verifyAmbFuncCast(cpp::statement_seq* result, const char* path)
 {
+	printSymbol(result, path);
 	// TODO: ambiguity: int(x); // function-style-cast or simple-declaration?
 	//cpp::postfix_expression_construct* result = VERIFY_CAST(cpp::postfix_expression_construct, verifyNotNull(result)->item);
 	return 0;
 }
 
-int verifyAmbOnesComp(cpp::statement_seq* result)
+int verifyAmbOnesComp(cpp::statement_seq* result, const char* path)
 {
+	printSymbol(result, path);
 	cpp::expression_statement* stmt = VERIFY_CAST(cpp::expression_statement, verifyNotNull(result)->item);
 	cpp::unary_expression_op* expr = VERIFY_CAST(cpp::unary_expression_op, stmt->expr);
 	PARSE_ASSERT(expr->op->id == cpp::unary_operator::COMPL);
@@ -195,8 +233,9 @@ int verifyAmbOnesComp(cpp::statement_seq* result)
 	return 0;
 }
 
-int verifyAmbDeclSpec(cpp::declaration_seq* result)
+int verifyAmbDeclSpec(cpp::declaration_seq* result, const char* path)
 {
+	printSymbol(result, path);
 	cpp::simple_declaration* decl = VERIFY_CAST(cpp::simple_declaration, verifyNotNull(result)->item);
 	cpp::simple_type_specifier_name* spec = VERIFY_CAST(cpp::simple_type_specifier_name, verifyNotNull(decl->spec)->type);
 	PARSE_ASSERT(spec->context);
@@ -206,15 +245,17 @@ int verifyAmbDeclSpec(cpp::declaration_seq* result)
 	return 0;
 }
 
-int verifyAmbCastExpr(cpp::statement_seq* result)
+int verifyAmbCastExpr(cpp::statement_seq* result, const char* path)
 {
+	printSymbol(result, path);
 	// TODO: ambiguity: (Type)(x); // c-style-cast or function-declaration?
 	//cpp::simple_declaration* decln = VERIFY_CAST(cpp::simple_declaration, verifyNotNull(result)->item);
 	return 0;
 }
 
-int verifyAmbConstructor(cpp::declaration_seq* result)
+int verifyAmbConstructor(cpp::declaration_seq* result, const char* path)
 {
+	printSymbol(result, path);
 	cpp::simple_declaration* decln = VERIFY_CAST(cpp::simple_declaration, verifyNotNull(result)->item);
 	cpp::class_specifier* spec = VERIFY_CAST(cpp::class_specifier, verifyNotNull(decln->spec)->type);
 	cpp::member_specification_list* members = VERIFY_CAST(cpp::member_specification_list, verifyNotNull(spec->members));
@@ -223,8 +264,9 @@ int verifyAmbConstructor(cpp::declaration_seq* result)
 	return 0;
 }
 
-int verifyIf(cpp::statement_seq* result)
+int verifyIf(cpp::statement_seq* result, const char* path)
 {
+	printSymbol(result, path);
 	cpp::selection_statement_if* stmt = VERIFY_CAST(cpp::selection_statement_if, verifyNotNull(result)->item);
 	{
 		cpp::condition_init* cond = VERIFY_CAST(cpp::condition_init, stmt->cond);
@@ -236,8 +278,9 @@ int verifyIf(cpp::statement_seq* result)
 	return 0;
 }
 
-int verifyFor(cpp::statement_seq* result)
+int verifyFor(cpp::statement_seq* result, const char* path)
 {
+	printSymbol(result, path);
 	cpp::iteration_statement_for* stmt = VERIFY_CAST(cpp::iteration_statement_for, verifyNotNull(result)->item);
 	{
 		cpp::simple_declaration* decl = VERIFY_CAST(cpp::simple_declaration, stmt->init);
@@ -255,12 +298,8 @@ int main(int argc, char *argv[])
 	if(argc == 1)
 	{
 		const Test tests[] = {
-			makeTest("test/test_error.cpp", verifyNull, parseFile),
-			makeTest("test/test_iostream.cpp", verifyNull, parseFile),
-			makeTest("test/test_windows.cpp", verifyNull, parseFile),
-			makeTest("test/test_map.cpp", verifyNull, parseFile),
-			makeTest("test/test_vector.cpp", verifyNull, parseFile),
 			makeTest("test/test_amb_constructor.cpp", verifyAmbConstructor, parseFile),
+			makeTest("test/test_error.cpp", verifyNull, parseFile),
 			makeTest("test/test_amb_func_cast.cpp", verifyAmbFuncCast, parseFunction),
 			makeTest("test/test_amb_ones_comp.cpp", verifyAmbOnesComp, parseFunction),
 			makeTest("test/test_for.cpp", verifyFor, parseFunction),
@@ -270,6 +309,10 @@ int main(int argc, char *argv[])
 			makeTest("test/test_ptr.cpp", verifyPtr, parseFile),
 			makeTest("test/test_amb_decl_spec.cpp", verifyAmbDeclSpec, parseFile),
 			makeTest("test/test_namespace.cpp", verifyNamespace, parseFile),
+			makeTest("test/test_iostream.cpp", verifyNull, parseFile),
+			makeTest("test/test_windows.cpp", verifyNull, parseFile),
+			makeTest("test/test_map.cpp", verifyNull, parseFile),
+			makeTest("test/test_vector.cpp", verifyNull, parseFile),
 		};
 		for(const Test* p = tests; p != tests + (sizeof(tests) / sizeof(*tests)); ++p)
 		{

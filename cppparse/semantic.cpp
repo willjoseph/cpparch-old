@@ -84,8 +84,8 @@ struct SymbolPrinter
 	std::ofstream out;
 	TokenPrinter<std::ostream> printer;
 
-	SymbolPrinter()
-		: out("out/parsed.cpp"),
+	SymbolPrinter(const char* path)
+		: out(path),
 		printer(out)
 	{
 	}
@@ -162,8 +162,14 @@ cpp::symbol<T> makeSymbol(T* p)
 	return cpp::symbol<T>(p);
 };
 
-void printSymbol(cpp::declaration_seq* p)
+void printSymbol(cpp::declaration_seq* p, const char* path)
 {
-	SymbolPrinter visitor;
+	SymbolPrinter visitor(path);
+	visitor.visit(makeSymbol(p));
+}
+
+void printSymbol(cpp::statement_seq* p, const char* path)
+{
+	SymbolPrinter visitor(path);
 	visitor.visit(makeSymbol(p));
 }

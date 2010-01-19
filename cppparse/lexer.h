@@ -205,7 +205,7 @@ struct TokenBuffer
 struct Lexer
 {
 	std::ofstream out;
-	TokenPrinter<std::ostream> printer;
+	TokenPrinter<std::ofstream> printer;
 
 	LinearAllocator allocator;
 
@@ -226,8 +226,8 @@ struct Lexer
 	BacktrackStats stats;
 	bool maxBacktrack;
 
-	Lexer(LexContext& context)
-		: out("out/prepro.cpp"),
+	Lexer(LexContext& context, const char* path)
+		: out(path),
 		printer(out),
 		first(createBegin(context)),
 		last(createEnd(context)),
