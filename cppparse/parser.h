@@ -5,12 +5,6 @@
 #include "lexer.h"
 #include "cpptree.h"
 
-#include <vector>
-#include <set>
-#include <iostream>
-#include <string.h> // strlen
-#include <algorithm> // std::min
-
 struct ParseError
 {
 	ParseError()
@@ -18,270 +12,6 @@ struct ParseError
 	}
 };
 
-
-inline bool isEOF(LexTokenId token)
-{
-	return IS_CATEGORY(token, boost::wave::EOFTokenType);
-}
-
-inline bool isWhiteSpace(LexTokenId token)
-{
-	return IS_CATEGORY(token, boost::wave::WhiteSpaceTokenType)
-		|| IS_CATEGORY(token, boost::wave::EOLTokenType)
-		|| isEOF(token);
-}
-
-struct Token
-{
-	LexTokenId id;
-	const char* value;
-	LexFilePosition position;
-
-	Token()
-		: id(boost::wave::T_UNKNOWN)
-	{
-	}
-	Token(LexTokenId id, const char* value, const LexFilePosition& position)
-		: id(id), value(value), position(position)
-	{
-	}
-};
-
-struct Page
-{
-	enum { SIZE = 128 * 1024 };
-	char buffer[SIZE]; // debug padding
-
-	Page()
-	{
-#ifdef _DEBUG
-		std::uninitialized_fill(buffer, buffer + SIZE, 0xbabababa);
-#endif
-	}
-};
-
-struct LinearAllocator
-{
-	typedef std::vector<Page*> Pages;
-	Pages pages;
-	size_t position;
-	LinearAllocator()
-		: position(0)
-	{
-	}
-	~LinearAllocator()
-	{
-		for(Pages::iterator i = pages.begin(); i != pages.end(); ++i)
-		{
-			Page* p = *i;
-			delete p; // TODO: fix heap-corruption assert
-		}
-	}
-	Page* getPage(size_t index)
-	{
-		if(index == pages.size())
-		{
-			pages.push_back(new Page);
-		}
-		return pages[index];
-	}
-	void* allocate(size_t size)
-	{
-		size_t available = sizeof(Page) - position % sizeof(Page);
-		if(size > available)
-		{
-			position += available;
-		}
-		Page* page = getPage(position / sizeof(Page));
-		void* p = page->buffer + position % sizeof(Page);
-		position += size;
-		return p;
-	}
-};
-
-struct BacktrackStats
-{
-	size_t count;
-	const char* symbol;
-	LexFilePosition position;
-	BacktrackStats()
-		: count(0)
-	{
-	}
-};
-
-struct TokenBuffer
-{
-	enum { SIZE = 1024 };
-	Token tokens[SIZE];
-	Token* position;
-
-	typedef Token* iterator;
-	typedef const Token* const_iterator;
-
-	TokenBuffer() : position(tokens)
-	{
-	}
-
-	iterator next(iterator i)
-	{
-		++i;
-		return i == tokens + SIZE ? tokens : i;
-	}
-	const_iterator next(const_iterator i) const
-	{
-		++i;
-		return i == tokens + SIZE ? tokens : i;
-	}
-
-	size_t distance(const_iterator i, const_iterator other)
-	{
-		return (i > other) ? SIZE - (i - other) : other - i;
-	}
-
-	const_iterator backtrack(const_iterator i, size_t count)
-	{
-		return (count > size_t(i - tokens)) ? i + (SIZE - count) : i - count;
-	}
-
-	iterator begin()
-	{
-		return next(position);
-	}
-	iterator end()
-	{
-		return position;
-	}
-	const_iterator begin() const
-	{
-		return next(position);
-	}
-	const_iterator end() const
-	{
-		return position;
-	}
-	void push_back(const Token& token)
-	{
-		*position = token;
-		position = next(position);
-	}
-};
-
-struct Scanner
-{
-	LinearAllocator allocator;
-
-	LexIterator& first;
-	LexIterator& last;
-
-	typedef TokenBuffer Tokens;
-	Tokens history;
-	Tokens::const_iterator position;
-
-	typedef std::set<std::string> Identifiers;
-	Identifiers identifiers;
-
-	typedef std::vector<size_t> Positions;
-	Positions stacktrace;
-	Positions::iterator stackpos;
-
-	BacktrackStats stats;
-	bool maxBacktrack;
-
-	Scanner(LexContext& context)
-		: first(createBegin(context)), last(createEnd(context)), position(history.end()), stackpos(stacktrace.end()), maxBacktrack(false)
-	{
-		if(isWhiteSpace(get_id()))
-		{
-			increment();
-		}
-	}
-	~Scanner()
-	{
-		release(first);
-		release(last);
-	}
-	void backtrack(size_t count, const char* symbol)
-	{
-		if(count == 0)
-		{
-			return;
-		}
-		if(history.distance(position, history.end()) + count >= TokenBuffer::SIZE)
-		{
-			maxBacktrack = true;
-		}
-		else
-		{
-			position = history.backtrack(position, count);
-			if(count > stats.count)
-			{
-				stats.count = count;
-				stats.symbol = symbol;
-				stats.position = (*position).position;
-			};
-		}
-	}
-	void push()
-	{
-		//stacktrace.erase(stackpos, stacktrace.end());
-		//stacktrace.push_back(position - history.begin());
-		//stackpos = stacktrace.end();
-	}
-	void pop()
-	{
-		//*--stackpos = position - history.begin();
-	}
-
-	const char* makeIdentifier(const char* value)
-	{
-		return (*identifiers.insert(value).first).c_str();
-	}
-
-	bool finished() const
-	{
-		return position == history.end() && first == last;
-	}
-
-	LexTokenId get_id()
-	{
-		return position != history.end() ? (*position).id : ::get_id(dereference(first));
-	}
-	const char* get_value()
-	{
-		return position != history.end() ? (*position).value : makeIdentifier(::get_value(dereference(first)));
-	}
-	LexFilePosition get_position()
-	{
-		return position != history.end() ? (*position).position : ::get_position(dereference(first));
-	}
-
-	void increment()
-	{
-		if(position != history.end())
-		{
-			position = history.next(position);
-		}
-		else
-		{
-			history.push_back(Token(get_id(), get_value(), get_position()));
-			position = history.end();
-			for(;;)
-			{
-				if(first == last)
-				{
-					throw ParseError();
-				}
-				::increment(first);
-				if(!isWhiteSpace(get_id())
-					|| first == last)
-				{
-					break;
-				}
-			}
-		}
-	}
-};
 
 inline bool isAlphabet(char c)
 {
@@ -299,12 +29,12 @@ inline bool isIdentifier(char c)
 	return isAlphabet(c) || isNumber(c) || c == '_';
 }
 
-inline void printSequence(Scanner& scanner)
+inline void printSequence(Lexer& lexer)
 {
 	std::cout << "   ";
 	bool space = false;
 	bool endline = false;
-	for( Scanner::Tokens::const_iterator i = scanner.position; i != scanner.history.end(); i = scanner.history.next(i))
+	for( Lexer::Tokens::const_iterator i = lexer.position; i != lexer.history.end(); i = lexer.history.next(i))
 	{
 		if(space && isIdentifier(*(*i).value))
 		{
@@ -316,10 +46,10 @@ inline void printSequence(Scanner& scanner)
 	std::cout << std::endl;
 }
 
-inline void printSequence(Scanner& scanner, size_t position)
+inline void printSequence(Lexer& lexer, size_t position)
 {
-	//position = std::min(std::min(scanner.history.size(), size_t(32)), position);
-	//printSequence(scanner.position - position, scanner.position);
+	//position = std::min(std::min(lexer.history.size(), size_t(32)), position);
+	//printSequence(lexer.position - position, lexer.position);
 }
 
 struct ParserState
@@ -333,42 +63,42 @@ struct ParserState
 
 struct Parser : public ParserState
 {
-	Scanner& scanner;
+	Lexer& lexer;
 	size_t position;
 	size_t allocation;
 
-	Parser(Scanner& scanner)
-		: scanner(scanner), position(0), allocation(0)
+	Parser(Lexer& lexer)
+		: lexer(lexer), position(0), allocation(0)
 	{
 	}
 	Parser(const Parser& other)
-		: ParserState(other), scanner(other.scanner), position(0), allocation(scanner.allocator.position)
+		: ParserState(other), lexer(other.lexer), position(0), allocation(lexer.allocator.position)
 	{
 	}
 
 	LexTokenId get_id()
 	{
-		return scanner.get_id();
+		return lexer.get_id();
 	}
 	const char* get_value()
 	{
-		return scanner.get_value();
+		return lexer.get_value();
 	}
 	LexFilePosition get_position()
 	{
-		return scanner.get_position();
+		return lexer.get_position();
 	}
 
 	void increment()
 	{
 		++position;
-		scanner.increment();
+		lexer.increment();
 	}
 
 	void backtrack(const char* symbol)
 	{
-		scanner.backtrack(position, symbol);
-		scanner.allocator.position = allocation;
+		lexer.backtrack(position, symbol);
+		lexer.allocator.position = allocation;
 	}
 };
 
@@ -380,19 +110,19 @@ inline void printPosition(const LexFilePosition& position)
 inline void printError(Parser& parser)
 {
 #if 0
-	for(Scanner::Positions::const_iterator i = parser.scanner.backtrace.begin(); i != parser.scanner.backtrace.end(); ++i)
+	for(Lexer::Positions::const_iterator i = parser.lexer.backtrace.begin(); i != parser.lexer.backtrace.end(); ++i)
 	{
 	}
-	printPosition(parser.scanner, scanner.history[parser.scanner.stacktrace.back()].position);
+	printPosition(parser.lexer, lexer.history[parser.lexer.stacktrace.back()].position);
 #endif
-	printPosition(get_position(dereference(parser.scanner.first)));
-	std::cout << "syntax error: '" << get_value(dereference(parser.scanner.first)) << "'" << std::endl;
-	printSequence(parser.scanner); // rejected tokens
+	printPosition(get_position(dereference(parser.lexer.first)));
+	std::cout << "syntax error: '" << get_value(dereference(parser.lexer.first)) << "'" << std::endl;
+	printSequence(parser.lexer); // rejected tokens
 }
 
 inline void printSequence(Parser& parser)
 {
-	printSequence(parser.scanner, parser.position);
+	printSequence(parser.lexer, parser.position);
 }
 
 #define PARSE_ERROR() throw ParseError()
@@ -459,7 +189,7 @@ struct SymbolAllocator
 template<typename T>
 T* createSymbol(Parser& parser, T*)
 {
-	return new(parser.scanner.allocator.allocate(sizeof(T))) T;
+	return new(parser.lexer.allocator.allocate(sizeof(T))) T;
 }
 
 #define SYMBOL_NAME(T) (typeid(T).name() + 12)
@@ -468,12 +198,12 @@ template<typename T>
 T* parseSymbolInternal(Parser& parser, cpp::symbol<T> symbol, bool print)
 {
 	T* p = symbol.p;
-	PARSE_ASSERT(!parser.scanner.maxBacktrack);
+	PARSE_ASSERT(!parser.lexer.maxBacktrack);
 	Parser tmp(parser);
-	parser.scanner.push();
-	p = SymbolAllocator<T>(parser.scanner.allocator).allocate(p);
+	parser.lexer.push();
+	p = SymbolAllocator<T>(parser.lexer.allocator).allocate(p);
 	p = parseSymbol(tmp, p);
-	parser.scanner.pop();
+	parser.lexer.pop();
 	if(p != NULL)
 	{
 #if 0
@@ -553,15 +283,15 @@ inline ParseResult parseTerminal(Parser& parser, cpp::terminal_suffix<id>& resul
 
 #define PARSE_TOKEN_REQUIRED(parser, token_) if(TOKEN_EQUAL(parser, token_)) { parser.increment(); } else { return NULL; }
 #define PARSE_TOKEN_OPTIONAL(parser, result, token) result = false; if(TOKEN_EQUAL(parser, token)) { result = true; parser.increment(); }
-#define PARSE_SELECT_TOKEN(parser, p, token, value_) if(TOKEN_EQUAL(parser, token)) { p = createSymbol(parser, p); p->id = value_; p->value = parser.get_value(); parser.increment(); return p; }
+#define PARSE_SELECT_TOKEN(parser, p, token, value_) if(TOKEN_EQUAL(parser, token)) { p = createSymbol(parser, p); p->id = value_; p->value.id = token; p->value.value = parser.get_value(); parser.increment(); return p; }
 #define PARSE_OPTIONAL(parser, p) (p) = parseSymbolInternal(parser, p, true)
 #define PARSE_REQUIRED(parser, p) if(((p) = parseSymbolInternal(parser, p, true)) == 0) { return NULL; }
 #define PARSE_SELECT(parser, Type) if(Type* p = parseSymbolInternal(parser, NullPtr<Type>::VALUE, true)) { return p; }
 // Type must have members 'left' and 'right', and 'typeof(left)' must by substitutable for 'Type'
 #define PARSE_PREFIX(parser, Type) if(Type* p = parseSymbolInternal(parser, NullPtr<Type>::VALUE, true)) { if(p->right == NULL) return p->left; return p; }
 
-cpp::declaration_seq* parseFile(Scanner& scanner);
-cpp::statement_seq* parseFunction(Scanner& scanner);
+cpp::declaration_seq* parseFile(Lexer& lexer);
+cpp::statement_seq* parseFunction(Lexer& lexer);
 
 #endif
 

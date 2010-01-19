@@ -9,6 +9,35 @@
 #include <boost/wave/token_ids.hpp>
 typedef boost::wave::token_id LexTokenId;
 
+struct TypeListEnd
+{
+};
+
+template<typename ItemType, typename NextType>
+struct TypeList
+{
+	typedef ItemType Item;
+	typedef NextType Next;
+};
+
+#define TYPELIST1(T0) TypeList<T0, TypeListEnd>
+#define TYPELIST2(T0, T1) TypeList<T0, TYPELIST1(T1)>
+#define TYPELIST3(T0, T1, T2) TypeList<T0, TYPELIST2(T1, T2)>
+#define TYPELIST4(T0, T1, T2, T3) TypeList<T0, TYPELIST3(T1, T2, T3)>
+#define TYPELIST5(T0, T1, T2, T3, T4) TypeList<T0, TYPELIST4(T1, T2, T3, T4)>
+#define TYPELIST6(T0, T1, T2, T3, T4, T5) TypeList<T0, TYPELIST5(T1, T2, T3, T4, T5)>
+#define TYPELIST7(T0, T1, T2, T3, T4, T5, T6) TypeList<T0, TYPELIST6(T1, T2, T3, T4, T5, T6)>
+#define TYPELIST8(T0, T1, T2, T3, T4, T5, T6, T7) TypeList<T0, TYPELIST7(T1, T2, T3, T4, T5, T6, T7)>
+#define TYPELIST9(T0, T1, T2, T3, T4, T5, T6, T7, T8) TypeList<T0, TYPELIST8(T1, T2, T3, T4, T5, T6, T7, T8)>
+#define TYPELIST10(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9) TypeList<T0, TYPELIST9(T1, T2, T3, T4, T5, T6, T7, T8, T9)>
+#define TYPELIST11(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10) TypeList<T0, TYPELIST10(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10)>
+#define TYPELIST12(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11) TypeList<T0, TYPELIST11(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11)>
+#define TYPELIST13(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12) TypeList<T0, TYPELIST12(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12)>
+#define TYPELIST14(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13) TypeList<T0, TYPELIST13(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13)>
+#define TYPELIST15(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14) TypeList<T0, TYPELIST14(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14)>
+#define TYPELIST16(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15) TypeList<T0, TYPELIST15(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15)>
+
+
 namespace cpp
 {
 	template<LexTokenId id>
@@ -67,6 +96,23 @@ namespace cpp
 	struct terminal_choice
 	{
 	};
+
+	struct terminal_choice2 // TODO: replace terminal_choice
+	{
+		LexTokenId id;
+		const char* value; // TODO: avoid storing this
+	};
+
+	struct terminal_identifier
+	{
+		const char* value;
+	};
+
+	struct terminal_string
+	{
+		const char* value;
+	};
+
 
 	struct template_argument : public choice<template_argument>
 	{
@@ -396,7 +442,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(class_name);
 		VISITABLE_DERIVED(unqualified_id);
-		const char* value;
+		terminal_identifier value;
 		FOREACH1(value);
 	};
 
@@ -635,7 +681,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(class_key);
 		enum { CLASS, STRUCT, UNION } id;
-		const char* value;
+		terminal_choice2 value;
 		FOREACH1(value);
 	};
 
@@ -649,7 +695,7 @@ namespace cpp
 	struct access_specifier : public terminal_choice
 	{
 		enum { PRIVATE, PROTECTED, PUBLIC } id;
-		const char* value;
+		terminal_choice2 value;
 		FOREACH1(value);
 	};
 
@@ -754,7 +800,7 @@ namespace cpp
 		VISITABLE_DERIVED(decl_specifier_nontype);
 		VISITABLE_DERIVED(type_specifier_suffix);
 		enum { CONST, VOLATILE } id;
-		const char* value;
+		terminal_choice2 value;
 		FOREACH1(value);
 	};
 
@@ -768,7 +814,7 @@ namespace cpp
 	struct ptr_operator_key : public terminal_choice
 	{
 		enum { PTR, REF } id;
-		const char* value;
+		terminal_choice2 value;
 		FOREACH1(value);
 	};
 
@@ -892,14 +938,14 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(literal);
 		enum { INTEGER, CHARACTER, FLOATING, BOOLEAN } id;
-		const char* value;
+		terminal_choice2 value;
 		FOREACH1(value);
 	};
 
 	struct string_literal : public literal
 	{
 		VISITABLE_DERIVED(literal);
-		const char* value;
+		terminal_string value;
 		symbol<string_literal> next;
 		FOREACH2(value, next);
 	};
@@ -1018,7 +1064,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(overloadable_operator);
 		enum { DOT, ARROW } id;
-		const char* value;
+		terminal_choice2 value;
 		FOREACH1(value);
 	};
 
@@ -1046,7 +1092,7 @@ namespace cpp
 		VISITABLE_DERIVED(postfix_expression_suffix);
 		VISITABLE_DERIVED(overloadable_operator);
 		enum { PLUSPLUS, MINUSMINUS } id;
-		const char* value;
+		terminal_choice2 value;
 		FOREACH1(value);
 	};
 
@@ -1063,7 +1109,7 @@ namespace cpp
 	struct cast_operator : public terminal_choice
 	{
 		enum { DYNAMIC, STATIC, REINTERPRET, CONST } id;
-		const char* value;
+		terminal_choice2 value;
 		FOREACH1(value);
 	};
 
@@ -1214,7 +1260,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(overloadable_operator);
 		enum { PLUSPLUS, MINUSMINUS, STAR, AND, PLUS, MINUS, NOT, COMPL } id;
-		const char* value;
+		terminal_choice2 value;
 		FOREACH1(value);
 	};
 
@@ -1258,7 +1304,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(overloadable_operator);
 		enum { DOTSTAR, ARROWSTAR } id;
-		const char* value;
+		terminal_choice2 value;
 		FOREACH1(value);
 	};
 
@@ -1275,7 +1321,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(overloadable_operator);
 		enum { STAR, DIVIDE, PERCENT } id;
-		const char* value;
+		terminal_choice2 value;
 		FOREACH1(value);
 	};
 
@@ -1292,7 +1338,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(overloadable_operator);
 		enum { PLUS, MINUS } id;
-		const char* value;
+		terminal_choice2 value;
 		FOREACH1(value);
 	};
 
@@ -1309,7 +1355,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(overloadable_operator);
 		enum { SHIFTLEFT, SHIFTRIGHT } id;
-		const char* value;
+		terminal_choice2 value;
 		FOREACH1(value);
 	};
 
@@ -1326,7 +1372,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(overloadable_operator);
 		enum { LESS, GREATER, LESSEQUAL, GREATEREQUAL } id;
-		const char* value;
+		terminal_choice2 value;
 		FOREACH1(value);
 	};
 
@@ -1343,7 +1389,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(overloadable_operator);
 		enum { EQUAL, NOTEQUAL } id;
-		const char* value;
+		terminal_choice2 value;
 		FOREACH1(value);
 	};
 
@@ -1439,7 +1485,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(overloadable_operator);
 		enum { ASSIGN, STAR, DIVIDE, PERCENT, PLUS, MINUS, SHIFTRIGHT, SHIFTLEFT, AND, XOR, OR } id;
-		const char* value;
+		terminal_choice2 value;
 		FOREACH1(value);
 	};
 
@@ -1575,8 +1621,9 @@ namespace cpp
 
 	struct statement : public choice<statement>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST9(
+		VISITABLE_BASE(VISITORFUNCLIST10(
 			SYMBOLFWD(msext_asm_statement),
+			SYMBOLFWD(msext_asm_statement_braced),
 			SYMBOLFWD(compound_statement),
 			SYMBOLFWD(declaration_statement),
 			SYMBOLFWD(labeled_statement),
@@ -1841,7 +1888,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(decl_specifier_nontype);
 		enum { INLINE, VIRTUAL, EXPLICIT } id;
-		const char* value;
+		terminal_choice2 value;
 		FOREACH1(value);
 	};
 
@@ -2004,7 +2051,7 @@ namespace cpp
 	struct type_parameter_key : public terminal_choice
 	{
 		enum { CLASS, TYPENAME } id;
-		const char* value;
+		terminal_choice2 value;
 		FOREACH1(value);
 	};
 
@@ -2070,9 +2117,9 @@ namespace cpp
 
 	struct parameter_declaration_clause
 	{
-		terminal_optional<boost::wave::T_ELLIPSIS> isEllipsis;
 		symbol<parameter_declaration_list> list;
-		FOREACH2(isEllipsis, list);
+		terminal_optional<boost::wave::T_ELLIPSIS> isEllipsis;
+		FOREACH2(list, isEllipsis);
 	};
 
 	struct direct_abstract_declarator_function : public direct_abstract_declarator
@@ -2101,7 +2148,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(decl_specifier_nontype);
 		enum { FRIEND, TYPEDEF } id;
-		const char* value;
+		terminal_choice2 value;
 		FOREACH1(value);
 	};
 
@@ -2109,7 +2156,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(decl_specifier_nontype);
 		enum { REGISTER, STATIC, EXTERN, MUTABLE } id;
-		const char* value;
+		terminal_choice2 value;
 		FOREACH1(value);
 	};
 
@@ -2138,7 +2185,7 @@ namespace cpp
 		VISITABLE_DERIVED(decl_specifier_suffix);
 		VISITABLE_DERIVED(type_specifier_suffix);
 		enum { CHAR, WCHAR_T, BOOL, SHORT, INT, LONG, SIGNED, UNSIGNED, FLOAT, DOUBLE, VOID, AUTO } id;
-		const char* value;
+		terminal_choice2 value;
 		FOREACH1(value);
 	};
 
@@ -2174,13 +2221,58 @@ namespace cpp
 		FOREACH5(key, lp, str, rp, semicolon);
 	};
 
-	struct msext_asm_statement : public statement
+	struct msext_asm_element : public choice<msext_asm_element>
 	{
+		VISITABLE_BASE(VISITORFUNCLIST3(
+			SYMBOLFWD(msext_asm_statement),
+			SYMBOLFWD(msext_asm_statement_braced),
+			SYMBOLFWD(msext_asm_terminal)
+		));
+	};
+
+	struct msext_asm_terminal : public msext_asm_element
+	{
+		VISITABLE_DERIVED(msext_asm_element);
+		terminal_identifier value;
+		FOREACH1(value);
+	};
+
+	struct msext_asm_element_list
+	{
+		symbol<msext_asm_element> item;
+		symbol<msext_asm_element_list> next;
+		terminal_optional<boost::wave::T_SEMICOLON> semicolon;
+		FOREACH3(item, next, semicolon);
+	};
+
+	struct msext_asm_element_list_inline
+	{
+		symbol<msext_asm_element> item;
+		symbol<msext_asm_element_list_inline> next;
+		terminal_optional<boost::wave::T_SEMICOLON> semicolon;
+		FOREACH3(item, next, semicolon);
+	};
+
+	struct msext_asm_statement : public msext_asm_element, public statement
+	{
+		VISITABLE_DERIVED(msext_asm_element);
 		VISITABLE_DERIVED(statement);
 		terminal<boost::wave::T_MSEXT_ASM> key;
-		symbol<msext_asm_statement> inner;
+		symbol<msext_asm_element_list_inline> list;
 		terminal_optional<boost::wave::T_SEMICOLON> semicolon;
-		FOREACH3(key, inner, semicolon);
+		FOREACH3(key, list, semicolon);
+	};
+
+	struct msext_asm_statement_braced : public msext_asm_element, public statement
+	{
+		VISITABLE_DERIVED(msext_asm_element);
+		VISITABLE_DERIVED(statement);
+		terminal<boost::wave::T_MSEXT_ASM> key;
+		terminal<boost::wave::T_LEFTBRACE> lb;
+		symbol<msext_asm_element_list> list;
+		terminal<boost::wave::T_RIGHTBRACE> rb;
+		terminal_optional<boost::wave::T_SEMICOLON> semicolon;
+		FOREACH5(key, lb, list, rb, semicolon);
 	};
 
 
@@ -2271,7 +2363,7 @@ namespace cpp
 		terminal_optional<boost::wave::T_COMMA> comma;
 		symbol<init_declarator_list> next;
 		terminal<boost::wave::T_SEMICOLON> semicolon;
-		FOREACH3(init, next, semicolon);
+		FOREACH4(init, comma, next, semicolon);
 	};
 
 	struct simple_declaration : public block_declaration, public for_init_statement
@@ -2435,7 +2527,7 @@ namespace cpp
 	struct jump_statement_key : public terminal_choice
 	{
 		enum { BREAK, CONTINUE } id;
-		const char* value;
+		terminal_choice2 value;
 		FOREACH1(value);
 	};
 

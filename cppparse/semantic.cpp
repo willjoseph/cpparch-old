@@ -2,34 +2,107 @@
 #include "semantic.h"
 
 #include "cpptree.h"
+#include "printer.h"
 
-#include <iostream>
+#include <fstream>
 
+#define SYMBOL_NAME(T) (typeid(T).name() + 12)
+
+template<typename OutputStreamType>
+struct TreePrinter // TODO: better name
+{
+	OutputStreamType& out;
+	bool visited;
+	TreePrinter(OutputStreamType& out)
+		: out(out), visited(false)
+	{
+	}
+
+	void visit(cpp::terminal_identifier symbol)
+	{
+	}
+
+	void visit(cpp::terminal_string symbol)
+	{
+	}
+
+	void visit(cpp::terminal_choice2 symbol)
+	{
+	}
+
+	template<LexTokenId id>
+	void visit(cpp::terminal<id> symbol)
+	{
+	}
+
+	template<typename T>
+	void visit(T* symbol)
+	{
+		if(typeid(T) != typeid(*symbol)) // if abstract
+		{
+			symbol->accept(*this);
+		}
+		else
+		{
+			if(visited)
+			{
+				out << ", ";
+			}
+			visited = true;
+			out << SYMBOL_NAME(*symbol);
+			out << '(';
+			TreePrinter<OutputStreamType> tmp(out);
+			symbol->accept(tmp);
+			out << ')';
+		}
+	}
+
+	template<typename T>
+	void visit(cpp::symbol<T> symbol)
+	{
+		if(symbol.p != 0)
+		{
+			visit(symbol.p);
+		}
+	}
+
+	void visit(cpp::declaration* symbol)
+	{
+	}
+
+	void visit(cpp::member_declaration* symbol)
+	{
+	}
+
+	void visit(cpp::statement* symbol)
+	{
+	}
+};
 
 struct SymbolPrinter
 {
-	size_t braceDepth;
+	std::ofstream out;
+	TokenPrinter<std::ostream> printer;
+
 	SymbolPrinter()
-		: braceDepth(0)
+		: out("out/parsed.cpp"),
+		printer(out)
 	{
 	}
 
-	void nextLine()
+	void visit(cpp::terminal_identifier symbol)
 	{
-		std::cout << std::endl;
-		for(size_t i = 0; i != braceDepth; ++i)
-		{
-			std::cout << '\t';
-		}
-	}
-	void printTerminal(const char* symbol)
-	{
-		std::cout << symbol << " ";
+		printer.printToken(boost::wave::T_IDENTIFIER, symbol.value);
 	}
 
-	void visit(const char* value)
+	void visit(cpp::terminal_string symbol)
 	{
-		printTerminal(value);
+		printer.printToken(boost::wave::T_STRINGLIT, symbol.value);
+	}
+
+	void visit(cpp::terminal_choice2 symbol)
+	{
+		printer.printToken(symbol.id, symbol.value);
 	}
 
 	template<LexTokenId id>
@@ -37,25 +110,7 @@ struct SymbolPrinter
 	{
 		if(symbol.value != 0)
 		{
-			if(id == boost::wave::T_LEFTBRACE)
-			{
-				nextLine();
-				++braceDepth;
-			}
-			else if(id == boost::wave::T_RIGHTBRACE)
-			{
-				--braceDepth;
-				nextLine();
-			}
-
-			printTerminal(symbol.value);
-
-			if(id == boost::wave::T_SEMICOLON
-				|| id == boost::wave::T_LEFTBRACE
-				|| id == boost::wave::T_RIGHTBRACE)
-			{
-				nextLine();
-			}
+			printer.printToken(id, symbol.value);
 		}
 	}
 
@@ -73,6 +128,32 @@ struct SymbolPrinter
 			visit(symbol.p);
 		}
 	}
+
+#if 1
+	void visit(cpp::declaration* symbol)
+	{
+		symbol->accept(*this);
+		out << " // ";
+		TreePrinter<std::ofstream> tmp(out);
+		symbol->accept(tmp);
+	}
+
+	void visit(cpp::member_declaration* symbol)
+	{
+		symbol->accept(*this);
+		out << " // ";
+		TreePrinter<std::ofstream> tmp(out);
+		symbol->accept(tmp);
+	}
+
+	void visit(cpp::statement* symbol)
+	{
+		symbol->accept(*this);
+		out << " // ";
+		TreePrinter<std::ofstream> tmp(out);
+		symbol->accept(tmp);
+	}
+#endif
 };
 
 template<typename T>

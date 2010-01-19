@@ -208,6 +208,14 @@
 				>
 			</File>
 			<File
+				RelativePath=".\printer.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\printer.h"
+				>
+			</File>
+			<File
 				RelativePath=".\semantic.cpp"
 				>
 			</File>

@@ -1,4 +1,38 @@
 
+typedef struct localeinfo_struct
+{
+	pthreadlocinfo locinfo;
+	pthreadmbcinfo mbcinfo;
+}
+_locale_tstruct, *_locale_t; // comma is lost
+
+template<class _Ty>
+inline void swap(_Ty&_Left, _Ty&_Right)
+{
+	size_t _Count, _Count1; // comma is lost
+	_Ty _Tmp=_Left;
+	_Left=_Right, _Right=_Tmp; // comma is lost
+	if(_Strbuf==0||traits_type::eq_int_type(traits_type::eof(), _Strbuf->sbumpc()))_Strbuf=0, _Got=true; // last comma is lost
+}
+
+
+void test()
+{
+	__asm int 3 __asm int 3 // one line
+	__asm { int 3; } // braced
+	__asm { __asm int 3; __asm int 3; }; // nested
+	__asm { __asm { int 3 }; }; // nested
+}
+
+class A
+{
+	void member()
+	{
+		this->m = new X(*this->m); // new-expression without placement
+	}
+};
+
+
 template <class _Traits>
 class _Char_traits_category
 {
@@ -79,15 +113,6 @@ struct A {
 };
 
 
-
-void test()
-{
-	__asm int 3 __asm int 3 // one line
-	__asm { int 3; } // braced
-	__asm { __asm int 3; __asm int 3; }; // nested
-	__asm { __asm { int 3 }; }; // nested
-}
-
 class A
 {
 public:
@@ -131,14 +156,6 @@ class A
 	}
 };
 
-
-class A
-{
-	void member()
-	{
-		this->m = new X(*this->m); // new-expression without placement
-	}
-};
 
 char* test = "str1" "str2"; // concatenate adjacent string-literal tokens
 

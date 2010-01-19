@@ -6,7 +6,7 @@ inline cpp::identifier* parseSymbol(Parser& parser, cpp::identifier* result)
 {
 	if(TOKEN_EQUAL(parser, boost::wave::T_IDENTIFIER))
 	{
-		result->value = parser.get_value();
+		result->value.value = parser.get_value();
 		parser.increment();
 		return result;
 	}
@@ -800,8 +800,8 @@ inline cpp::string_literal* parseSymbol(Parser& parser, cpp::string_literal* res
 {
 	if(TOKEN_EQUAL(parser, boost::wave::T_STRINGLIT))
 	{
+		result->value.value = parser.get_value();
 		parser.increment();
-		result->value = parser.get_value();
 		PARSE_OPTIONAL(parser, result->next);
 		return result;
 	}
@@ -2256,59 +2256,71 @@ inline cpp::expression_statement* parseSymbol(Parser& parser, cpp::expression_st
 	return result;
 }
 
-inline cpp::msext_asm_statement* parseSymbol(Parser& parser, cpp::msext_asm_statement* result)
+inline cpp::msext_asm_terminal* parseSymbol(Parser& parser, cpp::msext_asm_terminal* result)
 {
-	PARSE_TERMINAL(parser, result->key);
-	bool leadingBrace;
-	PARSE_TOKEN_OPTIONAL(parser, leadingBrace, boost::wave::T_LEFTBRACE);
-	size_t line = parser.get_position().get_line();
-	size_t depth = size_t(leadingBrace);
-	for(;;)
+	if(!TOKEN_EQUAL(parser, boost::wave::T_RIGHTBRACE)
+		&& !TOKEN_EQUAL(parser, boost::wave::T_SEMICOLON)
+		&& !TOKEN_EQUAL(parser, boost::wave::T_LEFTBRACE))
 	{
-		if(!leadingBrace
-			&& parser.get_position().get_line() != line) // HACK!
-		{
-			break;
-		}
-		if(depth == 0
-			&& TOKEN_EQUAL(parser, boost::wave::T_SEMICOLON))
-		{
-			break;
-		}
-		if(depth == size_t(leadingBrace)
-			&& TOKEN_EQUAL(parser, boost::wave::T_RIGHTBRACE))
-		{
-			if(leadingBrace)
-			{
-				parser.increment();
-			}
-			break;
-		}
-		if(TOKEN_EQUAL(parser, boost::wave::T_LEFTBRACE))
-		{
-			parser.increment();
-			++depth;
-		}
-		else if(TOKEN_EQUAL(parser, boost::wave::T_RIGHTBRACE))
-		{
-			parser.increment();
-			--depth;
-		}
-		else if(TOKEN_EQUAL(parser, boost::wave::T_MSEXT_ASM))
-		{
-			PARSE_REQUIRED(parser, result->inner);
-		}
-		else
-		{
-			parser.increment();
-		}
+		result->value.value = parser.get_value();
+		parser.increment();
+		return result;
 	}
+	return NULL;
+}
+
+inline cpp::msext_asm_element* parseSymbol(Parser& parser, cpp::msext_asm_element* result);
+
+inline cpp::msext_asm_element_list* parseSymbol(Parser& parser, cpp::msext_asm_element_list* result)
+{
+	PARSE_REQUIRED(parser, result->item);
+	PARSE_OPTIONAL(parser, result->next);
 	PARSE_TERMINAL(parser, result->semicolon);
 	return result;
 }
 
+inline cpp::msext_asm_element_list_inline* parseSymbol(Parser& parser, cpp::msext_asm_element_list_inline* result)
+{
+	size_t line = parser.get_position().get_line();
+	PARSE_REQUIRED(parser, result->item);
+	if(parser.get_position().get_line() == line) // HACK: only continue until end of line
+	{
+		PARSE_OPTIONAL(parser, result->next);
+		PARSE_TERMINAL(parser, result->semicolon);
+	}
+	return result;
+}
+
+inline cpp::msext_asm_statement* parseSymbol(Parser& parser, cpp::msext_asm_statement* result)
+{
+	PARSE_TERMINAL(parser, result->key);
+	PARSE_REQUIRED(parser, result->list);
+	PARSE_TERMINAL(parser, result->semicolon);
+	return result;
+}
+
+inline cpp::msext_asm_statement_braced* parseSymbol(Parser& parser, cpp::msext_asm_statement_braced* result)
+{
+	PARSE_TERMINAL(parser, result->key);
+	PARSE_TERMINAL(parser, result->lb);
+	PARSE_REQUIRED(parser, result->list);
+	PARSE_TERMINAL(parser, result->rb);
+	PARSE_TERMINAL(parser, result->semicolon);
+	return result;
+}
+
+inline cpp::msext_asm_element* parseSymbol(Parser& parser, cpp::msext_asm_element* result)
+{
+	PARSE_SELECT(parser, cpp::msext_asm_statement_braced); // TODO: shared-prefix ambiguity: braced and unbraced start with '__asm'
+	PARSE_SELECT(parser, cpp::msext_asm_statement);
+	PARSE_SELECT(parser, cpp::msext_asm_terminal); // will eat anything!
+	return result;
+}
+
+
 inline cpp::statement* parseSymbol(Parser& parser, cpp::statement* result)
 {
+	PARSE_SELECT(parser, cpp::msext_asm_statement_braced); // TODO: shared-prefix ambiguity: braced and unbraced start with '__asm'
 	PARSE_SELECT(parser, cpp::msext_asm_statement);
 	PARSE_SELECT(parser, cpp::compound_statement);
 	PARSE_SELECT(parser, cpp::declaration_statement);
@@ -2329,9 +2341,9 @@ inline cpp::statement_seq* parseSymbol(Parser& parser, cpp::statement_seq* resul
 }
 
 
-cpp::declaration_seq* parseFile(Scanner& scanner)
+cpp::declaration_seq* parseFile(Lexer& lexer)
 {
-	Parser parser(scanner);
+	Parser parser(lexer);
 
 	cpp::symbol<cpp::declaration_seq> result = NULL;
 	try
@@ -2341,16 +2353,16 @@ cpp::declaration_seq* parseFile(Scanner& scanner)
 	catch(ParseError&)
 	{
 	}
-	if(!scanner.finished())
+	if(!lexer.finished())
 	{
 		printError(parser);
 	}
 	return result;
 }
 
-cpp::statement_seq* parseFunction(Scanner& scanner)
+cpp::statement_seq* parseFunction(Lexer& lexer)
 {
-	Parser parser(scanner);
+	Parser parser(lexer);
 
 	cpp::symbol<cpp::statement_seq> result = NULL;
 	try
@@ -2360,7 +2372,7 @@ cpp::statement_seq* parseFunction(Scanner& scanner)
 	catch(ParseError&)
 	{
 	}
-	if(!scanner.finished())
+	if(!lexer.finished())
 	{
 		printError(parser);
 	}
