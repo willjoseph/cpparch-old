@@ -298,8 +298,8 @@ int main(int argc, char *argv[])
 	if(argc == 1)
 	{
 		const Test tests[] = {
-			makeTest("test/test_amb_constructor.cpp", verifyAmbConstructor, parseFile),
 			makeTest("test/test_error.cpp", verifyNull, parseFile),
+			makeTest("test/test_amb_constructor.cpp", verifyAmbConstructor, parseFile),
 			makeTest("test/test_amb_func_cast.cpp", verifyAmbFuncCast, parseFunction),
 			makeTest("test/test_amb_ones_comp.cpp", verifyAmbOnesComp, parseFunction),
 			makeTest("test/test_for.cpp", verifyFor, parseFunction),
