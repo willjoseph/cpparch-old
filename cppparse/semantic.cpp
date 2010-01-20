@@ -190,6 +190,41 @@ struct SymbolPrinter
 	}
 
 #include <iostream>
+#include <map>
+
+struct SemanticError
+{
+	SemanticError()
+	{
+	}
+};
+
+typedef const char* Name;
+
+struct NameLess
+{
+	bool operator()(const char* left, const char* right) const
+	{
+		return std::lexicographical_compare(left, left + strlen(left), right, right + strlen(right));
+	}
+};
+
+typedef std::map<Name, struct Declaration, NameLess> Declarations;
+
+struct Declaration
+{
+	Declaration* parent;
+	const char* type;
+	bool isTypedef;
+	Declarations children;
+
+	Declaration(Declaration* parent)
+		: parent(parent), type(0)
+	{
+	}
+};
+
+Declaration global(0);
 
 size_t gDepth = 0; // TMP HACK
 
@@ -201,6 +236,37 @@ void printName(const char* caption, const char* id)
 	}
 	std::cout << caption << ": " << id << std::endl;
 }
+
+Declaration* gScope = &global;
+Declaration* gDeclaration = 0;
+
+void pointOfDeclaration(const char* name, const char* type, bool isTypedef)
+{
+	printName(type == 0 ? "<unknown>" : type, name);
+	gDeclaration = &(*gScope->children.insert(Declarations::value_type(name, Declaration(gScope))).first).second;
+	gDeclaration->type = type;
+	gDeclaration->isTypedef = isTypedef;
+}
+
+void pushDeclaration()
+{
+	++gDepth;
+	if(gDeclaration == 0)
+	{
+		throw SemanticError();
+	}
+	gScope = gDeclaration;
+}
+void popDeclaration()
+{
+	--gDepth;
+	if(gScope->parent == 0)
+	{
+		throw SemanticError();
+	}
+	gScope = gScope->parent;
+}
+
 
 struct Walker
 {
@@ -219,7 +285,6 @@ struct TypeNameWalker
 	void visit(cpp::identifier* symbol)
 	{
 		id = symbol->value.value;
-		printName("type-name", id);
 	}
 	void visit(cpp::nested_name_specifier* symbol)
 	{
@@ -229,8 +294,12 @@ struct TypeNameWalker
 	void visit(cpp::simple_template_id* symbol) 
 	{
 		id = symbol->id->value.value;
-		printName("template type-name", id);
 		// TODO args
+	}
+	void visit(cpp::simple_type_specifier_builtin* symbol)
+	{
+		// TODO
+		id = symbol->value.value;
 	}
 };
 
@@ -239,7 +308,6 @@ struct DeclaratorIdWalker
 	TREEWALKER_DEFAULT;
 
 	const char* id;
-	const char* context;
 	DeclaratorIdWalker()
 		: id(0)
 	{
@@ -248,7 +316,6 @@ struct DeclaratorIdWalker
 	void visit(cpp::identifier* symbol)
 	{
 		id = symbol->value.value;
-		printName("declarator-id", id);
 	}
 	void visit(cpp::nested_name_specifier* symbol)
 	{
@@ -258,27 +325,26 @@ struct DeclaratorIdWalker
 	void visit(cpp::simple_template_id* symbol) 
 	{
 		id = symbol->id->value.value;
-		printName("template declarator-id", id);
 	}
 	void visit(cpp::operator_function_id* symbol) 
 	{
 		// TODO
-		printName("operator-function-id", "");
+		id = "operator ()";
 	}
 	void visit(cpp::conversion_function_id* symbol) 
 	{
 		// TODO
-		printName("conversion-function-id", "");
+		id = "operator T";
 	}
 	void visit(cpp::destructor_id* symbol) 
 	{
 		// TODO
-		printName("destructor-id", "");
+		id = "~T";
 	}
 	void visit(cpp::template_id_operator_function* symbol) 
 	{
 		// TODO
-		printName("template operator-function-id", "");
+		id = "operator () <>";
 	}
 };
 
@@ -286,10 +352,17 @@ struct DeclaratorWalker
 {
 	TREEWALKER_DEFAULT;
 
+	const char* id;
+	DeclaratorWalker()
+		: id(0)
+	{
+	}
+
 	void visit(cpp::declarator_id* symbol)
 	{
 		DeclaratorIdWalker walker;
 		symbol->accept(walker);
+		id = walker.id;
 	}
 	void visit(cpp::parameter_declaration* symbol)
 	{
@@ -302,10 +375,20 @@ struct ClassSpecifierWalker
 {
 	TREEWALKER_DEFAULT;
 
+	const char* id;
+	ClassSpecifierWalker()
+		: id(0)
+	{
+	}
+
 	void visit(cpp::class_head* symbol)
 	{
 		TypeNameWalker walker;
 		symbol->accept(walker);
+		id = walker.id;
+		// TODO: distinguish between class, struct, union
+		pointOfDeclaration(id, "class", false); // 3.3.1.3
+		pushDeclaration(); // 3.3.6.1.1
 	}
 	void visit(cpp::member_declaration* symbol)
 	{
@@ -328,27 +411,31 @@ struct TypeSpecifierWalker
 	{
 		TypeNameWalker walker;
 		symbol->accept(walker);
+		id = walker.id;
 	}
 	void visit(cpp::elaborated_type_specifier* symbol)
 	{
 		TypeNameWalker walker;
 		symbol->accept(walker);
+		id = walker.id;
 	}
 	void visit(cpp::typename_specifier* symbol)
 	{
 		TypeNameWalker walker;
 		symbol->accept(walker);
+		id = walker.id;
 	}
 	void visit(cpp::class_specifier* symbol)
 	{
 		ClassSpecifierWalker walker;
 		symbol->accept(walker);
+		id = walker.id;
+		popDeclaration();
 	}
 	void visit(cpp::enum_specifier* symbol)
 	{
 		// TODO
 		id = symbol->id->value.value;
-		printName("enum type-name", id);
 	}
 };
 
@@ -356,9 +443,10 @@ struct DeclSpecifierWalker
 {
 	TREEWALKER_DEFAULT;
 
+	const char* type;
 	bool isTypedef;
 	DeclSpecifierWalker()
-		: isTypedef(false)
+		: type(0), isTypedef(false)
 	{
 	}
 
@@ -366,6 +454,7 @@ struct DeclSpecifierWalker
 	{
 		TypeSpecifierWalker walker;
 		symbol->accept(walker);
+		type = walker.id;
 	}
 	void visit(cpp::decl_specifier_default* symbol)
 	{
@@ -376,29 +465,41 @@ struct DeclSpecifierWalker
 	}
 };
 
+struct FunctionDefinitionWalker
+{
+	TREEWALKER_DEFAULT;
+
+	void visit(cpp::simple_declaration* symbol)
+	{
+		DeclarationWalker walker;
+		symbol->accept(walker);
+	}
+};
+
 struct DeclarationWalker
 {
 	TREEWALKER_DEFAULT;
 
+	const char* type;
+	bool isTypedef;
 	DeclarationWalker()
+		: type(0)
 	{
-		++gDepth;
 	}
-	~DeclarationWalker()
-	{
-		--gDepth;
-	}
-		
+
 	void visit(cpp::decl_specifier_seq* symbol)
 	{
 		DeclSpecifierWalker walker;
 		symbol->accept(walker);
+		type = walker.type;
+		isTypedef = walker.isTypedef;
 	}
 
 	void visit(cpp::declarator* symbol)
 	{
 		DeclaratorWalker walker;
 		symbol->accept(walker);
+		pointOfDeclaration(walker.id, type, isTypedef); // 3.3.1.1
 	}
 	void visit(cpp::abstract_declarator* symbol)
 	{
@@ -408,7 +509,6 @@ struct DeclarationWalker
 	void visit(cpp::member_declarator_bitfield* symbol)
 	{
 		const char* id = symbol->id->value.value;
-		printName("bitfield declarator-id", id);
 	}
 
 	void visit(cpp::initializer* symbol)
@@ -417,7 +517,10 @@ struct DeclarationWalker
 	}
 	void visit(cpp::function_body* symbol)
 	{
-		// TODO
+		pushDeclaration(); // 3.3.2.1
+		FunctionDefinitionWalker walker;
+		symbol->accept(walker);
+		popDeclaration();
 	}
 };
 
