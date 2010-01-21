@@ -1775,6 +1775,7 @@ inline cpp::declarator* parseSymbol(Parser& parser, cpp::declarator* result)
 
 inline cpp::function_definition_suffix* parseSymbol(Parser& parser, cpp::function_definition_suffix* result)
 {
+	// TODO
 	bool isTry;
 	PARSE_TOKEN_OPTIONAL(parser, isTry, boost::wave::T_TRY);
 	PARSE_REQUIRED(parser, result->body);

@@ -190,7 +190,7 @@ struct SymbolPrinter
 	}
 
 #include <iostream>
-#include <map>
+#include <list>
 
 struct SemanticError
 {
@@ -199,32 +199,35 @@ struct SemanticError
 	}
 };
 
-typedef const char* Name;
 
-struct NameLess
-{
-	bool operator()(const char* left, const char* right) const
-	{
-		return std::lexicographical_compare(left, left + strlen(left), right, right + strlen(right));
-	}
-};
-
-typedef std::map<Name, struct Declaration, NameLess> Declarations;
+struct Scope;
 
 struct Declaration
 {
-	Declaration* parent;
+	const char* name;
 	const char* type;
+	Scope* enclosed;
 	bool isTypedef;
-	Declarations children;
 
-	Declaration(Declaration* parent)
-		: parent(parent), type(0)
+	Declaration(const char* name, const char* type, Scope* enclosed, bool isTypedef)
+		: name(0), type(0), enclosed(enclosed), isTypedef(isTypedef)
 	{
 	}
 };
 
-Declaration global(0);
+struct Scope
+{
+	Scope* parent;
+	typedef std::list<Declaration> Declarations;
+	Declarations declarations;
+
+	Scope()
+		: parent(0)
+	{
+	}
+};
+
+Scope global;
 
 size_t gDepth = 0; // TMP HACK
 
@@ -237,34 +240,30 @@ void printName(const char* caption, const char* id)
 	std::cout << caption << ": " << id << std::endl;
 }
 
-Declaration* gScope = &global;
-Declaration* gDeclaration = 0;
+Scope* gScope = &global;
 
-void pointOfDeclaration(const char* name, const char* type, bool isTypedef)
+void pointOfDeclaration(const char* name, const char* type, Scope* enclosed, bool isTypedef)
 {
 	printName(type == 0 ? "<unknown>" : type, name);
-	gDeclaration = &(*gScope->children.insert(Declarations::value_type(name, Declaration(gScope))).first).second;
-	gDeclaration->type = type;
-	gDeclaration->isTypedef = isTypedef;
+	gScope->declarations.push_back(Declaration(name, type, enclosed, isTypedef));
 }
 
-void pushDeclaration()
+void pushScope(Scope* scope)
 {
 	++gDepth;
-	if(gDeclaration == 0)
-	{
-		throw SemanticError();
-	}
-	gScope = gDeclaration;
+	scope->parent = gScope;
+	gScope = scope;
 }
-void popDeclaration()
+Scope* popScope()
 {
 	--gDepth;
 	if(gScope->parent == 0)
 	{
 		throw SemanticError();
 	}
+	Scope* result = gScope;
 	gScope = gScope->parent;
+	return result;
 }
 
 
@@ -353,8 +352,9 @@ struct DeclaratorWalker
 	TREEWALKER_DEFAULT;
 
 	const char* id;
+	Scope* paramScope;
 	DeclaratorWalker()
-		: id(0)
+		: id(0), paramScope(0)
 	{
 	}
 
@@ -363,6 +363,12 @@ struct DeclaratorWalker
 		DeclaratorIdWalker walker;
 		symbol->accept(walker);
 		id = walker.id;
+	}
+	void visit(cpp::parameter_declaration_clause* symbol)
+	{
+		pushScope(new Scope); // parameter scope
+		symbol->accept(*this);
+		paramScope = popScope(); // parameter scope
 	}
 	void visit(cpp::parameter_declaration* symbol)
 	{
@@ -387,8 +393,9 @@ struct ClassSpecifierWalker
 		symbol->accept(walker);
 		id = walker.id;
 		// TODO: distinguish between class, struct, union
-		pointOfDeclaration(id, "class", false); // 3.3.1.3
-		pushDeclaration(); // 3.3.6.1.1
+		Scope* scope = new Scope;
+		pointOfDeclaration(id, "class", scope, false); // 3.3.1.3
+		pushScope(scope); // 3.3.6.1.1 // class scope
 	}
 	void visit(cpp::member_declaration* symbol)
 	{
@@ -430,7 +437,7 @@ struct TypeSpecifierWalker
 		ClassSpecifierWalker walker;
 		symbol->accept(walker);
 		id = walker.id;
-		popDeclaration();
+		popScope(); // class scope
 	}
 	void visit(cpp::enum_specifier* symbol)
 	{
@@ -465,7 +472,7 @@ struct DeclSpecifierWalker
 	}
 };
 
-struct FunctionDefinitionWalker
+struct CompoundStatementWalker
 {
 	TREEWALKER_DEFAULT;
 
@@ -499,7 +506,11 @@ struct DeclarationWalker
 	{
 		DeclaratorWalker walker;
 		symbol->accept(walker);
-		pointOfDeclaration(walker.id, type, isTypedef); // 3.3.1.1
+		pointOfDeclaration(walker.id, type, walker.paramScope, isTypedef); // 3.3.1.1
+		if(walker.paramScope != 0)
+		{
+			pushScope(walker.paramScope); // 3.3.2.1 parameter scope
+		}
 	}
 	void visit(cpp::abstract_declarator* symbol)
 	{
@@ -515,12 +526,23 @@ struct DeclarationWalker
 	{
 		// TODO
 	}
-	void visit(cpp::function_body* symbol)
+	void visit(cpp::compound_statement* symbol)
 	{
-		pushDeclaration(); // 3.3.2.1
-		FunctionDefinitionWalker walker;
+		pushScope(new Scope); // local scope
+		CompoundStatementWalker walker;
 		symbol->accept(walker);
-		popDeclaration();
+		popScope(); // local scope
+	}
+
+	void visit(cpp::constructor_definition* symbol)
+	{
+		symbol->accept(*this);
+		popScope(); // parameter scope
+	}
+	void visit(cpp::function_definition_suffix* symbol)
+	{
+		symbol->accept(*this);
+		popScope(); // parameter scope
 	}
 };
 
