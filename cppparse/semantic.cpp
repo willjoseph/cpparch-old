@@ -199,18 +199,22 @@ struct SemanticError
 	}
 };
 
+typedef const char* Identifier;
+
+const Identifier TYPE_BUILTIN = "builtin";
+const Identifier TYPE_CLASS = "class";
 
 struct Scope;
 
 struct Declaration
 {
-	const char* name;
-	const char* type;
+	Identifier name;
+	Identifier type;
 	Scope* enclosed;
 	bool isTypedef;
 
-	Declaration(const char* name, const char* type, Scope* enclosed, bool isTypedef)
-		: name(0), type(0), enclosed(enclosed), isTypedef(isTypedef)
+	Declaration(Identifier name, Identifier type, Scope* enclosed, bool isTypedef)
+		: name(name), type(type), enclosed(enclosed), isTypedef(isTypedef)
 	{
 	}
 };
@@ -218,16 +222,42 @@ struct Declaration
 struct Scope
 {
 	Scope* parent;
+	Identifier name;
 	typedef std::list<Declaration> Declarations;
 	Declarations declarations;
 
-	Scope()
-		: parent(0)
+	Scope(Identifier name)
+		: parent(0), name(name)
 	{
 	}
 };
 
-Scope global;
+inline Declaration* findDeclaration(Scope& scope, Identifier id)
+{
+	for(Scope::Declarations::iterator i = scope.declarations.begin(); i != scope.declarations.end(); ++i)
+	{
+		if((*i).name == id)
+		{
+			std::cout << scope.name << "::";
+			return &(*i);
+		}
+	}
+	if(scope.parent != 0)
+	{
+		return findDeclaration(*scope.parent, id);
+	}
+	return 0;
+}
+
+
+struct GlobalScope : public Scope
+{
+	GlobalScope() : Scope("")
+	{
+		declarations.push_back(Declaration(TYPE_BUILTIN, 0, 0, true));
+	}
+} global;
+
 
 size_t gDepth = 0; // TMP HACK
 
@@ -242,10 +272,15 @@ void printName(const char* caption, const char* id)
 
 Scope* gScope = &global;
 
-void pointOfDeclaration(const char* name, const char* type, Scope* enclosed, bool isTypedef)
+Declaration* pointOfDeclaration(const char* name, const char* type, Scope* enclosed, bool isTypedef)
 {
-	printName(type == 0 ? "<unknown>" : type, name);
+	printName(type == 0 ? "<none>" : type, name);
 	gScope->declarations.push_back(Declaration(name, type, enclosed, isTypedef));
+	if(enclosed != 0)
+	{
+		enclosed->name = name;
+	}
+	return &gScope->declarations.back();
 }
 
 void pushScope(Scope* scope)
@@ -254,6 +289,7 @@ void pushScope(Scope* scope)
 	scope->parent = gScope;
 	gScope = scope;
 }
+
 Scope* popScope()
 {
 	--gDepth;
@@ -266,6 +302,24 @@ Scope* popScope()
 	return result;
 }
 
+inline void checkName(Identifier id)
+{
+	std::cout << "lookup: ";
+	Declaration* declaration = findDeclaration(*gScope, id);
+	if(declaration == 0)
+	{
+		std::cout << "failed: ";
+	}
+	std::cout  << id << std::endl;
+}
+
+
+inline Declaration* declareClass(Identifier id)
+{
+	// TODO: distinguish between class, struct, union
+	return pointOfDeclaration(id, TYPE_CLASS, 0, false);
+};
+
 
 struct Walker
 {
@@ -275,7 +329,7 @@ struct TypeNameWalker
 {
 	TREEWALKER_DEFAULT;
 
-	const char* id;
+	Identifier id;
 	TypeNameWalker()
 		: id(0)
 	{
@@ -289,6 +343,7 @@ struct TypeNameWalker
 	{
 		TypeNameWalker walker;
 		symbol->accept(walker);
+		// TODO context
 	}
 	void visit(cpp::simple_template_id* symbol) 
 	{
@@ -298,7 +353,7 @@ struct TypeNameWalker
 	void visit(cpp::simple_type_specifier_builtin* symbol)
 	{
 		// TODO
-		id = symbol->value.value;
+		id = TYPE_BUILTIN;
 	}
 };
 
@@ -306,7 +361,7 @@ struct DeclaratorIdWalker
 {
 	TREEWALKER_DEFAULT;
 
-	const char* id;
+	Identifier id;
 	DeclaratorIdWalker()
 		: id(0)
 	{
@@ -320,6 +375,7 @@ struct DeclaratorIdWalker
 	{
 		TypeNameWalker walker;
 		symbol->accept(walker);
+		// TODO context
 	}
 	void visit(cpp::simple_template_id* symbol) 
 	{
@@ -328,7 +384,7 @@ struct DeclaratorIdWalker
 	void visit(cpp::operator_function_id* symbol) 
 	{
 		// TODO
-		id = "operator ()";
+		id = "operator <op>";
 	}
 	void visit(cpp::conversion_function_id* symbol) 
 	{
@@ -351,7 +407,7 @@ struct DeclaratorWalker
 {
 	TREEWALKER_DEFAULT;
 
-	const char* id;
+	Identifier id;
 	Scope* paramScope;
 	DeclaratorWalker()
 		: id(0), paramScope(0)
@@ -364,11 +420,11 @@ struct DeclaratorWalker
 		symbol->accept(walker);
 		id = walker.id;
 	}
-	void visit(cpp::parameter_declaration_clause* symbol)
+	void visit(cpp::declarator_suffix_function* symbol)
 	{
-		pushScope(new Scope); // parameter scope
+		pushScope(new Scope("parameter")); // parameter scope
 		symbol->accept(*this);
-		paramScope = popScope(); // parameter scope
+		paramScope = popScope(); // parameter scope (store reference for later resumption)
 	}
 	void visit(cpp::parameter_declaration* symbol)
 	{
@@ -377,11 +433,46 @@ struct DeclaratorWalker
 	}
 };
 
+struct ClassHeadWalker
+{
+	TREEWALKER_DEFAULT;
+
+	Declaration* declaration;
+	ClassHeadWalker()
+		: declaration(0)
+	{
+	}
+
+	void visit(cpp::identifier* symbol)
+	{
+		Identifier id = symbol->value.value;
+		declaration = declareClass(id); // 3.3.1.3 The point of declaration for a class first declared by a class-specifier is immediately after the identifier or simple-template-id (if any) in its class-head
+	}
+	void visit(cpp::nested_name_specifier* symbol)
+	{
+		TypeNameWalker walker;
+		symbol->accept(walker);
+		// TODO context
+	}
+	void visit(cpp::simple_template_id* symbol) 
+	{
+		Identifier id = symbol->id->value.value;
+		declaration = declareClass(id); // 3.3.1.3 The point of declaration for a class first declared by a class-specifier is immediately after the identifier or simple-template-id (if any) in its class-head
+		// TODO args
+	}
+
+	void visit(cpp::class_head* symbol)
+	{
+		TypeNameWalker walker;
+		symbol->accept(walker);
+	}
+};
+
 struct ClassSpecifierWalker
 {
 	TREEWALKER_DEFAULT;
 
-	const char* id;
+	Identifier id;
 	ClassSpecifierWalker()
 		: id(0)
 	{
@@ -389,12 +480,11 @@ struct ClassSpecifierWalker
 
 	void visit(cpp::class_head* symbol)
 	{
-		TypeNameWalker walker;
+		ClassHeadWalker walker;
 		symbol->accept(walker);
-		id = walker.id;
-		// TODO: distinguish between class, struct, union
-		Scope* scope = new Scope;
-		pointOfDeclaration(id, "class", scope, false); // 3.3.1.3
+		id = walker.declaration->name;
+		Scope* scope = new Scope(id);
+		walker.declaration->enclosed = scope;
 		pushScope(scope); // 3.3.6.1.1 // class scope
 	}
 	void visit(cpp::member_declaration* symbol)
@@ -408,7 +498,7 @@ struct TypeSpecifierWalker
 {
 	TREEWALKER_DEFAULT;
 
-	const char* id;
+	Identifier id;
 	TypeSpecifierWalker()
 		: id(0)
 	{
@@ -419,6 +509,7 @@ struct TypeSpecifierWalker
 		TypeNameWalker walker;
 		symbol->accept(walker);
 		id = walker.id;
+		checkName(id);
 	}
 	void visit(cpp::elaborated_type_specifier* symbol)
 	{
@@ -450,7 +541,7 @@ struct DeclSpecifierWalker
 {
 	TREEWALKER_DEFAULT;
 
-	const char* type;
+	Identifier type;
 	bool isTypedef;
 	DeclSpecifierWalker()
 		: type(0), isTypedef(false)
@@ -487,10 +578,11 @@ struct DeclarationWalker
 {
 	TREEWALKER_DEFAULT;
 
-	const char* type;
+	Identifier type;
 	bool isTypedef;
+	Scope* paramScope;
 	DeclarationWalker()
-		: type(0)
+		: type(0), isTypedef(false), paramScope(0)
 	{
 	}
 
@@ -507,10 +599,7 @@ struct DeclarationWalker
 		DeclaratorWalker walker;
 		symbol->accept(walker);
 		pointOfDeclaration(walker.id, type, walker.paramScope, isTypedef); // 3.3.1.1
-		if(walker.paramScope != 0)
-		{
-			pushScope(walker.paramScope); // 3.3.2.1 parameter scope
-		}
+		paramScope = walker.paramScope;
 	}
 	void visit(cpp::abstract_declarator* symbol)
 	{
@@ -519,7 +608,8 @@ struct DeclarationWalker
 	}
 	void visit(cpp::member_declarator_bitfield* symbol)
 	{
-		const char* id = symbol->id->value.value;
+		Identifier id = symbol->id->value.value;
+		pointOfDeclaration(id, type, 0, isTypedef); // 3.3.1.1
 	}
 
 	void visit(cpp::initializer* symbol)
@@ -528,21 +618,18 @@ struct DeclarationWalker
 	}
 	void visit(cpp::compound_statement* symbol)
 	{
-		pushScope(new Scope); // local scope
+		if(paramScope != 0)
+		{
+			pushScope(paramScope); // 3.3.2.1 parameter scope
+		}
+		pushScope(new Scope("local")); // local scope
 		CompoundStatementWalker walker;
 		symbol->accept(walker);
 		popScope(); // local scope
-	}
-
-	void visit(cpp::constructor_definition* symbol)
-	{
-		symbol->accept(*this);
-		popScope(); // parameter scope
-	}
-	void visit(cpp::function_definition_suffix* symbol)
-	{
-		symbol->accept(*this);
-		popScope(); // parameter scope
+		if(paramScope != 0)
+		{
+			popScope(); // parameter scope
+		}
 	}
 };
 
