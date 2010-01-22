@@ -270,6 +270,7 @@ Scope* gScope = &global;
 
 // special-case
 Declaration gUndeclared(&global, "$undeclared", 0, &global, false);
+Declaration gAnonymous(&global, "$anonymous", 0, &global, false);
 
 // symbol types
 Declaration gNamespace(&global, "$namespace", 0, 0, false);
@@ -313,8 +314,15 @@ struct WalkerBase : public PrintingWalker
 
 	void printName(Declaration* name)
 	{
-		printName(name->scope);
-		printer.out << name->name;
+		if(name == 0)
+		{
+			printer.out << "<unknown>";
+		}
+		else
+		{
+			printName(name->scope);
+			printer.out << name->name;
+		}
 	}
 
 	void printName(Declaration* type, Declaration* name)
@@ -369,6 +377,8 @@ struct WalkerBase : public PrintingWalker
 	}
 };
 
+#define SEMANTIC_ASSERT(condition) if(!(condition)) { throw SemanticError(); }
+
 struct Walker
 {
 
@@ -384,13 +394,17 @@ struct NestedNameSpecifierWalker : public WalkerBase
 	void visit(cpp::identifier* symbol)
 	{
 		Identifier id = symbol->value.value;
-		scope = findDeclaration(*scope, id)->enclosed;
+		Declaration* declaration = findDeclaration(*scope, id);
+		SEMANTIC_ASSERT(declaration->enclosed != 0);
+		scope = declaration->enclosed;
 		printSymbol(symbol);
 	}
 	void visit(cpp::simple_template_id* symbol)
 	{
 		Identifier id = symbol->id->value.value;
-		scope = findDeclaration(*scope, id)->enclosed;
+		Declaration* declaration = findDeclaration(*scope, id);
+		SEMANTIC_ASSERT(declaration->enclosed != 0);
+		scope = declaration->enclosed;
 		printSymbol(symbol);
 	}
 };
@@ -554,7 +568,7 @@ struct ClassHeadWalker : public WalkerBase
 	Declaration* declaration;
 	Scope* scope;
 	ClassHeadWalker(const WalkerBase& base)
-		: WalkerBase(base), declaration(0), scope(gScope)
+		: WalkerBase(base), declaration(&gAnonymous), scope(gScope)
 	{
 	}
 
@@ -614,7 +628,7 @@ struct ClassSpecifierWalker : public WalkerBase
 		symbol->accept(walker);
 		declaration = walker.declaration;
 		Scope* scope = new Scope(declaration->name);
-		walker.declaration->enclosed = scope;
+		declaration->enclosed = scope;
 		pushScope(scope); // 3.3.6.1.1 // class scope
 	}
 	void visit(cpp::member_declaration* symbol)
@@ -665,8 +679,9 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 	}
 	void visit(cpp::enum_specifier* symbol)
 	{
-		// TODO
-		Identifier id = symbol->id->value.value;
+		// TODO 
+		// + anonymous enums
+		//Identifier id = symbol->id->value.value;
 		printSymbol(symbol);
 	}
 	void visit(cpp::decl_specifier_default* symbol)
@@ -755,7 +770,7 @@ struct DeclarationWalker : public WalkerBase
 	{
 		DeclaratorWalker walker(*this);
 		symbol->accept(walker);
-		pointOfDeclaration(walker.scope, walker.id, type, walker.paramScope, isTypedef); // 3.3.1.1
+		pointOfDeclaration(walker.scope, walker.id, type, isTypedef ? type->enclosed : walker.paramScope, isTypedef); // 3.3.1.1
 		paramScope = walker.paramScope;
 	}
 	void visit(cpp::abstract_declarator* symbol)
