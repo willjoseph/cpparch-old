@@ -436,15 +436,7 @@ inline cpp::constructor_definition* parseSymbol(Parser& parser, cpp::constructor
 {
 	PARSE_OPTIONAL(parser, result->spec);
 	PARSE_REQUIRED(parser, result->decl);
-	bool isTry;
-	PARSE_TOKEN_OPTIONAL(parser, isTry, boost::wave::T_TRY);
-	PARSE_OPTIONAL(parser, result->init);
-	PARSE_REQUIRED(parser, result->body);
-	result->handlers = NULL;
-	if(isTry)
-	{
-		PARSE_REQUIRED(parser, result->handlers);
-	}
+	PARSE_REQUIRED(parser, result->suffix);
 	return result;
 }
 
@@ -1701,21 +1693,15 @@ inline cpp::qualified_id_default* parseSymbol(Parser& parser, cpp::qualified_id_
 	return result;
 }
 
+inline cpp::qualified_id_suffix* parseSymbol(Parser& parser, cpp::qualified_id_suffix* result)
+{
+	PARSE_SELECT(parser, cpp::template_id); // todo: shared-prefix ambiguity: 'template-id' vs 'identifier'
+	PARSE_SELECT(parser, cpp::identifier);
+	PARSE_SELECT(parser, cpp::operator_function_id);
+	return result;
+}
+
 inline cpp::qualified_id_global* parseSymbol(Parser& parser, cpp::qualified_id_global* result)
-{
-	PARSE_TERMINAL(parser, result->scope);
-	PARSE_REQUIRED(parser, result->id);
-	return result;
-}
-
-inline cpp::qualified_id_global_template* parseSymbol(Parser& parser, cpp::qualified_id_global_template* result)
-{
-	PARSE_TERMINAL(parser, result->scope);
-	PARSE_REQUIRED(parser, result->id);
-	return result;
-}
-
-inline cpp::qualified_id_global_op_func* parseSymbol(Parser& parser, cpp::qualified_id_global_op_func* result)
 {
 	PARSE_TERMINAL(parser, result->scope);
 	PARSE_REQUIRED(parser, result->id);
@@ -1726,8 +1712,6 @@ inline cpp::qualified_id* parseSymbol(Parser& parser, cpp::qualified_id* result)
 {
 	PARSE_SELECT(parser, cpp::qualified_id_default);
 	PARSE_SELECT(parser, cpp::qualified_id_global);
-	PARSE_SELECT(parser, cpp::qualified_id_global_template);
-	PARSE_SELECT(parser, cpp::qualified_id_global_op_func);
 	return result;
 }
 
@@ -1778,6 +1762,7 @@ inline cpp::function_definition_suffix* parseSymbol(Parser& parser, cpp::functio
 	// TODO
 	bool isTry;
 	PARSE_TOKEN_OPTIONAL(parser, isTry, boost::wave::T_TRY);
+	PARSE_OPTIONAL(parser, result->init);
 	PARSE_REQUIRED(parser, result->body);
 	result->handlers = NULL;
 	if(isTry)

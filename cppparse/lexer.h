@@ -202,10 +202,12 @@ struct TokenBuffer
 	}
 };
 
+typedef TokenPrinter<std::ofstream> FileTokenPrinter;
+
 struct Lexer
 {
 	std::ofstream out;
-	TokenPrinter<std::ofstream> printer;
+	FileTokenPrinter printer;
 
 	LinearAllocator allocator;
 

@@ -81,14 +81,40 @@ struct TreePrinter // TODO: better name
 	}
 };
 
-struct SymbolPrinter
+typedef TokenPrinter<std::ofstream> FileTokenPrinter;
+
+struct WalkerContext
 {
 	std::ofstream out;
-	TokenPrinter<std::ostream> printer;
+	FileTokenPrinter printer;
 
-	SymbolPrinter(const char* path)
+	WalkerContext(const char* path)
 		: out(path),
 		printer(out)
+	{
+	}
+};
+
+struct PrintingWalker
+{
+	FileTokenPrinter& printer;
+	PrintingWalker(FileTokenPrinter& printer)
+		: printer(printer)
+	{
+	}
+	template<typename T>
+	void printSymbol(T* symbol)
+	{
+		SymbolPrinter walker(*this);
+		symbol->accept(walker);
+	}
+};
+
+
+struct SymbolPrinter : PrintingWalker
+{
+	SymbolPrinter(PrintingWalker& base)
+		: PrintingWalker(base)
 	{
 	}
 
@@ -131,28 +157,28 @@ struct SymbolPrinter
 		}
 	}
 
-#if 1
+#if 0
 	void visit(cpp::declaration* symbol)
 	{
 		symbol->accept(*this);
-		out << " // ";
-		TreePrinter<std::ofstream> tmp(out);
+		printer.out << " // ";
+		TreePrinter<std::ofstream> tmp(printer.out);
 		symbol->accept(tmp);
 	}
 
 	void visit(cpp::member_declaration* symbol)
 	{
 		symbol->accept(*this);
-		out << " // ";
-		TreePrinter<std::ofstream> tmp(out);
+		printer.out << " // ";
+		TreePrinter<std::ofstream> tmp(printer.out);
 		symbol->accept(tmp);
 	}
 
 	void visit(cpp::statement* symbol)
 	{
 		symbol->accept(*this);
-		out << " // ";
-		TreePrinter<std::ofstream> tmp(out);
+		printer.out << " // ";
+		TreePrinter<std::ofstream> tmp(printer.out);
 		symbol->accept(tmp);
 	}
 #endif
@@ -161,18 +187,22 @@ struct SymbolPrinter
 #define TREEWALKER_DEFAULT \
 	void visit(cpp::terminal_identifier symbol) \
 	{ \
+		printer.printToken(boost::wave::T_IDENTIFIER, symbol.value); \
 	} \
 	void visit(cpp::terminal_string symbol) \
 	{ \
+		printer.printToken(boost::wave::T_STRINGLIT, symbol.value); \
 	} \
 	void visit(cpp::terminal_choice2 symbol) \
 	{ \
+		printer.printToken(symbol.id, symbol.value); \
 	} \
 	template<LexTokenId id> \
 	void visit(cpp::terminal<id> symbol) \
 	{ \
 		if(symbol.value != 0) \
 		{ \
+			printer.printToken(id, symbol.value); \
 		} \
 	} \
 	template<typename T> \
@@ -189,6 +219,7 @@ struct SymbolPrinter
 		} \
 	}
 
+
 #include <iostream>
 #include <list>
 
@@ -201,20 +232,18 @@ struct SemanticError
 
 typedef const char* Identifier;
 
-const Identifier TYPE_BUILTIN = "builtin";
-const Identifier TYPE_CLASS = "class";
-
 struct Scope;
 
 struct Declaration
 {
+	Scope* scope;
 	Identifier name;
-	Identifier type;
+	Declaration* type;
 	Scope* enclosed;
 	bool isTypedef;
 
-	Declaration(Identifier name, Identifier type, Scope* enclosed, bool isTypedef)
-		: name(name), type(type), enclosed(enclosed), isTypedef(isTypedef)
+	Declaration(Scope* scope, Identifier name, Declaration* type, Scope* enclosed, bool isTypedef)
+		: scope(scope), name(name), type(type), enclosed(enclosed), isTypedef(isTypedef)
 	{
 	}
 };
@@ -232,327 +261,413 @@ struct Scope
 	}
 };
 
-inline Declaration* findDeclaration(Scope& scope, Identifier id)
-{
-	for(Scope::Declarations::iterator i = scope.declarations.begin(); i != scope.declarations.end(); ++i)
-	{
-		if((*i).name == id)
-		{
-			std::cout << scope.name << "::";
-			return &(*i);
-		}
-	}
-	if(scope.parent != 0)
-	{
-		return findDeclaration(*scope.parent, id);
-	}
-	return 0;
-}
-
-
-struct GlobalScope : public Scope
-{
-	GlobalScope() : Scope("")
-	{
-		declarations.push_back(Declaration(TYPE_BUILTIN, 0, 0, true));
-	}
-} global;
+Scope global("$global");
 
 
 size_t gDepth = 0; // TMP HACK
 
-void printName(const char* caption, const char* id)
-{
-	for(size_t i = 0; i != gDepth; ++i)
-	{
-		std::cout << '\t';
-	}
-	std::cout << caption << ": " << id << std::endl;
-}
-
 Scope* gScope = &global;
 
-Declaration* pointOfDeclaration(const char* name, const char* type, Scope* enclosed, bool isTypedef)
+// special-case
+Declaration gUndeclared(&global, "$undeclared", 0, &global, false);
+
+// symbol types
+Declaration gNamespace(&global, "$namespace", 0, 0, false);
+Declaration gBuiltin(&global, "$builtin", 0, 0, false);
+Declaration gClass(&global, "$class", 0, 0, false);
+Declaration gCtor(&global, "$ctor", 0, 0, false);
+
+struct WalkerBase : public PrintingWalker
 {
-	printName(type == 0 ? "<none>" : type, name);
-	gScope->declarations.push_back(Declaration(name, type, enclosed, isTypedef));
-	if(enclosed != 0)
+	WalkerBase(FileTokenPrinter& printer)
+		: PrintingWalker(printer)
 	{
-		enclosed->name = name;
 	}
-	return &gScope->declarations.back();
-}
 
-void pushScope(Scope* scope)
-{
-	++gDepth;
-	scope->parent = gScope;
-	gScope = scope;
-}
-
-Scope* popScope()
-{
-	--gDepth;
-	if(gScope->parent == 0)
+	Declaration* findDeclaration(Scope& scope, Identifier id)
 	{
-		throw SemanticError();
+		for(Scope::Declarations::iterator i = scope.declarations.begin(); i != scope.declarations.end(); ++i)
+		{
+			if((*i).name == id)
+			{
+				return &(*i);
+			}
+		}
+		if(scope.parent != 0)
+		{
+			return findDeclaration(*scope.parent, id);
+		}
+		printer.out << "/* undeclared: " << id << " */";
+		return &gUndeclared;
 	}
-	Scope* result = gScope;
-	gScope = gScope->parent;
-	return result;
-}
 
-inline void checkName(Identifier id)
-{
-	std::cout << "lookup: ";
-	Declaration* declaration = findDeclaration(*gScope, id);
-	if(declaration == 0)
+
+	void printName(Scope* scope)
 	{
-		std::cout << "failed: ";
+		if(scope != &global)
+		{
+			printName(scope->parent);
+			printer.out << scope->name << "::";
+		}
 	}
-	std::cout  << id << std::endl;
-}
 
+	void printName(Declaration* name)
+	{
+		printName(name->scope);
+		printer.out << name->name;
+	}
 
-inline Declaration* declareClass(Identifier id)
-{
-	// TODO: distinguish between class, struct, union
-	return pointOfDeclaration(id, TYPE_CLASS, 0, false);
+	void printName(Declaration* type, Declaration* name)
+	{
+		printer.out << "/* ";
+		printName(type);
+		printer.out << ": ";
+		printName(name);
+		printer.out << " */";
+	}
+
+	Declaration* pointOfDeclaration(Scope* parent, const char* name, Declaration* type, Scope* enclosed, bool isTypedef)
+	{
+		parent->declarations.push_back(Declaration(parent, name, type, enclosed, isTypedef));
+		if(enclosed != 0)
+		{
+			enclosed->name = name;
+		}
+		Declaration* result = &parent->declarations.back();
+		printName(type, result);
+		return result;
+	}
+
+	void pushScope(Scope* scope)
+	{
+		++gDepth;
+		scope->parent = gScope;
+		gScope = scope;
+	}
+
+	Scope* popScope()
+	{
+		--gDepth;
+		if(gScope->parent == 0)
+		{
+			throw SemanticError();
+		}
+		Scope* result = gScope;
+		gScope = gScope->parent;
+		return result;
+	}
+
+	void checkName(Identifier id)
+	{
+		printer.out << "/* lookup: ";
+		Declaration* declaration = findDeclaration(*gScope, id);
+		if(declaration == 0)
+		{
+			printer.out << "failed: ";
+		}
+		printer.out  << id << " */";
+	}
 };
-
 
 struct Walker
 {
 
-
-struct TypeNameWalker
+struct NestedNameSpecifierWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Identifier id;
-	TypeNameWalker()
-		: id(0)
+	Scope* scope;
+	NestedNameSpecifierWalker(const WalkerBase& base, Scope* scope = gScope)
+		: WalkerBase(base), scope(scope)
 	{
 	}
-
 	void visit(cpp::identifier* symbol)
 	{
-		id = symbol->value.value;
+		Identifier id = symbol->value.value;
+		scope = findDeclaration(*scope, id)->enclosed;
+		printSymbol(symbol);
 	}
-	void visit(cpp::nested_name_specifier* symbol)
+	void visit(cpp::simple_template_id* symbol)
 	{
-		TypeNameWalker walker;
-		symbol->accept(walker);
-		// TODO context
-	}
-	void visit(cpp::simple_template_id* symbol) 
-	{
-		id = symbol->id->value.value;
-		// TODO args
-	}
-	void visit(cpp::simple_type_specifier_builtin* symbol)
-	{
-		// TODO
-		id = TYPE_BUILTIN;
+		Identifier id = symbol->id->value.value;
+		scope = findDeclaration(*scope, id)->enclosed;
+		printSymbol(symbol);
 	}
 };
 
-struct DeclaratorIdWalker
-{
-	TREEWALKER_DEFAULT;
-
-	Identifier id;
-	DeclaratorIdWalker()
-		: id(0)
-	{
-	}
-
-	void visit(cpp::identifier* symbol)
-	{
-		id = symbol->value.value;
-	}
-	void visit(cpp::nested_name_specifier* symbol)
-	{
-		TypeNameWalker walker;
-		symbol->accept(walker);
-		// TODO context
-	}
-	void visit(cpp::simple_template_id* symbol) 
-	{
-		id = symbol->id->value.value;
-	}
-	void visit(cpp::operator_function_id* symbol) 
-	{
-		// TODO
-		id = "operator <op>";
-	}
-	void visit(cpp::conversion_function_id* symbol) 
-	{
-		// TODO
-		id = "operator T";
-	}
-	void visit(cpp::destructor_id* symbol) 
-	{
-		// TODO
-		id = "~T";
-	}
-	void visit(cpp::template_id_operator_function* symbol) 
-	{
-		// TODO
-		id = "operator () <>";
-	}
-};
-
-struct DeclaratorWalker
-{
-	TREEWALKER_DEFAULT;
-
-	Identifier id;
-	Scope* paramScope;
-	DeclaratorWalker()
-		: id(0), paramScope(0)
-	{
-	}
-
-	void visit(cpp::declarator_id* symbol)
-	{
-		DeclaratorIdWalker walker;
-		symbol->accept(walker);
-		id = walker.id;
-	}
-	void visit(cpp::declarator_suffix_function* symbol)
-	{
-		pushScope(new Scope("parameter")); // parameter scope
-		symbol->accept(*this);
-		paramScope = popScope(); // parameter scope (store reference for later resumption)
-	}
-	void visit(cpp::parameter_declaration* symbol)
-	{
-		DeclarationWalker walker;
-		symbol->accept(walker);
-	}
-};
-
-struct ClassHeadWalker
+struct TypeSpecifierWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
 	Declaration* declaration;
-	ClassHeadWalker()
-		: declaration(0)
+	Scope* scope;
+	TypeSpecifierWalker(const WalkerBase& base)
+		: WalkerBase(base), declaration(0), scope(gScope)
 	{
 	}
 
 	void visit(cpp::identifier* symbol)
 	{
 		Identifier id = symbol->value.value;
-		declaration = declareClass(id); // 3.3.1.3 The point of declaration for a class first declared by a class-specifier is immediately after the identifier or simple-template-id (if any) in its class-head
+		declaration = findDeclaration(*scope, id);
+		printSymbol(symbol);
+	}
+	void visit(cpp::simple_type_specifier_name* symbol)
+	{
+		if(symbol->isGlobal.value != 0)
+		{
+			scope = &global;
+		}
+		symbol->accept(*this);
+	}
+	void visit(cpp::simple_type_specifier_template* symbol)
+	{
+		if(symbol->isGlobal.value != 0)
+		{
+			scope = &global;
+		}
+		symbol->accept(*this);
 	}
 	void visit(cpp::nested_name_specifier* symbol)
 	{
-		TypeNameWalker walker;
+		NestedNameSpecifierWalker walker(*this, scope);
 		symbol->accept(walker);
-		// TODO context
+		scope = walker.scope;
 	}
 	void visit(cpp::simple_template_id* symbol) 
 	{
 		Identifier id = symbol->id->value.value;
-		declaration = declareClass(id); // 3.3.1.3 The point of declaration for a class first declared by a class-specifier is immediately after the identifier or simple-template-id (if any) in its class-head
+		declaration = findDeclaration(*scope, id);
 		// TODO args
+		printSymbol(symbol);
 	}
-
-	void visit(cpp::class_head* symbol)
+	void visit(cpp::simple_type_specifier_builtin* symbol)
 	{
-		TypeNameWalker walker;
-		symbol->accept(walker);
+		// TODO
+		declaration = &gBuiltin;
+		printSymbol(symbol);
 	}
 };
 
-struct ClassSpecifierWalker
+struct DeclaratorIdWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
 	Identifier id;
-	ClassSpecifierWalker()
-		: id(0)
+	Scope* scope;
+	DeclaratorIdWalker(const WalkerBase& base)
+		: WalkerBase(base), id(0), scope(gScope)
 	{
 	}
 
+	void visit(cpp::qualified_id_global* symbol) 
+	{
+		scope = &global;
+		symbol->accept(*this);
+	}
+	void visit(cpp::qualified_id_default* symbol) 
+	{
+		if(symbol->isGlobal.value != 0)
+		{
+			scope = &global;
+		}
+		symbol->accept(*this);
+	}
+	void visit(cpp::identifier* symbol)
+	{
+		id = symbol->value.value;
+		printSymbol(symbol);
+	}
+	void visit(cpp::nested_name_specifier* symbol)
+	{
+		NestedNameSpecifierWalker walker(*this, scope);
+		symbol->accept(walker);
+		scope = walker.scope;
+	}
+	void visit(cpp::simple_template_id* symbol) 
+	{
+		id = symbol->id->value.value;
+		printSymbol(symbol);
+	}
+	void visit(cpp::operator_function_id* symbol) 
+	{
+		// TODO
+		id = "operator <op>";
+		printSymbol(symbol);
+	}
+	void visit(cpp::conversion_function_id* symbol) 
+	{
+		// TODO
+		id = "operator T";
+		printSymbol(symbol);
+	}
+	void visit(cpp::destructor_id* symbol) 
+	{
+		// TODO
+		id = "~T";
+		printSymbol(symbol);
+	}
+	void visit(cpp::template_id_operator_function* symbol) 
+	{
+		// TODO
+		id = "operator () <>";
+		printSymbol(symbol);
+	}
+};
+
+struct DeclaratorWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	Identifier id;
+	Scope* scope;
+	Scope* paramScope;
+	DeclaratorWalker(const WalkerBase& base)
+		: WalkerBase(base), id(0), scope(0), paramScope(0)
+	{
+	}
+
+	void visit(cpp::declarator_id* symbol)
+	{
+		DeclaratorIdWalker walker(*this);
+		symbol->accept(walker);
+		id = walker.id;
+		scope = walker.scope;
+	}
+	void visit(cpp::declarator_suffix_function* symbol)
+	{
+		pushScope(new Scope(id)); // parameter scope
+		symbol->accept(*this);
+		paramScope = popScope(); // parameter scope (store reference for later resumption)
+	}
+	void visit(cpp::parameter_declaration* symbol)
+	{
+		DeclarationWalker walker(*this);
+		symbol->accept(walker);
+	}
+};
+
+struct ClassHeadWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	Declaration* declaration;
+	Scope* scope;
+	ClassHeadWalker(const WalkerBase& base)
+		: WalkerBase(base), declaration(0), scope(gScope)
+	{
+	}
+
+	void visit(cpp::identifier* symbol)
+	{
+		Identifier id = symbol->value.value;
+		printSymbol(symbol);
+		declaration = pointOfDeclaration(scope, id, &gClass, 0, false); // 3.3.1.3 The point of declaration for a class first declared by a class-specifier is immediately after the identifier or simple-template-id (if any) in its class-head
+	}
+	void visit(cpp::nested_name_specifier* symbol)
+	{
+		NestedNameSpecifierWalker walker(*this);
+		symbol->accept(walker);
+		scope = walker.scope;
+	}
+	void visit(cpp::simple_template_id* symbol) 
+	{
+		Identifier id = symbol->id->value.value;
+		printSymbol(symbol);
+		declaration = pointOfDeclaration(scope, id, &gClass, 0, false); // 3.3.1.3 The point of declaration for a class first declared by a class-specifier is immediately after the identifier or simple-template-id (if any) in its class-head
+		// TODO args
+	}
+};
+
+typedef std::pair<Scope*, cpp::function_definition_suffix*> FunctionDefinition;
+typedef std::vector<FunctionDefinition> FunctionDefinitions;
+
+struct ClassSpecifierWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	Declaration* declaration;
+	FunctionDefinitions deferred;
+	ClassSpecifierWalker(const WalkerBase& base)
+		: WalkerBase(base), declaration(0)
+	{
+	}
+	void walkDeferred()
+	{
+		for(FunctionDefinitions::const_iterator i = deferred.begin(); i != deferred.end(); ++i)
+		{
+			printer.printToken(boost::wave::T_IDENTIFIER, declaration->name);
+			printer.printToken(boost::wave::T_COLON_COLON, "::");
+			printer.printToken(boost::wave::T_IDENTIFIER, "<deferred>");
+			printer.printToken(boost::wave::T_LEFTPAREN, "(");
+			printer.printToken(boost::wave::T_IDENTIFIER, "<params>");
+			printer.printToken(boost::wave::T_RIGHTPAREN, ")");
+
+			FunctionDefinitionSuffixWalker walker(*this, (*i).first);
+			(*i).second->accept(walker);
+		}
+	};
+
 	void visit(cpp::class_head* symbol)
 	{
-		ClassHeadWalker walker;
+		ClassHeadWalker walker(*this);
 		symbol->accept(walker);
-		id = walker.declaration->name;
-		Scope* scope = new Scope(id);
+		declaration = walker.declaration;
+		Scope* scope = new Scope(declaration->name);
 		walker.declaration->enclosed = scope;
 		pushScope(scope); // 3.3.6.1.1 // class scope
 	}
 	void visit(cpp::member_declaration* symbol)
 	{
-		DeclarationWalker walker;
+		DeclarationWalker walker(*this, &deferred);
 		symbol->accept(walker);
 	}
 };
 
-struct TypeSpecifierWalker
+struct DeclSpecifierSeqWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Identifier id;
-	TypeSpecifierWalker()
-		: id(0)
+	Declaration* declaration;
+	bool isTypedef;
+	DeclSpecifierSeqWalker(const WalkerBase& base)
+		: WalkerBase(base), declaration(0), isTypedef(false)
 	{
 	}
 
 	void visit(cpp::simple_type_specifier* symbol)
 	{
-		TypeNameWalker walker;
+		TypeSpecifierWalker walker(*this);
 		symbol->accept(walker);
-		id = walker.id;
-		checkName(id);
+		declaration = walker.declaration;
 	}
 	void visit(cpp::elaborated_type_specifier* symbol)
 	{
-		TypeNameWalker walker;
+		TypeSpecifierWalker walker(*this);
 		symbol->accept(walker);
-		id = walker.id;
+		// TODO 3.3.1.6: complicated rules on point-of-declaration for elaborated-type-specifier
+		declaration = walker.declaration;
 	}
 	void visit(cpp::typename_specifier* symbol)
 	{
-		TypeNameWalker walker;
+		TypeSpecifierWalker walker(*this);
 		symbol->accept(walker);
-		id = walker.id;
+		// TODO point-of-declaration for typename-specifier
+		declaration = walker.declaration;
 	}
 	void visit(cpp::class_specifier* symbol)
 	{
-		ClassSpecifierWalker walker;
+		ClassSpecifierWalker walker(*this);
 		symbol->accept(walker);
-		id = walker.id;
+		declaration = walker.declaration;
+		walker.walkDeferred();
 		popScope(); // class scope
 	}
 	void visit(cpp::enum_specifier* symbol)
 	{
 		// TODO
-		id = symbol->id->value.value;
-	}
-};
-
-struct DeclSpecifierWalker
-{
-	TREEWALKER_DEFAULT;
-
-	Identifier type;
-	bool isTypedef;
-	DeclSpecifierWalker()
-		: type(0), isTypedef(false)
-	{
-	}
-
-	void visit(cpp::type_specifier_noncv* symbol)
-	{
-		TypeSpecifierWalker walker;
-		symbol->accept(walker);
-		type = walker.id;
+		Identifier id = symbol->id->value.value;
+		printSymbol(symbol);
 	}
 	void visit(cpp::decl_specifier_default* symbol)
 	{
@@ -560,61 +675,36 @@ struct DeclSpecifierWalker
 		{
 			isTypedef = true;
 		}
+		printSymbol(symbol);
 	}
 };
 
-struct CompoundStatementWalker
+struct CompoundStatementWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
+
+	CompoundStatementWalker(const WalkerBase& base)
+		: WalkerBase(base)
+	{
+	}
 
 	void visit(cpp::simple_declaration* symbol)
 	{
-		DeclarationWalker walker;
+		DeclarationWalker walker(*this);
 		symbol->accept(walker);
 	}
 };
 
-struct DeclarationWalker
+
+struct FunctionDefinitionSuffixWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Identifier type;
-	bool isTypedef;
 	Scope* paramScope;
-	DeclarationWalker()
-		: type(0), isTypedef(false), paramScope(0)
+	FunctionDefinitionSuffixWalker(const WalkerBase& base, Scope* paramScope)
+		: WalkerBase(base), paramScope(paramScope)
 	{
-	}
 
-	void visit(cpp::decl_specifier_seq* symbol)
-	{
-		DeclSpecifierWalker walker;
-		symbol->accept(walker);
-		type = walker.type;
-		isTypedef = walker.isTypedef;
-	}
-
-	void visit(cpp::declarator* symbol)
-	{
-		DeclaratorWalker walker;
-		symbol->accept(walker);
-		pointOfDeclaration(walker.id, type, walker.paramScope, isTypedef); // 3.3.1.1
-		paramScope = walker.paramScope;
-	}
-	void visit(cpp::abstract_declarator* symbol)
-	{
-		DeclaratorWalker walker;
-		symbol->accept(walker);
-	}
-	void visit(cpp::member_declarator_bitfield* symbol)
-	{
-		Identifier id = symbol->id->value.value;
-		pointOfDeclaration(id, type, 0, isTypedef); // 3.3.1.1
-	}
-
-	void visit(cpp::initializer* symbol)
-	{
-		// TODO
 	}
 	void visit(cpp::compound_statement* symbol)
 	{
@@ -623,7 +713,7 @@ struct DeclarationWalker
 			pushScope(paramScope); // 3.3.2.1 parameter scope
 		}
 		pushScope(new Scope("local")); // local scope
-		CompoundStatementWalker walker;
+		CompoundStatementWalker walker(*this);
 		symbol->accept(walker);
 		popScope(); // local scope
 		if(paramScope != 0)
@@ -633,20 +723,124 @@ struct DeclarationWalker
 	}
 };
 
-
-struct RootWalker
+struct DeclarationWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
+	Declaration* type;
+	bool isTypedef;
+	Scope* paramScope;
+	FunctionDefinitions* deferred;
+
+	DeclarationWalker(const WalkerBase& base, FunctionDefinitions* deferred = 0)
+		: WalkerBase(base), type(&gCtor), isTypedef(false), paramScope(0), deferred(deferred)
+	{
+	}
+
+	void visit(cpp::decl_specifier_seq* symbol)
+	{
+		DeclSpecifierSeqWalker walker(*this);
+		symbol->accept(walker);
+		type = walker.declaration;
+		isTypedef = walker.isTypedef;
+	}
+	void visit(cpp::type_specifier_seq* symbol)
+	{
+		DeclSpecifierSeqWalker walker(*this);
+		symbol->accept(walker);
+		type = walker.declaration;
+	}
+
+	void visit(cpp::declarator* symbol)
+	{
+		DeclaratorWalker walker(*this);
+		symbol->accept(walker);
+		pointOfDeclaration(walker.scope, walker.id, type, walker.paramScope, isTypedef); // 3.3.1.1
+		paramScope = walker.paramScope;
+	}
+	void visit(cpp::abstract_declarator* symbol)
+	{
+		DeclaratorWalker walker(*this);
+		symbol->accept(walker);
+	}
+	void visit(cpp::member_declarator_bitfield* symbol)
+	{
+		Identifier id = symbol->id->value.value;
+		printSymbol(symbol);
+		pointOfDeclaration(gScope, id, type, 0, isTypedef); // 3.3.1.1
+	}
+
+	void visit(cpp::initializer* symbol)
+	{
+		// TODO
+		printSymbol(symbol);
+	}
+	void visit(cpp::function_definition_suffix* symbol)
+	{
+		if(deferred != 0)
+		{
+			printer.printToken(boost::wave::T_SEMICOLON, ";");
+			deferred->push_back(FunctionDefinition(paramScope, symbol));
+		}
+		else
+		{
+			FunctionDefinitionSuffixWalker walker(*this, paramScope);
+			symbol->accept(walker);
+		}
+	}
+};
+
+struct NamespaceWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+
+	NamespaceWalker(WalkerContext& context)
+		: WalkerBase(context.printer)
+	{
+	}
+
+	void visit(cpp::namespace_definition* symbol)
+	{
+		Identifier id = symbol->id->value.value;
+		Scope* scope = new Scope(id);
+		pointOfDeclaration(gScope, id, &gNamespace, scope, false);
+		pushScope(scope);
+		symbol->accept(*this);
+		popScope();
+	}
 	void visit(cpp::general_declaration* symbol)
 	{
-		DeclarationWalker walker;
+		DeclarationWalker walker(*this);
+		symbol->accept(walker);
+	}
+	// occurs in for-init-statement
+	void visit(cpp::simple_declaration* symbol)
+	{
+		DeclarationWalker walker(*this);
 		symbol->accept(walker);
 	}
 	void visit(cpp::template_declaration* symbol)
 	{
 		// TODO
 		symbol->accept(*this);
+	}
+	void visit(cpp::selection_statement* symbol)
+	{
+		pushScope(new Scope("selection"));
+		symbol->accept(*this);
+		popScope();
+	}
+	void visit(cpp::iteration_statement* symbol)
+	{
+		pushScope(new Scope("iteration"));
+		symbol->accept(*this);
+		popScope();
+	}
+	void visit(cpp::condition_init* symbol)
+	{
+		DeclarationWalker walker(*this);
+		symbol->accept(walker);
 	}
 };
 
@@ -660,16 +854,22 @@ cpp::symbol<T> makeSymbol(T* p)
 
 void printSymbol(cpp::declaration_seq* p, const char* path)
 {
-	Walker::RootWalker walker;
+	WalkerContext context(path);
+	Walker::NamespaceWalker walker(context);
 	walker.visit(makeSymbol(p));
-	SymbolPrinter visitor(path);
+#if 0
+	SymbolPrinter visitor(context);
 	visitor.visit(makeSymbol(p));
+#endif
 }
 
 void printSymbol(cpp::statement_seq* p, const char* path)
 {
-	Walker::RootWalker walker;
+	WalkerContext context(path);
+	Walker::NamespaceWalker walker(context);
 	walker.visit(makeSymbol(p));
-	SymbolPrinter visitor(path);
+#if 0
+	SymbolPrinter visitor(context);
 	visitor.visit(makeSymbol(p));
+#endif
 }

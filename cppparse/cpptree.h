@@ -405,17 +405,25 @@ namespace cpp
 	struct qualified_id : public choice<qualified_id>, public id_expression
 	{
 		VISITABLE_DERIVED(id_expression);
-		VISITABLE_BASE(VISITORFUNCLIST4(
+		VISITABLE_BASE(VISITORFUNCLIST2(
 			SYMBOLFWD(qualified_id_default),
-			SYMBOLFWD(qualified_id_global),
-			SYMBOLFWD(qualified_id_global_template),
-			SYMBOLFWD(qualified_id_global_op_func)
+			SYMBOLFWD(qualified_id_global)
 		));
 	};
 
-	struct template_id : public choice<template_id>, public unqualified_id
+	struct qualified_id_suffix : public choice<qualified_id_suffix>
+	{
+		VISITABLE_BASE(VISITORFUNCLIST3(
+			SYMBOLFWD(identifier),
+			SYMBOLFWD(template_id),
+			SYMBOLFWD(operator_function_id)
+		));
+	};
+
+	struct template_id : public choice<template_id>, public unqualified_id, public qualified_id_suffix
 	{
 		VISITABLE_DERIVED(unqualified_id);
+		VISITABLE_DERIVED(qualified_id_suffix);
 		VISITABLE_BASE(VISITORFUNCLIST2(
 			SYMBOLFWD(simple_template_id),
 			SYMBOLFWD(template_id_operator_function)
@@ -438,10 +446,11 @@ namespace cpp
 		));
 	};
 
-	struct identifier : public unqualified_id, public class_name
+	struct identifier : public unqualified_id, public class_name, public qualified_id_suffix
 	{
 		VISITABLE_DERIVED(class_name);
 		VISITABLE_DERIVED(unqualified_id);
+		VISITABLE_DERIVED(qualified_id_suffix);
 		terminal_identifier value;
 		FOREACH1(value);
 	};
@@ -616,9 +625,10 @@ namespace cpp
 		FOREACH3(lt, args, gt);
 	};
 
-	struct operator_function_id : public unqualified_id
+	struct operator_function_id : public unqualified_id, public qualified_id_suffix
 	{
 		VISITABLE_DERIVED(unqualified_id);
+		VISITABLE_DERIVED(qualified_id_suffix);
 		terminal<boost::wave::T_OPERATOR> key;
 		symbol<overloadable_operator> op;
 		symbol<operator_function_id_suffix> suffix;
@@ -649,23 +659,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(qualified_id);
 		terminal<boost::wave::T_COLON_COLON> scope;
-		symbol<identifier> id;
-		FOREACH2(scope, id);
-	};
-
-	struct qualified_id_global_template : public qualified_id
-	{
-		VISITABLE_DERIVED(qualified_id);
-		terminal<boost::wave::T_COLON_COLON> scope;
-		symbol<template_id> id;
-		FOREACH2(scope, id);
-	};
-
-	struct qualified_id_global_op_func : public qualified_id
-	{
-		VISITABLE_DERIVED(qualified_id);
-		terminal<boost::wave::T_COLON_COLON> scope;
-		symbol<operator_function_id> id;
+		symbol<qualified_id_suffix> id;
 		FOREACH2(scope, id);
 	};
 
@@ -1771,9 +1765,10 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(general_declaration_suffix);
 		VISITABLE_DERIVED(member_declaration_suffix);
+		symbol<ctor_initializer> init;
 		symbol<function_body> body;
 		symbol<handler_seq> handlers;
-		FOREACH2(body, handlers);
+		FOREACH3(init, body, handlers);
 	};
 
 	struct member_declarator : public choice<member_declarator>
@@ -1904,10 +1899,8 @@ namespace cpp
 		VISITABLE_DERIVED(declaration);
 		symbol<ctor_specifier_seq> spec;
 		symbol<declarator> decl;
-		symbol<ctor_initializer> init;
-		symbol<function_body> body;
-		symbol<handler_seq> handlers;
-		FOREACH5(spec, decl, init, body, handlers);
+		symbol<function_definition_suffix> suffix;
+		FOREACH3(spec, decl, suffix);
 	};
 
 	struct member_declaration_inline : public member_declaration
