@@ -591,6 +591,11 @@ struct ClassHeadWalker : public WalkerBase
 		declaration = pointOfDeclaration(scope, id, &gClass, 0, false); // 3.3.1.3 The point of declaration for a class first declared by a class-specifier is immediately after the identifier or simple-template-id (if any) in its class-head
 		// TODO args
 	}
+	void visit(cpp::base_clause* symbol) 
+	{
+		// TODO
+		printSymbol(symbol);
+	}
 };
 
 typedef std::pair<Scope*, cpp::function_definition_suffix*> FunctionDefinition;
@@ -817,7 +822,7 @@ struct NamespaceWalker : public WalkerBase
 
 	void visit(cpp::namespace_definition* symbol)
 	{
-		Identifier id = symbol->id->value.value;
+		Identifier id = symbol->id.p == 0 ? "$anonymous" : symbol->id->value.value;
 		Scope* scope = new Scope(id);
 		pointOfDeclaration(gScope, id, &gNamespace, scope, false);
 		pushScope(scope);
@@ -869,9 +874,15 @@ cpp::symbol<T> makeSymbol(T* p)
 
 void printSymbol(cpp::declaration_seq* p, const char* path)
 {
-	WalkerContext context(path);
-	Walker::NamespaceWalker walker(context);
-	walker.visit(makeSymbol(p));
+	try
+	{
+		WalkerContext context(path);
+		Walker::NamespaceWalker walker(context);
+		walker.visit(makeSymbol(p));
+	}
+	catch(SemanticError&)
+	{
+	}
 #if 0
 	SymbolPrinter visitor(context);
 	visitor.visit(makeSymbol(p));
@@ -880,9 +891,15 @@ void printSymbol(cpp::declaration_seq* p, const char* path)
 
 void printSymbol(cpp::statement_seq* p, const char* path)
 {
-	WalkerContext context(path);
-	Walker::NamespaceWalker walker(context);
-	walker.visit(makeSymbol(p));
+	try
+	{
+		WalkerContext context(path);
+		Walker::NamespaceWalker walker(context);
+		walker.visit(makeSymbol(p));
+	}
+	catch(SemanticError&)
+	{
+	}
 #if 0
 	SymbolPrinter visitor(context);
 	visitor.visit(makeSymbol(p));

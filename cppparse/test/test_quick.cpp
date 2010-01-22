@@ -1,73 +1,191 @@
-// iostream standard header for Microsoft
-extern"C"
-{
-}
-extern"C"
-{
-	typedef unsigned int uintptr_t;
-	typedef char*va_list;
-}
-extern"C"
-{
-	typedef unsigned int size_t;
-	typedef size_t rsize_t;
-	typedef int intptr_t;
-	typedef int ptrdiff_t;
-	typedef unsigned short wchar_t;
-	typedef unsigned short wint_t;
-	typedef unsigned short wctype_t;
-	typedef int errcode;
-	typedef int errno_t;
-	typedef long __time32_t;
-	typedef __time32_t time_t;
-	struct threadlocaleinfostruct;
-	struct threadmbcinfostruct;
-	typedef struct threadlocaleinfostruct*pthreadlocinfo;
-	typedef struct threadmbcinfostruct*pthreadmbcinfo;
-	struct __lc_time_data;
-	typedef struct localeinfo_struct
-	{
-		pthreadlocinfo locinfo;
-		pthreadmbcinfo mbcinfo;
-	}
-	_locale_tstruct, *_locale_t;
-	typedef struct tagLC_ID
-	{
-		unsigned short wLanguage;
-		unsigned short wCountry;
-		unsigned short wCodePage;
-	}
-	LC_ID, *LPLC_ID;
-	typedef struct threadlocaleinfostruct
-	{
-		int refcount;
-		unsigned int lc_codepage;
-		unsigned int lc_collate_cp;
-		unsigned long lc_handle[6];
-		LC_ID lc_id[6];
-		struct
-		{
-			char*locale;
-			wchar_t*wlocale;
-			int*refcount;
-			int*wrefcount;
+		// TEMPLATE CLASS reverse_iterator
+template<class _RanIt>
+	class reverse_iterator
+		: public _Iterator_base_secure
+	{	// wrap iterator to run it backwards
+public:
+	typedef reverse_iterator<_RanIt> _Myt;
+	typedef typename iterator_traits<_RanIt>::iterator_category iterator_category;
+	typedef typename iterator_traits<_RanIt>::value_type value_type;
+	typedef typename iterator_traits<_RanIt>::difference_type difference_type;
+	typedef typename iterator_traits<_RanIt>::difference_type distance_type;	// retained
+	typedef typename iterator_traits<_RanIt>::pointer pointer;
+	typedef typename iterator_traits<_RanIt>::reference reference;
+	typedef _RanIt iterator_type;
+
+	 reverse_iterator()
+		{	// construct with default wrapped iterator
 		}
-		lc_category[6];
-		int lc_clike;
-		int mb_cur_max;
-		int*lconv_intl_refcount;
-		int*lconv_num_refcount;
-		int*lconv_mon_refcount;
-		struct lconv*lconv;
-		int*ctype1_refcount;
-		unsigned short*ctype1;
-		const unsigned short*pctype;
-		const unsigned char*pclmap;
-		const unsigned char*pcumap;
-		struct __lc_time_data*lc_time_curr;
+
+	explicit  reverse_iterator(_RanIt _Right)
+		: current(_Right)
+		{	// construct wrapped iterator from _Right
+		}
+
+	template<class _Other>
+		 reverse_iterator(const reverse_iterator<_Other>& _Right)
+		: current(_Right.base())
+		{	// initialize with compatible base%%
+		}
+
+	_RanIt  base() const
+		{	// return wrapped iterator
+		return (current);
+		}
+
+	reference  operator*() const
+		{	// return designated value
+		_RanIt _Tmp = current;
+		return (*--_Tmp);
+		}
+
+	pointer  operator->() const
+		{	// return pointer to class object
+		return (&**this);
+		}
+
+	_Myt&  operator++()
+		{	// preincrement
+		--current;
+		return (*this);
+		}
+
+	_Myt  operator++(int)
+		{	// postincrement
+		_Myt _Tmp = *this;
+		--current;
+		return (_Tmp);
+		}
+
+	_Myt&  operator--()
+		{	// predecrement
+		++current;
+		return (*this);
+		}
+
+	_Myt  operator--(int)
+		{	// postdecrement
+		_Myt _Tmp = *this;
+		++current;
+		return (_Tmp);
+		}
+
+	template<class _Other>
+		bool  _Equal(const reverse_iterator<_Other>& _Right) const
+		{	// test for iterator equality
+		return (current == _Right.base());
+		}
+
+// N.B. functions valid for random-access iterators only beyond this point
+
+	_Myt&  operator+=(difference_type _Off)
+		{	// increment by integer
+		current -= _Off;
+		return (*this);
+		}
+
+	_Myt  operator+(difference_type _Off) const
+		{	// return this + integer
+		return (_Myt(current - _Off));
+		}
+
+	_Myt&  operator-=(difference_type _Off)
+		{	// decrement by integer
+		current += _Off;
+		return (*this);
+		}
+
+	_Myt  operator-(difference_type _Off) const
+		{	// return this - integer
+		return (_Myt(current + _Off));
+		}
+
+	reference  operator[](difference_type _Off) const
+		{	// subscript
+		return (*(*this + _Off));
+		}
+
+	template<class _Other>
+		bool  _Less(const reverse_iterator<_Other>& _Right) const
+		{	// test if this < _Right
+		return (_Right.base() < current);
+		}
+
+	template<class _Other>
+		difference_type  _Minus(const reverse_iterator<_Other>& _Right) const
+		{	// return difference of iterators
+		return (_Right.base() - current);
+		}
+
+protected:
+	_RanIt current;	// the wrapped iterator
+	};
+
+		// reverse_iterator TEMPLATE OPERATORS
+template<class _RanIt,
+	class _Diff> inline
+	reverse_iterator<_RanIt>  operator+(_Diff _Off,
+		const reverse_iterator<_RanIt>& _Right)
+	{	// return reverse_iterator + integer
+	return (_Right + _Off);
 	}
-	threadlocinfo;
-}
+
+template<class _RanIt1,
+	class _RanIt2> inline
+	typename reverse_iterator<_RanIt1>::difference_type
+		 operator-(const reverse_iterator<_RanIt1>& _Left,
+		const reverse_iterator<_RanIt2>& _Right)
+	{	// return difference of reverse_iterators
+	return (_Left._Minus(_Right));
+	}
+
+template<class _RanIt1,
+	class _RanIt2> inline
+	bool  operator==(const reverse_iterator<_RanIt1>& _Left,
+		const reverse_iterator<_RanIt2>& _Right)
+	{	// test for reverse_iterator equality
+	return (_Left._Equal(_Right));
+	}
+
+template<class _RanIt1,
+	class _RanIt2> inline
+	bool  operator!=(const reverse_iterator<_RanIt1>& _Left,
+		const reverse_iterator<_RanIt2>& _Right)
+	{	// test for reverse_iterator inequality
+	return (!(_Left == _Right));
+	}
+
+template<class _RanIt1,
+	class _RanIt2> inline
+	bool  operator<(const reverse_iterator<_RanIt1>& _Left,
+		const reverse_iterator<_RanIt2>& _Right)
+	{	// test for reverse_iterator < reverse_iterator
+	return (_Left._Less(_Right));
+	}
+
+template<class _RanIt1,
+	class _RanIt2> inline
+	bool  operator>(const reverse_iterator<_RanIt1>& _Left,
+		const reverse_iterator<_RanIt2>& _Right)
+	{	// test for reverse_iterator > reverse_iterator
+	return (_Right < _Left);
+	}
+
+template<class _RanIt1,
+	class _RanIt2> inline
+	bool  operator<=(const reverse_iterator<_RanIt1>& _Left,
+		const reverse_iterator<_RanIt2>& _Right)
+	{	// test for reverse_iterator <= reverse_iterator
+	return (!(_Right < _Left));
+	}
+
+template<class _RanIt1,
+	class _RanIt2> inline
+	bool  operator>=(const reverse_iterator<_RanIt1>& _Left,
+		const reverse_iterator<_RanIt2>& _Right)
+	{	// test for reverse_iterator >= reverse_iterator
+	return (!(_Left < _Right));
+	}
 
 namespace GNamespace
 {
