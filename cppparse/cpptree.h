@@ -1841,10 +1841,9 @@ namespace cpp
 
 	struct member_declaration : public choice<member_declaration>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST6(
+		VISITABLE_BASE(VISITORFUNCLIST5(
 			SYMBOLFWD(using_declaration),
 			SYMBOLFWD(template_declaration),
-			SYMBOLFWD(member_declaration_inline),
 			SYMBOLFWD(member_declaration_implicit), // shared-prefix ambiguity:  this matches a constructor: Class(Type);
 			SYMBOLFWD(member_declaration_default), // this matches a member: Type(member);
 			SYMBOLFWD(member_declaration_nested)
@@ -1928,14 +1927,6 @@ namespace cpp
 		symbol<declarator> decl;
 		symbol<function_definition_suffix> suffix;
 		FOREACH3(spec, decl, suffix);
-	};
-
-	struct member_declaration_inline : public member_declaration
-	{
-		VISITABLE_DERIVED(member_declaration);
-		symbol<constructor_definition> func;
-		terminal_optional<boost::wave::T_SEMICOLON> semicolon;
-		FOREACH2(func, semicolon);
 	};
 
 	struct member_declaration_implicit : public member_declaration
@@ -2649,7 +2640,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(declaration);
 		terminal<boost::wave::T_NAMESPACE> key;
-		symbol<identifier> id;
+		symbol_optional<identifier> id;
 		terminal<boost::wave::T_LEFTBRACE> lb;
 		symbol_optional<namespace_body> body;
 		terminal<boost::wave::T_RIGHTBRACE> rb;

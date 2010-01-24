@@ -18,7 +18,7 @@ inline cpp::declaration_seq* parseSymbol(Parser& parser, cpp::declaration_seq* r
 inline cpp::namespace_definition* parseSymbol(Parser& parser, cpp::namespace_definition* result)
 {
 	PARSE_TERMINAL(parser, result->key);
-	PARSE_REQUIRED(parser, result->id);
+	PARSE_OPTIONAL(parser, result->id);
 	PARSE_TERMINAL(parser, result->lb);
 	PARSE_OPTIONAL(parser, result->body);
 	PARSE_TERMINAL(parser, result->rb);
@@ -95,9 +95,9 @@ inline cpp::type_name* parseSymbol(Parser& parser, cpp::type_name* result)
 
 inline cpp::template_argument* parseSymbol(Parser& parser, cpp::template_argument* result)
 {
-	PARSE_SELECT(parser, cpp::type_id); // TODO: ambiguity: 'type-id' and 'primary-expression' may both be 'identifier'. Prefer type-id to handle 'T(*)()'.
-	PARSE_SELECT(parser, cpp::assignment_expression);
-	PARSE_SELECT(parser, cpp::id_expression);
+	PARSE_SELECT_AMBIGUITY(parser, cpp::type_id); // TODO: ambiguity: 'type-id' and 'primary-expression' may both be 'identifier'. Prefer type-id to handle 'T(*)()'.
+	PARSE_SELECT_AMBIGUITY(parser, cpp::assignment_expression);
+	PARSE_SELECT_AMBIGUITY(parser, cpp::id_expression);
 	return result;
 }
 
@@ -208,8 +208,8 @@ inline cpp::type_parameter* parseSymbol(Parser& parser, cpp::type_parameter* res
 
 inline cpp::template_parameter* parseSymbol(Parser& parser, cpp::template_parameter* result)
 {
-	PARSE_SELECT(parser, cpp::type_parameter); // TODO: ambiguity 'class C' could be elaborated-type-specifier or type-parameter
-	PARSE_SELECT(parser, cpp::parameter_declaration);
+	PARSE_SELECT_AMBIGUITY(parser, cpp::type_parameter); // TODO: ambiguity 'class C' could be elaborated-type-specifier or type-parameter
+	PARSE_SELECT_AMBIGUITY(parser, cpp::parameter_declaration);
 	return result;
 }
 
@@ -440,13 +440,6 @@ inline cpp::constructor_definition* parseSymbol(Parser& parser, cpp::constructor
 	return result;
 }
 
-inline cpp::member_declaration_inline* parseSymbol(Parser& parser, cpp::member_declaration_inline* result)
-{
-	PARSE_REQUIRED(parser, result->func);
-	PARSE_TERMINAL(parser, result->semicolon);
-	return result;
-}
-
 inline cpp::member_declaration_implicit* parseSymbol(Parser& parser, cpp::member_declaration_implicit* result)
 {
 	PARSE_OPTIONAL(parser, result->spec);
@@ -458,7 +451,6 @@ inline cpp::member_declaration* parseSymbol(Parser& parser, cpp::member_declarat
 {
 	PARSE_SELECT(parser, cpp::using_declaration);
 	PARSE_SELECT(parser, cpp::template_declaration);
-	PARSE_SELECT(parser, cpp::member_declaration_inline);
 	PARSE_SELECT(parser, cpp::member_declaration_implicit); // TODO: ambiguity:  this matches a constructor: "Class(Type);"
 	PARSE_SELECT(parser, cpp::member_declaration_default); // .. this matches a member: "Type(member);"
 	PARSE_SELECT(parser, cpp::member_declaration_nested);
