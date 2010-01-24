@@ -254,14 +254,15 @@ struct Scope
 	Identifier name;
 	typedef std::list<Declaration> Declarations;
 	Declarations declarations;
+	bool isElt;
 
-	Scope(Identifier name)
-		: parent(0), name(name)
+	Scope(Identifier name, bool isElt = false)
+		: parent(0), name(name), isElt(isElt)
 	{
 	}
 };
 
-Scope global("$global");
+Scope global("$global", true);
 
 
 size_t gDepth = 0; // TMP HACK
@@ -276,6 +277,7 @@ Declaration gAnonymous(&global, "$anonymous", 0, &global, false);
 Declaration gNamespace(&global, "$namespace", 0, 0, false);
 Declaration gBuiltin(&global, "$builtin", 0, 0, false);
 Declaration gClass(&global, "$class", 0, 0, false);
+Declaration gEnum(&global, "$enum", 0, 0, false);
 Declaration gCtor(&global, "$ctor", 0, 0, false);
 
 struct WalkerBase : public PrintingWalker
@@ -336,12 +338,12 @@ struct WalkerBase : public PrintingWalker
 
 	Declaration* pointOfDeclaration(Scope* parent, const char* name, Declaration* type, Scope* enclosed, bool isTypedef)
 	{
-		parent->declarations.push_back(Declaration(parent, name, type, enclosed, isTypedef));
+		parent->declarations.push_front(Declaration(parent, name, type, enclosed, isTypedef));
 		if(enclosed != 0)
 		{
 			enclosed->name = name;
 		}
-		Declaration* result = &parent->declarations.back();
+		Declaration* result = &parent->declarations.front();
 		printName(type, result);
 		return result;
 	}
@@ -375,9 +377,30 @@ struct WalkerBase : public PrintingWalker
 		}
 		printer.out  << id << " */";
 	}
+
+	Scope* getEltScope()
+	{
+		Scope* scope = gScope;
+		for(; !scope->isElt; scope = scope->parent)
+		{
+		}
+		return scope;
+	}
+
 };
 
 #define SEMANTIC_ASSERT(condition) if(!(condition)) { throw SemanticError(); }
+
+bool isForwardDeclaration(cpp::elaborated_type_specifier_default* symbol)
+{
+	return symbol != 0 && symbol->isGlobal.value == 0 && symbol->context.p == 0;
+}
+
+bool isForwardDeclaration(cpp::decl_specifier_seq* symbol)
+{
+	return symbol != 0 && isForwardDeclaration(dynamic_cast<cpp::elaborated_type_specifier_default*>(symbol->type.p));
+}
+
 
 struct Walker
 {
@@ -660,12 +683,27 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 		symbol->accept(walker);
 		declaration = walker.declaration;
 	}
-	void visit(cpp::elaborated_type_specifier* symbol)
+	void visit(cpp::elaborated_type_specifier_template* symbol)
 	{
 		TypeSpecifierWalker walker(*this);
 		symbol->accept(walker);
-		// TODO 3.3.1.6: complicated rules on point-of-declaration for elaborated-type-specifier
 		declaration = walker.declaration;
+	}
+	void visit(cpp::elaborated_type_specifier_default* symbol)
+	{
+		if(isForwardDeclaration(symbol))
+		{
+			printSymbol(symbol);
+			Identifier id = symbol->id->value.value;
+			// 3.3.1.6: elaborated-type-specifier that is not a block-declaration is declared in smallest enclosing non-class non-function-prototype scope
+			declaration = pointOfDeclaration(getEltScope(), id, &gClass, 0, false);
+		}
+		else
+		{
+			TypeSpecifierWalker walker(*this);
+			symbol->accept(walker);
+			declaration = walker.declaration;
+		}
 	}
 	void visit(cpp::typename_specifier* symbol)
 	{
@@ -686,7 +724,8 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 	{
 		// TODO 
 		// + anonymous enums
-		//Identifier id = symbol->id->value.value;
+		Identifier id = symbol->id.p == 0 ? "$anonymous" : symbol->id->value.value;
+		declaration = pointOfDeclaration(gScope, id, &gEnum, 0, false);
 		printSymbol(symbol);
 	}
 	void visit(cpp::decl_specifier_default* symbol)
@@ -732,7 +771,7 @@ struct FunctionDefinitionSuffixWalker : public WalkerBase
 		{
 			pushScope(paramScope); // 3.3.2.1 parameter scope
 		}
-		pushScope(new Scope("local")); // local scope
+		pushScope(new Scope("local", true)); // local scope
 		CompoundStatementWalker walker(*this);
 		symbol->accept(walker);
 		popScope(); // local scope
@@ -797,6 +836,7 @@ struct DeclarationWalker : public WalkerBase
 	}
 	void visit(cpp::function_definition_suffix* symbol)
 	{
+		// TODO: also defer name-lookup for default-arguments and initializers
 		if(deferred != 0)
 		{
 			printer.printToken(boost::wave::T_SEMICOLON, ";");
@@ -807,6 +847,24 @@ struct DeclarationWalker : public WalkerBase
 			FunctionDefinitionSuffixWalker walker(*this, paramScope);
 			symbol->accept(walker);
 		}
+	}
+};
+
+struct ForwardDeclarationWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	Declaration* declaration;
+	ForwardDeclarationWalker(WalkerBase& base)
+		: WalkerBase(base), declaration(0)
+	{
+	}
+
+	void visit(cpp::elaborated_type_specifier_default* symbol)
+	{
+		printSymbol(symbol);
+		Identifier id = symbol->id->value.value;
+		declaration = pointOfDeclaration(gScope, id, &gClass, 0, false);
 	}
 };
 
@@ -823,7 +881,7 @@ struct NamespaceWalker : public WalkerBase
 	void visit(cpp::namespace_definition* symbol)
 	{
 		Identifier id = symbol->id.p == 0 ? "$anonymous" : symbol->id->value.value;
-		Scope* scope = new Scope(id);
+		Scope* scope = new Scope(id, true);
 		pointOfDeclaration(gScope, id, &gNamespace, scope, false);
 		pushScope(scope);
 		symbol->accept(*this);
@@ -831,14 +889,36 @@ struct NamespaceWalker : public WalkerBase
 	}
 	void visit(cpp::general_declaration* symbol)
 	{
-		DeclarationWalker walker(*this);
-		symbol->accept(walker);
+		if(symbol->decl.p == 0
+			&& isForwardDeclaration(symbol->spec))
+		{
+			ForwardDeclarationWalker walker(*this);
+			symbol->accept(walker);
+			SEMANTIC_ASSERT(walker.declaration != 0);
+		}
+		else
+		{
+			DeclarationWalker walker(*this);
+			symbol->accept(walker);
+			SEMANTIC_ASSERT(walker.type != 0);
+		}
 	}
 	// occurs in for-init-statement
 	void visit(cpp::simple_declaration* symbol)
 	{
-		DeclarationWalker walker(*this);
-		symbol->accept(walker);
+		if(symbol->decl.p == 0
+			&& isForwardDeclaration(symbol->spec))
+		{
+			ForwardDeclarationWalker walker(*this);
+			symbol->accept(walker);
+			SEMANTIC_ASSERT(walker.declaration != 0);
+		}
+		else
+		{
+			DeclarationWalker walker(*this);
+			symbol->accept(walker);
+			SEMANTIC_ASSERT(walker.type != 0);
+		}
 	}
 	void visit(cpp::template_declaration* symbol)
 	{
@@ -847,13 +927,13 @@ struct NamespaceWalker : public WalkerBase
 	}
 	void visit(cpp::selection_statement* symbol)
 	{
-		pushScope(new Scope("selection"));
+		pushScope(new Scope("selection", true));
 		symbol->accept(*this);
 		popScope();
 	}
 	void visit(cpp::iteration_statement* symbol)
 	{
-		pushScope(new Scope("iteration"));
+		pushScope(new Scope("iteration", true));
 		symbol->accept(*this);
 		popScope();
 	}
@@ -861,6 +941,7 @@ struct NamespaceWalker : public WalkerBase
 	{
 		DeclarationWalker walker(*this);
 		symbol->accept(walker);
+		SEMANTIC_ASSERT(walker.type != 0);
 	}
 };
 
