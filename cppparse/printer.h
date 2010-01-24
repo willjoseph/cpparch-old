@@ -17,6 +17,7 @@ template<typename OutputStreamType>
 struct TokenPrinter
 {
 	OutputStreamType& out;
+	size_t line;
 	size_t braceDepth;
 	LexTokenId prev;
 	LexTokenId prevprev;
@@ -24,6 +25,7 @@ struct TokenPrinter
 
 	TokenPrinter(OutputStreamType& out)
 		: out(out),
+		line(1),
 		braceDepth(0),
 		prev(boost::wave::T_UNKNOWN),
 		prevprev(boost::wave::T_UNKNOWN),
@@ -35,6 +37,7 @@ struct TokenPrinter
 		out << std::endl;
 		prev = boost::wave::T_NEWLINE;
 		templateDeclarationDepth = id == boost::wave::T_TEMPLATE;
+		++line;
 	}
 	void printToken(LexTokenId id, const char* value)
 	{

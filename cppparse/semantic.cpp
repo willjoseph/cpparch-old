@@ -276,6 +276,7 @@ Declaration gAnonymous(&global, "$anonymous", 0, &global, false);
 // symbol types
 Declaration gNamespace(&global, "$namespace", 0, 0, false);
 Declaration gBuiltin(&global, "$builtin", 0, 0, false);
+Declaration gClassFwd(&global, "$classfwd", 0, 0, false);
 Declaration gClass(&global, "$class", 0, 0, false);
 Declaration gEnum(&global, "$enum", 0, 0, false);
 Declaration gCtor(&global, "$ctor", 0, 0, false);
@@ -287,14 +288,24 @@ struct WalkerBase : public PrintingWalker
 	{
 	}
 
-	Declaration* findDeclaration(Scope& scope, Identifier id)
+	Declaration* findDeclaration(Scope::Declarations& declarations, Identifier id)
 	{
-		for(Scope::Declarations::iterator i = scope.declarations.begin(); i != scope.declarations.end(); ++i)
+		for(Scope::Declarations::iterator i = declarations.begin(); i != declarations.end(); ++i)
 		{
 			if((*i).name == id)
 			{
 				return &(*i);
 			}
+		}
+		return 0;
+	}
+
+	Declaration* findDeclaration(Scope& scope, Identifier id)
+	{
+		Declaration* result = findDeclaration(scope.declarations, id);
+		if(result != 0)
+		{
+			return result;
 		}
 		if(scope.parent != 0)
 		{
@@ -336,8 +347,77 @@ struct WalkerBase : public PrintingWalker
 		printer.out << " */";
 	}
 
-	Declaration* pointOfDeclaration(Scope* parent, const char* name, Declaration* type, Scope* enclosed, bool isTypedef)
+	Declaration* pointOfDeclaration(Scope* parent, Identifier name, Declaration* type, Scope* enclosed, bool isTypedef)
 	{
+		{
+			Declaration* declaration = findDeclaration(parent->declarations, name);
+			if(declaration != 0)
+			{
+				if(type == &gNamespace)
+				{
+					if(declaration->type != &gNamespace)
+					{
+						// name already declared as non-namespace
+						throw SemanticError();
+					}
+					// namespace-continuation
+					return declaration;
+				}
+				if(type == &gClassFwd // is a forward-declaration
+					&& declaration->type == &gClass) // already class-declaration
+				{
+					// forward-declaration after class-declaration
+					return declaration;
+				}
+				if(type != &gClass // is not a class-declaration
+					&& declaration->type == &gClassFwd) // already forward-declared
+				{
+					// name already declared as class
+					throw SemanticError();
+				}
+				if(isTypedef)
+				{
+					if(!declaration->isTypedef)
+					{
+						// name already declared as non-typedef
+						throw SemanticError();
+					}
+					if(declaration->type != type)
+					{
+						// name already declared as typedef with different type
+						throw SemanticError();
+					}
+				}
+				else if(type == &gEnum)
+				{
+					// name already declared
+					throw SemanticError();
+				}
+				else if(type == &gBuiltin // is a built-in-type
+					|| type->type != 0 // is a user-type
+					|| type == &gCtor) // is a constructor/destructor
+				{
+					if(enclosed != 0) // is a function-declaration (or function-definition)
+					{
+						if(declaration->enclosed == 0)
+						{
+							// name already declared
+							throw SemanticError();
+						}
+						if(declaration->enclosed == 0)
+						{
+							// name already declared
+							throw SemanticError();
+						}
+					}
+					else
+					{
+						// name already declared
+						throw SemanticError();
+					}
+				}
+			}
+		}
 		parent->declarations.push_front(Declaration(parent, name, type, enclosed, isTypedef));
 		if(enclosed != 0)
 		{
