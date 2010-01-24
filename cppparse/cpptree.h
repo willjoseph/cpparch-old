@@ -65,7 +65,7 @@ namespace cpp
 		symbol() : p(0)
 		{
 		}
-		symbol(T* p) : p(p)
+		explicit symbol(T* p) : p(p)
 		{
 		}
 		T* operator->()
@@ -81,6 +81,12 @@ namespace cpp
 	template<typename T>
 	struct symbol_optional : public symbol<T>
 	{
+		symbol_optional()
+		{
+		}
+		explicit symbol_optional(T* p) : symbol<T>(p)
+		{
+		}
 	};
 
 #define SYMBOLFWD(T) struct T*
@@ -467,14 +473,14 @@ namespace cpp
 		terminal_optional<boost::wave::T_TEMPLATE> isTemplate;
 		symbol<class_name> id;
 		terminal<boost::wave::T_COLON_COLON> scope;
-		symbol<nested_name_specifier_suffix> next;
+		symbol_optional<nested_name_specifier_suffix> next;
 		FOREACH4(isTemplate, id, scope, next);
 	};
 
 	struct nested_name_specifier
 	{
 		symbol<nested_name_specifier_prefix> prefix;
-		symbol<nested_name_specifier_suffix> suffix;
+		symbol_optional<nested_name_specifier_suffix> suffix;
 		FOREACH2(prefix, suffix);
 	};
 
@@ -520,22 +526,22 @@ namespace cpp
 	struct decl_specifier_prefix_seq
 	{
 		symbol<decl_specifier_nontype> item;
-		symbol<decl_specifier_prefix_seq> next;
+		symbol_optional<decl_specifier_prefix_seq> next;
 		FOREACH2(item, next);
 	};
 
 	struct decl_specifier_suffix_seq
 	{
 		symbol<decl_specifier_suffix> item;
-		symbol<decl_specifier_suffix_seq> next;
+		symbol_optional<decl_specifier_suffix_seq> next;
 		FOREACH2(item, next);
 	};
 
 	struct decl_specifier_seq
 	{
-		symbol<decl_specifier_prefix_seq> prefix;
+		symbol_optional<decl_specifier_prefix_seq> prefix;
 		symbol<type_specifier_noncv> type;
-		symbol<decl_specifier_suffix_seq> suffix;
+		symbol_optional<decl_specifier_suffix_seq> suffix;
 		FOREACH3(prefix, type, suffix);
 	};
 
@@ -605,7 +611,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(overloadable_operator);
 		terminal<boost::wave::T_NEW> key;
-		symbol<array_operator> array;
+		symbol_optional<array_operator> array;
 		FOREACH2(key, array);
 	};
 
@@ -613,14 +619,14 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(overloadable_operator);
 		terminal<boost::wave::T_DELETE> key;
-		symbol<array_operator> array;
+		symbol_optional<array_operator> array;
 		FOREACH2(key, array);
 	};
 
 	struct operator_function_id_suffix
 	{
 		terminal<boost::wave::T_LESS> lt;
-		symbol<template_argument_list> args;
+		symbol_optional<template_argument_list> args;
 		terminal<boost::wave::T_GREATER> gt;
 		FOREACH3(lt, args, gt);
 	};
@@ -631,7 +637,7 @@ namespace cpp
 		VISITABLE_DERIVED(qualified_id_suffix);
 		terminal<boost::wave::T_OPERATOR> key;
 		symbol<overloadable_operator> op;
-		symbol<operator_function_id_suffix> suffix;
+		symbol_optional<operator_function_id_suffix> suffix;
 		FOREACH3(key, op, suffix);
 	};
 
@@ -640,7 +646,7 @@ namespace cpp
 		VISITABLE_DERIVED(template_id);
 		symbol<operator_function_id> id;
 		terminal<boost::wave::T_LESS> lt;
-		symbol<template_argument_list> args;
+		symbol_optional<template_argument_list> args;
 		terminal<boost::wave::T_GREATER> gt;
 		FOREACH4(id, lt, args, gt);
 	};
@@ -713,15 +719,15 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(base_specifier_prefix);
 		terminal<boost::wave::T_VIRTUAL> isVirtual;
-		symbol<access_specifier> access; // optional
+		symbol_optional<access_specifier> access; // optional
 		FOREACH2(isVirtual, access);
 	};
 
 	struct base_specifier
 	{
-		symbol<base_specifier_prefix> prefix;
+		symbol_optional<base_specifier_prefix> prefix;
 		terminal_optional<boost::wave::T_COLON_COLON> isGlobal;
-		symbol<nested_name_specifier> context;
+		symbol_optional<nested_name_specifier> context;
 		symbol<class_name> id;
 		FOREACH4(prefix, isGlobal, context, id);
 	};
@@ -754,8 +760,8 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(class_head);
 		symbol<class_key> key;
-		symbol<identifier> id;
-		symbol<base_clause> base;
+		symbol_optional<identifier> id;
+		symbol_optional<base_clause> base;
 		FOREACH3(key, id, base);
 	};
 
@@ -763,9 +769,9 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(class_head);
 		symbol<class_key> key;
-		symbol<nested_name_specifier> context;
+		symbol_optional<nested_name_specifier> context;
 		symbol<class_name> id;
-		symbol<base_clause> base;
+		symbol_optional<base_clause> base;
 		FOREACH4(key, context, id, base);
 	};
 
@@ -801,7 +807,7 @@ namespace cpp
 	struct cv_qualifier_seq
 	{
 		symbol<cv_qualifier> item;
-		symbol<cv_qualifier_seq> next;
+		symbol_optional<cv_qualifier_seq> next;
 		FOREACH2(item, next);
 	};
 
@@ -815,31 +821,31 @@ namespace cpp
 	struct ptr_operator
 	{
 		terminal_optional<boost::wave::T_COLON_COLON> isGlobal;
-		symbol<nested_name_specifier> context;
+		symbol_optional<nested_name_specifier> context;
 		symbol<ptr_operator_key> key;
-		symbol<cv_qualifier_seq> qual;
+		symbol_optional<cv_qualifier_seq> qual;
 		FOREACH4(isGlobal, context, key, qual);
 	};
 
 	struct type_specifier_prefix_seq
 	{
 		symbol<cv_qualifier> item;
-		symbol<type_specifier_prefix_seq> next;
+		symbol_optional<type_specifier_prefix_seq> next;
 		FOREACH2(item, next);
 	};
 
 	struct type_specifier_suffix_seq
 	{
 		symbol<type_specifier_suffix> item;
-		symbol<type_specifier_suffix_seq> next;
+		symbol_optional<type_specifier_suffix_seq> next;
 		FOREACH2(item, next);
 	};
 
 	struct type_specifier_seq
 	{
-		symbol<type_specifier_prefix_seq> prefix;
+		symbol_optional<type_specifier_prefix_seq> prefix;
 		symbol<type_specifier_noncv> type;
-		symbol<type_specifier_suffix_seq> suffix;
+		symbol_optional<type_specifier_suffix_seq> suffix;
 		FOREACH3(prefix, type, suffix);
 	};
 
@@ -856,7 +862,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(abstract_declarator);
 		symbol<ptr_operator> op;
-		symbol<abstract_declarator> decl;
+		symbol_optional<abstract_declarator> decl;
 		FOREACH2(op, decl);
 	};
 
@@ -873,7 +879,7 @@ namespace cpp
 	struct direct_abstract_declarator : public abstract_declarator
 	{
 		VISITABLE_DERIVED(abstract_declarator);
-		symbol<abstract_declarator_parenthesis> prefix;
+		symbol_optional<abstract_declarator_parenthesis> prefix;
 		symbol<declarator_suffix_seq> suffix;
 		FOREACH2(prefix, suffix);
 	};
@@ -882,7 +888,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(template_argument);
 		symbol<type_specifier_seq> spec;
-		symbol<abstract_declarator> decl;
+		symbol_optional<abstract_declarator> decl;
 		FOREACH2(spec, decl);
 	};
 
@@ -890,7 +896,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(assignment_expression);
 		terminal<boost::wave::T_THROW> key;
-		symbol<assignment_expression> expr;
+		symbol_optional<assignment_expression> expr;
 		FOREACH2(key, expr);
 	};
 
@@ -940,7 +946,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(literal);
 		terminal_string value;
-		symbol<string_literal> next;
+		symbol_optional<string_literal> next;
 		FOREACH2(value, next);
 	};
 
@@ -964,7 +970,7 @@ namespace cpp
 	{
 		symbol<initializer_clause> item;
 		terminal_suffix<boost::wave::T_COMMA> comma;
-		symbol<initializer_list> next;
+		symbol_optional<initializer_list> next;
 		FOREACH3(item, comma, next);
 	};
 
@@ -1024,7 +1030,7 @@ namespace cpp
 	struct postfix_expression_suffix_seq
 	{
 		symbol<postfix_expression_suffix> item;
-		symbol<postfix_expression_suffix_seq> next;
+		symbol_optional<postfix_expression_suffix_seq> next;
 		FOREACH2(item, next);
 	};
 
@@ -1032,7 +1038,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(postfix_expression);
 		symbol<postfix_expression_prefix> expr;
-		symbol<postfix_expression_suffix_seq> suffix;
+		symbol_optional<postfix_expression_suffix_seq> suffix;
 		FOREACH2(expr, suffix);
 	};
 
@@ -1049,7 +1055,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(postfix_expression_suffix);
 		terminal<boost::wave::T_LEFTPAREN> lp;
-		symbol<expression_list> args;
+		symbol_optional<expression_list> args;
 		terminal<boost::wave::T_RIGHTPAREN> rp;
 		FOREACH3(lp, args, rp);
 	};
@@ -1075,7 +1081,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(postfix_expression_suffix);
 		terminal_optional<boost::wave::T_COLON_COLON> isGlobal;
-		symbol<nested_name_specifier> context;
+		symbol_optional<nested_name_specifier> context;
 		terminal<boost::wave::T_COMPL> compl;
 		symbol<type_name> type;
 		FOREACH4(isGlobal, context, compl, type);
@@ -1095,7 +1101,7 @@ namespace cpp
 		VISITABLE_DERIVED(postfix_expression_prefix);
 		symbol<simple_type_specifier> type;
 		terminal<boost::wave::T_LEFTPAREN> lp;
-		symbol<expression_list> args;
+		symbol_optional<expression_list> args;
 		terminal<boost::wave::T_RIGHTPAREN> rp;
 		FOREACH4(type, lp, args, rp);
 	};
@@ -1161,7 +1167,7 @@ namespace cpp
 		terminal<boost::wave::T_LEFTBRACKET> ls;
 		symbol<constant_expression> expr;
 		terminal<boost::wave::T_RIGHTBRACKET> rs;
-		symbol<new_declarator_suffix> next;
+		symbol_optional<new_declarator_suffix> next;
 		FOREACH4(ls, expr, rs, next);
 	};
 
@@ -1171,7 +1177,7 @@ namespace cpp
 		terminal<boost::wave::T_LEFTBRACKET> ls;
 		symbol<expression> expr;
 		terminal<boost::wave::T_RIGHTBRACKET> rs;
-		symbol<new_declarator_suffix> suffix;
+		symbol_optional<new_declarator_suffix> suffix;
 		FOREACH4(ls, expr, rs, suffix);
 	};
 
@@ -1179,7 +1185,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(new_declarator);
 		symbol<ptr_operator> op;
-		symbol<new_declarator> decl;
+		symbol_optional<new_declarator> decl;
 		FOREACH2(op, decl);
 	};
 
@@ -1187,7 +1193,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(new_type);
 		symbol<type_specifier_seq> spec;
-		symbol<new_declarator> decl;
+		symbol_optional<new_declarator> decl;
 		FOREACH2(spec, decl);
 	};
 
@@ -1226,7 +1232,7 @@ namespace cpp
 		symbol<expression_list> place;
 		terminal<boost::wave::T_RIGHTPAREN> rp;
 		symbol<new_type> type;
-		symbol<new_initializer> init;
+		symbol_optional<new_initializer> init;
 		FOREACH7(isGlobal, key, lp, place, rp, type, init);
 	};
 
@@ -1236,7 +1242,7 @@ namespace cpp
 		terminal_optional<boost::wave::T_COLON_COLON> isGlobal;
 		terminal<boost::wave::T_NEW> key;
 		symbol<new_type> type;
-		symbol<new_initializer> init;
+		symbol_optional<new_initializer> init;
 		FOREACH4(isGlobal, key, type, init);
 	};
 
@@ -1245,7 +1251,7 @@ namespace cpp
 		VISITABLE_DERIVED(unary_expression);
 		terminal_optional<boost::wave::T_COLON_COLON> isGlobal;
 		terminal<boost::wave::T_DELETE> key;
-		symbol<array_operator> op;
+		symbol_optional<array_operator> op;
 		symbol<cast_expression> expr;
 		FOREACH4(isGlobal, key, op, expr);
 	};
@@ -1306,7 +1312,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(pm_expression);
 		symbol<cast_expression> left;
-		symbol<pm_operator> op;
+		symbol_optional<pm_operator> op;
 		symbol<pm_expression> right;
 		FOREACH3(left, op, right);
 	};
@@ -1323,7 +1329,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(multiplicative_expression);
 		symbol<pm_expression> left;
-		symbol<multiplicative_operator> op;
+		symbol_optional<multiplicative_operator> op;
 		symbol<multiplicative_expression> right;
 		FOREACH3(left, op, right);
 	};
@@ -1340,7 +1346,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(additive_expression);
 		symbol<multiplicative_expression> left;
-		symbol<additive_operator> op;
+		symbol_optional<additive_operator> op;
 		symbol<additive_expression> right;
 		FOREACH3(left, op, right);
 	};
@@ -1357,7 +1363,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(shift_expression);
 		symbol<additive_expression> left;
-		symbol<shift_operator> op;
+		symbol_optional<shift_operator> op;
 		symbol<shift_expression> right;
 		FOREACH3(left, op, right);
 	};
@@ -1374,7 +1380,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(relational_expression);
 		symbol<shift_expression> left;
-		symbol<relational_operator> op;
+		symbol_optional<relational_operator> op;
 		symbol<relational_expression> right;
 		FOREACH3(left, op, right);
 	};
@@ -1391,7 +1397,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(equality_expression);
 		symbol<relational_expression> left;
-		symbol<equality_operator> op;
+		symbol_optional<equality_operator> op;
 		symbol<equality_expression> right;
 		FOREACH3(left, op, right);
 	};
@@ -1463,7 +1469,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(conditional_expression);
 		symbol<logical_or_expression> left;
-		symbol<conditional_expression_rhs> right;
+		symbol_optional<conditional_expression_rhs> right;
 		FOREACH2(left, right);
 	};
 
@@ -1471,7 +1477,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(assignment_expression);
 		symbol<logical_or_expression> left;
-		symbol<logical_or_expression_suffix> right;
+		symbol_optional<logical_or_expression_suffix> right;
 		FOREACH2(left, right);
 	};
 
@@ -1497,7 +1503,7 @@ namespace cpp
 	struct conversion_declarator
 	{
 		symbol<ptr_operator> op;
-		symbol<conversion_declarator> decl;
+		symbol_optional<conversion_declarator> decl;
 		FOREACH2(op, decl);
 	};
 
@@ -1506,7 +1512,7 @@ namespace cpp
 		VISITABLE_DERIVED(unqualified_id);
 		terminal<boost::wave::T_OPERATOR> key;
 		symbol<type_specifier_seq> spec;
-		symbol<conversion_declarator> decl;
+		symbol_optional<conversion_declarator> decl;
 		FOREACH3(key, spec, decl);
 	};
 
@@ -1548,7 +1554,7 @@ namespace cpp
 	{
 		terminal<boost::wave::T_THROW> key;
 		terminal<boost::wave::T_LEFTPAREN> lp;
-		symbol<exception_type_list> types;
+		symbol_optional<exception_type_list> types;
 		terminal<boost::wave::T_RIGHTPAREN> rp;
 		FOREACH4(key, lp, types, rp);
 	};
@@ -1565,10 +1571,10 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(declarator_suffix);
 		terminal<boost::wave::T_LEFTPAREN> lp;
-		symbol<parameter_declaration_clause> params;
+		symbol_optional<parameter_declaration_clause> params;
 		terminal<boost::wave::T_RIGHTPAREN> rp;
-		symbol<cv_qualifier_seq> qual;
-		symbol<exception_specification> except;
+		symbol_optional<cv_qualifier_seq> qual;
+		symbol_optional<exception_specification> except;
 		FOREACH5(lp, params, rp, qual, except);
 	};
 
@@ -1576,7 +1582,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(declarator_suffix);
 		terminal<boost::wave::T_LEFTBRACKET> ls;
-		symbol<constant_expression> size;
+		symbol_optional<constant_expression> size;
 		terminal<boost::wave::T_RIGHTBRACKET> rs;
 		FOREACH3(ls, size, rs);
 	};
@@ -1584,7 +1590,7 @@ namespace cpp
 	struct declarator_suffix_seq
 	{
 		symbol<declarator_suffix> item;
-		symbol<declarator_suffix_seq> next;
+		symbol_optional<declarator_suffix_seq> next;
 		FOREACH2(item, next);
 	};
 
@@ -1592,7 +1598,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(declarator);
 		symbol<direct_declarator_prefix> prefix;
-		symbol<declarator_suffix_seq> suffix;
+		symbol_optional<declarator_suffix_seq> suffix;
 		FOREACH2(prefix, suffix);
 	};
 
@@ -1632,7 +1638,7 @@ namespace cpp
 	struct statement_seq
 	{
 		symbol<statement> item;
-		symbol<statement_seq> next;
+		symbol_optional<statement_seq> next;
 		FOREACH2(item, next);
 	};
 
@@ -1648,7 +1654,7 @@ namespace cpp
 		VISITABLE_DERIVED(statement);
 		VISITABLE_DERIVED(function_body);
 		terminal<boost::wave::T_LEFTBRACE> lb;
-		symbol<statement_seq> body;
+		symbol_optional<statement_seq> body;
 		terminal<boost::wave::T_RIGHTBRACE> rb;
 		FOREACH3(lb, body, rb);
 	};
@@ -1683,7 +1689,7 @@ namespace cpp
 		symbol<exception_declaration> decl;
 		terminal<boost::wave::T_RIGHTPAREN> rp;
 		symbol<compound_statement> body;
-		symbol<handler_seq> next;
+		symbol_optional<handler_seq> next;
 		FOREACH6(key, lp, decl, rp, body, next);
 	};
 
@@ -1713,10 +1719,10 @@ namespace cpp
 	struct mem_initializer
 	{
 		terminal_optional<boost::wave::T_COLON_COLON> isGlobal;
-		symbol<nested_name_specifier> context;
+		symbol_optional<nested_name_specifier> context;
 		symbol<class_name> id;
 		terminal<boost::wave::T_LEFTPAREN> lp;
-		symbol<expression_list> args;
+		symbol_optional<expression_list> args;
 		terminal<boost::wave::T_RIGHTPAREN> rp;
 		FOREACH6(isGlobal, context, id, lp, args, rp);
 	};
@@ -1747,8 +1753,8 @@ namespace cpp
 	struct general_declaration : public declaration
 	{
 		VISITABLE_DERIVED(declaration);
-		symbol<decl_specifier_seq> spec;
-		symbol<declarator> decl;
+		symbol_optional<decl_specifier_seq> spec;
+		symbol_optional<declarator> decl;
 		symbol<general_declaration_suffix> suffix;
 		FOREACH3(spec, decl, suffix);
 	};
@@ -1765,7 +1771,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(general_declaration_suffix);
 		VISITABLE_DERIVED(member_declaration_suffix);
-		symbol<ctor_initializer> init;
+		symbol_optional<ctor_initializer> init;
 		symbol<function_body> body;
 		symbol<handler_seq> handlers;
 		FOREACH3(init, body, handlers);
@@ -1791,14 +1797,14 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(member_declarator);
 		symbol<declarator> decl;
-		symbol<member_initializer> init;
+		symbol_optional<member_initializer> init;
 		FOREACH2(decl, init);
 	};
 
 	struct member_declarator_bitfield : public member_declarator
 	{
 		VISITABLE_DERIVED(member_declarator);
-		symbol<identifier> id;
+		symbol_optional<identifier> id;
 		terminal<boost::wave::T_COLON> colon;
 		symbol<constant_expression> width;
 		FOREACH3(id, colon, width);
@@ -1835,7 +1841,7 @@ namespace cpp
 	struct member_declaration_default : public member_declaration
 	{
 		VISITABLE_DERIVED(member_declaration);
-		symbol<decl_specifier_seq> spec;
+		symbol_optional<decl_specifier_seq> spec;
 		symbol<member_declaration_general> decl;
 		FOREACH2(spec, decl);
 	};
@@ -1853,7 +1859,7 @@ namespace cpp
 	struct member_declaration_general_default : public member_declaration_general
 	{
 		VISITABLE_DERIVED(member_declaration_general);
-		symbol<declarator> decl;
+		symbol_optional<declarator> decl;
 		symbol<member_declaration_suffix> suffix;
 		FOREACH2(decl, suffix);
 	};
@@ -1861,7 +1867,7 @@ namespace cpp
 	struct member_declaration_suffix_default : public member_declaration_suffix
 	{
 		VISITABLE_DERIVED(member_declaration_suffix);
-		symbol<member_initializer> init;
+		symbol_optional<member_initializer> init;
 		terminal_optional<boost::wave::T_COMMA> comma;
 		symbol<member_declarator_list> next;
 		terminal<boost::wave::T_SEMICOLON> semicolon;
@@ -1890,14 +1896,14 @@ namespace cpp
 	struct ctor_specifier_seq
 	{
 		symbol<function_specifier> item;
-		symbol<ctor_specifier_seq> next;
+		symbol_optional<ctor_specifier_seq> next;
 		FOREACH2(item, next);
 	};
 
 	struct constructor_definition : public declaration
 	{
 		VISITABLE_DERIVED(declaration);
-		symbol<ctor_specifier_seq> spec;
+		symbol_optional<ctor_specifier_seq> spec;
 		symbol<declarator> decl;
 		symbol<function_definition_suffix> suffix;
 		FOREACH3(spec, decl, suffix);
@@ -1914,7 +1920,7 @@ namespace cpp
 	struct member_declaration_ctor : public member_declaration
 	{
 		VISITABLE_DERIVED(member_declaration);
-		symbol<ctor_specifier_seq> spec;
+		symbol_optional<ctor_specifier_seq> spec;
 		symbol<declarator> decl;
 		terminal<boost::wave::T_SEMICOLON> semicolon;
 		FOREACH3(spec, decl, semicolon);
@@ -1932,7 +1938,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(member_specification);
 		symbol<member_declaration> item;
-		symbol<member_specification> next;
+		symbol_optional<member_specification> next;
 		FOREACH2(item, next);
 	};
 
@@ -1941,7 +1947,7 @@ namespace cpp
 		VISITABLE_DERIVED(member_specification);
 		symbol<access_specifier> access;
 		terminal<boost::wave::T_COLON> colon;
-		symbol<member_specification> next;
+		symbol_optional<member_specification> next;
 		FOREACH3(access, colon, next);
 	};
 
@@ -1950,7 +1956,7 @@ namespace cpp
 		VISITABLE_DERIVED(type_specifier_noncv);
 		symbol<class_head> head;
 		terminal<boost::wave::T_LEFTBRACE> lb;
-		symbol<member_specification> members;
+		symbol_optional<member_specification> members;
 		terminal<boost::wave::T_RIGHTBRACE> rb;
 		FOREACH4(head, lb, members, rb);
 	};
@@ -1967,7 +1973,7 @@ namespace cpp
 	{
 		symbol<enumerator_definition> item;
 		terminal_suffix<boost::wave::T_COMMA> comma;
-		symbol<enumerator_list> next;
+		symbol_optional<enumerator_list> next;
 		FOREACH3(item, comma, next);
 	};
 
@@ -1975,9 +1981,9 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(type_specifier_noncv);
 		terminal<boost::wave::T_ENUM> key;
-		symbol<identifier> id; // may be empty
+		symbol_optional<identifier> id; // may be empty
 		terminal<boost::wave::T_LEFTBRACE> lb;
-		symbol<enumerator_list> values;
+		symbol_optional<enumerator_list> values;
 		terminal<boost::wave::T_RIGHTBRACE> rb;
 		FOREACH5(key, id, lb, values, rb);
 	};
@@ -1996,7 +2002,7 @@ namespace cpp
 		VISITABLE_DERIVED(elaborated_type_specifier);
 		symbol<elaborated_type_specifier_key> key;
 		terminal_optional<boost::wave::T_COLON_COLON> isGlobal;
-		symbol<nested_name_specifier> context;
+		symbol_optional<nested_name_specifier> context;
 		symbol<identifier> id;
 		FOREACH4(key, isGlobal, context, id);
 	};
@@ -2006,7 +2012,7 @@ namespace cpp
 		VISITABLE_DERIVED(elaborated_type_specifier);
 		symbol<class_key> key;
 		terminal_optional<boost::wave::T_COLON_COLON> isGlobal;
-		symbol<nested_name_specifier> context;
+		symbol_optional<nested_name_specifier> context;
 		terminal_optional<boost::wave::T_TEMPLATE> isTemplate;
 		symbol<simple_template_id> id;
 		FOREACH5(key, isGlobal, context, isTemplate, id);
@@ -2017,7 +2023,7 @@ namespace cpp
 		VISITABLE_DERIVED(type_specifier_noncv);
 		terminal<boost::wave::T_TYPENAME> key;
 		terminal_optional<boost::wave::T_COLON_COLON> isGlobal;
-		symbol<nested_name_specifier> context;
+		symbol_optional<nested_name_specifier> context;
 		terminal_optional<boost::wave::T_TEMPLATE> isTemplate;
 		symbol<type_name> id; // NOTE: only 'identifier' is allowed if 'isTemplate' is true
 		FOREACH5(key, isGlobal, context, isTemplate, id);
@@ -2052,7 +2058,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(type_parameter);
 		symbol<type_parameter_key> key;
-		symbol<identifier> id;
+		symbol_optional<identifier> id;
 		terminal_suffix<boost::wave::T_ASSIGN> assign;
 		symbol<type_id> init;
 		FOREACH4(key, id, assign, init);
@@ -2074,7 +2080,7 @@ namespace cpp
 		symbol<template_parameter_list> params;
 		terminal<boost::wave::T_GREATER> gt;
 		terminal<boost::wave::T_CLASS> key2;
-		symbol<identifier> id;
+		symbol_optional<identifier> id;
 		terminal_suffix<boost::wave::T_ASSIGN> assign;
 		symbol<id_expression> init;
 		FOREACH8(key, lt, params, gt, key2, id, assign, init);
@@ -2094,7 +2100,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(parameter_declaration);
 		symbol<decl_specifier_seq> spec;
-		symbol<abstract_declarator> decl;
+		symbol_optional<abstract_declarator> decl;
 		terminal_suffix<boost::wave::T_ASSIGN> assign;
 		symbol<assignment_expression> init;
 		FOREACH4(spec, decl, assign, init);
@@ -2110,7 +2116,7 @@ namespace cpp
 
 	struct parameter_declaration_clause
 	{
-		symbol<parameter_declaration_list> list;
+		symbol_optional<parameter_declaration_list> list;
 		terminal_optional<boost::wave::T_ELLIPSIS> isEllipsis;
 		FOREACH2(list, isEllipsis);
 	};
@@ -2157,7 +2163,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(simple_type_specifier);
 		terminal_optional<boost::wave::T_COLON_COLON> isGlobal;
-		symbol<nested_name_specifier> context;
+		symbol_optional<nested_name_specifier> context;
 		symbol<type_name> id;
 		FOREACH3(isGlobal, context, id);
 	};
@@ -2233,7 +2239,7 @@ namespace cpp
 	struct msext_asm_element_list
 	{
 		symbol<msext_asm_element> item;
-		symbol<msext_asm_element_list> next;
+		symbol_optional<msext_asm_element_list> next;
 		terminal_optional<boost::wave::T_SEMICOLON> semicolon;
 		FOREACH3(item, next, semicolon);
 	};
@@ -2241,7 +2247,7 @@ namespace cpp
 	struct msext_asm_element_list_inline
 	{
 		symbol<msext_asm_element> item;
-		symbol<msext_asm_element_list_inline> next;
+		symbol_optional<msext_asm_element_list_inline> next;
 		terminal_optional<boost::wave::T_SEMICOLON> semicolon;
 		FOREACH3(item, next, semicolon);
 	};
@@ -2276,7 +2282,7 @@ namespace cpp
 		symbol<identifier> alias;
 		terminal<boost::wave::T_ASSIGN> assign;
 		terminal_optional<boost::wave::T_COLON_COLON> isGlobal;
-		symbol<nested_name_specifier> context;
+		symbol_optional<nested_name_specifier> context;
 		symbol<identifier> id;
 		terminal<boost::wave::T_SEMICOLON> semicolon;
 		FOREACH7(key, alias, assign, isGlobal, context, id, semicolon);
@@ -2320,7 +2326,7 @@ namespace cpp
 		terminal<boost::wave::T_USING> key;
 		terminal<boost::wave::T_NAMESPACE> key2;
 		terminal_optional<boost::wave::T_COLON_COLON> isGlobal;
-		symbol<nested_name_specifier> context;
+		symbol_optional<nested_name_specifier> context;
 		symbol<identifier> id;
 		terminal<boost::wave::T_SEMICOLON> semicolon;
 		FOREACH6(key, key2, isGlobal, context, id, semicolon);
@@ -2337,7 +2343,7 @@ namespace cpp
 	struct init_declarator
 	{
 		symbol<declarator> decl;
-		symbol<initializer> init;
+		symbol_optional<initializer> init;
 		FOREACH2(decl, init);
 	};
 
@@ -2352,7 +2358,7 @@ namespace cpp
 	struct simple_declaration_suffix : public general_declaration_suffix
 	{
 		VISITABLE_DERIVED(general_declaration_suffix);
-		symbol<initializer> init;
+		symbol_optional<initializer> init;
 		terminal_optional<boost::wave::T_COMMA> comma;
 		symbol<init_declarator_list> next;
 		terminal<boost::wave::T_SEMICOLON> semicolon;
@@ -2363,8 +2369,8 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(block_declaration);
 		VISITABLE_DERIVED(for_init_statement);
-		symbol<decl_specifier_seq> spec;
-		symbol<declarator> decl;
+		symbol_optional<decl_specifier_seq> spec;
+		symbol_optional<declarator> decl;
 		symbol<simple_declaration_suffix> suffix;
 		FOREACH3(spec, decl, suffix);
 	};
@@ -2411,7 +2417,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(for_init_statement);
 		VISITABLE_DERIVED(statement);
-		symbol<expression> expr;
+		symbol_optional<expression> expr;
 		terminal<boost::wave::T_SEMICOLON> semicolon;
 		FOREACH2(expr, semicolon);
 	};
@@ -2499,9 +2505,9 @@ namespace cpp
 		terminal<boost::wave::T_FOR> key;
 		terminal<boost::wave::T_LEFTPAREN> lp;
 		symbol<for_init_statement> init;
-		symbol<condition> cond;
+		symbol_optional<condition> cond;
 		terminal<boost::wave::T_SEMICOLON> semicolon;
-		symbol<expression> incr;
+		symbol_optional<expression> incr;
 		terminal<boost::wave::T_RIGHTPAREN> rp;
 		symbol<statement> body;
 		FOREACH8(key, lp, init, cond, semicolon, incr, rp, body);
@@ -2536,7 +2542,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(jump_statement);
 		terminal<boost::wave::T_RETURN> key;
-		symbol<expression> expr;
+		symbol_optional<expression> expr;
 		terminal<boost::wave::T_SEMICOLON> semicolon;
 		FOREACH3(key, expr, semicolon);
 	};
@@ -2562,7 +2568,7 @@ namespace cpp
 	struct declaration_seq
 	{
 		symbol<declaration> item;
-		symbol<declaration_seq> next;
+		symbol_optional<declaration_seq> next;
 		FOREACH2(item, next);
 	};
 
@@ -2602,7 +2608,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(linkage_specification_suffix);
 		terminal<boost::wave::T_LEFTBRACE> lb;
-		symbol<declaration_seq> decl;
+		symbol_optional<declaration_seq> decl;
 		terminal<boost::wave::T_RIGHTBRACE> rb;
 		FOREACH3(lb, decl, rb);
 	};
@@ -2624,7 +2630,7 @@ namespace cpp
 		terminal<boost::wave::T_NAMESPACE> key;
 		symbol<identifier> id;
 		terminal<boost::wave::T_LEFTBRACE> lb;
-		symbol<namespace_body> body;
+		symbol_optional<namespace_body> body;
 		terminal<boost::wave::T_RIGHTBRACE> rb;
 		FOREACH5(key, id, lb, body, rb);
 	};

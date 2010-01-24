@@ -144,16 +144,6 @@ inline void parseToken(Parser& parser, boost::wave::token_id id)
 	parser.increment();
 };
 
-inline void printMatch(const char* symbol)
-{
-	std::cout << "matched: " << symbol << std::endl;
-}
-
-inline void printRejected(const char* symbol)
-{
-	std::cout << "rejected: " << symbol << std::endl;
-}
-
 template<typename T>
 struct NullPtr
 {
@@ -195,7 +185,7 @@ T* createSymbol(Parser& parser, T*)
 #define SYMBOL_NAME(T) (typeid(T).name() + 12)
 
 template<typename T>
-T* parseSymbolInternal(Parser& parser, cpp::symbol<T> symbol, bool print)
+cpp::symbol<T> parseSymbolRequired(Parser& parser, cpp::symbol<T> symbol)
 {
 	T* p = symbol.p;
 	PARSE_ASSERT(!parser.lexer.maxBacktrack);
@@ -206,30 +196,21 @@ T* parseSymbolInternal(Parser& parser, cpp::symbol<T> symbol, bool print)
 	parser.lexer.pop();
 	if(p != NULL)
 	{
-#if 0
-		if(print)
-		{
-			printMatch(SYMBOL_NAME(T));
-			printSequence(tmp);
-		}
-#endif
 		parser.position += tmp.position;
 	}
 	else
 	{
-#if 0
-		if(tmp.position != 0
-			&& print)
-		{
-			printRejected(SYMBOL_NAME(T)); 
-			printSequence(tmp);
-		}
-#endif
-
 		tmp.backtrack(SYMBOL_NAME(T));
 	}
-	return p;
+	return cpp::symbol<T>(p);
 }
+
+template<typename T>
+cpp::symbol_optional<T> parseSymbolOptional(Parser& parser, cpp::symbol_optional<T> symbol)
+{
+	return cpp::symbol_optional<T>(parseSymbolRequired(parser, symbol));
+}
+
 
 template<LexTokenId id>
 inline LexTokenId getTokenId(cpp::terminal<id>)
@@ -284,11 +265,11 @@ inline ParseResult parseTerminal(Parser& parser, cpp::terminal_suffix<id>& resul
 #define PARSE_TOKEN_REQUIRED(parser, token_) if(TOKEN_EQUAL(parser, token_)) { parser.increment(); } else { return NULL; }
 #define PARSE_TOKEN_OPTIONAL(parser, result, token) result = false; if(TOKEN_EQUAL(parser, token)) { result = true; parser.increment(); }
 #define PARSE_SELECT_TOKEN(parser, p, token, value_) if(TOKEN_EQUAL(parser, token)) { p = createSymbol(parser, p); p->id = value_; p->value.id = token; p->value.value = parser.get_value(); parser.increment(); return p; }
-#define PARSE_OPTIONAL(parser, p) (p) = parseSymbolInternal(parser, p, true)
-#define PARSE_REQUIRED(parser, p) if(((p) = parseSymbolInternal(parser, p, true)) == 0) { return NULL; }
-#define PARSE_SELECT(parser, Type) if(Type* p = parseSymbolInternal(parser, NullPtr<Type>::VALUE, true)) { return p; }
+#define PARSE_OPTIONAL(parser, p) (p) = parseSymbolOptional(parser, p)
+#define PARSE_REQUIRED(parser, p) if(((p) = parseSymbolRequired(parser, p)) == 0) { return NULL; }
+#define PARSE_SELECT(parser, Type) if(cpp::symbol<Type> p = parseSymbolRequired(parser, NullPtr<Type>::VALUE)) { return p; }
 // Type must have members 'left' and 'right', and 'typeof(left)' must by substitutable for 'Type'
-#define PARSE_PREFIX(parser, Type) if(Type* p = parseSymbolInternal(parser, NullPtr<Type>::VALUE, true)) { if(p->right == NULL) return p->left; return p; }
+#define PARSE_PREFIX(parser, Type) if(cpp::symbol<Type> p = parseSymbolRequired(parser, NullPtr<Type>::VALUE)) { if(p->right == NULL) return p->left; return p; }
 
 cpp::declaration_seq* parseFile(Lexer& lexer);
 cpp::statement_seq* parseFunction(Lexer& lexer);

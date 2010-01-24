@@ -18,7 +18,7 @@ inline cpp::declaration_seq* parseSymbol(Parser& parser, cpp::declaration_seq* r
 inline cpp::namespace_definition* parseSymbol(Parser& parser, cpp::namespace_definition* result)
 {
 	PARSE_TERMINAL(parser, result->key);
-	PARSE_OPTIONAL(parser, result->id);
+	PARSE_REQUIRED(parser, result->id);
 	PARSE_TERMINAL(parser, result->lb);
 	PARSE_OPTIONAL(parser, result->body);
 	PARSE_TERMINAL(parser, result->rb);
@@ -1144,7 +1144,6 @@ inline cpp::pm_operator* parseSymbol(Parser& parser, cpp::pm_operator* result)
 inline cpp::pm_expression_default* parseSymbol(Parser& parser, cpp::pm_expression_default* result)
 {
 	PARSE_REQUIRED(parser, result->left);
-	result->right = NULL;
 	PARSE_OPTIONAL(parser, result->op);
 	if(result->op != NULL)
 	{
@@ -1170,7 +1169,6 @@ inline cpp::multiplicative_operator* parseSymbol(Parser& parser, cpp::multiplica
 inline cpp::multiplicative_expression_default* parseSymbol(Parser& parser, cpp::multiplicative_expression_default* result)
 {
 	PARSE_REQUIRED(parser, result->left);
-	result->right = NULL;
 	PARSE_OPTIONAL(parser, result->op);
 	if(result->op != NULL)
 	{
@@ -1195,7 +1193,6 @@ inline cpp::additive_operator* parseSymbol(Parser& parser, cpp::additive_operato
 inline cpp::additive_expression_default* parseSymbol(Parser& parser, cpp::additive_expression_default* result)
 {
 	PARSE_REQUIRED(parser, result->left);
-	result->right = NULL;
 	PARSE_OPTIONAL(parser, result->op);
 	if(result->op != NULL)
 	{
@@ -1220,7 +1217,6 @@ inline cpp::shift_operator* parseSymbol(Parser& parser, cpp::shift_operator* res
 inline cpp::shift_expression_default* parseSymbol(Parser& parser, cpp::shift_expression_default* result)
 {
 	PARSE_REQUIRED(parser, result->left);
-	result->right = NULL;
 	PARSE_OPTIONAL(parser, result->op);
 	if(result->op != NULL)
 	{
@@ -1247,7 +1243,6 @@ inline cpp::relational_operator* parseSymbol(Parser& parser, cpp::relational_ope
 inline cpp::relational_expression_default* parseSymbol(Parser& parser, cpp::relational_expression_default* result)
 {
 	PARSE_REQUIRED(parser, result->left);
-	result->right = NULL;
 	if(!parser.inTemplateArgumentList
 		|| !TOKEN_EQUAL(parser, boost::wave::T_GREATER)) // '>' terminates template-argument-list
 	{
@@ -1276,7 +1271,6 @@ inline cpp::equality_operator* parseSymbol(Parser& parser, cpp::equality_operato
 inline cpp::equality_expression_default* parseSymbol(Parser& parser, cpp::equality_expression_default* result)
 {
 	PARSE_REQUIRED(parser, result->left);
-	result->right = NULL;
 	PARSE_OPTIONAL(parser, result->op);
 	if(result->op != NULL)
 	{
@@ -1764,7 +1758,6 @@ inline cpp::function_definition_suffix* parseSymbol(Parser& parser, cpp::functio
 	PARSE_TOKEN_OPTIONAL(parser, isTry, boost::wave::T_TRY);
 	PARSE_OPTIONAL(parser, result->init);
 	PARSE_REQUIRED(parser, result->body);
-	result->handlers = NULL;
 	if(isTry)
 	{
 		PARSE_REQUIRED(parser, result->handlers);
@@ -2331,7 +2324,7 @@ cpp::declaration_seq* parseFile(Lexer& lexer)
 {
 	Parser parser(lexer);
 
-	cpp::symbol<cpp::declaration_seq> result = NULL;
+	cpp::symbol_optional<cpp::declaration_seq> result(NULL);
 	try
 	{
 		PARSE_OPTIONAL(parser, result);
@@ -2350,7 +2343,7 @@ cpp::statement_seq* parseFunction(Lexer& lexer)
 {
 	Parser parser(lexer);
 
-	cpp::symbol<cpp::statement_seq> result = NULL;
+	cpp::symbol_optional<cpp::statement_seq> result(NULL);
 	try
 	{
 		PARSE_OPTIONAL(parser, result);
