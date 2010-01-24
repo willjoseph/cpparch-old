@@ -178,6 +178,10 @@ struct TokenBuffer
 	{
 		return (count > size_t(i - tokens)) ? i + (SIZE - count) : i - count;
 	}
+	const_iterator advance(const_iterator i, size_t count)
+	{
+		return (i + count < tokens + SIZE) ? i + count : i - (SIZE - count);
+	}
 
 	iterator begin()
 	{
@@ -247,7 +251,7 @@ struct Lexer
 		release(first);
 		release(last);
 	}
-	void backtrack(size_t count, const char* symbol)
+	void backtrack(size_t count, const char* symbol = 0)
 	{
 		if(count == 0)
 		{
@@ -260,13 +264,22 @@ struct Lexer
 		else
 		{
 			position = history.backtrack(position, count);
-			if(count > stats.count)
+			if(count > stats.count
+				&& symbol != 0)
 			{
 				stats.count = count;
 				stats.symbol = symbol;
 				stats.position = (*position).position;
 			};
 		}
+	}
+	void advance(size_t count)
+	{
+		if(count == 0)
+		{
+			return;
+		}
+		position = history.advance(position, count);
 	}
 	void push()
 	{

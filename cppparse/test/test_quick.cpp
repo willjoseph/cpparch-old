@@ -1,4 +1,9 @@
 
+typedef int ptrdiff_t;
+typedef unsigned short wchar_t;
+
+
+
 #include <xstddef>
 
 		// TEMPLATE CLASS basic_string

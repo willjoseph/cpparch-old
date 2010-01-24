@@ -184,8 +184,13 @@ T* createSymbol(Parser& parser, T*)
 
 #define SYMBOL_NAME(T) (typeid(T).name() + 12)
 
+inline void printDebug(const char* text)
+{
+	std::cout << text << std::endl;
+}
+
 template<typename T>
-cpp::symbol<T> parseSymbolRequired(Parser& parser, cpp::symbol<T> symbol)
+cpp::symbol<T> parseSymbolRequired(Parser& parser, cpp::symbol<T> symbol, size_t best = 0)
 {
 	T* p = symbol.p;
 	PARSE_ASSERT(!parser.lexer.maxBacktrack);
@@ -194,15 +199,19 @@ cpp::symbol<T> parseSymbolRequired(Parser& parser, cpp::symbol<T> symbol)
 	p = SymbolAllocator<T>(parser.lexer.allocator).allocate(p);
 	p = parseSymbol(tmp, p);
 	parser.lexer.pop();
-	if(p != NULL)
+	if(p != 0
+		&& tmp.position > best)
 	{
-		parser.position += tmp.position;
+		if(best != 0)
+		{
+			printDebug("ambiguity");
+		}
+		parser.position += tmp.position - best;
+		return cpp::symbol<T>(p);
 	}
-	else
-	{
-		tmp.backtrack(SYMBOL_NAME(T));
-	}
-	return cpp::symbol<T>(p);
+
+	tmp.backtrack(SYMBOL_NAME(T));
+	return cpp::symbol<T>(0);
 }
 
 template<typename T>
@@ -211,6 +220,23 @@ cpp::symbol_optional<T> parseSymbolOptional(Parser& parser, cpp::symbol_optional
 	return cpp::symbol_optional<T>(parseSymbolRequired(parser, symbol));
 }
 
+template<typename T>
+cpp::symbol<T> parseSymbolChoice(Parser& parser, cpp::symbol<T> symbol)
+{
+	if(parser.position != 0)
+	{
+		parser.lexer.backtrack(parser.position);
+	}
+	T* p = parseSymbolRequired(parser, NullPtr<T>::VALUE, parser.position);
+	if(p == 0)
+	{
+		if(parser.position != 0)
+		{
+			parser.lexer.advance(parser.position);
+		}
+	}
+	return cpp::symbol<T>(p);
+}
 
 template<LexTokenId id>
 inline LexTokenId getTokenId(cpp::terminal<id>)
@@ -267,7 +293,11 @@ inline ParseResult parseTerminal(Parser& parser, cpp::terminal_suffix<id>& resul
 #define PARSE_SELECT_TOKEN(parser, p, token, value_) if(TOKEN_EQUAL(parser, token)) { p = createSymbol(parser, p); p->id = value_; p->value.id = token; p->value.value = parser.get_value(); parser.increment(); return p; }
 #define PARSE_OPTIONAL(parser, p) (p) = parseSymbolOptional(parser, p)
 #define PARSE_REQUIRED(parser, p) if(((p) = parseSymbolRequired(parser, p)) == 0) { return NULL; }
+#if 1
+#define PARSE_SELECT(parser, Type) if(cpp::symbol<Type> p = parseSymbolChoice(parser, NullPtr<Type>::VALUE)) { result = p; }
+#else
 #define PARSE_SELECT(parser, Type) if(cpp::symbol<Type> p = parseSymbolRequired(parser, NullPtr<Type>::VALUE)) { return p; }
+#endif
 // Type must have members 'left' and 'right', and 'typeof(left)' must by substitutable for 'Type'
 #define PARSE_PREFIX(parser, Type) if(cpp::symbol<Type> p = parseSymbolRequired(parser, NullPtr<Type>::VALUE)) { if(p->right == NULL) return p->left; return p; }
 
