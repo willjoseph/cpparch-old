@@ -52,6 +52,55 @@ inline void printSequence(Lexer& lexer, size_t position)
 	//printSequence(lexer.position - position, lexer.position);
 }
 
+struct SymbolDebug
+{
+	void visit(cpp::terminal_identifier symbol)
+	{
+		std::cout << symbol.value << " ";
+	}
+
+	void visit(cpp::terminal_string symbol)
+	{
+		std::cout << symbol.value << " ";
+	}
+
+	void visit(cpp::terminal_choice2 symbol)
+	{
+		std::cout << symbol.value << " ";
+	}
+
+	template<LexTokenId id>
+	void visit(cpp::terminal<id> symbol)
+	{
+		if(symbol.value != 0)
+		{
+			std::cout << symbol.value << " ";
+		}
+	}
+
+	template<typename T>
+	void visit(T* symbol)
+	{
+		symbol->accept(*this);
+	}
+
+	template<typename T>
+	void visit(cpp::symbol<T> symbol)
+	{
+		if(symbol.p != 0)
+		{
+			visit(symbol.p);
+		}
+	}
+};
+
+template<typename T>
+void printSymbol(T* symbol)
+{
+	SymbolDebug walker;
+	walker.visit(symbol);
+}
+
 struct ParserState
 {
 	bool inTemplateArgumentList;
@@ -199,13 +248,20 @@ cpp::symbol<T> parseSymbolRequired(Parser& parser, cpp::symbol<T> symbol, size_t
 	p = SymbolAllocator<T>(parser.lexer.allocator).allocate(p);
 	p = parseSymbol(tmp, p);
 	parser.lexer.pop();
+#if 1
+	if(p != 0
+		&& best != 0
+		&& tmp.position == best)
+	{
+		printPosition(get_position(dereference(parser.lexer.first)));
+		printDebug("ambiguity: ");
+		printSymbol(p);
+		std::cout << std::endl;
+	}
+#endif
 	if(p != 0
 		&& tmp.position > best)
 	{
-		if(best != 0)
-		{
-			printDebug("ambiguity");
-		}
 		parser.position += tmp.position - best;
 		return cpp::symbol<T>(p);
 	}
@@ -225,6 +281,10 @@ cpp::symbol<T> parseSymbolChoice(Parser& parser, cpp::symbol<T> symbol)
 {
 	if(parser.position != 0)
 	{
+		if(!parser.lexer.canBacktrack(parser.position))
+		{
+			return cpp::symbol<T>(0);
+		}
 		parser.lexer.backtrack(parser.position);
 	}
 	T* p = parseSymbolRequired(parser, NullPtr<T>::VALUE, parser.position);

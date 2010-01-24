@@ -751,21 +751,20 @@ namespace cpp
 	struct class_head : public choice<class_head>
 	{
 		VISITABLE_BASE(VISITORFUNCLIST2(
-			SYMBOLFWD(class_head_nested),
-			SYMBOLFWD(class_head_default)
+			SYMBOLFWD(class_head_default),
+			SYMBOLFWD(class_head_anonymous)
 		));
 	};
 
-	struct class_head_default : public class_head
+	struct class_head_anonymous : public class_head
 	{
 		VISITABLE_DERIVED(class_head);
 		symbol<class_key> key;
-		symbol_optional<identifier> id;
 		symbol_optional<base_clause> base;
-		FOREACH3(key, id, base);
+		FOREACH2(key, base);
 	};
 
-	struct class_head_nested : public class_head
+	struct class_head_default : public class_head
 	{
 		VISITABLE_DERIVED(class_head);
 		symbol<class_key> key;
@@ -1037,9 +1036,9 @@ namespace cpp
 	struct postfix_expression_default : public postfix_expression
 	{
 		VISITABLE_DERIVED(postfix_expression);
-		symbol<postfix_expression_prefix> expr;
-		symbol_optional<postfix_expression_suffix_seq> suffix;
-		FOREACH2(expr, suffix);
+		symbol<postfix_expression_prefix> left;
+		symbol_optional<postfix_expression_suffix_seq> right;
+		FOREACH2(left, right);
 	};
 
 	struct postfix_expression_index : public postfix_expression_suffix
@@ -1742,6 +1741,21 @@ namespace cpp
 		FOREACH2(colon, list);
 	};
 
+	struct general_declaration_affix : public choice<general_declaration_affix>
+	{
+		VISITABLE_BASE(VISITORFUNCLIST2(
+			SYMBOLFWD(general_declaration_class),
+			SYMBOLFWD(general_declaration_named)
+		));
+	};
+
+	struct general_declaration_class : public general_declaration_affix
+	{
+		VISITABLE_DERIVED(general_declaration_affix);
+		terminal<boost::wave::T_SEMICOLON> semicolon;
+		FOREACH1(semicolon);
+	};
+
 	struct general_declaration_suffix : public choice<general_declaration_suffix>
 	{
 		VISITABLE_BASE(VISITORFUNCLIST2(
@@ -1750,13 +1764,20 @@ namespace cpp
 		));
 	};
 
+	struct general_declaration_named : public general_declaration_affix
+	{
+		VISITABLE_DERIVED(general_declaration_affix);
+		symbol<declarator> decl;
+		symbol<general_declaration_suffix> suffix;
+		FOREACH2(decl, suffix);
+	};
+
 	struct general_declaration : public declaration
 	{
 		VISITABLE_DERIVED(declaration);
 		symbol_optional<decl_specifier_seq> spec;
-		symbol_optional<declarator> decl;
-		symbol<general_declaration_suffix> suffix;
-		FOREACH3(spec, decl, suffix);
+		symbol<general_declaration_affix> affix;
+		FOREACH2(spec, affix);
 	};
 
 	struct member_declaration_suffix : public choice<member_declaration_suffix>
@@ -1824,7 +1845,7 @@ namespace cpp
 			SYMBOLFWD(using_declaration),
 			SYMBOLFWD(template_declaration),
 			SYMBOLFWD(member_declaration_inline),
-			SYMBOLFWD(member_declaration_ctor), // shared-prefix ambiguity:  this matches a constructor: Class(Type);
+			SYMBOLFWD(member_declaration_implicit), // shared-prefix ambiguity:  this matches a constructor: Class(Type);
 			SYMBOLFWD(member_declaration_default), // this matches a member: Type(member);
 			SYMBOLFWD(member_declaration_nested)
 		));
@@ -1841,7 +1862,7 @@ namespace cpp
 	struct member_declaration_default : public member_declaration
 	{
 		VISITABLE_DERIVED(member_declaration);
-		symbol_optional<decl_specifier_seq> spec;
+		symbol<decl_specifier_seq> spec;
 		symbol<member_declaration_general> decl;
 		FOREACH2(spec, decl);
 	};
@@ -1893,17 +1914,17 @@ namespace cpp
 		FOREACH1(value);
 	};
 
-	struct ctor_specifier_seq
+	struct function_specifier_seq
 	{
 		symbol<function_specifier> item;
-		symbol_optional<ctor_specifier_seq> next;
+		symbol_optional<function_specifier_seq> next;
 		FOREACH2(item, next);
 	};
 
 	struct constructor_definition : public declaration
 	{
 		VISITABLE_DERIVED(declaration);
-		symbol_optional<ctor_specifier_seq> spec;
+		symbol_optional<function_specifier_seq> spec;
 		symbol<declarator> decl;
 		symbol<function_definition_suffix> suffix;
 		FOREACH3(spec, decl, suffix);
@@ -1917,13 +1938,12 @@ namespace cpp
 		FOREACH2(func, semicolon);
 	};
 
-	struct member_declaration_ctor : public member_declaration
+	struct member_declaration_implicit : public member_declaration
 	{
 		VISITABLE_DERIVED(member_declaration);
-		symbol_optional<ctor_specifier_seq> spec;
-		symbol<declarator> decl;
-		terminal<boost::wave::T_SEMICOLON> semicolon;
-		FOREACH3(spec, decl, semicolon);
+		symbol_optional<function_specifier_seq> spec;
+		symbol<member_declaration_general> decl;
+		FOREACH2(spec, decl);
 	};
 
 	struct member_specification : public choice<member_specification>
@@ -2191,8 +2211,9 @@ namespace cpp
 	struct declaration_statement : public choice<declaration_statement>, public statement
 	{
 		VISITABLE_DERIVED(statement);
-		VISITABLE_BASE(VISITORFUNCLIST1(
-			SYMBOLFWD(block_declaration)
+		VISITABLE_BASE(VISITORFUNCLIST2(
+			SYMBOLFWD(block_declaration),
+			SYMBOLFWD(simple_declaration)
 		));
 	};
 
@@ -2365,9 +2386,9 @@ namespace cpp
 		FOREACH4(init, comma, next, semicolon);
 	};
 
-	struct simple_declaration : public block_declaration, public for_init_statement
+	struct simple_declaration : public declaration_statement, public for_init_statement
 	{
-		VISITABLE_DERIVED(block_declaration);
+		VISITABLE_DERIVED(declaration_statement);
 		VISITABLE_DERIVED(for_init_statement);
 		symbol_optional<decl_specifier_seq> spec;
 		symbol_optional<declarator> decl;

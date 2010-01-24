@@ -969,7 +969,7 @@ struct NamespaceWalker : public WalkerBase
 	}
 	void visit(cpp::general_declaration* symbol)
 	{
-		if(symbol->decl.p == 0
+		if(typeid(*symbol->affix.p) == typeid(cpp::general_declaration_class)
 			&& isForwardDeclaration(symbol->spec))
 		{
 			ForwardDeclarationWalker walker(*this);

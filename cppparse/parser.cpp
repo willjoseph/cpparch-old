@@ -208,7 +208,7 @@ inline cpp::type_parameter* parseSymbol(Parser& parser, cpp::type_parameter* res
 
 inline cpp::template_parameter* parseSymbol(Parser& parser, cpp::template_parameter* result)
 {
-	PARSE_SELECT(parser, cpp::type_parameter);
+	PARSE_SELECT(parser, cpp::type_parameter); // TODO: ambiguity 'class C' could be elaborated-type-specifier or type-parameter
 	PARSE_SELECT(parser, cpp::parameter_declaration);
 	return result;
 }
@@ -338,7 +338,7 @@ inline cpp::member_declaration_suffix* parseSymbol(Parser& parser, cpp::member_d
 
 inline cpp::member_declaration_default* parseSymbol(Parser& parser, cpp::member_declaration_default* result)
 {
-	PARSE_OPTIONAL(parser, result->spec);
+	PARSE_REQUIRED(parser, result->spec);
 	PARSE_REQUIRED(parser, result->decl);
 	return result;
 }
@@ -353,7 +353,7 @@ inline cpp::member_declaration_nested* parseSymbol(Parser& parser, cpp::member_d
 	return result;
 }
 
-inline cpp::ctor_specifier_seq* parseSymbol(Parser& parser, cpp::ctor_specifier_seq* result)
+inline cpp::function_specifier_seq* parseSymbol(Parser& parser, cpp::function_specifier_seq* result)
 {
 	PARSE_REQUIRED(parser, result->item);
 	PARSE_OPTIONAL(parser, result->next);
@@ -447,11 +447,10 @@ inline cpp::member_declaration_inline* parseSymbol(Parser& parser, cpp::member_d
 	return result;
 }
 
-inline cpp::member_declaration_ctor* parseSymbol(Parser& parser, cpp::member_declaration_ctor* result)
+inline cpp::member_declaration_implicit* parseSymbol(Parser& parser, cpp::member_declaration_implicit* result)
 {
 	PARSE_OPTIONAL(parser, result->spec);
 	PARSE_REQUIRED(parser, result->decl);
-	PARSE_TERMINAL(parser, result->semicolon);
 	return result;
 }
 
@@ -460,8 +459,8 @@ inline cpp::member_declaration* parseSymbol(Parser& parser, cpp::member_declarat
 	PARSE_SELECT(parser, cpp::using_declaration);
 	PARSE_SELECT(parser, cpp::template_declaration);
 	PARSE_SELECT(parser, cpp::member_declaration_inline);
-	PARSE_SELECT(parser, cpp::member_declaration_ctor); // shared-prefix ambiguity:  this matches a constructor: Class(Type);
-	PARSE_SELECT(parser, cpp::member_declaration_default); // this matches a member: Type(member);
+	PARSE_SELECT(parser, cpp::member_declaration_implicit); // TODO: ambiguity:  this matches a constructor: "Class(Type);"
+	PARSE_SELECT(parser, cpp::member_declaration_default); // .. this matches a member: "Type(member);"
 	PARSE_SELECT(parser, cpp::member_declaration_nested);
 	return result;
 }
@@ -551,15 +550,14 @@ inline cpp::base_clause* parseSymbol(Parser& parser, cpp::base_clause* result)
 	return result;
 }
 
-inline cpp::class_head_default* parseSymbol(Parser& parser, cpp::class_head_default* result)
+inline cpp::class_head_anonymous* parseSymbol(Parser& parser, cpp::class_head_anonymous* result)
 {
 	PARSE_REQUIRED(parser, result->key);
-	PARSE_OPTIONAL(parser, result->id);
 	PARSE_OPTIONAL(parser, result->base);
 	return result;
 }
 
-inline cpp::class_head_nested* parseSymbol(Parser& parser, cpp::class_head_nested* result)
+inline cpp::class_head_default* parseSymbol(Parser& parser, cpp::class_head_default* result)
 {
 	PARSE_REQUIRED(parser, result->key);
 	PARSE_OPTIONAL(parser, result->context);
@@ -570,8 +568,8 @@ inline cpp::class_head_nested* parseSymbol(Parser& parser, cpp::class_head_neste
 
 inline cpp::class_head* parseSymbol(Parser& parser, cpp::class_head* result)
 {
-	PARSE_SELECT(parser, cpp::class_head_nested);
-	PARSE_SELECT(parser, cpp::class_head_default);
+	PARSE_SELECT(parser, cpp::class_head_default); // TODO: shared prefix ambiguity: both start with 'class-key'
+	PARSE_SELECT(parser, cpp::class_head_anonymous);
 	return result;
 }
 
@@ -973,15 +971,14 @@ inline cpp::postfix_expression_suffix_seq* parseSymbol(Parser& parser, cpp::post
 
 inline cpp::postfix_expression_default* parseSymbol(Parser& parser, cpp::postfix_expression_default* result)
 {
-	PARSE_REQUIRED(parser, result->expr);
-	PARSE_OPTIONAL(parser, result->suffix);
+	PARSE_REQUIRED(parser, result->left);
+	PARSE_OPTIONAL(parser, result->right);
 	return result;
 }
 
 inline cpp::postfix_expression* parseSymbol(Parser& parser, cpp::postfix_expression* result)
 {
-	PARSE_SELECT(parser, cpp::postfix_expression_default);
-	PARSE_SELECT(parser, cpp::postfix_expression_prefix);
+	PARSE_PREFIX(parser, cpp::postfix_expression_default);
 	return result;
 }
 
@@ -1965,7 +1962,6 @@ inline cpp::using_directive* parseSymbol(Parser& parser, cpp::using_directive* r
 
 inline cpp::block_declaration* parseSymbol(Parser& parser, cpp::block_declaration* result)
 {
-	PARSE_SELECT(parser, cpp::simple_declaration);
 	PARSE_SELECT(parser, cpp::asm_definition);
 	PARSE_SELECT(parser, cpp::namespace_alias_definition);
 	PARSE_SELECT(parser, cpp::using_declaration);
@@ -1980,11 +1976,30 @@ inline cpp::general_declaration_suffix* parseSymbol(Parser& parser, cpp::general
 	return result;
 }
 
+inline cpp::general_declaration_named* parseSymbol(Parser& parser, cpp::general_declaration_named* result)
+{
+	PARSE_REQUIRED(parser, result->decl);
+	PARSE_REQUIRED(parser, result->suffix);
+	return result;
+}
+
+inline cpp::general_declaration_class* parseSymbol(Parser& parser, cpp::general_declaration_class* result)
+{
+	PARSE_TERMINAL(parser, result->semicolon);
+	return result;
+}
+
+inline cpp::general_declaration_affix* parseSymbol(Parser& parser, cpp::general_declaration_affix* result)
+{
+	PARSE_SELECT(parser, cpp::general_declaration_class);
+	PARSE_SELECT(parser, cpp::general_declaration_named);
+	return result;
+}
+
 inline cpp::general_declaration* parseSymbol(Parser& parser, cpp::general_declaration* result)
 {
 	PARSE_OPTIONAL(parser, result->spec);
-	PARSE_OPTIONAL(parser, result->decl); // TODO: making this optional permits parsing function-definition with no declarator
-	PARSE_REQUIRED(parser, result->suffix);
+	PARSE_REQUIRED(parser, result->affix);
 	return result;
 }
 
@@ -2020,6 +2035,7 @@ inline cpp::compound_statement* parseSymbol(Parser& parser, cpp::compound_statem
 
 inline cpp::declaration_statement* parseSymbol(Parser& parser, cpp::declaration_statement* result)
 {
+	PARSE_SELECT(parser, cpp::simple_declaration);
 	PARSE_SELECT(parser, cpp::block_declaration);
 	return result;
 }

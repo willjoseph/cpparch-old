@@ -251,13 +251,17 @@ struct Lexer
 		release(first);
 		release(last);
 	}
+	bool canBacktrack(size_t count)
+	{
+		return history.distance(position, history.end()) + count < TokenBuffer::SIZE;
+	}
 	void backtrack(size_t count, const char* symbol = 0)
 	{
 		if(count == 0)
 		{
 			return;
 		}
-		if(history.distance(position, history.end()) + count >= TokenBuffer::SIZE)
+		if(!canBacktrack(count))
 		{
 			maxBacktrack = true;
 		}

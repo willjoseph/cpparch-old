@@ -88,10 +88,12 @@ int runTest(const Test& test)
 		add_macro_definition(context, "__w64=", true);
 		add_macro_definition(context, "__ptr64=", true);
 		add_macro_definition(context, "__ptr32=", true);
+		add_macro_definition(context, "_WCHAR_T_DEFINED=1", true);
+		add_macro_definition(context, "_NATIVE_WCHAR_T_DEFINED=1", true);
 		add_macro_definition(context, "__wchar_t=wchar_t", true);
 		add_macro_definition(context, "__declspec(modifiers)=", true);
 		
-		// optional: _DEBUG, _DLL, /Ze=_MSC_EXTENSIONS, /MT=_MT, /Zc:wchar_t=_NATIVE_WCHAR_T_DEFINED/_WCHAR_T_DEFINED
+		// optional: _DEBUG, _DLL, /Ze=_MSC_EXTENSIONS, /MT=_MT
 		add_macro_definition(context, "_DEBUG", true);
 		add_macro_definition(context, "_WIN32", true);
 		add_macro_definition(context, "__FUNCTION__=\"<function-sig>\"", true);
@@ -228,8 +230,8 @@ int verifyAmbOnesComp(cpp::statement_seq* result, const char* path)
 	cpp::unary_expression_op* expr = VERIFY_CAST(cpp::unary_expression_op, stmt->expr);
 	PARSE_ASSERT(expr->op->id == cpp::unary_operator::COMPL);
 	cpp::postfix_expression_default* post = VERIFY_CAST(cpp::postfix_expression_default, expr->expr);
-	verifyIdentifier(post->expr, "x");
-	cpp::postfix_expression_call* call = VERIFY_CAST(cpp::postfix_expression_call, verifyNotNull(post->suffix)->item);
+	verifyIdentifier(post->left, "x");
+	cpp::postfix_expression_call* call = VERIFY_CAST(cpp::postfix_expression_call, verifyNotNull(post->right)->item);
 	return 0;
 }
 
@@ -259,8 +261,10 @@ int verifyAmbConstructor(cpp::declaration_seq* result, const char* path)
 	cpp::simple_declaration* decln = VERIFY_CAST(cpp::simple_declaration, verifyNotNull(result)->item);
 	cpp::class_specifier* spec = VERIFY_CAST(cpp::class_specifier, verifyNotNull(decln->spec)->type);
 	cpp::member_specification_list* members = VERIFY_CAST(cpp::member_specification_list, verifyNotNull(spec->members));
-	cpp::member_declaration_ctor* member = VERIFY_CAST(cpp::member_declaration_ctor, verifyNotNull(members->item));
+#if 0
+	cpp::member_declaration_implicit* member = VERIFY_CAST(cpp::member_declaration_implicit, verifyNotNull(members->item));
 	verifyIdentifier(VERIFY_CAST(cpp::direct_declarator, member->decl)->prefix, "A");
+#endif
 	return 0;
 }
 
@@ -272,7 +276,7 @@ int verifyIf(cpp::statement_seq* result, const char* path)
 		cpp::condition_init* cond = VERIFY_CAST(cpp::condition_init, stmt->cond);
 		verifyIdentifier(VERIFY_CAST(cpp::simple_type_specifier_name, cond->type->type)->id, "Type");
 		verifyIdentifier(VERIFY_CAST(cpp::direct_declarator, cond->decl)->prefix, "x");
-		verifyIdentifier(VERIFY_CAST(cpp::postfix_expression_default, cond->init)->expr, "y");
+		verifyIdentifier(VERIFY_CAST(cpp::postfix_expression_default, cond->init)->left, "y");
 	}
 	cpp::compound_statement* body = VERIFY_CAST(cpp::compound_statement, stmt->body);
 	return 0;
@@ -287,7 +291,7 @@ int verifyFor(cpp::statement_seq* result, const char* path)
 		verifyIdentifier(VERIFY_CAST(cpp::simple_type_specifier_name, decl->spec->type)->id, "Type");
 		verifyIdentifier(VERIFY_CAST(cpp::direct_declarator, decl->decl)->prefix, "x");
 		cpp::initializer_default* init = VERIFY_CAST(cpp::initializer_default, decl->suffix->init);
-		verifyIdentifier(VERIFY_CAST(cpp::postfix_expression_default, init->clause)->expr, "y");
+		verifyIdentifier(VERIFY_CAST(cpp::postfix_expression_default, init->clause)->left, "y");
 	}
 	cpp::compound_statement* body = VERIFY_CAST(cpp::compound_statement, stmt->body);
 	return 0;

@@ -1,7 +1,17 @@
+namespace std
+{
+	class _Lockit{
+	public:
+		explicit _Lockit();
+	};
+}
 
-typedef int ptrdiff_t;
+struct threadlocaleinfostruct;
+
+#ifndef _WCHAR_T_DEFINED
 typedef unsigned short wchar_t;
-
+#define _WCHAR_T_DEFINED
+#endif
 
 
 #include <xstddef>
