@@ -1,8 +1,76 @@
+void f()
+{
+	_Iosarray * _Ptr , * _Q ; 
+
+	_Fmtfl = (fmtflags)(((int)_Fmtfl & (int)~_Mask)
+		| ((int)_Newfmtflags & (int)_Mask & (int)_Fmtmask));
+}
+
+class A
+{
+	A(*X);
+	A(*X());
+	A(*X[1]);
+
+	A(*X){}
+	A(*X()){}
+	A(*X[1]){}
+
+	int(x);
+	int(y());
+	int(z[1]);
+
+	int(*x);
+	int(*y());
+	int(*z[1]);
+
+	enum _Mref{_FROZEN=255};
+};
+
+void f()
+{
+	for(_Iterator_base * * _Pnext = ( _Iterator_base * * ) & _Myfirstiter ; ;)
+	{
+	}
+	_Iterator_base * * _Pnext = ( _Iterator_base * * ) & _Mycont -> _Myfirstiter ; 
+	sizeof ( _Inherits ( _Make_traits ( ) ) );
+	A* B = C;
+}
+
+class C
+{
+	int  operator*() const
+	{
+	}
+
+};
+
+enum {_MIN_SIZE = sizeof (_E) };
+
+void append(_Tr::length(_S))
+{
+	(size_type)(_P + _N);
+}
+
 namespace std
 {
-	class _Lockit{
+	class basic_string{
 	public:
-		explicit _Lockit();
+		_Myt& append(const _Myt& _X, size_type _P, size_type _M)
+		{
+			if(0)
+			{
+				_Eos(_N);
+			}
+			return (*this);
+		}
+		explicit basic_string();
+		basic_string(_It _F, _It _L, const _A& _Al = _A())
+			: allocator(_Al)
+		{
+			_Tidy();
+			assign(_F, _L);
+		}
 	};
 }
 

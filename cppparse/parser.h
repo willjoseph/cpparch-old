@@ -238,11 +238,21 @@ inline void printDebug(const char* text)
 	std::cout << text << std::endl;
 }
 
+inline bool checkBacktrack(Parser& parser)
+{
+	if(parser.lexer.maxBacktrack)
+	{
+		printError(parser);
+		return true;
+	}
+	return false;
+};
+
 template<typename T>
 cpp::symbol<T> parseSymbolRequired(Parser& parser, cpp::symbol<T> symbol, size_t best = 0)
 {
 	T* p = symbol.p;
-	PARSE_ASSERT(!parser.lexer.maxBacktrack);
+	PARSE_ASSERT(!checkBacktrack(parser));
 	Parser tmp(parser);
 	parser.lexer.push();
 	p = SymbolAllocator<T>(parser.lexer.allocator).allocate(p);
