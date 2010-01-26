@@ -70,15 +70,19 @@ inline bool isAmbiguousDeclaratorSuffix(cpp::declarator_suffix* symbol)
 		}
 		for(cpp::parameter_declaration_list* p = function->params->list; p != 0; p = p->next)
 		{
-			if(!isAmbiguousParameterDeclaration(dynamic_cast<cpp::parameter_declaration_default*>(p->item.p)))
+			cpp::ambiguity<cpp::parameter_declaration>* ambig = dynamic_cast<cpp::ambiguity<cpp::parameter_declaration>*>(p->item.p);
+			if(ambig == 0)
 			{
-				cpp::parameter_declaration_abstract* param = dynamic_cast<cpp::parameter_declaration_abstract*>(p->item.p);
-				if(param == 0
-					|| param->spec == 0
-					|| !isAmbiguousDeclSpecifierSeq(param->spec)
-					|| !isAmbiguousAbstractDeclarator(param->decl))
+				if(!isAmbiguousParameterDeclaration(dynamic_cast<cpp::parameter_declaration_default*>(p->item.p)))
 				{
-					return false;
+					cpp::parameter_declaration_abstract* param = dynamic_cast<cpp::parameter_declaration_abstract*>(p->item.p);
+					if(param == 0
+						|| param->spec == 0
+						|| !isAmbiguousDeclSpecifierSeq(param->spec)
+						|| !isAmbiguousAbstractDeclarator(param->decl))
+					{
+						return false;
+					}
 				}
 			}
 		}
@@ -613,7 +617,6 @@ inline cpp::template_argument* parseSymbol(Parser& parser, cpp::template_argumen
 {
 	PARSE_SELECT(parser, cpp::type_id); // TODO: ambiguity: 'type-id' and 'primary-expression' may both be 'identifier'. Prefer type-id to handle 'T(*)()'.
 	PARSE_SELECT(parser, cpp::assignment_expression);
-	PARSE_SELECT(parser, cpp::id_expression); // TODO: assignment-expression will always match before id-expression
 	return result;
 }
 

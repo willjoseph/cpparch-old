@@ -107,6 +107,11 @@ struct VisitorFuncList : public FuncType, public NextType
 		visitor.visit(this); \
 	}
 
+#define VISITABLE_DERIVED_TMPL(Base) \
+	virtual void acceptAbstract(const typename Base::Visitor& visitor) \
+{ \
+	visitor.visit(this); \
+}
 
 #endif
 
