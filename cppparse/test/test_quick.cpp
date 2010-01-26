@@ -1,4 +1,12 @@
 
+void f()
+{
+	~_Mask();
+	(A)(x)(args);
+	( _Charref ) ( * _Pnode ) . _Color ;
+	_Destroy ( & * _Next ) ;
+}
+
 // explicit-instantiation
 template int X<int>::f();
 
@@ -6,6 +14,10 @@ template int X<int>::f();
 void f()
 {
 	(A)(x);
+	(A)(x)->member;
+	(A)(x)[index];
+	(A)(x)(args);
+	(A)(x)++;
 	(A)(x());
 	(A)(x(y));
 	(A)(x(y()));
@@ -78,8 +90,10 @@ void f()
 void f()
 {
 	A(x);
+	A(*x);
 	A(x());
 	A(x(y));
+	A(x(*y));
 	A(x(y()));
 	A(x[1]);
 	A(x(y[1]));

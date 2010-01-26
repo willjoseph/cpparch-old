@@ -141,7 +141,19 @@ inline bool isAmbiguousDirectDeclarator(cpp::declarator* decl)
 	return true;
 }
 
-// matches parenthesised direct-declarator: '(A)'
+// matches declarator: 'A', '*A', '&*A'
+// ambiguous with expression
+inline bool isAmbiguousDeclarator(cpp::declarator* decl)
+{
+	cpp::declarator_ptr* ptr = dynamic_cast<cpp::declarator_ptr*>(decl);
+	if(ptr != 0)
+	{
+		return isAmbiguousDeclarator(ptr->decl);
+	}
+	return isAmbiguousDirectDeclarator(decl);
+}
+
+// matches parenthesised direct-declarator: '(A)', '(*A)', '(&*A)'
 // ambiguous with parenthesised expression
 inline bool isAmbiguousParenthesisedDeclarator(cpp::declarator* decl)
 {
@@ -152,7 +164,7 @@ inline bool isAmbiguousParenthesisedDeclarator(cpp::declarator* decl)
 	}
 	cpp::direct_declarator_parenthesis* paren = dynamic_cast<cpp::direct_declarator_parenthesis*>(direct->prefix.p);
 	if(paren == 0
-		|| !isAmbiguousDirectDeclarator(paren->decl))
+		|| !isAmbiguousDeclarator(paren->decl))
 	{
 		return false;
 	}
@@ -438,6 +450,23 @@ inline bool isAmbiguousDestructorId(cpp::unary_expression* symbol)
 	return true;
 }
 
+// matches '~A()', '~A<X>()'
+inline bool isAmbiguousDestructorCall(cpp::unary_expression* symbol)
+{
+	cpp::postfix_expression_default* postfix = dynamic_cast<cpp::postfix_expression_default*>(symbol);
+	if(postfix == 0
+		|| postfix->right == 0)
+	{
+		return false;
+	}
+	cpp::postfix_expression_call* call = dynamic_cast<cpp::postfix_expression_call*>(postfix->right->item.p);
+	if(call == 0)
+	{
+		return false;
+	}
+	return isAmbiguousDestructorId(postfix->left);
+}
+
 inline bool isAmbiguous(cpp::member_declaration* symbol)
 {
 	return isAmbiguousConstructor(symbol);
@@ -446,7 +475,8 @@ inline bool isAmbiguous(cpp::member_declaration* symbol)
 inline bool isAmbiguous(cpp::unary_expression* symbol)
 {
 	return isAmbiguousSizeofType(symbol)
-		|| isAmbiguousDestructorId(symbol);
+		|| isAmbiguousDestructorId(symbol)
+		|| isAmbiguousDestructorCall(symbol);
 }
 
 
@@ -476,21 +506,37 @@ inline bool isAmbiguous(cpp::template_parameter* symbol)
 
 // matches expression '(A)', '(A, B)', '(A())', '(A[1])'
 // ambiguous with function-call postfix
+// also matches '(A).member', '(A)[index]', '(A)(args)'
 inline bool isAmbiguousParenthesisedExpression(cpp::cast_expression* symbol)
 {
+	// '(A)'
 	cpp::primary_expression_parenthesis* paren = dynamic_cast<cpp::primary_expression_parenthesis*>(symbol);
 	if(paren == 0)
 	{
-		return false;
+		cpp::ambiguity<cpp::cast_expression>* ambig = dynamic_cast<cpp::ambiguity<cpp::cast_expression>*>(symbol);
+		if(ambig != 0)
+		{
+			return true;
+		}
+		cpp::postfix_expression_default* postfix = dynamic_cast<cpp::postfix_expression_default*>(symbol);
+		if(postfix == 0)
+		{
+			return false;
+		}
+		cpp::primary_expression_parenthesis* paren = dynamic_cast<cpp::primary_expression_parenthesis*>(postfix->left.p);
+		if(paren == 0)
+		{
+			return false;
+		}
 	}
 	return true;
 }
-
+#if 0
 inline bool isAmbiguousCastExpressionRhs(cpp::cast_expression_default* symbol)
 {
 	return true;
 }
-
+#endif
 // matches cast-expression: '(A)(X)', (A)(X())', '(A)(X[1])', '(A())(X)', '(A[1])(X)', '(A)(X, Y)'
 // ambiguity with function-call/cast
 // does not match: '(A)(B)(X)'
