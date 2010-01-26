@@ -1,15 +1,6 @@
 
 #include "parser.h"
 
-template<typename T>
-void printAmbiguity(Parser& parser, T* symbol)
-{
-	printPosition(get_position(dereference(parser.lexer.first)));
-	std::cout << std::endl;
-	std::cout << "ambiguity: " << SYMBOL_NAME(T) << ": ";
-	printSymbol(symbol);
-	std::cout << std::endl;
-}
 
 // matches type-specifier-seq: 'A', 'A::B'
 // ambiguous with id-expression
@@ -53,6 +44,8 @@ inline bool isAmbiguousDeclSpecifierSeq(cpp::decl_specifier_seq* spec)
 
 inline bool isAmbiguousAbstractDeclarator(cpp::abstract_declarator* symbol);
 
+inline bool isAmbiguousParameterDeclaration(cpp::parameter_declaration_default* symbol);
+
 // matches declarator-suffix: (x), [1], (x = 1)
 // ambiguous with postfix-expression-suffix function-call/cast or array-index
 // does not match: (A x), (A(B x))
@@ -77,13 +70,16 @@ inline bool isAmbiguousDeclaratorSuffix(cpp::declarator_suffix* symbol)
 		}
 		for(cpp::parameter_declaration_list* p = function->params->list; p != 0; p = p->next)
 		{
-			cpp::parameter_declaration_abstract* param = dynamic_cast<cpp::parameter_declaration_abstract*>(p->item.p);
-			if(param == 0
-				|| param->spec == 0
-				|| !isAmbiguousDeclSpecifierSeq(param->spec)
-				|| !isAmbiguousAbstractDeclarator(param->decl))
+			if(!isAmbiguousParameterDeclaration(dynamic_cast<cpp::parameter_declaration_default*>(p->item.p)))
 			{
-				return false;
+				cpp::parameter_declaration_abstract* param = dynamic_cast<cpp::parameter_declaration_abstract*>(p->item.p);
+				if(param == 0
+					|| param->spec == 0
+					|| !isAmbiguousDeclSpecifierSeq(param->spec)
+					|| !isAmbiguousAbstractDeclarator(param->decl))
+				{
+					return false;
+				}
 			}
 		}
 	}
@@ -208,8 +204,6 @@ inline bool isAmbiguousInitDeclarator(cpp::init_declarator* init)
 
 // matches redundantly parenthesised variable-declaration: 'A(X)'
 // ambiguous with function-call/cast
-// TODO: A(X())
-// TODO: A(X[1])
 inline bool isAmbiguousVariableDeclaration(cpp::simple_declaration* simple)
 {
 	// 'A'
@@ -236,6 +230,29 @@ template<typename T>
 inline bool isAmbiguousVariableDeclaration(T* statement)
 {
 	return isAmbiguousVariableDeclaration(dynamic_cast<cpp::simple_declaration*>(statement));
+}
+
+// matches redundantly parenthesised variable-declaration: 'A(X)'
+// ambiguous with parameter-declaration 'unnamed function returning A with param X'
+inline bool isAmbiguousParameterDeclaration(cpp::parameter_declaration_default* symbol)
+{
+	// 'A'
+	if(symbol == 0
+		|| !isAmbiguousDeclSpecifierSeq(symbol->spec))
+	{
+		return false;
+	}
+	// '(X)'
+	if(!isAmbiguousParenthesisedDeclarator(symbol->decl))
+	{
+		return false;
+	}
+	return true;
+}
+
+inline bool isAmbiguous(cpp::parameter_declaration* symbol)
+{
+	return isAmbiguousParameterDeclaration(dynamic_cast<cpp::parameter_declaration_default*>(symbol));
 }
 
 // DEPRECATED: omission of decl-specifier-seq is not allowed in simple-declaration in C++
@@ -338,6 +355,17 @@ inline bool isAmbiguousPtrDeclaration(T* statement)
 	return isAmbiguousPtrDeclaration(dynamic_cast<cpp::simple_declaration*>(statement));
 }
 
+inline bool isAmbiguous(cpp::statement* statement)
+{
+	return isAmbiguousPtrDeclaration(statement)
+		|| isAmbiguousVariableDeclaration(statement);
+}
+
+inline bool isAmbiguous(cpp::for_init_statement* statement)
+{
+	return isAmbiguousPtrDeclaration(statement)
+		|| isAmbiguousVariableDeclaration(statement);
+}
 
 // matches type-id: A, A(x), A(B(x)), A[1], A()[1]
 // ambiguous with expression
@@ -350,6 +378,21 @@ inline bool isAmbiguousTypeId(cpp::type_id* type)
 		return false;
 	}
 	return true;
+}
+
+inline bool isAmbiguousTypeId(cpp::template_argument* symbol)
+{
+	cpp::type_id* type = dynamic_cast<cpp::type_id*>(symbol);
+	if(type == 0)
+	{
+		return false;
+	}
+	return isAmbiguousTypeId(type);
+}
+
+inline bool isAmbiguous(cpp::template_argument* symbol)
+{
+	return isAmbiguousTypeId(symbol);
 }
 
 // matches sizeof(type-id): sizeof(A), sizeof(A()), sizeof(A(B()))
@@ -365,7 +408,6 @@ inline bool isAmbiguousSizeofType(cpp::unary_expression* symbol)
 	return true;
 }
 
-
 // matches 'A(X);', 'A(X());', 'A(X[1]);'
 // ambiguous with redundantly parenthesised member-declaration 'A X;', 'A X();', 'A X[1];'
 inline bool isAmbiguousConstructor(cpp::member_declaration* symbol)
@@ -380,6 +422,7 @@ inline bool isAmbiguousConstructor(cpp::member_declaration* symbol)
 	return true;
 }
 
+
 // matches '~A', '~A<X>'
 inline bool isAmbiguousDestructorId(cpp::unary_expression* symbol)
 {
@@ -389,6 +432,89 @@ inline bool isAmbiguousDestructorId(cpp::unary_expression* symbol)
 		return false;
 	}
 	return true;
+}
+
+inline bool isAmbiguous(cpp::member_declaration* symbol)
+{
+	return isAmbiguousConstructor(symbol);
+}
+
+inline bool isAmbiguous(cpp::unary_expression* symbol)
+{
+	return isAmbiguousSizeofType(symbol)
+		|| isAmbiguousDestructorId(symbol);
+}
+
+
+// matches: 'class A', 'class A = B', 'class A = B()', 'class A = B[1]'
+inline bool isAmbiguousTypeParameter(cpp::template_parameter* symbol)
+{
+	cpp::type_parameter_default* type = dynamic_cast<cpp::type_parameter_default*>(symbol);
+	if(type == 0)
+	{
+		return false;
+	}
+	if(type->init != 0)
+	{
+		if(!isAmbiguousTypeId(type->init)) // type-parameter-default looks like assignment-expression
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+
+inline bool isAmbiguous(cpp::template_parameter* symbol)
+{
+	return isAmbiguousTypeParameter(symbol);
+}
+
+// matches expression '(A)', '(A, B)', '(A())', '(A[1])'
+// ambiguous with function-call postfix
+inline bool isAmbiguousParenthesisedExpression(cpp::cast_expression* symbol)
+{
+	cpp::primary_expression_parenthesis* paren = dynamic_cast<cpp::primary_expression_parenthesis*>(symbol);
+	if(paren == 0)
+	{
+		return false;
+	}
+	return true;
+}
+
+inline bool isAmbiguousCastExpressionRhs(cpp::cast_expression_default* symbol)
+{
+	return true;
+}
+
+// matches cast-expression: '(A)(X)', (A)(X())', '(A)(X[1])', '(A())(X)', '(A[1])(X)', '(A)(X, Y)'
+// ambiguity with function-call/cast
+// does not match: '(A)(B)(X)'
+// also matches cast expression with unary-expression RHS: '(A) ++(X)'
+// ambiguity with function-call (A)++ (X)
+inline bool isAmbiguousCastExpression(cpp::cast_expression_default* symbol)
+{
+	if(symbol == 0
+		|| !isAmbiguousTypeId(symbol->id))
+	{
+		return false;
+	}
+	cpp::cast_expression* rhs = symbol->expr;
+	cpp::unary_expression_op* op = dynamic_cast<cpp::unary_expression_op*>(rhs);
+	if(op != 0)
+	{
+		rhs = op->expr;
+	}
+	if(!isAmbiguousParenthesisedExpression(rhs))
+	{
+		return false;
+	}
+	return true;
+}
+
+inline bool isAmbiguous(cpp::cast_expression* symbol)
+{
+	return isAmbiguousCastExpression(dynamic_cast<cpp::cast_expression_default*>(symbol));
 }
 
 
@@ -485,9 +611,9 @@ inline cpp::type_name* parseSymbol(Parser& parser, cpp::type_name* result)
 
 inline cpp::template_argument* parseSymbol(Parser& parser, cpp::template_argument* result)
 {
-	PARSE_SELECT_AMBIGUITY(parser, cpp::type_id); // TODO: ambiguity: 'type-id' and 'primary-expression' may both be 'identifier'. Prefer type-id to handle 'T(*)()'.
-	PARSE_SELECT_AMBIGUITY(parser, cpp::assignment_expression);
-	PARSE_SELECT_AMBIGUITY(parser, cpp::id_expression);
+	PARSE_SELECT(parser, cpp::type_id); // TODO: ambiguity: 'type-id' and 'primary-expression' may both be 'identifier'. Prefer type-id to handle 'T(*)()'.
+	PARSE_SELECT(parser, cpp::assignment_expression);
+	PARSE_SELECT(parser, cpp::id_expression); // TODO: assignment-expression will always match before id-expression
 	return result;
 }
 
@@ -598,8 +724,8 @@ inline cpp::type_parameter* parseSymbol(Parser& parser, cpp::type_parameter* res
 
 inline cpp::template_parameter* parseSymbol(Parser& parser, cpp::template_parameter* result)
 {
-	PARSE_SELECT_AMBIGUITY(parser, cpp::type_parameter); // TODO: ambiguity 'class C' could be elaborated-type-specifier or type-parameter
-	PARSE_SELECT_AMBIGUITY(parser, cpp::parameter_declaration);
+	PARSE_SELECT(parser, cpp::type_parameter); // TODO: ambiguity 'class C' could be elaborated-type-specifier or type-parameter
+	PARSE_SELECT(parser, cpp::parameter_declaration);
 	return result;
 }
 
@@ -843,12 +969,6 @@ inline cpp::member_declaration* parseSymbol(Parser& parser, cpp::member_declarat
 	PARSE_SELECT(parser, cpp::using_declaration);
 	PARSE_SELECT(parser, cpp::template_declaration);
 	PARSE_SELECT(parser, cpp::member_declaration_implicit); // TODO: ambiguity:  this matches a constructor: "Class(Type);"
-	if(result != 0
-		&& isAmbiguousConstructor(result))
-	{
-		printAmbiguity(parser, result);
-		return result;
-	}
 	PARSE_SELECT(parser, cpp::member_declaration_default); // .. this matches a member: "Type(member);"
 	PARSE_SELECT(parser, cpp::member_declaration_nested);
 	return result;
@@ -1489,19 +1609,7 @@ inline cpp::delete_expression* parseSymbol(Parser& parser, cpp::delete_expressio
 inline cpp::unary_expression* parseSymbol(Parser& parser, cpp::unary_expression* result)
 {
 	PARSE_SELECT(parser, cpp::postfix_expression);
-	if(result != 0
-		&& isAmbiguousDestructorId(result))
-	{
-		printAmbiguity(parser, result);
-		return result;
-	}
 	PARSE_SELECT(parser, cpp::unary_expression_sizeoftype);
-	if(result != 0
-		&& isAmbiguousSizeofType(result))
-	{
-		printAmbiguity(parser, result);
-		return result; // TODO: ambiguity: sizeof(X) could be sizeof parenthesised primary-expression or sizeof(type-id)
-	}
 	PARSE_SELECT(parser, cpp::unary_expression_sizeof);
 	PARSE_SELECT(parser, cpp::unary_expression_op);
 	PARSE_SELECT(parser, cpp::new_expression);
@@ -1527,8 +1635,8 @@ inline cpp::cast_expression_default* parseSymbol(Parser& parser, cpp::cast_expre
 
 inline cpp::cast_expression* parseSymbol(Parser& parser, cpp::cast_expression* result)
 {
-	PARSE_SELECT_AMBIGUITY(parser, cpp::cast_expression_default); // ambiguity: '(A)(X)' could be cast-expression '(A)X' or function-call 'A(X)'
-	PARSE_SELECT_AMBIGUITY(parser, cpp::unary_expression);
+	PARSE_SELECT(parser, cpp::cast_expression_default); // ambiguity: '(A)(X)' could be cast-expression '(A)X' or function-call 'A(X)'
+	PARSE_SELECT(parser, cpp::unary_expression);
 	return result;
 }
 
@@ -1873,8 +1981,8 @@ inline cpp::parameter_declaration_abstract* parseSymbol(Parser& parser, cpp::par
 
 inline cpp::parameter_declaration* parseSymbol(Parser& parser, cpp::parameter_declaration* result)
 {
-	PARSE_SELECT_AMBIGUITY(parser, cpp::parameter_declaration_default); // TODO: ambiguity: 'C::A(X)' could be 'C::A X' or 'C::A(*)(X)'
-	PARSE_SELECT_AMBIGUITY(parser, cpp::parameter_declaration_abstract);
+	PARSE_SELECT(parser, cpp::parameter_declaration_default); // TODO: ambiguity: 'C::A(X)' could be 'C::A X' or 'C::A(*)(X)'
+	PARSE_SELECT(parser, cpp::parameter_declaration_abstract);
 	return result;
 }
 
@@ -1994,21 +2102,21 @@ inline cpp::delete_operator* parseSymbol(Parser& parser, cpp::delete_operator* r
 
 inline cpp::overloadable_operator* parseSymbol(Parser& parser, cpp::overloadable_operator* result)
 {
-	PARSE_SELECT_AMBIGUITY(parser, cpp::assignment_operator);
-	PARSE_SELECT_AMBIGUITY(parser, cpp::member_operator);
-	PARSE_SELECT_AMBIGUITY(parser, cpp::postfix_operator);
-	PARSE_SELECT_AMBIGUITY(parser, cpp::unary_operator);
-	PARSE_SELECT_AMBIGUITY(parser, cpp::pm_operator);
-	PARSE_SELECT_AMBIGUITY(parser, cpp::multiplicative_operator);
-	PARSE_SELECT_AMBIGUITY(parser, cpp::additive_operator);
-	PARSE_SELECT_AMBIGUITY(parser, cpp::shift_operator);
-	PARSE_SELECT_AMBIGUITY(parser, cpp::relational_operator);
-	PARSE_SELECT_AMBIGUITY(parser, cpp::equality_operator);
-	PARSE_SELECT_AMBIGUITY(parser, cpp::new_operator);
-	PARSE_SELECT_AMBIGUITY(parser, cpp::delete_operator);
-	PARSE_SELECT_AMBIGUITY(parser, cpp::comma_operator);
-	PARSE_SELECT_AMBIGUITY(parser, cpp::function_operator);
-	PARSE_SELECT_AMBIGUITY(parser, cpp::array_operator);
+	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::assignment_operator);
+	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::member_operator);
+	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::postfix_operator);
+	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::unary_operator);
+	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::pm_operator);
+	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::multiplicative_operator);
+	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::additive_operator);
+	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::shift_operator);
+	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::relational_operator);
+	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::equality_operator);
+	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::new_operator);
+	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::delete_operator);
+	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::comma_operator);
+	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::function_operator);
+	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::array_operator);
 	return result;
 };
 
@@ -2565,13 +2673,6 @@ inline cpp::selection_statement* parseSymbol(Parser& parser, cpp::selection_stat
 inline cpp::for_init_statement* parseSymbol(Parser& parser, cpp::for_init_statement* result)
 {
 	PARSE_SELECT(parser, cpp::simple_declaration);
-	if(result != 0
-		&& (isAmbiguousVariableDeclaration(result)
-		|| isAmbiguousPtrDeclaration(result)))
-	{
-		printAmbiguity(parser, result);
-		return result;
-	}
 	PARSE_SELECT(parser, cpp::expression_statement);
 	return result;
 }
@@ -2740,13 +2841,6 @@ inline cpp::statement* parseSymbol(Parser& parser, cpp::statement* result)
 	PARSE_SELECT(parser, cpp::msext_asm_statement);
 	PARSE_SELECT(parser, cpp::compound_statement);
 	PARSE_SELECT(parser, cpp::declaration_statement);
-	if(result != 0
-		&& (isAmbiguousVariableDeclaration(result)
-			|| isAmbiguousPtrDeclaration(result)))
-	{
-		printAmbiguity(parser, result);
-		return result; // TEMP HACK: prefer declaration over other forms for disambiguation purposes: A(X); could be declaration, function-call or constructor-call
-	}
 	PARSE_SELECT(parser, cpp::labeled_statement);
 	PARSE_SELECT(parser, cpp::expression_statement);
 	PARSE_SELECT(parser, cpp::selection_statement);

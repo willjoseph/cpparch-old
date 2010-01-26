@@ -1,3 +1,147 @@
+
+// explicit-instantiation
+template int X<int>::f();
+
+// cast-expression or function-call
+void f()
+{
+	(A)(x);
+	(A)(x());
+	(A)(x(y));
+	(A)(x(y()));
+	(A)(x[1]);
+	(A)(x(y[1]));
+	(A)(x[1][1]);
+	(A)(x(y[1][1]));
+	(A)(x, y);
+	(A)(x(), y());
+	(A)(x(z), y(w));
+	(A)(x(z()), y(w()));
+	(A)(x[1], x[1]);
+	(A)(x(y[1]), x(y[1]));
+	(A)(x[1][1], x[1][1]);
+	(A)(x(y[1][1]), x(y[1][1]));
+	(A)(x(y, z));
+	(A)(x(y(), z()));
+	(A)(x(y[1], z[1]));
+	(A)(x(y[1][1], z[1][1]));
+}
+
+// cast-expression with unary-expression RHS, or binary-expression
+void f()
+{
+	(a)-b;
+	(a)+b;
+	(a)*b;
+	(a)&b;
+}
+
+// cast '++b' to 'a' OR call 'a++' with parameter 'b
+void f()
+{
+	(a)++(b);
+	(a())++(b());
+	(a(c))++(b(c));
+	(a(c()))++(b(c()));
+	(a[1])++(b[1]);
+	(a[1][1])++(b[1][1]);
+	(a(c[1]))++(b(c[1]));
+}
+
+// either declares functions or init-declares variables
+void f()
+{
+	A a(x);
+	A a(x());
+	A a(x(y));
+	A a(x(y()));
+	A a(x[1]);
+	A a(x(y[1]));
+	A a(x[1][1]);
+	A a(x(y[1][1]));
+	A a(x, y);
+	A a(x(), y());
+	A a(x(z), y(w));
+	A a(x(z()), y(w()));
+	A a(x[1], x[1]);
+	A a(x(y[1]), x(y[1]));
+	A a(x[1][1], x[1][1]);
+	A a(x(y[1][1]), x(y[1][1]));
+	A a(x(y, z));
+	A a(x(y(), z()));
+	A a(x(y[1], z[1]));
+	A a(x(y[1][1], z[1][1]));
+}
+
+
+// function-style-cast or function-call or parenthesised variable
+void f()
+{
+	A(x);
+	A(x());
+	A(x(y));
+	A(x(y()));
+	A(x[1]);
+	A(x(y[1]));
+	A(x[1][1]);
+	A(x(y[1][1]));
+	A(x, y);
+	A(x(), y());
+	A(x(z), y(w));
+	A(x(z()), y(w()));
+	A(x[1], x[1]);
+	A(x(y[1]), x(y[1]));
+	A(x[1][1], x[1][1]);
+	A(x(y[1][1]), x(y[1][1]));
+	A(x(y, z));
+	A(x(y(), z()));
+	A(x(y[1], z[1]));
+	A(x(y[1][1], z[1][1]));
+}
+
+// constructor-declaration or parenthesised variable-declaration
+class A
+{
+	A(x);
+	A(x());
+	A(x(y));
+	A(x(y()));
+	A(x[1]);
+	A(x(y[1]));
+	A(x[1][1]);
+	A(x(y[1][1]));
+	A(x, y);
+	A(x(), y());
+	A(x(z), y(w));
+	A(x(z()), y(w()));
+	A(x[1], x[1]);
+	A(x(y[1]), x(y[1]));
+	A(x[1][1], x[1][1]);
+	A(x(y[1][1]), x(y[1][1]));
+	A(x(y, z));
+	A(x(y(), z()));
+	A(x(y[1], z[1]));
+	A(x(y[1][1], z[1][1]));
+};
+
+void append(_Tr::length(_S))
+{
+	(size_type)(_P + _N);
+}
+
+template<class A = B()>
+class C
+{
+};
+
+
+// template-template-parameter
+template<template<typename X> class A>
+class C
+{
+	A a;
+};
+
 void f()
 {
 	_Iosarray * _Ptr , * _Q ; 
@@ -46,11 +190,6 @@ class C
 };
 
 enum {_MIN_SIZE = sizeof (_E) };
-
-void append(_Tr::length(_S))
-{
-	(size_type)(_P + _N);
-}
 
 namespace std
 {

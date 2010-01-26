@@ -233,11 +233,6 @@ T* createSymbol(Parser& parser, T*)
 
 #define SYMBOL_NAME(T) (typeid(T).name() + 12)
 
-inline void printDebug(const char* text)
-{
-	std::cout << text << std::endl;
-}
-
 inline bool checkBacktrack(Parser& parser)
 {
 	if(parser.lexer.maxBacktrack)
@@ -258,21 +253,8 @@ cpp::symbol<T> parseSymbolRequired(Parser& parser, cpp::symbol<T> symbol, size_t
 	p = SymbolAllocator<T>(parser.lexer.allocator).allocate(p);
 	p = parseSymbol(tmp, p);
 	parser.lexer.pop();
-#if 1
 	if(p != 0
-		&& best != 0
-		&& tmp.position == best)
-	{
-		printPosition(get_position(dereference(parser.lexer.first)));
-		std::cout << std::endl;
-		printDebug("ambiguity: ");
-		std::cout << SYMBOL_NAME(T) << ": ";
-		printSymbol(p);
-		std::cout << std::endl;
-	}
-#endif
-	if(p != 0
-		&& tmp.position > best)
+		&& tmp.position >= best)
 	{
 		parser.position += tmp.position - best;
 		return cpp::symbol<T>(p);
@@ -289,7 +271,19 @@ cpp::symbol_optional<T> parseSymbolOptional(Parser& parser, cpp::symbol_optional
 }
 
 template<typename T>
-cpp::symbol<T> parseSymbolChoice(Parser& parser, cpp::symbol<T> symbol)
+bool isAmbiguous(T* symbol)
+{
+	return false;
+}
+
+inline void breakpoint()
+{
+}
+
+#define SYMBOLP_NAME(p) (typeid(*p).name() + 12)
+
+template<typename T, typename OtherT>
+cpp::symbol<T> parseSymbolChoice(Parser& parser, cpp::symbol<T> symbol, OtherT* other)
 {
 	if(parser.position != 0)
 	{
@@ -299,7 +293,28 @@ cpp::symbol<T> parseSymbolChoice(Parser& parser, cpp::symbol<T> symbol)
 		}
 		parser.lexer.backtrack(parser.position);
 	}
+	size_t position = parser.position;
 	T* p = parseSymbolRequired(parser, NullPtr<T>::VALUE, parser.position);
+	if(p != 0
+		&& position != 0
+		&& position == parser.position) // successfully parsed an alternative interpretation
+	{
+		if(!isAmbiguous(other))
+		{
+			printPosition(get_position(dereference(parser.lexer.first)));
+			std::cout << std::endl;
+			std::cout << "  " << SYMBOL_NAME(OtherT) << ": ";
+			printSymbol(p);
+			std::cout << std::endl;
+			std::cout << (!isAmbiguous(p) ? "  UNKNOWN: " : "  known: ");
+			std::cout << SYMBOLP_NAME(p) << std::endl;
+			std::cout << (!isAmbiguous(other) ? "  UNKNOWN: " : "  known: ");
+			std::cout << SYMBOLP_NAME(other) << std::endl;
+			breakpoint();
+		}
+		// temporary solution: ignore subsequent interpretations
+		return cpp::symbol<T>(0);
+	}
 	if(p == 0)
 	{
 		if(parser.position != 0)
@@ -365,8 +380,12 @@ inline ParseResult parseTerminal(Parser& parser, cpp::terminal_suffix<id>& resul
 #define PARSE_SELECT_TOKEN(parser, p, token, value_) if(TOKEN_EQUAL(parser, token)) { p = createSymbol(parser, p); p->id = value_; p->value.id = token; p->value.value = parser.get_value(); parser.increment(); return p; }
 #define PARSE_OPTIONAL(parser, p) (p) = parseSymbolOptional(parser, p)
 #define PARSE_REQUIRED(parser, p) if(((p) = parseSymbolRequired(parser, p)) == 0) { return NULL; }
-#define PARSE_SELECT(parser, Type) if(cpp::symbol<Type> p = parseSymbolChoice(parser, NullPtr<Type>::VALUE)) { result = p; }
-#define PARSE_SELECT_AMBIGUITY(parser, Type) if(cpp::symbol<Type> p = parseSymbolRequired(parser, NullPtr<Type>::VALUE)) { return p; }
+#if 1
+#define PARSE_SELECT(parser, Type) if(cpp::symbol<Type> p = parseSymbolChoice(parser, NullPtr<Type>::VALUE, result)) { result = p; }
+#define PARSE_SELECT_UNAMBIGUOUS(parser, Type) if(cpp::symbol<Type> p = parseSymbolRequired(parser, NullPtr<Type>::VALUE)) { return p; }
+#else
+#define PARSE_SELECT(parser, Type) if(cpp::symbol<Type> p = parseSymbolRequired(parser, NullPtr<Type>::VALUE)) { return p; }
+#endif
 // Type must have members 'left' and 'right', and 'typeof(left)' must by substitutable for 'Type'
 #define PARSE_PREFIX(parser, Type) if(cpp::symbol<Type> p = parseSymbolRequired(parser, NullPtr<Type>::VALUE)) { if(p->right == NULL) return p->left; return p; }
 
