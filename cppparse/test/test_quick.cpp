@@ -1,11 +1,14 @@
 
 void f()
 {
-	_Current + _Off < _Size && _Current + _Off > 0;
-	_N < _M;
-	A < B > C;
-	A < B > 0;
-
+	_Len - _P0 < _M;
+	A < B > C; // simple-declaration, or relational-expression
+	A < B >(x); // named-template-specialization with function-call postfix, or simple-declaration, or relational-expression
+	A < B && C > 0; // relational-expression
+	A < B > 0; // relational-expression
+	_N < _M; // relational-expression
+	A<B> *C; // simple-declaration, or relational-expression
+	A<B> **C; // simple-declaration, or relational-expression
 	~_Mask();
 	(A)(x)(args);
 	( _Charref ) ( * _Pnode ) . _Color ;

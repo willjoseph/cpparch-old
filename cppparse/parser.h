@@ -105,8 +105,9 @@ struct ParserState
 {
 	bool inTemplateArgumentList;
 	bool ignoreTemplateId;
+	bool ignoreRelationalLess;
 	ParserState()
-		: inTemplateArgumentList(false), ignoreTemplateId(false)
+		: inTemplateArgumentList(false), ignoreTemplateId(false), ignoreRelationalLess(false)
 	{
 	}
 };
@@ -290,7 +291,7 @@ struct True
 };
 
 template<typename T>
-T* makeAmbiguity(LinearAllocator& allocator, T* first, T* second, const True&)
+T* resolveAmbiguity(LinearAllocator& allocator, T* first, T* second, const True&)
 {
 	typedef cpp::ambiguity<T> Result;
 	Result* result =  new(allocator.allocate(sizeof(Result))) Result;
@@ -300,9 +301,9 @@ T* makeAmbiguity(LinearAllocator& allocator, T* first, T* second, const True&)
 }
 
 template<typename T>
-T* makeAmbiguity(LinearAllocator& allocator, T* first, T* second, const False&)
+T* resolveAmbiguity(LinearAllocator& allocator, T* first, T* second, const False&)
 {
-	throw ParseError();
+	return first;
 }
 
 template<typename T>
@@ -359,14 +360,21 @@ struct IsAmbiguous<cpp::cast_expression>
 	typedef True Result;
 };
 
-template<>
-struct IsAmbiguous<cpp::relational_expression>
-{
-	typedef True Result;
-};
-
 
 #define SYMBOLP_NAME(p) (typeid(*p).name() + 12)
+
+template<typename T>
+T* pruneSymbol(T* symbol)
+{
+	return symbol;
+}
+
+template<typename T>
+inline T* pruneBinaryExpression(T* symbol)
+{
+	return symbol->right == 0 ? symbol->left : symbol;
+}
+
 
 template<typename T, typename OtherT>
 cpp::symbol<OtherT> parseSymbolChoice(Parser& parser, cpp::symbol<T> symbol, OtherT* other)
@@ -402,7 +410,7 @@ cpp::symbol<OtherT> parseSymbolChoice(Parser& parser, cpp::symbol<T> symbol, Oth
 #if 0
 		return cpp::symbol<OtherT>(other); // for now, ignore alternative interpretations
 #else
-		return cpp::symbol<OtherT>(makeAmbiguity(parser.lexer.allocator, other, static_cast<OtherT*>(p), IsAmbiguous<OtherT>::Result()));
+		return cpp::symbol<OtherT>(resolveAmbiguity(parser.lexer.allocator, other, static_cast<OtherT*>(pruneSymbol(p)), IsAmbiguous<OtherT>::Result()));
 #endif
 	}
 	if(p == 0)
@@ -413,7 +421,7 @@ cpp::symbol<OtherT> parseSymbolChoice(Parser& parser, cpp::symbol<T> symbol, Oth
 		}
 		return cpp::symbol<OtherT>(other);
 	}
-	return cpp::symbol<OtherT>(p);
+	return cpp::symbol<OtherT>(pruneSymbol(p));
 }
 
 template<LexTokenId id>
@@ -479,6 +487,43 @@ inline ParseResult parseTerminal(Parser& parser, cpp::terminal_suffix<id>& resul
 #endif
 // Type must have members 'left' and 'right', and 'typeof(left)' must by substitutable for 'Type'
 #define PARSE_PREFIX(parser, Type) if(cpp::symbol<Type> p = parseSymbolRequired(parser, NullPtr<Type>::VALUE)) { if(p->right == NULL) return p->left; return p; }
+
+inline bool peekTemplateIdAmbiguity(Parser& parser)
+{
+	bool result = false;
+	Parser tmp(parser);
+	if(TOKEN_EQUAL(tmp, boost::wave::T_IDENTIFIER))
+	{
+		tmp.increment();
+		if(TOKEN_EQUAL(tmp, boost::wave::T_LESS))
+		{
+			result = true;
+		}
+	}
+	tmp.backtrack("peekTemplateIdAmbiguity");
+	return result;
+}
+
+#if 0
+#define PARSE_EXPRESSION PARSE_PREFIX
+#elif 1
+// if the next tokens look like a template-id
+	// try parsing for a relational-expression first
+	// then try parsing for a template-id
+#define PARSE_EXPRESSION(parser, Type) \
+	if(!parser.ignoreTemplateId \
+		&& !parser.ignoreRelationalLess) \
+	{ \
+		if(peekTemplateIdAmbiguity(parser)) \
+		{ \
+			parser.ignoreTemplateId = true; \
+			PARSE_SELECT(parser, Type); \
+			parser.ignoreTemplateId = false; \
+			parser.ignoreRelationalLess = true; \
+		} \
+	} \
+	PARSE_SELECT(parser, Type);
+#endif
 
 cpp::declaration_seq* parseFile(Lexer& lexer);
 cpp::statement_seq* parseFunction(Lexer& lexer);
