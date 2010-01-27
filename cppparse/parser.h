@@ -104,10 +104,11 @@ void printSymbol(T* symbol)
 struct ParserState
 {
 	bool inTemplateArgumentList;
+	bool inTemplateIdAmbiguity;
 	bool ignoreTemplateId;
 	bool ignoreRelationalLess;
 	ParserState()
-		: inTemplateArgumentList(false), ignoreTemplateId(false), ignoreRelationalLess(false)
+		: inTemplateArgumentList(false), inTemplateIdAmbiguity(false), ignoreTemplateId(false), ignoreRelationalLess(false)
 	{
 	}
 };
@@ -125,6 +126,10 @@ struct Parser : public ParserState
 	Parser(const Parser& other)
 		: ParserState(other), lexer(other.lexer), position(0), allocation(lexer.allocator.position)
 	{
+		if(other.position != 0)
+		{
+			inTemplateIdAmbiguity = false;
+		}
 	}
 
 	LexTokenId get_id()
@@ -303,6 +308,7 @@ T* resolveAmbiguity(LinearAllocator& allocator, T* first, T* second, const True&
 template<typename T>
 T* resolveAmbiguity(LinearAllocator& allocator, T* first, T* second, const False&)
 {
+	breakpoint();
 	return first;
 }
 
@@ -360,6 +366,11 @@ struct IsAmbiguous<cpp::cast_expression>
 	typedef True Result;
 };
 
+template<>
+struct IsAmbiguous<cpp::assignment_expression>
+{
+	typedef True Result;
+};
 
 #define SYMBOLP_NAME(p) (typeid(*p).name() + 12)
 
@@ -515,21 +526,34 @@ inline bool peekTemplateIdAmbiguity(Parser& parser)
 
 #if 0
 #define PARSE_EXPRESSION PARSE_PREFIX
+#elif 0
+// if the next tokens look like a template-id
+	// first try parsing for a template-id
+	// then try parsing for a relational-expression
+#define PARSE_EXPRESSION(parser, Type) \
+	if(peekTemplateIdAmbiguity(parser)) \
+	{ \
+		parser.ignoreTemplateId = false; \
+		parser.ignoreRelationalLess = true; \
+		PARSE_SELECT(parser, Type); \
+		parser.ignoreRelationalLess = false; \
+		parser.ignoreTemplateId = true; \
+	} \
+	PARSE_SELECT(parser, Type);
 #elif 1
 // if the next tokens look like a template-id
 	// first try parsing for a template-id
 	// then try parsing for a relational-expression
 #define PARSE_EXPRESSION(parser, Type) \
-	if(!parser.ignoreTemplateId \
-		&& !parser.ignoreRelationalLess) \
+	if(!parser.inTemplateIdAmbiguity \
+		&& peekTemplateIdAmbiguity(parser)) \
 	{ \
-		if(peekTemplateIdAmbiguity(parser)) \
-		{ \
-			parser.ignoreRelationalLess = true; \
-			PARSE_SELECT(parser, Type); \
-			parser.ignoreRelationalLess = false; \
-			parser.ignoreTemplateId = true; \
-		} \
+		parser.inTemplateIdAmbiguity = true; \
+		parser.ignoreTemplateId = false; \
+		parser.ignoreRelationalLess = true; \
+		PARSE_SELECT(parser, Type); \
+		parser.ignoreRelationalLess = false; \
+		parser.ignoreTemplateId = true; \
 	} \
 	PARSE_SELECT(parser, Type);
 #endif

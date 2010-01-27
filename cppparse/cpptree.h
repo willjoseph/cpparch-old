@@ -220,10 +220,11 @@ namespace cpp
 		VISITABLE_DERIVED(expression);
 		VISITABLE_DERIVED(template_argument);
 		VISITABLE_DERIVED(initializer_clause);
-		VISITABLE_BASE(VISITORFUNCLIST3(
+		VISITABLE_BASE(VISITORFUNCLIST4(
 			SYMBOLFWD(throw_expression),
 			SYMBOLFWD(logical_or_expression_precedent),
-			SYMBOLFWD(conditional_expression)
+			SYMBOLFWD(conditional_expression),
+			ambiguity<assignment_expression>*
 		));
 	};
 

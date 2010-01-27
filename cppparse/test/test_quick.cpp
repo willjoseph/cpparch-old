@@ -1,12 +1,13 @@
 
 void f()
 {
-	_Len - _P0 < _M;
+	A < B >(x) == A < B >(x); // 
 	A < B > C; // simple-declaration, or relational-expression
 	A < B >(x); // named-template-specialization with function-call postfix, or simple-declaration, or relational-expression
 	A < B && C > 0; // relational-expression
 	A < B > 0; // relational-expression
 	_N < _M; // relational-expression
+	_Len - _P0 < _M; // relational-expression
 	A<B> *C; // simple-declaration, or relational-expression
 	A<B> **C; // simple-declaration, or relational-expression
 	~_Mask();
