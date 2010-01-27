@@ -301,9 +301,10 @@ namespace cpp
 	struct relational_expression : public choice<relational_expression>, public equality_expression
 	{
 		VISITABLE_DERIVED(equality_expression);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(VISITORFUNCLIST3(
 			SYMBOLFWD(relational_expression_default),
-			SYMBOLFWD(shift_expression)
+			SYMBOLFWD(shift_expression),
+			ambiguity<relational_expression>*
 		));
 	};
 

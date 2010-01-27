@@ -104,8 +104,9 @@ void printSymbol(T* symbol)
 struct ParserState
 {
 	bool inTemplateArgumentList;
+	bool ignoreTemplateId;
 	ParserState()
-		: inTemplateArgumentList(false)
+		: inTemplateArgumentList(false), ignoreTemplateId(false)
 	{
 	}
 };
@@ -301,7 +302,7 @@ T* makeAmbiguity(LinearAllocator& allocator, T* first, T* second, const True&)
 template<typename T>
 T* makeAmbiguity(LinearAllocator& allocator, T* first, T* second, const False&)
 {
-	return 0;
+	throw ParseError();
 }
 
 template<typename T>
@@ -354,6 +355,12 @@ struct IsAmbiguous<cpp::template_parameter>
 
 template<>
 struct IsAmbiguous<cpp::cast_expression>
+{
+	typedef True Result;
+};
+
+template<>
+struct IsAmbiguous<cpp::relational_expression>
 {
 	typedef True Result;
 };

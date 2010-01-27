@@ -1,6 +1,11 @@
 
 void f()
 {
+	_Current + _Off < _Size && _Current + _Off > 0;
+	_N < _M;
+	A < B > C;
+	A < B > 0;
+
 	~_Mask();
 	(A)(x)(args);
 	( _Charref ) ( * _Pnode ) . _Color ;

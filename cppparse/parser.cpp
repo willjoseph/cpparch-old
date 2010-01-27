@@ -677,6 +677,10 @@ inline cpp::template_argument_list* parseSymbol(Parser& parser, cpp::template_ar
 
 inline cpp::simple_template_id* parseSymbol(Parser& parser, cpp::simple_template_id* result)
 {
+	if(parser.ignoreTemplateId)
+	{
+		return 0;
+	}
 	PARSE_REQUIRED(parser, result->id);
 	PARSE_TERMINAL(parser, result->lb);
 	PARSE_REQUIRED(parser, result->args);
@@ -1810,9 +1814,41 @@ inline cpp::relational_expression_default* parseSymbol(Parser& parser, cpp::rela
 	return result;
 }
 
+inline bool peekTemplateIdAmbiguity(Parser& parser)
+{
+	bool result = false;
+	Parser tmp(parser);
+	if(TOKEN_EQUAL(tmp, boost::wave::T_IDENTIFIER))
+	{
+		tmp.increment();
+		if(TOKEN_EQUAL(tmp, boost::wave::T_LESS))
+		{
+			result = true;
+		}
+	}
+	tmp.backtrack("peekTemplateIdAmbiguity");
+	return result;
+}
+
 inline cpp::relational_expression* parseSymbol(Parser& parser, cpp::relational_expression* result)
 {
-	PARSE_PREFIX(parser, cpp::relational_expression_default);
+	parser.ignoreTemplateId = peekTemplateIdAmbiguity(parser);
+	PARSE_SELECT(parser, cpp::relational_expression_default);
+	if(parser.ignoreTemplateId)
+	{
+		parser.ignoreTemplateId = false;
+		PARSE_SELECT(parser, cpp::relational_expression_default);
+	}
+	// temporary hack!!
+	if(result != 0)
+	{
+		cpp::relational_expression_default* p = dynamic_cast<cpp::relational_expression_default*>(result);
+		if(p != 0
+			&& p->right == 0)
+		{
+			return p->left;
+		}
+	}
 	return result;
 }
 
