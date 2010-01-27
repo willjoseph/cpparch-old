@@ -393,16 +393,17 @@ cpp::symbol<OtherT> parseSymbolChoice(Parser& parser, cpp::symbol<T> symbol, Oth
 		&& position != 0
 		&& position == parser.position) // successfully parsed an alternative interpretation
 	{
+		OtherT* alt = pruneSymbol(p);
 		if(!isAmbiguous(other)) // debug: check that this is a known ambiguity
 		{
 			// if not, print diagnostic
 			printPosition(get_position(dereference(parser.lexer.first)));
 			std::cout << std::endl;
 			std::cout << "  " << SYMBOL_NAME(OtherT) << ": ";
-			printSymbol(p);
+			printSymbol(alt);
 			std::cout << std::endl;
-			std::cout << (!isAmbiguous(p) ? "  UNKNOWN: " : "  known: ");
-			std::cout << SYMBOLP_NAME(p) << std::endl;
+			std::cout << (!isAmbiguous(alt) ? "  UNKNOWN: " : "  known: ");
+			std::cout << SYMBOLP_NAME(alt) << std::endl;
 			std::cout << (!isAmbiguous(other) ? "  UNKNOWN: " : "  known: ");
 			std::cout << SYMBOLP_NAME(other) << std::endl;
 			breakpoint();
@@ -410,7 +411,7 @@ cpp::symbol<OtherT> parseSymbolChoice(Parser& parser, cpp::symbol<T> symbol, Oth
 #if 0
 		return cpp::symbol<OtherT>(other); // for now, ignore alternative interpretations
 #else
-		return cpp::symbol<OtherT>(resolveAmbiguity(parser.lexer.allocator, other, static_cast<OtherT*>(pruneSymbol(p)), IsAmbiguous<OtherT>::Result()));
+		return cpp::symbol<OtherT>(resolveAmbiguity(parser.lexer.allocator, other, alt, IsAmbiguous<OtherT>::Result()));
 #endif
 	}
 	if(p == 0)
@@ -488,10 +489,17 @@ inline ParseResult parseTerminal(Parser& parser, cpp::terminal_suffix<id>& resul
 // Type must have members 'left' and 'right', and 'typeof(left)' must by substitutable for 'Type'
 #define PARSE_PREFIX(parser, Type) if(cpp::symbol<Type> p = parseSymbolRequired(parser, NullPtr<Type>::VALUE)) { if(p->right == NULL) return p->left; return p; }
 
+inline cpp::simple_template_id* parseSymbol(Parser& parser, cpp::simple_template_id*);
+
 inline bool peekTemplateIdAmbiguity(Parser& parser)
 {
 	bool result = false;
 	Parser tmp(parser);
+#if 1 // TEMP HACK: check for full template-id: this avoids false-positives when parsing 'X - Y < Z;'
+	cpp::symbol_optional<cpp::simple_template_id> symbol;
+	PARSE_OPTIONAL(tmp, symbol);
+	result = symbol != 0;
+#else
 	if(TOKEN_EQUAL(tmp, boost::wave::T_IDENTIFIER))
 	{
 		tmp.increment();
@@ -500,6 +508,7 @@ inline bool peekTemplateIdAmbiguity(Parser& parser)
 			result = true;
 		}
 	}
+#endif
 	tmp.backtrack("peekTemplateIdAmbiguity");
 	return result;
 }
@@ -508,18 +517,18 @@ inline bool peekTemplateIdAmbiguity(Parser& parser)
 #define PARSE_EXPRESSION PARSE_PREFIX
 #elif 1
 // if the next tokens look like a template-id
-	// try parsing for a relational-expression first
-	// then try parsing for a template-id
+	// first try parsing for a template-id
+	// then try parsing for a relational-expression
 #define PARSE_EXPRESSION(parser, Type) \
 	if(!parser.ignoreTemplateId \
 		&& !parser.ignoreRelationalLess) \
 	{ \
 		if(peekTemplateIdAmbiguity(parser)) \
 		{ \
-			parser.ignoreTemplateId = true; \
-			PARSE_SELECT(parser, Type); \
-			parser.ignoreTemplateId = false; \
 			parser.ignoreRelationalLess = true; \
+			PARSE_SELECT(parser, Type); \
+			parser.ignoreRelationalLess = false; \
+			parser.ignoreTemplateId = true; \
 		} \
 	} \
 	PARSE_SELECT(parser, Type);
