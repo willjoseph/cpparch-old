@@ -1,9 +1,10 @@
 
 void f()
 {
-	A < B >(x) == A < B >(x); // 
+	A < (X < Y >(Z)) >(C);
+	A < B >(C) == X < Y >(Z);
 	A < B > C; // simple-declaration, or relational-expression
-	A < B >(x); // named-template-specialization with function-call postfix, or simple-declaration, or relational-expression
+	A < B >(C); // named-template-specialization with function-call postfix, or simple-declaration, or relational-expression
 	A < B && C > 0; // relational-expression
 	A < B > 0; // relational-expression
 	_N < _M; // relational-expression

@@ -2117,8 +2117,8 @@ inline cpp::conditional_expression* parseSymbol(Parser& parser, cpp::conditional
 
 inline cpp::assignment_expression* parseSymbol(Parser& parser, cpp::assignment_expression* result)
 {
-	PARSE_SELECT(parser, cpp::throw_expression);
 	PARSE_EXPRESSION(parser, cpp::logical_or_expression_precedent); // TODO: handle template-id / relation-expression ambiguity
+	PARSE_SELECT(parser, cpp::throw_expression); // NOTE: PARSE_EXPRESSION must be the first statement - it relies on 'parser' being untouched
 	return result;
 }
 

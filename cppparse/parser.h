@@ -526,20 +526,6 @@ inline bool peekTemplateIdAmbiguity(Parser& parser)
 
 #if 0
 #define PARSE_EXPRESSION PARSE_PREFIX
-#elif 0
-// if the next tokens look like a template-id
-	// first try parsing for a template-id
-	// then try parsing for a relational-expression
-#define PARSE_EXPRESSION(parser, Type) \
-	if(peekTemplateIdAmbiguity(parser)) \
-	{ \
-		parser.ignoreTemplateId = false; \
-		parser.ignoreRelationalLess = true; \
-		PARSE_SELECT(parser, Type); \
-		parser.ignoreRelationalLess = false; \
-		parser.ignoreTemplateId = true; \
-	} \
-	PARSE_SELECT(parser, Type);
 #elif 1
 // if the next tokens look like a template-id
 	// first try parsing for a template-id
