@@ -293,9 +293,10 @@ namespace cpp
 	struct equality_expression : public choice<equality_expression>, public and_expression
 	{
 		VISITABLE_DERIVED(and_expression);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(VISITORFUNCLIST3(
 			SYMBOLFWD(equality_expression_default),
-			SYMBOLFWD(relational_expression)
+			SYMBOLFWD(relational_expression),
+			ambiguity<equality_expression>*
 		));
 	};
 

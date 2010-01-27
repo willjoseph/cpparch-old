@@ -372,6 +372,12 @@ struct IsAmbiguous<cpp::assignment_expression>
 	typedef True Result;
 };
 
+template<>
+struct IsAmbiguous<cpp::equality_expression>
+{
+	typedef True Result;
+};
+
 #define SYMBOLP_NAME(p) (typeid(*p).name() + 12)
 
 template<typename T>
@@ -504,12 +510,17 @@ inline cpp::simple_template_id* parseSymbol(Parser& parser, cpp::simple_template
 
 inline bool peekTemplateIdAmbiguity(Parser& parser)
 {
-	bool result = false;
+	if(parser.inTemplateIdAmbiguity)
+	{
+		// optimisation
+		return true;
+	}
+
 	Parser tmp(parser);
 #if 1 // TEMP HACK: check for full template-id: this avoids false-positives when parsing 'X - Y < Z;'
 	cpp::symbol_optional<cpp::simple_template_id> symbol;
 	PARSE_OPTIONAL(tmp, symbol);
-	result = symbol != 0;
+	parser.inTemplateIdAmbiguity = symbol != 0;
 #else
 	if(TOKEN_EQUAL(tmp, boost::wave::T_IDENTIFIER))
 	{
@@ -521,7 +532,7 @@ inline bool peekTemplateIdAmbiguity(Parser& parser)
 	}
 #endif
 	tmp.backtrack("peekTemplateIdAmbiguity");
-	return result;
+	return parser.inTemplateIdAmbiguity;
 }
 
 #if 0
@@ -531,10 +542,8 @@ inline bool peekTemplateIdAmbiguity(Parser& parser)
 	// first try parsing for a template-id
 	// then try parsing for a relational-expression
 #define PARSE_EXPRESSION(parser, Type) \
-	if(!parser.inTemplateIdAmbiguity \
-		&& peekTemplateIdAmbiguity(parser)) \
+	if(peekTemplateIdAmbiguity(parser)) \
 	{ \
-		parser.inTemplateIdAmbiguity = true; \
 		parser.ignoreTemplateId = false; \
 		parser.ignoreRelationalLess = true; \
 		PARSE_SELECT(parser, Type); \

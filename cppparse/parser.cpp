@@ -579,6 +579,87 @@ inline cpp::identifier* parseSymbol(Parser& parser, cpp::identifier* result)
 	return NULL;
 }
 
+// matches: 'B, ', 'B && D'
+// ambiguous with assignment-expression
+inline bool isAmbiguousTemplateArgument(cpp::template_argument* symbol)
+{
+	cpp::type_id* type = dynamic_cast<cpp::type_id*>(symbol);
+	if(type != 0)
+	{
+		if(!isAmbiguousTypeId(type))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+// matches: 'B, ', 'B && D', 'B, D'
+// ambiguous with expression-list
+inline bool isAmbiguousTemplateArgumentList(cpp::template_argument_list* symbol)
+{
+	if(!isAmbiguousTemplateArgument(symbol->item))
+	{
+		return false;
+	}
+	if(symbol->next != 0)
+	{
+		if(!isAmbiguousTemplateArgumentList(symbol->next))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+// matches: 'A<B>', 'A<B && D>', 'A<B, D>'
+// ambiguous with nested/parenthesised relational-expression lhs
+inline bool isAmbiguousTemplateId(cpp::simple_template_id* symbol)
+{
+	if(symbol == 0
+		|| !isAmbiguousTemplateArgumentList(symbol->args))
+	{
+		return false;
+	}
+	return true;
+}
+
+// matches: 'A<B>(C)', 'A<B && D>(C)', 'A<B>(C())'
+// ambiguous with nested/parenthesised relational-expression
+inline bool isAmbiguousTemplateIdPrefix(cpp::postfix_expression_construct* symbol)
+{
+	if(symbol == 0
+		|| symbol->args == 0)
+	{
+		return false;
+	}
+	cpp::simple_type_specifier_name* name = dynamic_cast<cpp::simple_type_specifier_name*>(symbol->type.p);
+	if(name == 0
+		|| !isAmbiguousTemplateId(dynamic_cast<cpp::simple_template_id*>(name->id.p)))
+	{
+		return false;
+	}
+	return true;
+}
+
+template<typename T>
+inline bool isAmbiguousTemplateIdPrefix(T* symbol)
+{
+	return isAmbiguousTemplateIdPrefix(dynamic_cast<cpp::postfix_expression_construct*>(symbol));
+}
+
+inline bool isAmbiguous(cpp::assignment_expression* symbol)
+{
+	return isAmbiguousTemplateIdPrefix(symbol);
+}
+
+inline bool isAmbiguous(cpp::equality_expression* symbol)
+{
+	return isAmbiguousTemplateIdPrefix(symbol);
+}
+
+
+
 inline cpp::declaration_seq* parseSymbol(Parser& parser, cpp::declaration_seq* result);
 
 inline cpp::namespace_definition* parseSymbol(Parser& parser, cpp::namespace_definition* result)
