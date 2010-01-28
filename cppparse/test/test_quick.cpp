@@ -1,10 +1,16 @@
 
 void f()
 {
-	_Facetptr<_Facet>::_Psave = _Psave;
 	// TODO:
 	A<B>::C;
 	::A<B>C;
+	A<B>::C<D>::E; //argh!
+	// (((A < B) > ::C) < D ) > E
+	// (A<B>::C < D) > ::E
+	// A<B>::C<D>::E
+	// A< ((B > ::C) < D) >::E
+
+	_Facetptr<_Facet>::_Psave = _Psave;
 
 	A::X<B::Y>(C::Z);
 

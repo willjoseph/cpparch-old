@@ -54,6 +54,11 @@ inline void printSequence(Lexer& lexer, size_t position)
 
 struct SymbolDebug
 {
+	bool disambiguated;
+	SymbolDebug(bool disambiguated) : disambiguated(disambiguated)
+	{
+	}
+
 	void visit(cpp::terminal_identifier symbol)
 	{
 		std::cout << symbol.value << " ";
@@ -92,23 +97,88 @@ struct SymbolDebug
 			visit(symbol.p);
 		}
 	}
+
+	void visit(cpp::template_argument_list* symbol)
+	{
+		if(disambiguated)
+		{
+			std::cout << "( ";
+			symbol->accept(*this);
+			std::cout << ") ";
+		}
+		else
+		{
+			symbol->accept(*this);
+		}
+	}
+	void visit(cpp::relational_expression_default* symbol)
+	{
+		if(disambiguated)
+		{
+			std::cout << "( ";
+			symbol->accept(*this);
+			std::cout << ") ";
+		}
+		else
+		{
+			symbol->accept(*this);
+		}
+	}
+
+	template<typename T>
+	void visit(cpp::ambiguity<T>* symbol)
+	{
+		if(disambiguated)
+		{
+			std::cout << "[ ";
+			symbol->accept(*this);
+			std::cout << "] ";
+		}
+		else
+		{
+			symbol->accept(*this);
+		}
+	}
 };
 
 template<typename T>
-void printSymbol(T* symbol)
+void printSymbol(T* symbol, bool disambiguated = false)
 {
-	SymbolDebug walker;
+	SymbolDebug walker(disambiguated);
 	walker.visit(symbol);
 }
 
+
+struct TemplateIdAmbiguityContext
+{
+	size_t depth;
+	size_t solution;
+	TemplateIdAmbiguityContext() : depth(0), solution(0)
+	{
+	}
+	bool nextDepth()
+	{
+		if(depth == 31)
+		{
+			throw ParseError();
+		}
+		return (solution & (1 << depth++)) != 0;
+	}
+	void nextSolution()
+	{
+		depth = 0;
+		++solution;
+	}
+
+};
+
 struct ParserState
 {
-	Lexer::Tokens::const_iterator ambiguityPos;
+	TemplateIdAmbiguityContext* ambiguity;
 	bool inTemplateArgumentList;
-	bool ignoreTemplateId;
-	bool ignoreRelationalLess;
+
 	ParserState()
-		: ambiguityPos(0), inTemplateArgumentList(false), ignoreTemplateId(false), ignoreRelationalLess(false)
+		: ambiguity(0), inTemplateArgumentList(false)
 	{
 	}
 };
@@ -118,27 +188,19 @@ struct Parser : public ParserState
 	Lexer& lexer;
 	size_t position;
 	size_t allocation;
+	size_t ambiguityDepth;
 
 	Parser(Lexer& lexer)
-		: lexer(lexer), position(0), allocation(0)
+		: lexer(lexer), position(0), allocation(0), ambiguityDepth(0)
 	{
 	}
 	Parser(const Parser& other)
 		: ParserState(other), lexer(other.lexer), position(0), allocation(lexer.allocator.position)
 	{
-		if(!getAmbiguity())
+		if(ambiguity != 0)
 		{
-			ambiguityPos = 0;
+			ambiguityDepth = ambiguity->depth;
 		}
-	}
-
-	void setAmbiguity()
-	{
-		ambiguityPos = lexer.position;
-	}
-	bool getAmbiguity() const
-	{
-		return ambiguityPos == lexer.position;
 	}
 
 	LexTokenId get_id()
@@ -164,6 +226,10 @@ struct Parser : public ParserState
 	{
 		lexer.backtrack(position, symbol);
 		lexer.allocator.position = allocation;
+		if(ambiguity != 0)
+		{
+			ambiguity->depth = ambiguityDepth;
+		}
 	}
 };
 
@@ -400,10 +466,16 @@ cpp::symbol<OtherT> parseSymbolChoice(Parser& parser, cpp::symbol<T> symbol, Oth
 			std::cout << "  " << SYMBOL_NAME(OtherT) << ": ";
 			printSymbol(alt);
 			std::cout << std::endl;
-			std::cout << (!isAmbiguous(alt) ? "  UNKNOWN: " : "  known: ");
-			std::cout << SYMBOLP_NAME(alt) << std::endl;
 			std::cout << (!isAmbiguous(other) ? "  UNKNOWN: " : "  known: ");
 			std::cout << SYMBOLP_NAME(other) << std::endl;
+			std::cout << "    ";
+			printSymbol(other, true);
+			std::cout << std::endl;
+			std::cout << (!isAmbiguous(alt) ? "  UNKNOWN: " : "  known: ");
+			std::cout << SYMBOLP_NAME(alt) << std::endl;
+			std::cout << "    ";
+			printSymbol(alt, true);
+			std::cout << std::endl;
 			breakpoint();
 		}
 #if 0
@@ -492,16 +564,7 @@ inline cpp::simple_template_id* parseSymbol(Parser& parser, cpp::simple_template
 inline bool peekTemplateIdAmbiguity(Parser& parser)
 {
 	Parser tmp(parser);
-#if 0 // TEMP HACK: check for full template-id: this avoids false-positives when parsing 'X - Y < Z;'
-	cpp::symbol_optional<cpp::simple_template_id> symbol;
-	PARSE_OPTIONAL(tmp, symbol);
-	bool result = symbol != 0;
-#else
 	bool result = false;
-	if(TOKEN_EQUAL(tmp, boost::wave::T_COLON_COLON))
-	{
-		tmp.increment();
-	}
 	if(TOKEN_EQUAL(tmp, boost::wave::T_IDENTIFIER))
 	{
 		tmp.increment();
@@ -510,15 +573,15 @@ inline bool peekTemplateIdAmbiguity(Parser& parser)
 			result = true;
 		}
 	}
-#endif
 	tmp.backtrack("peekTemplateIdAmbiguity");
 	return result;
 }
 
+
 // if the next tokens look like a template-id
 	// first try parsing for a template-id
 	// then try parsing for a relational-expression
-#define PARSE_EXPRESSION_SPECIAL(parser, Type) \
+#define PARSE_EXPRESSION_SPECIAL_OLD(parser, Type) \
 	if(!parser.getAmbiguity() \
 		&& peekTemplateIdAmbiguity(parser)) \
 	{ \
@@ -530,6 +593,27 @@ inline bool peekTemplateIdAmbiguity(Parser& parser)
 		parser.ignoreTemplateId = true; \
 	} \
 	PARSE_SELECT(parser, Type);
+
+
+template<typename T, typename OtherT>
+cpp::symbol<OtherT> parseSymbolAmbiguous(Parser& parser, cpp::symbol<T> symbol, OtherT* result)
+{
+	TemplateIdAmbiguityContext context;
+	parser.ambiguity = &context;
+	result = parseSymbolChoice(parser, symbol, result);
+	if(context.depth != 0)
+	{
+		size_t width = 1 << context.depth;
+		for(size_t i = 1; i != width; ++i)
+		{
+			context.nextSolution();
+			result = parseSymbolChoice(parser, symbol, result);
+		}
+	}
+	return cpp::symbol<OtherT>(result);
+}
+#define PARSE_EXPRESSION_SPECIAL(parser, Type) result = parseSymbolAmbiguous(parser, NullPtr<Type>::VALUE, result)
+
 
 #if 1
 #define PARSE_EXPRESSION PARSE_PREFIX

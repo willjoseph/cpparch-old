@@ -988,7 +988,9 @@ inline cpp::template_argument_list* parseSymbol(Parser& parser, cpp::template_ar
 
 inline cpp::simple_template_id* parseSymbol(Parser& parser, cpp::simple_template_id* result)
 {
-	if(parser.ignoreTemplateId)
+	if(parser.ambiguity != 0
+		&& peekTemplateIdAmbiguity(parser)
+		&& parser.ambiguity->nextDepth())
 	{
 		return 0;
 	}
@@ -2175,8 +2177,12 @@ cpp::relational_expression* pruneSymbol(cpp::relational_expression_default* symb
 
 inline cpp::relational_expression_default* parseSymbol(Parser& parser, cpp::relational_expression_default* result)
 {
+	bool ignoreRelationalLess = parser.ambiguity != 0
+		&& peekTemplateIdAmbiguity(parser)
+		&& !parser.ambiguity->nextDepth();
+
 	PARSE_REQUIRED(parser, result->left);
-	if(!(parser.ignoreRelationalLess
+	if(!(ignoreRelationalLess
 			&& TOKEN_EQUAL(parser, boost::wave::T_LESS))) // '<' begins template-argument-list
 	{
 		if(!(parser.inTemplateArgumentList
