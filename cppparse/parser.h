@@ -126,6 +126,10 @@ struct Parser : public ParserState
 	Parser(const Parser& other)
 		: ParserState(other), lexer(other.lexer), position(0), allocation(lexer.allocator.position)
 	{
+		if(!getAmbiguity())
+		{
+			ambiguityPos = 0;
+		}
 	}
 
 	void setAmbiguity()
@@ -323,71 +327,37 @@ struct IsAmbiguous
 	typedef False Result;
 };
 
-template<>
-struct IsAmbiguous<cpp::template_argument>
-{
-	typedef True Result;
-};
+#define DECLARE_AMBIGUOUS(T) \
+	template<> \
+	struct IsAmbiguous<T> \
+	{ \
+		typedef True Result; \
+	}
 
-template<>
-struct IsAmbiguous<cpp::parameter_declaration>
-{
-	typedef True Result;
-};
+DECLARE_AMBIGUOUS(cpp::template_argument);
+DECLARE_AMBIGUOUS(cpp::parameter_declaration);
+DECLARE_AMBIGUOUS(cpp::statement);
+DECLARE_AMBIGUOUS(cpp::for_init_statement);
+DECLARE_AMBIGUOUS(cpp::member_declaration);
+DECLARE_AMBIGUOUS(cpp::template_parameter);
 
-template<>
-struct IsAmbiguous<cpp::statement>
-{
-	typedef True Result;
-};
 
-template<>
-struct IsAmbiguous<cpp::for_init_statement>
-{
-	typedef True Result;
-};
-
-template<>
-struct IsAmbiguous<cpp::member_declaration>
-{
-	typedef True Result;
-};
-
-template<>
-struct IsAmbiguous<cpp::unary_expression>
-{
-	typedef True Result;
-};
-
-template<>
-struct IsAmbiguous<cpp::template_parameter>
-{
-	typedef True Result;
-};
-
-template<>
-struct IsAmbiguous<cpp::cast_expression>
-{
-	typedef True Result;
-};
-
-template<>
-struct IsAmbiguous<cpp::expression>
-{
-	typedef True Result;
-};
-
-template<>
-struct IsAmbiguous<cpp::assignment_expression>
-{
-	typedef True Result;
-};
-
-template<>
-struct IsAmbiguous<cpp::equality_expression>
-{
-	typedef True Result;
-};
+DECLARE_AMBIGUOUS(cpp::expression);
+DECLARE_AMBIGUOUS(cpp::conditional_expression);
+DECLARE_AMBIGUOUS(cpp::assignment_expression);
+DECLARE_AMBIGUOUS(cpp::logical_or_expression);
+DECLARE_AMBIGUOUS(cpp::logical_and_expression);
+DECLARE_AMBIGUOUS(cpp::inclusive_or_expression);
+DECLARE_AMBIGUOUS(cpp::exclusive_or_expression);
+DECLARE_AMBIGUOUS(cpp::and_expression);
+DECLARE_AMBIGUOUS(cpp::equality_expression);
+DECLARE_AMBIGUOUS(cpp::relational_expression);
+DECLARE_AMBIGUOUS(cpp::shift_expression);
+DECLARE_AMBIGUOUS(cpp::additive_expression);
+DECLARE_AMBIGUOUS(cpp::multiplicative_expression);
+DECLARE_AMBIGUOUS(cpp::pm_expression);
+DECLARE_AMBIGUOUS(cpp::cast_expression);
+DECLARE_AMBIGUOUS(cpp::unary_expression);
 
 #define SYMBOLP_NAME(p) (typeid(*p).name() + 12)
 
@@ -528,6 +498,10 @@ inline bool peekTemplateIdAmbiguity(Parser& parser)
 	bool result = symbol != 0;
 #else
 	bool result = false;
+	if(TOKEN_EQUAL(tmp, boost::wave::T_COLON_COLON))
+	{
+		tmp.increment();
+	}
 	if(TOKEN_EQUAL(tmp, boost::wave::T_IDENTIFIER))
 	{
 		tmp.increment();

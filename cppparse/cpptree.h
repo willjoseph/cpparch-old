@@ -240,54 +240,60 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(assignment_expression);
 		VISITABLE_DERIVED(constant_expression);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(VISITORFUNCLIST3(
 			SYMBOLFWD(conditional_expression_default),
-			SYMBOLFWD(logical_or_expression)
+			SYMBOLFWD(logical_or_expression),
+			ambiguity<conditional_expression>*
 		));
 	};
 
 	struct logical_or_expression : public choice<logical_or_expression>, public conditional_expression
 	{
 		VISITABLE_DERIVED(conditional_expression);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(VISITORFUNCLIST3(
 			SYMBOLFWD(logical_or_expression_default),
-			SYMBOLFWD(logical_and_expression)
+			SYMBOLFWD(logical_and_expression),
+			ambiguity<logical_or_expression>*
 		));
 	};
 
 	struct logical_and_expression : public choice<logical_and_expression>, public logical_or_expression
 	{
 		VISITABLE_DERIVED(logical_or_expression);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(VISITORFUNCLIST3(
 			SYMBOLFWD(logical_and_expression_default),
-			SYMBOLFWD(inclusive_or_expression)
+			SYMBOLFWD(inclusive_or_expression),
+			ambiguity<logical_and_expression>*
 		));
 	};
 
 	struct inclusive_or_expression : public choice<inclusive_or_expression>, public logical_and_expression
 	{
 		VISITABLE_DERIVED(logical_and_expression);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(VISITORFUNCLIST3(
 			SYMBOLFWD(inclusive_or_expression_default),
-			SYMBOLFWD(exclusive_or_expression)
+			SYMBOLFWD(exclusive_or_expression),
+			ambiguity<inclusive_or_expression>*
 		));
 	};
 
 	struct exclusive_or_expression : public choice<exclusive_or_expression>, public inclusive_or_expression
 	{
 		VISITABLE_DERIVED(inclusive_or_expression);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(VISITORFUNCLIST3(
 			SYMBOLFWD(exclusive_or_expression_default),
-			SYMBOLFWD(and_expression)
+			SYMBOLFWD(and_expression),
+			ambiguity<exclusive_or_expression>*
 		));
 	};
 
 	struct and_expression : public choice<and_expression>, public exclusive_or_expression
 	{
 		VISITABLE_DERIVED(exclusive_or_expression);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(VISITORFUNCLIST3(
 			SYMBOLFWD(and_expression_default),
-			SYMBOLFWD(equality_expression)
+			SYMBOLFWD(equality_expression),
+			ambiguity<and_expression>*
 		));
 	};
 
@@ -314,36 +320,40 @@ namespace cpp
 	struct shift_expression : public choice<shift_expression>, public relational_expression
 	{
 		VISITABLE_DERIVED(relational_expression);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(VISITORFUNCLIST3(
 			SYMBOLFWD(shift_expression_default),
-			SYMBOLFWD(additive_expression)
+			SYMBOLFWD(additive_expression),
+			ambiguity<shift_expression>*
 		));
 	};
 
 	struct additive_expression : public choice<additive_expression>, public shift_expression
 	{
 		VISITABLE_DERIVED(shift_expression);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(VISITORFUNCLIST3(
 			SYMBOLFWD(additive_expression_default),
-			SYMBOLFWD(multiplicative_expression)
+			SYMBOLFWD(multiplicative_expression),
+			ambiguity<additive_expression>*
 		));
 	};
 
 	struct multiplicative_expression : public choice<multiplicative_expression>, public additive_expression
 	{
 		VISITABLE_DERIVED(additive_expression);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(VISITORFUNCLIST3(
 			SYMBOLFWD(multiplicative_expression_default),
-			SYMBOLFWD(pm_expression)
+			SYMBOLFWD(pm_expression),
+			ambiguity<multiplicative_expression>*
 		));
 	};
 
 	struct pm_expression : public choice<pm_expression>, public multiplicative_expression
 	{
 		VISITABLE_DERIVED(multiplicative_expression);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(VISITORFUNCLIST3(
 			SYMBOLFWD(pm_expression_default),
-			SYMBOLFWD(cast_expression)
+			SYMBOLFWD(cast_expression),
+			ambiguity<pm_expression>*
 		));
 	};
 

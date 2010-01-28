@@ -1,6 +1,30 @@
 
 void f()
 {
+	_Facetptr<_Facet>::_Psave = _Psave;
+	// TODO:
+	A<B>::C;
+	::A<B>C;
+
+	A::X<B::Y>(C::Z);
+
+	const locale::facet *_Psave = _Facetptr < _Facet > :: _Psave;
+	auto_ptr_ref < _Other > _Ans ( & _Myptr ) ;
+
+	// simple-declaration, or relational-expression
+	A < B > C;
+	A < B > C();
+	A < B > C[1];
+	A < B > C(D);
+	A < B > C(D());
+	A < B > C(D[1]);
+
+
+	A<B>(C)[X<Y>(Z)];
+	A<B>(C)++
+	A<B>(C)(X<Y>(Z));
+	A<B>(C) &
+		X<Y>(Z);
 	A < B, C > 0; // relational-expression
 	A<B>(C) ,
 		X<Y>(Z);
@@ -9,8 +33,6 @@ void f()
 	A<B>(C) ==
 		X<Y>(Z);
 	A<B>(C) >
-		X<Y>(Z);
-	A<B>(C) &
 		X<Y>(Z);
 	A<B>(C) ^
 		X<Y>(Z);
@@ -24,7 +46,7 @@ void f()
 		X<Y>(Z) : NULL;
 	A<B>(C) =
 		X<Y>(Z);
-	A < B > C; // simple-declaration, or relational-expression
+
 	A < B >(C); // named-template-specialization with function-call postfix, or simple-declaration, or relational-expression
 	_N < _M; // relational-expression
 	_Len - _P0 < _M; // relational-expression

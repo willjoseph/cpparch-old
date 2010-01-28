@@ -2,6 +2,18 @@
 #include "parser.h"
 
 
+// matches type-specifier: 'A', 'A::B', 'A<B>', 'A::X<Y>'
+// ambiguous with id-expression
+inline bool isAmbiguousTypeSpecifier(cpp::type_specifier_noncv* type)
+{
+	cpp::simple_type_specifier_name* name = dynamic_cast<cpp::simple_type_specifier_name*>(type);
+	if(name == 0)
+	{
+		return false;
+	}
+	return true;
+}
+
 // matches type-specifier-seq: 'A', 'A::B'
 // ambiguous with id-expression
 inline bool isAmbiguousTypeSpecifierSeq(cpp::type_specifier_seq* spec)
@@ -10,12 +22,8 @@ inline bool isAmbiguousTypeSpecifierSeq(cpp::type_specifier_seq* spec)
 	if(spec == 0
 		|| spec->prefix != 0
 		|| spec->suffix != 0
-		|| spec->type == 0)
-	{
-		return false;
-	}
-	cpp::simple_type_specifier_name* name = dynamic_cast<cpp::simple_type_specifier_name*>(spec->type.p);
-	if(name == 0)
+		|| spec->type == 0
+		|| !isAmbiguousTypeSpecifier(spec->type))
 	{
 		return false;
 	}
@@ -30,12 +38,8 @@ inline bool isAmbiguousDeclSpecifierSeq(cpp::decl_specifier_seq* spec)
 	if(spec == 0
 		|| spec->prefix != 0
 		|| spec->suffix != 0
-		|| spec->type == 0)
-	{
-		return false;
-	}
-	cpp::simple_type_specifier_name* name = dynamic_cast<cpp::simple_type_specifier_name*>(spec->type.p);
-	if(name == 0)
+		|| spec->type == 0
+		|| !isAmbiguousTypeSpecifier(spec->type))
 	{
 		return false;
 	}
@@ -117,17 +121,32 @@ inline bool isAmbiguousAbstractDeclarator(cpp::abstract_declarator* symbol)
 }
 
 
+inline bool isAmbiguousDeclarator(cpp::declarator* decl);
+
+// matches direct-declarator prefix: 'A', '(A)', '(*A)'
+// ambiguous with primary-expression
+inline bool isAmbiguousDirectDeclaratorPrefix(cpp::direct_declarator_prefix* prefix)
+{
+	cpp::direct_declarator_parenthesis* paren = dynamic_cast<cpp::direct_declarator_parenthesis*>(prefix);
+	if(paren != 0)
+	{
+		return isAmbiguousDeclarator(paren->decl);
+	}
+	cpp::declarator_id* id = dynamic_cast<cpp::declarator_id*>(prefix);
+	if(id == 0)
+	{
+		return false;
+	}
+	return true;
+}
+
 // matches direct-declarator: 'A', 'A()', 'A[1]', 'A(B())', 'A(B[1])'
 // ambiguous with id-expression
 inline bool isAmbiguousDirectDeclarator(cpp::declarator* decl)
 {
 	cpp::direct_declarator* direct = dynamic_cast<cpp::direct_declarator*>(decl);
-	if(direct == 0)
-	{
-		return false;
-	}
-	cpp::declarator_id* id = dynamic_cast<cpp::declarator_id*>(direct->prefix.p);
-	if(id == 0)
+	if(direct == 0
+		|| !isAmbiguousDirectDeclaratorPrefix(direct->prefix))
 	{
 		return false;
 	}
@@ -141,7 +160,7 @@ inline bool isAmbiguousDirectDeclarator(cpp::declarator* decl)
 	return true;
 }
 
-// matches declarator: 'A', '*A', '&*A'
+// matches declarator: 'A', '*A', '&*A', '(A)'
 // ambiguous with expression
 inline bool isAmbiguousDeclarator(cpp::declarator* decl)
 {
@@ -153,7 +172,7 @@ inline bool isAmbiguousDeclarator(cpp::declarator* decl)
 	return isAmbiguousDirectDeclarator(decl);
 }
 
-// matches parenthesised direct-declarator: '(A)', '(*A)', '(&*A)'
+// matches parenthesised direct-declarator: '(A)', '(*A)', '(&*A)', '(A)()', '(A)[1]'
 // ambiguous with parenthesised expression
 inline bool isAmbiguousParenthesisedDeclarator(cpp::declarator* decl)
 {
@@ -175,17 +194,21 @@ inline bool isAmbiguousParenthesisedDeclarator(cpp::declarator* decl)
 // ambiguous with assignment-expression RHS
 inline bool isAmbiguousInitializer(cpp::initializer* init)
 {
-	// '='
-	cpp::initializer_default* def = dynamic_cast<cpp::initializer_default*>(init);
-	if(def == 0)
+	cpp::initializer_parenthesis* paren = dynamic_cast<cpp::initializer_parenthesis*>(init);
+	if(paren == 0)
 	{
-		return false;
-	}
-	// 'expr'
-	cpp::assignment_expression* clause = dynamic_cast<cpp::assignment_expression*>(def->clause.p);
-	if(clause == 0)
-	{
-		return false;
+		// '='
+		cpp::initializer_default* def = dynamic_cast<cpp::initializer_default*>(init);
+		if(def == 0)
+		{
+			return false;
+		}
+		// 'expr'
+		cpp::assignment_expression* clause = dynamic_cast<cpp::assignment_expression*>(def->clause.p);
+		if(clause == 0)
+		{
+			return false;
+		}
 	}
 	return true;
 }
@@ -195,17 +218,7 @@ inline bool isAmbiguousInitializer(cpp::initializer* init)
 inline bool isAmbiguousInitDeclarator(cpp::init_declarator* init)
 {
 	// 'A'
-	cpp::declarator* decl = init->decl;
-	{
-		// this pointer-operator may be mistaken for unary-expression prefix 'dereference' operator '*p'
-		cpp::declarator_ptr* ptr = dynamic_cast<cpp::declarator_ptr*>(decl);
-		if(ptr != 0)
-		{
-			decl = ptr->decl;
-		}
-	}
-	if(decl == 0
-		|| !isAmbiguousDirectDeclarator(decl))
+	if(!isAmbiguousDeclarator(init->decl))
 	{
 		return false;
 	}
@@ -217,9 +230,39 @@ inline bool isAmbiguousInitDeclarator(cpp::init_declarator* init)
 	return true;
 }
 
+// matches simple-declaration suffix
+// ';'
+// ', C;'
+// ', C = 0;'
+// ', *C;'
+// ', *C;'
+// ', *C(X);'
+// ', *C[X];'
+inline bool isAmbiguousSimpleDeclarationSuffix(cpp::simple_declaration_suffix* suffix)
+{
+	if(suffix != 0)
+	{
+		if(suffix->init != 0
+			&& !isAmbiguousInitializer(suffix->init))
+		{
+			return false;
+		}
+		for(cpp::init_declarator_list* p = suffix->next; p != 0; p = p->next)
+		{
+			if(!isAmbiguousInitDeclarator(p->item))
+			{
+				return false;
+			}
+		}
+	}
+	return true;
+}
 
-// matches redundantly parenthesised variable-declaration: 'A(X)'
-// ambiguous with function-call/cast
+
+// matches simple-declaration with redundantly-parenthesised/omitted declarator: 'A;', 'A(X);', 'A(*X);', 'X<Y>::A(X);', 'A::B(X);'
+// ambiguous with expression-statement
+// does not match 'A X;'
+// NOTE: the form 'A<B>::C;' could be relational-expression '(A < B) > ::C;', primary-expression 'A<B>::C' or declaration 'A<B>::C'
 inline bool isAmbiguousVariableDeclaration(cpp::simple_declaration* simple)
 {
 	// 'A'
@@ -228,16 +271,20 @@ inline bool isAmbiguousVariableDeclaration(cpp::simple_declaration* simple)
 	{
 		return false;
 	}
-	// '(X)'
-	cpp::simple_declaration_named* named = dynamic_cast<cpp::simple_declaration_named*>(simple->affix.p);
-	if(named == 0
-		|| named->suffix->comma.value != 0)
+	cpp::general_declaration_type* type = dynamic_cast<cpp::general_declaration_type*>(simple->affix.p);
+	if(type == 0)
 	{
-		return false;
-	}
-	if(!isAmbiguousParenthesisedDeclarator(named->decl))
-	{
-		return false;
+		// '(X)'
+		cpp::simple_declaration_named* named = dynamic_cast<cpp::simple_declaration_named*>(simple->affix.p);
+		if(named == 0)
+		{
+			return false;
+		}
+		if(!isAmbiguousParenthesisedDeclarator(named->decl)
+			|| !isAmbiguousSimpleDeclarationSuffix(named->suffix))
+		{
+			return false;
+		}
 	}
 	return true;
 }
@@ -312,11 +359,11 @@ inline bool isAmbiguousInitDeclaration(cpp::statement* declaration)
 // 'A * B[0];' multiplicative-expression with array-index RHS vs array-declaration
 // 'A * B, C;' multiplicative-expression vs declarator-list
 // 'A * B = 0, C = 0;'
-// 'A * *B;
-// 'A * B, *C;
-// 'A * *B, *C;
-// 'A * B(X), *C(X);
-// 'A * B[X], *C[X];
+// 'A * *B;'
+// 'A * B, *C;'
+// 'A * *B, *C;'
+// 'A * B(X), *C(X);'
+// 'A * B[X], *C[X];'
 inline bool isAmbiguousPtrDeclaration(cpp::simple_declaration* simple)
 {
 	if(simple == 0
@@ -330,37 +377,11 @@ inline bool isAmbiguousPtrDeclaration(cpp::simple_declaration* simple)
 		return false;
 	}
 	cpp::declarator_ptr* ptr = dynamic_cast<cpp::declarator_ptr*>(named->decl.p);
-	if(ptr == 0)
+	if(ptr == 0
+		|| !isAmbiguousDeclarator(ptr->decl)
+		|| !isAmbiguousSimpleDeclarationSuffix(named->suffix))
 	{
 		return false;
-	}
-	{
-		// this pointer-operator may be mistaken for unary-expression prefix 'dereference' operator '*p'
-		cpp::declarator_ptr* ptr2 = dynamic_cast<cpp::declarator_ptr*>(ptr->decl.p);
-		if(ptr2 != 0)
-		{
-			ptr = ptr2;
-		}
-	}
-	cpp::direct_declarator* direct = dynamic_cast<cpp::direct_declarator*>(ptr->decl.p);
-	if(direct == 0)
-	{
-		return false;
-	}
-	if(named->suffix != 0)
-	{
-		if(named->suffix->init != 0
-			&& !isAmbiguousInitializer(named->suffix->init))
-		{
-			return false;
-		}
-		for(cpp::init_declarator_list* p = named->suffix->next; p != 0; p = p->next)
-		{
-			if(!isAmbiguousInitDeclarator(p->item))
-			{
-				return false;
-			}
-		}
 	}
 	return true;
 }
@@ -371,17 +392,6 @@ inline bool isAmbiguousPtrDeclaration(T* statement)
 	return isAmbiguousPtrDeclaration(dynamic_cast<cpp::simple_declaration*>(statement));
 }
 
-inline bool isAmbiguous(cpp::statement* statement)
-{
-	return isAmbiguousPtrDeclaration(statement)
-		|| isAmbiguousVariableDeclaration(statement);
-}
-
-inline bool isAmbiguous(cpp::for_init_statement* statement)
-{
-	return isAmbiguousPtrDeclaration(statement)
-		|| isAmbiguousVariableDeclaration(statement);
-}
 
 // matches type-id: A, A(x), A(B(x)), A[1], A()[1]
 // ambiguous with expression
@@ -409,6 +419,120 @@ inline bool isAmbiguousTypeId(cpp::template_argument* symbol)
 inline bool isAmbiguous(cpp::template_argument* symbol)
 {
 	return isAmbiguousTypeId(symbol);
+}
+
+// matches: 'B, ', 'B && D'
+// ambiguous with assignment-expression
+inline bool isAmbiguousTemplateArgument(cpp::template_argument* symbol)
+{
+	cpp::type_id* type = dynamic_cast<cpp::type_id*>(symbol);
+	if(type != 0)
+	{
+		if(!isAmbiguousTypeId(type))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+// matches: 'B, ', 'B && D', 'B, D'
+// ambiguous with expression-list
+inline bool isAmbiguousTemplateArgumentList(cpp::template_argument_list* symbol)
+{
+	if(!isAmbiguousTemplateArgument(symbol->item))
+	{
+		return false;
+	}
+	if(symbol->next != 0)
+	{
+		if(!isAmbiguousTemplateArgumentList(symbol->next))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+// matches: 'A<B>', 'A<B && D>', 'A<B, D>'
+// ambiguous with nested/parenthesised relational-expression lhs
+inline bool isAmbiguousTemplateId(cpp::simple_template_id* symbol)
+{
+	if(symbol == 0
+		|| !isAmbiguousTemplateArgumentList(symbol->args))
+	{
+		return false;
+	}
+	return true;
+}
+
+// matches decl-specifier-seq: 'A<B>', 'N::A<B>'
+// ambiguous with relational-expression LHS
+inline bool isAmbiguousTemplateIdDeclSpecifierSeq(cpp::decl_specifier_seq* spec)
+{
+	// 'A'
+	if(spec == 0
+		|| spec->prefix != 0
+		|| spec->suffix != 0
+		|| spec->type == 0)
+	{
+		return false;
+	}
+	cpp::simple_type_specifier_name* name = dynamic_cast<cpp::simple_type_specifier_name*>(spec->type.p);
+	if(name == 0)
+	{
+		return false;
+	}
+	cpp::simple_template_id* id = dynamic_cast<cpp::simple_template_id*>(name->id.p);
+	if(id == 0
+		|| !isAmbiguousTemplateId(id))
+	{
+		return false;
+	}
+	return true;
+}
+
+// matches template-typed variable-declaration: 'A<B> X', 'A<B> *X', 'A<B> X, Y'
+// ambiguous with relational-expression
+inline bool isAmbiguousTemplateIdVariableDeclaration(cpp::simple_declaration* simple)
+{
+	if(simple == 0
+		|| !isAmbiguousTemplateIdDeclSpecifierSeq(simple->spec))
+	{
+		return false;
+	}
+	cpp::simple_declaration_named* named = dynamic_cast<cpp::simple_declaration_named*>(simple->affix.p);
+	if(named == 0)
+	{
+		return false;
+	}
+	if(!isAmbiguousDeclarator(named->decl)
+		|| !isAmbiguousSimpleDeclarationSuffix(named->suffix))
+	{
+		return false;
+	}
+	return true;
+}
+
+template<typename T>
+inline bool isAmbiguousTemplateIdVariableDeclaration(T* symbol)
+{
+	return isAmbiguousTemplateIdVariableDeclaration(dynamic_cast<cpp::simple_declaration*>(symbol));
+}
+
+
+inline bool isAmbiguous(cpp::statement* statement)
+{
+	return isAmbiguousPtrDeclaration(statement)
+		|| isAmbiguousVariableDeclaration(statement)
+		|| isAmbiguousTemplateIdVariableDeclaration(statement);
+}
+
+inline bool isAmbiguous(cpp::for_init_statement* statement)
+{
+	return isAmbiguousPtrDeclaration(statement)
+		|| isAmbiguousVariableDeclaration(statement)
+		|| isAmbiguousTemplateIdVariableDeclaration(statement);
 }
 
 // matches sizeof(type-id): sizeof(A), sizeof(A()), sizeof(A(B()))
@@ -531,12 +655,7 @@ inline bool isAmbiguousParenthesisedExpression(cpp::cast_expression* symbol)
 	}
 	return true;
 }
-#if 0
-inline bool isAmbiguousCastExpressionRhs(cpp::cast_expression_default* symbol)
-{
-	return true;
-}
-#endif
+
 // matches cast-expression: '(A)(X)', (A)(X())', '(A)(X[1])', '(A())(X)', '(A[1])(X)', '(A)(X, Y)'
 // ambiguity with function-call/cast
 // does not match: '(A)(B)(X)'
@@ -568,43 +687,30 @@ inline bool isAmbiguous(cpp::cast_expression* symbol)
 }
 
 
-inline cpp::identifier* parseSymbol(Parser& parser, cpp::identifier* result)
-{
-	if(TOKEN_EQUAL(parser, boost::wave::T_IDENTIFIER))
-	{
-		result->value.value = parser.get_value();
-		parser.increment();
-		return result;
-	}
-	return NULL;
-}
 
-// matches: 'B, ', 'B && D'
-// ambiguous with assignment-expression
-inline bool isAmbiguousTemplateArgument(cpp::template_argument* symbol)
+// matches type-name: 'A<B>'
+// ambiguous with relational-expression prefix
+inline bool isAmbiguousTemplateId(cpp::type_name* type)
 {
-	cpp::type_id* type = dynamic_cast<cpp::type_id*>(symbol);
-	if(type != 0)
-	{
-		if(!isAmbiguousTypeId(type))
-		{
-			return false;
-		}
-	}
-	return true;
-}
-
-// matches: 'B, ', 'B && D', 'B, D'
-// ambiguous with expression-list
-inline bool isAmbiguousTemplateArgumentList(cpp::template_argument_list* symbol)
-{
-	if(!isAmbiguousTemplateArgument(symbol->item))
+	cpp::simple_template_id* id = dynamic_cast<cpp::simple_template_id*>(type);
+	if(id == 0
+		|| !isAmbiguousTemplateId(id))
 	{
 		return false;
 	}
-	if(symbol->next != 0)
+	return true;
+}
+
+// matches primary-expression prefix: '', 'A<B>::', 'A<B>::C<D>::'
+// ambiguous with nested relational-expression
+// does not match 'A<B>::C::'
+inline bool isAmbiguousTemplateIdPrefix(cpp::nested_name_specifier_suffix* symbol)
+{
+	if(symbol != 0)
 	{
-		if(!isAmbiguousTemplateArgumentList(symbol->next))
+		if(symbol->isTemplate.value != 0
+			|| !isAmbiguousTemplateId(symbol->id)
+			|| !isAmbiguousTemplateIdPrefix(symbol->next))
 		{
 			return false;
 		}
@@ -612,12 +718,32 @@ inline bool isAmbiguousTemplateArgumentList(cpp::template_argument_list* symbol)
 	return true;
 }
 
-// matches: 'A<B>', 'A<B && D>', 'A<B, D>'
-// ambiguous with nested/parenthesised relational-expression lhs
-inline bool isAmbiguousTemplateId(cpp::simple_template_id* symbol)
+// matches primary-expression prefix: 'A<B>::', 'A<B>::C<D>::'
+// ambiguous with nested relational-expression
+// does not match 'A<B>::C::'
+inline bool isAmbiguousTemplateIdPrefix(cpp::nested_name_specifier* symbol)
 {
 	if(symbol == 0
-		|| !isAmbiguousTemplateArgumentList(symbol->args))
+		|| !isAmbiguousTemplateId(symbol->prefix->id)
+		|| !isAmbiguousTemplateIdPrefix(symbol->suffix))
+	{
+		return false;
+	}
+	return true;
+}
+
+// matches primary-expression: 'A<B>::C', '::A<B>::C'
+// ambiguous with nested relational-expression
+// does not match 'A<B>::template C', 'A<B>::C<D>'
+inline bool isAmbiguousTemplateIdPrefix(cpp::qualified_id_default* symbol)
+{
+	if(symbol == 0
+		|| !isAmbiguousTemplateIdPrefix(symbol->context))
+	{
+		return false;
+	}
+	cpp::identifier* id = dynamic_cast<cpp::identifier*>(symbol->id.p);
+	if(id == 0)
 	{
 		return false;
 	}
@@ -643,13 +769,76 @@ inline bool isAmbiguousTemplateIdPrefix(cpp::postfix_expression_construct* symbo
 }
 
 template<typename T>
-inline bool isAmbiguousTemplateIdPrefix(T* symbol)
+inline bool isAmbiguousTemplateIdPrefixExpr(T* symbol)
 {
-	return isAmbiguousTemplateIdPrefix(dynamic_cast<cpp::postfix_expression_construct*>(symbol));
+	if(symbol == 0
+		|| !( isAmbiguousTemplateIdPrefix(dynamic_cast<cpp::qualified_id_default*>(symbol->left.p))
+			|| isAmbiguousTemplateId(dynamic_cast<cpp::simple_template_id*>(symbol->left.p))
+			|| isAmbiguousTemplateIdPrefix(dynamic_cast<cpp::postfix_expression_construct*>(symbol->left.p))))
+	{
+		return false;
+	}
+	return true;
 }
 
-#if 0
+template<typename T>
+inline bool isAmbiguousTemplateIdPrefix(T* symbol)
+{
+	return isAmbiguousTemplateIdPrefix(dynamic_cast<cpp::qualified_id_default*>(symbol))
+		|| isAmbiguousTemplateIdPrefix(dynamic_cast<cpp::postfix_expression_construct*>(symbol))
+		|| isAmbiguousTemplateIdPrefixExpr(dynamic_cast<cpp::expression_default*>(symbol))
+		|| isAmbiguousTemplateIdPrefixExpr(dynamic_cast<cpp::conditional_expression_default*>(symbol))
+		|| isAmbiguousTemplateIdPrefixExpr(dynamic_cast<cpp::logical_or_expression_precedent*>(symbol))
+		|| isAmbiguousTemplateIdPrefixExpr(dynamic_cast<cpp::logical_or_expression_default*>(symbol))
+		|| isAmbiguousTemplateIdPrefixExpr(dynamic_cast<cpp::logical_and_expression_default*>(symbol))
+		|| isAmbiguousTemplateIdPrefixExpr(dynamic_cast<cpp::inclusive_or_expression_default*>(symbol))
+		|| isAmbiguousTemplateIdPrefixExpr(dynamic_cast<cpp::exclusive_or_expression_default*>(symbol))
+		|| isAmbiguousTemplateIdPrefixExpr(dynamic_cast<cpp::and_expression_default*>(symbol))
+		|| isAmbiguousTemplateIdPrefixExpr(dynamic_cast<cpp::equality_expression_default*>(symbol))
+		|| isAmbiguousTemplateIdPrefixExpr(dynamic_cast<cpp::relational_expression_default*>(symbol))
+		|| isAmbiguousTemplateIdPrefixExpr(dynamic_cast<cpp::shift_expression_default*>(symbol))
+		|| isAmbiguousTemplateIdPrefixExpr(dynamic_cast<cpp::additive_expression_default*>(symbol))
+		|| isAmbiguousTemplateIdPrefixExpr(dynamic_cast<cpp::multiplicative_expression_default*>(symbol))
+		|| isAmbiguousTemplateIdPrefixExpr(dynamic_cast<cpp::pm_expression_default*>(symbol))
+		|| isAmbiguousTemplateIdPrefixExpr(dynamic_cast<cpp::postfix_expression_default*>(symbol));
+}
+
+inline bool isAmbiguous(cpp::expression* symbol)
+{
+	return isAmbiguousTemplateIdPrefix(symbol);
+}
+
 inline bool isAmbiguous(cpp::assignment_expression* symbol)
+{
+	return isAmbiguousTemplateIdPrefix(symbol);
+}
+
+inline bool isAmbiguous(cpp::conditional_expression* symbol)
+{
+	return isAmbiguousTemplateIdPrefix(symbol);
+}
+
+inline bool isAmbiguous(cpp::logical_or_expression* symbol)
+{
+	return isAmbiguousTemplateIdPrefix(symbol);
+}
+
+inline bool isAmbiguous(cpp::logical_and_expression* symbol)
+{
+	return isAmbiguousTemplateIdPrefix(symbol);
+}
+
+inline bool isAmbiguous(cpp::inclusive_or_expression* symbol)
+{
+	return isAmbiguousTemplateIdPrefix(symbol);
+}
+
+inline bool isAmbiguous(cpp::exclusive_or_expression* symbol)
+{
+	return isAmbiguousTemplateIdPrefix(symbol);
+}
+
+inline bool isAmbiguous(cpp::and_expression* symbol)
 {
 	return isAmbiguousTemplateIdPrefix(symbol);
 }
@@ -658,9 +847,48 @@ inline bool isAmbiguous(cpp::equality_expression* symbol)
 {
 	return isAmbiguousTemplateIdPrefix(symbol);
 }
-#endif
+
+inline bool isAmbiguous(cpp::relational_expression* symbol)
+{
+	return isAmbiguousTemplateIdPrefix(symbol);
+}
+
+inline bool isAmbiguous(cpp::shift_expression* symbol)
+{
+	return isAmbiguousTemplateIdPrefix(symbol);
+}
+
+inline bool isAmbiguous(cpp::additive_expression* symbol)
+{
+	return isAmbiguousTemplateIdPrefix(symbol);
+}
+
+inline bool isAmbiguous(cpp::multiplicative_expression* symbol)
+{
+	return isAmbiguousTemplateIdPrefix(symbol);
+}
+
+inline bool isAmbiguous(cpp::pm_expression* symbol)
+{
+	return isAmbiguousTemplateIdPrefix(symbol);
+}
 
 
+
+
+
+
+
+inline cpp::identifier* parseSymbol(Parser& parser, cpp::identifier* result)
+{
+	if(TOKEN_EQUAL(parser, boost::wave::T_IDENTIFIER))
+	{
+		result->value.value = parser.get_value();
+		parser.increment();
+		return result;
+	}
+	return NULL;
+}
 
 inline cpp::declaration_seq* parseSymbol(Parser& parser, cpp::declaration_seq* result);
 
