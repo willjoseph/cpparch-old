@@ -604,7 +604,7 @@ cpp::symbol<OtherT> parseSymbolAmbiguous(Parser& parser, cpp::symbol<T> symbol, 
 	if(context.depth != 0)
 	{
 		size_t width = 1 << context.depth;
-		for(size_t i = 1; i != width; ++i)
+		while(context.solution != width)
 		{
 			context.nextSolution();
 			result = parseSymbolChoice(parser, symbol, result);
