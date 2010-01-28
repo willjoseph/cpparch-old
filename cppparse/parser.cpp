@@ -648,6 +648,7 @@ inline bool isAmbiguousTemplateIdPrefix(T* symbol)
 	return isAmbiguousTemplateIdPrefix(dynamic_cast<cpp::postfix_expression_construct*>(symbol));
 }
 
+#if 0
 inline bool isAmbiguous(cpp::assignment_expression* symbol)
 {
 	return isAmbiguousTemplateIdPrefix(symbol);
@@ -657,6 +658,7 @@ inline bool isAmbiguous(cpp::equality_expression* symbol)
 {
 	return isAmbiguousTemplateIdPrefix(symbol);
 }
+#endif
 
 
 
@@ -1456,7 +1458,7 @@ inline cpp::primary_expression_builtin* parseSymbol(Parser& parser, cpp::primary
 
 inline cpp::assignment_expression* parseSymbol(Parser& parser, cpp::assignment_expression* result);
 
-inline cpp::expression* pruneSymbol(cpp::expression_comma* symbol)
+inline cpp::expression* pruneSymbol(cpp::expression_default* symbol)
 {
 	if(symbol->right == 0)
 	{
@@ -1465,7 +1467,7 @@ inline cpp::expression* pruneSymbol(cpp::expression_comma* symbol)
 	return symbol;
 }
 
-inline cpp::expression_comma* parseSymbol(Parser& parser, cpp::expression_comma* result)
+inline cpp::expression_default* parseSymbol(Parser& parser, cpp::expression_default* result)
 {
 	PARSE_REQUIRED(parser, result->left);
 	PARSE_TERMINAL(parser, result->comma);
@@ -1475,7 +1477,7 @@ inline cpp::expression_comma* parseSymbol(Parser& parser, cpp::expression_comma*
 
 inline cpp::expression* parseSymbol(Parser& parser, cpp::expression* result)
 {
-	PARSE_EXPRESSION_SPECIAL(parser, cpp::expression_comma);
+	PARSE_EXPRESSION_SPECIAL(parser, cpp::expression_default);
 	return result;
 }
 

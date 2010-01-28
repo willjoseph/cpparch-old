@@ -193,7 +193,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(condition);
 		VISITABLE_BASE(VISITORFUNCLIST3(
-			SYMBOLFWD(expression_comma),
+			SYMBOLFWD(expression_default),
 			SYMBOLFWD(assignment_expression),
 			ambiguity<expression>*
 		));
@@ -916,12 +916,12 @@ namespace cpp
 		FOREACH2(key, expr);
 	};
 
-	struct expression_comma : public expression
+	struct expression_default : public expression
 	{
 		VISITABLE_DERIVED(expression);
 		symbol<assignment_expression> left;
 		terminal_suffix<boost::wave::T_COMMA> comma;
-		symbol<expression_comma> right;
+		symbol<expression> right;
 		FOREACH3(left, comma, right);
 	};
 

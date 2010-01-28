@@ -103,13 +103,12 @@ void printSymbol(T* symbol)
 
 struct ParserState
 {
+	Lexer::Tokens::const_iterator ambiguityPos;
 	bool inTemplateArgumentList;
-	bool peekingTemplateId;
-	bool inTemplateIdAmbiguity;
 	bool ignoreTemplateId;
 	bool ignoreRelationalLess;
 	ParserState()
-		: inTemplateArgumentList(false), peekingTemplateId(false), inTemplateIdAmbiguity(false), ignoreTemplateId(false), ignoreRelationalLess(false)
+		: ambiguityPos(0), inTemplateArgumentList(false), ignoreTemplateId(false), ignoreRelationalLess(false)
 	{
 	}
 };
@@ -129,6 +128,15 @@ struct Parser : public ParserState
 	{
 	}
 
+	void setAmbiguity()
+	{
+		ambiguityPos = lexer.position;
+	}
+	bool getAmbiguity() const
+	{
+		return ambiguityPos == lexer.position;
+	}
+
 	LexTokenId get_id()
 	{
 		return lexer.get_id();
@@ -144,7 +152,6 @@ struct Parser : public ParserState
 
 	void increment()
 	{
-		inTemplateIdAmbiguity = false;
 		++position;
 		lexer.increment();
 	}
@@ -514,60 +521,39 @@ inline cpp::simple_template_id* parseSymbol(Parser& parser, cpp::simple_template
 
 inline bool peekTemplateIdAmbiguity(Parser& parser)
 {
-	if(parser.peekingTemplateId)
-	{
-		return false;
-	}
-#if 0 // broken?
-	if(parser.inTemplateIdAmbiguity)
-	{
-		// optimisation
-		return true;
-	}
-#else
-	if(parser.inTemplateIdAmbiguity)
-	{
-		return false;
-	}
-#endif
-
 	Parser tmp(parser);
-	tmp.peekingTemplateId = true;
 #if 0 // TEMP HACK: check for full template-id: this avoids false-positives when parsing 'X - Y < Z;'
 	cpp::symbol_optional<cpp::simple_template_id> symbol;
 	PARSE_OPTIONAL(tmp, symbol);
-	parser.inTemplateIdAmbiguity = symbol != 0;
+	bool result = symbol != 0;
 #else
-	parser.inTemplateIdAmbiguity = false;
+	bool result = false;
 	if(TOKEN_EQUAL(tmp, boost::wave::T_IDENTIFIER))
 	{
 		tmp.increment();
 		if(TOKEN_EQUAL(tmp, boost::wave::T_LESS))
 		{
-			parser.inTemplateIdAmbiguity = true;
+			result = true;
 		}
 	}
 #endif
 	tmp.backtrack("peekTemplateIdAmbiguity");
-	return parser.inTemplateIdAmbiguity;
+	return result;
 }
 
 // if the next tokens look like a template-id
 	// first try parsing for a template-id
 	// then try parsing for a relational-expression
 #define PARSE_EXPRESSION_SPECIAL(parser, Type) \
-	if(peekTemplateIdAmbiguity(parser)) \
+	if(!parser.getAmbiguity() \
+		&& peekTemplateIdAmbiguity(parser)) \
 	{ \
+		parser.setAmbiguity(); \
 		parser.ignoreTemplateId = false; \
 		parser.ignoreRelationalLess = true; \
 		PARSE_SELECT(parser, Type); \
 		parser.ignoreRelationalLess = false; \
 		parser.ignoreTemplateId = true; \
-	} \
-	else \
-	{ \
-		parser.ignoreTemplateId = false; \
-		parser.ignoreRelationalLess = false; \
 	} \
 	PARSE_SELECT(parser, Type);
 
