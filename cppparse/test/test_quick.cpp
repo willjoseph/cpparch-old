@@ -1,12 +1,31 @@
 
 void f()
 {
+	A < B, C > 0; // relational-expression
+	A<B>(C) ,
+		X<Y>(Z);
+	A < B > 0; // relational-expression
 	A < (X < Y >(Z)) >(C);
-	A < B >(C) == X < Y >(Z);
+	A<B>(C) ==
+		X<Y>(Z);
+	A<B>(C) >
+		X<Y>(Z);
+	A<B>(C) &
+		X<Y>(Z);
+	A<B>(C) ^
+		X<Y>(Z);
+	A<B>(C) |
+		X<Y>(Z);
+	A<B>(C) &&
+		X<Y>(Z);
+	A<B>(C) ||
+		X<Y>(Z);
+	A<B>(C) ?
+		X<Y>(Z) : NULL;
+	A<B>(C) =
+		X<Y>(Z);
 	A < B > C; // simple-declaration, or relational-expression
 	A < B >(C); // named-template-specialization with function-call postfix, or simple-declaration, or relational-expression
-	A < B && C > 0; // relational-expression
-	A < B > 0; // relational-expression
 	_N < _M; // relational-expression
 	_Len - _P0 < _M; // relational-expression
 	A<B> *C; // simple-declaration, or relational-expression

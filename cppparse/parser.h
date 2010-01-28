@@ -104,11 +104,12 @@ void printSymbol(T* symbol)
 struct ParserState
 {
 	bool inTemplateArgumentList;
+	bool peekingTemplateId;
 	bool inTemplateIdAmbiguity;
 	bool ignoreTemplateId;
 	bool ignoreRelationalLess;
 	ParserState()
-		: inTemplateArgumentList(false), inTemplateIdAmbiguity(false), ignoreTemplateId(false), ignoreRelationalLess(false)
+		: inTemplateArgumentList(false), peekingTemplateId(false), inTemplateIdAmbiguity(false), ignoreTemplateId(false), ignoreRelationalLess(false)
 	{
 	}
 };
@@ -126,10 +127,6 @@ struct Parser : public ParserState
 	Parser(const Parser& other)
 		: ParserState(other), lexer(other.lexer), position(0), allocation(lexer.allocator.position)
 	{
-		if(other.position != 0)
-		{
-			inTemplateIdAmbiguity = false;
-		}
 	}
 
 	LexTokenId get_id()
@@ -147,6 +144,7 @@ struct Parser : public ParserState
 
 	void increment()
 	{
+		inTemplateIdAmbiguity = false;
 		++position;
 		lexer.increment();
 	}
@@ -367,6 +365,12 @@ struct IsAmbiguous<cpp::cast_expression>
 };
 
 template<>
+struct IsAmbiguous<cpp::expression>
+{
+	typedef True Result;
+};
+
+template<>
 struct IsAmbiguous<cpp::assignment_expression>
 {
 	typedef True Result;
@@ -414,7 +418,7 @@ cpp::symbol<OtherT> parseSymbolChoice(Parser& parser, cpp::symbol<T> symbol, Oth
 		if(!isAmbiguous(other)) // debug: check that this is a known ambiguity
 		{
 			// if not, print diagnostic
-			printPosition(get_position(dereference(parser.lexer.first)));
+			printPosition(parser.get_position());
 			std::cout << std::endl;
 			std::cout << "  " << SYMBOL_NAME(OtherT) << ": ";
 			printSymbol(alt);
@@ -510,24 +514,37 @@ inline cpp::simple_template_id* parseSymbol(Parser& parser, cpp::simple_template
 
 inline bool peekTemplateIdAmbiguity(Parser& parser)
 {
+	if(parser.peekingTemplateId)
+	{
+		return false;
+	}
+#if 0 // broken?
 	if(parser.inTemplateIdAmbiguity)
 	{
 		// optimisation
 		return true;
 	}
+#else
+	if(parser.inTemplateIdAmbiguity)
+	{
+		return false;
+	}
+#endif
 
 	Parser tmp(parser);
-#if 1 // TEMP HACK: check for full template-id: this avoids false-positives when parsing 'X - Y < Z;'
+	tmp.peekingTemplateId = true;
+#if 0 // TEMP HACK: check for full template-id: this avoids false-positives when parsing 'X - Y < Z;'
 	cpp::symbol_optional<cpp::simple_template_id> symbol;
 	PARSE_OPTIONAL(tmp, symbol);
 	parser.inTemplateIdAmbiguity = symbol != 0;
 #else
+	parser.inTemplateIdAmbiguity = false;
 	if(TOKEN_EQUAL(tmp, boost::wave::T_IDENTIFIER))
 	{
 		tmp.increment();
 		if(TOKEN_EQUAL(tmp, boost::wave::T_LESS))
 		{
-			result = true;
+			parser.inTemplateIdAmbiguity = true;
 		}
 	}
 #endif
@@ -535,13 +552,10 @@ inline bool peekTemplateIdAmbiguity(Parser& parser)
 	return parser.inTemplateIdAmbiguity;
 }
 
-#if 0
-#define PARSE_EXPRESSION PARSE_PREFIX
-#elif 1
 // if the next tokens look like a template-id
 	// first try parsing for a template-id
 	// then try parsing for a relational-expression
-#define PARSE_EXPRESSION(parser, Type) \
+#define PARSE_EXPRESSION_SPECIAL(parser, Type) \
 	if(peekTemplateIdAmbiguity(parser)) \
 	{ \
 		parser.ignoreTemplateId = false; \
@@ -550,7 +564,17 @@ inline bool peekTemplateIdAmbiguity(Parser& parser)
 		parser.ignoreRelationalLess = false; \
 		parser.ignoreTemplateId = true; \
 	} \
+	else \
+	{ \
+		parser.ignoreTemplateId = false; \
+		parser.ignoreRelationalLess = false; \
+	} \
 	PARSE_SELECT(parser, Type);
+
+#if 1
+#define PARSE_EXPRESSION PARSE_PREFIX
+#else
+#define PARSE_EXPRESSION PARSE_EXPRESSION_SPECIAL
 #endif
 
 cpp::declaration_seq* parseFile(Lexer& lexer);

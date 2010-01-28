@@ -1475,7 +1475,7 @@ inline cpp::expression_comma* parseSymbol(Parser& parser, cpp::expression_comma*
 
 inline cpp::expression* parseSymbol(Parser& parser, cpp::expression* result)
 {
-	PARSE_PREFIX(parser, cpp::expression_comma);
+	PARSE_EXPRESSION_SPECIAL(parser, cpp::expression_comma);
 	return result;
 }
 
@@ -1964,7 +1964,7 @@ inline cpp::relational_expression_default* parseSymbol(Parser& parser, cpp::rela
 
 inline cpp::relational_expression* parseSymbol(Parser& parser, cpp::relational_expression* result)
 {
-	PARSE_EXPRESSION(parser, cpp::relational_expression_default);
+	PARSE_EXPRESSION_SPECIAL(parser, cpp::relational_expression_default);
 	return result;
 }
 
@@ -1997,7 +1997,7 @@ inline cpp::equality_expression_default* parseSymbol(Parser& parser, cpp::equali
 
 inline cpp::equality_expression* parseSymbol(Parser& parser, cpp::equality_expression* result)
 {
-	PARSE_EXPRESSION(parser, cpp::equality_expression_default);
+	PARSE_EXPRESSION_SPECIAL(parser, cpp::equality_expression_default);
 	return result;
 }
 
@@ -2020,7 +2020,7 @@ inline cpp::and_expression_default* parseSymbol(Parser& parser, cpp::and_express
 
 inline cpp::and_expression* parseSymbol(Parser& parser, cpp::and_expression* result)
 {
-	PARSE_EXPRESSION(parser, cpp::and_expression_default);
+	PARSE_EXPRESSION_SPECIAL(parser, cpp::and_expression_default);
 	return result;
 }
 
@@ -2043,7 +2043,7 @@ inline cpp::exclusive_or_expression_default* parseSymbol(Parser& parser, cpp::ex
 
 inline cpp::exclusive_or_expression* parseSymbol(Parser& parser, cpp::exclusive_or_expression* result)
 {
-	PARSE_EXPRESSION(parser, cpp::exclusive_or_expression_default);
+	PARSE_EXPRESSION_SPECIAL(parser, cpp::exclusive_or_expression_default);
 	return result;
 }
 
@@ -2066,7 +2066,7 @@ inline cpp::inclusive_or_expression_default* parseSymbol(Parser& parser, cpp::in
 
 inline cpp::inclusive_or_expression* parseSymbol(Parser& parser, cpp::inclusive_or_expression* result)
 {
-	PARSE_EXPRESSION(parser, cpp::inclusive_or_expression_default);
+	PARSE_EXPRESSION_SPECIAL(parser, cpp::inclusive_or_expression_default);
 	return result;
 }
 
@@ -2089,7 +2089,7 @@ inline cpp::logical_and_expression_default* parseSymbol(Parser& parser, cpp::log
 
 inline cpp::logical_and_expression* parseSymbol(Parser& parser, cpp::logical_and_expression* result)
 {
-	PARSE_EXPRESSION(parser, cpp::logical_and_expression_default);
+	PARSE_EXPRESSION_SPECIAL(parser, cpp::logical_and_expression_default);
 	return result;
 }
 
@@ -2112,7 +2112,7 @@ inline cpp::logical_or_expression_default* parseSymbol(Parser& parser, cpp::logi
 
 inline cpp::logical_or_expression* parseSymbol(Parser& parser, cpp::logical_or_expression* result)
 {
-	PARSE_EXPRESSION(parser, cpp::logical_or_expression_default);
+	PARSE_EXPRESSION_SPECIAL(parser, cpp::logical_or_expression_default);
 	return result;
 }
 
@@ -2191,14 +2191,14 @@ inline cpp::assignment_expression* pruneSymbol(cpp::logical_or_expression_preced
 
 inline cpp::conditional_expression* parseSymbol(Parser& parser, cpp::conditional_expression* result)
 {
-	PARSE_EXPRESSION(parser, cpp::conditional_expression_default);
+	PARSE_EXPRESSION_SPECIAL(parser, cpp::conditional_expression_default);
 	return result;
 }
 
 
 inline cpp::assignment_expression* parseSymbol(Parser& parser, cpp::assignment_expression* result)
 {
-	PARSE_EXPRESSION(parser, cpp::logical_or_expression_precedent); // TODO: handle template-id / relation-expression ambiguity
+	PARSE_EXPRESSION_SPECIAL(parser, cpp::logical_or_expression_precedent); // TODO: handle template-id / relation-expression ambiguity
 	PARSE_SELECT(parser, cpp::throw_expression); // NOTE: PARSE_EXPRESSION must be the first statement - it relies on 'parser' being untouched
 	return result;
 }

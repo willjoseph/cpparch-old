@@ -192,9 +192,10 @@ namespace cpp
 	struct expression : public choice<expression>, public condition
 	{
 		VISITABLE_DERIVED(condition);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(VISITORFUNCLIST3(
 			SYMBOLFWD(expression_comma),
-			SYMBOLFWD(assignment_expression)
+			SYMBOLFWD(assignment_expression),
+			ambiguity<expression>*
 		));
 	};
 
