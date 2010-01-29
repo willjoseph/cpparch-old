@@ -167,7 +167,7 @@ struct TemplateIdAmbiguityContext
 	}
 	void nextDepth()
 	{
-		if(depth == 31)
+		if(depth == 15) // limit to 2^16 permutations
 		{
 			throw ParseError();
 		}
@@ -441,24 +441,13 @@ DECLARE_AMBIGUOUS(cpp::statement);
 DECLARE_AMBIGUOUS(cpp::for_init_statement);
 DECLARE_AMBIGUOUS(cpp::member_declaration);
 DECLARE_AMBIGUOUS(cpp::template_parameter);
-
-
-DECLARE_AMBIGUOUS(cpp::expression);
-DECLARE_AMBIGUOUS(cpp::conditional_expression);
-DECLARE_AMBIGUOUS(cpp::assignment_expression);
-DECLARE_AMBIGUOUS(cpp::logical_or_expression);
-DECLARE_AMBIGUOUS(cpp::logical_and_expression);
-DECLARE_AMBIGUOUS(cpp::inclusive_or_expression);
-DECLARE_AMBIGUOUS(cpp::exclusive_or_expression);
-DECLARE_AMBIGUOUS(cpp::and_expression);
-DECLARE_AMBIGUOUS(cpp::equality_expression);
-DECLARE_AMBIGUOUS(cpp::relational_expression);
-DECLARE_AMBIGUOUS(cpp::shift_expression);
-DECLARE_AMBIGUOUS(cpp::additive_expression);
-DECLARE_AMBIGUOUS(cpp::multiplicative_expression);
-DECLARE_AMBIGUOUS(cpp::pm_expression);
 DECLARE_AMBIGUOUS(cpp::cast_expression);
 DECLARE_AMBIGUOUS(cpp::unary_expression);
+
+DECLARE_AMBIGUOUS(cpp::expression);
+DECLARE_AMBIGUOUS(cpp::constant_expression);
+DECLARE_AMBIGUOUS(cpp::assignment_expression);
+
 
 #define SYMBOLP_NAME(p) (typeid(*p).name() + 12)
 
@@ -596,7 +585,6 @@ inline ParseResult parseTerminal(Parser& parser, cpp::terminal_suffix<id>& resul
 // Type must have members 'left' and 'right', and 'typeof(left)' must by substitutable for 'Type'
 #define PARSE_PREFIX(parser, Type) if(cpp::symbol<Type> p = parseSymbolRequired(parser, NullPtr<Type>::VALUE)) { if(p->right == NULL) return p->left; return p; }
 
-inline cpp::simple_template_id* parseSymbol(Parser& parser, cpp::simple_template_id*);
 
 inline bool peekTemplateIdAmbiguity(Parser& parser)
 {
@@ -627,24 +615,6 @@ inline bool peekTemplateIdAmbiguityPrev(Parser& parser)
 	}
 	return result;
 }
-
-
-// if the next tokens look like a template-id
-	// first try parsing for a template-id
-	// then try parsing for a relational-expression
-#define PARSE_EXPRESSION_SPECIAL_OLD(parser, Type) \
-	if(!parser.getAmbiguity() \
-		&& peekTemplateIdAmbiguity(parser)) \
-	{ \
-		parser.setAmbiguity(); \
-		parser.ignoreTemplateId = false; \
-		parser.ignoreRelationalLess = true; \
-		PARSE_SELECT(parser, Type); \
-		parser.ignoreRelationalLess = false; \
-		parser.ignoreTemplateId = true; \
-	} \
-	PARSE_SELECT(parser, Type);
-
 
 
 // Returns true if the current symbol should be ignored
@@ -698,10 +668,6 @@ cpp::symbol<OtherT> parseSymbolAmbiguous(Parser& parser, cpp::symbol<T> symbol, 
 				std::cout << "ambiguity solution: " << context.solution << std::endl;
 #endif
 				result = parseSymbolChoice(parser, symbol, result);
-				if(context.depth != depth)
-				{
-					breakpoint();
-				}
 				width = std::max(width, size_t(1 << context.depth)); // handle failure of initial parse, increase depth when a solution is found
 			}
 		}

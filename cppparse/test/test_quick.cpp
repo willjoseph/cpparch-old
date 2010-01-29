@@ -1,9 +1,17 @@
 
 void f()
 {
+	_Facptr = (_Facet *)&std::use_facet<_Facet>(_Loc);
+	const std::collate<_Elem>& _Coll_fac =
+			std::use_facet<std::collate<_Elem> >(*this);
+
+	enum { E = A < B > 0 == X < Y > 0 };
+	enum { E = A < B > C == X < Y > Z };
+
 	(A < B > 0);
 	A < (A < B > 0) > B;
 	A < B > 0 == X < Y > 0;
+	A < B > 0 == X < Y > Z;
 
 	A < B, C > 0; // relational-expression
 	A<B>(C)(X<Y>(Z));
