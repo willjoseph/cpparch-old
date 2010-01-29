@@ -148,6 +148,7 @@ void printSymbol(T* symbol, bool disambiguated = false)
 	walker.visit(symbol);
 }
 
+//#define AMBIGUITY_DEBUG
 
 struct TemplateIdAmbiguityContext
 {
@@ -156,20 +157,18 @@ struct TemplateIdAmbiguityContext
 	TemplateIdAmbiguityContext() : depth(0), solution(0)
 	{
 	}
-	bool nextDepth()
+	void nextDepth()
 	{
 		if(depth == 31)
 		{
 			throw ParseError();
 		}
-		return (solution & (1 << depth++)) != 0;
+		++depth;
 	}
-	void nextSolution()
+	bool ignoreTemplateId() const
 	{
-		depth = 0;
-		++solution;
+		return (solution & (1 << depth)) != 0;
 	}
-
 };
 
 struct ParserState
@@ -195,12 +194,8 @@ struct Parser : public ParserState
 	{
 	}
 	Parser(const Parser& other)
-		: ParserState(other), lexer(other.lexer), position(0), allocation(lexer.allocator.position)
+		: ParserState(other), lexer(other.lexer), position(0), allocation(lexer.allocator.position), ambiguityDepth(0)
 	{
-		if(ambiguity != 0)
-		{
-			ambiguityDepth = ambiguity->depth;
-		}
 	}
 
 	LexTokenId get_id()
@@ -222,14 +217,44 @@ struct Parser : public ParserState
 		lexer.increment();
 	}
 
-	void backtrack(const char* symbol)
+	void backtrack(const char* symbol, bool preserveAllocation = false)
 	{
 		lexer.backtrack(position, symbol);
-		lexer.allocator.position = allocation;
-		if(ambiguity != 0)
+		if(!preserveAllocation)
 		{
-			ambiguity->depth = ambiguityDepth;
+			lexer.allocator.position = allocation;
 		}
+		if(ambiguity != 0
+			&& ambiguityDepth != 0)
+		{
+			ambiguity->depth -= ambiguityDepth;
+#ifdef AMBIGUITY_DEBUG
+			std::cout << "ambiguity backtrack: " << ambiguity->depth << "/" << ambiguityDepth << std::endl;
+#endif
+		}
+	}
+	void advance()
+	{
+		if(position != 0)
+		{
+			lexer.advance(position);
+		}
+		if(ambiguity != 0
+			&& ambiguityDepth != 0)
+		{
+			ambiguity->depth += ambiguityDepth;
+#ifdef AMBIGUITY_DEBUG
+			std::cout << "ambiguity advance: " << ambiguity->depth << "/" << ambiguityDepth << std::endl;
+#endif
+		}
+	}
+	void nextDepth()
+	{
+		ambiguity->nextDepth();
+		++ambiguityDepth;
+#ifdef AMBIGUITY_DEBUG
+		std::cout << "ambiguity next-depth: " << ambiguity->depth << "/" << ambiguityDepth << std::endl;
+#endif
 	}
 };
 
@@ -338,7 +363,8 @@ cpp::symbol<T> parseSymbolRequired(Parser& parser, cpp::symbol<T> symbol, size_t
 	if(p != 0
 		&& tmp.position >= best)
 	{
-		parser.position += tmp.position - best;
+		parser.position += tmp.position;
+		parser.ambiguityDepth += tmp.ambiguityDepth;
 		return cpp::symbol<T>(p);
 	}
 
@@ -449,16 +475,19 @@ cpp::symbol<OtherT> parseSymbolChoice(Parser& parser, cpp::symbol<T> symbol, Oth
 		{
 			return cpp::symbol<OtherT>(other);
 		}
-		parser.lexer.backtrack(parser.position);
+		parser.backtrack(SYMBOL_NAME(T), true);
 	}
+	size_t ambiguityDepth = parser.ambiguityDepth;
+	parser.ambiguityDepth = 0;
 	size_t position = parser.position;
-	T* p = parseSymbolRequired(parser, NullPtr<T>::VALUE, parser.position);
+	parser.position = 0;
+	T* p = parseSymbolRequired(parser, NullPtr<T>::VALUE, position);
 	if(p != 0
 		&& position != 0
 		&& position == parser.position) // successfully parsed an alternative interpretation
 	{
 		OtherT* alt = pruneSymbol(p);
-		if(!isAmbiguous(other)) // debug: check that this is a known ambiguity
+		//if(!isAmbiguous(other)) // debug: check that this is a known ambiguity
 		{
 			// if not, print diagnostic
 			printPosition(parser.get_position());
@@ -486,10 +515,9 @@ cpp::symbol<OtherT> parseSymbolChoice(Parser& parser, cpp::symbol<T> symbol, Oth
 	}
 	if(p == 0)
 	{
-		if(parser.position != 0)
-		{
-			parser.lexer.advance(parser.position);
-		}
+		parser.ambiguityDepth = ambiguityDepth;
+		parser.position = position;
+		parser.advance();
 		return cpp::symbol<OtherT>(other);
 	}
 	return cpp::symbol<OtherT>(pruneSymbol(p));
@@ -563,17 +591,31 @@ inline cpp::simple_template_id* parseSymbol(Parser& parser, cpp::simple_template
 
 inline bool peekTemplateIdAmbiguity(Parser& parser)
 {
-	Parser tmp(parser);
 	bool result = false;
-	if(TOKEN_EQUAL(tmp, boost::wave::T_IDENTIFIER))
+	if(isToken(parser.lexer.get_id(), boost::wave::T_IDENTIFIER))
 	{
-		tmp.increment();
-		if(TOKEN_EQUAL(tmp, boost::wave::T_LESS))
+		parser.lexer.increment();
+		if(isToken(parser.lexer.get_id(), boost::wave::T_LESS))
 		{
 			result = true;
 		}
+		parser.lexer.backtrack(1);
 	}
-	tmp.backtrack("peekTemplateIdAmbiguity");
+	return result;
+}
+
+inline bool peekTemplateIdAmbiguityPrev(Parser& parser)
+{
+	bool result = false;
+	if(isToken(parser.lexer.get_id(), boost::wave::T_LESS))
+	{
+		parser.lexer.backtrack(1);
+		if(isToken(parser.lexer.get_id(), boost::wave::T_IDENTIFIER))
+		{
+			result = true;
+		}
+		parser.lexer.increment();
+	}
 	return result;
 }
 
@@ -595,20 +637,63 @@ inline bool peekTemplateIdAmbiguity(Parser& parser)
 	PARSE_SELECT(parser, Type);
 
 
+
+// Returns true if the current symbol should be ignored
+inline bool checkTemplateIdAmbiguity(Parser& parser, bool templateId)
+{
+	if(parser.ambiguity != 0
+		&& peekTemplateIdAmbiguity(parser))
+	{
+#ifdef AMBIGUITY_DEBUG
+		std::cout << "ambiguity check: " << templateId << std::endl;
+#endif
+		bool result = parser.ambiguity->ignoreTemplateId() == templateId;
+#if 0
+		if(!result)
+		{
+			parser.nextDepth();
+		}
+#endif
+		return result;
+	}
+	return false;
+}
+
 template<typename T, typename OtherT>
 cpp::symbol<OtherT> parseSymbolAmbiguous(Parser& parser, cpp::symbol<T> symbol, OtherT* result)
 {
 	TemplateIdAmbiguityContext context;
-	parser.ambiguity = &context;
-	result = parseSymbolChoice(parser, symbol, result);
-	if(context.depth != 0)
+	if(parser.ambiguity == 0)
 	{
-		size_t width = 1 << context.depth;
-		while(context.solution != width)
+		parser.ambiguity = &context;
+#ifdef AMBIGUITY_DEBUG
+		std::cout << "ambiguity begin: " << SYMBOL_NAME(T) << std::endl;
+#endif
+	}
+	result = parseSymbolChoice(parser, symbol, result);
+	if(parser.ambiguity == &context)
+	{
+#ifdef AMBIGUITY_DEBUG
+		std::cout << "ambiguity end: " << SYMBOL_NAME(T) << std::endl;
+#endif
+		if(context.depth != 0)
 		{
-			context.nextSolution();
-			result = parseSymbolChoice(parser, symbol, result);
+			// debug
+			size_t depth = context.depth;
+			OtherT* original = result;
+
+			size_t width = 1 << context.depth;
+			while(++context.solution != width)
+			{
+#ifdef AMBIGUITY_DEBUG
+				std::cout << "ambiguity solution: " << context.solution << std::endl;
+#endif
+				result = parseSymbolChoice(parser, symbol, result);
+				PARSE_ASSERT(original == result // solution failed
+					|| context.depth == depth);
+			}
 		}
+		parser.ambiguity = 0;
 	}
 	return cpp::symbol<OtherT>(result);
 }

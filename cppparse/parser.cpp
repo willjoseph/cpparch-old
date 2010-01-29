@@ -989,10 +989,16 @@ inline cpp::template_argument_list* parseSymbol(Parser& parser, cpp::template_ar
 inline cpp::simple_template_id* parseSymbol(Parser& parser, cpp::simple_template_id* result)
 {
 	if(parser.ambiguity != 0
-		&& peekTemplateIdAmbiguity(parser)
-		&& parser.ambiguity->nextDepth())
+		&& peekTemplateIdAmbiguity(parser))
 	{
-		return 0;
+#ifdef AMBIGUITY_DEBUG
+		std::cout << "ambiguity check: template-id" << std::endl;
+#endif
+		if(parser.ambiguity->ignoreTemplateId())
+		{
+			return 0;
+		}
+		parser.nextDepth();
 	}
 	PARSE_REQUIRED(parser, result->id);
 	PARSE_TERMINAL(parser, result->lb);
@@ -1713,6 +1719,7 @@ inline cpp::expression* parseSymbol(Parser& parser, cpp::expression* result)
 
 inline cpp::primary_expression_parenthesis* parseSymbol(Parser& parser, cpp::primary_expression_parenthesis* result)
 {
+	parser.ambiguity = 0;
 	parser.inTemplateArgumentList = false;
 	PARSE_TERMINAL(parser, result->lp);
 	PARSE_REQUIRED(parser, result->expr);
@@ -2177,22 +2184,27 @@ cpp::relational_expression* pruneSymbol(cpp::relational_expression_default* symb
 
 inline cpp::relational_expression_default* parseSymbol(Parser& parser, cpp::relational_expression_default* result)
 {
-	bool ignoreRelationalLess = parser.ambiguity != 0
-		&& peekTemplateIdAmbiguity(parser)
-		&& !parser.ambiguity->nextDepth();
-
 	PARSE_REQUIRED(parser, result->left);
-	if(!(ignoreRelationalLess
-			&& TOKEN_EQUAL(parser, boost::wave::T_LESS))) // '<' begins template-argument-list
+
+	if(parser.ambiguity != 0
+		&& peekTemplateIdAmbiguityPrev(parser))
 	{
-		if(!(parser.inTemplateArgumentList
-				&& TOKEN_EQUAL(parser, boost::wave::T_GREATER))) // '>' terminates template-argument-list
+#ifdef AMBIGUITY_DEBUG
+		std::cout << "ambiguity check: relational" << std::endl;
+#endif
+		if(parser.ambiguity->ignoreTemplateId())
 		{
-			PARSE_OPTIONAL(parser, result->op);
-			if(result->op != NULL)
-			{
-				PARSE_REQUIRED(parser, result->right);
-			}
+			parser.nextDepth();
+		}
+	}
+
+	if(!(parser.inTemplateArgumentList
+			&& TOKEN_EQUAL(parser, boost::wave::T_GREATER))) // '>' terminates template-argument-list
+	{
+		PARSE_OPTIONAL(parser, result->op);
+		if(result->op != NULL)
+		{
+			PARSE_REQUIRED(parser, result->right);
 		}
 	}
 	return result;
