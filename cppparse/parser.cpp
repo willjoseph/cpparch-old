@@ -1719,7 +1719,6 @@ inline cpp::expression* parseSymbol(Parser& parser, cpp::expression* result)
 
 inline cpp::primary_expression_parenthesis* parseSymbol(Parser& parser, cpp::primary_expression_parenthesis* result)
 {
-	parser.ambiguity = 0;
 	parser.inTemplateArgumentList = false;
 	PARSE_TERMINAL(parser, result->lp);
 	PARSE_REQUIRED(parser, result->expr);

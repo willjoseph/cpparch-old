@@ -487,7 +487,7 @@ cpp::symbol<OtherT> parseSymbolChoice(Parser& parser, cpp::symbol<T> symbol, Oth
 		&& position == parser.position) // successfully parsed an alternative interpretation
 	{
 		OtherT* alt = pruneSymbol(p);
-		//if(!isAmbiguous(other)) // debug: check that this is a known ambiguity
+		if(!isAmbiguous(other)) // debug: check that this is a known ambiguity
 		{
 			// if not, print diagnostic
 			printPosition(parser.get_position());

@@ -1,7 +1,9 @@
 
 void f()
 {
-	// TODO:
+	A < B, C > 0; // relational-expression
+	A<B>(C)(X<Y>(Z));
+
 	::A<B>C;
 	A<B>::C;
 	// A < (B > ::C)
@@ -29,11 +31,9 @@ void f()
 
 
 	A<B>(C)[X<Y>(Z)];
-	A<B>(C)++
-	A<B>(C)(X<Y>(Z));
+	A<B>(C)++;
 	A<B>(C) &
 		X<Y>(Z);
-	A < B, C > 0; // relational-expression
 	A<B>(C) ,
 		X<Y>(Z);
 	A < B > 0; // relational-expression

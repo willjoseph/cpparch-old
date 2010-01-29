@@ -77,6 +77,7 @@ int runTest(const Test& test)
 		LexContext& context = createContext(instring, test.input);
 		add_sysinclude_path(context, "C:\\Program Files\\Microsoft Visual Studio 8\\VC\\include");
 		add_sysinclude_path(context, "C:\\Program Files\\Microsoft Visual Studio 8\\VC\\PlatformSDK\\include");
+		add_sysinclude_path(context, "C:\\Program Files\\Microsoft Platform SDK for Windows Server 2003 R2\\include");
 		add_macro_definition(context, "__fastcall=", true);
 		add_macro_definition(context, "__thiscall=", true);
 		add_macro_definition(context, "__clrcall=", true);
