@@ -1719,10 +1719,18 @@ inline cpp::expression* parseSymbol(Parser& parser, cpp::expression* result)
 
 inline cpp::primary_expression_parenthesis* parseSymbol(Parser& parser, cpp::primary_expression_parenthesis* result)
 {
+	TemplateIdAmbiguityContext* ambiguity = parser.ambiguity;
+	size_t ambiguityDepth = parser.ambiguityDepth;
+	parser.ambiguity = 0; // parentheses always disambiguate
+	parser.ambiguityDepth = 0;
+
 	parser.inTemplateArgumentList = false;
 	PARSE_TERMINAL(parser, result->lp);
 	PARSE_REQUIRED(parser, result->expr);
 	PARSE_TERMINAL(parser, result->rp);
+
+	parser.ambiguity = ambiguity;
+	parser.ambiguityDepth = ambiguityDepth;
 	return result;
 }
 

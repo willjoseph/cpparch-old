@@ -1,6 +1,10 @@
 
 void f()
 {
+	(A < B > 0);
+	A < (A < B > 0) > B;
+	A < B > 0 == X < Y > 0;
+
 	A < B, C > 0; // relational-expression
 	A<B>(C)(X<Y>(Z));
 

@@ -12,6 +12,14 @@ struct ParseError
 	}
 };
 
+struct GeneralError
+{
+	GeneralError()
+	{
+	}
+};
+
+#define ASSERT(condition) if(!(condition)) { throw GeneralError(); }
 
 inline bool isAlphabet(char c)
 {
@@ -227,6 +235,7 @@ struct Parser : public ParserState
 		if(ambiguity != 0
 			&& ambiguityDepth != 0)
 		{
+			ASSERT(ambiguityDepth <= ambiguity->depth);
 			ambiguity->depth -= ambiguityDepth;
 #ifdef AMBIGUITY_DEBUG
 			std::cout << "ambiguity backtrack: " << ambiguity->depth << "/" << ambiguityDepth << std::endl;
@@ -689,8 +698,11 @@ cpp::symbol<OtherT> parseSymbolAmbiguous(Parser& parser, cpp::symbol<T> symbol, 
 				std::cout << "ambiguity solution: " << context.solution << std::endl;
 #endif
 				result = parseSymbolChoice(parser, symbol, result);
-				PARSE_ASSERT(original == result // solution failed
-					|| context.depth == depth);
+				if(context.depth != depth)
+				{
+					breakpoint();
+				}
+				width = std::max(width, size_t(1 << context.depth)); // handle failure of initial parse, increase depth when a solution is found
 			}
 		}
 		parser.ambiguity = 0;
