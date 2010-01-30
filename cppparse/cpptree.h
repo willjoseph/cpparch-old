@@ -1318,9 +1318,9 @@ namespace cpp
 	struct pm_expression_default : public pm_expression
 	{
 		VISITABLE_DERIVED(pm_expression);
-		symbol<cast_expression> left;
-		symbol_optional<pm_operator> op;
-		symbol<pm_expression> right;
+		symbol<pm_expression> left;
+		symbol<pm_operator> op;
+		symbol<cast_expression> right;
 		FOREACH3(left, op, right);
 	};
 
@@ -1335,9 +1335,9 @@ namespace cpp
 	struct multiplicative_expression_default : public multiplicative_expression
 	{
 		VISITABLE_DERIVED(multiplicative_expression);
-		symbol<pm_expression> left;
-		symbol_optional<multiplicative_operator> op;
-		symbol<multiplicative_expression> right;
+		symbol<multiplicative_expression> left;
+		symbol<multiplicative_operator> op;
+		symbol<pm_expression> right;
 		FOREACH3(left, op, right);
 	};
 
@@ -1352,9 +1352,9 @@ namespace cpp
 	struct additive_expression_default : public additive_expression
 	{
 		VISITABLE_DERIVED(additive_expression);
-		symbol<multiplicative_expression> left;
-		symbol_optional<additive_operator> op;
-		symbol<additive_expression> right;
+		symbol<additive_expression> left;
+		symbol<additive_operator> op;
+		symbol<multiplicative_expression> right;
 		FOREACH3(left, op, right);
 	};
 
@@ -1369,9 +1369,9 @@ namespace cpp
 	struct shift_expression_default : public shift_expression
 	{
 		VISITABLE_DERIVED(shift_expression);
-		symbol<additive_expression> left;
-		symbol_optional<shift_operator> op;
-		symbol<shift_expression> right;
+		symbol<shift_expression> left;
+		symbol<shift_operator> op;
+		symbol<additive_expression> right;
 		FOREACH3(left, op, right);
 	};
 
@@ -1386,9 +1386,9 @@ namespace cpp
 	struct relational_expression_default : public relational_expression
 	{
 		VISITABLE_DERIVED(relational_expression);
-		symbol<shift_expression> left;
-		symbol_optional<relational_operator> op;
-		symbol<relational_expression> right;
+		symbol<relational_expression> left;
+		symbol<relational_operator> op;
+		symbol<shift_expression> right;
 		FOREACH3(left, op, right);
 	};
 
@@ -1403,54 +1403,54 @@ namespace cpp
 	struct equality_expression_default : public equality_expression
 	{
 		VISITABLE_DERIVED(equality_expression);
-		symbol<relational_expression> left;
-		symbol_optional<equality_operator> op;
-		symbol<equality_expression> right;
+		symbol<equality_expression> left;
+		symbol<equality_operator> op;
+		symbol<relational_expression> right;
 		FOREACH3(left, op, right);
 	};
 
 	struct and_expression_default : public and_expression
 	{
 		VISITABLE_DERIVED(and_expression);
-		symbol<equality_expression> left;
-		terminal_suffix<boost::wave::T_AND> op;
-		symbol<and_expression> right;
+		symbol<and_expression> left;
+		terminal<boost::wave::T_AND> op;
+		symbol<equality_expression> right;
 		FOREACH3(left, op, right);
 	};
 
 	struct exclusive_or_expression_default : public exclusive_or_expression
 	{
 		VISITABLE_DERIVED(exclusive_or_expression);
-		symbol<and_expression> left;
-		terminal_suffix<boost::wave::T_XOR> op;
-		symbol<exclusive_or_expression> right;
+		symbol<exclusive_or_expression> left;
+		terminal<boost::wave::T_XOR> op;
+		symbol<and_expression> right;
 		FOREACH3(left, op, right);
 	};
 
 	struct inclusive_or_expression_default : public inclusive_or_expression
 	{
 		VISITABLE_DERIVED(inclusive_or_expression);
-		symbol<exclusive_or_expression> left;
-		terminal_suffix<boost::wave::T_OR> op;
-		symbol<inclusive_or_expression> right;
+		symbol<inclusive_or_expression> left;
+		terminal<boost::wave::T_OR> op;
+		symbol<exclusive_or_expression> right;
 		FOREACH3(left, op, right);
 	};
 
 	struct logical_and_expression_default : public logical_and_expression
 	{
 		VISITABLE_DERIVED(logical_and_expression);
-		symbol<inclusive_or_expression> left;
-		terminal_suffix<boost::wave::T_ANDAND> op;
-		symbol<logical_and_expression> right;
+		symbol<logical_and_expression> left;
+		terminal<boost::wave::T_ANDAND> op;
+		symbol<inclusive_or_expression> right;
 		FOREACH3(left, op, right);
 	};
 
 	struct logical_or_expression_default : public logical_or_expression
 	{
 		VISITABLE_DERIVED(logical_or_expression);
-		symbol<logical_and_expression> left;
-		terminal_suffix<boost::wave::T_OROR> op;
-		symbol<logical_or_expression> right;
+		symbol<logical_or_expression> left;
+		terminal<boost::wave::T_OROR> op;
+		symbol<logical_and_expression> right;
 		FOREACH3(left, op, right);
 	};
 

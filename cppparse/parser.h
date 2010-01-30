@@ -569,13 +569,13 @@ inline ParseResult parseTerminal(Parser& parser, cpp::terminal_suffix<id>& resul
 
 #define TOKEN_EQUAL(parser, token) isToken(parser.get_id(), token)
 // TODO: avoid dependency on 'result'
-#define PARSE_TERMINAL(parser, t) switch(parseTerminal(parser, t)) { case PARSERESULT_FAIL: return NULL; case PARSERESULT_SKIP: return result; default: break; }
+#define PARSE_TERMINAL(parser, t) switch(parseTerminal(parser, t)) { case PARSERESULT_FAIL: return 0; case PARSERESULT_SKIP: return result; default: break; }
 
-#define PARSE_TOKEN_REQUIRED(parser, token_) if(TOKEN_EQUAL(parser, token_)) { parser.increment(); } else { return NULL; }
+#define PARSE_TOKEN_REQUIRED(parser, token_) if(TOKEN_EQUAL(parser, token_)) { parser.increment(); } else { return 0; }
 #define PARSE_TOKEN_OPTIONAL(parser, result, token) result = false; if(TOKEN_EQUAL(parser, token)) { result = true; parser.increment(); }
 #define PARSE_SELECT_TOKEN(parser, p, token, value_) if(TOKEN_EQUAL(parser, token)) { p = createSymbol(parser, p); p->id = value_; p->value.id = token; p->value.value = parser.get_value(); parser.increment(); return p; }
 #define PARSE_OPTIONAL(parser, p) (p) = parseSymbolOptional(parser, p)
-#define PARSE_REQUIRED(parser, p) if(((p) = parseSymbolRequired(parser, p)) == 0) { return NULL; }
+#define PARSE_REQUIRED(parser, p) if(((p) = parseSymbolRequired(parser, p)) == 0) { return 0; }
 #if 1
 #define PARSE_SELECT(parser, Type) result = parseSymbolChoice(parser, NullPtr<Type>::VALUE, result)
 #define PARSE_SELECT_UNAMBIGUOUS(parser, Type) if(cpp::symbol<Type> p = parseSymbolRequired(parser, NullPtr<Type>::VALUE)) { return p; }
@@ -583,7 +583,7 @@ inline ParseResult parseTerminal(Parser& parser, cpp::terminal_suffix<id>& resul
 #define PARSE_SELECT(parser, Type) if(cpp::symbol<Type> p = parseSymbolRequired(parser, NullPtr<Type>::VALUE)) { return p; }
 #endif
 // Type must have members 'left' and 'right', and 'typeof(left)' must by substitutable for 'Type'
-#define PARSE_PREFIX(parser, Type) if(cpp::symbol<Type> p = parseSymbolRequired(parser, NullPtr<Type>::VALUE)) { if(p->right == NULL) return p->left; return p; }
+#define PARSE_PREFIX(parser, Type) if(cpp::symbol<Type> p = parseSymbolRequired(parser, NullPtr<Type>::VALUE)) { if(p->right == 0) return p->left; return p; }
 
 
 inline bool peekTemplateIdAmbiguity(Parser& parser)
@@ -683,6 +683,41 @@ cpp::symbol<OtherT> parseSymbolAmbiguous(Parser& parser, cpp::symbol<T> symbol, 
 #else
 #define PARSE_EXPRESSION PARSE_EXPRESSION_SPECIAL
 #endif
+
+
+template<typename T>
+inline cpp::symbol<T> makeSymbol(T* p)
+{
+	return cpp::symbol<T>(p);
+}
+
+
+template<typename T, typename Base>
+inline cpp::symbol<Base> parseExpression(Parser& parser, cpp::symbol<T> symbol, Base* result)
+{
+	// HACK: create temporary copy of expression-symbol to get RHS-symbol
+	result = parseSymbolRequired(parser, T().right);
+	if(result != 0)
+	{
+		for(;;)
+		{
+			// parse suffix of expression-symbol
+			symbol = parseSymbolRequired(parser, symbol);
+			if(symbol == 0
+				|| symbol->right == 0)
+			{
+				break;
+			}
+			symbol->left = makeSymbol(result);
+			result = symbol;
+		}
+	}
+	return makeSymbol(result);
+}
+
+#define PARSE_EXPRESSION_LEFTASSOCIATIVE(parser, Type) result = parseExpression(parser, NullPtr<Type>::VALUE, result)
+
+
 
 cpp::declaration_seq* parseFile(Lexer& lexer);
 cpp::statement_seq* parseFunction(Lexer& lexer);

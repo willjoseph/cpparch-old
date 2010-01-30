@@ -2019,18 +2019,14 @@ cpp::pm_expression* pruneSymbol(cpp::pm_expression_default* symbol)
 
 inline cpp::pm_expression_default* parseSymbol(Parser& parser, cpp::pm_expression_default* result)
 {
-	PARSE_REQUIRED(parser, result->left);
-	PARSE_OPTIONAL(parser, result->op);
-	if(result->op != NULL)
-	{
-		PARSE_REQUIRED(parser, result->right);
-	}
+	PARSE_REQUIRED(parser, result->op);
+	PARSE_REQUIRED(parser, result->right);
 	return result;
 }
 
 inline cpp::pm_expression* parseSymbol(Parser& parser, cpp::pm_expression* result)
 {
-	PARSE_EXPRESSION(parser, cpp::pm_expression_default);
+	PARSE_EXPRESSION_LEFTASSOCIATIVE(parser, cpp::pm_expression_default);
 	return result;
 }
 
@@ -2053,18 +2049,14 @@ cpp::multiplicative_expression* pruneSymbol(cpp::multiplicative_expression_defau
 
 inline cpp::multiplicative_expression_default* parseSymbol(Parser& parser, cpp::multiplicative_expression_default* result)
 {
-	PARSE_REQUIRED(parser, result->left);
-	PARSE_OPTIONAL(parser, result->op);
-	if(result->op != NULL)
-	{
-		PARSE_REQUIRED(parser, result->right);
-	}
+	PARSE_REQUIRED(parser, result->op);
+	PARSE_REQUIRED(parser, result->right);
 	return result;
 }
 
 inline cpp::multiplicative_expression* parseSymbol(Parser& parser, cpp::multiplicative_expression* result)
 {
-	PARSE_EXPRESSION(parser, cpp::multiplicative_expression_default);
+	PARSE_EXPRESSION_LEFTASSOCIATIVE(parser, cpp::multiplicative_expression_default);
 	return result;
 }
 
@@ -2086,18 +2078,14 @@ cpp::additive_expression* pruneSymbol(cpp::additive_expression_default* symbol)
 
 inline cpp::additive_expression_default* parseSymbol(Parser& parser, cpp::additive_expression_default* result)
 {
-	PARSE_REQUIRED(parser, result->left);
-	PARSE_OPTIONAL(parser, result->op);
-	if(result->op != NULL)
-	{
-		PARSE_REQUIRED(parser, result->right);
-	}
+	PARSE_REQUIRED(parser, result->op);
+	PARSE_REQUIRED(parser, result->right);
 	return result;
 }
 
 inline cpp::additive_expression* parseSymbol(Parser& parser, cpp::additive_expression* result)
 {
-	PARSE_EXPRESSION(parser, cpp::additive_expression_default);
+	PARSE_EXPRESSION_LEFTASSOCIATIVE(parser, cpp::additive_expression_default);
 	return result;
 }
 
@@ -2119,18 +2107,14 @@ cpp::shift_expression* pruneSymbol(cpp::shift_expression_default* symbol)
 
 inline cpp::shift_expression_default* parseSymbol(Parser& parser, cpp::shift_expression_default* result)
 {
-	PARSE_REQUIRED(parser, result->left);
-	PARSE_OPTIONAL(parser, result->op);
-	if(result->op != NULL)
-	{
-		PARSE_REQUIRED(parser, result->right);
-	}
+	PARSE_REQUIRED(parser, result->op);
+	PARSE_REQUIRED(parser, result->right);
 	return result;
 }
 
 inline cpp::shift_expression* parseSymbol(Parser& parser, cpp::shift_expression* result)
 {
-	PARSE_EXPRESSION(parser, cpp::shift_expression_default);
+	PARSE_EXPRESSION_LEFTASSOCIATIVE(parser, cpp::shift_expression_default);
 	return result;
 }
 
@@ -2154,8 +2138,6 @@ cpp::relational_expression* pruneSymbol(cpp::relational_expression_default* symb
 
 inline cpp::relational_expression_default* parseSymbol(Parser& parser, cpp::relational_expression_default* result)
 {
-	PARSE_REQUIRED(parser, result->left);
-
 	if(parser.ambiguity != 0
 		&& peekTemplateIdAmbiguityPrev(parser))
 	{
@@ -2168,21 +2150,20 @@ inline cpp::relational_expression_default* parseSymbol(Parser& parser, cpp::rela
 		}
 	}
 
-	if(!(parser.inTemplateArgumentList
-			&& TOKEN_EQUAL(parser, boost::wave::T_GREATER))) // '>' terminates template-argument-list
+	if(parser.inTemplateArgumentList
+			&& TOKEN_EQUAL(parser, boost::wave::T_GREATER)) // '>' terminates template-argument-list
 	{
-		PARSE_OPTIONAL(parser, result->op);
-		if(result->op != NULL)
-		{
-			PARSE_REQUIRED(parser, result->right);
-		}
+		return 0;
 	}
+
+	PARSE_REQUIRED(parser, result->op);
+	PARSE_REQUIRED(parser, result->right);
 	return result;
 }
 
 inline cpp::relational_expression* parseSymbol(Parser& parser, cpp::relational_expression* result)
 {
-	PARSE_EXPRESSION(parser, cpp::relational_expression_default);
+	PARSE_EXPRESSION_LEFTASSOCIATIVE(parser, cpp::relational_expression_default);
 	return result;
 }
 
@@ -2204,18 +2185,14 @@ cpp::equality_expression* pruneSymbol(cpp::equality_expression_default* symbol)
 
 inline cpp::equality_expression_default* parseSymbol(Parser& parser, cpp::equality_expression_default* result)
 {
-	PARSE_REQUIRED(parser, result->left);
-	PARSE_OPTIONAL(parser, result->op);
-	if(result->op != NULL)
-	{
-		PARSE_REQUIRED(parser, result->right);
-	}
+	PARSE_REQUIRED(parser, result->op);
+	PARSE_REQUIRED(parser, result->right);
 	return result;
 }
 
 inline cpp::equality_expression* parseSymbol(Parser& parser, cpp::equality_expression* result)
 {
-	PARSE_EXPRESSION(parser, cpp::equality_expression_default);
+	PARSE_EXPRESSION_LEFTASSOCIATIVE(parser, cpp::equality_expression_default);
 	return result;
 }
 
@@ -2230,7 +2207,6 @@ cpp::and_expression* pruneSymbol(cpp::and_expression_default* symbol)
 
 inline cpp::and_expression_default* parseSymbol(Parser& parser, cpp::and_expression_default* result)
 {
-	PARSE_REQUIRED(parser, result->left);
 	PARSE_TERMINAL(parser, result->op);
 	PARSE_REQUIRED(parser, result->right);
 	return result;
@@ -2238,7 +2214,7 @@ inline cpp::and_expression_default* parseSymbol(Parser& parser, cpp::and_express
 
 inline cpp::and_expression* parseSymbol(Parser& parser, cpp::and_expression* result)
 {
-	PARSE_EXPRESSION(parser, cpp::and_expression_default);
+	PARSE_EXPRESSION_LEFTASSOCIATIVE(parser, cpp::and_expression_default);
 	return result;
 }
 
@@ -2253,7 +2229,6 @@ inline cpp::exclusive_or_expression* pruneSymbol(cpp::exclusive_or_expression_de
 
 inline cpp::exclusive_or_expression_default* parseSymbol(Parser& parser, cpp::exclusive_or_expression_default* result)
 {
-	PARSE_REQUIRED(parser, result->left);
 	PARSE_TERMINAL(parser, result->op);
 	PARSE_REQUIRED(parser, result->right);
 	return result;
@@ -2261,7 +2236,7 @@ inline cpp::exclusive_or_expression_default* parseSymbol(Parser& parser, cpp::ex
 
 inline cpp::exclusive_or_expression* parseSymbol(Parser& parser, cpp::exclusive_or_expression* result)
 {
-	PARSE_EXPRESSION(parser, cpp::exclusive_or_expression_default);
+	PARSE_EXPRESSION_LEFTASSOCIATIVE(parser, cpp::exclusive_or_expression_default);
 	return result;
 }
 
@@ -2276,7 +2251,6 @@ inline cpp::inclusive_or_expression* pruneSymbol(cpp::inclusive_or_expression_de
 
 inline cpp::inclusive_or_expression_default* parseSymbol(Parser& parser, cpp::inclusive_or_expression_default* result)
 {
-	PARSE_REQUIRED(parser, result->left);
 	PARSE_TERMINAL(parser, result->op);
 	PARSE_REQUIRED(parser, result->right);
 	return result;
@@ -2284,7 +2258,7 @@ inline cpp::inclusive_or_expression_default* parseSymbol(Parser& parser, cpp::in
 
 inline cpp::inclusive_or_expression* parseSymbol(Parser& parser, cpp::inclusive_or_expression* result)
 {
-	PARSE_EXPRESSION(parser, cpp::inclusive_or_expression_default);
+	PARSE_EXPRESSION_LEFTASSOCIATIVE(parser, cpp::inclusive_or_expression_default);
 	return result;
 }
 
@@ -2299,7 +2273,6 @@ inline cpp::logical_and_expression* pruneSymbol(cpp::logical_and_expression_defa
 
 inline cpp::logical_and_expression_default* parseSymbol(Parser& parser, cpp::logical_and_expression_default* result)
 {
-	PARSE_REQUIRED(parser, result->left);
 	PARSE_TERMINAL(parser, result->op);
 	PARSE_REQUIRED(parser, result->right);
 	return result;
@@ -2307,7 +2280,7 @@ inline cpp::logical_and_expression_default* parseSymbol(Parser& parser, cpp::log
 
 inline cpp::logical_and_expression* parseSymbol(Parser& parser, cpp::logical_and_expression* result)
 {
-	PARSE_EXPRESSION(parser, cpp::logical_and_expression_default);
+	PARSE_EXPRESSION_LEFTASSOCIATIVE(parser, cpp::logical_and_expression_default);
 	return result;
 }
 
@@ -2322,7 +2295,6 @@ inline cpp::logical_or_expression* pruneSymbol(cpp::logical_or_expression_defaul
 
 inline cpp::logical_or_expression_default* parseSymbol(Parser& parser, cpp::logical_or_expression_default* result)
 {
-	PARSE_REQUIRED(parser, result->left);
 	PARSE_TERMINAL(parser, result->op);
 	PARSE_REQUIRED(parser, result->right);
 	return result;
@@ -2330,7 +2302,7 @@ inline cpp::logical_or_expression_default* parseSymbol(Parser& parser, cpp::logi
 
 inline cpp::logical_or_expression* parseSymbol(Parser& parser, cpp::logical_or_expression* result)
 {
-	PARSE_EXPRESSION(parser, cpp::logical_or_expression_default);
+	PARSE_EXPRESSION_LEFTASSOCIATIVE(parser, cpp::logical_or_expression_default);
 	return result;
 }
 
