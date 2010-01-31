@@ -83,18 +83,6 @@ struct TreePrinter // TODO: better name
 
 typedef TokenPrinter<std::ofstream> FileTokenPrinter;
 
-struct WalkerContext
-{
-	std::ofstream out;
-	FileTokenPrinter printer;
-
-	WalkerContext(const char* path)
-		: out(path),
-		printer(out)
-	{
-	}
-};
-
 struct PrintingWalker
 {
 	FileTokenPrinter& printer;
@@ -230,7 +218,13 @@ struct SemanticError
 	}
 };
 
-typedef const char* Identifier;
+typedef cpp::terminal_identifier Identifier;
+
+inline Identifier makeIdentifier(const char* value)
+{
+	Identifier result = { value };
+	return result;
+}
 
 struct Scope;
 
@@ -241,9 +235,10 @@ struct Declaration
 	Declaration* type;
 	Scope* enclosed;
 	bool isTypedef;
+	bool isFriend;
 
-	Declaration(Scope* scope, Identifier name, Declaration* type, Scope* enclosed, bool isTypedef)
-		: scope(scope), name(name), type(type), enclosed(enclosed), isTypedef(isTypedef)
+	Declaration(Scope* scope, Identifier name, Declaration* type, Scope* enclosed, bool isTypedef, bool isFriend = false)
+		: scope(scope), name(name), type(type), enclosed(enclosed), isTypedef(isTypedef), isFriend(isFriend)
 	{
 	}
 };
@@ -262,37 +257,48 @@ struct Scope
 	}
 };
 
-Scope global("$global", true);
+Scope global(makeIdentifier("$global"), true);
 
+struct WalkerContext
+{
+	std::ofstream out;
+	FileTokenPrinter printer;
+	Scope* scope;
 
-size_t gDepth = 0; // TMP HACK
+	WalkerContext(const char* path)
+		: out(path),
+		printer(out),
+		scope(&global)
+	{
+	}
+};
 
-Scope* gScope = &global;
 
 // special-case
-Declaration gUndeclared(&global, "$undeclared", 0, &global, false);
-Declaration gAnonymous(&global, "$anonymous", 0, &global, false);
+Declaration gUndeclared(&global, makeIdentifier("$undeclared"), 0, &global, false);
+Declaration gAnonymous(&global, makeIdentifier("$anonymous"), 0, &global, false);
 
 // symbol types
-Declaration gNamespace(&global, "$namespace", 0, 0, false);
-Declaration gBuiltin(&global, "$builtin", 0, 0, false);
-Declaration gClassFwd(&global, "$classfwd", 0, 0, false);
-Declaration gClass(&global, "$class", 0, 0, false);
-Declaration gEnum(&global, "$enum", 0, 0, false);
-Declaration gCtor(&global, "$ctor", 0, 0, false);
+Declaration gNamespace(&global, makeIdentifier("$namespace"), 0, 0, false);
+Declaration gBuiltin(&global, makeIdentifier("$builtin"), 0, 0, false);
+Declaration gClassFwd(&global, makeIdentifier("$classfwd"), 0, 0, false);
+Declaration gClass(&global, makeIdentifier("$class"), 0, 0, false);
+Declaration gEnum(&global, makeIdentifier("$enum"), 0, 0, false);
+Declaration gCtor(&global, makeIdentifier("$ctor"), 0, 0, false);
 
 struct WalkerBase : public PrintingWalker
 {
-	WalkerBase(FileTokenPrinter& printer)
-		: PrintingWalker(printer)
+	WalkerContext& context;
+	WalkerBase(WalkerContext& context)
+		: PrintingWalker(context.printer), context(context)
 	{
 	}
 
-	Declaration* findDeclaration(Scope::Declarations& declarations, Identifier id)
+	Declaration* findDeclaration(Scope::Declarations& declarations, const Identifier& id)
 	{
 		for(Scope::Declarations::iterator i = declarations.begin(); i != declarations.end(); ++i)
 		{
-			if((*i).name == id)
+			if((*i).name.value == id.value)
 			{
 				return &(*i);
 			}
@@ -300,7 +306,7 @@ struct WalkerBase : public PrintingWalker
 		return 0;
 	}
 
-	Declaration* findDeclaration(Scope& scope, Identifier id)
+	Declaration* findDeclaration(Scope& scope, const Identifier& id)
 	{
 		Declaration* result = findDeclaration(scope.declarations, id);
 		if(result != 0)
@@ -311,7 +317,7 @@ struct WalkerBase : public PrintingWalker
 		{
 			return findDeclaration(*scope.parent, id);
 		}
-		printer.out << "/* undeclared: " << id << " */";
+		printer.out << "/* undeclared: " << id.value << " */";
 		return &gUndeclared;
 	}
 
@@ -321,7 +327,7 @@ struct WalkerBase : public PrintingWalker
 		if(scope != &global)
 		{
 			printName(scope->parent);
-			printer.out << scope->name << "::";
+			printer.out << scope->name.value << "::";
 		}
 	}
 
@@ -334,7 +340,7 @@ struct WalkerBase : public PrintingWalker
 		else
 		{
 			printName(name->scope);
-			printer.out << name->name;
+			printer.out << name->name.value;
 		}
 	}
 
@@ -347,7 +353,21 @@ struct WalkerBase : public PrintingWalker
 		printer.out << " */";
 	}
 
-	Declaration* pointOfDeclaration(Scope* parent, Identifier name, Declaration* type, Scope* enclosed, bool isTypedef)
+	inline void printPosition(const LexFilePosition& position)
+	{
+		std::cout << position.get_file() << "(" << position.get_line() << "): ";
+	}
+
+	Declaration* getBaseType(Declaration* type)
+	{
+		while(type->isTypedef)
+		{
+			type = type->type;
+		}
+		return type;
+	}
+
+	Declaration* pointOfDeclaration(Scope* parent, const Identifier& name, Declaration* type, Scope* enclosed, bool isTypedef, bool isFriend = false)
 	{
 		{
 			Declaration* declaration = findDeclaration(parent->declarations, name);
@@ -358,6 +378,7 @@ struct WalkerBase : public PrintingWalker
 					if(declaration->type != &gNamespace)
 					{
 						// name already declared as non-namespace
+						printPosition(name.position);
 						throw SemanticError();
 					}
 					// namespace-continuation
@@ -375,22 +396,20 @@ struct WalkerBase : public PrintingWalker
 					// name already declared as class
 					throw SemanticError();
 				}
-				if(isTypedef)
+				if(isTypedef || declaration->isTypedef)
 				{
-					if(!declaration->isTypedef)
+					// 7.1.3-4: In a given scope, a typedef specifier shall not be used to redefine the name of any type declared in that scope to refer to a different type.
+					if(getBaseType(declaration) != getBaseType(type))
 					{
-						// name already declared as non-typedef
-						throw SemanticError();
-					}
-					if(declaration->type != type)
-					{
-						// name already declared as typedef with different type
+						// name already declared with different type
+						printPosition(name.position);
 						throw SemanticError();
 					}
 				}
 				else if(type == &gEnum)
 				{
 					// name already declared
+					printPosition(name.position);
 					throw SemanticError();
 				}
 				else if(type == &gBuiltin // is a built-in-type
@@ -402,23 +421,26 @@ struct WalkerBase : public PrintingWalker
 						if(declaration->enclosed == 0)
 						{
 							// name already declared
+							printPosition(name.position);
 							throw SemanticError();
 						}
 						if(declaration->enclosed == 0)
 						{
 							// name already declared
+							printPosition(name.position);
 							throw SemanticError();
 						}
 					}
 					else
 					{
 						// name already declared
+						printPosition(name.position);
 						throw SemanticError();
 					}
 				}
 			}
 		}
-		parent->declarations.push_front(Declaration(parent, name, type, enclosed, isTypedef));
+		parent->declarations.push_front(Declaration(parent, name, type, enclosed, isTypedef, isFriend));
 		if(enclosed != 0)
 		{
 			enclosed->name = name;
@@ -430,37 +452,44 @@ struct WalkerBase : public PrintingWalker
 
 	void pushScope(Scope* scope)
 	{
-		++gDepth;
-		scope->parent = gScope;
-		gScope = scope;
+		scope->parent = context.scope;
+		context.scope = scope;
 	}
 
 	Scope* popScope()
 	{
-		--gDepth;
-		if(gScope->parent == 0)
+		if(context.scope->parent == 0)
 		{
 			throw SemanticError();
 		}
-		Scope* result = gScope;
-		gScope = gScope->parent;
+		Scope* result = context.scope;
+		context.scope = context.scope->parent;
 		return result;
 	}
 
-	void checkName(Identifier id)
+	void checkName(const Identifier& id)
 	{
 		printer.out << "/* lookup: ";
-		Declaration* declaration = findDeclaration(*gScope, id);
+		Declaration* declaration = findDeclaration(*context.scope, id);
 		if(declaration == 0)
 		{
 			printer.out << "failed: ";
 		}
-		printer.out  << id << " */";
+		printer.out  << id.value << " */";
 	}
 
 	Scope* getEltScope()
 	{
-		Scope* scope = gScope;
+		Scope* scope = context.scope;
+		for(; !scope->isElt; scope = scope->parent)
+		{
+		}
+		return scope;
+	}
+
+	Scope* getNamespaceScope()
+	{
+		Scope* scope = context.scope;
 		for(; !scope->isElt; scope = scope->parent)
 		{
 		}
@@ -490,23 +519,37 @@ struct NestedNameSpecifierWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	Scope* scope;
-	NestedNameSpecifierWalker(const WalkerBase& base, Scope* scope = gScope)
+	NestedNameSpecifierWalker(const WalkerBase& base)
+		: WalkerBase(base), scope(context.scope)
+	{
+	}
+	NestedNameSpecifierWalker(const WalkerBase& base, Scope* scope)
 		: WalkerBase(base), scope(scope)
 	{
 	}
 	void visit(cpp::identifier* symbol)
 	{
-		Identifier id = symbol->value.value;
-		Declaration* declaration = findDeclaration(*scope, id);
-		SEMANTIC_ASSERT(declaration->enclosed != 0);
+		Declaration* declaration = findDeclaration(*scope, symbol->value);
+		if(declaration->enclosed == 0)
+		{
+			printPosition(symbol->value.position);
+			std::cout << "'" << declaration->name.value << "' is incomplete, declared here:" << std::endl;
+			printPosition(declaration->name.position);
+			throw SemanticError();
+		}
 		scope = declaration->enclosed;
 		printSymbol(symbol);
 	}
 	void visit(cpp::simple_template_id* symbol)
 	{
-		Identifier id = symbol->id->value.value;
-		Declaration* declaration = findDeclaration(*scope, id);
-		SEMANTIC_ASSERT(declaration->enclosed != 0);
+		Declaration* declaration = findDeclaration(*scope, symbol->id->value);
+		if(declaration->enclosed == 0)
+		{
+			printPosition(symbol->id->value.position);
+			std::cout << "'" << declaration->name.value << "' is incomplete, declared here:" << std::endl;
+			printPosition(declaration->name.position);
+			throw SemanticError();
+		}
 		scope = declaration->enclosed;
 		printSymbol(symbol);
 	}
@@ -519,14 +562,13 @@ struct TypeSpecifierWalker : public WalkerBase
 	Declaration* declaration;
 	Scope* scope;
 	TypeSpecifierWalker(const WalkerBase& base)
-		: WalkerBase(base), declaration(0), scope(gScope)
+		: WalkerBase(base), declaration(0), scope(context.scope)
 	{
 	}
 
 	void visit(cpp::identifier* symbol)
 	{
-		Identifier id = symbol->value.value;
-		declaration = findDeclaration(*scope, id);
+		declaration = findDeclaration(*scope, symbol->value);
 		printSymbol(symbol);
 	}
 	void visit(cpp::simple_type_specifier_name* symbol)
@@ -553,8 +595,7 @@ struct TypeSpecifierWalker : public WalkerBase
 	}
 	void visit(cpp::simple_template_id* symbol) 
 	{
-		Identifier id = symbol->id->value.value;
-		declaration = findDeclaration(*scope, id);
+		declaration = findDeclaration(*scope, symbol->id->value);
 		// TODO args
 		printSymbol(symbol);
 	}
@@ -573,7 +614,7 @@ struct DeclaratorIdWalker : public WalkerBase
 	Identifier id;
 	Scope* scope;
 	DeclaratorIdWalker(const WalkerBase& base)
-		: WalkerBase(base), id(0), scope(gScope)
+		: WalkerBase(base), id(makeIdentifier("$anonymous")), scope(context.scope)
 	{
 	}
 
@@ -592,7 +633,7 @@ struct DeclaratorIdWalker : public WalkerBase
 	}
 	void visit(cpp::identifier* symbol)
 	{
-		id = symbol->value.value;
+		id = symbol->value;
 		printSymbol(symbol);
 	}
 	void visit(cpp::nested_name_specifier* symbol)
@@ -603,31 +644,31 @@ struct DeclaratorIdWalker : public WalkerBase
 	}
 	void visit(cpp::simple_template_id* symbol) 
 	{
-		id = symbol->id->value.value;
+		id = symbol->id->value;
 		printSymbol(symbol);
 	}
 	void visit(cpp::operator_function_id* symbol) 
 	{
 		// TODO
-		id = "operator <op>";
+		id = makeIdentifier("operator <op>");
 		printSymbol(symbol);
 	}
 	void visit(cpp::conversion_function_id* symbol) 
 	{
 		// TODO
-		id = "operator T";
+		id = makeIdentifier("operator T");
 		printSymbol(symbol);
 	}
 	void visit(cpp::destructor_id* symbol) 
 	{
 		// TODO
-		id = "~T";
+		id = makeIdentifier("~T");
 		printSymbol(symbol);
 	}
 	void visit(cpp::template_id_operator_function* symbol) 
 	{
 		// TODO
-		id = "operator () <>";
+		id = makeIdentifier("operator () <>");
 		printSymbol(symbol);
 	}
 };
@@ -640,7 +681,7 @@ struct DeclaratorWalker : public WalkerBase
 	Scope* scope;
 	Scope* paramScope;
 	DeclaratorWalker(const WalkerBase& base)
-		: WalkerBase(base), id(0), scope(0), paramScope(0)
+		: WalkerBase(base), id(makeIdentifier("$undefined")), scope(0), paramScope(0)
 	{
 	}
 
@@ -671,15 +712,14 @@ struct ClassHeadWalker : public WalkerBase
 	Declaration* declaration;
 	Scope* scope;
 	ClassHeadWalker(const WalkerBase& base)
-		: WalkerBase(base), declaration(&gAnonymous), scope(gScope)
+		: WalkerBase(base), declaration(&gAnonymous), scope(context.scope)
 	{
 	}
 
 	void visit(cpp::identifier* symbol)
 	{
-		Identifier id = symbol->value.value;
 		printSymbol(symbol);
-		declaration = pointOfDeclaration(scope, id, &gClass, 0, false); // 3.3.1.3 The point of declaration for a class first declared by a class-specifier is immediately after the identifier or simple-template-id (if any) in its class-head
+		declaration = pointOfDeclaration(scope, symbol->value, &gClass, 0, false); // 3.3.1.3 The point of declaration for a class first declared by a class-specifier is immediately after the identifier or simple-template-id (if any) in its class-head
 	}
 	void visit(cpp::nested_name_specifier* symbol)
 	{
@@ -689,9 +729,8 @@ struct ClassHeadWalker : public WalkerBase
 	}
 	void visit(cpp::simple_template_id* symbol) 
 	{
-		Identifier id = symbol->id->value.value;
 		printSymbol(symbol);
-		declaration = pointOfDeclaration(scope, id, &gClass, 0, false); // 3.3.1.3 The point of declaration for a class first declared by a class-specifier is immediately after the identifier or simple-template-id (if any) in its class-head
+		declaration = pointOfDeclaration(scope, symbol->id->value, &gClass, 0, false); // 3.3.1.3 The point of declaration for a class first declared by a class-specifier is immediately after the identifier or simple-template-id (if any) in its class-head
 		// TODO args
 	}
 	void visit(cpp::base_clause* symbol) 
@@ -718,7 +757,7 @@ struct ClassSpecifierWalker : public WalkerBase
 	{
 		for(FunctionDefinitions::const_iterator i = deferred.begin(); i != deferred.end(); ++i)
 		{
-			printer.printToken(boost::wave::T_IDENTIFIER, declaration->name);
+			printer.printToken(boost::wave::T_IDENTIFIER, declaration->name.value);
 			printer.printToken(boost::wave::T_COLON_COLON, "::");
 			printer.printToken(boost::wave::T_IDENTIFIER, "<deferred>");
 			printer.printToken(boost::wave::T_LEFTPAREN, "(");
@@ -752,8 +791,9 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 
 	Declaration* declaration;
 	bool isTypedef;
+	bool isFriend;
 	DeclSpecifierSeqWalker(const WalkerBase& base)
-		: WalkerBase(base), declaration(0), isTypedef(false)
+		: WalkerBase(base), declaration(0), isTypedef(false), isFriend(false)
 	{
 	}
 
@@ -774,9 +814,8 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 		if(isForwardDeclaration(symbol))
 		{
 			printSymbol(symbol);
-			Identifier id = symbol->id->value.value;
 			// 3.3.1.6: elaborated-type-specifier that is not a block-declaration is declared in smallest enclosing non-class non-function-prototype scope
-			declaration = pointOfDeclaration(getEltScope(), id, &gClass, 0, false);
+			declaration = pointOfDeclaration(getEltScope(), symbol->id->value, &gClass, 0, false);
 		}
 		else
 		{
@@ -804,8 +843,8 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 	{
 		// TODO 
 		// + anonymous enums
-		Identifier id = symbol->id.p == 0 ? "$anonymous" : symbol->id->value.value;
-		declaration = pointOfDeclaration(gScope, id, &gEnum, 0, false);
+		Identifier id = symbol->id.p == 0 ? makeIdentifier("$anonymous") : symbol->id->value;
+		declaration = pointOfDeclaration(context.scope, id, &gEnum, 0, false);
 		printSymbol(symbol);
 	}
 	void visit(cpp::decl_specifier_default* symbol)
@@ -813,6 +852,10 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 		if(symbol->id == cpp::decl_specifier_default::TYPEDEF)
 		{
 			isTypedef = true;
+		}
+		else if(symbol->id == cpp::decl_specifier_default::FRIEND)
+		{
+			isFriend = true;
 		}
 		printSymbol(symbol);
 	}
@@ -851,7 +894,7 @@ struct FunctionDefinitionSuffixWalker : public WalkerBase
 		{
 			pushScope(paramScope); // 3.3.2.1 parameter scope
 		}
-		pushScope(new Scope("local", true)); // local scope
+		pushScope(new Scope(makeIdentifier("local"), true)); // local scope
 		CompoundStatementWalker walker(*this);
 		symbol->accept(walker);
 		popScope(); // local scope
@@ -868,11 +911,12 @@ struct DeclarationWalker : public WalkerBase
 
 	Declaration* type;
 	bool isTypedef;
+	bool isFriend;
 	Scope* paramScope;
 	FunctionDefinitions* deferred;
 
 	DeclarationWalker(const WalkerBase& base, FunctionDefinitions* deferred = 0)
-		: WalkerBase(base), type(&gCtor), isTypedef(false), paramScope(0), deferred(deferred)
+		: WalkerBase(base), type(&gCtor), isTypedef(false), isFriend(false), paramScope(0), deferred(deferred)
 	{
 	}
 
@@ -882,6 +926,7 @@ struct DeclarationWalker : public WalkerBase
 		symbol->accept(walker);
 		type = walker.declaration;
 		isTypedef = walker.isTypedef;
+		isFriend = walker.isFriend;
 	}
 	void visit(cpp::type_specifier_seq* symbol)
 	{
@@ -894,7 +939,7 @@ struct DeclarationWalker : public WalkerBase
 	{
 		DeclaratorWalker walker(*this);
 		symbol->accept(walker);
-		pointOfDeclaration(walker.scope, walker.id, type, isTypedef ? type->enclosed : walker.paramScope, isTypedef); // 3.3.1.1
+		pointOfDeclaration(walker.scope, walker.id, type, isTypedef ? type->enclosed : walker.paramScope, isTypedef, isFriend); // 3.3.1.1
 		paramScope = walker.paramScope;
 	}
 	void visit(cpp::abstract_declarator* symbol)
@@ -904,9 +949,8 @@ struct DeclarationWalker : public WalkerBase
 	}
 	void visit(cpp::member_declarator_bitfield* symbol)
 	{
-		Identifier id = symbol->id->value.value;
 		printSymbol(symbol);
-		pointOfDeclaration(gScope, id, type, 0, isTypedef); // 3.3.1.1
+		pointOfDeclaration(context.scope, symbol->id->value, type, 0, isTypedef, isFriend); // 3.3.1.1
 	}
 
 	void visit(cpp::initializer* symbol)
@@ -943,8 +987,7 @@ struct ForwardDeclarationWalker : public WalkerBase
 	void visit(cpp::elaborated_type_specifier_default* symbol)
 	{
 		printSymbol(symbol);
-		Identifier id = symbol->id->value.value;
-		declaration = pointOfDeclaration(gScope, id, &gClass, 0, false);
+		declaration = pointOfDeclaration(context.scope, symbol->id->value, &gClass, 0, false);
 	}
 };
 
@@ -954,15 +997,15 @@ struct NamespaceWalker : public WalkerBase
 
 
 	NamespaceWalker(WalkerContext& context)
-		: WalkerBase(context.printer)
+		: WalkerBase(context)
 	{
 	}
 
 	void visit(cpp::namespace_definition* symbol)
 	{
-		Identifier id = symbol->id.p == 0 ? "$anonymous" : symbol->id->value.value;
+		Identifier id = symbol->id.p == 0 ? makeIdentifier("$anonymous") : symbol->id->value;
 		Scope* scope = new Scope(id, true);
-		pointOfDeclaration(gScope, id, &gNamespace, scope, false);
+		pointOfDeclaration(context.scope, id, &gNamespace, scope, false);
 		pushScope(scope);
 		symbol->accept(*this);
 		popScope();
@@ -1007,13 +1050,13 @@ struct NamespaceWalker : public WalkerBase
 	}
 	void visit(cpp::selection_statement* symbol)
 	{
-		pushScope(new Scope("selection", true));
+		pushScope(new Scope(makeIdentifier("selection"), true));
 		symbol->accept(*this);
 		popScope();
 	}
 	void visit(cpp::iteration_statement* symbol)
 	{
-		pushScope(new Scope("iteration", true));
+		pushScope(new Scope(makeIdentifier("iteration"), true));
 		symbol->accept(*this);
 		popScope();
 	}

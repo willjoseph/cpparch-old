@@ -7,7 +7,10 @@
 #include "visitor.h"
 
 #include <boost/wave/token_ids.hpp>
+#include <boost/wave/util/file_position.hpp>
+
 typedef boost::wave::token_id LexTokenId;
+typedef boost::wave::util::file_position_type LexFilePosition;
 
 struct TypeListEnd
 {
@@ -112,6 +115,7 @@ namespace cpp
 	struct terminal_identifier
 	{
 		const char* value;
+		LexFilePosition position;
 	};
 
 	struct terminal_string

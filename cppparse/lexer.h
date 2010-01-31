@@ -10,12 +10,12 @@
 #include <boost/wave/token_ids.hpp>
 #include <boost/wave/util/file_position.hpp>
 
+typedef boost::wave::token_id LexTokenId;
+typedef boost::wave::util::file_position_type LexFilePosition;
+
 struct LexContext;
 struct LexIterator;
 struct LexToken;
-
-typedef boost::wave::token_id LexTokenId;
-typedef boost::wave::util::file_position_type LexFilePosition;
 
 struct LexError
 {

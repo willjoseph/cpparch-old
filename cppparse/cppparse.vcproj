@@ -192,6 +192,14 @@
 				>
 			</File>
 			<File
+				RelativePath=".\generator.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\generator.h"
+				>
+			</File>
+			<File
 				RelativePath=".\lexer.cpp"
 				>
 			</File>
