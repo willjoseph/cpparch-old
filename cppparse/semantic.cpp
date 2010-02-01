@@ -277,6 +277,7 @@ struct WalkerContext
 // special-case
 Declaration gUndeclared(&global, makeIdentifier("$undeclared"), 0, &global, false);
 Declaration gAnonymous(&global, makeIdentifier("$anonymous"), 0, &global, false);
+Declaration gFriend(&global, makeIdentifier("$friend"), 0, &global, false);
 
 // symbol types
 Declaration gNamespace(&global, makeIdentifier("$namespace"), 0, 0, false);
@@ -317,6 +318,7 @@ struct WalkerBase : public PrintingWalker
 		{
 			return findDeclaration(*scope.parent, id);
 		}
+		printPosition(id.position);
 		printer.out << "/* undeclared: " << id.value << " */";
 		return &gUndeclared;
 	}
@@ -369,6 +371,11 @@ struct WalkerBase : public PrintingWalker
 
 	Declaration* pointOfDeclaration(Scope* parent, const Identifier& name, Declaration* type, Scope* enclosed, bool isTypedef, bool isFriend = false)
 	{
+		if(isFriend)
+		{
+			// TODO
+			return &gFriend;
+		}
 		{
 			Declaration* declaration = findDeclaration(parent->declarations, name);
 			if(declaration != 0)
@@ -991,24 +998,26 @@ struct ForwardDeclarationWalker : public WalkerBase
 	}
 };
 
-struct NamespaceWalker : public WalkerBase
+struct TemplateDeclarationWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-
-	NamespaceWalker(WalkerContext& context)
-		: WalkerBase(context)
+	TemplateDeclarationWalker(WalkerBase& base)
+		: WalkerBase(base)
 	{
 	}
-
-	void visit(cpp::namespace_definition* symbol)
+	void visit(cpp::type_parameter_default* symbol)
 	{
-		Identifier id = symbol->id.p == 0 ? makeIdentifier("$anonymous") : symbol->id->value;
-		Scope* scope = new Scope(id, true);
-		pointOfDeclaration(context.scope, id, &gNamespace, scope, false);
-		pushScope(scope);
-		symbol->accept(*this);
-		popScope();
+		pointOfDeclaration(context.scope, symbol->id->value, &gClass, 0, true);
+	}
+	void visit(cpp::type_parameter_template* symbol)
+	{
+		// TODO
+	}
+	void visit(cpp::parameter_declaration* symbol)
+	{
+		DeclarationWalker walker(*this);
+		symbol->accept(walker);
 	}
 	void visit(cpp::general_declaration* symbol)
 	{
@@ -1043,10 +1052,45 @@ struct NamespaceWalker : public WalkerBase
 			SEMANTIC_ASSERT(walker.type != 0);
 		}
 	}
+};
+
+struct NamespaceWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+
+	NamespaceWalker(WalkerContext& context)
+		: WalkerBase(context)
+	{
+	}
+
+	void visit(cpp::namespace_definition* symbol)
+	{
+		Identifier id = symbol->id.p == 0 ? makeIdentifier("$anonymous") : symbol->id->value;
+		Scope* scope = new Scope(id, true);
+		pointOfDeclaration(context.scope, id, &gNamespace, scope, false);
+		pushScope(scope);
+		symbol->accept(*this);
+		popScope();
+	}
+	void visit(cpp::general_declaration* symbol)
+	{
+		TemplateDeclarationWalker walker(*this);
+		walker.visit(symbol);
+	}
+	// occurs in for-init-statement
+	void visit(cpp::simple_declaration* symbol)
+	{
+		TemplateDeclarationWalker walker(*this);
+		walker.visit(symbol);
+	}
 	void visit(cpp::template_declaration* symbol)
 	{
 		// TODO
-		symbol->accept(*this);
+		pushScope(new Scope(makeIdentifier("$template")));
+		TemplateDeclarationWalker walker(*this);
+		symbol->accept(walker);
+		popScope();
 	}
 	void visit(cpp::selection_statement* symbol)
 	{

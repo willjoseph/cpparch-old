@@ -1080,6 +1080,7 @@ inline cpp::template_declaration* parseSymbol(Parser& parser, cpp::template_decl
 	PARSE_TERMINAL(parser, result->lt);
 	PARSE_REQUIRED(parser, result->params);
 	PARSE_TERMINAL(parser, result->gt);
+	PARSE_REQUIRED(parser, result->decl);
 	return result;
 }
 
