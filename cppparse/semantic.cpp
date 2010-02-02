@@ -243,21 +243,44 @@ struct Declaration
 	}
 };
 
+enum ScopeType
+{
+	SCOPETYPE_NAMESPACE,
+	SCOPETYPE_PROTOTYPE,
+	SCOPETYPE_LOCAL,
+	SCOPETYPE_CLASS,
+	SCOPETYPE_PARAMETER,
+};
+
 struct Scope
 {
 	Scope* parent;
 	Identifier name;
 	typedef std::list<Declaration> Declarations;
 	Declarations declarations;
-	bool isElt;
+	ScopeType type;
 
-	Scope(Identifier name, bool isElt = false)
-		: parent(0), name(name), isElt(isElt)
+	Scope(Identifier name, ScopeType type)
+		: parent(0), name(name), type(type)
 	{
 	}
 };
 
-Scope global(makeIdentifier("$global"), true);
+bool enclosesElt(ScopeType type)
+{
+	return type == SCOPETYPE_NAMESPACE
+		|| type == SCOPETYPE_LOCAL;
+}
+
+bool enclosesDeclaration(ScopeType type)
+{
+	return type == SCOPETYPE_NAMESPACE
+		|| type == SCOPETYPE_LOCAL
+		|| type == SCOPETYPE_CLASS
+		|| type == SCOPETYPE_PROTOTYPE;
+}
+
+Scope global(makeIdentifier("$global"), SCOPETYPE_NAMESPACE);
 
 struct WalkerContext
 {
@@ -385,6 +408,8 @@ struct WalkerBase : public PrintingWalker
 					if(declaration->type != &gNamespace)
 					{
 						// name already declared as non-namespace
+						printPosition(declaration->name.position);
+						std::cout << "'" << name.value << "' already declared here:" << std::endl;
 						printPosition(name.position);
 						throw SemanticError();
 					}
@@ -409,6 +434,8 @@ struct WalkerBase : public PrintingWalker
 					if(getBaseType(declaration) != getBaseType(type))
 					{
 						// name already declared with different type
+						printPosition(declaration->name.position);
+						std::cout << "'" << name.value << "' already declared here:" << std::endl;
 						printPosition(name.position);
 						throw SemanticError();
 					}
@@ -416,6 +443,8 @@ struct WalkerBase : public PrintingWalker
 				else if(type == &gEnum)
 				{
 					// name already declared
+					printPosition(declaration->name.position);
+					std::cout << "'" << name.value << "' already declared here:" << std::endl;
 					printPosition(name.position);
 					throw SemanticError();
 				}
@@ -428,12 +457,16 @@ struct WalkerBase : public PrintingWalker
 						if(declaration->enclosed == 0)
 						{
 							// name already declared
+							printPosition(declaration->name.position);
+							std::cout << "'" << name.value << "' already declared here:" << std::endl;
 							printPosition(name.position);
 							throw SemanticError();
 						}
 						if(declaration->enclosed == 0)
 						{
 							// name already declared
+							printPosition(declaration->name.position);
+							std::cout << "'" << name.value << "' already declared here:" << std::endl;
 							printPosition(name.position);
 							throw SemanticError();
 						}
@@ -441,6 +474,8 @@ struct WalkerBase : public PrintingWalker
 					else
 					{
 						// name already declared
+						printPosition(declaration->name.position);
+						std::cout << "'" << name.value << "' already declared here:" << std::endl;
 						printPosition(name.position);
 						throw SemanticError();
 					}
@@ -488,16 +523,16 @@ struct WalkerBase : public PrintingWalker
 	Scope* getEltScope()
 	{
 		Scope* scope = context.scope;
-		for(; !scope->isElt; scope = scope->parent)
+		for(; !enclosesElt(scope->type); scope = scope->parent)
 		{
 		}
 		return scope;
 	}
 
-	Scope* getNamespaceScope()
+	Scope* getDeclarationScope()
 	{
 		Scope* scope = context.scope;
-		for(; !scope->isElt; scope = scope->parent)
+		for(; !enclosesDeclaration(scope->type); scope = scope->parent)
 		{
 		}
 		return scope;
@@ -526,10 +561,6 @@ struct NestedNameSpecifierWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	Scope* scope;
-	NestedNameSpecifierWalker(const WalkerBase& base)
-		: WalkerBase(base), scope(context.scope)
-	{
-	}
 	NestedNameSpecifierWalker(const WalkerBase& base, Scope* scope)
 		: WalkerBase(base), scope(scope)
 	{
@@ -621,7 +652,7 @@ struct DeclaratorIdWalker : public WalkerBase
 	Identifier id;
 	Scope* scope;
 	DeclaratorIdWalker(const WalkerBase& base)
-		: WalkerBase(base), id(makeIdentifier("$anonymous")), scope(context.scope)
+		: WalkerBase(base), id(makeIdentifier("$anonymous")), scope(getDeclarationScope())
 	{
 	}
 
@@ -701,7 +732,7 @@ struct DeclaratorWalker : public WalkerBase
 	}
 	void visit(cpp::declarator_suffix_function* symbol)
 	{
-		pushScope(new Scope(id)); // parameter scope
+		pushScope(new Scope(id, SCOPETYPE_PROTOTYPE)); // parameter scope
 		symbol->accept(*this);
 		paramScope = popScope(); // parameter scope (store reference for later resumption)
 	}
@@ -719,7 +750,7 @@ struct ClassHeadWalker : public WalkerBase
 	Declaration* declaration;
 	Scope* scope;
 	ClassHeadWalker(const WalkerBase& base)
-		: WalkerBase(base), declaration(&gAnonymous), scope(context.scope)
+		: WalkerBase(base), declaration(&gAnonymous), scope(getDeclarationScope())
 	{
 	}
 
@@ -730,7 +761,7 @@ struct ClassHeadWalker : public WalkerBase
 	}
 	void visit(cpp::nested_name_specifier* symbol)
 	{
-		NestedNameSpecifierWalker walker(*this);
+		NestedNameSpecifierWalker walker(*this, scope);
 		symbol->accept(walker);
 		scope = walker.scope;
 	}
@@ -781,7 +812,7 @@ struct ClassSpecifierWalker : public WalkerBase
 		ClassHeadWalker walker(*this);
 		symbol->accept(walker);
 		declaration = walker.declaration;
-		Scope* scope = new Scope(declaration->name);
+		Scope* scope = new Scope(declaration->name, SCOPETYPE_CLASS);
 		declaration->enclosed = scope;
 		pushScope(scope); // 3.3.6.1.1 // class scope
 	}
@@ -851,7 +882,7 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 		// TODO 
 		// + anonymous enums
 		Identifier id = symbol->id.p == 0 ? makeIdentifier("$anonymous") : symbol->id->value;
-		declaration = pointOfDeclaration(context.scope, id, &gEnum, 0, false);
+		declaration = pointOfDeclaration(getDeclarationScope(), id, &gEnum, 0, false);
 		printSymbol(symbol);
 	}
 	void visit(cpp::decl_specifier_default* symbol)
@@ -901,7 +932,7 @@ struct FunctionDefinitionSuffixWalker : public WalkerBase
 		{
 			pushScope(paramScope); // 3.3.2.1 parameter scope
 		}
-		pushScope(new Scope(makeIdentifier("local"), true)); // local scope
+		pushScope(new Scope(makeIdentifier("local"), SCOPETYPE_LOCAL)); // local scope
 		CompoundStatementWalker walker(*this);
 		symbol->accept(walker);
 		popScope(); // local scope
@@ -957,7 +988,7 @@ struct DeclarationWalker : public WalkerBase
 	void visit(cpp::member_declarator_bitfield* symbol)
 	{
 		printSymbol(symbol);
-		pointOfDeclaration(context.scope, symbol->id->value, type, 0, isTypedef, isFriend); // 3.3.1.1
+		pointOfDeclaration(getDeclarationScope(), symbol->id->value, type, 0, isTypedef, isFriend); // 3.3.1.1
 	}
 
 	void visit(cpp::initializer* symbol)
@@ -994,7 +1025,7 @@ struct ForwardDeclarationWalker : public WalkerBase
 	void visit(cpp::elaborated_type_specifier_default* symbol)
 	{
 		printSymbol(symbol);
-		declaration = pointOfDeclaration(context.scope, symbol->id->value, &gClass, 0, false);
+		declaration = pointOfDeclaration(getDeclarationScope(), symbol->id->value, &gClass, 0, false);
 	}
 };
 
@@ -1067,7 +1098,7 @@ struct NamespaceWalker : public WalkerBase
 	void visit(cpp::namespace_definition* symbol)
 	{
 		Identifier id = symbol->id.p == 0 ? makeIdentifier("$anonymous") : symbol->id->value;
-		Scope* scope = new Scope(id, true);
+		Scope* scope = new Scope(id, SCOPETYPE_NAMESPACE);
 		pointOfDeclaration(context.scope, id, &gNamespace, scope, false);
 		pushScope(scope);
 		symbol->accept(*this);
@@ -1087,20 +1118,20 @@ struct NamespaceWalker : public WalkerBase
 	void visit(cpp::template_declaration* symbol)
 	{
 		// TODO
-		pushScope(new Scope(makeIdentifier("$template")));
+		pushScope(new Scope(makeIdentifier("$template"), SCOPETYPE_PARAMETER));
 		TemplateDeclarationWalker walker(*this);
 		symbol->accept(walker);
 		popScope();
 	}
 	void visit(cpp::selection_statement* symbol)
 	{
-		pushScope(new Scope(makeIdentifier("selection"), true));
+		pushScope(new Scope(makeIdentifier("selection"), SCOPETYPE_LOCAL));
 		symbol->accept(*this);
 		popScope();
 	}
 	void visit(cpp::iteration_statement* symbol)
 	{
-		pushScope(new Scope(makeIdentifier("iteration"), true));
+		pushScope(new Scope(makeIdentifier("iteration"), SCOPETYPE_LOCAL));
 		symbol->accept(*this);
 		popScope();
 	}
