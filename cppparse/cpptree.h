@@ -1865,7 +1865,7 @@ namespace cpp
 	{
 		VISITABLE_BASE(VISITORFUNCLIST6(
 			SYMBOLFWD(using_declaration),
-			SYMBOLFWD(template_declaration),
+			SYMBOLFWD(member_template_declaration),
 			SYMBOLFWD(member_declaration_implicit), // shared-prefix ambiguity:  this matches a constructor: Class(Type);
 			SYMBOLFWD(member_declaration_default), // this matches a member: Type(member);
 			SYMBOLFWD(member_declaration_nested),
@@ -2618,17 +2618,30 @@ namespace cpp
 		FOREACH2(item, next);
 	};
 
-	struct template_declaration : public declaration, public member_declaration
+	struct template_declaration_prefix
 	{
-		VISITABLE_DERIVED(member_declaration);
-		VISITABLE_DERIVED(declaration);
 		terminal_optional<boost::wave::T_EXPORT> isExport;
 		terminal<boost::wave::T_TEMPLATE> key;
 		terminal<boost::wave::T_LESS> lt;
 		symbol<template_parameter_list> params;
 		terminal<boost::wave::T_GREATER> gt;
+		FOREACH5(isExport, key, lt, params, gt);
+	};
+
+	struct template_declaration : public declaration
+	{
+		VISITABLE_DERIVED(declaration);
+		symbol<template_declaration_prefix> prefix;
 		symbol<declaration> decl;
-		FOREACH6(isExport, key, lt, params, gt, decl);
+		FOREACH2(prefix, decl);
+	};
+
+	struct member_template_declaration : public member_declaration
+	{
+		VISITABLE_DERIVED(member_declaration);
+		symbol<template_declaration_prefix> prefix;
+		symbol<member_declaration> decl;
+		FOREACH2(prefix, decl);
 	};
 
 	struct explicit_instantiation : public declaration

@@ -1073,13 +1073,26 @@ inline cpp::template_parameter_list* parseSymbol(Parser& parser, cpp::template_p
 	return result;
 }
 
-inline cpp::template_declaration* parseSymbol(Parser& parser, cpp::template_declaration* result)
+inline cpp::template_declaration_prefix* parseSymbol(Parser& parser, cpp::template_declaration_prefix* result)
 {
 	PARSE_TERMINAL(parser, result->isExport);
 	PARSE_TERMINAL(parser, result->key);
 	PARSE_TERMINAL(parser, result->lt);
 	PARSE_REQUIRED(parser, result->params);
 	PARSE_TERMINAL(parser, result->gt);
+	return result;
+}
+
+inline cpp::template_declaration* parseSymbol(Parser& parser, cpp::template_declaration* result)
+{
+	PARSE_REQUIRED(parser, result->prefix);
+	PARSE_REQUIRED(parser, result->decl);
+	return result;
+}
+
+inline cpp::member_template_declaration* parseSymbol(Parser& parser, cpp::member_template_declaration* result)
+{
+	PARSE_REQUIRED(parser, result->prefix);
 	PARSE_REQUIRED(parser, result->decl);
 	return result;
 }
@@ -1304,7 +1317,7 @@ inline cpp::member_declaration_implicit* parseSymbol(Parser& parser, cpp::member
 inline cpp::member_declaration* parseSymbol(Parser& parser, cpp::member_declaration* result)
 {
 	PARSE_SELECT(parser, cpp::using_declaration);
-	PARSE_SELECT(parser, cpp::template_declaration);
+	PARSE_SELECT(parser, cpp::member_template_declaration);
 	PARSE_SELECT(parser, cpp::member_declaration_implicit); // TODO: ambiguity:  this matches a constructor: "Class(Type);"
 	PARSE_SELECT(parser, cpp::member_declaration_default); // .. this matches a member: "Type(member);"
 	PARSE_SELECT(parser, cpp::member_declaration_nested);
