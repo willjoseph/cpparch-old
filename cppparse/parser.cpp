@@ -3275,6 +3275,10 @@ inline cpp::msext_asm_element_list_inline* parseSymbol(Parser& parser, cpp::msex
 		PARSE_OPTIONAL(parser, result->next);
 		PARSE_TERMINAL(parser, result->semicolon);
 	}
+	else
+	{
+		result->semicolon.value = 0;
+	}
 	return result;
 }
 

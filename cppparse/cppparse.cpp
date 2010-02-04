@@ -307,11 +307,11 @@ int main(int argc, char *argv[])
 	if(argc == 1)
 	{
 		const Test tests[] = {
+			makeTest("test/test_windows.cpp", verifyNull, parseFile),
 			makeTest("test/test_quick.cpp", verifyNull, parseFile),
 			makeTest("test/test_vector.cpp", verifyNull, parseFile),
 			makeTest("test/test_iostream.cpp", verifyNull, parseFile),
 			makeTest("test/test_map.cpp", verifyNull, parseFile),
-			makeTest("test/test_windows.cpp", verifyNull, parseFile),
 			makeTest("test/test_error.cpp", verifyNull, parseFile),
 			makeTest("test/test_amb_constructor.cpp", verifyAmbConstructor, parseFile),
 			makeTest("test/test_amb_func_cast.cpp", verifyAmbFuncCast, parseFunction),

@@ -1,4 +1,4 @@
 
-class type_info; // this is built in for MSVC?
+#include "predefined_msvc.h"
 
 #include <vector>
