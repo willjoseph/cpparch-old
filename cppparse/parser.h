@@ -717,6 +717,25 @@ inline cpp::symbol<Base> parseExpression(Parser& parser, cpp::symbol<T> symbol, 
 
 #define PARSE_EXPRESSION_LEFTASSOCIATIVE(parser, Type) result = parseExpression(parser, NullPtr<Type>::VALUE, result)
 
+template<typename T>
+inline cpp::symbol_optional<T> parseSequence(Parser& parser, cpp::symbol_optional<T>)
+{
+	T tmp;
+	cpp::symbol_optional<T> p(&tmp);
+	for(;;)
+	{
+		p->next = parseSymbolOptional(parser, p->next);
+		if(p->next == 0)
+		{
+			break;
+		}
+		p = p->next;
+	}
+	return tmp.next;
+}
+
+#define PARSE_SEQUENCE(parser, p) p = parseSequence(parser, p)
+
 
 
 cpp::declaration_seq* parseFile(Lexer& lexer);

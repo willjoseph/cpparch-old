@@ -448,7 +448,7 @@ struct WalkerBase : public PrintingWalker
 					return declaration;
 				}
 				if(type == &gClassFwd // is a forward-declaration
-					&& declaration->type == &gClass) // already class-declaration
+					&& getBaseType(declaration)->type == &gClass) // already class-declaration
 				{
 					// forward-declaration after class-declaration
 					return declaration;
@@ -458,6 +458,9 @@ struct WalkerBase : public PrintingWalker
 					&& declaration->type == &gClassFwd) // already forward-declared
 				{
 					// name already declared as class
+					printPosition(name.position);
+					std::cout << "'" << name.value << "' already declared here:" << std::endl;
+					printPosition(declaration->name.position);
 					throw SemanticError();
 				}
 				if(specifiers.isTypedef || declaration->specifiers.isTypedef)
@@ -913,7 +916,7 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 		{
 			printSymbol(symbol);
 			// 3.3.1.6: elaborated-type-specifier that is not a block-declaration is declared in smallest enclosing non-class non-function-prototype scope
-			declaration = pointOfDeclaration(getEltScope(), symbol->id->value, &gClass, 0);
+			declaration = pointOfDeclaration(getEltScope(), symbol->id->value, &gClassFwd, 0);
 		}
 		else
 		{

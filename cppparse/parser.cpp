@@ -2752,7 +2752,7 @@ inline cpp::function_definition_suffix* parseSymbol(Parser& parser, cpp::functio
 inline cpp::linkage_specification_compound* parseSymbol(Parser& parser, cpp::linkage_specification_compound* result)
 {
 	PARSE_TERMINAL(parser, result->lb);
-	PARSE_OPTIONAL(parser, result->decl);
+	PARSE_SEQUENCE(parser, result->decl);
 	PARSE_TERMINAL(parser, result->rb);
 	return result;
 }
@@ -3011,7 +3011,6 @@ inline cpp::declaration* parseSymbol(Parser& parser, cpp::declaration* result)
 inline cpp::declaration_seq* parseSymbol(Parser& parser, cpp::declaration_seq* result)
 {
 	PARSE_REQUIRED(parser, result->item);
-	PARSE_OPTIONAL(parser, result->next);
 	return result;
 }
 
@@ -3020,7 +3019,7 @@ inline cpp::statement_seq* parseSymbol(Parser& parser, cpp::statement_seq* resul
 inline cpp::compound_statement* parseSymbol(Parser& parser, cpp::compound_statement* result)
 {
 	PARSE_TERMINAL(parser, result->lb);
-	PARSE_OPTIONAL(parser, result->body);
+	PARSE_SEQUENCE(parser, result->body);
 	PARSE_TERMINAL(parser, result->rb);
 	return result;
 }
@@ -3326,7 +3325,6 @@ inline cpp::statement* parseSymbol(Parser& parser, cpp::statement* result)
 inline cpp::statement_seq* parseSymbol(Parser& parser, cpp::statement_seq* result)
 {
 	PARSE_REQUIRED(parser, result->item);
-	PARSE_OPTIONAL(parser, result->next);
 	return result;
 }
 
@@ -3338,7 +3336,7 @@ cpp::declaration_seq* parseFile(Lexer& lexer)
 	cpp::symbol_optional<cpp::declaration_seq> result(NULL);
 	try
 	{
-		PARSE_OPTIONAL(parser, result);
+		PARSE_SEQUENCE(parser, result);
 	}
 	catch(ParseError&)
 	{
@@ -3357,7 +3355,7 @@ cpp::statement_seq* parseFunction(Lexer& lexer)
 	cpp::symbol_optional<cpp::statement_seq> result(NULL);
 	try
 	{
-		PARSE_OPTIONAL(parser, result);
+		PARSE_SEQUENCE(parser, result);
 	}
 	catch(ParseError&)
 	{

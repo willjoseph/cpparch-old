@@ -1,4 +1,12 @@
 
+typedef struct fd_set
+{
+} fd_set;
+
+typedef struct fd_set FD_SET;
+typedef struct fd_set *PFD_SET;
+
+
 class type_info;
 
 const type_info& type;

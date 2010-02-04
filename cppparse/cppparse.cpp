@@ -307,8 +307,8 @@ int main(int argc, char *argv[])
 	if(argc == 1)
 	{
 		const Test tests[] = {
-			makeTest("test/test_windows.cpp", verifyNull, parseFile),
 			makeTest("test/test_quick.cpp", verifyNull, parseFile),
+			makeTest("test/test_windows.cpp", verifyNull, parseFile),
 			makeTest("test/test_vector.cpp", verifyNull, parseFile),
 			makeTest("test/test_iostream.cpp", verifyNull, parseFile),
 			makeTest("test/test_map.cpp", verifyNull, parseFile),
