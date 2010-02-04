@@ -311,6 +311,7 @@ Declaration gFriend(&global, makeIdentifier("$friend"), 0, &global);
 // symbol types
 Declaration gNamespace(&global, makeIdentifier("$namespace"), 0, 0);
 Declaration gBuiltin(&global, makeIdentifier("$builtin"), 0, 0);
+Declaration gTypename(&global, makeIdentifier("$typename"), 0, 0);
 Declaration gClassFwd(&global, makeIdentifier("$classfwd"), 0, 0);
 Declaration gClass(&global, makeIdentifier("$class"), 0, 0);
 Declaration gEnum(&global, makeIdentifier("$enum"), 0, 0);
@@ -814,8 +815,19 @@ struct MemberDeclarationWalker : public WalkerBase
 	}
 	void visit(cpp::member_declaration_default* symbol)
 	{
-		SimpleDeclarationWalker walker(*this, deferred);
-		symbol->accept(walker);
+		if(typeid(*symbol->decl.p) == typeid(cpp::general_declaration_type)
+			&& isForwardDeclaration(symbol->spec))
+		{
+			ForwardDeclarationWalker walker(*this);
+			symbol->accept(walker);
+			SEMANTIC_ASSERT(walker.declaration != 0);
+		}
+		else
+		{
+			SimpleDeclarationWalker walker(*this, deferred);
+			symbol->accept(walker);
+			SEMANTIC_ASSERT(walker.type != 0);
+		}
 	}
 	void visit(cpp::member_declaration_nested* symbol)
 	{
@@ -907,10 +919,8 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 	}
 	void visit(cpp::typename_specifier* symbol)
 	{
-		TypeSpecifierWalker walker(*this);
-		symbol->accept(walker);
-		// TODO point-of-declaration for typename-specifier
-		declaration = walker.declaration;
+		printSymbol(symbol);
+		declaration = &gTypename;
 	}
 	void visit(cpp::class_specifier* symbol)
 	{
@@ -959,8 +969,19 @@ struct StatementWalker : public WalkerBase
 	}
 	void visit(cpp::simple_declaration* symbol)
 	{
-		SimpleDeclarationWalker walker(*this);
-		symbol->accept(walker);
+		if(typeid(*symbol->affix.p) == typeid(cpp::general_declaration_type)
+			&& isForwardDeclaration(symbol->spec))
+		{
+			ForwardDeclarationWalker walker(*this);
+			symbol->accept(walker);
+			SEMANTIC_ASSERT(walker.declaration != 0);
+		}
+		else
+		{
+			SimpleDeclarationWalker walker(*this);
+			symbol->accept(walker);
+			SEMANTIC_ASSERT(walker.type != 0);
+		}
 	}
 	void visit(cpp::selection_statement* symbol)
 	{
@@ -1169,6 +1190,14 @@ struct DeclarationWalker : public WalkerBase
 		: WalkerBase(base)
 	{
 	}
+	void visit(cpp::namespace_definition* symbol)
+	{
+		Identifier id = symbol->id.p == 0 ? makeIdentifier("$anonymous") : symbol->id->value;
+		Scope* scope = new Scope(id, SCOPETYPE_NAMESPACE);
+		pointOfDeclaration(enclosing, id, &gNamespace, scope);
+		pushScope(scope);
+		symbol->accept(*this);
+	}
 	void visit(cpp::general_declaration* symbol)
 	{
 		if(typeid(*symbol->affix.p) == typeid(cpp::general_declaration_type)
@@ -1219,14 +1248,6 @@ struct NamespaceWalker : public WalkerBase
 	{
 	}
 
-	void visit(cpp::namespace_definition* symbol)
-	{
-		Identifier id = symbol->id.p == 0 ? makeIdentifier("$anonymous") : symbol->id->value;
-		Scope* scope = new Scope(id, SCOPETYPE_NAMESPACE);
-		pointOfDeclaration(enclosing, id, &gNamespace, scope);
-		pushScope(scope);
-		symbol->accept(*this);
-	}
 	void visit(cpp::declaration* symbol)
 	{
 		DeclarationWalker walker(*this);

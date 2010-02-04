@@ -1,5 +1,17 @@
 
+class A
+{
+	void f();
+};
 
+class B
+{
+	friend class A;
+};
+
+void A::f()
+{
+}
 
 
 typedef unsigned int size_t;

@@ -1770,10 +1770,20 @@ namespace cpp
 		));
 	};
 
-	struct general_declaration_type : public general_declaration_affix, public simple_declaration_affix
+	struct member_declaration_general : public choice<member_declaration_general>
+	{
+		VISITABLE_BASE(VISITORFUNCLIST3(
+			SYMBOLFWD(member_declaration_general_bitfield),
+			SYMBOLFWD(member_declaration_general_default),
+			SYMBOLFWD(general_declaration_type)
+		));
+	};
+
+	struct general_declaration_type : public general_declaration_affix, public simple_declaration_affix, public member_declaration_general
 	{
 		VISITABLE_DERIVED(general_declaration_affix);
 		VISITABLE_DERIVED(simple_declaration_affix);
+		VISITABLE_DERIVED(member_declaration_general);
 		terminal<boost::wave::T_SEMICOLON> semicolon;
 		FOREACH1(semicolon);
 	};
@@ -1873,15 +1883,6 @@ namespace cpp
 		));
 	};
 
-	struct member_declaration_general : public choice<member_declaration_general>
-	{
-		VISITABLE_BASE(VISITORFUNCLIST3(
-			SYMBOLFWD(member_declaration_general_bitfield),
-			SYMBOLFWD(member_declaration_general_default),
-			SYMBOLFWD(member_declaration_suffix_default)
-		));
-	};
-
 	struct member_declaration_default : public member_declaration
 	{
 		VISITABLE_DERIVED(member_declaration);
@@ -1908,10 +1909,9 @@ namespace cpp
 		FOREACH2(decl, suffix);
 	};
 
-	struct member_declaration_suffix_default : public member_declaration_suffix, public member_declaration_general
+	struct member_declaration_suffix_default : public member_declaration_suffix
 	{
 		VISITABLE_DERIVED(member_declaration_suffix);
-		VISITABLE_DERIVED(member_declaration_general);
 		symbol_optional<member_initializer> init;
 		terminal_optional<boost::wave::T_COMMA> comma;
 		symbol<member_declarator_list> next;

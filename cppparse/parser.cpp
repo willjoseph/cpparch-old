@@ -1172,7 +1172,7 @@ inline cpp::member_declaration_general* parseSymbol(Parser& parser, cpp::member_
 {
 	PARSE_SELECT(parser, cpp::member_declaration_general_bitfield);
 	PARSE_SELECT(parser, cpp::member_declaration_general_default);
-	PARSE_SELECT(parser, cpp::member_declaration_suffix_default);
+	PARSE_SELECT(parser, cpp::general_declaration_type);
 	return result;
 }
 
