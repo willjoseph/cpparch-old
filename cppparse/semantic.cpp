@@ -317,6 +317,7 @@ Declaration gClass(&global, makeIdentifier("$class"), 0, 0);
 Declaration gEnum(&global, makeIdentifier("$enum"), 0, 0);
 Declaration gCtor(&global, makeIdentifier("$ctor"), 0, 0);
 
+
 struct WalkerBase : public PrintingWalker
 {
 	WalkerContext& context;
@@ -324,7 +325,7 @@ struct WalkerBase : public PrintingWalker
 	Scope* templateParams;
 
 	WalkerBase(WalkerContext& context)
-		: PrintingWalker(context.printer), context(context), enclosing(&global), templateParams(0)
+		: PrintingWalker(context.printer), context(context), enclosing(0), templateParams(0)
 	{
 	}
 
@@ -453,6 +454,7 @@ struct WalkerBase : public PrintingWalker
 					return declaration;
 				}
 				if(type != &gClass // is not a class-declaration
+					&& type != &gCtor // is not a constructor-declaration
 					&& declaration->type == &gClassFwd) // already forward-declared
 				{
 					// name already declared as class
@@ -478,9 +480,12 @@ struct WalkerBase : public PrintingWalker
 					printPosition(declaration->name.position);
 					throw SemanticError();
 				}
+				else if(type == &gCtor)
+				{
+					// TODO
+				}
 				else if(type == &gBuiltin // is a built-in-type
-					|| type->type != 0 // is a user-type
-					|| type == &gCtor) // is a constructor/destructor
+					|| type->type != 0) // is a user-type
 				{
 					if(enclosed != 0) // is a function-declaration (or function-definition)
 					{
@@ -1134,7 +1139,7 @@ struct ForwardDeclarationWalker : public WalkerBase
 	void visit(cpp::elaborated_type_specifier_default* symbol)
 	{
 		printSymbol(symbol);
-		declaration = pointOfDeclaration(enclosing, symbol->id->value, &gClass, 0);
+		declaration = pointOfDeclaration(enclosing, symbol->id->value, &gClassFwd, 0);
 	}
 };
 
@@ -1193,10 +1198,13 @@ struct DeclarationWalker : public WalkerBase
 	void visit(cpp::namespace_definition* symbol)
 	{
 		Identifier id = symbol->id.p == 0 ? makeIdentifier("$anonymous") : symbol->id->value;
-		Scope* scope = new Scope(id, SCOPETYPE_NAMESPACE);
-		pointOfDeclaration(enclosing, id, &gNamespace, scope);
-		pushScope(scope);
-		symbol->accept(*this);
+		Declaration* declaration = pointOfDeclaration(enclosing, id, &gNamespace, 0);
+		if(declaration->enclosed == 0)
+		{
+			declaration->enclosed = new Scope(id, SCOPETYPE_NAMESPACE);
+		}
+		NamespaceWalker walker(*this, declaration->enclosed);
+		symbol->accept(walker);
 	}
 	void visit(cpp::general_declaration* symbol)
 	{
@@ -1246,6 +1254,13 @@ struct NamespaceWalker : public WalkerBase
 	NamespaceWalker(WalkerContext& context)
 		: WalkerBase(context)
 	{
+		pushScope(&global);
+	}
+
+	NamespaceWalker(WalkerBase& base, Scope* scope)
+		: WalkerBase(base)
+	{
+		pushScope(scope);
 	}
 
 	void visit(cpp::declaration* symbol)

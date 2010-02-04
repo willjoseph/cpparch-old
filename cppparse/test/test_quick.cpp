@@ -1,4 +1,22 @@
 
+class type_info;
+
+const type_info& type;
+
+
+template<class T>
+class C
+{
+	friend class C;
+	C()
+	{
+	}
+	~C()
+	{
+	}
+};
+
+
 class A
 {
 	void f();
@@ -12,6 +30,17 @@ class B
 void A::f()
 {
 }
+
+namespace N
+{
+	class X;
+}
+
+namespace N
+{
+	X x;
+}
+
 
 
 typedef unsigned int size_t;
