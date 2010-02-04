@@ -938,8 +938,15 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 	{
 		// TODO 
 		// + anonymous enums
-		Identifier id = symbol->id.p == 0 ? makeIdentifier("$anonymous") : symbol->id->value;
-		declaration = pointOfDeclaration(enclosing, id, &gEnum, 0);
+		if(symbol->id.p != 0)
+		{
+			Identifier id = symbol->id->value;
+			declaration = pointOfDeclaration(enclosing, id, &gEnum, 0);
+		}
+		else
+		{
+			declaration = &gAnonymous;
+		}
 		printSymbol(symbol);
 	}
 	void visit(cpp::decl_specifier_default* symbol)
@@ -1101,7 +1108,10 @@ struct SimpleDeclarationWalker : public WalkerBase
 	void visit(cpp::member_declarator_bitfield* symbol)
 	{
 		printSymbol(symbol);
-		pointOfDeclaration(enclosing, symbol->id->value, type, 0, specifiers); // 3.3.1.1
+		if(symbol->id.p != 0)
+		{
+			pointOfDeclaration(enclosing, symbol->id->value, type, 0, specifiers); // 3.3.1.1
+		}
 	}
 
 	void visit(cpp::initializer* symbol)
@@ -1197,13 +1207,18 @@ struct DeclarationWalker : public WalkerBase
 	}
 	void visit(cpp::namespace_definition* symbol)
 	{
-		Identifier id = symbol->id.p == 0 ? makeIdentifier("$anonymous") : symbol->id->value;
-		Declaration* declaration = pointOfDeclaration(enclosing, id, &gNamespace, 0);
-		if(declaration->enclosed == 0)
+		Scope* scope = enclosing;
+		if(symbol->id.p != 0)
 		{
-			declaration->enclosed = new Scope(id, SCOPETYPE_NAMESPACE);
+			Identifier id = symbol->id->value;
+			Declaration* declaration = pointOfDeclaration(enclosing, id, &gNamespace, 0);
+			if(declaration->enclosed == 0)
+			{
+				declaration->enclosed = new Scope(id, SCOPETYPE_NAMESPACE);
+			}
+			scope = declaration->enclosed;
 		}
-		NamespaceWalker walker(*this, declaration->enclosed);
+		NamespaceWalker walker(*this, scope);
 		symbol->accept(walker);
 	}
 	void visit(cpp::general_declaration* symbol)
