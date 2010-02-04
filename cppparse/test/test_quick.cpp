@@ -1,4 +1,9 @@
 
+struct threadlocaleinfostruct;
+struct threadmbcinfostruct;
+typedef struct threadlocaleinfostruct * pthreadlocinfo;
+typedef struct threadmbcinfostruct * pthreadmbcinfo;
+
 typedef struct fd_set
 {
 } fd_set;
