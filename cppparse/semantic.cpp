@@ -228,17 +228,33 @@ inline Identifier makeIdentifier(const char* value)
 
 struct Scope;
 
+struct DeclSpecifiers
+{
+	bool isTypedef;
+	bool isFriend;
+	bool isStatic;
+	DeclSpecifiers()
+		: isTypedef(false), isFriend(false), isStatic(false)
+	{
+	}
+	DeclSpecifiers(bool isTypedef, bool isFriend, bool isStatic)
+		: isTypedef(isTypedef), isFriend(isFriend), isStatic(isStatic)
+	{
+	}
+};
+
+const DeclSpecifiers DECLSPEC_TYPEDEF = DeclSpecifiers(true, false, false);
+
 struct Declaration
 {
 	Scope* scope;
 	Identifier name;
 	Declaration* type;
 	Scope* enclosed;
-	bool isTypedef;
-	bool isFriend;
+	DeclSpecifiers specifiers;
 
-	Declaration(Scope* scope, Identifier name, Declaration* type, Scope* enclosed, bool isTypedef, bool isFriend = false)
-		: scope(scope), name(name), type(type), enclosed(enclosed), isTypedef(isTypedef), isFriend(isFriend)
+	Declaration(Scope* scope, Identifier name, Declaration* type, Scope* enclosed, DeclSpecifiers specifiers = DeclSpecifiers())
+		: scope(scope), name(name), type(type), enclosed(enclosed), specifiers(specifiers)
 	{
 	}
 };
@@ -288,17 +304,17 @@ struct WalkerContext
 
 
 // special-case
-Declaration gUndeclared(&global, makeIdentifier("$undeclared"), 0, &global, false);
-Declaration gAnonymous(&global, makeIdentifier("$anonymous"), 0, &global, false);
-Declaration gFriend(&global, makeIdentifier("$friend"), 0, &global, false);
+Declaration gUndeclared(&global, makeIdentifier("$undeclared"), 0, &global);
+Declaration gAnonymous(&global, makeIdentifier("$anonymous"), 0, &global);
+Declaration gFriend(&global, makeIdentifier("$friend"), 0, &global);
 
 // symbol types
-Declaration gNamespace(&global, makeIdentifier("$namespace"), 0, 0, false);
-Declaration gBuiltin(&global, makeIdentifier("$builtin"), 0, 0, false);
-Declaration gClassFwd(&global, makeIdentifier("$classfwd"), 0, 0, false);
-Declaration gClass(&global, makeIdentifier("$class"), 0, 0, false);
-Declaration gEnum(&global, makeIdentifier("$enum"), 0, 0, false);
-Declaration gCtor(&global, makeIdentifier("$ctor"), 0, 0, false);
+Declaration gNamespace(&global, makeIdentifier("$namespace"), 0, 0);
+Declaration gBuiltin(&global, makeIdentifier("$builtin"), 0, 0);
+Declaration gClassFwd(&global, makeIdentifier("$classfwd"), 0, 0);
+Declaration gClass(&global, makeIdentifier("$class"), 0, 0);
+Declaration gEnum(&global, makeIdentifier("$enum"), 0, 0);
+Declaration gCtor(&global, makeIdentifier("$ctor"), 0, 0);
 
 struct WalkerBase : public PrintingWalker
 {
@@ -398,16 +414,16 @@ struct WalkerBase : public PrintingWalker
 
 	Declaration* getBaseType(Declaration* type)
 	{
-		while(type->isTypedef)
+		while(type->specifiers.isTypedef)
 		{
 			type = type->type;
 		}
 		return type;
 	}
 
-	Declaration* pointOfDeclaration(Scope* parent, const Identifier& name, Declaration* type, Scope* enclosed, bool isTypedef, bool isFriend = false)
+	Declaration* pointOfDeclaration(Scope* parent, const Identifier& name, Declaration* type, Scope* enclosed, DeclSpecifiers specifiers = DeclSpecifiers())
 	{
-		if(isFriend)
+		if(specifiers.isFriend)
 		{
 			// TODO
 			return &gFriend;
@@ -441,7 +457,7 @@ struct WalkerBase : public PrintingWalker
 					// name already declared as class
 					throw SemanticError();
 				}
-				if(isTypedef || declaration->isTypedef)
+				if(specifiers.isTypedef || declaration->specifiers.isTypedef)
 				{
 					// 7.1.3-4: In a given scope, a typedef specifier shall not be used to redefine the name of any type declared in that scope to refer to a different type.
 					if(getBaseType(declaration) != getBaseType(type))
@@ -475,16 +491,9 @@ struct WalkerBase : public PrintingWalker
 							printPosition(declaration->name.position);
 							throw SemanticError();
 						}
-						if(declaration->enclosed == 0)
-						{
-							// name already declared
-							printPosition(name.position);
-							std::cout << "'" << name.value << "' already declared here:" << std::endl;
-							printPosition(declaration->name.position);
-							throw SemanticError();
-						}
 					}
-					else
+					else if(!(parent->type == SCOPETYPE_CLASS
+						&& declaration->specifiers.isStatic))
 					{
 						// name already declared
 						printPosition(name.position);
@@ -495,7 +504,7 @@ struct WalkerBase : public PrintingWalker
 				}
 			}
 		}
-		parent->declarations.push_front(Declaration(parent, name, type, enclosed, isTypedef, isFriend));
+		parent->declarations.push_front(Declaration(parent, name, type, enclosed, specifiers));
 		if(enclosed != 0)
 		{
 			enclosed->name = name;
@@ -760,7 +769,7 @@ struct ClassHeadWalker : public WalkerBase
 	void visit(cpp::identifier* symbol)
 	{
 		printSymbol(symbol);
-		declaration = pointOfDeclaration(enclosing, symbol->value, &gClass, 0, false); // 3.3.1.3 The point of declaration for a class first declared by a class-specifier is immediately after the identifier or simple-template-id (if any) in its class-head
+		declaration = pointOfDeclaration(enclosing, symbol->value, &gClass, 0); // 3.3.1.3 The point of declaration for a class first declared by a class-specifier is immediately after the identifier or simple-template-id (if any) in its class-head
 	}
 	void visit(cpp::nested_name_specifier* symbol)
 	{
@@ -771,7 +780,7 @@ struct ClassHeadWalker : public WalkerBase
 	void visit(cpp::simple_template_id* symbol) 
 	{
 		printSymbol(symbol);
-		declaration = pointOfDeclaration(enclosing, symbol->id->value, &gClass, 0, false); // 3.3.1.3 The point of declaration for a class first declared by a class-specifier is immediately after the identifier or simple-template-id (if any) in its class-head
+		declaration = pointOfDeclaration(enclosing, symbol->id->value, &gClass, 0); // 3.3.1.3 The point of declaration for a class first declared by a class-specifier is immediately after the identifier or simple-template-id (if any) in its class-head
 		// TODO args
 	}
 	void visit(cpp::base_clause* symbol) 
@@ -863,10 +872,9 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	Declaration* declaration;
-	bool isTypedef;
-	bool isFriend;
+	DeclSpecifiers specifiers;
 	DeclSpecifierSeqWalker(const WalkerBase& base)
-		: WalkerBase(base), declaration(0), isTypedef(false), isFriend(false)
+		: WalkerBase(base), declaration(0)
 	{
 	}
 
@@ -888,7 +896,7 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 		{
 			printSymbol(symbol);
 			// 3.3.1.6: elaborated-type-specifier that is not a block-declaration is declared in smallest enclosing non-class non-function-prototype scope
-			declaration = pointOfDeclaration(getEltScope(), symbol->id->value, &gClass, 0, false);
+			declaration = pointOfDeclaration(getEltScope(), symbol->id->value, &gClass, 0);
 		}
 		else
 		{
@@ -916,18 +924,26 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 		// TODO 
 		// + anonymous enums
 		Identifier id = symbol->id.p == 0 ? makeIdentifier("$anonymous") : symbol->id->value;
-		declaration = pointOfDeclaration(enclosing, id, &gEnum, 0, false);
+		declaration = pointOfDeclaration(enclosing, id, &gEnum, 0);
 		printSymbol(symbol);
 	}
 	void visit(cpp::decl_specifier_default* symbol)
 	{
 		if(symbol->id == cpp::decl_specifier_default::TYPEDEF)
 		{
-			isTypedef = true;
+			specifiers.isTypedef = true;
 		}
 		else if(symbol->id == cpp::decl_specifier_default::FRIEND)
 		{
-			isFriend = true;
+			specifiers.isFriend = true;
+		}
+		printSymbol(symbol);
+	}
+	void visit(cpp::storage_class_specifier* symbol)
+	{
+		if(symbol->id == cpp::storage_class_specifier::STATIC)
+		{
+			specifiers.isStatic = true;
 		}
 		printSymbol(symbol);
 	}
@@ -1020,13 +1036,12 @@ struct SimpleDeclarationWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	Declaration* type;
-	bool isTypedef;
-	bool isFriend;
+	DeclSpecifiers specifiers;
 	Scope* paramScope;
 	FunctionDefinitions* deferred;
 
 	SimpleDeclarationWalker(const WalkerBase& base, FunctionDefinitions* deferred = 0)
-		: WalkerBase(base), type(&gCtor), isTypedef(false), isFriend(false), paramScope(0), deferred(deferred)
+		: WalkerBase(base), type(&gCtor), paramScope(0), deferred(deferred)
 	{
 	}
 
@@ -1036,8 +1051,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		DeclSpecifierSeqWalker walker(*this);
 		symbol->accept(walker);
 		type = walker.declaration;
-		isTypedef = walker.isTypedef;
-		isFriend = walker.isFriend;
+		specifiers = walker.specifiers;
 	}
 	void visit(cpp::type_specifier_seq* symbol)
 	{
@@ -1050,7 +1064,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 	{
 		DeclaratorWalker walker(*this);
 		symbol->accept(walker);
-		pointOfDeclaration(walker.enclosing, walker.id, type, isTypedef ? type->enclosed : walker.paramScope, isTypedef, isFriend); // 3.3.1.1
+		pointOfDeclaration(walker.enclosing, walker.id, type, specifiers.isTypedef ? type->enclosed : walker.paramScope, specifiers); // 3.3.1.1
 		paramScope = walker.paramScope;
 	}
 	void visit(cpp::abstract_declarator* symbol)
@@ -1061,7 +1075,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 	void visit(cpp::member_declarator_bitfield* symbol)
 	{
 		printSymbol(symbol);
-		pointOfDeclaration(enclosing, symbol->id->value, type, 0, isTypedef, isFriend); // 3.3.1.1
+		pointOfDeclaration(enclosing, symbol->id->value, type, 0, specifiers); // 3.3.1.1
 	}
 
 	void visit(cpp::initializer* symbol)
@@ -1099,7 +1113,7 @@ struct ForwardDeclarationWalker : public WalkerBase
 	void visit(cpp::elaborated_type_specifier_default* symbol)
 	{
 		printSymbol(symbol);
-		declaration = pointOfDeclaration(enclosing, symbol->id->value, &gClass, 0, false);
+		declaration = pointOfDeclaration(enclosing, symbol->id->value, &gClass, 0);
 	}
 };
 
@@ -1114,7 +1128,7 @@ struct TemplateDeclarationWalker : public WalkerBase
 	}
 	void visit(cpp::type_parameter_default* symbol)
 	{
-		pointOfDeclaration(enclosing, symbol->id->value, &gClass, 0, true);
+		pointOfDeclaration(enclosing, symbol->id->value, &gClass, 0, DECLSPEC_TYPEDEF);
 		printSymbol(symbol);
 	}
 	void visit(cpp::type_parameter_template* symbol)
@@ -1209,7 +1223,7 @@ struct NamespaceWalker : public WalkerBase
 	{
 		Identifier id = symbol->id.p == 0 ? makeIdentifier("$anonymous") : symbol->id->value;
 		Scope* scope = new Scope(id, SCOPETYPE_NAMESPACE);
-		pointOfDeclaration(enclosing, id, &gNamespace, scope, false);
+		pointOfDeclaration(enclosing, id, &gNamespace, scope);
 		pushScope(scope);
 		symbol->accept(*this);
 	}
