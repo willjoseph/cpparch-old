@@ -291,6 +291,8 @@ bool enclosesElt(ScopeType type)
 
 Scope global(makeIdentifier("$global"), SCOPETYPE_NAMESPACE);
 
+const Identifier IDENTIFIER_NULL = makeIdentifier(0);
+
 struct WalkerContext
 {
 	std::ofstream out;
@@ -309,14 +311,17 @@ Declaration gUndeclared(&global, makeIdentifier("$undeclared"), 0, &global);
 Declaration gAnonymous(&global, makeIdentifier("$anonymous"), 0, &global);
 Declaration gFriend(&global, makeIdentifier("$friend"), 0, &global);
 
-// symbol types
-Declaration gNamespace(&global, makeIdentifier("$namespace"), 0, 0);
-Declaration gBuiltin(&global, makeIdentifier("$builtin"), 0, 0);
-Declaration gTypename(&global, makeIdentifier("$typename"), 0, 0);
-Declaration gClassFwd(&global, makeIdentifier("$classfwd"), 0, 0);
+
+// meta types
+Declaration gSpecial(&global, makeIdentifier("$special"), 0, 0);
 Declaration gClass(&global, makeIdentifier("$class"), 0, 0);
 Declaration gEnum(&global, makeIdentifier("$enum"), 0, 0);
 Declaration gCtor(&global, makeIdentifier("$ctor"), 0, 0);
+
+// types
+Declaration gNamespace(&global, makeIdentifier("$namespace"), &gSpecial, 0);
+Declaration gTypename(&global, makeIdentifier("$typename"), &gSpecial, 0);
+Declaration gBuiltin(&global, makeIdentifier("$builtin"), &gSpecial, 0);
 
 
 struct WalkerBase : public PrintingWalker
@@ -401,9 +406,10 @@ struct WalkerBase : public PrintingWalker
 		}
 	}
 
-	void printName(Declaration* type, Declaration* name)
+	void printName(const char* caption, Declaration* type, Declaration* name)
 	{
 		printer.out << "/* ";
+		printer.out << caption;
 		printName(type);
 		printer.out << ": ";
 		printName(name);
@@ -415,13 +421,26 @@ struct WalkerBase : public PrintingWalker
 		std::cout << position.get_file() << "(" << position.get_line() << "): ";
 	}
 
-	const Declaration* getBaseType(const Declaration* type)
+	// int i; // type -> int
+	// typedef int I; // type -> int
+	// I i; // type -> I -> int
+	// typedef I J; // type -> I -> int
+	// J j; // type -> J -> I -> int
+	// struct S; // type -> struct
+	// typedef struct S S; // type -> S -> struct
+	// typedef struct S {} S; // type -> S -> struct
+	// typedef enum E {} E; // type -> E -> enum
+	const Declaration* getType(const Declaration& declaration)
 	{
-		while(type->specifiers.isTypedef)
+		if(declaration.type->type == 0)
 		{
-			type = type->type;
+			return &declaration;
 		}
-		return type;
+		if(declaration.specifiers.isTypedef)
+		{
+			return getType(*declaration.type);
+		}
+		return declaration.type;
 	}
 
 	bool isTyped(const Declaration& declaration)
@@ -430,7 +449,7 @@ struct WalkerBase : public PrintingWalker
 			|| declaration.type->type != 0;
 	}
 
-	bool isFunctionDefinition(const Declaration& declaration)
+	bool isFunction(const Declaration& declaration)
 	{
 		return declaration.enclosed != 0;
 	}
@@ -439,7 +458,7 @@ struct WalkerBase : public PrintingWalker
 	{
 		return declaration.scope->type == SCOPETYPE_CLASS
 			&& declaration.specifiers.isStatic
-			&& !isFunctionDefinition(declaration);
+			&& !isFunction(declaration);
 	}
 
 	bool isTypedefDeclaration(const Declaration& declaration)
@@ -454,18 +473,34 @@ struct WalkerBase : public PrintingWalker
 
 	bool isDefinition(const Declaration& declaration)
 	{
-		return declaration.type == &gClass // class A {};
+		return (declaration.type == &gClass && declaration.enclosed != 0) // class A {};
 			|| declaration.type == &gEnum // enum E {};
 			|| (isTyped(declaration) // int i; void f();
 				&& !isTypedefDeclaration(declaration) // typedef int I;
 				&& !isStaticMember(declaration) // struct S { static int i };
 				&& !isExternDeclaration(declaration) // extern int i;
-				&& !isFunctionDefinition(declaration)); // TODO: function overloading
+				&& !isFunction(declaration)); // TODO: function overloading
 	}
 
 	bool isRedeclaration(const Declaration& declaration, const Declaration& other)
 	{
-		return getBaseType(&declaration)->type == getBaseType(&other)->type;
+		if(other.type == &gCtor) // TODO: distinguish constructor names from class name
+		{
+			return true;
+		}
+		if(isTyped(declaration)
+			&& isTyped(other)
+			&& isFunction(declaration)
+			&& isFunction(other))// TODO: function overloading
+		{
+			return true;
+		}
+		if(!isTypedefDeclaration(declaration)
+			&& !isTypedefDeclaration(other))
+		{
+			return declaration.type == other.type;
+		}
+		return getType(declaration) == getType(other);
 	}
 
 	Declaration* pointOfDeclaration(Scope* parent, const Identifier& name, Declaration* type, Scope* enclosed, DeclSpecifiers specifiers = DeclSpecifiers())
@@ -475,13 +510,16 @@ struct WalkerBase : public PrintingWalker
 			// TODO
 			return &gFriend;
 		}
-			
+		
+		if(enclosed != 0)
+		{
+			enclosed->name = name;
+		}
 		Declaration other(parent, name, type, enclosed, specifiers);
 		{
 			Declaration* declaration = findDeclaration(parent->declarations, name);
 			if(declaration != 0)
 			{
-#if 0
 				if(isDefinition(*declaration)
 					&& isDefinition(other))
 				{
@@ -497,85 +535,8 @@ struct WalkerBase : public PrintingWalker
 					printPosition(declaration->name.position);
 					throw SemanticError();
 				}
-#else
-				if(type == &gNamespace)
-				{
-					if(declaration->type != &gNamespace)
-					{
-						// name already declared as non-namespace
-						printPosition(name.position);
-						std::cout << "'" << name.value << "' already declared here:" << std::endl;
-						printPosition(declaration->name.position);
-						throw SemanticError();
-					}
-					// namespace-continuation
-					return declaration;
-				}
-				if(type == &gClassFwd // is a forward-declaration
-					&& getBaseType(declaration)->type == &gClass) // already class-declaration
-				{
-					// forward-declaration after class-declaration
-					return declaration;
-				}
-				if(type != &gClass // is not a class-declaration
-					&& type != &gCtor // is not a constructor-declaration
-					&& declaration->type == &gClassFwd) // already forward-declared
-				{
-					// name already declared as class
-					printPosition(name.position);
-					std::cout << "'" << name.value << "' already declared here:" << std::endl;
-					printPosition(declaration->name.position);
-					throw SemanticError();
-				}
-				if(specifiers.isTypedef || declaration->specifiers.isTypedef)
-				{
-					// 7.1.3-4: In a given scope, a typedef specifier shall not be used to redefine the name of any type declared in that scope to refer to a different type.
-					if(getBaseType(declaration) != getBaseType(type))
-					{
-						// name already declared with different type
-						printPosition(name.position);
-						std::cout << "'" << name.value << "' already declared here:" << std::endl;
-						printPosition(declaration->name.position);
-						throw SemanticError();
-					}
-				}
-				else if(type == &gEnum)
-				{
-					// name already declared
-					printPosition(name.position);
-					std::cout << "'" << name.value << "' already declared here:" << std::endl;
-					printPosition(declaration->name.position);
-					throw SemanticError();
-				}
-				else if(type == &gCtor)
-				{
-					// TODO
-				}
-				else if(type == &gBuiltin // is a built-in-type
-					|| type->type != 0) // is a user-type
-				{
-					if(enclosed != 0) // is a function-declaration (or function-definition)
-					{
-						if(declaration->enclosed == 0)
-						{
-							// name already declared
-							printPosition(name.position);
-							std::cout << "'" << name.value << "' already declared here:" << std::endl;
-							printPosition(declaration->name.position);
-							throw SemanticError();
-						}
-					}
-					else if(!(parent->type == SCOPETYPE_CLASS
-						&& declaration->specifiers.isStatic))
-					{
-						// name already declared
-						printPosition(name.position);
-						std::cout << "'" << name.value << "' already declared here:" << std::endl;
-						printPosition(declaration->name.position);
-						throw SemanticError();
-					}
-				}
-#endif
+				printName("redeclared: ", type, declaration);
+				return declaration;
 			}
 		}
 		parent->declarations.push_front(other);
@@ -584,7 +545,7 @@ struct WalkerBase : public PrintingWalker
 			enclosed->name = name;
 		}
 		Declaration* result = &parent->declarations.front();
-		printName(type, result);
+		printName("", type, result);
 		return result;
 	}
 
@@ -835,15 +796,16 @@ struct ClassHeadWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	Declaration* declaration;
-	ClassHeadWalker(const WalkerBase& base)
-		: WalkerBase(base), declaration(&gAnonymous)
+	Scope* enclosed;
+	ClassHeadWalker(const WalkerBase& base, Scope* enclosed)
+		: WalkerBase(base), declaration(&gAnonymous), enclosed(enclosed)
 	{
 	}
 
 	void visit(cpp::identifier* symbol)
 	{
 		printSymbol(symbol);
-		declaration = pointOfDeclaration(enclosing, symbol->value, &gClass, 0); // 3.3.1.3 The point of declaration for a class first declared by a class-specifier is immediately after the identifier or simple-template-id (if any) in its class-head
+		declaration = pointOfDeclaration(enclosing, symbol->value, &gClass, enclosed); // 3.3.1.3 The point of declaration for a class first declared by a class-specifier is immediately after the identifier or simple-template-id (if any) in its class-head
 	}
 	void visit(cpp::nested_name_specifier* symbol)
 	{
@@ -854,7 +816,7 @@ struct ClassHeadWalker : public WalkerBase
 	void visit(cpp::simple_template_id* symbol) 
 	{
 		printSymbol(symbol);
-		declaration = pointOfDeclaration(enclosing, symbol->id->value, &gClass, 0); // 3.3.1.3 The point of declaration for a class first declared by a class-specifier is immediately after the identifier or simple-template-id (if any) in its class-head
+		declaration = pointOfDeclaration(enclosing, symbol->id->value, &gClass, enclosed); // 3.3.1.3 The point of declaration for a class first declared by a class-specifier is immediately after the identifier or simple-template-id (if any) in its class-head
 		// TODO args
 	}
 	void visit(cpp::base_clause* symbol) 
@@ -938,11 +900,10 @@ struct ClassSpecifierWalker : public WalkerBase
 
 	void visit(cpp::class_head* symbol)
 	{
-		ClassHeadWalker walker(*this);
+		Scope* scope = new Scope(makeIdentifier("$class"), SCOPETYPE_CLASS);
+		ClassHeadWalker walker(*this, scope);
 		symbol->accept(walker);
 		declaration = walker.declaration;
-		Scope* scope = new Scope(declaration->name, SCOPETYPE_CLASS);
-		declaration->enclosed = scope;
 		pushScope(scope); // 3.3.6.1.1 // class scope
 	}
 	void visit(cpp::member_declaration* symbol)
@@ -981,7 +942,7 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 		{
 			printSymbol(symbol);
 			// 3.3.1.6: elaborated-type-specifier that is not a block-declaration is declared in smallest enclosing non-class non-function-prototype scope
-			declaration = pointOfDeclaration(getEltScope(), symbol->id->value, &gClassFwd, 0);
+			declaration = pointOfDeclaration(getEltScope(), symbol->id->value, &gClass, 0);
 		}
 		else
 		{
@@ -1221,7 +1182,7 @@ struct ForwardDeclarationWalker : public WalkerBase
 	void visit(cpp::elaborated_type_specifier_default* symbol)
 	{
 		printSymbol(symbol);
-		declaration = pointOfDeclaration(enclosing, symbol->id->value, &gClassFwd, 0);
+		declaration = pointOfDeclaration(enclosing, symbol->id->value, &gClass, 0);
 	}
 };
 
@@ -1260,12 +1221,12 @@ struct TemplateDeclarationWalker : public WalkerBase
 	void visit(cpp::declaration* symbol)
 	{
 		DeclarationWalker walker(*this);
-		walker.visit(symbol);
+		symbol->accept(walker);
 	}
 	void visit(cpp::member_declaration* symbol)
 	{
 		MemberDeclarationWalker walker(*this, deferred);
-		walker.visit(symbol);
+		symbol->accept(walker);
 	}
 };
 
@@ -1279,18 +1240,7 @@ struct DeclarationWalker : public WalkerBase
 	}
 	void visit(cpp::namespace_definition* symbol)
 	{
-		Scope* scope = enclosing;
-		if(symbol->id.p != 0)
-		{
-			Identifier id = symbol->id->value;
-			Declaration* declaration = pointOfDeclaration(enclosing, id, &gNamespace, 0);
-			if(declaration->enclosed == 0)
-			{
-				declaration->enclosed = new Scope(id, SCOPETYPE_NAMESPACE);
-			}
-			scope = declaration->enclosed;
-		}
-		NamespaceWalker walker(*this, scope);
+		NamespaceWalker walker(*this, symbol->id != 0 ? symbol->id->value : IDENTIFIER_NULL);
 		symbol->accept(walker);
 	}
 	void visit(cpp::general_declaration* symbol)
@@ -1338,22 +1288,35 @@ struct NamespaceWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 
+	const Identifier& id;
 	NamespaceWalker(WalkerContext& context)
-		: WalkerBase(context)
+		: WalkerBase(context), id(IDENTIFIER_NULL)
 	{
 		pushScope(&global);
 	}
 
-	NamespaceWalker(WalkerBase& base, Scope* scope)
-		: WalkerBase(base)
+	NamespaceWalker(WalkerBase& base, const Identifier& id)
+		: WalkerBase(base), id(id)
 	{
-		pushScope(scope);
 	}
 
+	void visit(cpp::namespace_body* symbol)
+	{
+		if(id.value != 0)
+		{
+			Declaration* declaration = pointOfDeclaration(enclosing, id, &gNamespace, 0);
+			if(declaration->enclosed == 0)
+			{
+				declaration->enclosed = new Scope(id, SCOPETYPE_NAMESPACE);
+			}
+			pushScope(declaration->enclosed);
+		}
+		symbol->accept(*this);
+	}
 	void visit(cpp::declaration* symbol)
 	{
 		DeclarationWalker walker(*this);
-		walker.visit(symbol);
+		symbol->accept(walker);
 	}
 };
 

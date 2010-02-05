@@ -1,8 +1,33 @@
 
+typedef struct _div_t {
+} div_t;
+
+typedef struct _ldiv_t {
+} ldiv_t;
+
+inline ldiv_t  div()
+{
+}
+
+div_t  __cdecl div();
+
+
 struct threadlocaleinfostruct;
-struct threadmbcinfostruct;
 typedef struct threadlocaleinfostruct * pthreadlocinfo;
-typedef struct threadmbcinfostruct * pthreadmbcinfo;
+
+typedef enum IMAGE_AUX_SYMBOL_TYPE {
+	IMAGE_AUX_SYMBOL_TYPE_TOKEN_DEF = 1,
+} IMAGE_AUX_SYMBOL_TYPE;
+
+namespace N
+{
+	class X;
+}
+
+namespace N
+{
+	X x;
+}
 
 typedef struct fd_set
 {
@@ -44,15 +69,6 @@ void A::f()
 {
 }
 
-namespace N
-{
-	class X;
-}
-
-namespace N
-{
-	X x;
-}
 
 
 
