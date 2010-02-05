@@ -861,7 +861,7 @@ inline cpp::namespace_definition* parseSymbol(Parser& parser, cpp::namespace_def
 	PARSE_TERMINAL(parser, result->key);
 	PARSE_OPTIONAL(parser, result->id);
 	PARSE_TERMINAL(parser, result->lb);
-	PARSE_OPTIONAL(parser, result->body);
+	PARSE_SEQUENCE(parser, result->body);
 	PARSE_TERMINAL(parser, result->rb);
 	return result;
 }
