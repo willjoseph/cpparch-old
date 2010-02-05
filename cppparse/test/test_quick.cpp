@@ -1,4 +1,29 @@
 
+namespace std
+{
+	class _Lockit
+	{
+	public:
+		explicit _Lockit();
+		explicit _Lockit(int);
+		~_Lockit();
+		static void _Lockit_ctor(int);
+		static void _Lockit_dtor(int);
+	private:
+		static void _Lockit_ctor(_Lockit*);
+		static void _Lockit_ctor(_Lockit*,int);
+		static void _Lockit_dtor(_Lockit*);
+		_Lockit(const _Lockit&);
+		_Lockit&operator=(const _Lockit&);
+		int _Locktype;
+	};
+
+	class _Mutex
+	{	// lock under program control
+
+	};
+}
+
 typedef struct _div_t {
 } div_t;
 
