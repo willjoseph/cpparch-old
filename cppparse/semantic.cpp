@@ -233,17 +233,18 @@ struct DeclSpecifiers
 	bool isTypedef;
 	bool isFriend;
 	bool isStatic;
+	bool isExtern;
 	DeclSpecifiers()
-		: isTypedef(false), isFriend(false), isStatic(false)
+		: isTypedef(false), isFriend(false), isStatic(false), isExtern(false)
 	{
 	}
-	DeclSpecifiers(bool isTypedef, bool isFriend, bool isStatic)
-		: isTypedef(isTypedef), isFriend(isFriend), isStatic(isStatic)
+	DeclSpecifiers(bool isTypedef, bool isFriend, bool isStatic, bool isExtern)
+		: isTypedef(isTypedef), isFriend(isFriend), isStatic(isStatic), isExtern(isExtern)
 	{
 	}
 };
 
-const DeclSpecifiers DECLSPEC_TYPEDEF = DeclSpecifiers(true, false, false);
+const DeclSpecifiers DECLSPEC_TYPEDEF = DeclSpecifiers(true, false, false, false);
 
 struct Declaration
 {
@@ -414,13 +415,57 @@ struct WalkerBase : public PrintingWalker
 		std::cout << position.get_file() << "(" << position.get_line() << "): ";
 	}
 
-	Declaration* getBaseType(Declaration* type)
+	const Declaration* getBaseType(const Declaration* type)
 	{
 		while(type->specifiers.isTypedef)
 		{
 			type = type->type;
 		}
 		return type;
+	}
+
+	bool isTyped(const Declaration& declaration)
+	{
+		return declaration.type == &gBuiltin
+			|| declaration.type->type != 0;
+	}
+
+	bool isFunctionDefinition(const Declaration& declaration)
+	{
+		return declaration.enclosed != 0;
+	}
+
+	bool isStaticMember(const Declaration& declaration)
+	{
+		return declaration.scope->type == SCOPETYPE_CLASS
+			&& declaration.specifiers.isStatic
+			&& !isFunctionDefinition(declaration);
+	}
+
+	bool isTypedefDeclaration(const Declaration& declaration)
+	{
+		return declaration.specifiers.isTypedef;
+	}
+
+	bool isExternDeclaration(const Declaration& declaration)
+	{
+		return declaration.specifiers.isExtern;
+	}
+
+	bool isDefinition(const Declaration& declaration)
+	{
+		return declaration.type == &gClass // class A {};
+			|| declaration.type == &gEnum // enum E {};
+			|| (isTyped(declaration) // int i; void f();
+				&& !isTypedefDeclaration(declaration) // typedef int I;
+				&& !isStaticMember(declaration) // struct S { static int i };
+				&& !isExternDeclaration(declaration) // extern int i;
+				&& !isFunctionDefinition(declaration)); // TODO: function overloading
+	}
+
+	bool isRedeclaration(const Declaration& declaration, const Declaration& other)
+	{
+		return getBaseType(&declaration)->type == getBaseType(&other)->type;
 	}
 
 	Declaration* pointOfDeclaration(Scope* parent, const Identifier& name, Declaration* type, Scope* enclosed, DeclSpecifiers specifiers = DeclSpecifiers())
@@ -430,10 +475,29 @@ struct WalkerBase : public PrintingWalker
 			// TODO
 			return &gFriend;
 		}
+			
+		Declaration other(parent, name, type, enclosed, specifiers);
 		{
 			Declaration* declaration = findDeclaration(parent->declarations, name);
 			if(declaration != 0)
 			{
+#if 0
+				if(isDefinition(*declaration)
+					&& isDefinition(other))
+				{
+					printPosition(name.position);
+					std::cout << "'" << name.value << "' already defined here:" << std::endl;
+					printPosition(declaration->name.position);
+					throw SemanticError();
+				}
+				if(!isRedeclaration(*declaration, other))
+				{
+					printPosition(name.position);
+					std::cout << "'" << name.value << "' already declared here:" << std::endl;
+					printPosition(declaration->name.position);
+					throw SemanticError();
+				}
+#else
 				if(type == &gNamespace)
 				{
 					if(declaration->type != &gNamespace)
@@ -511,9 +575,10 @@ struct WalkerBase : public PrintingWalker
 						throw SemanticError();
 					}
 				}
+#endif
 			}
 		}
-		parent->declarations.push_front(Declaration(parent, name, type, enclosed, specifiers));
+		parent->declarations.push_front(other);
 		if(enclosed != 0)
 		{
 			enclosed->name = name;
@@ -969,6 +1034,10 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 		if(symbol->id == cpp::storage_class_specifier::STATIC)
 		{
 			specifiers.isStatic = true;
+		}
+		else if(symbol->id == cpp::storage_class_specifier::EXTERN)
+		{
+			specifiers.isExtern = true;
 		}
 		printSymbol(symbol);
 	}
