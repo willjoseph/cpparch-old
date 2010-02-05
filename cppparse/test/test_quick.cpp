@@ -1,4 +1,13 @@
 
+template<typename T>
+class C1
+{
+	static T t;
+};
+
+template<typename T>
+T C1::t;
+
 namespace std
 {
 	class _Lockit

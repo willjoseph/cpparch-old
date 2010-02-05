@@ -322,6 +322,18 @@ Declaration gCtor(&global, makeIdentifier("$ctor"), 0, 0);
 Declaration gNamespace(&global, makeIdentifier("$namespace"), &gSpecial, 0);
 Declaration gTypename(&global, makeIdentifier("$typename"), &gSpecial, 0);
 Declaration gBuiltin(&global, makeIdentifier("$builtin"), &gSpecial, 0);
+Declaration gParam(&global, makeIdentifier("$param"), &gClass, 0);
+
+Declaration gTemplateParams[] = 
+{
+	gParam, gParam, gParam, gParam,
+	gParam, gParam, gParam, gParam,
+	gParam, gParam, gParam, gParam,
+	gParam, gParam, gParam, gParam,
+	gParam, gParam, gParam, gParam,
+	gParam, gParam, gParam, gParam,
+	gParam, gParam, gParam, gParam,
+};
 
 
 struct WalkerBase : public PrintingWalker
@@ -443,6 +455,15 @@ struct WalkerBase : public PrintingWalker
 		return declaration.type;
 	}
 
+	const Declaration* getBaseType(const Declaration& declaration)
+	{
+		if(declaration.type->specifiers.isTypedef)
+		{
+			return getBaseType(*declaration.type);
+		}
+		return declaration.type;
+	}
+
 	bool isTyped(const Declaration& declaration)
 	{
 		return declaration.type == &gBuiltin
@@ -498,7 +519,7 @@ struct WalkerBase : public PrintingWalker
 		if(!isTypedefDeclaration(declaration)
 			&& !isTypedefDeclaration(other))
 		{
-			return declaration.type == other.type;
+			return getBaseType(declaration) == getBaseType(other);
 		}
 		return getType(declaration) == getType(other);
 	}
@@ -1191,13 +1212,14 @@ struct TemplateDeclarationWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	FunctionDefinitions* deferred;
+	Declaration* paramType;
 	TemplateDeclarationWalker(WalkerBase& base, FunctionDefinitions* deferred = 0)
-		: WalkerBase(base), deferred(deferred)
+		: WalkerBase(base), deferred(deferred), paramType(gTemplateParams)
 	{
 	}
 	void visit(cpp::type_parameter_default* symbol)
 	{
-		pointOfDeclaration(enclosing, symbol->id->value, &gClass, 0, DECLSPEC_TYPEDEF);
+		pointOfDeclaration(enclosing, symbol->id->value, paramType++, 0, DECLSPEC_TYPEDEF);
 		printSymbol(symbol);
 	}
 	void visit(cpp::type_parameter_template* symbol)
@@ -1288,19 +1310,14 @@ struct NamespaceWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 
-	const Identifier& id;
 	NamespaceWalker(WalkerContext& context)
-		: WalkerBase(context), id(IDENTIFIER_NULL)
+		: WalkerBase(context)
 	{
 		pushScope(&global);
 	}
 
 	NamespaceWalker(WalkerBase& base, const Identifier& id)
-		: WalkerBase(base), id(id)
-	{
-	}
-
-	void visit(cpp::namespace_body* symbol)
+		: WalkerBase(base)
 	{
 		if(id.value != 0)
 		{
@@ -1311,8 +1328,8 @@ struct NamespaceWalker : public WalkerBase
 			}
 			pushScope(declaration->enclosed);
 		}
-		symbol->accept(*this);
 	}
+
 	void visit(cpp::declaration* symbol)
 	{
 		DeclarationWalker walker(*this);
