@@ -443,6 +443,8 @@ DECLARE_AMBIGUOUS(cpp::member_declaration);
 DECLARE_AMBIGUOUS(cpp::template_parameter);
 DECLARE_AMBIGUOUS(cpp::cast_expression);
 DECLARE_AMBIGUOUS(cpp::unary_expression);
+DECLARE_AMBIGUOUS(cpp::postfix_expression_prefix);
+DECLARE_AMBIGUOUS(cpp::nested_name);
 
 DECLARE_AMBIGUOUS(cpp::expression);
 DECLARE_AMBIGUOUS(cpp::constant_expression);

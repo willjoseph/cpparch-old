@@ -386,12 +386,14 @@ namespace cpp
 	struct postfix_expression_prefix : public choice<postfix_expression_prefix>, public postfix_expression
 	{
 		VISITABLE_DERIVED(postfix_expression);
-		VISITABLE_BASE(VISITORFUNCLIST5(
+		VISITABLE_BASE(VISITORFUNCLIST7(
 			SYMBOLFWD(primary_expression),
+			SYMBOLFWD(postfix_expression_disambiguate),
 			SYMBOLFWD(postfix_expression_construct),
 			SYMBOLFWD(postfix_expression_cast),
 			SYMBOLFWD(postfix_expression_typeid),
-			SYMBOLFWD(postfix_expression_typeidtype)
+			SYMBOLFWD(postfix_expression_typeidtype),
+			ambiguity<postfix_expression_prefix>*
 		));
 	};
 
@@ -456,8 +458,18 @@ namespace cpp
 		));
 	};
 
-	struct type_name : public choice<type_name>
+	struct nested_name : public choice<nested_name>
 	{
+		VISITABLE_BASE(VISITORFUNCLIST3(
+			SYMBOLFWD(type_name),
+			SYMBOLFWD(namespace_name),
+			ambiguity<nested_name>*
+		));
+	};
+
+	struct type_name : public choice<type_name>, public nested_name
+	{
+		VISITABLE_DERIVED(nested_name);
 		VISITABLE_BASE(VISITORFUNCLIST1(
 			SYMBOLFWD(class_name)
 		));
@@ -472,9 +484,18 @@ namespace cpp
 		));
 	};
 
-	struct identifier : public unqualified_id, public class_name, public qualified_id_suffix
+	struct namespace_name : public choice<namespace_name>, public nested_name
+	{
+		VISITABLE_DERIVED(nested_name);
+		VISITABLE_BASE(VISITORFUNCLIST1(
+			SYMBOLFWD(identifier)
+		));
+	};
+
+	struct identifier : public class_name, public namespace_name, public unqualified_id, public qualified_id_suffix
 	{
 		VISITABLE_DERIVED(class_name);
+		VISITABLE_DERIVED(namespace_name);
 		VISITABLE_DERIVED(unqualified_id);
 		VISITABLE_DERIVED(qualified_id_suffix);
 		terminal_identifier value;
@@ -483,7 +504,7 @@ namespace cpp
 
 	struct nested_name_specifier_prefix
 	{
-		symbol<type_name> id;
+		symbol<nested_name> id;
 		terminal<boost::wave::T_COLON_COLON> scope;
 		FOREACH2(id, scope);
 	};
@@ -1069,6 +1090,14 @@ namespace cpp
 		symbol_optional<expression_list> args;
 		terminal<boost::wave::T_RIGHTPAREN> rp;
 		FOREACH3(lp, args, rp);
+	};
+
+	struct postfix_expression_disambiguate : public postfix_expression_prefix
+	{
+		VISITABLE_DERIVED(postfix_expression_prefix);
+		symbol<primary_expression> left;
+		symbol<postfix_expression_call> right;
+		FOREACH2(left, right);
 	};
 
 	struct member_operator : public terminal_choice, public overloadable_operator

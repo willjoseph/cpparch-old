@@ -1,4 +1,34 @@
 
+
+namespace std
+{
+
+template<class _Ty> inline
+	void swap(_Ty& _Left, _Ty& _Right)
+	{	// exchange values stored at _Left and _Right
+	_Ty _Tmp = _Left;
+	_Left = _Right, _Right = _Tmp;
+	}
+
+		// TEMPLATE STRUCT pair
+template<class _Ty1,
+	class _Ty2> struct pair
+	{	// store a pair of values
+	typedef pair<_Ty1, _Ty2> _Myt;
+	typedef _Ty1 first_type;
+	typedef _Ty2 second_type;
+
+	void swap(_Myt& _Right)
+		{	// exchange contents with _Right
+		std::swap(first, _Right.first);
+		std::swap(second, _Right.second);
+		}
+
+	_Ty1 first;	// the first stored value
+	_Ty2 second;	// the second stored value
+};
+}
+
 class C3
 {
 	void reset(C3*)

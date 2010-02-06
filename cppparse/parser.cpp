@@ -690,7 +690,8 @@ inline bool isAmbiguous(cpp::cast_expression* symbol)
 
 // matches type-name: 'A<B>'
 // ambiguous with relational-expression prefix
-inline bool isAmbiguousTemplateId(cpp::type_name* type)
+template<typename T>
+inline bool isAmbiguousTemplateId(T* type)
 {
 	cpp::simple_template_id* id = dynamic_cast<cpp::simple_template_id*>(type);
 	if(id == 0
@@ -709,7 +710,7 @@ inline bool isAmbiguousTemplateIdPrefix(cpp::nested_name_specifier_suffix* symbo
 	if(symbol != 0)
 	{
 		if(symbol->isTemplate.value != 0
-			|| !isAmbiguousTemplateId(symbol->id)
+			|| !isAmbiguousTemplateId(symbol->id.p)
 			|| !isAmbiguousTemplateIdPrefix(symbol->next))
 		{
 			return false;
@@ -724,7 +725,7 @@ inline bool isAmbiguousTemplateIdPrefix(cpp::nested_name_specifier_suffix* symbo
 inline bool isAmbiguousTemplateIdPrefix(cpp::nested_name_specifier* symbol)
 {
 	if(symbol == 0
-		|| !isAmbiguousTemplateId(symbol->prefix->id)
+		|| !isAmbiguousTemplateId(symbol->prefix->id.p)
 		|| !isAmbiguousTemplateIdPrefix(symbol->suffix))
 	{
 		return false;
@@ -813,6 +814,19 @@ inline bool isAmbiguousTemplateIdPrefix(T* symbol)
 		|| isAmbiguousTemplateIdPrefixExpr(dynamic_cast<cpp::postfix_expression_default*>(symbol));
 }
 
+
+template<typename T>
+inline bool isAmbiguousPostfixExpression(T* symbol)
+{
+	return dynamic_cast<cpp::postfix_expression_disambiguate*>(symbol) != 0;
+}
+
+inline bool isAmbiguous(cpp::postfix_expression_prefix* symbol)
+{
+	return isAmbiguousPostfixExpression(symbol);
+}
+
+
 template<typename T>
 inline bool isAmbiguity(T* symbol)
 {
@@ -822,24 +836,28 @@ inline bool isAmbiguity(T* symbol)
 inline bool isAmbiguous(cpp::expression* symbol)
 {
 	return isAmbiguity(symbol)
-		|| isAmbiguousTemplateIdPrefix(symbol);
+		|| isAmbiguousTemplateIdPrefix(symbol)
+		|| isAmbiguousPostfixExpression(symbol);
 }
 
 inline bool isAmbiguous(cpp::assignment_expression* symbol)
 {
 	return isAmbiguity(symbol)
-		|| isAmbiguousTemplateIdPrefix(symbol);
+		|| isAmbiguousTemplateIdPrefix(symbol)
+		|| isAmbiguousPostfixExpression(symbol);
 }
 
 inline bool isAmbiguous(cpp::constant_expression* symbol)
 {
 	return isAmbiguity(symbol)
-		|| isAmbiguousTemplateIdPrefix(symbol);
+		|| isAmbiguousTemplateIdPrefix(symbol)
+		|| isAmbiguousPostfixExpression(symbol);
 }
 
-
-
-
+inline bool isAmbiguous(cpp::nested_name* symbol)
+{
+	return dynamic_cast<cpp::identifier*>(symbol) != 0;
+}
 
 
 inline cpp::identifier* parseSymbol(Parser& parser, cpp::identifier* result)
@@ -925,6 +943,19 @@ inline cpp::class_name* parseSymbol(Parser& parser, cpp::class_name* result)
 {
 	PARSE_SELECT(parser, cpp::simple_template_id); // TODO: ambiguity: shared prefix 'identifier'
 	PARSE_SELECT(parser, cpp::identifier);
+	return result;
+}
+
+inline cpp::namespace_name* parseSymbol(Parser& parser, cpp::namespace_name* result)
+{
+	PARSE_SELECT(parser, cpp::identifier);
+	return result;
+}
+
+inline cpp::nested_name* parseSymbol(Parser& parser, cpp::nested_name* result)
+{
+	PARSE_SELECT(parser, cpp::class_name);
+	PARSE_SELECT(parser, cpp::namespace_name);
 	return result;
 }
 
@@ -1828,9 +1859,18 @@ inline cpp::postfix_expression_suffix* parseSymbol(Parser& parser, cpp::postfix_
 	return result;
 }
 
+inline cpp::postfix_expression_disambiguate* parseSymbol(Parser& parser, cpp::postfix_expression_disambiguate* result)
+{
+	PARSE_REQUIRED(parser, result->left);
+	PARSE_REQUIRED(parser, result->right);
+	return result;
+}
+
 inline cpp::postfix_expression_prefix* parseSymbol(Parser& parser, cpp::postfix_expression_prefix* result)
 {
 	PARSE_SELECT(parser, cpp::primary_expression);
+	// HACK: resolve ambiguity: a(x): could be function-style-cast or function-call
+	PARSE_SELECT(parser, cpp::postfix_expression_disambiguate);
 	PARSE_SELECT(parser, cpp::postfix_expression_construct);
 	PARSE_SELECT(parser, cpp::postfix_expression_cast);
 	PARSE_SELECT(parser, cpp::postfix_expression_typeid);

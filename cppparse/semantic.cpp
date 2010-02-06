@@ -172,42 +172,6 @@ struct SymbolPrinter : PrintingWalker
 #endif
 };
 
-#define TREEWALKER_DEFAULT \
-	void visit(cpp::terminal_identifier symbol) \
-	{ \
-		printer.printToken(boost::wave::T_IDENTIFIER, symbol.value); \
-	} \
-	void visit(cpp::terminal_string symbol) \
-	{ \
-		printer.printToken(boost::wave::T_STRINGLIT, symbol.value); \
-	} \
-	void visit(cpp::terminal_choice2 symbol) \
-	{ \
-		printer.printToken(symbol.id, symbol.value); \
-	} \
-	template<LexTokenId id> \
-	void visit(cpp::terminal<id> symbol) \
-	{ \
-		if(symbol.value != 0) \
-		{ \
-			printer.printToken(id, symbol.value); \
-		} \
-	} \
-	template<typename T> \
-	void visit(T* symbol) \
-	{ \
-		symbol->accept(*this); \
-	} \
-	template<typename T> \
-	void visit(cpp::symbol<T> symbol) \
-	{ \
-		if(symbol.p != 0) \
-		{ \
-			visit(symbol.p); \
-		} \
-	}
-
-
 #include <iostream>
 #include <list>
 
@@ -608,38 +572,55 @@ struct WalkerBase : public PrintingWalker
 	}
 };
 
-typedef bool (*IdentifierFunc)(WalkerBase* context, const Identifier& id);
+typedef bool (*IdentifierFunc)(const Declaration& declaration);
 
-bool isTypeName(WalkerBase* context, const Identifier& id)
+bool isTypeName(const Declaration& declaration)
 {
-	Declaration* declaration = context->findDeclaration(id);
-	SEMANTIC_ASSERT(declaration != 0);
-	return declaration == &gBuiltin
-		|| declaration->type->type == 0
-		|| declaration->specifiers.isTypedef;
+	return &declaration == &gBuiltin
+		|| declaration.type == &gTypename
+		|| declaration.type->type == 0
+		|| declaration.specifiers.isTypedef;
 }
 
-bool isClassName(WalkerBase* context, const Identifier& id)
+bool isNamespaceName(const Declaration& declaration)
 {
-	Declaration* declaration = context->findDeclaration(id);
-	SEMANTIC_ASSERT(declaration != 0);
-	return declaration->type == &gClass
-		|| declaration->specifiers.isTypedef; // TODO
+	return declaration.enclosed->type == SCOPETYPE_NAMESPACE;
 }
 
-bool isTemplateName(WalkerBase* context, const Identifier& id)
+bool isTemplateName(const Declaration& declaration)
 {
-	Declaration* declaration = context->findDeclaration(id);
-	SEMANTIC_ASSERT(declaration != 0);
-	return declaration->isTemplate;
+	return declaration.isTemplate;
 }
+
+const char* getIdentifierType(IdentifierFunc func)
+{
+	if(func == isTypeName)
+	{
+		return "type-name";
+	}
+	if(func == isNamespaceName)
+	{
+		return "namespace-name";
+	}
+	if(func == isTemplateName)
+	{
+		return "template-name";
+	}
+	return "<unknown>";
+}
+
+#define SYMBOL_NAME(T) (typeid(T).name() + 12)
+
+template<typename T>
+inline T* resolveAmbiguity(WalkerBase& base, cpp::ambiguity<T>* symbol, bool diagnose = false);
 
 struct AmbiguityCheck : public WalkerBase
 {
 	IdentifierFunc check;
 	bool result;
-	AmbiguityCheck(WalkerBase& base, IdentifierFunc check = 0)
-		: WalkerBase(base), check(check), result(false)
+	bool diagnose;
+	AmbiguityCheck(WalkerBase& base, IdentifierFunc check, bool diagnose)
+		: WalkerBase(base), check(check), result(false), diagnose(diagnose)
 	{
 	}
 
@@ -663,61 +644,168 @@ struct AmbiguityCheck : public WalkerBase
 	template<typename T>
 	void visit(T* symbol)
 	{
+		if(result)
+		{
+			return;
+		}
 		symbol->accept(*this);
 	}
 
 	template<typename T>
 	void visit(cpp::symbol<T> symbol)
 	{
+		if(result)
+		{
+			return;
+		}
 		if(symbol.p != 0)
 		{
 			visit(symbol.p);
+		}
+		if(result
+			&& diagnose)
+		{
+			std::cout << SYMBOL_NAME(T) << std::endl;
 		}
 	}
 
 	template<typename T>
 	void visit(cpp::ambiguity<T>* symbol)
 	{
-		SEMANTIC_ASSERT(false); // TODO
+		if(result)
+		{
+			return;
+		}
+		resolveAmbiguity(*this, symbol)->accept(*this);
 	}
 
 	void visit(cpp::identifier* symbol)
 	{
 		if(check != 0)
 		{
-			if(!check(this, symbol->value))
+			Declaration* declaration = findDeclaration(symbol->value);
+			SEMANTIC_ASSERT(declaration != &gUndeclared);
+			if(!check(*declaration))
 			{
 				result = true;
+				if(diagnose)
+				{
+					printPosition(symbol->value.position);
+					std::cout << "'" << getValue(symbol->value) << "': expected " << getIdentifierType(check) << std::endl;
+					throw SemanticError();
+				}
 			}
 		}
 	}
 
 	void visit(cpp::type_name* symbol)
 	{
-		AmbiguityCheck walker(*this, isTypeName);
+		if(result)
+		{
+			return;
+		}
+		AmbiguityCheck walker(*this, isTypeName, diagnose);
 		symbol->accept(walker);
 		result = walker.result;
 	}
-	void visit(cpp::class_name* symbol)
+	void visit(cpp::namespace_name* symbol)
 	{
-		AmbiguityCheck walker(*this, isClassName);
+		if(result)
+		{
+			return;
+		}
+		AmbiguityCheck walker(*this, isNamespaceName, diagnose);
 		symbol->accept(walker);
 		result = walker.result;
 	}
 	void visit(cpp::simple_template_id* symbol)
 	{
-		AmbiguityCheck walker(*this, isTemplateName);
+		if(result)
+		{
+			return;
+		}
+		AmbiguityCheck walker(*this, isTemplateName, diagnose);
 		symbol->accept(walker);
 		result = walker.result;
 	}
 	void visit(cpp::template_argument_list* symbol)
 	{
-		AmbiguityCheck walker(*this);
+		if(result)
+		{
+			return;
+		}
+		AmbiguityCheck walker(*this, 0, diagnose);
 		symbol->accept(walker);
 		result = walker.result;
 	}
 };
 
+template<typename T>
+inline bool isValid(WalkerBase& base, T* symbol, bool diagnose)
+{
+	AmbiguityCheck walker(base, 0, diagnose);
+	symbol->accept(walker);
+	return !walker.result;
+}
+
+template<typename T>
+inline T* resolveAmbiguity(WalkerBase& base, cpp::ambiguity<T>* symbol, bool diagnose)
+{
+	if(isValid(base, symbol->first, diagnose))
+	{
+		return symbol->first;
+	}
+	if(isValid(base, symbol->second, diagnose))
+	{
+		return symbol->second;
+	}
+	std::cout << "first:" << std::endl;
+	isValid(base, symbol->first, true);
+	std::cout << "second:" << std::endl;
+	isValid(base, symbol->second, true);
+	throw SemanticError();
+}
+
+
+#define TREEWALKER_DEFAULT \
+	void visit(cpp::terminal_identifier symbol) \
+	{ \
+		printer.printToken(boost::wave::T_IDENTIFIER, symbol.value); \
+	} \
+	void visit(cpp::terminal_string symbol) \
+	{ \
+		printer.printToken(boost::wave::T_STRINGLIT, symbol.value); \
+	} \
+	void visit(cpp::terminal_choice2 symbol) \
+	{ \
+		printer.printToken(symbol.id, symbol.value); \
+	} \
+	template<LexTokenId id> \
+	void visit(cpp::terminal<id> symbol) \
+	{ \
+		if(symbol.value != 0) \
+		{ \
+			printer.printToken(id, symbol.value); \
+		} \
+	} \
+	template<typename T> \
+	void visit(T* symbol) \
+	{ \
+		symbol->accept(*this); \
+	} \
+	template<typename T> \
+	void visit(cpp::symbol<T> symbol) \
+	{ \
+		if(symbol.p != 0) \
+		{ \
+			visit(symbol.p); \
+		} \
+	} \
+	template<typename T> \
+	void visit(cpp::ambiguity<T>* symbol) \
+	{ \
+		resolveAmbiguity(*this, symbol)->accept(*this); \
+	}
 
 bool isForwardDeclaration(cpp::elaborated_type_specifier_default* symbol)
 {
@@ -728,6 +816,7 @@ bool isForwardDeclaration(cpp::decl_specifier_seq* symbol)
 {
 	return symbol != 0 && isForwardDeclaration(dynamic_cast<cpp::elaborated_type_specifier_default*>(symbol->type.p));
 }
+
 
 
 struct Walker
@@ -1195,24 +1284,6 @@ struct StatementWalker : public WalkerBase
 	{
 		ControlStatementWalker walker(*this);
 		symbol->accept(walker);
-	}
-	void visit(cpp::ambiguity<cpp::statement>* symbol)
-	{
-		{
-			AmbiguityCheck walker(*this);
-			symbol->first->accept(walker);
-			if(!walker.result)
-			{
-				symbol->first->accept(*this);
-			}
-			else
-			{
-				AmbiguityCheck walker(*this);
-				symbol->second->accept(walker);
-				SEMANTIC_ASSERT(!walker.result);
-				symbol->second->accept(*this);
-			}
-		}
 	}
 };
 
