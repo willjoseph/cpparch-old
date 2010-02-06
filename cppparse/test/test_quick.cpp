@@ -1,4 +1,18 @@
 
+class C3
+{
+	void reset(C3*)
+	{
+	}
+	void f()
+	{
+		C3 *_Ptr;
+		reset(_Ptr);
+		return (*this);
+	}
+};
+
+
 template<typename T>
 class Tmpl
 {
