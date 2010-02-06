@@ -8,6 +8,11 @@ class C1
 template<typename T>
 T C1::t;
 
+template<>
+class C1<int>
+{
+};
+
 namespace std
 {
 	class _Lockit

@@ -253,9 +253,10 @@ struct Declaration
 	Declaration* type;
 	Scope* enclosed;
 	DeclSpecifiers specifiers;
+	bool isTemplateSpecialization;
 
-	Declaration(Scope* scope, Identifier name, Declaration* type, Scope* enclosed, DeclSpecifiers specifiers = DeclSpecifiers())
-		: scope(scope), name(name), type(type), enclosed(enclosed), specifiers(specifiers)
+	Declaration(Scope* scope, Identifier name, Declaration* type, Scope* enclosed, DeclSpecifiers specifiers = DeclSpecifiers(), bool isTemplateSpecialization = false)
+		: scope(scope), name(name), type(type), enclosed(enclosed), specifiers(specifiers), isTemplateSpecialization(isTemplateSpecialization)
 	{
 	}
 };
@@ -494,7 +495,7 @@ struct WalkerBase : public PrintingWalker
 
 	bool isDefinition(const Declaration& declaration)
 	{
-		return (declaration.type == &gClass && declaration.enclosed != 0) // class A {};
+		return (declaration.type == &gClass && declaration.enclosed != 0 && !declaration.isTemplateSpecialization) // class A {};
 			|| declaration.type == &gEnum // enum E {};
 			|| (isTyped(declaration) // int i; void f();
 				&& !isTypedefDeclaration(declaration) // typedef int I;
@@ -506,6 +507,10 @@ struct WalkerBase : public PrintingWalker
 	bool isRedeclaration(const Declaration& declaration, const Declaration& other)
 	{
 		if(other.type == &gCtor) // TODO: distinguish constructor names from class name
+		{
+			return true;
+		}
+		if(other.isTemplateSpecialization) // TODO: compare template-argument-list
 		{
 			return true;
 		}
@@ -524,7 +529,7 @@ struct WalkerBase : public PrintingWalker
 		return getType(declaration) == getType(other);
 	}
 
-	Declaration* pointOfDeclaration(Scope* parent, const Identifier& name, Declaration* type, Scope* enclosed, DeclSpecifiers specifiers = DeclSpecifiers())
+	Declaration* pointOfDeclaration(Scope* parent, const Identifier& name, Declaration* type, Scope* enclosed, DeclSpecifiers specifiers = DeclSpecifiers(), bool isTemplateSpecialization = false)
 	{
 		if(specifiers.isFriend)
 		{
@@ -536,7 +541,7 @@ struct WalkerBase : public PrintingWalker
 		{
 			enclosed->name = name;
 		}
-		Declaration other(parent, name, type, enclosed, specifiers);
+		Declaration other(parent, name, type, enclosed, specifiers, isTemplateSpecialization);
 		{
 			Declaration* declaration = findDeclaration(parent->declarations, name);
 			if(declaration != 0)
@@ -837,7 +842,7 @@ struct ClassHeadWalker : public WalkerBase
 	void visit(cpp::simple_template_id* symbol) 
 	{
 		printSymbol(symbol);
-		declaration = pointOfDeclaration(enclosing, symbol->id->value, &gClass, enclosed); // 3.3.1.3 The point of declaration for a class first declared by a class-specifier is immediately after the identifier or simple-template-id (if any) in its class-head
+		declaration = pointOfDeclaration(enclosing, symbol->id->value, &gClass, enclosed, DeclSpecifiers(), true); // 3.3.1.3 The point of declaration for a class first declared by a class-specifier is immediately after the identifier or simple-template-id (if any) in its class-head
 		// TODO args
 	}
 	void visit(cpp::base_clause* symbol) 
