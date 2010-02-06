@@ -1,4 +1,14 @@
 
+template<typename T>
+class Tmpl
+{
+	template<typename Q>
+	void func()
+	{
+		Q q;
+	}
+};
+
 enum { ENUM1 };
 enum { ENUM2 };
 

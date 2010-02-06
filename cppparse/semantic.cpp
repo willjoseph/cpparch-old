@@ -862,7 +862,16 @@ struct ClassHeadWalker : public WalkerBase
 	}
 };
 
-typedef std::pair<Scope*, cpp::function_definition_suffix*> FunctionDefinition;
+struct FunctionDefinition
+{
+	Scope* first;
+	cpp::function_definition_suffix* second;
+	Scope* templateParams;
+	FunctionDefinition(Scope* first, cpp::function_definition_suffix* second, Scope* templateParams) :
+		first(first), second(second), templateParams(templateParams)
+	{
+	}
+};
 typedef std::vector<FunctionDefinition> FunctionDefinitions;
 
 struct MemberDeclarationWalker : public WalkerBase
@@ -929,8 +938,11 @@ struct ClassSpecifierWalker : public WalkerBase
 			printer.printToken(boost::wave::T_IDENTIFIER, "<params>");
 			printer.printToken(boost::wave::T_RIGHTPAREN, ")");
 
+			Scope* tmp = templateParams;
+			pushTemplateParams((*i).templateParams);
 			FunctionDefinitionSuffixWalker walker(*this, (*i).first);
 			(*i).second->accept(walker);
+			templateParams = tmp;
 		}
 	};
 
@@ -1188,7 +1200,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		if(deferred != 0)
 		{
 			printer.printToken(boost::wave::T_SEMICOLON, ";");
-			deferred->push_back(FunctionDefinition(paramScope, symbol));
+			deferred->push_back(FunctionDefinition(paramScope, symbol, templateParams));
 		}
 		else
 		{
