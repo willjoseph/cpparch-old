@@ -1,4 +1,13 @@
 
+enum { ENUM1 };
+enum { ENUM2 };
+
+typedef struct { typedef int T; } S1;
+typedef struct { typedef int T; } S2;
+
+S1::T s1t;
+S2::T s2t;
+
 template<typename T>
 class C1
 {

@@ -309,7 +309,6 @@ struct WalkerContext
 
 // special-case
 Declaration gUndeclared(&global, makeIdentifier("$undeclared"), 0, &global);
-Declaration gAnonymous(&global, makeIdentifier("$anonymous"), 0, &global);
 Declaration gFriend(&global, makeIdentifier("$friend"), 0, &global);
 
 
@@ -374,6 +373,11 @@ struct WalkerBase : public PrintingWalker
 		return 0;
 	}
 
+	const char* getValue(const Identifier& id)
+	{
+		return id.value == 0 ? "$unnamed" : id.value;
+	}
+
 	Declaration* findDeclaration(const Identifier& id)
 	{
 		{
@@ -392,8 +396,8 @@ struct WalkerBase : public PrintingWalker
 			}
 		}
 		printPosition(id.position);
-		std::cout << "'" << id.value << "' was not declared" << std::endl;
-		printer.out << "/* undeclared: " << id.value << " */";
+		std::cout << "'" << getValue(id) << "' was not declared" << std::endl;
+		printer.out << "/* undeclared: " << getValue(id) << " */";
 		return &gUndeclared;
 	}
 
@@ -402,7 +406,7 @@ struct WalkerBase : public PrintingWalker
 		if(scope->parent != 0)
 		{
 			printName(scope->parent);
-			printer.out << scope->name.value << "::";
+			printer.out << getValue(scope->name) << "::";
 		}
 	}
 
@@ -415,7 +419,7 @@ struct WalkerBase : public PrintingWalker
 		else
 		{
 			printName(name->scope);
-			printer.out << name->name.value;
+			printer.out << getValue(name->name);
 		}
 	}
 
@@ -542,6 +546,7 @@ struct WalkerBase : public PrintingWalker
 			enclosed->name = name;
 		}
 		Declaration other(parent, name, type, enclosed, specifiers, isTemplateSpecialization);
+		if(name.value != 0) // unnamed class/struct/union/enum
 		{
 			Declaration* declaration = findDeclaration(parent->declarations, name);
 			if(declaration != 0)
@@ -627,7 +632,7 @@ struct NestedNameSpecifierWalker : public WalkerBase
 		if(declaration->enclosed == 0)
 		{
 			printPosition(symbol->value.position);
-			std::cout << "'" << declaration->name.value << "' is incomplete, declared here:" << std::endl;
+			std::cout << "'" << getValue(declaration->name) << "' is incomplete, declared here:" << std::endl;
 			printPosition(declaration->name.position);
 			throw SemanticError();
 		}
@@ -640,7 +645,7 @@ struct NestedNameSpecifierWalker : public WalkerBase
 		if(declaration->enclosed == 0)
 		{
 			printPosition(symbol->id->value.position);
-			std::cout << "'" << declaration->name.value << "' is incomplete, declared here:" << std::endl;
+			std::cout << "'" << getValue(declaration->name) << "' is incomplete, declared here:" << std::endl;
 			printPosition(declaration->name.position);
 			throw SemanticError();
 		}
@@ -824,7 +829,7 @@ struct ClassHeadWalker : public WalkerBase
 	Declaration* declaration;
 	Scope* enclosed;
 	ClassHeadWalker(const WalkerBase& base, Scope* enclosed)
-		: WalkerBase(base), declaration(&gAnonymous), enclosed(enclosed)
+		: WalkerBase(base), declaration(0), enclosed(enclosed)
 	{
 	}
 
@@ -844,6 +849,11 @@ struct ClassHeadWalker : public WalkerBase
 		printSymbol(symbol);
 		declaration = pointOfDeclaration(enclosing, symbol->id->value, &gClass, enclosed, DeclSpecifiers(), true); // 3.3.1.3 The point of declaration for a class first declared by a class-specifier is immediately after the identifier or simple-template-id (if any) in its class-head
 		// TODO args
+	}
+	void visit(cpp::class_head_anonymous* symbol)
+	{
+		declaration = pointOfDeclaration(enclosing, IDENTIFIER_NULL, &gClass, enclosed);
+		symbol->accept(*this);
 	}
 	void visit(cpp::base_clause* symbol) 
 	{
@@ -912,7 +922,7 @@ struct ClassSpecifierWalker : public WalkerBase
 	{
 		for(FunctionDefinitions::const_iterator i = deferred.begin(); i != deferred.end(); ++i)
 		{
-			printer.printToken(boost::wave::T_IDENTIFIER, declaration->name.value);
+			printer.printToken(boost::wave::T_IDENTIFIER, getValue(declaration->name));
 			printer.printToken(boost::wave::T_COLON_COLON, "::");
 			printer.printToken(boost::wave::T_IDENTIFIER, "<deferred>");
 			printer.printToken(boost::wave::T_LEFTPAREN, "(");
@@ -993,15 +1003,8 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 	{
 		// TODO 
 		// + anonymous enums
-		if(symbol->id.p != 0)
-		{
-			Identifier id = symbol->id->value;
-			declaration = pointOfDeclaration(enclosing, id, &gEnum, 0);
-		}
-		else
-		{
-			declaration = &gAnonymous;
-		}
+		Identifier id = symbol->id.p != 0 ? symbol->id->value : IDENTIFIER_NULL;
+		declaration = pointOfDeclaration(enclosing, id, &gEnum, 0);
 		printSymbol(symbol);
 	}
 	void visit(cpp::decl_specifier_default* symbol)
