@@ -937,13 +937,13 @@ namespace cpp
 		FOREACH3(lp, decl, rp);
 	};
 
-	struct declarator_suffix_seq;
+	struct declarator_suffix;
 
 	struct direct_abstract_declarator : public abstract_declarator
 	{
 		VISITABLE_DERIVED(abstract_declarator);
 		symbol_optional<abstract_declarator_parenthesis> prefix;
-		symbol<declarator_suffix_seq> suffix;
+		symbol<declarator_suffix> suffix;
 		FOREACH2(prefix, suffix);
 	};
 
@@ -1647,21 +1647,15 @@ namespace cpp
 		terminal<boost::wave::T_LEFTBRACKET> ls;
 		symbol_optional<constant_expression> size;
 		terminal<boost::wave::T_RIGHTBRACKET> rs;
-		FOREACH3(ls, size, rs);
-	};
-
-	struct declarator_suffix_seq
-	{
-		symbol<declarator_suffix> item;
-		symbol_optional<declarator_suffix_seq> next;
-		FOREACH2(item, next);
+		symbol_optional<declarator_suffix_array> next;
+		FOREACH4(ls, size, rs, next);
 	};
 
 	struct direct_declarator : public declarator
 	{
 		VISITABLE_DERIVED(declarator);
 		symbol<direct_declarator_prefix> prefix;
-		symbol_optional<declarator_suffix_seq> suffix;
+		symbol_optional<declarator_suffix> suffix;
 		FOREACH2(prefix, suffix);
 	};
 

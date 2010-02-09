@@ -60,7 +60,8 @@ inline bool isAmbiguousDeclaratorSuffix(cpp::declarator_suffix* symbol)
 	{
 		cpp::declarator_suffix_array* array = dynamic_cast<cpp::declarator_suffix_array*>(symbol);
 		if(array == 0
-			|| array->size == 0)
+			|| array->size == 0
+			|| !isAmbiguousDeclaratorSuffix(array->next))
 		{
 			return false;
 		}
@@ -106,16 +107,10 @@ inline bool isAmbiguousAbstractDeclarator(cpp::abstract_declarator* symbol)
 	}
 	cpp::direct_abstract_declarator* decl = dynamic_cast<cpp::direct_abstract_declarator*>(symbol);
 	if(decl == 0
-		|| decl->prefix != 0)
+		|| decl->prefix != 0
+		|| !isAmbiguousDeclaratorSuffix(decl->suffix))
 	{
 		return false;
-	}
-	for(cpp::declarator_suffix_seq* p = decl->suffix; p != 0; p = p->next)
-	{
-		if(!isAmbiguousDeclaratorSuffix(p->item))
-		{
-			return false;
-		}
 	}
 	return true;
 }
@@ -146,16 +141,10 @@ inline bool isAmbiguousDirectDeclarator(cpp::declarator* decl)
 {
 	cpp::direct_declarator* direct = dynamic_cast<cpp::direct_declarator*>(decl);
 	if(direct == 0
-		|| !isAmbiguousDirectDeclaratorPrefix(direct->prefix))
+		|| !isAmbiguousDirectDeclaratorPrefix(direct->prefix)
+		|| !isAmbiguousDeclaratorSuffix(direct->suffix))
 	{
 		return false;
-	}
-	for(cpp::declarator_suffix_seq* p = direct->suffix; p != 0; p = p->next)
-	{
-		if(!isAmbiguousDeclaratorSuffix(p->item))
-		{
-			return false;
-		}
 	}
 	return true;
 }
@@ -1662,6 +1651,7 @@ inline cpp::declarator_suffix_array* parseSymbol(Parser& parser, cpp::declarator
 	PARSE_TERMINAL(parser, result->ls);
 	PARSE_OPTIONAL(parser, result->size);
 	PARSE_TERMINAL(parser, result->rs);
+	PARSE_OPTIONAL(parser, result->next);
 	return result;
 }
 
@@ -2597,13 +2587,6 @@ inline cpp::declarator_suffix* parseSymbol(Parser& parser, cpp::declarator_suffi
 {
 	PARSE_SELECT(parser, cpp::declarator_suffix_array);
 	PARSE_SELECT(parser, cpp::declarator_suffix_function);
-	return result;
-}
-
-inline cpp::declarator_suffix_seq* parseSymbol(Parser& parser, cpp::declarator_suffix_seq* result)
-{
-	PARSE_REQUIRED(parser, result->item);
-	PARSE_OPTIONAL(parser, result->next);
 	return result;
 }
 

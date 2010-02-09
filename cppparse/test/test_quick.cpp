@@ -1,7 +1,15 @@
 
-void f(int a, int b)
+
+int f(int a)
 {
-	int t(a, b); // function-declaration or variable declaration with init
+	int t(a); // function-declaration or variable declaration with init
+	typedef int T;
+	int (*x)(T)(f);
+	int (*x)(T)[1];
+	// illegal
+	// int t[1](a, b);
+	// int t(a)(b);
+	// int t(a)[1];
 }
 
 template<class T>
