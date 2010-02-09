@@ -509,19 +509,42 @@ namespace cpp
 		FOREACH2(id, scope);
 	};
 
-	struct nested_name_specifier_suffix
+	struct nested_name_specifier_suffix : public choice<nested_name_specifier_suffix>
 	{
-		terminal_optional<boost::wave::T_TEMPLATE> isTemplate;
-		symbol<class_name> id;
+		VISITABLE_BASE(VISITORFUNCLIST2(
+			SYMBOLFWD(nested_name_specifier_suffix_default),
+			SYMBOLFWD(nested_name_specifier_suffix_template)
+		));
+	};
+
+	struct nested_name_specifier_suffix_default : public nested_name_specifier_suffix
+	{
+		VISITABLE_DERIVED(nested_name_specifier_suffix);
+		symbol<identifier> id;
 		terminal<boost::wave::T_COLON_COLON> scope;
-		symbol_optional<nested_name_specifier_suffix> next;
-		FOREACH4(isTemplate, id, scope, next);
+		FOREACH2(id, scope);
+	};
+
+	struct nested_name_specifier_suffix_template : public nested_name_specifier_suffix
+	{
+		VISITABLE_DERIVED(nested_name_specifier_suffix);
+		terminal_optional<boost::wave::T_TEMPLATE> isTemplate;
+		symbol<simple_template_id> id;
+		terminal<boost::wave::T_COLON_COLON> scope;
+		FOREACH3(isTemplate, id, scope);
+	};
+
+	struct nested_name_specifier_suffix_seq
+	{
+		symbol<nested_name_specifier_suffix> item;
+		symbol_optional<nested_name_specifier_suffix_seq> next;
+		FOREACH2(item, next);
 	};
 
 	struct nested_name_specifier
 	{
 		symbol<nested_name_specifier_prefix> prefix;
-		symbol_optional<nested_name_specifier_suffix> suffix;
+		symbol_optional<nested_name_specifier_suffix_seq> suffix;
 		FOREACH2(prefix, suffix);
 	};
 

@@ -273,6 +273,7 @@ struct WalkerContext
 	}
 };
 
+const Identifier IDENTIFIER_CTOR = makeIdentifier("$ctor");
 
 // special-case
 Declaration gUndeclared(&global, makeIdentifier("$undeclared"), 0, &global);
@@ -397,6 +398,13 @@ bool isRedeclaration(const Declaration& declaration, const Declaration& other)
 	return getType(declaration) == getType(other);
 }
 
+struct IdentifierMismatch
+{
+	IdentifierMismatch()
+	{
+	}
+};
+
 
 struct WalkerBase : public PrintingWalker
 {
@@ -404,9 +412,10 @@ struct WalkerBase : public PrintingWalker
 	Scope* enclosing;
 	Scope* templateParams;
 	Scope* templateEnclosing;
+	bool* ambiguity;
 
 	WalkerBase(WalkerContext& context)
-		: PrintingWalker(context.printer), context(context), enclosing(0), templateParams(0), templateEnclosing(0)
+		: PrintingWalker(context.printer), context(context), enclosing(0), templateParams(0), templateEnclosing(0), ambiguity(0)
 	{
 	}
 
@@ -503,6 +512,11 @@ struct WalkerBase : public PrintingWalker
 
 	Declaration* pointOfDeclaration(Scope* parent, const Identifier& name, Declaration* type, Scope* enclosed, DeclSpecifiers specifiers = DeclSpecifiers(), bool isTemplate = false, bool isTemplateSpecialization = false)
 	{
+		if(ambiguity != 0)
+		{
+			*ambiguity = true;
+		}
+
 		if(specifiers.isFriend)
 		{
 			// TODO
@@ -548,18 +562,56 @@ struct WalkerBase : public PrintingWalker
 		return result;
 	}
 
+	Scope* findScope(Scope* scope, Scope* other)
+	{
+		if(scope == 0)
+		{
+			return 0;
+		}
+		if(scope == other)
+		{
+			return scope;
+		}
+		return findScope(scope->parent, other);
+	}
+
 	void pushScope(Scope* scope)
 	{
-		SEMANTIC_ASSERT(scope != templateParams);
+		SEMANTIC_ASSERT(findScope(enclosing, scope) == 0);
 		scope->parent = enclosing;
 		enclosing = scope;
 	}
 
 	void pushTemplateParams(Scope* scope)
 	{
-		SEMANTIC_ASSERT(scope != templateParams);
+		SEMANTIC_ASSERT(findScope(templateParams, scope) == 0);
 		scope->parent = templateParams;
 		templateParams = scope;
+	}
+
+	void setScope(Declaration* declaration)
+	{
+		if(declaration->enclosed == 0)
+		{
+			// TODO
+			//printPosition(symbol->id->value.position);
+			std::cout << "'" << getValue(declaration->name) << "' is incomplete, declared here:" << std::endl;
+			printPosition(declaration->name.position);
+			throw SemanticError();
+		}
+		enclosing = declaration->enclosed;
+	}
+
+	void reportIdentifierMismatch(const Identifier& id, Declaration* declaration, const char* type)
+	{
+		if(ambiguity != 0)
+		{
+			throw IdentifierMismatch();
+		}
+		printPosition(id.position);
+		std::cout << "'" << getValue(declaration->name) << "' expected " << type << ", declared here:" << std::endl;
+		printPosition(declaration->name.position);
+		throw SemanticError();
 	}
 
 	Scope* getEltScope()
@@ -576,8 +628,7 @@ typedef bool (*IdentifierFunc)(const Declaration& declaration);
 
 bool isTypeName(const Declaration& declaration)
 {
-	return &declaration == &gBuiltin
-		|| declaration.type == &gTypename
+	return declaration.type == &gTypename
 		|| declaration.type->type == 0
 		|| declaration.specifiers.isTypedef;
 }
@@ -611,8 +662,8 @@ const char* getIdentifierType(IdentifierFunc func)
 
 #define SYMBOL_NAME(T) (typeid(T).name() + 12)
 
-template<typename T>
-inline T* resolveAmbiguity(WalkerBase& base, cpp::ambiguity<T>* symbol, bool diagnose = false);
+template<typename Walker, typename T>
+inline void walkAmbiguity(Walker& walker, cpp::ambiguity<T>* symbol, bool diagnose = false);
 
 struct AmbiguityCheck : public WalkerBase
 {
@@ -676,7 +727,7 @@ struct AmbiguityCheck : public WalkerBase
 		{
 			return;
 		}
-		resolveAmbiguity(*this, symbol)->accept(*this);
+		walkAmbiguity(*this, symbol);
 	}
 
 	void visit(cpp::identifier* symbol)
@@ -748,24 +799,75 @@ inline bool isValid(WalkerBase& base, T* symbol, bool diagnose)
 	return !walker.result;
 }
 
+inline void semanticBreak()
+{
+}
+
 template<typename T>
 inline T* resolveAmbiguity(WalkerBase& base, cpp::ambiguity<T>* symbol, bool diagnose)
 {
-	if(isValid(base, symbol->first, diagnose))
+	if(isValid(walker, symbol->first, diagnose))
 	{
 		return symbol->first;
 	}
-	if(isValid(base, symbol->second, diagnose))
+	if(isValid(walker, symbol->second, diagnose))
 	{
 		return symbol->second;
 	}
 	std::cout << "first:" << std::endl;
-	isValid(base, symbol->first, true);
+	isValid(walker, symbol->first, true);
 	std::cout << "second:" << std::endl;
-	isValid(base, symbol->second, true);
+	isValid(walker, symbol->second, true);
 	throw SemanticError();
 }
 
+#if 0
+template<typename Walker, typename T>
+inline void walkAmbiguity(Walker& walker, cpp::ambiguity<T>* symbol, bool diagnose)
+{
+	resolveAmbiguity(base, symbol, diagnose)->accept(base);
+}
+#else
+template<typename Walker, typename T>
+inline void walkAmbiguity(Walker& walker, cpp::ambiguity<T>* symbol, bool diagnose)
+{
+	semanticBreak();
+	bool ambiguousDeclaration = false;
+	Walker tmp(walker);
+	try
+	{
+		walker.ambiguity = &ambiguousDeclaration;
+		symbol->first->accept(walker);
+		walker.ambiguity = 0;
+		return;
+	}
+	catch(IdentifierMismatch&)
+	{
+		SEMANTIC_ASSERT(!ambiguousDeclaration);
+		walker.~Walker();
+		new(&walker) Walker(tmp);
+	}
+
+	try
+	{
+		walker.ambiguity = &ambiguousDeclaration;
+		symbol->second->accept(walker);
+		walker.ambiguity = 0;
+		return;
+	}
+	catch(IdentifierMismatch&)
+	{
+		SEMANTIC_ASSERT(!ambiguousDeclaration);
+		walker.~Walker();
+		new(&walker) Walker(tmp);
+	}
+	std::cout << "first:" << std::endl;
+	isValid(walker, symbol->first, true);
+	std::cout << "second:" << std::endl;
+	isValid(walker, symbol->second, true);
+	throw SemanticError();
+}
+#endif
 
 #define TREEWALKER_DEFAULT \
 	void visit(cpp::terminal_identifier symbol) \
@@ -804,23 +906,101 @@ inline T* resolveAmbiguity(WalkerBase& base, cpp::ambiguity<T>* symbol, bool dia
 	template<typename T> \
 	void visit(cpp::ambiguity<T>* symbol) \
 	{ \
-		resolveAmbiguity(*this, symbol)->accept(*this); \
+		walkAmbiguity(*this, symbol); \
 	}
 
 bool isForwardDeclaration(cpp::elaborated_type_specifier_default* symbol)
 {
-	return symbol != 0 && symbol->isGlobal.value == 0 && symbol->context.p == 0;
+	return symbol != 0
+		&& symbol->isGlobal.value == 0
+		&& symbol->context.p == 0;
 }
 
 bool isForwardDeclaration(cpp::decl_specifier_seq* symbol)
 {
-	return symbol != 0 && isForwardDeclaration(dynamic_cast<cpp::elaborated_type_specifier_default*>(symbol->type.p));
+	return symbol != 0
+		&& symbol->prefix == 0
+		&& symbol->suffix == 0
+		&& isForwardDeclaration(dynamic_cast<cpp::elaborated_type_specifier_default*>(symbol->type.p));
 }
-
 
 
 struct Walker
 {
+
+struct NamespaceNameWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	Declaration* declaration;
+	NamespaceNameWalker(const WalkerBase& base)
+		: WalkerBase(base), declaration(0)
+	{
+	}
+	void visit(cpp::identifier* symbol)
+	{
+		declaration = findDeclaration(symbol->value);
+		if(declaration == &gUndeclared
+			|| !isNamespaceName(*declaration))
+		{
+			reportIdentifierMismatch(symbol->value, declaration, "namespace-name");
+		}
+		printSymbol(symbol);
+	}
+};
+
+struct TemplateIdWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	Declaration* declaration;
+	TemplateIdWalker(const WalkerBase& base)
+		: WalkerBase(base), declaration(0)
+	{
+	}
+	void visit(cpp::identifier* symbol)
+	{
+		declaration = findDeclaration(symbol->value);
+		if(declaration == &gUndeclared
+			|| !isTemplateName(*declaration))
+		{
+			reportIdentifierMismatch(symbol->value, declaration, "template-name");
+		}
+		printSymbol(symbol);
+	}
+	void visit(cpp::template_argument_list* symbol)
+	{
+		// TODO
+		printSymbol(symbol);
+	}
+};
+
+struct TypeNameWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	Declaration* declaration;
+	TypeNameWalker(const WalkerBase& base)
+		: WalkerBase(base), declaration(0)
+	{
+	}
+	void visit(cpp::identifier* symbol)
+	{
+		declaration = findDeclaration(symbol->value);
+		if(declaration == &gUndeclared
+			|| !isTypeName(*declaration))
+		{
+			reportIdentifierMismatch(symbol->value, declaration, "type-name");
+		}
+		printSymbol(symbol);
+	}
+	void visit(cpp::simple_template_id* symbol)
+	{
+		TemplateIdWalker walker(*this);
+		symbol->accept(walker);
+		declaration = walker.declaration;
+	}
+};
 
 struct NestedNameSpecifierWalker : public WalkerBase
 {
@@ -830,31 +1010,23 @@ struct NestedNameSpecifierWalker : public WalkerBase
 		: WalkerBase(base)
 	{
 	}
-	void visit(cpp::identifier* symbol)
+	void visit(cpp::namespace_name* symbol)
 	{
-		Declaration* declaration = findDeclaration(symbol->value);
-		if(declaration->enclosed == 0)
-		{
-			printPosition(symbol->value.position);
-			std::cout << "'" << getValue(declaration->name) << "' is incomplete, declared here:" << std::endl;
-			printPosition(declaration->name.position);
-			throw SemanticError();
-		}
-		pushScope(declaration->enclosed);
-		printSymbol(symbol);
+		NamespaceNameWalker walker(*this);
+		symbol->accept(walker);
+		setScope(walker.declaration);
+	}
+	void visit(cpp::type_name* symbol)
+	{
+		TypeNameWalker walker(*this);
+		symbol->accept(walker);
+		setScope(walker.declaration);
 	}
 	void visit(cpp::simple_template_id* symbol)
 	{
-		Declaration* declaration = findDeclaration(symbol->id->value);
-		if(declaration->enclosed == 0)
-		{
-			printPosition(symbol->id->value.position);
-			std::cout << "'" << getValue(declaration->name) << "' is incomplete, declared here:" << std::endl;
-			printPosition(declaration->name.position);
-			throw SemanticError();
-		}
-		pushScope(declaration->enclosed);
-		printSymbol(symbol);
+		TemplateIdWalker walker(*this);
+		symbol->accept(walker);
+		setScope(walker.declaration);
 	}
 };
 
@@ -868,10 +1040,12 @@ struct TypeSpecifierWalker : public WalkerBase
 	{
 	}
 
-	void visit(cpp::identifier* symbol)
+	void visit(cpp::type_name* symbol)
 	{
-		declaration = findDeclaration(symbol->value);
-		printSymbol(symbol);
+		TypeNameWalker walker(*this);
+		symbol->accept(walker);
+		SEMANTIC_ASSERT(walker.declaration != 0);
+		declaration = walker.declaration;
 	}
 	void visit(cpp::simple_type_specifier_name* symbol)
 	{
@@ -893,13 +1067,15 @@ struct TypeSpecifierWalker : public WalkerBase
 	{
 		NestedNameSpecifierWalker walker(*this);
 		symbol->accept(walker);
+		SEMANTIC_ASSERT(enclosing != walker.enclosing);
 		enclosing = walker.enclosing;
 	}
 	void visit(cpp::simple_template_id* symbol) 
 	{
-		declaration = findDeclaration(symbol->id->value);
-		// TODO args
-		printSymbol(symbol);
+		TemplateIdWalker walker(*this);
+		symbol->accept(walker);
+		SEMANTIC_ASSERT(walker.declaration != 0);
+		declaration = walker.declaration;
 	}
 	void visit(cpp::simple_type_specifier_builtin* symbol)
 	{
@@ -941,6 +1117,7 @@ struct DeclaratorIdWalker : public WalkerBase
 	{
 		NestedNameSpecifierWalker walker(*this);
 		symbol->accept(walker);
+		SEMANTIC_ASSERT(enclosing != walker.enclosing);
 		enclosing = walker.enclosing;
 	}
 	void visit(cpp::simple_template_id* symbol) 
@@ -1047,10 +1224,12 @@ struct ClassHeadWalker : public WalkerBase
 	{
 		NestedNameSpecifierWalker walker(*this);
 		symbol->accept(walker);
+		SEMANTIC_ASSERT(enclosing != walker.enclosing);
 		enclosing = walker.enclosing;
 	}
 	void visit(cpp::simple_template_id* symbol) 
 	{
+		// TODO: don't declare anything - this is a template (partial) specialisation
 		printSymbol(symbol);
 		// 3.3.1.3 The point of declaration for a class first declared by a class-specifier is immediately after the identifier or simple-template-id (if any) in its class-head
 		declaration = pointOfDeclaration(enclosing, symbol->id->value, &gClass, enclosed, DeclSpecifiers(), enclosing == templateEnclosing, true);
@@ -1377,7 +1556,13 @@ struct SimpleDeclarationWalker : public WalkerBase
 	{
 		DeclaratorWalker walker(*this);
 		symbol->accept(walker);
-		pointOfDeclaration(walker.enclosing, walker.id, type, specifiers.isTypedef ? type->enclosed : walker.paramScope, specifiers, enclosing == templateEnclosing); // 3.3.1.1
+		pointOfDeclaration(
+			walker.enclosing,
+			type == &gCtor ? IDENTIFIER_CTOR : walker.id,
+			type,
+			specifiers.isTypedef ? type->enclosed : walker.paramScope,
+			specifiers,
+			enclosing == templateEnclosing); // 3.3.1.1
 		paramScope = walker.paramScope;
 	}
 	void visit(cpp::abstract_declarator* symbol)

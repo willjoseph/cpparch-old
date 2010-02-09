@@ -705,12 +705,23 @@ inline bool isAmbiguousTemplateId(T* type)
 // matches primary-expression prefix: '', 'A<B>::', 'A<B>::C<D>::'
 // ambiguous with nested relational-expression
 // does not match 'A<B>::C::'
-inline bool isAmbiguousTemplateIdPrefix(cpp::nested_name_specifier_suffix* symbol)
+inline bool isAmbiguousTemplateIdPrefix(cpp::nested_name_specifier_suffix_template* symbol)
 {
 	if(symbol != 0)
 	{
-		if(symbol->isTemplate.value != 0
-			|| !isAmbiguousTemplateId(symbol->id.p)
+		if(!isAmbiguousTemplateId(symbol->id.p))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+inline bool isAmbiguousTemplateIdPrefix(cpp::nested_name_specifier_suffix_seq* symbol)
+{
+	if(symbol != 0)
+	{
+		if(!isAmbiguousTemplateId(dynamic_cast<cpp::nested_name_specifier_suffix_template*>(symbol->item.p))
 			|| !isAmbiguousTemplateIdPrefix(symbol->next))
 		{
 			return false;
@@ -1009,11 +1020,31 @@ inline cpp::nested_name_specifier_prefix* parseSymbol(Parser& parser, cpp::neste
 	return result;
 }
 
-inline cpp::nested_name_specifier_suffix* parseSymbol(Parser& parser, cpp::nested_name_specifier_suffix* result)
+inline cpp::nested_name_specifier_suffix_default* parseSymbol(Parser& parser, cpp::nested_name_specifier_suffix_default* result)
+{
+	PARSE_REQUIRED(parser, result->id);
+	PARSE_TERMINAL(parser, result->scope);
+	return result;
+}
+
+inline cpp::nested_name_specifier_suffix_template* parseSymbol(Parser& parser, cpp::nested_name_specifier_suffix_template* result)
 {
 	PARSE_TERMINAL(parser, result->isTemplate);
 	PARSE_REQUIRED(parser, result->id);
 	PARSE_TERMINAL(parser, result->scope);
+	return result;
+}
+
+inline cpp::nested_name_specifier_suffix* parseSymbol(Parser& parser, cpp::nested_name_specifier_suffix* result)
+{
+	PARSE_SELECT(parser, cpp::nested_name_specifier_suffix_template);
+	PARSE_SELECT(parser, cpp::nested_name_specifier_suffix_default);
+	return result;
+}
+
+inline cpp::nested_name_specifier_suffix_seq* parseSymbol(Parser& parser, cpp::nested_name_specifier_suffix_seq* result)
+{
+	PARSE_REQUIRED(parser, result->item);
 	PARSE_OPTIONAL(parser, result->next);
 	return result;
 }

@@ -244,8 +244,10 @@ int verifyAmbDeclSpec(cpp::declaration_seq* result, const char* path)
 	cpp::simple_declaration* decl = VERIFY_CAST(cpp::simple_declaration, verifyNotNull(result)->item);
 	cpp::simple_type_specifier_name* spec = VERIFY_CAST(cpp::simple_type_specifier_name, verifyNotNull(decl->spec)->type);
 	PARSE_ASSERT(spec->context);
+#if 0
 	verifyIdentifier(verifyNotNull(spec->context->prefix)->id, "Class");
 	verifyIdentifier(verifyNotNull(spec->context->suffix)->id, "Scope");
+#endif
 	verifyIdentifier(spec->id, "p");
 	return 0;
 }

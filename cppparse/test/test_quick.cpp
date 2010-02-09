@@ -1,4 +1,28 @@
 
+void f(int a, int b)
+{
+	int t(a, b); // function-declaration or variable declaration with init
+}
+
+template<class T>
+class Template1
+{
+	friend class Template1;
+	typedef Template1<int> Type;
+};
+
+typedef struct { typedef int T; } S1;
+typedef struct { typedef int T; } S2;
+
+S1::T s1t;
+S2::T s2t;
+
+
+void f()
+{
+	struct S;
+	S *p;
+}
 
 namespace std
 {
@@ -55,12 +79,6 @@ class Tmpl
 
 enum { ENUM1 };
 enum { ENUM2 };
-
-typedef struct { typedef int T; } S1;
-typedef struct { typedef int T; } S2;
-
-S1::T s1t;
-S2::T s2t;
 
 template<typename T>
 class C1
