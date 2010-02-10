@@ -161,9 +161,25 @@ inline bool isAmbiguousDeclarator(cpp::declarator* decl)
 	return isAmbiguousDirectDeclarator(decl);
 }
 
+inline bool isAmbiguousDeclarator(cpp::declarator_disambiguate* decl)
+{
+	cpp::declarator_ptr_disambiguate* ptr = dynamic_cast<cpp::declarator_ptr_disambiguate*>(decl);
+	if(ptr != 0)
+	{
+		return isAmbiguousDeclarator(ptr->decl);
+	}
+	cpp::direct_declarator_prefix* prefix = dynamic_cast<cpp::direct_declarator_prefix*>(decl);
+	if(prefix == 0)
+	{
+		return false;
+	}
+	return isAmbiguousDirectDeclaratorPrefix(prefix);
+}
+
 // matches parenthesised direct-declarator: '(A)', '(*A)', '(&*A)', '(A)()', '(A)[1]'
 // ambiguous with parenthesised expression
-inline bool isAmbiguousParenthesisedDeclarator(cpp::declarator* decl)
+template<typename T>
+inline bool isAmbiguousParenthesisedDeclarator(T* decl)
 {
 	cpp::direct_declarator* direct = dynamic_cast<cpp::direct_declarator*>(decl);
 	if(direct == 0)
@@ -204,10 +220,12 @@ inline bool isAmbiguousInitializer(cpp::initializer* init)
 
 // matches init-declarator: 'A', 'A = expr', '*A', 'A()', 'A(B())'
 // ambiguous with assignment-expression
-inline bool isAmbiguousInitDeclarator(cpp::init_declarator* init)
+template<typename T>
+inline bool isAmbiguousInitDeclarator(T* init)
 {
 	// 'A'
-	if(!isAmbiguousDeclarator(init->decl))
+	if(init == 0
+		|| !isAmbiguousDeclarator(init->decl))
 	{
 		return false;
 	}
@@ -219,34 +237,113 @@ inline bool isAmbiguousInitDeclarator(cpp::init_declarator* init)
 	return true;
 }
 
-// matches simple-declaration suffix
-// ';'
-// ', C;'
-// ', C = 0;'
-// ', *C;'
-// ', *C;'
-// ', *C(X);'
-// ', *C[X];'
-inline bool isAmbiguousSimpleDeclarationSuffix(cpp::simple_declaration_suffix* suffix)
+inline bool isAmbiguousInitDeclarator(cpp::init_declarator* init)
 {
-	if(suffix != 0)
+	return isAmbiguousInitDeclarator(dynamic_cast<cpp::init_declarator_default*>(init))
+		|| isAmbiguousInitDeclarator(dynamic_cast<cpp::init_declarator_disambiguate*>(init));
+}
+
+inline bool isAmbiguousInitDeclaratorList(cpp::init_declarator_list* list)
+{
+	for(cpp::init_declarator_list* p = list->next; p != 0; p = p->next)
 	{
-		if(suffix->init != 0
-			&& !isAmbiguousInitializer(suffix->init))
+		if(!isAmbiguousInitDeclarator(p->item))
 		{
 			return false;
-		}
-		for(cpp::init_declarator_list* p = suffix->next; p != 0; p = p->next)
-		{
-			if(!isAmbiguousInitDeclarator(p->item))
-			{
-				return false;
-			}
 		}
 	}
 	return true;
 }
 
+// matches redundantly-parenthesised init-declarator
+// '(B)'
+// '(B) = 0'
+template<typename T>
+inline bool isAmbiguousParenthesisedInitDeclarator(T* init)
+{
+	if(init == 0
+		|| !isAmbiguousParenthesisedDeclarator(init->decl.p))
+	{
+		return false;
+	}
+	if(init->init != 0
+		&& !isAmbiguousInitializer(init->init))
+	{
+		return false;
+	}
+	return true;
+}
+
+inline bool isAmbiguousParenthesisedInitDeclarator(cpp::init_declarator* decl)
+{
+	return isAmbiguousParenthesisedInitDeclarator(dynamic_cast<cpp::init_declarator_default*>(decl))
+		|| isAmbiguousParenthesisedInitDeclarator(dynamic_cast<cpp::init_declarator_disambiguate*>(decl));
+}
+
+// matches redundantly-parenthesised init-declarator list
+// '(B), C'
+// '(B), C = 0'
+// '(B), *C'
+// '(B), *C'
+// '(B), *C(X)'
+// '(B), *C[X]'
+inline bool isAmbiguousParenthesisedInitDeclaratorList(cpp::init_declarator_list* list)
+{
+	if(list->item == 0
+		|| !isAmbiguousParenthesisedInitDeclarator(list->item))
+	{
+		return false;
+	}
+	return isAmbiguousInitDeclaratorList(list->next);
+}
+
+
+// matches ptr init-declarator
+// '*B'
+// '*B = 0'
+template<typename T>
+inline bool isAmbiguousPtrInitDeclarator(T* init)
+{
+	if(init == 0)
+	{
+		return false;
+	}
+	cpp::declarator_ptr* ptr = dynamic_cast<cpp::declarator_ptr*>(init->decl.p);
+	if(ptr == 0
+		|| !isAmbiguousDeclarator(ptr->decl))
+	{
+		return false;
+	}
+	if(init->init != 0
+		&& !isAmbiguousInitializer(init->init))
+	{
+		return false;
+	}
+	return true;
+}
+
+inline bool isAmbiguousPtrInitDeclarator(cpp::init_declarator* decl)
+{
+	return isAmbiguousPtrInitDeclarator(dynamic_cast<cpp::init_declarator_default*>(decl))
+		|| isAmbiguousPtrInitDeclarator(dynamic_cast<cpp::init_declarator_disambiguate*>(decl));
+}
+
+// matches ptr init-declarator list
+// '*B, C'
+// '*B, C = 0'
+// '*B, *C'
+// '*B, *C'
+// '*B, *C(X)'
+// '*B, *C[X]'
+inline bool isAmbiguousPtrInitDeclaratorList(cpp::init_declarator_list* list)
+{
+	if(list->item == 0
+		|| !isAmbiguousPtrInitDeclarator(list->item))
+	{
+		return false;
+	}
+	return isAmbiguousInitDeclaratorList(list->next);
+}
 
 // matches simple-declaration with redundantly-parenthesised/omitted declarator: 'A;', 'A(X);', 'A(*X);', 'X<Y>::A(X);', 'A::B(X);'
 // ambiguous with expression-statement
@@ -260,17 +357,16 @@ inline bool isAmbiguousVariableDeclaration(cpp::simple_declaration* simple)
 	{
 		return false;
 	}
-	cpp::general_declaration_type* type = dynamic_cast<cpp::general_declaration_type*>(simple->affix.p);
+	cpp::forward_declaration_suffix* type = dynamic_cast<cpp::forward_declaration_suffix*>(simple->suffix.p);
 	if(type == 0)
 	{
 		// '(X)'
-		cpp::simple_declaration_named* named = dynamic_cast<cpp::simple_declaration_named*>(simple->affix.p);
+		cpp::simple_declaration_named* named = dynamic_cast<cpp::simple_declaration_named*>(simple->suffix.p);
 		if(named == 0)
 		{
 			return false;
 		}
-		if(!isAmbiguousParenthesisedDeclarator(named->decl)
-			|| !isAmbiguousSimpleDeclarationSuffix(named->suffix))
+		if(!isAmbiguousParenthesisedInitDeclaratorList(named->decl))
 		{
 			return false;
 		}
@@ -295,7 +391,7 @@ inline bool isAmbiguousParameterDeclaration(cpp::parameter_declaration_default* 
 		return false;
 	}
 	// '(X)'
-	if(!isAmbiguousParenthesisedDeclarator(symbol->decl))
+	if(!isAmbiguousParenthesisedDeclarator(symbol->decl.p))
 	{
 		return false;
 	}
@@ -307,6 +403,7 @@ inline bool isAmbiguous(cpp::parameter_declaration* symbol)
 	return isAmbiguousParameterDeclaration(dynamic_cast<cpp::parameter_declaration_default*>(symbol));
 }
 
+#if 0
 // DEPRECATED: omission of decl-specifier-seq is not allowed in simple-declaration in C++
 // matches redundantly parenthesised implicit-int init-declaration '(A)(X)'
 // ambiguity: '(A)(X);' could be cast-expression '(A)X;', or function-call 'A(X);'
@@ -322,7 +419,7 @@ inline bool isAmbiguousInitDeclaration(cpp::statement* declaration)
 	{
 		return false;
 	}
-	cpp::simple_declaration_named* named = dynamic_cast<cpp::simple_declaration_named*>(simple->affix.p);
+	cpp::simple_declaration_named* named = dynamic_cast<cpp::simple_declaration_named*>(simple->suffix.p);
 	if(named == 0
 		|| named->suffix == 0
 		|| named->suffix->init == 0)
@@ -342,6 +439,7 @@ inline bool isAmbiguousInitDeclaration(cpp::statement* declaration)
 	}
 	return true;
 }
+#endif
 
 // matches ptr-declaration 'A * B ;': type-id ptr-operator declarator-id ;
 // 'A * B(X);' multiplicative-expression with function-call/cast RHS vs function-declaration 
@@ -360,15 +458,9 @@ inline bool isAmbiguousPtrDeclaration(cpp::simple_declaration* simple)
 	{
 		return false;
 	}
-	cpp::simple_declaration_named* named = dynamic_cast<cpp::simple_declaration_named*>(simple->affix.p);
-	if(named == 0)
-	{
-		return false;
-	}
-	cpp::declarator_ptr* ptr = dynamic_cast<cpp::declarator_ptr*>(named->decl.p);
-	if(ptr == 0
-		|| !isAmbiguousDeclarator(ptr->decl)
-		|| !isAmbiguousSimpleDeclarationSuffix(named->suffix))
+	cpp::simple_declaration_named* named = dynamic_cast<cpp::simple_declaration_named*>(simple->suffix.p);
+	if(named == 0
+		|| !isAmbiguousPtrInitDeclaratorList(named->decl))
 	{
 		return false;
 	}
@@ -490,13 +582,9 @@ inline bool isAmbiguousTemplateIdVariableDeclaration(cpp::simple_declaration* si
 	{
 		return false;
 	}
-	cpp::simple_declaration_named* named = dynamic_cast<cpp::simple_declaration_named*>(simple->affix.p);
-	if(named == 0)
-	{
-		return false;
-	}
-	if(!isAmbiguousDeclarator(named->decl)
-		|| !isAmbiguousSimpleDeclarationSuffix(named->suffix))
+	cpp::simple_declaration_named* named = dynamic_cast<cpp::simple_declaration_named*>(simple->suffix.p);
+	if(named == 0
+		|| !isAmbiguousInitDeclaratorList(named->decl))
 	{
 		return false;
 	}
@@ -543,8 +631,19 @@ inline bool isAmbiguousConstructor(cpp::member_declaration* symbol)
 {
 	cpp::member_declaration_implicit* impl = dynamic_cast<cpp::member_declaration_implicit*>(symbol);
 	if(impl == 0
-		|| impl->spec != 0
-		|| !isAmbiguousDirectDeclarator(impl->decl->decl.p))
+		|| impl->spec != 0)
+	{
+		return false;
+	}
+	cpp::member_declaration_named* named = dynamic_cast<cpp::member_declaration_named*>(impl->suffix.p);
+	if(named == 0)
+	{
+		return false;
+	}
+	cpp::member_declarator_default* decl = dynamic_cast<cpp::member_declarator_default*>(named->decl->item.p);
+	if(decl == 0
+		|| decl->init != 0
+		|| !isAmbiguousDirectDeclarator(decl->decl))
 	{
 		return false;
 	}
@@ -1200,7 +1299,7 @@ inline cpp::member_declarator* parseSymbol(Parser& parser, cpp::member_declarato
 	return result;
 }
 
-inline cpp::member_declaration_general_bitfield* parseSymbol(Parser& parser, cpp::member_declaration_general_bitfield* result)
+inline cpp::member_declaration_bitfield* parseSymbol(Parser& parser, cpp::member_declaration_bitfield* result)
 {
 	PARSE_REQUIRED(parser, result->item);
 	PARSE_TERMINAL(parser, result->comma);
@@ -1212,18 +1311,19 @@ inline cpp::member_declaration_general_bitfield* parseSymbol(Parser& parser, cpp
 	return result;
 }
 
-inline cpp::member_declaration_general_default* parseSymbol(Parser& parser, cpp::member_declaration_general_default* result)
+inline cpp::member_declaration_named* parseSymbol(Parser& parser, cpp::member_declaration_named* result)
 {
 	PARSE_REQUIRED(parser, result->decl);
-	PARSE_REQUIRED(parser, result->suffix);
+	PARSE_TERMINAL(parser, result->semicolon);
 	return result;
 }
 
-inline cpp::member_declaration_general* parseSymbol(Parser& parser, cpp::member_declaration_general* result)
+inline cpp::member_declaration_suffix* parseSymbol(Parser& parser, cpp::member_declaration_suffix* result)
 {
-	PARSE_SELECT(parser, cpp::member_declaration_general_bitfield);
-	PARSE_SELECT(parser, cpp::member_declaration_general_default);
-	PARSE_SELECT(parser, cpp::general_declaration_type);
+	PARSE_SELECT(parser, cpp::member_declaration_bitfield);
+	PARSE_SELECT(parser, cpp::member_declaration_named);
+	PARSE_SELECT(parser, cpp::forward_declaration_suffix);
+	PARSE_SELECT(parser, cpp::function_definition_suffix);
 	return result;
 }
 
@@ -1235,29 +1335,10 @@ inline cpp::member_declarator_list* parseSymbol(Parser& parser, cpp::member_decl
 	return result;
 }
 
-inline cpp::member_declaration_suffix_default* parseSymbol(Parser& parser, cpp::member_declaration_suffix_default* result)
-{
-	PARSE_OPTIONAL(parser, result->init);
-	PARSE_TERMINAL(parser, result->comma);
-	if(result->comma.value != 0)
-	{
-		PARSE_REQUIRED(parser, result->next);
-	}
-	PARSE_TERMINAL(parser, result->semicolon);
-	return result;
-}
-
-inline cpp::member_declaration_suffix* parseSymbol(Parser& parser, cpp::member_declaration_suffix* result)
-{
-	PARSE_SELECT(parser, cpp::member_declaration_suffix_default);
-	PARSE_SELECT(parser, cpp::function_definition_suffix);
-	return result;
-}
-
 inline cpp::member_declaration_default* parseSymbol(Parser& parser, cpp::member_declaration_default* result)
 {
 	PARSE_REQUIRED(parser, result->spec);
-	PARSE_REQUIRED(parser, result->decl);
+	PARSE_REQUIRED(parser, result->suffix);
 	return result;
 }
 
@@ -1353,7 +1434,6 @@ inline cpp::handler_seq* parseSymbol(Parser& parser, cpp::handler_seq* result)
 inline cpp::constructor_definition* parseSymbol(Parser& parser, cpp::constructor_definition* result)
 {
 	PARSE_OPTIONAL(parser, result->spec);
-	PARSE_REQUIRED(parser, result->decl);
 	PARSE_REQUIRED(parser, result->suffix);
 	return result;
 }
@@ -1361,7 +1441,7 @@ inline cpp::constructor_definition* parseSymbol(Parser& parser, cpp::constructor
 inline cpp::member_declaration_implicit* parseSymbol(Parser& parser, cpp::member_declaration_implicit* result)
 {
 	PARSE_OPTIONAL(parser, result->spec);
-	PARSE_REQUIRED(parser, result->decl);
+	PARSE_REQUIRED(parser, result->suffix);
 	return result;
 }
 
@@ -2775,6 +2855,20 @@ inline cpp::direct_declarator* parseSymbol(Parser& parser, cpp::direct_declarato
 	return result;
 }
 
+inline cpp::declarator_ptr_disambiguate* parseSymbol(Parser& parser, cpp::declarator_ptr_disambiguate* result)
+{
+	PARSE_REQUIRED(parser, result->op);
+	PARSE_REQUIRED(parser, result->decl);
+	return result;
+}
+
+inline cpp::declarator_disambiguate* parseSymbol(Parser& parser, cpp::declarator_disambiguate* result)
+{
+	PARSE_SELECT(parser, cpp::direct_declarator_prefix);
+	PARSE_SELECT(parser, cpp::declarator_ptr_disambiguate);
+	return result;
+}
+
 inline cpp::declarator_ptr* parseSymbol(Parser& parser, cpp::declarator_ptr* result)
 {
 	PARSE_REQUIRED(parser, result->op);
@@ -2792,6 +2886,7 @@ inline cpp::declarator* parseSymbol(Parser& parser, cpp::declarator* result)
 inline cpp::function_definition_suffix* parseSymbol(Parser& parser, cpp::function_definition_suffix* result)
 {
 	// TODO
+	PARSE_REQUIRED(parser, result->decl);
 	bool isTry;
 	PARSE_TOKEN_OPTIONAL(parser, isTry, boost::wave::T_TRY);
 	PARSE_OPTIONAL(parser, result->init);
@@ -2898,10 +2993,24 @@ inline cpp::initializer* parseSymbol(Parser& parser, cpp::initializer* result)
 	return result;
 }
 
-inline cpp::init_declarator* parseSymbol(Parser& parser, cpp::init_declarator* result)
+inline cpp::init_declarator_default* parseSymbol(Parser& parser, cpp::init_declarator_default* result)
 {
 	PARSE_REQUIRED(parser, result->decl);
 	PARSE_OPTIONAL(parser, result->init);
+	return result;
+}
+
+inline cpp::init_declarator_disambiguate* parseSymbol(Parser& parser, cpp::init_declarator_disambiguate* result)
+{
+	PARSE_REQUIRED(parser, result->decl);
+	PARSE_REQUIRED(parser, result->init);
+	return result;
+}
+
+inline cpp::init_declarator* parseSymbol(Parser& parser, cpp::init_declarator* result)
+{
+	PARSE_SELECT(parser, cpp::init_declarator_default);
+	PARSE_SELECT(parser, cpp::init_declarator_disambiguate);
 	return result;
 }
 
@@ -2913,28 +3022,16 @@ inline cpp::init_declarator_list* parseSymbol(Parser& parser, cpp::init_declarat
 	return result;
 }
 
-inline cpp::simple_declaration_suffix* parseSymbol(Parser& parser, cpp::simple_declaration_suffix* result)
+inline cpp::simple_declaration_named* parseSymbol(Parser& parser, cpp::simple_declaration_named* result)
 {
-	PARSE_OPTIONAL(parser, result->init);
-	PARSE_TERMINAL(parser, result->comma);
-	if(result->comma.value != 0)
-	{
-		PARSE_REQUIRED(parser, result->next);
-	}
+	PARSE_REQUIRED(parser, result->decl);
 	PARSE_TERMINAL(parser, result->semicolon);
 	return result;
 }
 
-inline cpp::simple_declaration_named* parseSymbol(Parser& parser, cpp::simple_declaration_named* result)
+inline cpp::simple_declaration_suffix* parseSymbol(Parser& parser, cpp::simple_declaration_suffix* result)
 {
-	PARSE_REQUIRED(parser, result->decl);
-	PARSE_REQUIRED(parser, result->suffix);
-	return result;
-}
-
-inline cpp::simple_declaration_affix* parseSymbol(Parser& parser, cpp::simple_declaration_affix* result)
-{
-	PARSE_SELECT(parser, cpp::general_declaration_type);
+	PARSE_SELECT(parser, cpp::forward_declaration_suffix);
 	PARSE_SELECT(parser, cpp::simple_declaration_named);
 	return result;
 }
@@ -2942,7 +3039,7 @@ inline cpp::simple_declaration_affix* parseSymbol(Parser& parser, cpp::simple_de
 inline cpp::simple_declaration* parseSymbol(Parser& parser, cpp::simple_declaration* result)
 {
 	PARSE_REQUIRED(parser, result->spec);
-	PARSE_REQUIRED(parser, result->affix);
+	PARSE_REQUIRED(parser, result->suffix);
 	return result;
 }
 
@@ -3015,37 +3112,24 @@ inline cpp::block_declaration* parseSymbol(Parser& parser, cpp::block_declaratio
 	return result;
 }
 
-inline cpp::general_declaration_suffix* parseSymbol(Parser& parser, cpp::general_declaration_suffix* result)
-{
-	PARSE_SELECT(parser, cpp::function_definition_suffix);
-	PARSE_SELECT(parser, cpp::simple_declaration_suffix);
-	return result;
-}
-
-inline cpp::general_declaration_named* parseSymbol(Parser& parser, cpp::general_declaration_named* result)
-{
-	PARSE_REQUIRED(parser, result->decl);
-	PARSE_REQUIRED(parser, result->suffix);
-	return result;
-}
-
-inline cpp::general_declaration_type* parseSymbol(Parser& parser, cpp::general_declaration_type* result)
+inline cpp::forward_declaration_suffix* parseSymbol(Parser& parser, cpp::forward_declaration_suffix* result)
 {
 	PARSE_TERMINAL(parser, result->semicolon);
 	return result;
 }
 
-inline cpp::general_declaration_affix* parseSymbol(Parser& parser, cpp::general_declaration_affix* result)
+inline cpp::general_declaration_suffix* parseSymbol(Parser& parser, cpp::general_declaration_suffix* result)
 {
-	PARSE_SELECT(parser, cpp::general_declaration_type);
-	PARSE_SELECT(parser, cpp::general_declaration_named);
+	PARSE_SELECT(parser, cpp::forward_declaration_suffix);
+	PARSE_SELECT(parser, cpp::simple_declaration_named);
+	PARSE_SELECT(parser, cpp::function_definition_suffix);
 	return result;
 }
 
 inline cpp::general_declaration* parseSymbol(Parser& parser, cpp::general_declaration* result)
 {
 	PARSE_OPTIONAL(parser, result->spec);
-	PARSE_REQUIRED(parser, result->affix);
+	PARSE_REQUIRED(parser, result->suffix);
 	return result;
 }
 

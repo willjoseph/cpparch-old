@@ -1280,7 +1280,7 @@ struct MemberDeclarationWalker : public WalkerBase
 	}
 	void visit(cpp::member_declaration_default* symbol)
 	{
-		if(typeid(*symbol->decl.p) == typeid(cpp::general_declaration_type)
+		if(typeid(*symbol->suffix.p) == typeid(cpp::forward_declaration_suffix)
 			&& isForwardDeclaration(symbol->spec))
 		{
 			ForwardDeclarationWalker walker(*this);
@@ -1440,7 +1440,7 @@ struct StatementWalker : public WalkerBase
 	}
 	void visit(cpp::simple_declaration* symbol)
 	{
-		if(typeid(*symbol->affix.p) == typeid(cpp::general_declaration_type)
+		if(typeid(*symbol->suffix.p) == typeid(cpp::forward_declaration_suffix)
 			&& isForwardDeclaration(symbol->spec))
 		{
 			ForwardDeclarationWalker walker(*this);
@@ -1552,7 +1552,8 @@ struct SimpleDeclarationWalker : public WalkerBase
 		type = walker.declaration;
 	}
 
-	void visit(cpp::declarator* symbol)
+	template<typename T>
+	void walkDeclarator(T* symbol)
 	{
 		DeclaratorWalker walker(*this);
 		symbol->accept(walker);
@@ -1564,6 +1565,14 @@ struct SimpleDeclarationWalker : public WalkerBase
 			specifiers,
 			enclosing == templateEnclosing); // 3.3.1.1
 		paramScope = walker.paramScope;
+	}
+	void visit(cpp::declarator* symbol)
+	{
+		walkDeclarator(symbol);
+	}
+	void visit(cpp::declarator_disambiguate* symbol)
+	{
+		walkDeclarator(symbol);
 	}
 	void visit(cpp::abstract_declarator* symbol)
 	{
@@ -1686,7 +1695,7 @@ struct DeclarationWalker : public WalkerBase
 	}
 	void visit(cpp::general_declaration* symbol)
 	{
-		if(typeid(*symbol->affix.p) == typeid(cpp::general_declaration_type)
+		if(typeid(*symbol->suffix.p) == typeid(cpp::forward_declaration_suffix)
 			&& isForwardDeclaration(symbol->spec))
 		{
 			ForwardDeclarationWalker walker(*this);
@@ -1703,7 +1712,7 @@ struct DeclarationWalker : public WalkerBase
 	// occurs in for-init-statement
 	void visit(cpp::simple_declaration* symbol)
 	{
-		if(typeid(*symbol->affix.p) == typeid(cpp::general_declaration_type)
+		if(typeid(*symbol->suffix.p) == typeid(cpp::forward_declaration_suffix)
 			&& isForwardDeclaration(symbol->spec))
 		{
 			ForwardDeclarationWalker walker(*this);
