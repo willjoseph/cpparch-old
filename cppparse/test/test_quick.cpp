@@ -1,4 +1,20 @@
 
+namespace N
+{
+	class X;
+}
+
+namespace N
+{
+	X x;
+}
+
+typedef struct _MIDL_SYNTAX_INFO MIDL_SYNTAX_INFO;
+
+typedef struct _MIDL_SYNTAX_INFO
+{
+} MIDL_SYNTAX_INFO;
+
 struct S3
 {
 	typedef S3 Type;
@@ -15,16 +31,6 @@ class Template3
 	}
 };
 
-
-namespace N
-{
-	class X;
-}
-
-namespace N
-{
-	X x;
-}
 
 
 template<typename T>

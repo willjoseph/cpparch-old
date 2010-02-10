@@ -284,12 +284,14 @@ Declaration gFriend(0, makeIdentifier("$friend"), 0, 0);
 Declaration gSpecial(0, makeIdentifier("$special"), 0, 0);
 Declaration gClass(0, makeIdentifier("$class"), 0, 0);
 Declaration gEnum(0, makeIdentifier("$enum"), 0, 0);
-Declaration gCtor(0, makeIdentifier("$ctor"), 0, 0);
 
 // types
-Declaration gNamespace(0, makeIdentifier("$namespace"), &gSpecial, 0);
+Declaration gNamespace(0, makeIdentifier("$namespace"), 0, 0);
+
+Declaration gCtor(0, makeIdentifier("$ctor"), &gSpecial, 0);
 Declaration gTypename(0, makeIdentifier("$typename"), &gSpecial, 0);
 Declaration gBuiltin(0, makeIdentifier("$builtin"), &gSpecial, 0);
+
 Declaration gParam(0, makeIdentifier("$param"), &gClass, 0);
 
 Declaration gTemplateParams[] = 
@@ -303,6 +305,13 @@ Declaration gTemplateParams[] =
 	gParam, gParam, gParam, gParam,
 };
 
+bool isType(const Declaration& type)
+{
+	return type.type == &gSpecial
+		|| type.type == &gEnum
+		|| type.type == &gClass;
+}
+
 // int i; // type -> int
 // typedef int I; // type -> int
 // I i; // type -> I -> int
@@ -312,6 +321,12 @@ Declaration gTemplateParams[] =
 // typedef struct S S; // type -> S -> struct
 // typedef struct S {} S; // type -> S -> struct
 // typedef enum E {} E; // type -> E -> enum
+
+// returns the type of a declaration
+// int i; -> built-in
+// class A a; -> A
+// enum E e; -> E
+// typedef int T; T t; -> built-in
 const Declaration* getType(const Declaration& declaration)
 {
 	if(declaration.type->type == 0)
@@ -332,12 +347,6 @@ const Declaration* getBaseType(const Declaration& declaration)
 		return getBaseType(*declaration.type);
 	}
 	return declaration.type;
-}
-
-bool isTyped(const Declaration& declaration)
-{
-	return declaration.type == &gBuiltin
-		|| declaration.type->type != 0;
 }
 
 bool isFunction(const Declaration& declaration)
@@ -366,11 +375,11 @@ bool isDefinition(const Declaration& declaration)
 {
 	return (declaration.type == &gClass && declaration.enclosed != 0 && !declaration.isTemplateSpecialization) // class A {};
 		|| declaration.type == &gEnum // enum E {};
-		|| (isTyped(declaration) // int i; void f();
-		&& !isTypedefDeclaration(declaration) // typedef int I;
-		&& !isStaticMember(declaration) // struct S { static int i };
-		&& !isExternDeclaration(declaration) // extern int i;
-		&& !isFunction(declaration)); // TODO: function overloading
+		|| (!isType(declaration) // int i; void f();
+			&& !isTypedefDeclaration(declaration) // typedef int I;
+			&& !isStaticMember(declaration) // struct S { static int i };
+			&& !isExternDeclaration(declaration) // extern int i;
+			&& !isFunction(declaration)); // TODO: function overloading
 }
 
 bool isRedeclaration(const Declaration& declaration, const Declaration& other)
@@ -383,8 +392,10 @@ bool isRedeclaration(const Declaration& declaration, const Declaration& other)
 	{
 		return true;
 	}
-	if(isTyped(declaration)
-		&& isTyped(other)
+	if(!isType(declaration)
+		&& !isType(other)
+		&& !isTypedefDeclaration(declaration)
+		&& !isTypedefDeclaration(other)
 		&& isFunction(declaration)
 		&& isFunction(other))// TODO: function overloading
 	{
@@ -545,12 +556,12 @@ struct WalkerBase : public PrintingWalker
 					printPosition(declaration->name.position);
 					throw SemanticError();
 				}
-				if(isDefinition(*declaration)
-					|| declaration->type == &gNamespace)
+				printName("redeclared: ", type, declaration);
+				if(isDefinition(other))
 				{
-					printName("redeclared: ", type, declaration);
-					return declaration;
+					*declaration = other;
 				}
+				return declaration;
 			}
 		}
 		parent->declarations.push_front(other);
