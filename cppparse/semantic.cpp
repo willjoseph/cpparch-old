@@ -925,6 +925,44 @@ bool isForwardDeclaration(cpp::decl_specifier_seq* symbol)
 }
 
 
+template<typename Walker, typename T>
+struct DeferredSymbolThunk
+{
+	static void thunk(const WalkerBase& context, void* symbol)
+	{
+		Walker walker(context);
+		static_cast<T*>(symbol)->accept(walker);
+	}
+};
+
+struct DeferredSymbol
+{
+	typedef void (*Func)(const WalkerBase&, void*);
+	WalkerBase context;
+	void* symbol;
+	Func func;
+
+	// hack!
+	DeferredSymbol& operator=(const DeferredSymbol& other)
+	{
+		if(&other != this)
+		{
+			this->~DeferredSymbol();
+			new(this) DeferredSymbol(other);
+		}
+		return *this;
+	}
+};
+
+template<typename Walker, typename T>
+DeferredSymbol makeDeferredSymbol(const Walker& context, T* symbol)
+{
+	DeferredSymbol result = { context, symbol, DeferredSymbol::Func(DeferredSymbolThunk<Walker, T>::thunk) };
+	return result;
+}
+
+typedef std::vector<DeferredSymbol> DeferredSymbols;
+
 struct Walker
 {
 
@@ -1247,24 +1285,12 @@ struct ClassHeadWalker : public WalkerBase
 	}
 };
 
-struct FunctionDefinition
-{
-	Scope* first;
-	cpp::function_definition_suffix* second;
-	Scope* templateParams;
-	FunctionDefinition(Scope* first, cpp::function_definition_suffix* second, Scope* templateParams) :
-		first(first), second(second), templateParams(templateParams)
-	{
-	}
-};
-typedef std::vector<FunctionDefinition> FunctionDefinitions;
-
 struct MemberDeclarationWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	FunctionDefinitions* deferred;
-	MemberDeclarationWalker(const WalkerBase& base, FunctionDefinitions* deferred)
+	DeferredSymbols* deferred;
+	MemberDeclarationWalker(const WalkerBase& base, DeferredSymbols* deferred)
 		: WalkerBase(base), deferred(deferred)
 	{
 	}
@@ -1307,27 +1333,24 @@ struct ClassSpecifierWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	Declaration* declaration;
-	FunctionDefinitions deferred;
+	DeferredSymbols deferred;
 	ClassSpecifierWalker(const WalkerBase& base)
 		: WalkerBase(base), declaration(0)
 	{
 	}
 	void walkDeferred()
 	{
-		for(FunctionDefinitions::const_iterator i = deferred.begin(); i != deferred.end(); ++i)
+		for(DeferredSymbols::const_iterator i = deferred.begin(); i != deferred.end(); ++i)
 		{
+#if 0
 			printer.printToken(boost::wave::T_IDENTIFIER, getValue(declaration->name));
 			printer.printToken(boost::wave::T_COLON_COLON, "::");
 			printer.printToken(boost::wave::T_IDENTIFIER, "<deferred>");
 			printer.printToken(boost::wave::T_LEFTPAREN, "(");
 			printer.printToken(boost::wave::T_IDENTIFIER, "<params>");
 			printer.printToken(boost::wave::T_RIGHTPAREN, ")");
-
-			Scope* tmp = templateParams;
-			templateParams = (*i).templateParams;
-			FunctionDefinitionSuffixWalker walker(*this, (*i).first);
-			(*i).second->accept(walker);
-			templateParams = tmp;
+#endif
+			(*i).func((*i).context, (*i).symbol);
 		}
 	};
 
@@ -1506,16 +1529,30 @@ struct CompoundStatementWalker : public WalkerBase
 };
 
 
-struct FunctionDefinitionSuffixWalker : public WalkerBase
+struct FunctionBodyWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Scope* paramScope;
-	FunctionDefinitionSuffixWalker(const WalkerBase& base, Scope* paramScope)
-		: WalkerBase(base), paramScope(paramScope)
+	FunctionBodyWalker(const WalkerBase& base)
+		: WalkerBase(base)
 	{
-		pushScope(paramScope); // 3.3.2.1 parameter scope
 	}
+	void visit(cpp::compound_statement* symbol)
+	{
+		CompoundStatementWalker walker(*this);
+		symbol->accept(walker);
+	}
+};
+
+struct HandlerSeqWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	HandlerSeqWalker(const WalkerBase& base)
+		: WalkerBase(base)
+	{
+	}
+	// TODO: handler
 	void visit(cpp::compound_statement* symbol)
 	{
 		CompoundStatementWalker walker(*this);
@@ -1529,11 +1566,10 @@ struct SimpleDeclarationWalker : public WalkerBase
 
 	Declaration* type;
 	DeclSpecifiers specifiers;
-	Scope* paramScope;
-	FunctionDefinitions* deferred;
+	DeferredSymbols* deferred;
 
-	SimpleDeclarationWalker(const WalkerBase& base, FunctionDefinitions* deferred = 0)
-		: WalkerBase(base), type(&gCtor), paramScope(0), deferred(deferred)
+	SimpleDeclarationWalker(const WalkerBase& base, DeferredSymbols* deferred = 0)
+		: WalkerBase(base), type(&gCtor), deferred(deferred)
 	{
 	}
 
@@ -1564,7 +1600,10 @@ struct SimpleDeclarationWalker : public WalkerBase
 			specifiers.isTypedef ? type->enclosed : walker.paramScope,
 			specifiers,
 			enclosing == templateEnclosing); // 3.3.1.1
-		paramScope = walker.paramScope;
+		if(walker.paramScope != 0)
+		{
+			pushScope(walker.paramScope); // 3.3.2.1 parameter scope
+		}
 	}
 	void visit(cpp::declarator* symbol)
 	{
@@ -1593,20 +1632,36 @@ struct SimpleDeclarationWalker : public WalkerBase
 		// TODO
 		printSymbol(symbol);
 	}
-	void visit(cpp::function_definition_suffix* symbol)
+	template<typename Walker, typename T>
+	void walkDeferable(Walker& walker, T* symbol)
 	{
-		SEMANTIC_ASSERT(paramScope != 0);
 		// TODO: also defer name-lookup for default-arguments and initializers
 		if(deferred != 0)
 		{
+#if 0
 			printer.printToken(boost::wave::T_SEMICOLON, ";");
-			deferred->push_back(FunctionDefinition(paramScope, symbol, templateParams));
+#endif
+			deferred->push_back(makeDeferredSymbol(*this, symbol));
 		}
 		else
 		{
-			FunctionDefinitionSuffixWalker walker(*this, paramScope);
 			symbol->accept(walker);
 		}
+	}
+	void visit(cpp::function_body* symbol)
+	{
+		FunctionBodyWalker walker(*this);
+		walkDeferable(walker, symbol);
+	}
+	void visit(cpp::ctor_initializer* symbol)
+	{
+		// TODO
+		walkDeferable(*this, symbol);
+	}
+	void visit(cpp::handler_seq* symbol)
+	{
+		HandlerSeqWalker walker(*this);
+		walkDeferable(*this, symbol);
 	}
 };
 
@@ -1631,9 +1686,9 @@ struct TemplateDeclarationWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	FunctionDefinitions* deferred;
+	DeferredSymbols* deferred;
 	Declaration* paramType;
-	TemplateDeclarationWalker(WalkerBase& base, FunctionDefinitions* deferred = 0)
+	TemplateDeclarationWalker(WalkerBase& base, DeferredSymbols* deferred = 0)
 		: WalkerBase(base), deferred(deferred), paramType(gTemplateParams)
 	{
 		templateEnclosing = enclosing;
