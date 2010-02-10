@@ -257,18 +257,18 @@ bool enclosesElt(ScopeType type)
 		|| type == SCOPETYPE_LOCAL;
 }
 
-Scope global(makeIdentifier("$global"), SCOPETYPE_NAMESPACE);
-
 const Identifier IDENTIFIER_NULL = makeIdentifier(0);
 
 struct WalkerContext
 {
 	std::ofstream out;
 	FileTokenPrinter printer;
+	Scope global;
 
 	WalkerContext(const char* path)
 		: out(path),
-		printer(out)
+		printer(out),
+		global(makeIdentifier("$global"), SCOPETYPE_NAMESPACE)
 	{
 	}
 };
@@ -276,21 +276,21 @@ struct WalkerContext
 const Identifier IDENTIFIER_CTOR = makeIdentifier("$ctor");
 
 // special-case
-Declaration gUndeclared(&global, makeIdentifier("$undeclared"), 0, &global);
-Declaration gFriend(&global, makeIdentifier("$friend"), 0, &global);
+Declaration gUndeclared(0, makeIdentifier("$undeclared"), 0, 0);
+Declaration gFriend(0, makeIdentifier("$friend"), 0, 0);
 
 
 // meta types
-Declaration gSpecial(&global, makeIdentifier("$special"), 0, 0);
-Declaration gClass(&global, makeIdentifier("$class"), 0, 0);
-Declaration gEnum(&global, makeIdentifier("$enum"), 0, 0);
-Declaration gCtor(&global, makeIdentifier("$ctor"), 0, 0);
+Declaration gSpecial(0, makeIdentifier("$special"), 0, 0);
+Declaration gClass(0, makeIdentifier("$class"), 0, 0);
+Declaration gEnum(0, makeIdentifier("$enum"), 0, 0);
+Declaration gCtor(0, makeIdentifier("$ctor"), 0, 0);
 
 // types
-Declaration gNamespace(&global, makeIdentifier("$namespace"), &gSpecial, 0);
-Declaration gTypename(&global, makeIdentifier("$typename"), &gSpecial, 0);
-Declaration gBuiltin(&global, makeIdentifier("$builtin"), &gSpecial, 0);
-Declaration gParam(&global, makeIdentifier("$param"), &gClass, 0);
+Declaration gNamespace(0, makeIdentifier("$namespace"), &gSpecial, 0);
+Declaration gTypename(0, makeIdentifier("$typename"), &gSpecial, 0);
+Declaration gBuiltin(0, makeIdentifier("$builtin"), &gSpecial, 0);
+Declaration gParam(0, makeIdentifier("$param"), &gClass, 0);
 
 Declaration gTemplateParams[] = 
 {
@@ -475,7 +475,8 @@ struct WalkerBase : public PrintingWalker
 
 	void printName(Scope* scope)
 	{
-		if(scope->parent != 0)
+		if(scope != 0
+			&& scope->parent != 0)
 		{
 			printName(scope->parent);
 			printer.out << getValue(scope->name) << "::";
@@ -1086,7 +1087,7 @@ struct TypeSpecifierWalker : public WalkerBase
 	{
 		if(symbol->isGlobal.value != 0)
 		{
-			enclosing = &global;
+			enclosing = &context.global;
 		}
 		symbol->accept(*this);
 	}
@@ -1094,7 +1095,7 @@ struct TypeSpecifierWalker : public WalkerBase
 	{
 		if(symbol->isGlobal.value != 0)
 		{
-			enclosing = &global;
+			enclosing = &context.global;
 		}
 		symbol->accept(*this);
 	}
@@ -1132,14 +1133,14 @@ struct DeclaratorIdWalker : public WalkerBase
 
 	void visit(cpp::qualified_id_global* symbol) 
 	{
-		enclosing = &global;
+		enclosing = &context.global;
 		symbol->accept(*this);
 	}
 	void visit(cpp::qualified_id_default* symbol) 
 	{
 		if(symbol->isGlobal.value != 0)
 		{
-			enclosing = &global;
+			enclosing = &context.global;
 		}
 		symbol->accept(*this);
 	}
@@ -1803,7 +1804,7 @@ struct NamespaceWalker : public WalkerBase
 	NamespaceWalker(WalkerContext& context)
 		: WalkerBase(context)
 	{
-		pushScope(&global);
+		pushScope(&context.global);
 	}
 
 	NamespaceWalker(WalkerBase& base, const Identifier& id)
