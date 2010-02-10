@@ -523,10 +523,6 @@ struct WalkerBase : public PrintingWalker
 			return &gFriend;
 		}
 		
-		if(enclosed != 0)
-		{
-			enclosed->name = name;
-		}
 		Declaration other(parent, name, type, enclosed, specifiers, isTemplate, isTemplateSpecialization);
 		if(name.value != 0) // unnamed class/struct/union/enum
 		{
@@ -548,15 +544,15 @@ struct WalkerBase : public PrintingWalker
 					printPosition(declaration->name.position);
 					throw SemanticError();
 				}
-				printName("redeclared: ", type, declaration);
-				return declaration;
+				if(isDefinition(*declaration)
+					|| declaration->type == &gNamespace)
+				{
+					printName("redeclared: ", type, declaration);
+					return declaration;
+				}
 			}
 		}
 		parent->declarations.push_front(other);
-		if(enclosed != 0)
-		{
-			enclosed->name = name;
-		}
 		Declaration* result = &parent->declarations.front();
 		printName("", type, result);
 		return result;
@@ -928,10 +924,11 @@ bool isForwardDeclaration(cpp::decl_specifier_seq* symbol)
 template<typename Walker, typename T>
 struct DeferredSymbolThunk
 {
-	static void thunk(const WalkerBase& context, void* symbol)
+	static void thunk(const WalkerBase& context, void* p)
 	{
 		Walker walker(context);
-		static_cast<T*>(symbol)->accept(walker);
+		T* symbol = static_cast<T*>(p);
+		symbol->accept(walker);
 	}
 };
 
@@ -1257,6 +1254,8 @@ struct ClassHeadWalker : public WalkerBase
 		printSymbol(symbol);
 		// 3.3.1.3 The point of declaration for a class first declared by a class-specifier is immediately after the identifier or simple-template-id (if any) in its class-head
 		declaration = pointOfDeclaration(enclosing, symbol->value, &gClass, enclosed, DeclSpecifiers(), enclosing == templateEnclosing);
+		SEMANTIC_ASSERT(enclosed != 0);
+		enclosed->name = declaration->name;
 	}
 	void visit(cpp::nested_name_specifier* symbol)
 	{
@@ -1271,11 +1270,15 @@ struct ClassHeadWalker : public WalkerBase
 		printSymbol(symbol);
 		// 3.3.1.3 The point of declaration for a class first declared by a class-specifier is immediately after the identifier or simple-template-id (if any) in its class-head
 		declaration = pointOfDeclaration(enclosing, symbol->id->value, &gClass, enclosed, DeclSpecifiers(), enclosing == templateEnclosing, true);
+		SEMANTIC_ASSERT(enclosed != 0);
+		enclosed->name = declaration->name;
 		// TODO args
 	}
 	void visit(cpp::class_head_anonymous* symbol)
 	{
 		declaration = pointOfDeclaration(enclosing, IDENTIFIER_NULL, &gClass, enclosed);
+		SEMANTIC_ASSERT(enclosed != 0);
+		enclosed->name = declaration->name;
 		symbol->accept(*this);
 	}
 	void visit(cpp::base_clause* symbol) 
@@ -1593,13 +1596,17 @@ struct SimpleDeclarationWalker : public WalkerBase
 	{
 		DeclaratorWalker walker(*this);
 		symbol->accept(walker);
-		pointOfDeclaration(
+		Declaration* declaration = pointOfDeclaration(
 			walker.enclosing,
 			type == &gCtor ? IDENTIFIER_CTOR : walker.id,
 			type,
 			specifiers.isTypedef ? type->enclosed : walker.paramScope,
 			specifiers,
 			enclosing == templateEnclosing); // 3.3.1.1
+		if(declaration->enclosed != 0)
+		{
+			declaration->enclosed->name = declaration->name;
+		}
 		if(walker.paramScope != 0)
 		{
 			pushScope(walker.paramScope); // 3.3.2.1 parameter scope
@@ -1641,7 +1648,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 #if 0
 			printer.printToken(boost::wave::T_SEMICOLON, ";");
 #endif
-			deferred->push_back(makeDeferredSymbol(*this, symbol));
+			deferred->push_back(makeDeferredSymbol(walker, symbol));
 		}
 		else
 		{

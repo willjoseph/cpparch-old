@@ -1,4 +1,55 @@
 
+struct S3
+{
+	typedef S3 Type;
+	typedef int T;
+};
+
+
+template<typename T>
+class Template3
+{
+	void f()
+	{
+		typename T::dependent x;
+	}
+};
+
+
+namespace N
+{
+	class X;
+}
+
+namespace N
+{
+	X x;
+}
+
+
+template<typename T>
+class Template2;
+
+template<typename T>
+class Template2
+{
+	static int x;
+};
+
+template<typename T>
+int Template2<T>::x;
+
+
+struct Incomplete;
+
+template<typename T>
+class Template
+{
+	void f()
+	{
+		Incomplete::X(); // should interpret this as a function-call
+	};
+};
 
 int f(int a)
 {
@@ -146,16 +197,6 @@ typedef struct threadlocaleinfostruct * pthreadlocinfo;
 typedef enum IMAGE_AUX_SYMBOL_TYPE {
 	IMAGE_AUX_SYMBOL_TYPE_TOKEN_DEF = 1,
 } IMAGE_AUX_SYMBOL_TYPE;
-
-namespace N
-{
-	class X;
-}
-
-namespace N
-{
-	X x;
-}
 
 typedef struct fd_set
 {
