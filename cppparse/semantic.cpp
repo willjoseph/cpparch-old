@@ -307,7 +307,8 @@ Declaration gTemplateParams[] =
 
 bool isType(const Declaration& type)
 {
-	return type.type == &gSpecial
+	return type.specifiers.isTypedef
+		|| type.type == &gSpecial
 		|| type.type == &gEnum
 		|| type.type == &gClass;
 }
@@ -329,10 +330,12 @@ bool isType(const Declaration& type)
 // typedef int T; T t; -> built-in
 const Declaration* getType(const Declaration& declaration)
 {
+#if 0
 	if(declaration.type->type == 0)
 	{
 		return &declaration;
 	}
+#endif
 	if(declaration.specifiers.isTypedef)
 	{
 		return getType(*declaration.type);
@@ -354,59 +357,141 @@ bool isFunction(const Declaration& declaration)
 	return declaration.enclosed != 0;
 }
 
-bool isStaticMember(const Declaration& declaration)
+bool isMemberVariable(const Declaration& declaration)
 {
 	return declaration.scope->type == SCOPETYPE_CLASS
-		&& declaration.specifiers.isStatic
 		&& !isFunction(declaration);
 }
 
-bool isTypedefDeclaration(const Declaration& declaration)
+bool isStatic(const Declaration& declaration)
+{
+	return declaration.specifiers.isStatic;
+}
+
+bool isStaticMember(const Declaration& declaration)
+{
+	return isMemberVariable(declaration)
+		&& isStatic(declaration);
+}
+
+bool isTypedef(const Declaration& declaration)
 {
 	return declaration.specifiers.isTypedef;
 }
 
-bool isExternDeclaration(const Declaration& declaration)
+bool isClass(const Declaration& declaration)
+{
+	return declaration.type == &gClass;
+}
+
+bool isEnum(const Declaration& declaration)
+{
+	return declaration.type == &gEnum;
+}
+
+bool isIncomplete(const Declaration& declaration)
+{
+	return declaration.enclosed == 0;
+}
+
+bool isNamespace(const Declaration& declaration)
+{
+	return declaration.type == &gNamespace;
+}
+
+bool isExtern(const Declaration& declaration)
 {
 	return declaration.specifiers.isExtern;
 }
 
-bool isDefinition(const Declaration& declaration)
-{
-	return (declaration.type == &gClass && declaration.enclosed != 0 && !declaration.isTemplateSpecialization) // class A {};
-		|| declaration.type == &gEnum // enum E {};
-		|| (!isType(declaration) // int i; void f();
-			&& !isTypedefDeclaration(declaration) // typedef int I;
-			&& !isStaticMember(declaration) // struct S { static int i };
-			&& !isExternDeclaration(declaration) // extern int i;
-			&& !isFunction(declaration)); // TODO: function overloading
-}
 
-bool isRedeclaration(const Declaration& declaration, const Declaration& other)
+struct DeclarationError
 {
-	if(other.type == &gCtor) // TODO: distinguish constructor names from class name
+	const char* description;
+	DeclarationError(const char* description) : description(description)
 	{
-		return true;
 	}
-	if(other.isTemplateSpecialization) // TODO: compare template-argument-list
+};
+
+
+inline const Declaration& getPrimaryDeclaration(const Declaration& first, const Declaration& second)
+{
+	if(isNamespace(first))
 	{
-		return true;
+		if(!isNamespace(second))
+		{
+			throw DeclarationError("non-namespace already declared as namespace");
+		}
+		return first; // namespace continuation
 	}
-	if(!isType(declaration)
-		&& !isType(other)
-		&& !isTypedefDeclaration(declaration)
-		&& !isTypedefDeclaration(other)
-		&& isFunction(declaration)
-		&& isFunction(other))// TODO: function overloading
+	if(isType(first))
 	{
-		return true;
+		if(!isType(second))
+		{
+			throw DeclarationError("non-type already declared as type");
+		}
+		if(getType(first) != getType(second))
+		{
+			throw DeclarationError("type already declared as different type");
+		}
+		if(isTypedef(first))
+		{
+			return second; // redefinition of typedef, or definition of type previously used in typedef
+		}
+		if(isTypedef(second))
+		{
+			return first; // typedef of type previously declared
+		}
+		if(isClass(first))
+		{
+			if(second.isTemplateSpecialization)
+			{
+				return first; // TODO
+			}
+			if(isIncomplete(second))
+			{
+				return first; // forward-declaration of previously-defined class
+			}
+			if(isIncomplete(first))
+			{
+				return second; // definition of forward-declared class
+			}
+			throw DeclarationError("class-definition already defined");
+		}
+		if(isEnum(first))
+		{
+			throw DeclarationError("enum-definition already defined");
+		}
+		throw SemanticError(); // should not be reachable
 	}
-	if(!isTypedefDeclaration(declaration)
-		&& !isTypedefDeclaration(other))
+	if(isType(second))
 	{
-		return getBaseType(declaration) == getBaseType(other);
+		throw DeclarationError("type already declared as non-type");
 	}
-	return getType(declaration) == getType(other);
+	if(isFunction(first)
+		|| isFunction(second))// TODO: function overloading
+	{
+		return first; // multiple declarations allowed
+	}
+	if(getBaseType(first) != getBaseType(second))
+	{
+		throw DeclarationError("variable already declared with different type");
+	}
+	if(isStaticMember(first))
+	{
+		// TODO: disallow inline definition of static member: class C { static int i; int i; };
+		if(!isMemberVariable(second))
+		{
+			throw DeclarationError("non-member-variable already declared as static member-variable");
+		}
+		return first; // multiple declarations allowed
+	}
+	if(isExtern(first)
+		|| isExtern(second))
+	{
+		return first; // multiple declarations allowed
+	}
+	throw DeclarationError("symbol already defined");
 }
 
 struct IdentifierMismatch
@@ -415,7 +500,6 @@ struct IdentifierMismatch
 	{
 	}
 };
-
 
 struct WalkerBase : public PrintingWalker
 {
@@ -541,27 +625,23 @@ struct WalkerBase : public PrintingWalker
 			Declaration* declaration = findDeclaration(parent->declarations, name);
 			if(declaration != 0)
 			{
-				if(isDefinition(*declaration)
-					&& isDefinition(other))
+				try
+				{
+					const Declaration& primary = getPrimaryDeclaration(*declaration, other);
+					printName("redeclared: ", type, declaration);
+					if(&primary == &other)
+					{
+						*declaration = other;
+					}
+					return declaration;
+				}
+				catch(DeclarationError& e)
 				{
 					printPosition(name.position);
-					std::cout << "'" << name.value << "' already defined here:" << std::endl;
+					std::cout << "'" << name.value << "': " << e.description << std::endl;
 					printPosition(declaration->name.position);
 					throw SemanticError();
 				}
-				if(!isRedeclaration(*declaration, other))
-				{
-					printPosition(name.position);
-					std::cout << "'" << name.value << "' already declared here:" << std::endl;
-					printPosition(declaration->name.position);
-					throw SemanticError();
-				}
-				printName("redeclared: ", type, declaration);
-				if(isDefinition(other))
-				{
-					*declaration = other;
-				}
-				return declaration;
 			}
 		}
 		parent->declarations.push_front(other);
