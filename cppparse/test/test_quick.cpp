@@ -7,7 +7,10 @@ shall be declared in one of the following ways:
 */
 struct Base
 {
-	typedef int T;
+	struct T
+	{
+		typedef int I;
+	};
 };
 
 namespace N5
@@ -19,9 +22,15 @@ namespace N5
 	*/
 	int Base;
 
-	struct Derived : public Base
+	struct Derived : public Base, public Base::T
 	{
-		T i;
+		T t;
+		I i;
+	};
+
+	template<typename T>
+	struct Derived3 : public T
+	{
 	};
 }
 #endif

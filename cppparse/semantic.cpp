@@ -389,6 +389,15 @@ const Declaration* getBaseType(const Declaration& declaration)
 	return declaration.type;
 }
 
+const Declaration& getOriginalType(const Declaration& declaration)
+{
+	if(declaration.specifiers.isTypedef)
+	{
+		return getOriginalType(*declaration.type);
+	}
+	return declaration;
+}
+
 bool isFunction(const Declaration& declaration)
 {
 	return declaration.enclosed != 0;
@@ -1135,7 +1144,6 @@ struct TypeSpecifierWalker : public WalkerBase
 	{
 		NestedNameSpecifierWalker walker(*this);
 		symbol->accept(walker);
-		SEMANTIC_ASSERT(enclosing != walker.enclosing);
 		enclosing = walker.enclosing;
 	}
 	void visit(cpp::simple_template_id* symbol) 
@@ -1185,7 +1193,6 @@ struct DeclaratorIdWalker : public WalkerBase
 	{
 		NestedNameSpecifierWalker walker(*this);
 		symbol->accept(walker);
-		SEMANTIC_ASSERT(enclosing != walker.enclosing);
 		enclosing = walker.enclosing;
 	}
 	void visit(cpp::simple_template_id* symbol) 
@@ -1285,11 +1292,15 @@ struct BaseSpecifierWalker : public WalkerBase
 	{
 		NestedNameSpecifierWalker walker(*this);
 		symbol->accept(walker);
-		SEMANTIC_ASSERT(enclosing != walker.enclosing);
 		enclosing = walker.enclosing;
 	}
 	void visit(cpp::class_name* symbol)
 	{
+		/* 10-2
+		The class-name in a base-specifier shall not be an incompletely defined class (Clause class); this class is
+		called a direct base class for the class being defined. During the lookup for a base class name, non-type
+		names are ignored (3.3.10)
+		*/
 		TypeNameWalker walker(*this, isTypeName);
 		symbol->accept(walker);
 		type = walker.declaration;
@@ -1319,7 +1330,6 @@ struct ClassHeadWalker : public WalkerBase
 	{
 		NestedNameSpecifierWalker walker(*this);
 		symbol->accept(walker);
-		SEMANTIC_ASSERT(enclosing != walker.enclosing);
 		enclosing = walker.enclosing;
 	}
 	void visit(cpp::simple_template_id* symbol) 
@@ -1344,9 +1354,12 @@ struct ClassHeadWalker : public WalkerBase
 		BaseSpecifierWalker walker(*this);
 		symbol->accept(walker);
 		SEMANTIC_ASSERT(walker.type != 0);
-		SEMANTIC_ASSERT(walker.type->enclosed != 0);
-		SEMANTIC_ASSERT(declaration->enclosed != 0);
-		declaration->enclosed->bases.push_back(walker.type->enclosed);
+		const Declaration& type = getOriginalType(*walker.type);
+		if(type.enclosed != 0) // TODO: tem
+		{
+			SEMANTIC_ASSERT(declaration->enclosed != 0);
+			declaration->enclosed->bases.push_back(type.enclosed);
+		}
 	}
 };
 
