@@ -202,6 +202,17 @@ struct SemanticError
 
 #define SEMANTIC_ASSERT(condition) if(!(condition)) { throw SemanticError(); }
 
+inline void semanticBreak()
+{
+}
+
+
+inline void printPosition(const LexFilePosition& position)
+{
+	std::cout << position.get_file() << "(" << position.get_line() << "): ";
+}
+
+
 typedef cpp::terminal_identifier Identifier;
 
 inline Identifier makeIdentifier(const char* value)
@@ -276,6 +287,12 @@ bool enclosesElt(ScopeType type)
 }
 
 const Identifier IDENTIFIER_NULL = makeIdentifier(0);
+
+const char* getValue(const Identifier& id)
+{
+	return id.value == 0 ? "$unnamed" : id.value;
+}
+
 
 struct WalkerContext
 {
@@ -375,7 +392,7 @@ bool isFunction(const Declaration& declaration)
 	return declaration.enclosed != 0;
 }
 
-bool isMemberVariable(const Declaration& declaration)
+bool isMemberObject(const Declaration& declaration)
 {
 	return declaration.scope->type == SCOPETYPE_CLASS
 		&& !isFunction(declaration);
@@ -388,7 +405,7 @@ bool isStatic(const Declaration& declaration)
 
 bool isStaticMember(const Declaration& declaration)
 {
-	return isMemberVariable(declaration)
+	return isMemberObject(declaration)
 		&& isStatic(declaration);
 }
 
@@ -410,6 +427,11 @@ bool isEnum(const Declaration& declaration)
 bool isIncomplete(const Declaration& declaration)
 {
 	return declaration.enclosed == 0;
+}
+
+bool isElaboratedType(const Declaration& declaration)
+{
+	return (isClass(declaration) || isEnum(declaration)) && isIncomplete(declaration);
 }
 
 bool isNamespace(const Declaration& declaration)
@@ -498,9 +520,9 @@ inline const Declaration& getPrimaryDeclaration(const Declaration& first, const 
 	if(isStaticMember(first))
 	{
 		// TODO: disallow inline definition of static member: class C { static int i; int i; };
-		if(!isMemberVariable(second))
+		if(!isMemberObject(second))
 		{
-			throw DeclarationError("non-member-variable already declared as static member-variable");
+			throw DeclarationError("non-member-object already declared as static member-object");
 		}
 		return first; // multiple declarations allowed
 	}
@@ -514,10 +536,33 @@ inline const Declaration& getPrimaryDeclaration(const Declaration& first, const 
 
 struct IdentifierMismatch
 {
+	Identifier id;
+	const char* expected;
+	Declaration* declaration;
 	IdentifierMismatch()
 	{
 	}
+	IdentifierMismatch(const Identifier& id, Declaration* declaration, const char* expected) :
+		id(id), declaration(declaration), expected(expected)
+	{
+	}
 };
+
+void printIdentifierMismatch(const IdentifierMismatch& e)
+{
+	printPosition(e.id.position);
+	std::cout << "'" << getValue(e.declaration->name) << "' expected " << e.expected << ", declared here:" << std::endl;
+	printPosition(e.declaration->name.position);
+}
+
+
+
+bool isAny(const Declaration& declaration)
+{
+	return true;
+}
+
+typedef bool (*LookupFilter)(const Declaration&);
 
 struct WalkerBase : public PrintingWalker
 {
@@ -532,11 +577,12 @@ struct WalkerBase : public PrintingWalker
 	{
 	}
 
-	Declaration* findDeclaration(Scope::Declarations& declarations, const Identifier& id)
+	Declaration* findDeclaration(Scope::Declarations& declarations, const Identifier& id, LookupFilter filter = isAny)
 	{
 		for(Scope::Declarations::iterator i = declarations.begin(); i != declarations.end(); ++i)
 		{
-			if((*i).name.value == id.value)
+			if((*i).name.value == id.value
+				&& filter(*i))
 			{
 				return &(*i);
 			}
@@ -544,29 +590,24 @@ struct WalkerBase : public PrintingWalker
 		return 0;
 	}
 
-	Declaration* findDeclaration(Scope& scope, const Identifier& id)
+	Declaration* findDeclaration(Scope& scope, const Identifier& id, LookupFilter filter = isAny)
 	{
-		Declaration* result = findDeclaration(scope.declarations, id);
+		Declaration* result = findDeclaration(scope.declarations, id, filter);
 		if(result != 0)
 		{
 			return result;
 		}
 		if(scope.parent != 0)
 		{
-			return findDeclaration(*scope.parent, id);
+			return findDeclaration(*scope.parent, id, filter);
 		}
 		return 0;
 	}
 
-	const char* getValue(const Identifier& id)
-	{
-		return id.value == 0 ? "$unnamed" : id.value;
-	}
-
-	Declaration* findDeclaration(const Identifier& id)
+	Declaration* findDeclaration(const Identifier& id, LookupFilter filter = isAny)
 	{
 		{
-			Declaration* result = findDeclaration(*enclosing, id);
+			Declaration* result = findDeclaration(*enclosing, id, filter);
 			if(result != 0)
 			{
 				return result;
@@ -574,15 +615,17 @@ struct WalkerBase : public PrintingWalker
 		}
 		if(templateParams != 0)
 		{
-			Declaration* result = findDeclaration(*templateParams, id);
+			Declaration* result = findDeclaration(*templateParams, id, filter);
 			if(result != 0)
 			{
 				return result;
 			}
 		}
+#if 0
 		printPosition(id.position);
 		std::cout << "'" << getValue(id) << "' was not declared" << std::endl;
 		printer.out << "/* undeclared: " << getValue(id) << " */";
+#endif
 		return &gUndeclared;
 	}
 
@@ -619,11 +662,6 @@ struct WalkerBase : public PrintingWalker
 		printer.out << " */";
 	}
 
-	inline void printPosition(const LexFilePosition& position)
-	{
-		std::cout << position.get_file() << "(" << position.get_line() << "): ";
-	}
-
 	Declaration* pointOfDeclaration(Scope* parent, const Identifier& name, Declaration* type, Scope* enclosed, DeclSpecifiers specifiers = DeclSpecifiers(), bool isTemplate = false, bool isTemplateSpecialization = false)
 	{
 		if(ambiguity != 0)
@@ -640,6 +678,10 @@ struct WalkerBase : public PrintingWalker
 		Declaration other(parent, name, type, enclosed, specifiers, isTemplate, isTemplateSpecialization);
 		if(name.value != 0) // unnamed class/struct/union/enum
 		{
+			/* 3.4.4-1
+			An elaborated-type-specifier (7.1.6.3) may be used to refer to a previously declared class-name or enum-name
+			even though the name has been hidden by a non-type declaration (3.3.10).
+			*/
 			Declaration* declaration = findDeclaration(parent->declarations, name);
 			if(declaration != 0)
 			{
@@ -708,15 +750,13 @@ struct WalkerBase : public PrintingWalker
 		enclosing = declaration->enclosed;
 	}
 
-	void reportIdentifierMismatch(const Identifier& id, Declaration* declaration, const char* type)
+	void reportIdentifierMismatch(const Identifier& id, Declaration* declaration, const char* expected)
 	{
 		if(ambiguity != 0)
 		{
-			throw IdentifierMismatch();
+			throw IdentifierMismatch(id, declaration, expected);
 		}
-		printPosition(id.position);
-		std::cout << "'" << getValue(declaration->name) << "' expected " << type << ", declared here:" << std::endl;
-		printPosition(declaration->name.position);
+		printIdentifierMismatch(IdentifierMismatch(id, declaration, expected));
 		throw SemanticError();
 	}
 
@@ -734,19 +774,24 @@ typedef bool (*IdentifierFunc)(const Declaration& declaration);
 
 bool isTypeName(const Declaration& declaration)
 {
-	return declaration.type == &gTypename
-		|| declaration.type->type == 0
-		|| declaration.specifiers.isTypedef;
+	return isType(declaration);
 }
 
 bool isNamespaceName(const Declaration& declaration)
 {
-	return declaration.enclosed->type == SCOPETYPE_NAMESPACE;
+	return isNamespace(declaration);
 }
 
 bool isTemplateName(const Declaration& declaration)
 {
 	return declaration.isTemplate;
+}
+
+bool isNestedName(const Declaration& declaration)
+{
+	return isTypeName(declaration)
+		|| isTemplateName(declaration)
+		|| isNamespaceName(declaration);
 }
 
 const char* getIdentifierType(IdentifierFunc func)
@@ -768,6 +813,7 @@ const char* getIdentifierType(IdentifierFunc func)
 
 #define SYMBOL_NAME(T) (typeid(T).name() + 12)
 
+#if 0
 template<typename Walker, typename T>
 inline void walkAmbiguity(Walker& walker, cpp::ambiguity<T>* symbol, bool diagnose = false);
 
@@ -905,10 +951,6 @@ inline bool isValid(WalkerBase& base, T* symbol, bool diagnose)
 	return !walker.result;
 }
 
-inline void semanticBreak()
-{
-}
-
 template<typename T>
 inline T* resolveAmbiguity(WalkerBase& base, cpp::ambiguity<T>* symbol, bool diagnose)
 {
@@ -927,19 +969,21 @@ inline T* resolveAmbiguity(WalkerBase& base, cpp::ambiguity<T>* symbol, bool dia
 	throw SemanticError();
 }
 
-#if 0
 template<typename Walker, typename T>
 inline void walkAmbiguity(Walker& walker, cpp::ambiguity<T>* symbol, bool diagnose)
 {
 	resolveAmbiguity(base, symbol, diagnose)->accept(base);
 }
-#else
+#endif
+
 template<typename Walker, typename T>
-inline void walkAmbiguity(Walker& walker, cpp::ambiguity<T>* symbol, bool diagnose)
+inline void walkAmbiguity(Walker& walker, cpp::ambiguity<T>* symbol)
 {
 	semanticBreak();
 	bool ambiguousDeclaration = false;
 	Walker tmp(walker);
+	IdentifierMismatch first;
+	IdentifierMismatch second;
 	try
 	{
 		walker.ambiguity = &ambiguousDeclaration;
@@ -947,11 +991,12 @@ inline void walkAmbiguity(Walker& walker, cpp::ambiguity<T>* symbol, bool diagno
 		walker.ambiguity = 0;
 		return;
 	}
-	catch(IdentifierMismatch&)
+	catch(IdentifierMismatch& e)
 	{
 		SEMANTIC_ASSERT(!ambiguousDeclaration);
 		walker.~Walker();
 		new(&walker) Walker(tmp);
+		first = e;
 	}
 
 	try
@@ -961,19 +1006,23 @@ inline void walkAmbiguity(Walker& walker, cpp::ambiguity<T>* symbol, bool diagno
 		walker.ambiguity = 0;
 		return;
 	}
-	catch(IdentifierMismatch&)
+	catch(IdentifierMismatch& e)
 	{
 		SEMANTIC_ASSERT(!ambiguousDeclaration);
 		walker.~Walker();
 		new(&walker) Walker(tmp);
+		second = e;
 	}
-	std::cout << "first:" << std::endl;
-	isValid(walker, symbol->first, true);
-	std::cout << "second:" << std::endl;
-	isValid(walker, symbol->second, true);
-	throw SemanticError();
+	if(walker.ambiguity == 0)
+	{
+		std::cout << "first:" << std::endl;
+		printIdentifierMismatch(first);
+		std::cout << "second:" << std::endl;
+		printIdentifierMismatch(second);
+		throw SemanticError();
+	}
+	throw first;
 }
-#endif
 
 #define TREEWALKER_DEFAULT \
 	void visit(cpp::terminal_identifier symbol) \
@@ -1015,7 +1064,7 @@ inline void walkAmbiguity(Walker& walker, cpp::ambiguity<T>* symbol, bool diagno
 		walkAmbiguity(*this, symbol); \
 	}
 
-bool isForwardDeclaration(cpp::elaborated_type_specifier_default* symbol)
+bool isUnqualified(cpp::elaborated_type_specifier_default* symbol)
 {
 	return symbol != 0
 		&& symbol->isGlobal.value == 0
@@ -1027,7 +1076,7 @@ bool isForwardDeclaration(cpp::decl_specifier_seq* symbol)
 	return symbol != 0
 		&& symbol->prefix == 0
 		&& symbol->suffix == 0
-		&& isForwardDeclaration(dynamic_cast<cpp::elaborated_type_specifier_default*>(symbol->type.p));
+		&& isUnqualified(dynamic_cast<cpp::elaborated_type_specifier_default*>(symbol->type.p));
 }
 
 
@@ -1078,13 +1127,14 @@ struct NamespaceNameWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	Declaration* declaration;
-	NamespaceNameWalker(const WalkerBase& base)
-		: WalkerBase(base), declaration(0)
+	LookupFilter filter;
+	NamespaceNameWalker(const WalkerBase& base, LookupFilter filter = isAny)
+		: WalkerBase(base), declaration(0), filter(filter)
 	{
 	}
 	void visit(cpp::identifier* symbol)
 	{
-		declaration = findDeclaration(symbol->value);
+		declaration = findDeclaration(symbol->value, filter);
 		if(declaration == &gUndeclared
 			|| !isNamespaceName(*declaration))
 		{
@@ -1099,13 +1149,14 @@ struct TemplateIdWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	Declaration* declaration;
-	TemplateIdWalker(const WalkerBase& base)
-		: WalkerBase(base), declaration(0)
+	LookupFilter filter;
+	TemplateIdWalker(const WalkerBase& base, LookupFilter filter = isAny)
+		: WalkerBase(base), declaration(0), filter(filter)
 	{
 	}
 	void visit(cpp::identifier* symbol)
 	{
-		declaration = findDeclaration(symbol->value);
+		declaration = findDeclaration(symbol->value, filter);
 		if(declaration == &gUndeclared
 			|| !isTemplateName(*declaration))
 		{
@@ -1125,13 +1176,14 @@ struct TypeNameWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	Declaration* declaration;
-	TypeNameWalker(const WalkerBase& base)
-		: WalkerBase(base), declaration(0)
+	LookupFilter filter;
+	TypeNameWalker(const WalkerBase& base, LookupFilter filter = isAny)
+		: WalkerBase(base), declaration(0), filter(filter)
 	{
 	}
 	void visit(cpp::identifier* symbol)
 	{
-		declaration = findDeclaration(symbol->value);
+		declaration = findDeclaration(symbol->value, filter);
 		if(declaration == &gUndeclared
 			|| !isTypeName(*declaration))
 		{
@@ -1157,19 +1209,19 @@ struct NestedNameSpecifierWalker : public WalkerBase
 	}
 	void visit(cpp::namespace_name* symbol)
 	{
-		NamespaceNameWalker walker(*this);
+		NamespaceNameWalker walker(*this, isNestedName);
 		symbol->accept(walker);
 		setScope(walker.declaration);
 	}
 	void visit(cpp::type_name* symbol)
 	{
-		TypeNameWalker walker(*this);
+		TypeNameWalker walker(*this, isNestedName);
 		symbol->accept(walker);
 		setScope(walker.declaration);
 	}
 	void visit(cpp::simple_template_id* symbol)
 	{
-		TemplateIdWalker walker(*this);
+		TemplateIdWalker walker(*this, isNestedName);
 		symbol->accept(walker);
 		setScope(walker.declaration);
 	}
@@ -1482,6 +1534,91 @@ struct ClassSpecifierWalker : public WalkerBase
 	}
 };
 
+struct ElaboratedTypeSpecifierWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	Declaration* type;
+	Declaration* declaration;
+	ElaboratedTypeSpecifierWalker(const WalkerBase& base)
+		: WalkerBase(base), type(0), declaration(0)
+	{
+	}
+	void visit(cpp::class_key* symbol)
+	{
+		type = &gClass;
+		printSymbol(symbol);
+	}
+	void visit(cpp::enum_key* symbol)
+	{
+		type = &gEnum;
+		printSymbol(symbol);
+	}
+	void visit(cpp::identifier* symbol)
+	{
+		printSymbol(symbol);
+		/* 3.4.4-2
+		If the elaborated-type-specifier has no nested-name-specifier ...
+		... the identifier is looked up according to 3.4.1 but ignoring any non-type names that have been declared. If
+		the elaborated-type-specifier is introduced by the enum keyword and this lookup does not find a previously
+		declared type-name, the elaborated-type-specifier is ill-formed. If the elaborated-type-specifier is introduced by
+		the class-key and this lookup does not find a previously declared type-name ...
+		the elaborated-type-specifier is a declaration that introduces the class-name as described in 3.3.1.
+		*/
+		declaration = findDeclaration(symbol->value, isType);
+		if(declaration != &gUndeclared)
+		{
+			/* 7.1.6.3-2
+			3.4.4 describes how name lookup proceeds for the identifier in an elaborated-type-specifier. If the identifier
+			resolves to a class-name or enum-name, the elaborated-type-specifier introduces it into the declaration the
+			same way a simple-type-specifier introduces its type-name. If the identifier resolves to a typedef-name, the
+			elaborated-type-specifier is ill-formed.
+			*/
+			if(isTypedef(*declaration))
+			{
+				printPosition(symbol->value.position);
+				std::cout << "'" << symbol->value.value << "': elaborated-type-specifier refers to a typedef" << std::endl;
+				printPosition(declaration->name.position);
+				throw SemanticError();
+			}
+			/* 7.1.6.3-3
+			The class-key or enum keyword present in the elaborated-type-specifier shall agree in kind with the declaration
+			to which the name in the elaborated-type-specifier refers.
+			*/
+			if(declaration->type != type)
+			{
+				printPosition(symbol->value.position);
+				std::cout << "'" << symbol->value.value << "': elaborated-type-specifier key does not match declaration" << std::endl;
+				printPosition(declaration->name.position);
+				throw SemanticError();
+			}
+		}
+		else
+		{
+			/* 3.4.4-2
+			... If the elaborated-type-specifier is introduced by the enum keyword and this lookup does not find a previously
+			declared type-name, the elaborated-type-specifier is ill-formed. If the elaborated-type-specifier is introduced by
+			the class-key and this lookup does not find a previously declared type-name ...
+			the elaborated-type-specifier is a declaration that introduces the class-name as described in 3.3.1.
+			*/
+			if(type != &gClass)
+			{
+				SEMANTIC_ASSERT(type == &gEnum);
+				printPosition(symbol->value.position);
+				std::cout << "'" << symbol->value.value << "': elaborated-type-specifier refers to undefined enum" << std::endl;
+				throw SemanticError();
+			}
+			/* 3.3.1-6
+			if the elaborated-type-specifier is used in the decl-specifier-seq or parameter-declaration-clause of a
+			function defined in namespace scope, the identifier is declared as a class-name in the namespace that
+			contains the declaration; otherwise, except as a friend declaration, the identifier is declared in the
+			smallest non-class, non-function-prototype scope that contains the declaration.
+			*/
+			declaration = pointOfDeclaration(getEltScope(), symbol->value, &gClass, 0, DeclSpecifiers(), enclosing == templateEnclosing);
+		}
+	}
+};
+
 struct DeclSpecifierSeqWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
@@ -1507,11 +1644,11 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 	}
 	void visit(cpp::elaborated_type_specifier_default* symbol)
 	{
-		if(isForwardDeclaration(symbol))
+		if(isUnqualified(symbol))
 		{
-			printSymbol(symbol);
-			// 3.3.1.6: elaborated-type-specifier that is not a block-declaration is declared in smallest enclosing non-class non-function-prototype scope
-			declaration = pointOfDeclaration(getEltScope(), symbol->id->value, &gClass, 0, DeclSpecifiers(), enclosing == templateEnclosing);
+			ElaboratedTypeSpecifierWalker walker(*this);
+			symbol->accept(walker);
+			declaration = walker.declaration;
 		}
 		else
 		{

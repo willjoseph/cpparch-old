@@ -1,4 +1,96 @@
 
+void f(int i)
+{
+	int x(f(i));
+}
+
+
+
+
+typedef struct _MIDL_SYNTAX_INFO MIDL_SYNTAX_INFO;
+
+typedef struct _MIDL_SYNTAX_INFO
+{
+} MIDL_SYNTAX_INFO;
+
+
+
+/* 3.4.4-1
+An elaborated-type-specifier (7.1.6.3) may be used to refer to a previously declared class-name or enum-name
+even though the name has been hidden by a non-type declaration (3.3.10).
+*/
+struct Hidden
+{
+	typedef int T;
+};
+namespace N3
+{
+	int Hidden;
+	struct S
+	{
+		struct Hidden h;
+	};
+	Hidden::T i;
+}
+
+/* 3.4.4-1
+An elaborated-type-specifier (7.1.6.3) may be used to refer to a previously declared class-name or enum-name
+even though the name has been hidden by a non-type declaration (3.3.10).
+*/
+enum HiddenE
+{
+	VALUE
+};
+namespace N5
+{
+	namespace HiddenE
+	{
+	}
+	enum HiddenE e;
+}
+
+/* 3.4.3-1
+During the lookup for a name preceding the :: scope resolution
+operator, object, function, and enumerator names are ignored.
+*/
+namespace N2
+{
+	typedef int T;
+}
+
+namespace N4
+{
+	int N2;
+	N2::T i;
+}
+
+#if 0
+/* 3.4.1-7
+A name used in the definition of a class X outside of a member function body or nested class definition26
+shall be declared in one of the following ways:
+— before its use in class X or be a member of a base class of X (10.2)
+*/
+struct Base
+{
+	typedef int T;
+};
+
+namespace N5
+{
+	/* 10-2
+	The class-name in a base-specifier shall not be an incompletely defined class (Clause class); this class is
+	called a direct base class for the class being defined. During the lookup for a base class name, non-type
+	names are ignored (3.3.10)
+	*/
+	int Base;
+
+	struct Derived : public Base
+	{
+		T i;
+	};
+}
+#endif
+
 namespace N
 {
 #if 1
@@ -32,12 +124,6 @@ namespace N
 {
 	X x;
 }
-
-typedef struct _MIDL_SYNTAX_INFO MIDL_SYNTAX_INFO;
-
-typedef struct _MIDL_SYNTAX_INFO
-{
-} MIDL_SYNTAX_INFO;
 
 struct S3
 {
