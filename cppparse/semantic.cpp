@@ -1,4 +1,22 @@
 
+#if 1
+
+namespace N
+{
+	template<typename T>
+	class C
+	{
+		template<typename X>
+		void f()
+		{
+			N::undeclared<X> x;
+		}
+	};
+}
+
+
+#endif
+
 #include "semantic.h"
 
 #include "cpptree.h"

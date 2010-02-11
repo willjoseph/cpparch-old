@@ -1,6 +1,30 @@
 
 namespace N
 {
+#if 1
+	template<typename T>
+	class undeclared;
+#endif
+
+	template<typename T>
+	class C
+	{
+		template<typename X>
+		void f()
+		{
+			const N::undeclared<X> x; // compiles in msvc, but should be error
+			/* 14.6-10
+			If a name does not depend on a template-parameter (as defined in 14.6.2), a declaration (or set of declarations)
+			for that name shall be in scope at the point where the name appears in the template definition; the name is
+			bound to the declaration (or declarations) found at that point and this binding is not affected by declarations
+			that are visible at the point of instantiation.
+			*/
+		}
+	};
+}
+
+namespace N
+{
 	class X;
 }
 
