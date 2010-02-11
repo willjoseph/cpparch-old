@@ -1,10 +1,36 @@
 
-void f(int i)
+#if 1
+/* 3.4.1-7
+A name used in the definition of a class X outside of a member function body or nested class definition26
+shall be declared in one of the following ways:
+— before its use in class X or be a member of a base class of X (10.2)
+*/
+struct Base
+{
+	typedef int T;
+};
+
+namespace N5
+{
+	/* 10-2
+	The class-name in a base-specifier shall not be an incompletely defined class (Clause class); this class is
+	called a direct base class for the class being defined. During the lookup for a base class name, non-type
+	names are ignored (3.3.10)
+	*/
+	int Base;
+
+	struct Derived : public Base
+	{
+		T i;
+	};
+}
+#endif
+
+
+int f(int i)
 {
 	int x(f(i));
 }
-
-
 
 
 typedef struct _MIDL_SYNTAX_INFO MIDL_SYNTAX_INFO;
@@ -63,33 +89,6 @@ namespace N4
 	int N2;
 	N2::T i;
 }
-
-#if 0
-/* 3.4.1-7
-A name used in the definition of a class X outside of a member function body or nested class definition26
-shall be declared in one of the following ways:
-— before its use in class X or be a member of a base class of X (10.2)
-*/
-struct Base
-{
-	typedef int T;
-};
-
-namespace N5
-{
-	/* 10-2
-	The class-name in a base-specifier shall not be an incompletely defined class (Clause class); this class is
-	called a direct base class for the class being defined. During the lookup for a base class name, non-type
-	names are ignored (3.3.10)
-	*/
-	int Base;
-
-	struct Derived : public Base
-	{
-		T i;
-	};
-}
-#endif
 
 namespace N
 {
