@@ -562,8 +562,11 @@ struct IdentifierMismatch
 void printIdentifierMismatch(const IdentifierMismatch& e)
 {
 	printPosition(e.id.position);
-	std::cout << "'" << getValue(e.declaration->name) << "' expected " << e.expected << ", declared here:" << std::endl;
-	printPosition(e.declaration->name.position);
+	std::cout << "'" << getValue(e.id) << "' expected " << e.expected << ", " << (e.declaration == &gUndeclared ? " was undeclared" : "was declared here:") << std::endl;
+	if(declaration != &gUndeclared)
+	{
+		printPosition(e.declaration->name.position);
+	}
 }
 
 
