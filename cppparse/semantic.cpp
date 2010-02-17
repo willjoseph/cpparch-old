@@ -563,7 +563,7 @@ void printIdentifierMismatch(const IdentifierMismatch& e)
 {
 	printPosition(e.id.position);
 	std::cout << "'" << getValue(e.id) << "' expected " << e.expected << ", " << (e.declaration == &gUndeclared ? " was undeclared" : "was declared here:") << std::endl;
-	if(declaration != &gUndeclared)
+	if(e.declaration != &gUndeclared)
 	{
 		printPosition(e.declaration->name.position);
 	}

@@ -1,4 +1,22 @@
 
+struct Base3
+{
+	typedef int I;
+};
+
+template<typename T>
+struct Spec : public Base3
+{
+	I m;
+};
+
+template<>
+struct Spec<int> : public Base3
+{
+	I m;
+};
+
+
 #if 1
 /* 3.4.1-7
 A name used in the definition of a class X outside of a member function body or nested class definition26
