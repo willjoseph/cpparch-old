@@ -464,7 +464,6 @@ struct DeclarationError
 	}
 };
 
-
 inline const Declaration& getPrimaryDeclaration(const Declaration& first, const Declaration& second)
 {
 	if(isNamespace(first))
@@ -497,7 +496,7 @@ inline const Declaration& getPrimaryDeclaration(const Declaration& first, const 
 		{
 			if(second.isTemplateSpecialization)
 			{
-				return first; // TODO
+				return second; // TODO
 			}
 			if(isIncomplete(second))
 			{
@@ -522,12 +521,14 @@ inline const Declaration& getPrimaryDeclaration(const Declaration& first, const 
 	if(isFunction(first)
 		|| isFunction(second))// TODO: function overloading
 	{
-		return first; // multiple declarations allowed
+		return second; // multiple declarations allowed
 	}
+#if 0 // fails when comparing types if type is template-param dependent
 	if(getBaseType(first) != getBaseType(second))
 	{
 		throw DeclarationError("variable already declared with different type");
 	}
+#endif
 	if(isStaticMember(first))
 	{
 		// TODO: disallow inline definition of static member: class C { static int i; int i; };
@@ -535,7 +536,7 @@ inline const Declaration& getPrimaryDeclaration(const Declaration& first, const 
 		{
 			throw DeclarationError("non-member-object already declared as static member-object");
 		}
-		return first; // multiple declarations allowed
+		return second; // multiple declarations allowed
 	}
 	if(isExtern(first)
 		|| isExtern(second))
@@ -569,6 +570,51 @@ void printIdentifierMismatch(const IdentifierMismatch& e)
 	}
 }
 
+
+void printDeclarations(const Scope::Declarations& declarations)
+{
+	std::cout << "{ ";
+	for(Scope::Declarations::const_iterator i = declarations.begin(); i != declarations.end();)
+	{
+		std::cout << getValue((*i).name);
+		if(++i != declarations.end())
+		{
+			std::cout << ", ";
+		}
+	}
+	std::cout << " }";
+}
+
+void printBases(const Scope::Bases& bases)
+{
+	std::cout << "{ ";
+	for(Scope::Bases::const_iterator i = bases.begin(); i != bases.end();)
+	{
+		std::cout << getValue((*i)->name) << ": ";
+		printDeclarations((*i)->declarations);
+		if(++i != bases.end())
+		{
+			std::cout << ", ";
+		}
+	}
+	std::cout << " }";
+}
+
+void printScope(const Scope& scope)
+{
+	std::cout << getValue(scope.name) << ": ";
+	std::cout << std::endl;
+	std::cout << "  declarations: ";
+	printDeclarations(scope.declarations);
+	std::cout << std::endl;
+	std::cout << "  bases: ";
+	printBases(scope.bases);
+	std::cout << std::endl;
+	if(scope.parent != 0)
+	{
+		printScope(*scope.parent);
+	}
+}
 
 
 bool isAny(const Declaration& declaration)
@@ -667,11 +713,6 @@ struct WalkerBase : public PrintingWalker
 				return result;
 			}
 		}
-#if 0
-		printPosition(id.position);
-		std::cout << "'" << getValue(id) << "' was not declared" << std::endl;
-		printer.out << "/* undeclared: " << getValue(id) << " */";
-#endif
 		return &gUndeclared;
 	}
 
@@ -735,11 +776,10 @@ struct WalkerBase : public PrintingWalker
 				{
 					const Declaration& primary = getPrimaryDeclaration(*declaration, other);
 					printName("redeclared: ", type, declaration);
-					if(&primary == &other)
+					if(&primary == declaration)
 					{
-						*declaration = other;
+						return declaration;
 					}
-					return declaration;
 				}
 				catch(DeclarationError& e)
 				{
@@ -803,6 +843,13 @@ struct WalkerBase : public PrintingWalker
 			throw IdentifierMismatch(id, declaration, expected);
 		}
 		printIdentifierMismatch(IdentifierMismatch(id, declaration, expected));
+#if 0
+		printPosition(id.position);
+		std::cout << "'" << getValue(id) << "' was not declared" << std::endl;
+		printer.out << "/* undeclared: " << getValue(id) << " */";
+#endif
+		printScope(*enclosing);
+
 		throw SemanticError();
 	}
 
@@ -1358,7 +1405,7 @@ struct ClassHeadWalker : public WalkerBase
 		symbol->accept(walker);
 		SEMANTIC_ASSERT(walker.type != 0);
 		const Declaration& type = getOriginalType(*walker.type);
-		if(type.enclosed != 0) // TODO: tem
+		if(type.enclosed != 0) // TODO: template-param dependent bases
 		{
 			SEMANTIC_ASSERT(declaration->enclosed != 0);
 			declaration->enclosed->bases.push_back(type.enclosed);
@@ -1952,6 +1999,11 @@ struct DeclarationWalker : public WalkerBase
 		}
 	}
 	void visit(cpp::template_declaration* symbol)
+	{
+		TemplateDeclarationWalker walker(*this);
+		symbol->accept(walker);
+	}
+	void visit(cpp::explicit_specialization* symbol)
 	{
 		TemplateDeclarationWalker walker(*this);
 		symbol->accept(walker);

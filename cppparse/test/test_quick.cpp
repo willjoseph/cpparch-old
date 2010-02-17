@@ -14,7 +14,19 @@ template<>
 struct Spec<int> : public Base3
 {
 	I m;
+	typedef Spec<float> other;
 };
+
+
+typedef struct _MIDL_SYNTAX_INFO MIDL_SYNTAX_INFO;
+
+typedef struct _MIDL_SYNTAX_INFO
+{
+} MIDL_SYNTAX_INFO;
+
+
+
+
 
 
 #if 1
@@ -59,12 +71,6 @@ int f(int i)
 	int x(f(i));
 }
 
-
-typedef struct _MIDL_SYNTAX_INFO MIDL_SYNTAX_INFO;
-
-typedef struct _MIDL_SYNTAX_INFO
-{
-} MIDL_SYNTAX_INFO;
 
 
 
