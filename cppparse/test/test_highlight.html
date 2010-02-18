@@ -1,0 +1,40 @@
+
+
+<html>
+<head>
+<link rel="stylesheet" type="text/css" href="identifier.css" />
+</style>
+</head>
+
+<body>
+
+<pre style='color:#000000;background:#ffffff;'>
+
+<keyword>namespace</keyword> <namespace>N</namespace>
+{
+<keyword>struct</keyword> <type>Base3</type>
+{
+    <keyword>typedef</keyword> <type>int</type> <type>I</type>;
+};
+
+<keyword>template</keyword>&lt;<keyword>typename</keyword> <type>T</type>&gt;
+<keyword>struct</keyword> <template>Spec</template> : <keyword>public</keyword> <type>Base3</type>
+{
+    <type>I</type> <object>m</object>;
+};
+
+<keyword>template</keyword>&lt;>
+<keyword>struct</keyword> <template>Spec</template>&lt;<type>int</type>> : <keyword>public</keyword> <type>Base3</type>
+{
+    <type>I</type> <object>m</object>;
+    <keyword>typedef</keyword> <template>Spec</template>&lt;<type>float</type>> <template>other</template>;
+};
+
+<unknown>X</unknown> <object>x</object>;
+}
+
+</pre>
+
+</body>
+</html>
+
