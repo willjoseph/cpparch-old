@@ -243,9 +243,18 @@ inline bool isAmbiguousInitDeclarator(cpp::init_declarator* init)
 		|| isAmbiguousInitDeclarator(dynamic_cast<cpp::init_declarator_disambiguate*>(init));
 }
 
+// matches init-declarator list
+// ambiguous with expression suffix
+// ''
+// ', C'
+// ', C = 0'
+// ', *C'
+// ', *C'
+// ', *C(X)'
+// ', *C[X]'
 inline bool isAmbiguousInitDeclaratorList(cpp::init_declarator_list* list)
 {
-	for(cpp::init_declarator_list* p = list->next; p != 0; p = p->next)
+	for(cpp::init_declarator_list* p = list; p != 0; p = p->next)
 	{
 		if(!isAmbiguousInitDeclarator(p->item))
 		{
