@@ -12,13 +12,13 @@
 
 <keyword>namespace</keyword> <namespace>N</namespace>
 {
-<keyword>struct</keyword> <type>Base3</type>
+<a name="Base3"></a><keyword>struct</keyword> <type>Base3</type>
 {
     <keyword>typedef</keyword> <type>int</type> <type>I</type>;
 };
 
 <keyword>template</keyword>&lt;<keyword>typename</keyword> <type>T</type>&gt;
-<keyword>struct</keyword> <template>Spec</template> : <keyword>public</keyword> <type>Base3</type>
+<keyword>struct</keyword> <a name="Spec"></a><template>Spec</template> : <keyword>public</keyword> <a href="#Base3"><type>Base3</type></a>
 {
     <type>I</type> <object>m</object>;
 };
@@ -27,7 +27,7 @@
 <keyword>struct</keyword> <template>Spec</template>&lt;<type>int</type>> : <keyword>public</keyword> <type>Base3</type>
 {
     <type>I</type> <object>m</object>;
-    <keyword>typedef</keyword> <template>Spec</template>&lt;<type>float</type>> <template>other</template>;
+    <keyword>typedef</keyword> <a href="#Spec"><template>Spec</template></a>&lt;<type>float</type>> <template>other</template>;
 };
 
 <unknown>X</unknown> <object>x</object>;

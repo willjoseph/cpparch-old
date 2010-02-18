@@ -4,3 +4,8 @@ object { color:#7f7f7f; }
 template { color:#008000; }
 namespace { color:#7f0055; }
 unknown { color:#ff0000; }
+
+a:link {text-decoration:none;}
+a:visited {text-decoration:none;}
+a:hover {text-decoration:underline;}
+a:active {text-decoration:underline;}
