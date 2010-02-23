@@ -41,6 +41,8 @@ struct TypeList
 #define TYPELIST16(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15) TypeList<T0, TYPELIST15(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15)>
 
 
+struct Declaration;
+
 namespace cpp
 {
 	template<LexTokenId id>
@@ -112,10 +114,19 @@ namespace cpp
 		const char* value; // TODO: avoid storing this
 	};
 
+	struct decoration
+	{
+		Declaration* p;
+		decoration() : p(0)
+		{
+		}
+	};
+
 	struct terminal_identifier
 	{
 		const char* value;
 		LexFilePosition position;
+		decoration dec;
 	};
 
 	struct terminal_string

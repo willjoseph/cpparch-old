@@ -105,7 +105,7 @@ int runTest(const Test& test)
 #if 1
 		StringRange root(test.input, strrchr(test.input, '.'));
 		Lexer lexer(context, Concatenate(root, makeRange(".prepro.cpp")).c_str());
-		int result = test.verify(test.parse(lexer), Concatenate(root, makeRange(".verify.cpp")).c_str());
+		int result = test.verify(test.parse(lexer), Concatenate(root, makeRange(".html")).c_str());
 		printPosition(lexer.stats.position);
 		std::cout << "backtrack: " << lexer.stats.symbol << ": " << lexer.stats.count << std::endl;
 #else

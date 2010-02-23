@@ -26,170 +26,6 @@ namespace N
 
 #define SYMBOL_NAME(T) (typeid(T).name() + 12)
 
-template<typename OutputStreamType>
-struct TreePrinter // TODO: better name
-{
-	OutputStreamType& out;
-	bool visited;
-	TreePrinter(OutputStreamType& out)
-		: out(out), visited(false)
-	{
-	}
-
-	void visit(cpp::terminal_identifier symbol)
-	{
-	}
-
-	void visit(cpp::terminal_string symbol)
-	{
-	}
-
-	void visit(cpp::terminal_choice2 symbol)
-	{
-	}
-
-	template<LexTokenId id>
-	void visit(cpp::terminal<id> symbol)
-	{
-	}
-
-	template<typename T>
-	void visit(T* symbol)
-	{
-		if(typeid(T) != typeid(*symbol)) // if abstract
-		{
-			symbol->accept(*this);
-		}
-		else
-		{
-			if(visited)
-			{
-				out << ", ";
-			}
-			visited = true;
-			out << SYMBOL_NAME(*symbol);
-#if 0 // don't print children
-			out << '(';
-			TreePrinter<OutputStreamType> tmp(out);
-			symbol->accept(tmp);
-			out << ')';
-#endif
-		}
-	}
-
-	template<typename T>
-	void visit(cpp::symbol<T> symbol)
-	{
-		if(symbol.p != 0)
-		{
-			visit(symbol.p);
-		}
-	}
-
-	void visit(cpp::declaration* symbol)
-	{
-	}
-
-	void visit(cpp::member_declaration* symbol)
-	{
-	}
-
-	void visit(cpp::statement* symbol)
-	{
-	}
-};
-
-typedef TokenPrinter<std::ofstream> FileTokenPrinter;
-
-struct PrintingWalker
-{
-	FileTokenPrinter& printer;
-	PrintingWalker(FileTokenPrinter& printer)
-		: printer(printer)
-	{
-	}
-	template<typename T>
-	void printSymbol(T* symbol)
-	{
-		SymbolPrinter walker(*this);
-		symbol->accept(walker);
-	}
-};
-
-
-struct SymbolPrinter : PrintingWalker
-{
-	SymbolPrinter(PrintingWalker& base)
-		: PrintingWalker(base)
-	{
-	}
-
-	void visit(cpp::terminal_identifier symbol)
-	{
-		printer.printToken(boost::wave::T_IDENTIFIER, symbol.value);
-	}
-
-	void visit(cpp::terminal_string symbol)
-	{
-		printer.printToken(boost::wave::T_STRINGLIT, symbol.value);
-	}
-
-	void visit(cpp::terminal_choice2 symbol)
-	{
-		printer.printToken(symbol.id, symbol.value);
-	}
-
-	template<LexTokenId id>
-	void visit(cpp::terminal<id> symbol)
-	{
-		if(symbol.value != 0)
-		{
-			printer.printToken(id, symbol.value);
-		}
-	}
-
-	template<typename T>
-	void visit(T* symbol)
-	{
-		symbol->accept(*this);
-	}
-
-	template<typename T>
-	void visit(cpp::symbol<T> symbol)
-	{
-		if(symbol.p != 0)
-		{
-			visit(symbol.p);
-		}
-	}
-
-#if 0
-	void visit(cpp::declaration* symbol)
-	{
-		symbol->accept(*this);
-		printer.out << " // ";
-		TreePrinter<std::ofstream> tmp(printer.out);
-		symbol->accept(tmp);
-	}
-
-	void visit(cpp::member_declaration* symbol)
-	{
-		symbol->accept(*this);
-		printer.out << " // ";
-		TreePrinter<std::ofstream> tmp(printer.out);
-		symbol->accept(tmp);
-	}
-
-	void visit(cpp::statement* symbol)
-	{
-		symbol->accept(*this);
-		printer.out << " // ";
-		TreePrinter<std::ofstream> tmp(printer.out);
-		symbol->accept(tmp);
-	}
-#endif
-};
-
 #include <iostream>
 #include <list>
 
@@ -288,27 +124,13 @@ bool enclosesElt(ScopeType type)
 		|| type == SCOPETYPE_LOCAL;
 }
 
-const Identifier IDENTIFIER_NULL = makeIdentifier(0);
+Identifier IDENTIFIER_NULL = makeIdentifier(0);
 
 const char* getValue(const Identifier& id)
 {
 	return id.value == 0 ? "$unnamed" : id.value;
 }
 
-
-struct WalkerContext
-{
-	std::ofstream out;
-	FileTokenPrinter printer;
-	Scope global;
-
-	WalkerContext(const char* path)
-		: out(path),
-		printer(out),
-		global(makeIdentifier("$global"), SCOPETYPE_NAMESPACE)
-	{
-	}
-};
 
 const Identifier IDENTIFIER_CTOR = makeIdentifier("$ctor");
 
@@ -341,6 +163,16 @@ Declaration gTemplateParams[] =
 	gParam, gParam, gParam, gParam,
 	gParam, gParam, gParam, gParam,
 };
+
+// objects
+Identifier gOperatorFunctionId = makeIdentifier("operator <op>");
+Identifier gConversionFunctionId = makeIdentifier("operator T");
+Identifier gDestructorId = makeIdentifier("~T");
+Identifier gOperatorFunctionTemplateId = makeIdentifier("operator () <>");
+// TODO: don't declare if id is anonymous?
+Identifier gAnonymousId = makeIdentifier("$anonymous");
+
+
 
 bool isType(const Declaration& type)
 {
@@ -454,6 +286,283 @@ bool isExtern(const Declaration& declaration)
 {
 	return declaration.specifiers.isExtern;
 }
+
+const char* getDeclarationType(const Declaration& declaration)
+{
+	if(isNamespace(declaration))
+	{
+		return "namespace";
+	}
+	if(isType(declaration))
+	{
+		return declaration.isTemplate ? "template" : "type";
+	}
+	return "object";
+}
+
+
+template<typename OutputStreamType>
+struct TreePrinter // TODO: better name
+{
+	OutputStreamType& out;
+	bool visited;
+	TreePrinter(OutputStreamType& out)
+		: out(out), visited(false)
+	{
+	}
+
+	void visit(cpp::terminal_identifier symbol)
+	{
+	}
+
+	void visit(cpp::terminal_string symbol)
+	{
+	}
+
+	void visit(cpp::terminal_choice2 symbol)
+	{
+	}
+
+	template<LexTokenId id>
+	void visit(cpp::terminal<id> symbol)
+	{
+	}
+
+	template<typename T>
+	void visit(T* symbol)
+	{
+		if(typeid(T) != typeid(*symbol)) // if abstract
+		{
+			symbol->accept(*this);
+		}
+		else
+		{
+			if(visited)
+			{
+				out << ", ";
+			}
+			visited = true;
+			out << SYMBOL_NAME(*symbol);
+#if 0 // don't print children
+			out << '(';
+			TreePrinter<OutputStreamType> tmp(out);
+			symbol->accept(tmp);
+			out << ')';
+#endif
+		}
+	}
+
+	template<typename T>
+	void visit(cpp::symbol<T> symbol)
+	{
+		if(symbol.p != 0)
+		{
+			visit(symbol.p);
+		}
+	}
+
+	void visit(cpp::declaration* symbol)
+	{
+	}
+
+	void visit(cpp::member_declaration* symbol)
+	{
+	}
+
+	void visit(cpp::statement* symbol)
+	{
+	}
+};
+
+typedef TokenPrinter<std::ofstream> FileTokenPrinter;
+
+struct PrintingWalker
+{
+	FileTokenPrinter& printer;
+	PrintingWalker(FileTokenPrinter& printer)
+		: printer(printer)
+	{
+	}
+	template<typename T>
+	void printSymbol(T* symbol)
+	{
+		SymbolPrinter walker(*this);
+		symbol->accept(walker);
+	}
+
+	void printName(Scope* scope)
+	{
+		if(scope != 0
+			&& scope->parent != 0)
+		{
+			printName(scope->parent);
+			printer.out << getValue(scope->name) << "::";
+		}
+	}
+
+	void printName(Declaration* name)
+	{
+		if(name == 0)
+		{
+			printer.out << "<unknown>";
+		}
+		else
+		{
+			printName(name->scope);
+			printer.out << getValue(name->name);
+		}
+	}
+
+	void printName(const char* caption, Declaration* type, Declaration* name)
+	{
+		printer.out << "/* ";
+		printer.out << caption;
+		printName(type);
+		printer.out << ": ";
+		printName(name);
+		printer.out << " */";
+	}
+
+};
+
+const char* escapeTerminal(LexTokenId id, const char* value)
+{
+	switch(id)
+	{
+	case boost::wave::T_LESS: return "&lt;";
+	case boost::wave::T_LESSEQUAL: return "&lt;=";
+	case boost::wave::T_SHIFTLEFT: return "&lt;&lt;";
+	case boost::wave::T_SHIFTLEFTASSIGN: return "&lt;&lt;=";
+	case boost::wave::T_AND_ALT:
+	case boost::wave::T_AND: return "&amp;";
+	case boost::wave::T_ANDAND_ALT:
+	case boost::wave::T_ANDAND: return "&amp;&amp;";
+	case boost::wave::T_ANDASSIGN_ALT:
+	case boost::wave::T_ANDASSIGN: return "&amp;=";
+	default: break;
+	}
+
+	return value;
+}
+
+template<LexTokenId id> 
+const char* escapeTerminal(cpp::terminal<id> symbol)
+{
+	return escapeTerminal(id, symbol.value);
+}
+
+
+const char* escapeTerminal(cpp::terminal_choice2 symbol)
+{
+	return escapeTerminal(symbol.id, symbol.value);
+}
+
+struct SymbolPrinter : PrintingWalker
+{
+	std::ofstream out;
+	FileTokenPrinter printer;
+
+	SymbolPrinter(const char* path)
+		: PrintingWalker(printer),
+		out(path),
+		printer(out)
+	{
+		printer.out << "<html>\n"
+			"<head>\n"
+			"<link rel='stylesheet' type='text/css' href='identifier.css'/>\n"
+			"</style>\n"
+			"</head>\n"
+			"<body>\n"
+			"<pre style='color:#000000;background:#ffffff;'>\n";
+	}
+	~SymbolPrinter()
+	{
+		printer.out << "</pre>\n"
+			"</body>\n"
+			"</html>\n";
+	}
+
+	void visit(cpp::terminal_identifier symbol)
+	{
+		printer.printToken(boost::wave::T_IDENTIFIER, symbol.value);
+	}
+
+	void visit(cpp::terminal_string symbol)
+	{
+		printer.printToken(boost::wave::T_STRINGLIT, symbol.value);
+	}
+
+	void visit(cpp::terminal_choice2 symbol)
+	{
+		printer.printToken(symbol.id, escapeTerminal(symbol));
+	}
+
+	template<LexTokenId id>
+	void visit(cpp::terminal<id> symbol)
+	{
+		if(symbol.value != 0)
+		{
+			printer.printToken(id, escapeTerminal(symbol));
+		}
+	}
+
+	template<typename T>
+	void visit(T* symbol)
+	{
+		symbol->accept(*this);
+	}
+
+	template<typename T>
+	void visit(cpp::symbol<T> symbol)
+	{
+		if(symbol.p != 0)
+		{
+			visit(symbol.p);
+		}
+	}
+
+#if 0
+	void visit(cpp::declaration* symbol)
+	{
+		symbol->accept(*this);
+		printer.out << " // ";
+		TreePrinter<std::ofstream> tmp(printer.out);
+		symbol->accept(tmp);
+	}
+
+	void visit(cpp::member_declaration* symbol)
+	{
+		symbol->accept(*this);
+		printer.out << " // ";
+		TreePrinter<std::ofstream> tmp(printer.out);
+		symbol->accept(tmp);
+	}
+
+	void visit(cpp::statement* symbol)
+	{
+		symbol->accept(*this);
+		printer.out << " // ";
+		TreePrinter<std::ofstream> tmp(printer.out);
+		symbol->accept(tmp);
+	}
+#endif
+
+	void visit(cpp::identifier* symbol)
+	{
+		const char* type = symbol->value.dec.p != 0 ? getDeclarationType(*symbol->value.dec.p) : "unknown";
+		printer.out << "<" << type << ">";
+		symbol->accept(*this);
+		printer.out << "</" << type << ">";
+	}
+
+	void visit(cpp::simple_type_specifier_builtin* symbol)
+	{
+		printer.out << "<type>";
+		symbol->accept(*this);
+		printer.out << "</type>";
+	}
+};
+
 
 
 struct DeclarationError
@@ -624,7 +733,18 @@ bool isAny(const Declaration& declaration)
 
 typedef bool (*LookupFilter)(const Declaration&);
 
-struct WalkerBase : public PrintingWalker
+
+struct WalkerContext
+{
+	Scope global;
+
+	WalkerContext() :
+	global(makeIdentifier("$global"), SCOPETYPE_NAMESPACE)
+	{
+	}
+};
+
+struct WalkerBase
 {
 	WalkerContext& context;
 	Scope* enclosing;
@@ -633,7 +753,7 @@ struct WalkerBase : public PrintingWalker
 	bool* ambiguity;
 
 	WalkerBase(WalkerContext& context)
-		: PrintingWalker(context.printer), context(context), enclosing(0), templateParams(0), templateEnclosing(0), ambiguity(0)
+		: context(context), enclosing(0), templateParams(0), templateEnclosing(0), ambiguity(0)
 	{
 	}
 
@@ -716,39 +836,6 @@ struct WalkerBase : public PrintingWalker
 		return &gUndeclared;
 	}
 
-	void printName(Scope* scope)
-	{
-		if(scope != 0
-			&& scope->parent != 0)
-		{
-			printName(scope->parent);
-			printer.out << getValue(scope->name) << "::";
-		}
-	}
-
-	void printName(Declaration* name)
-	{
-		if(name == 0)
-		{
-			printer.out << "<unknown>";
-		}
-		else
-		{
-			printName(name->scope);
-			printer.out << getValue(name->name);
-		}
-	}
-
-	void printName(const char* caption, Declaration* type, Declaration* name)
-	{
-		printer.out << "/* ";
-		printer.out << caption;
-		printName(type);
-		printer.out << ": ";
-		printName(name);
-		printer.out << " */";
-	}
-
 	Declaration* pointOfDeclaration(Scope* parent, const Identifier& name, Declaration* type, Scope* enclosed, DeclSpecifiers specifiers = DeclSpecifiers(), bool isTemplate = false, bool isTemplateSpecialization = false)
 	{
 		if(ambiguity != 0)
@@ -775,7 +862,6 @@ struct WalkerBase : public PrintingWalker
 				try
 				{
 					const Declaration& primary = getPrimaryDeclaration(*declaration, other);
-					printName("redeclared: ", type, declaration);
 					if(&primary == declaration)
 					{
 						return declaration;
@@ -792,7 +878,6 @@ struct WalkerBase : public PrintingWalker
 		}
 		parent->declarations.push_front(other);
 		Declaration* result = &parent->declarations.front();
-		printName("", type, result);
 		return result;
 	}
 
@@ -843,13 +928,7 @@ struct WalkerBase : public PrintingWalker
 			throw IdentifierMismatch(id, declaration, expected);
 		}
 		printIdentifierMismatch(IdentifierMismatch(id, declaration, expected));
-#if 0
-		printPosition(id.position);
-		std::cout << "'" << getValue(id) << "' was not declared" << std::endl;
-		printer.out << "/* undeclared: " << getValue(id) << " */";
-#endif
 		printScope(*enclosing);
-
 		throw SemanticError();
 	}
 
@@ -907,7 +986,7 @@ const char* getIdentifierType(IdentifierFunc func)
 #define SYMBOL_NAME(T) (typeid(T).name() + 12)
 
 template<typename Walker, typename T>
-inline void walkAmbiguity(Walker& walker, cpp::ambiguity<T>* symbol)
+inline T* walkAmbiguity(Walker& walker, cpp::ambiguity<T>* symbol)
 {
 	semanticBreak();
 	bool ambiguousDeclaration = false;
@@ -919,7 +998,7 @@ inline void walkAmbiguity(Walker& walker, cpp::ambiguity<T>* symbol)
 		walker.ambiguity = &ambiguousDeclaration;
 		symbol->first->accept(walker);
 		walker.ambiguity = 0;
-		return;
+		return symbol->first;
 	}
 	catch(IdentifierMismatch& e)
 	{
@@ -934,7 +1013,7 @@ inline void walkAmbiguity(Walker& walker, cpp::ambiguity<T>* symbol)
 		walker.ambiguity = &ambiguousDeclaration;
 		symbol->second->accept(walker);
 		walker.ambiguity = 0;
-		return;
+		return symbol->second;
 	}
 	catch(IdentifierMismatch& e)
 	{
@@ -957,23 +1036,16 @@ inline void walkAmbiguity(Walker& walker, cpp::ambiguity<T>* symbol)
 #define TREEWALKER_DEFAULT \
 	void visit(cpp::terminal_identifier symbol) \
 	{ \
-		printer.printToken(boost::wave::T_IDENTIFIER, symbol.value); \
 	} \
 	void visit(cpp::terminal_string symbol) \
 	{ \
-		printer.printToken(boost::wave::T_STRINGLIT, symbol.value); \
 	} \
 	void visit(cpp::terminal_choice2 symbol) \
 	{ \
-		printer.printToken(symbol.id, symbol.value); \
 	} \
 	template<LexTokenId id> \
 	void visit(cpp::terminal<id> symbol) \
 	{ \
-		if(symbol.value != 0) \
-		{ \
-			printer.printToken(id, symbol.value); \
-		} \
 	} \
 	template<typename T> \
 	void visit(T* symbol) \
@@ -991,7 +1063,10 @@ inline void walkAmbiguity(Walker& walker, cpp::ambiguity<T>* symbol)
 	template<typename T> \
 	void visit(cpp::ambiguity<T>* symbol) \
 	{ \
-		walkAmbiguity(*this, symbol); \
+		if(walkAmbiguity(*this, symbol) != symbol->first) \
+		{ \
+			std::swap(symbol->first, symbol->second); \
+		} \
 	}
 
 bool isUnqualified(cpp::elaborated_type_specifier_default* symbol)
@@ -1070,7 +1145,10 @@ struct NamespaceNameWalker : public WalkerBase
 		{
 			reportIdentifierMismatch(symbol->value, declaration, "namespace-name");
 		}
-		printSymbol(symbol);
+		else
+		{
+			symbol->value.dec.p = declaration;
+		}
 	}
 };
 
@@ -1092,12 +1170,14 @@ struct TemplateIdWalker : public WalkerBase
 		{
 			reportIdentifierMismatch(symbol->value, declaration, "template-name");
 		}
-		printSymbol(symbol);
+		else
+		{
+			symbol->value.dec.p = declaration;
+		}
 	}
 	void visit(cpp::template_argument_list* symbol)
 	{
 		// TODO
-		printSymbol(symbol);
 	}
 };
 
@@ -1119,7 +1199,10 @@ struct TypeNameWalker : public WalkerBase
 		{
 			reportIdentifierMismatch(symbol->value, declaration, "type-name");
 		}
-		printSymbol(symbol);
+		else
+		{
+			symbol->value.dec.p = declaration;
+		}
 	}
 	void visit(cpp::simple_template_id* symbol)
 	{
@@ -1207,7 +1290,6 @@ struct TypeSpecifierWalker : public WalkerBase
 	{
 		// TODO
 		declaration = &gBuiltin;
-		printSymbol(symbol);
 	}
 };
 
@@ -1215,9 +1297,9 @@ struct DeclaratorIdWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Identifier id;
+	Identifier* id;
 	DeclaratorIdWalker(const WalkerBase& base)
-		: WalkerBase(base), id(makeIdentifier("$anonymous"))
+		: WalkerBase(base), id(&gAnonymousId)
 	{
 	}
 
@@ -1236,8 +1318,7 @@ struct DeclaratorIdWalker : public WalkerBase
 	}
 	void visit(cpp::identifier* symbol)
 	{
-		id = symbol->value;
-		printSymbol(symbol);
+		id = &symbol->value;
 	}
 	void visit(cpp::nested_name_specifier* symbol)
 	{
@@ -1247,32 +1328,28 @@ struct DeclaratorIdWalker : public WalkerBase
 	}
 	void visit(cpp::simple_template_id* symbol) 
 	{
-		id = symbol->id->value;
-		printSymbol(symbol);
+		// TODO: args
+		id = &symbol->id->value;
 	}
 	void visit(cpp::operator_function_id* symbol) 
 	{
 		// TODO
-		id = makeIdentifier("operator <op>");
-		printSymbol(symbol);
+		id = &gOperatorFunctionId;
 	}
 	void visit(cpp::conversion_function_id* symbol) 
 	{
 		// TODO
-		id = makeIdentifier("operator T");
-		printSymbol(symbol);
+		id = &gConversionFunctionId;
 	}
 	void visit(cpp::destructor_id* symbol) 
 	{
 		// TODO
-		id = makeIdentifier("~T");
-		printSymbol(symbol);
+		id = &gDestructorId;
 	}
 	void visit(cpp::template_id_operator_function* symbol) 
 	{
 		// TODO
-		id = makeIdentifier("operator () <>");
-		printSymbol(symbol);
+		id = &gOperatorFunctionTemplateId;
 	}
 };
 
@@ -1297,10 +1374,10 @@ struct DeclaratorWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Identifier id;
+	Identifier* id;
 	Scope* paramScope;
 	DeclaratorWalker(const WalkerBase& base)
-		: WalkerBase(base), id(makeIdentifier("$undefined")), paramScope(0)
+		: WalkerBase(base), id(&gAnonymousId), paramScope(0)
 	{
 	}
 
@@ -1324,7 +1401,7 @@ struct DeclaratorWalker : public WalkerBase
 	}
 	void visit(cpp::exception_specification* symbol)
 	{
-		printSymbol(symbol);
+		// TODO
 	}
 };
 
@@ -1370,9 +1447,9 @@ struct ClassHeadWalker : public WalkerBase
 
 	void visit(cpp::identifier* symbol)
 	{
-		printSymbol(symbol);
 		// 3.3.1.3 The point of declaration for a class first declared by a class-specifier is immediately after the identifier or simple-template-id (if any) in its class-head
 		declaration = pointOfDeclaration(enclosing, symbol->value, &gClass, enclosed, DeclSpecifiers(), enclosing == templateEnclosing);
+		symbol->value.dec.p = declaration;
 		SEMANTIC_ASSERT(enclosed != 0);
 		enclosed->name = declaration->name;
 	}
@@ -1385,9 +1462,9 @@ struct ClassHeadWalker : public WalkerBase
 	void visit(cpp::simple_template_id* symbol) 
 	{
 		// TODO: don't declare anything - this is a template (partial) specialisation
-		printSymbol(symbol);
 		// 3.3.1.3 The point of declaration for a class first declared by a class-specifier is immediately after the identifier or simple-template-id (if any) in its class-head
 		declaration = pointOfDeclaration(enclosing, symbol->id->value, &gClass, enclosed, DeclSpecifiers(), enclosing == templateEnclosing, true);
+		symbol->id->value.dec.p = declaration;
 		SEMANTIC_ASSERT(enclosed != 0);
 		enclosed->name = declaration->name;
 		// TODO args
@@ -1470,14 +1547,6 @@ struct ClassSpecifierWalker : public WalkerBase
 	{
 		for(DeferredSymbols::const_iterator i = deferred.begin(); i != deferred.end(); ++i)
 		{
-#if 0
-			printer.printToken(boost::wave::T_IDENTIFIER, getValue(declaration->name));
-			printer.printToken(boost::wave::T_COLON_COLON, "::");
-			printer.printToken(boost::wave::T_IDENTIFIER, "<deferred>");
-			printer.printToken(boost::wave::T_LEFTPAREN, "(");
-			printer.printToken(boost::wave::T_IDENTIFIER, "<params>");
-			printer.printToken(boost::wave::T_RIGHTPAREN, ")");
-#endif
 			(*i).func((*i).context, (*i).symbol);
 		}
 	};
@@ -1510,16 +1579,13 @@ struct ElaboratedTypeSpecifierWalker : public WalkerBase
 	void visit(cpp::class_key* symbol)
 	{
 		type = &gClass;
-		printSymbol(symbol);
 	}
 	void visit(cpp::enum_key* symbol)
 	{
 		type = &gEnum;
-		printSymbol(symbol);
 	}
 	void visit(cpp::identifier* symbol)
 	{
-		printSymbol(symbol);
 		/* 3.4.4-2
 		If the elaborated-type-specifier has no nested-name-specifier ...
 		... the identifier is looked up according to 3.4.1 but ignoring any non-type names that have been declared. If
@@ -1531,6 +1597,7 @@ struct ElaboratedTypeSpecifierWalker : public WalkerBase
 		declaration = findDeclaration(symbol->value, isType);
 		if(declaration != &gUndeclared)
 		{
+			symbol->value.dec.p = declaration;
 			/* 7.1.6.3-2
 			3.4.4 describes how name lookup proceeds for the identifier in an elaborated-type-specifier. If the identifier
 			resolves to a class-name or enum-name, the elaborated-type-specifier introduces it into the declaration the
@@ -1578,6 +1645,7 @@ struct ElaboratedTypeSpecifierWalker : public WalkerBase
 			smallest non-class, non-function-prototype scope that contains the declaration.
 			*/
 			declaration = pointOfDeclaration(getEltScope(), symbol->value, &gClass, 0, DeclSpecifiers(), enclosing == templateEnclosing);
+			symbol->value.dec.p = declaration;
 		}
 	}
 };
@@ -1622,7 +1690,6 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 	}
 	void visit(cpp::typename_specifier* symbol)
 	{
-		printSymbol(symbol);
 		declaration = &gTypename;
 	}
 	void visit(cpp::class_specifier* symbol)
@@ -1638,7 +1705,10 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 		// + anonymous enums
 		Identifier id = symbol->id.p != 0 ? symbol->id->value : IDENTIFIER_NULL;
 		declaration = pointOfDeclaration(enclosing, id, &gEnum, 0);
-		printSymbol(symbol);
+		if(symbol->id.p != 0)
+		{
+			symbol->id->value.dec.p = declaration;
+		}
 	}
 	void visit(cpp::decl_specifier_default* symbol)
 	{
@@ -1650,7 +1720,6 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 		{
 			specifiers.isFriend = true;
 		}
-		printSymbol(symbol);
 	}
 	void visit(cpp::storage_class_specifier* symbol)
 	{
@@ -1662,7 +1731,6 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 		{
 			specifiers.isExtern = true;
 		}
-		printSymbol(symbol);
 	}
 };
 
@@ -1808,11 +1876,16 @@ struct SimpleDeclarationWalker : public WalkerBase
 		symbol->accept(walker);
 		Declaration* declaration = pointOfDeclaration(
 			walker.enclosing,
-			type == &gCtor ? IDENTIFIER_CTOR : walker.id,
+			type == &gCtor ? IDENTIFIER_CTOR : *walker.id,
 			type,
 			specifiers.isTypedef ? type->enclosed : walker.paramScope,
 			specifiers,
 			enclosing == templateEnclosing); // 3.3.1.1
+		if(type != &gCtor
+			&& walker.id != &gAnonymousId)
+		{
+			walker.id->dec.p = declaration;
+		}
 		if(declaration->enclosed != 0)
 		{
 			declaration->enclosed->name = declaration->name;
@@ -1837,17 +1910,15 @@ struct SimpleDeclarationWalker : public WalkerBase
 	}
 	void visit(cpp::member_declarator_bitfield* symbol)
 	{
-		printSymbol(symbol);
 		if(symbol->id.p != 0)
 		{
-			pointOfDeclaration(enclosing, symbol->id->value, type, 0, specifiers); // 3.3.1.1
+			symbol->id->value.dec.p = pointOfDeclaration(enclosing, symbol->id->value, type, 0, specifiers); // 3.3.1.1
 		}
 	}
 
 	void visit(cpp::initializer* symbol)
 	{
 		// TODO
-		printSymbol(symbol);
 	}
 	template<typename Walker, typename T>
 	void walkDeferable(Walker& walker, T* symbol)
@@ -1855,9 +1926,6 @@ struct SimpleDeclarationWalker : public WalkerBase
 		// TODO: also defer name-lookup for default-arguments and initializers
 		if(deferred != 0)
 		{
-#if 0
-			printer.printToken(boost::wave::T_SEMICOLON, ";");
-#endif
 			deferred->push_back(makeDeferredSymbol(walker, symbol));
 		}
 		else
@@ -1894,8 +1962,8 @@ struct ForwardDeclarationWalker : public WalkerBase
 
 	void visit(cpp::elaborated_type_specifier_default* symbol)
 	{
-		printSymbol(symbol);
 		declaration = pointOfDeclaration(enclosing, symbol->id->value, &gClass, 0, DeclSpecifiers(), enclosing == templateEnclosing);
+		symbol->id->value.dec.p = declaration;
 	}
 };
 
@@ -1912,19 +1980,17 @@ struct TemplateDeclarationWalker : public WalkerBase
 	}
 	void visit(cpp::type_parameter_default* symbol)
 	{
-		printSymbol(symbol);
 		if(symbol->id != 0)
 		{
-			pointOfDeclaration(enclosing, symbol->id->value, paramType++, 0, DECLSPEC_TYPEDEF);
+			symbol->id->value.dec.p = pointOfDeclaration(enclosing, symbol->id->value, paramType++, 0, DECLSPEC_TYPEDEF);
 		}
 	}
 	void visit(cpp::type_parameter_template* symbol)
 	{
-		printSymbol(symbol);
 		// TODO
 		if(symbol->id != 0)
 		{
-			pointOfDeclaration(enclosing, symbol->id->value, paramType++, 0, DECLSPEC_TYPEDEF, true);
+			symbol->id->value.dec.p = pointOfDeclaration(enclosing, symbol->id->value, paramType++, 0, DECLSPEC_TYPEDEF, true);
 		}
 	}
 	void visit(cpp::parameter_declaration* symbol)
@@ -2021,12 +2087,13 @@ struct NamespaceWalker : public WalkerBase
 		pushScope(&context.global);
 	}
 
-	NamespaceWalker(WalkerBase& base, const Identifier& id)
+	NamespaceWalker(WalkerBase& base, Identifier& id)
 		: WalkerBase(base)
 	{
 		if(id.value != 0)
 		{
 			Declaration* declaration = pointOfDeclaration(enclosing, id, &gNamespace, 0);
+			id.dec.p = declaration;
 			if(declaration->enclosed == 0)
 			{
 				declaration->enclosed = new Scope(id, SCOPETYPE_NAMESPACE);
@@ -2054,32 +2121,31 @@ void printSymbol(cpp::declaration_seq* p, const char* path)
 {
 	try
 	{
-		WalkerContext context(path);
+		WalkerContext context;
 		Walker::NamespaceWalker walker(context);
 		walker.visit(makeSymbol(p));
+
+		SymbolPrinter printer(path);
+		printer.visit(makeSymbol(p));
 	}
 	catch(SemanticError&)
 	{
 	}
-#if 0
-	SymbolPrinter visitor(context);
-	visitor.visit(makeSymbol(p));
-#endif
 }
 
 void printSymbol(cpp::statement_seq* p, const char* path)
 {
 	try
 	{
-		WalkerContext context(path);
+		WalkerContext context;
 		Walker::NamespaceWalker walker(context);
 		walker.visit(makeSymbol(p));
+
+		SymbolPrinter printer(path);
+		printer.visit(makeSymbol(p));
 	}
 	catch(SemanticError&)
 	{
 	}
-#if 0
-	SymbolPrinter visitor(context);
-	visitor.visit(makeSymbol(p));
-#endif
+
 }
