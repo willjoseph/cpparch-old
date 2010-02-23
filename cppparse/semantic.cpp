@@ -14,6 +14,20 @@ namespace N
 	};
 }
 
+struct S
+{
+};
+
+template<typename First, typename Second>
+int f(First x, Second y);
+
+int x = f(S(), int());
+
+template<typename Second, typename First>
+int f(Second a, First b)
+{
+	return b;
+}
 
 #endif
 
@@ -106,6 +120,7 @@ struct Scope
 {
 	Scope* parent;
 	Identifier name;
+	size_t enclosedScopeCount; // number of scopes directly enclosed by this scope
 	typedef std::list<Declaration> Declarations;
 	Declarations declarations;
 	ScopeType type;
@@ -113,7 +128,7 @@ struct Scope
 	Bases bases;
 
 	Scope(Identifier name, ScopeType type)
-		: parent(0), name(name), type(type)
+		: parent(0), name(name), enclosedScopeCount(0), type(type)
 	{
 	}
 };
@@ -393,10 +408,10 @@ struct PrintingWalker
 	void printName(Scope* scope)
 	{
 		if(scope != 0
-			&& scope->parent != 0)
+			)//&& scope->parent != 0)
 		{
 			printName(scope->parent);
-			printer.out << getValue(scope->name) << "::";
+			printer.out << getValue(scope->name) << ".";
 		}
 	}
 
@@ -455,6 +470,13 @@ const char* escapeTerminal(cpp::terminal<id> symbol)
 const char* escapeTerminal(cpp::terminal_choice2 symbol)
 {
 	return escapeTerminal(symbol.id, symbol.value);
+}
+
+
+bool isPrimary(const Identifier& id)
+{
+	// TODO: optimise
+	return id.dec.p != 0 && id.position == id.dec.p->name.position;
 }
 
 struct SymbolPrinter : PrintingWalker
@@ -550,9 +572,25 @@ struct SymbolPrinter : PrintingWalker
 	void visit(cpp::identifier* symbol)
 	{
 		const char* type = symbol->value.dec.p != 0 ? getDeclarationType(*symbol->value.dec.p) : "unknown";
+		if(isPrimary(symbol->value))
+		{
+			printer.out << "<a name='";
+			printName(symbol->value.dec.p);
+			printer.out << "'></a>";
+		}
+		else
+		{
+			printer.out << "<a href='#";
+			printName(symbol->value.dec.p);
+			printer.out << "'>";
+		}
 		printer.out << "<" << type << ">";
 		symbol->accept(*this);
 		printer.out << "</" << type << ">";
+		if(!isPrimary(symbol->value))
+		{
+			printer.out << "</a>";
+		}
 	}
 
 	void visit(cpp::simple_type_specifier_builtin* symbol)
@@ -939,6 +977,22 @@ struct WalkerBase
 		{
 		}
 		return scope;
+	}
+
+	inline const char* getLocalScopeName(size_t index)
+	{
+		// TODO: handle unlimited adjacent enclosed scopes
+		switch(index)
+		{
+		case 1: return "$local1";
+		case 2: return "$local2";
+		case 3: return "$local3";
+		case 4: return "$local4";
+		case 5: return "$local5";
+		case 6: return "$local6";
+		case 7: return "$local7";
+		}
+		return "$local";
 	}
 };
 
@@ -1494,20 +1548,23 @@ struct MemberDeclarationWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
+	Declaration* declaration;
 	DeferredSymbols* deferred;
 	MemberDeclarationWalker(const WalkerBase& base, DeferredSymbols* deferred)
-		: WalkerBase(base), deferred(deferred)
+		: WalkerBase(base), declaration(0), deferred(deferred)
 	{
 	}
 	void visit(cpp::member_template_declaration* symbol)
 	{
 		TemplateDeclarationWalker walker(*this, deferred);
 		symbol->accept(walker);
+		declaration = walker.declaration;
 	}
 	void visit(cpp::member_declaration_implicit* symbol)
 	{
 		SimpleDeclarationWalker walker(*this, deferred);
 		symbol->accept(walker);
+		declaration = walker.declaration;
 	}
 	void visit(cpp::member_declaration_default* symbol)
 	{
@@ -1517,18 +1574,21 @@ struct MemberDeclarationWalker : public WalkerBase
 			ForwardDeclarationWalker walker(*this);
 			symbol->accept(walker);
 			SEMANTIC_ASSERT(walker.declaration != 0);
+			declaration = walker.declaration;
 		}
 		else
 		{
 			SimpleDeclarationWalker walker(*this, deferred);
 			symbol->accept(walker);
 			SEMANTIC_ASSERT(walker.type != 0);
+			declaration = walker.declaration;
 		}
 	}
 	void visit(cpp::member_declaration_nested* symbol)
 	{
 		SimpleDeclarationWalker walker(*this, deferred);
 		symbol->accept(walker);
+		declaration = walker.declaration;
 	}
 };
 
@@ -1768,6 +1828,11 @@ struct StatementWalker : public WalkerBase
 		ControlStatementWalker walker(*this);
 		symbol->accept(walker);
 	}
+	void visit(cpp::compound_statement* symbol)
+	{
+		CompoundStatementWalker walker(*this);
+		symbol->accept(walker);
+	}
 };
 
 struct ControlStatementWalker : public WalkerBase
@@ -1799,7 +1864,7 @@ struct CompoundStatementWalker : public WalkerBase
 	CompoundStatementWalker(const WalkerBase& base)
 		: WalkerBase(base)
 	{
-		pushScope(new Scope(makeIdentifier("local"), SCOPETYPE_LOCAL)); // local scope
+		pushScope(new Scope(makeIdentifier(getLocalScopeName(enclosing->enclosedScopeCount++)), SCOPETYPE_LOCAL)); // local scope
 	}
 
 	void visit(cpp::statement* symbol)
@@ -1846,11 +1911,12 @@ struct SimpleDeclarationWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	Declaration* type;
+	Declaration* declaration;
 	DeclSpecifiers specifiers;
 	DeferredSymbols* deferred;
 
 	SimpleDeclarationWalker(const WalkerBase& base, DeferredSymbols* deferred = 0)
-		: WalkerBase(base), type(&gCtor), deferred(deferred)
+		: WalkerBase(base), type(&gCtor), declaration(0), deferred(deferred)
 	{
 	}
 
@@ -1860,6 +1926,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		DeclSpecifierSeqWalker walker(*this);
 		symbol->accept(walker);
 		type = walker.declaration;
+		declaration = type; // if no declarator is specified later, this is probably a class-declaration
 		specifiers = walker.specifiers;
 	}
 	void visit(cpp::type_specifier_seq* symbol)
@@ -1867,6 +1934,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		DeclSpecifierSeqWalker walker(*this);
 		symbol->accept(walker);
 		type = walker.declaration;
+		declaration = type; // if no declarator is specified later, this is probably a class-declaration
 	}
 
 	template<typename T>
@@ -1874,11 +1942,15 @@ struct SimpleDeclarationWalker : public WalkerBase
 	{
 		DeclaratorWalker walker(*this);
 		symbol->accept(walker);
-		Declaration* declaration = pointOfDeclaration(
+		declaration = pointOfDeclaration(
 			walker.enclosing,
 			type == &gCtor ? IDENTIFIER_CTOR : *walker.id,
 			type,
+#if 0
+			walker.paramScope,
+#else	
 			specifiers.isTypedef ? type->enclosed : walker.paramScope,
+#endif
 			specifiers,
 			enclosing == templateEnclosing); // 3.3.1.1
 		if(type != &gCtor
@@ -1886,7 +1958,8 @@ struct SimpleDeclarationWalker : public WalkerBase
 		{
 			walker.id->dec.p = declaration;
 		}
-		if(declaration->enclosed != 0)
+		if(declaration->enclosed != 0
+			&& !specifiers.isTypedef)
 		{
 			declaration->enclosed->name = declaration->name;
 		}
@@ -1912,7 +1985,8 @@ struct SimpleDeclarationWalker : public WalkerBase
 	{
 		if(symbol->id.p != 0)
 		{
-			symbol->id->value.dec.p = pointOfDeclaration(enclosing, symbol->id->value, type, 0, specifiers); // 3.3.1.1
+			declaration = pointOfDeclaration(enclosing, symbol->id->value, type, 0, specifiers); // 3.3.1.1
+			symbol->id->value.dec.p = declaration;
 		}
 	}
 
@@ -1967,16 +2041,14 @@ struct ForwardDeclarationWalker : public WalkerBase
 	}
 };
 
-struct TemplateDeclarationWalker : public WalkerBase
+struct TemplateParameterListWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	DeferredSymbols* deferred;
 	Declaration* paramType;
-	TemplateDeclarationWalker(WalkerBase& base, DeferredSymbols* deferred = 0)
-		: WalkerBase(base), deferred(deferred), paramType(gTemplateParams)
+	TemplateParameterListWalker(WalkerBase& base)
+		: WalkerBase(base), paramType(gTemplateParams)
 	{
-		templateEnclosing = enclosing;
 	}
 	void visit(cpp::type_parameter_default* symbol)
 	{
@@ -1998,11 +2070,28 @@ struct TemplateDeclarationWalker : public WalkerBase
 		SimpleDeclarationWalker walker(*this);
 		symbol->accept(walker);
 	}
+};
+
+struct TemplateDeclarationWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	Declaration* declaration;
+	DeferredSymbols* deferred;
+	TemplateDeclarationWalker(WalkerBase& base, DeferredSymbols* deferred = 0)
+		: WalkerBase(base), declaration(0), deferred(deferred)
+	{
+		templateEnclosing = enclosing;
+	}
 	void visit(cpp::template_parameter_list* symbol)
 	{
+		// collect template-params into a new scope
 		Scope* params = new Scope(makeIdentifier("$params"), SCOPETYPE_TEMPLATE);
 		pushScope(params);
-		symbol->accept(*this);
+		TemplateParameterListWalker walker(*this);
+		symbol->accept(walker);
+		// move template-param scope onto special stack
+		// NOTE: cannot inject template-params into scope of class/function, because template params may be named differently in multiple declarations of same class/function.
 		enclosing = params->parent;
 		pushTemplateParams(params);
 	}
@@ -2010,11 +2099,25 @@ struct TemplateDeclarationWalker : public WalkerBase
 	{
 		DeclarationWalker walker(*this);
 		symbol->accept(walker);
+		declaration = walker.declaration;
+		SEMANTIC_ASSERT(declaration != 0);
+		if(templateParams != 0) // explicit-specialization has no params
+		{
+			templateParams->name = declaration->name;
+			templateParams->parent = declaration->scope;
+		}
 	}
 	void visit(cpp::member_declaration* symbol)
 	{
 		MemberDeclarationWalker walker(*this, deferred);
 		symbol->accept(walker);
+		declaration = walker.declaration;
+		SEMANTIC_ASSERT(declaration != 0);
+		if(templateParams != 0) // explicit-specialization has no params
+		{
+			templateParams->name = declaration->name;
+			templateParams->parent = declaration->scope;
+		}
 	}
 };
 
@@ -2022,14 +2125,16 @@ struct DeclarationWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
+	Declaration* declaration;
 	DeclarationWalker(WalkerBase& base)
-		: WalkerBase(base)
+		: WalkerBase(base), declaration(0)
 	{
 	}
 	void visit(cpp::namespace_definition* symbol)
 	{
 		NamespaceWalker walker(*this, symbol->id != 0 ? symbol->id->value : IDENTIFIER_NULL);
 		symbol->accept(walker);
+		declaration = walker.declaration;
 	}
 	void visit(cpp::general_declaration* symbol)
 	{
@@ -2039,12 +2144,14 @@ struct DeclarationWalker : public WalkerBase
 			ForwardDeclarationWalker walker(*this);
 			symbol->accept(walker);
 			SEMANTIC_ASSERT(walker.declaration != 0);
+			declaration = walker.declaration;
 		}
 		else
 		{
 			SimpleDeclarationWalker walker(*this);
 			symbol->accept(walker);
 			SEMANTIC_ASSERT(walker.type != 0);
+			declaration = walker.declaration;
 		}
 	}
 	// occurs in for-init-statement
@@ -2056,23 +2163,27 @@ struct DeclarationWalker : public WalkerBase
 			ForwardDeclarationWalker walker(*this);
 			symbol->accept(walker);
 			SEMANTIC_ASSERT(walker.declaration != 0);
+			declaration = walker.declaration;
 		}
 		else
 		{
 			SimpleDeclarationWalker walker(*this);
 			symbol->accept(walker);
 			SEMANTIC_ASSERT(walker.type != 0);
+			declaration = walker.declaration;
 		}
 	}
 	void visit(cpp::template_declaration* symbol)
 	{
 		TemplateDeclarationWalker walker(*this);
 		symbol->accept(walker);
+		declaration = walker.declaration;
 	}
 	void visit(cpp::explicit_specialization* symbol)
 	{
 		TemplateDeclarationWalker walker(*this);
 		symbol->accept(walker);
+		declaration = walker.declaration;
 	}
 };
 
@@ -2080,9 +2191,9 @@ struct NamespaceWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-
+	Declaration* declaration;
 	NamespaceWalker(WalkerContext& context)
-		: WalkerBase(context)
+		: WalkerBase(context), declaration(0)
 	{
 		pushScope(&context.global);
 	}
@@ -2092,7 +2203,7 @@ struct NamespaceWalker : public WalkerBase
 	{
 		if(id.value != 0)
 		{
-			Declaration* declaration = pointOfDeclaration(enclosing, id, &gNamespace, 0);
+			declaration = pointOfDeclaration(enclosing, id, &gNamespace, 0);
 			id.dec.p = declaration;
 			if(declaration->enclosed == 0)
 			{

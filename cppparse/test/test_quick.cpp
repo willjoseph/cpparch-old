@@ -1,4 +1,66 @@
 
+
+template<typename A>
+class Template7
+{
+	template<typename B>
+	void f(B);
+};
+
+template<typename X>
+template<typename Y>
+void Template7::f(Y)
+{
+}
+
+
+template<typename First, typename Second>
+int f(First x, Second y);
+
+struct S
+{
+};
+
+int x = f(S(), int());
+
+template<typename Second, typename First>
+int f(Second a, First b)
+{
+	return b;
+}
+
+
+namespace std
+{
+
+	template<class _Ty> inline
+		void swap(_Ty& _Left, _Ty& _Right)
+	{	// exchange values stored at _Left and _Right
+		_Ty _Tmp = _Left;
+		_Left = _Right, _Right = _Tmp;
+	}
+
+	// TEMPLATE STRUCT pair
+	template<class _Ty1,
+	class _Ty2> struct pair
+	{	// store a pair of values
+		typedef pair<_Ty1, _Ty2> _Myt;
+		typedef _Ty1 first_type;
+		typedef _Ty2 second_type;
+
+		void swap(_Myt& _Right)
+		{	// exchange contents with _Right
+			std::swap(first, _Right.first);
+			std::swap(second, _Right.second);
+		}
+
+		_Ty1 first;	// the first stored value
+		_Ty2 second;	// the second stored value
+	};
+}
+
+
+
 struct Base3
 {
 	typedef int I;
@@ -25,6 +87,18 @@ typedef struct _MIDL_SYNTAX_INFO
 } MIDL_SYNTAX_INFO;
 
 
+
+void f()
+{
+	{
+		typedef int T;
+		T i;
+	}
+	{
+		typedef float T;
+		T f;
+	}
+}
 
 
 
@@ -231,34 +305,6 @@ void f()
 	S *p;
 }
 
-namespace std
-{
-
-template<class _Ty> inline
-	void swap(_Ty& _Left, _Ty& _Right)
-	{	// exchange values stored at _Left and _Right
-	_Ty _Tmp = _Left;
-	_Left = _Right, _Right = _Tmp;
-	}
-
-		// TEMPLATE STRUCT pair
-template<class _Ty1,
-	class _Ty2> struct pair
-	{	// store a pair of values
-	typedef pair<_Ty1, _Ty2> _Myt;
-	typedef _Ty1 first_type;
-	typedef _Ty2 second_type;
-
-	void swap(_Myt& _Right)
-		{	// exchange contents with _Right
-		std::swap(first, _Right.first);
-		std::swap(second, _Right.second);
-		}
-
-	_Ty1 first;	// the first stored value
-	_Ty2 second;	// the second stored value
-};
-}
 
 class C3
 {
