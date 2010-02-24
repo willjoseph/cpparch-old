@@ -1634,6 +1634,27 @@ struct ClassSpecifierWalker : public WalkerBase
 	}
 };
 
+struct EnumSpecifierWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	EnumSpecifierWalker(const WalkerBase& base)
+		: WalkerBase(base)
+	{
+	}
+
+	void visit(cpp::enumerator_definition* symbol)
+	{
+		// TODO: init
+		/* 3.1-4
+		The point of declaration for an enumerator is immediately after its enumerator-definition.
+		*/
+		// TODO: give enumerators a type
+		Declaration* declaration = pointOfDeclaration(enclosing, symbol->id->value, &gBuiltin, 0, DeclSpecifiers());
+		symbol->id->value.dec.p = declaration;
+	}
+};
+
 struct ElaboratedTypeSpecifierWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
@@ -1769,14 +1790,14 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 	}
 	void visit(cpp::enum_specifier* symbol)
 	{
-		// TODO 
-		// + anonymous enums
 		Identifier id = symbol->id.p != 0 ? symbol->id->value : makeIdentifier(enclosing->getUniqueName());
 		declaration = pointOfDeclaration(enclosing, id, &gEnum, 0);
 		if(symbol->id.p != 0)
 		{
 			symbol->id->value.dec.p = declaration;
 		}
+		EnumSpecifierWalker walker(*this);
+		symbol->accept(walker);
 	}
 	void visit(cpp::decl_specifier_default* symbol)
 	{
