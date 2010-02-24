@@ -107,6 +107,17 @@ struct Declaration
 	}
 };
 
+struct UniqueName
+{
+	char buffer[10];
+	UniqueName(size_t index)
+	{
+		sprintf(buffer, "$%x", index);
+	}
+};
+typedef std::vector<UniqueName*> UniqueNames;
+UniqueNames gUniqueNames;
+
 enum ScopeType
 {
 	SCOPETYPE_NAMESPACE,
@@ -130,6 +141,15 @@ struct Scope
 	Scope(Identifier name, ScopeType type)
 		: parent(0), name(name), enclosedScopeCount(0), type(type)
 	{
+	}
+
+	const char* getUniqueName()
+	{
+		if(enclosedScopeCount == gUniqueNames.size())
+		{
+			gUniqueNames.push_back(new UniqueName(enclosedScopeCount));
+		}
+		return gUniqueNames[enclosedScopeCount++]->buffer;
 	}
 };
 
@@ -982,30 +1002,6 @@ struct WalkerBase
 		}
 		return scope;
 	}
-
-	inline const char* getScopeName(size_t index)
-	{
-		// TODO: handle unlimited adjacent unnamed scopes
-		switch(index)
-		{
-		case 1: return "$1";
-		case 2: return "$2";
-		case 3: return "$3";
-		case 4: return "$4";
-		case 5: return "$5";
-		case 6: return "$6";
-		case 7: return "$7";
-		case 8: return "$8";
-		case 9: return "$9";
-		case 10: return "$A";
-		case 11: return "$B";
-		case 12: return "$C";
-		case 13: return "$D";
-		case 14: return "$E";
-		case 15: return "$F";
-		}
-		return "$0";
-	}
 };
 
 typedef bool (*IdentifierFunc)(const Declaration& declaration);
@@ -1537,7 +1533,7 @@ struct ClassHeadWalker : public WalkerBase
 	}
 	void visit(cpp::class_head_anonymous* symbol)
 	{
-		declaration = pointOfDeclaration(enclosing, makeIdentifier(getScopeName(enclosing->enclosedScopeCount++)), &gClass, enclosed);
+		declaration = pointOfDeclaration(enclosing, makeIdentifier(enclosing->getUniqueName()), &gClass, enclosed);
 		SEMANTIC_ASSERT(enclosed != 0);
 		enclosed->name = declaration->name;
 		symbol->accept(*this);
@@ -1775,7 +1771,7 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 	{
 		// TODO 
 		// + anonymous enums
-		Identifier id = symbol->id.p != 0 ? symbol->id->value : makeIdentifier(getScopeName(enclosing->enclosedScopeCount++));
+		Identifier id = symbol->id.p != 0 ? symbol->id->value : makeIdentifier(enclosing->getUniqueName());
 		declaration = pointOfDeclaration(enclosing, id, &gEnum, 0);
 		if(symbol->id.p != 0)
 		{
@@ -1876,7 +1872,7 @@ struct CompoundStatementWalker : public WalkerBase
 	CompoundStatementWalker(const WalkerBase& base)
 		: WalkerBase(base)
 	{
-		pushScope(new Scope(makeIdentifier(getScopeName(enclosing->enclosedScopeCount++)), SCOPETYPE_LOCAL)); // local scope
+		pushScope(new Scope(makeIdentifier(enclosing->getUniqueName()), SCOPETYPE_LOCAL)); // local scope
 	}
 
 	void visit(cpp::statement* symbol)
