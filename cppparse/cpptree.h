@@ -1603,7 +1603,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(unqualified_id);
 		terminal<boost::wave::T_COMPL> compl;
-		symbol<class_name> name;
+		symbol<identifier> name;
 		FOREACH2(compl, name);
 	};
 

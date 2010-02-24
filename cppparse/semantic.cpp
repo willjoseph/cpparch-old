@@ -167,8 +167,6 @@ const char* getValue(const Identifier& id)
 }
 
 
-const Identifier IDENTIFIER_CTOR = makeIdentifier("$ctor");
-
 // special-case
 Declaration gUndeclared(0, makeIdentifier("$undeclared"), 0, 0);
 Declaration gFriend(0, makeIdentifier("$friend"), 0, 0);
@@ -202,7 +200,6 @@ Declaration gTemplateParams[] =
 // objects
 Identifier gOperatorFunctionId = makeIdentifier("operator <op>");
 Identifier gConversionFunctionId = makeIdentifier("operator T");
-Identifier gDestructorId = makeIdentifier("~T");
 Identifier gOperatorFunctionTemplateId = makeIdentifier("operator () <>");
 // TODO: don't declare if id is anonymous?
 Identifier gAnonymousId = makeIdentifier("$anonymous");
@@ -790,7 +787,7 @@ void printScope(const Scope& scope)
 
 bool isAny(const Declaration& declaration)
 {
-	return true;
+	return declaration.type != &gCtor;
 }
 
 typedef bool (*LookupFilter)(const Declaration&);
@@ -880,16 +877,16 @@ struct WalkerBase
 
 	Declaration* findDeclaration(const Identifier& id, LookupFilter filter = isAny)
 	{
+		if(templateParams != 0)
 		{
-			Declaration* result = findDeclaration(*enclosing, id, filter);
+			Declaration* result = findDeclaration(*templateParams, id, filter);
 			if(result != 0)
 			{
 				return result;
 			}
 		}
-		if(templateParams != 0)
 		{
-			Declaration* result = findDeclaration(*templateParams, id, filter);
+			Declaration* result = findDeclaration(*enclosing, id, filter);
 			if(result != 0)
 			{
 				return result;
@@ -1405,8 +1402,7 @@ struct DeclaratorIdWalker : public WalkerBase
 	}
 	void visit(cpp::destructor_id* symbol) 
 	{
-		// TODO
-		id = &gDestructorId;
+		id = &symbol->name->value;
 	}
 	void visit(cpp::template_id_operator_function* symbol) 
 	{
@@ -1973,7 +1969,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		symbol->accept(walker);
 		declaration = pointOfDeclaration(
 			walker.enclosing,
-			type == &gCtor ? IDENTIFIER_CTOR : *walker.id,
+			*walker.id,
 			type,
 #if 0
 			walker.paramScope,
@@ -1982,8 +1978,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 #endif
 			specifiers,
 			enclosing == templateEnclosing); // 3.3.1.1
-		if(type != &gCtor
-			&& walker.id != &gAnonymousId)
+		if(walker.id != &gAnonymousId)
 		{
 			walker.id->dec.p = declaration;
 		}
