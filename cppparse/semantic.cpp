@@ -408,7 +408,7 @@ struct PrintingWalker
 	void printName(Scope* scope)
 	{
 		if(scope != 0
-			)//&& scope->parent != 0)
+			&& scope->parent != 0)
 		{
 			printName(scope->parent);
 			printer.out << getValue(scope->name) << ".";
@@ -571,6 +571,8 @@ struct SymbolPrinter : PrintingWalker
 
 	void visit(cpp::identifier* symbol)
 	{
+		printer.formatToken(boost::wave::T_IDENTIFIER);
+
 		const char* type = symbol->value.dec.p != 0 ? getDeclarationType(*symbol->value.dec.p) : "unknown";
 		if(isPrimary(symbol->value))
 		{
@@ -585,7 +587,7 @@ struct SymbolPrinter : PrintingWalker
 			printer.out << "'>";
 		}
 		printer.out << "<" << type << ">";
-		symbol->accept(*this);
+		printer.out << getValue(symbol->value);
 		printer.out << "</" << type << ">";
 		if(!isPrimary(symbol->value))
 		{
@@ -595,8 +597,10 @@ struct SymbolPrinter : PrintingWalker
 
 	void visit(cpp::simple_type_specifier_builtin* symbol)
 	{
+		printer.formatToken(symbol->value.id);
+
 		printer.out << "<type>";
-		symbol->accept(*this);
+		printer.out << symbol->value.value;
 		printer.out << "</type>";
 	}
 };
@@ -979,20 +983,28 @@ struct WalkerBase
 		return scope;
 	}
 
-	inline const char* getLocalScopeName(size_t index)
+	inline const char* getScopeName(size_t index)
 	{
-		// TODO: handle unlimited adjacent enclosed scopes
+		// TODO: handle unlimited adjacent unnamed scopes
 		switch(index)
 		{
-		case 1: return "$local1";
-		case 2: return "$local2";
-		case 3: return "$local3";
-		case 4: return "$local4";
-		case 5: return "$local5";
-		case 6: return "$local6";
-		case 7: return "$local7";
+		case 1: return "$1";
+		case 2: return "$2";
+		case 3: return "$3";
+		case 4: return "$4";
+		case 5: return "$5";
+		case 6: return "$6";
+		case 7: return "$7";
+		case 8: return "$8";
+		case 9: return "$9";
+		case 10: return "$A";
+		case 11: return "$B";
+		case 12: return "$C";
+		case 13: return "$D";
+		case 14: return "$E";
+		case 15: return "$F";
 		}
-		return "$local";
+		return "$0";
 	}
 };
 
@@ -1525,7 +1537,7 @@ struct ClassHeadWalker : public WalkerBase
 	}
 	void visit(cpp::class_head_anonymous* symbol)
 	{
-		declaration = pointOfDeclaration(enclosing, IDENTIFIER_NULL, &gClass, enclosed);
+		declaration = pointOfDeclaration(enclosing, makeIdentifier(getScopeName(enclosing->enclosedScopeCount++)), &gClass, enclosed);
 		SEMANTIC_ASSERT(enclosed != 0);
 		enclosed->name = declaration->name;
 		symbol->accept(*this);
@@ -1763,7 +1775,7 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 	{
 		// TODO 
 		// + anonymous enums
-		Identifier id = symbol->id.p != 0 ? symbol->id->value : IDENTIFIER_NULL;
+		Identifier id = symbol->id.p != 0 ? symbol->id->value : makeIdentifier(getScopeName(enclosing->enclosedScopeCount++));
 		declaration = pointOfDeclaration(enclosing, id, &gEnum, 0);
 		if(symbol->id.p != 0)
 		{
@@ -1864,7 +1876,7 @@ struct CompoundStatementWalker : public WalkerBase
 	CompoundStatementWalker(const WalkerBase& base)
 		: WalkerBase(base)
 	{
-		pushScope(new Scope(makeIdentifier(getLocalScopeName(enclosing->enclosedScopeCount++)), SCOPETYPE_LOCAL)); // local scope
+		pushScope(new Scope(makeIdentifier(getScopeName(enclosing->enclosedScopeCount++)), SCOPETYPE_LOCAL)); // local scope
 	}
 
 	void visit(cpp::statement* symbol)

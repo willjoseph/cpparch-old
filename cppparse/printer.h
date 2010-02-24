@@ -39,15 +39,15 @@ struct TokenPrinter
 		templateDeclarationDepth = id == boost::wave::T_TEMPLATE;
 		++line;
 	}
-	void printToken(LexTokenId id, const char* value)
+	void formatToken(LexTokenId id)
 	{
 		if((prev == boost::wave::T_SEMICOLON
-				&& id != boost::wave::T_RIGHTBRACE)
+			&& id != boost::wave::T_RIGHTBRACE)
 			|| (prev == boost::wave::T_LEFTBRACE
-				&& id != boost::wave::T_RIGHTBRACE)
+			&& id != boost::wave::T_RIGHTBRACE)
 			|| (prev == boost::wave::T_RIGHTBRACE
-				&& id != boost::wave::T_RIGHTBRACE
-				&& id != boost::wave::T_SEMICOLON)
+			&& id != boost::wave::T_RIGHTBRACE
+			&& id != boost::wave::T_SEMICOLON)
 			|| (id == boost::wave::T_MSEXT_ASM))
 		{
 			nextLine(id);
@@ -111,10 +111,14 @@ struct TokenPrinter
 			out << " ";
 		}
 
-		out << value;
-
 		prevprev = prev;
 		prev = id;
+	}
+
+	void printToken(LexTokenId id, const char* value)
+	{
+		formatToken(id);
+		out << value;
 	}
 };
 
