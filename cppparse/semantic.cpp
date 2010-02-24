@@ -314,6 +314,12 @@ bool isNamespace(const Declaration& declaration)
 	return declaration.type == &gNamespace;
 }
 
+bool isObject(const Declaration& declaration)
+{
+	return !isType(declaration)
+		&& !isNamespace(declaration);
+}
+
 bool isExtern(const Declaration& declaration)
 {
 	return declaration.specifiers.isExtern;
@@ -728,15 +734,6 @@ struct IdentifierMismatch
 	}
 };
 
-void printIdentifierMismatch(const IdentifierMismatch& e)
-{
-	printPosition(e.id.position);
-	std::cout << "'" << getValue(e.id) << "' expected " << e.expected << ", " << (e.declaration == &gUndeclared ? " was undeclared" : "was declared here:") << std::endl;
-	if(e.declaration != &gUndeclared)
-	{
-		printPosition(e.declaration->name.position);
-	}
-}
 
 
 void printDeclarations(const Scope::Declarations& declarations)
@@ -781,6 +778,17 @@ void printScope(const Scope& scope)
 	if(scope.parent != 0)
 	{
 		printScope(*scope.parent);
+	}
+}
+
+void printIdentifierMismatch(const IdentifierMismatch& e)
+{
+	printPosition(e.id.position);
+	std::cout << "'" << getValue(e.id) << "' expected " << e.expected << ", " << (e.declaration == &gUndeclared ? "was undeclared" : "was declared here:") << std::endl;
+	if(e.declaration != &gUndeclared)
+	{
+		printPosition(e.declaration->name.position);
+		std::cout << std::endl;
 	}
 }
 
@@ -987,7 +995,7 @@ struct WalkerBase
 			throw IdentifierMismatch(id, declaration, expected);
 		}
 		printIdentifierMismatch(IdentifierMismatch(id, declaration, expected));
-		printScope(*enclosing);
+		printScope();
 		throw SemanticError();
 	}
 
@@ -998,6 +1006,17 @@ struct WalkerBase
 		{
 		}
 		return scope;
+	}
+
+	void printScope()
+	{
+		if(templateParams != 0)
+		{
+			std::cout << "template-params:" << std::endl;
+			::printScope(*templateParams);
+		}
+		std::cout << "enclosing:" << std::endl;
+		::printScope(*enclosing);
 	}
 };
 
@@ -1085,8 +1104,10 @@ inline T* walkAmbiguity(Walker& walker, cpp::ambiguity<T>* symbol)
 	{
 		std::cout << "first:" << std::endl;
 		printIdentifierMismatch(first);
+		walker.printScope();
 		std::cout << "second:" << std::endl;
 		printIdentifierMismatch(second);
+		walker.printScope();
 		throw SemanticError();
 	}
 	throw first;
@@ -1211,6 +1232,118 @@ struct NamespaceNameWalker : public WalkerBase
 	}
 };
 
+struct TypeIdWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	Declaration* type;
+	TypeIdWalker(const WalkerBase& base)
+		: WalkerBase(base), type(0)
+	{
+	}
+	void visit(cpp::type_specifier_seq* symbol)
+	{
+		DeclSpecifierSeqWalker walker(*this);
+		symbol->accept(walker);
+		type = walker.declaration;
+	}
+};
+
+struct UnqualifiedIdWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	UnqualifiedIdWalker(const WalkerBase& base)
+		: WalkerBase(base)
+	{
+	}
+	void visit(cpp::identifier* symbol)
+	{
+		Declaration* declaration = findDeclaration(symbol->value, isObject);
+		if(declaration != &gUndeclared)
+		{
+			symbol->value.dec.p = declaration;
+		}
+	}
+	void visit(cpp::template_id* symbol)
+	{
+		// TODO
+	}
+	void visit(cpp::destructor_id* symbol)
+	{
+		// TODO
+	}
+};
+
+struct IdExpressionWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	IdExpressionWalker(const WalkerBase& base)
+		: WalkerBase(base)
+	{
+	}
+	void visit(cpp::qualified_id* symbol)
+	{
+		// TODO
+	}
+	void visit(cpp::unqualified_id* symbol)
+	{
+		// TODO
+		UnqualifiedIdWalker walker(*this);
+		symbol->accept(walker);
+	}
+};
+
+struct ExpressionWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	ExpressionWalker(const WalkerBase& base)
+		: WalkerBase(base)
+	{
+	}
+	void visit(cpp::type_id* symbol)
+	{
+		// TODO
+		TypeIdWalker walker(*this);
+		symbol->accept(walker);
+	}
+	void visit(cpp::simple_type_specifier* symbol)
+	{
+		TypeSpecifierWalker walker(*this);
+		symbol->accept(walker);
+	}
+	void visit(cpp::id_expression* symbol)
+	{
+		// TODO
+		IdExpressionWalker walker(*this);
+		symbol->accept(walker);
+	}
+};
+
+struct TemplateArgumentWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	TemplateArgumentWalker(const WalkerBase& base)
+		: WalkerBase(base)
+	{
+	}
+	void visit(cpp::type_id* symbol)
+	{
+		// TODO: store argument
+		TypeIdWalker walker(*this);
+		symbol->accept(walker);
+	}
+	void visit(cpp::assignment_expression* symbol)
+	{
+		// TODO: store argument
+		ExpressionWalker walker(*this);
+		symbol->accept(walker);
+	}
+};
+
 struct TemplateIdWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
@@ -1236,7 +1369,9 @@ struct TemplateIdWalker : public WalkerBase
 	}
 	void visit(cpp::template_argument_list* symbol)
 	{
-		// TODO
+		// TODO: store list of arguments
+		TemplateArgumentWalker walker(*this);
+		symbol->accept(walker);
 	}
 };
 
@@ -1858,6 +1993,11 @@ struct StatementWalker : public WalkerBase
 		CompoundStatementWalker walker(*this);
 		symbol->accept(walker);
 	}
+	void visit(cpp::expression_statement* symbol)
+	{
+		ExpressionWalker walker(*this);
+		symbol->accept(walker);
+	}
 };
 
 struct ControlStatementWalker : public WalkerBase
@@ -2128,7 +2268,8 @@ struct TemplateDeclarationWalker : public WalkerBase
 		if(templateParams != 0) // explicit-specialization has no params
 		{
 			templateParams->name = declaration->name;
-			templateParams->parent = declaration->scope;
+			// TODO
+			//templateParams->parent = declaration->scope;
 		}
 	}
 	void visit(cpp::member_declaration* symbol)
@@ -2140,7 +2281,8 @@ struct TemplateDeclarationWalker : public WalkerBase
 		if(templateParams != 0) // explicit-specialization has no params
 		{
 			templateParams->name = declaration->name;
-			templateParams->parent = declaration->scope;
+			// TODO
+			//templateParams->parent = declaration->scope;
 		}
 	}
 };

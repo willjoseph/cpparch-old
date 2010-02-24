@@ -149,7 +149,7 @@ namespace cpp
 		VISITABLE_BASE(VISITORFUNCLIST4(
 			SYMBOLFWD(type_id),
 			SYMBOLFWD(assignment_expression),
-			SYMBOLFWD(id_expression),
+			SYMBOLFWD(id_expression), // TODO: assignment-expression contains id-expression
 			ambiguity<template_argument>*
 		));
 	};
