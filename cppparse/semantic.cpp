@@ -71,6 +71,8 @@ inline Identifier makeIdentifier(const char* value)
 	return result;
 }
 
+Identifier IDENTIFIER_NULL = makeIdentifier(0);
+
 struct Scope;
 
 struct DeclSpecifiers
@@ -120,6 +122,7 @@ UniqueNames gUniqueNames;
 
 enum ScopeType
 {
+	SCOPETYPE_UNKNOWN,
 	SCOPETYPE_NAMESPACE,
 	SCOPETYPE_PROTOTYPE,
 	SCOPETYPE_LOCAL,
@@ -138,7 +141,7 @@ struct Scope
 	typedef std::vector<Scope*> Bases;
 	Bases bases;
 
-	Scope(Identifier name, ScopeType type)
+	Scope(const Identifier& name, ScopeType type = SCOPETYPE_UNKNOWN)
 		: parent(0), name(name), enclosedScopeCount(0), type(type)
 	{
 	}
@@ -159,7 +162,6 @@ bool enclosesElt(ScopeType type)
 		|| type == SCOPETYPE_LOCAL;
 }
 
-Identifier IDENTIFIER_NULL = makeIdentifier(0);
 
 const char* getValue(const Identifier& id)
 {
@@ -806,7 +808,7 @@ struct WalkerContext
 	Scope global;
 
 	WalkerContext() :
-	global(makeIdentifier("$global"), SCOPETYPE_NAMESPACE)
+		global(makeIdentifier("$global"), SCOPETYPE_NAMESPACE)
 	{
 	}
 };
@@ -815,12 +817,13 @@ struct WalkerBase
 {
 	WalkerContext& context;
 	Scope* enclosing;
+	Scope* qualifying;
 	Scope* templateParams;
 	Scope* templateEnclosing;
 	bool* ambiguity;
 
 	WalkerBase(WalkerContext& context)
-		: context(context), enclosing(0), templateParams(0), templateEnclosing(0), ambiguity(0)
+		: context(context), enclosing(0), qualifying(0), templateParams(0), templateEnclosing(0), ambiguity(0)
 	{
 	}
 
@@ -885,6 +888,7 @@ struct WalkerBase
 
 	Declaration* findDeclaration(const Identifier& id, LookupFilter filter = isAny)
 	{
+#if 1
 		if(templateParams != 0)
 		{
 			Declaration* result = findDeclaration(*templateParams, id, filter);
@@ -893,6 +897,16 @@ struct WalkerBase
 				return result;
 			}
 		}
+#endif
+		if(qualifying != 0)
+		{
+			Declaration* result = findDeclaration(*qualifying, id, filter);
+			if(result != 0)
+			{
+				return result;
+			}
+		}
+		else
 		{
 			Declaration* result = findDeclaration(*enclosing, id, filter);
 			if(result != 0)
@@ -975,7 +989,7 @@ struct WalkerBase
 		templateParams = scope;
 	}
 
-	void setScope(Declaration* declaration)
+	void setQualifying(Declaration* declaration)
 	{
 		if(declaration->enclosed == 0)
 		{
@@ -985,7 +999,7 @@ struct WalkerBase
 			printPosition(declaration->name.position);
 			throw SemanticError();
 		}
-		enclosing = declaration->enclosed;
+		qualifying = declaration->enclosed;
 	}
 
 	void reportIdentifierMismatch(const Identifier& id, Declaration* declaration, const char* expected)
@@ -1010,13 +1024,23 @@ struct WalkerBase
 
 	void printScope()
 	{
+#if 1
 		if(templateParams != 0)
 		{
 			std::cout << "template-params:" << std::endl;
 			::printScope(*templateParams);
 		}
-		std::cout << "enclosing:" << std::endl;
-		::printScope(*enclosing);
+#endif
+		if(qualifying != 0)
+		{
+			std::cout << "qualifying:" << std::endl;
+			::printScope(*qualifying);
+		}
+		else
+		{
+			std::cout << "enclosing:" << std::endl;
+			::printScope(*enclosing);
+		}
 	}
 };
 
@@ -1259,8 +1283,13 @@ struct UnqualifiedIdWalker : public WalkerBase
 	}
 	void visit(cpp::identifier* symbol)
 	{
-		Declaration* declaration = findDeclaration(symbol->value, isObject);
-		if(declaration != &gUndeclared)
+		Declaration* declaration = findDeclaration(symbol->value);
+		if(declaration == &gUndeclared
+			|| !isObject(*declaration))
+		{
+			reportIdentifierMismatch(symbol->value, declaration, "object-name");
+		}
+		else
 		{
 			symbol->value.dec.p = declaration;
 		}
@@ -1369,6 +1398,7 @@ struct TemplateIdWalker : public WalkerBase
 	}
 	void visit(cpp::template_argument_list* symbol)
 	{
+		qualifying = 0;
 		// TODO: store list of arguments
 		TemplateArgumentWalker walker(*this);
 		symbol->accept(walker);
@@ -1418,19 +1448,19 @@ struct NestedNameSpecifierWalker : public WalkerBase
 	{
 		NamespaceNameWalker walker(*this, isNestedName);
 		symbol->accept(walker);
-		setScope(walker.declaration);
+		setQualifying(walker.declaration);
 	}
 	void visit(cpp::type_name* symbol)
 	{
 		TypeNameWalker walker(*this, isNestedName);
 		symbol->accept(walker);
-		setScope(walker.declaration);
+		setQualifying(walker.declaration);
 	}
 	void visit(cpp::simple_template_id* symbol)
 	{
 		TemplateIdWalker walker(*this, isNestedName);
 		symbol->accept(walker);
-		setScope(walker.declaration);
+		setQualifying(walker.declaration);
 	}
 };
 
@@ -1455,7 +1485,7 @@ struct TypeSpecifierWalker : public WalkerBase
 	{
 		if(symbol->isGlobal.value != 0)
 		{
-			enclosing = &context.global;
+			qualifying = &context.global;
 		}
 		symbol->accept(*this);
 	}
@@ -1463,7 +1493,7 @@ struct TypeSpecifierWalker : public WalkerBase
 	{
 		if(symbol->isGlobal.value != 0)
 		{
-			enclosing = &context.global;
+			qualifying = &context.global;
 		}
 		symbol->accept(*this);
 	}
@@ -1471,7 +1501,7 @@ struct TypeSpecifierWalker : public WalkerBase
 	{
 		NestedNameSpecifierWalker walker(*this);
 		symbol->accept(walker);
-		enclosing = walker.enclosing;
+		qualifying = walker.qualifying;
 	}
 	void visit(cpp::simple_template_id* symbol) 
 	{
@@ -1499,14 +1529,14 @@ struct DeclaratorIdWalker : public WalkerBase
 
 	void visit(cpp::qualified_id_global* symbol) 
 	{
-		enclosing = &context.global;
+		qualifying = &context.global;
 		symbol->accept(*this);
 	}
 	void visit(cpp::qualified_id_default* symbol) 
 	{
 		if(symbol->isGlobal.value != 0)
 		{
-			enclosing = &context.global;
+			qualifying = &context.global;
 		}
 		symbol->accept(*this);
 	}
@@ -1518,7 +1548,7 @@ struct DeclaratorIdWalker : public WalkerBase
 	{
 		NestedNameSpecifierWalker walker(*this);
 		symbol->accept(walker);
-		enclosing = walker.enclosing;
+		qualifying = walker.qualifying;
 	}
 	void visit(cpp::simple_template_id* symbol) 
 	{
@@ -1553,7 +1583,9 @@ struct ParameterDeclarationClauseWalker : public WalkerBase
 	ParameterDeclarationClauseWalker(const WalkerBase& base)
 		: WalkerBase(base)
 	{
-		pushScope(new Scope(makeIdentifier("$prototype"), SCOPETYPE_PROTOTYPE)); // parameter scope
+		pushScope(templateParams != 0 ? templateParams : new Scope(makeIdentifier("$declarator")));
+		enclosing->type = SCOPETYPE_PROTOTYPE;
+		templateParams = 0;
 	}
 
 	void visit(cpp::parameter_declaration* symbol)
@@ -1579,18 +1611,17 @@ struct DeclaratorWalker : public WalkerBase
 		DeclaratorIdWalker walker(*this);
 		symbol->accept(walker);
 		id = walker.id;
-		enclosing = walker.enclosing;
+
+		if(walker.qualifying != 0)
+		{
+			enclosing = walker.qualifying; // names in declarator suffix (array-size, parameter-declaration) are looked up in declarator-id's qualifying scope
+		}
 	}
 	void visit(cpp::parameter_declaration_clause* symbol)
 	{
 		ParameterDeclarationClauseWalker walker(*this);
 		symbol->accept(walker);
 		paramScope = walker.enclosing; // store reference for later resumption
-	}
-	void visit(cpp::parameter_declaration* symbol)
-	{
-		SimpleDeclarationWalker walker(*this);
-		symbol->accept(walker);
 	}
 	void visit(cpp::exception_specification* symbol)
 	{
@@ -1612,7 +1643,7 @@ struct BaseSpecifierWalker : public WalkerBase
 	{
 		NestedNameSpecifierWalker walker(*this);
 		symbol->accept(walker);
-		enclosing = walker.enclosing;
+		qualifying = walker.qualifying;
 	}
 	void visit(cpp::class_name* symbol)
 	{
@@ -1650,7 +1681,7 @@ struct ClassHeadWalker : public WalkerBase
 	{
 		NestedNameSpecifierWalker walker(*this);
 		symbol->accept(walker);
-		enclosing = walker.enclosing;
+		qualifying = walker.qualifying;
 	}
 	void visit(cpp::simple_template_id* symbol) 
 	{
@@ -1752,11 +1783,13 @@ struct ClassSpecifierWalker : public WalkerBase
 
 	void visit(cpp::class_head* symbol)
 	{
-		Scope* scope = new Scope(makeIdentifier("$class"), SCOPETYPE_CLASS);
+		Scope* scope = templateParams != 0 ? templateParams : new Scope(makeIdentifier("$class"));
+		scope->type = SCOPETYPE_CLASS;
 		ClassHeadWalker walker(*this, scope);
 		symbol->accept(walker);
 		declaration = walker.declaration;
 		pushScope(scope); // 3.3.6.1.1 // class scope
+		templateParams = 0;
 	}
 	void visit(cpp::member_declaration* symbol)
 	{
@@ -2007,7 +2040,7 @@ struct ControlStatementWalker : public WalkerBase
 	ControlStatementWalker(const WalkerBase& base)
 		: WalkerBase(base)
 	{
-		pushScope(new Scope(makeIdentifier("$control"), SCOPETYPE_LOCAL));
+		pushScope(new Scope(makeIdentifier(enclosing->getUniqueName()), SCOPETYPE_LOCAL));
 	}
 	void visit(cpp::condition_init* symbol)
 	{
@@ -2071,6 +2104,21 @@ struct HandlerSeqWalker : public WalkerBase
 	}
 };
 
+struct InitializerWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	InitializerWalker(const WalkerBase& base)
+		: WalkerBase(base)
+	{
+	}
+	void visit(cpp::assignment_expression* symbol)
+	{
+		ExpressionWalker walker(*this);
+		symbol->accept(walker);
+	}
+};
+
 struct SimpleDeclarationWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
@@ -2122,15 +2170,22 @@ struct SimpleDeclarationWalker : public WalkerBase
 		{
 			walker.id->dec.p = declaration;
 		}
-		if(declaration->enclosed != 0
+		Scope* enclosed = templateParams != 0 ? templateParams : declaration->enclosed;
+		if(enclosed != 0
 			&& !specifiers.isTypedef)
 		{
-			declaration->enclosed->name = declaration->name;
+			enclosed->name = declaration->name;
 		}
+		enclosing = walker.enclosing;
 		if(walker.paramScope != 0)
 		{
-			pushScope(walker.paramScope); // 3.3.2.1 parameter scope
+			enclosing = walker.paramScope; // 3.3.2.1 parameter scope
 		}
+		else if(templateParams != 0)
+		{
+			pushScope(templateParams);
+		}
+		templateParams = 0;
 	}
 	void visit(cpp::declarator* symbol)
 	{
@@ -2156,7 +2211,8 @@ struct SimpleDeclarationWalker : public WalkerBase
 
 	void visit(cpp::initializer* symbol)
 	{
-		// TODO
+		InitializerWalker walker(*this);
+		walkDeferable(walker, symbol);
 	}
 	template<typename Walker, typename T>
 	void walkDeferable(Walker& walker, T* symbol)
@@ -2184,7 +2240,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 	void visit(cpp::handler_seq* symbol)
 	{
 		HandlerSeqWalker walker(*this);
-		walkDeferable(*this, symbol);
+		walkDeferable(walker, symbol);
 	}
 };
 
@@ -2250,14 +2306,13 @@ struct TemplateDeclarationWalker : public WalkerBase
 	void visit(cpp::template_parameter_list* symbol)
 	{
 		// collect template-params into a new scope
-		Scope* params = new Scope(makeIdentifier("$params"), SCOPETYPE_TEMPLATE);
+		Scope* params = templateParams != 0 ? templateParams : new Scope(makeIdentifier("$template"), SCOPETYPE_TEMPLATE);
+		templateParams = 0;
 		pushScope(params);
 		TemplateParameterListWalker walker(*this);
 		symbol->accept(walker);
-		// move template-param scope onto special stack
-		// NOTE: cannot inject template-params into scope of class/function, because template params may be named differently in multiple declarations of same class/function.
 		enclosing = params->parent;
-		pushTemplateParams(params);
+		templateParams = params;
 	}
 	void visit(cpp::declaration* symbol)
 	{
@@ -2265,12 +2320,15 @@ struct TemplateDeclarationWalker : public WalkerBase
 		symbol->accept(walker);
 		declaration = walker.declaration;
 		SEMANTIC_ASSERT(declaration != 0);
+#if 0
 		if(templateParams != 0) // explicit-specialization has no params
 		{
 			templateParams->name = declaration->name;
 			// TODO
 			//templateParams->parent = declaration->scope;
+			declaration->enclosed->templateParams = templateParams;
 		}
+#endif
 	}
 	void visit(cpp::member_declaration* symbol)
 	{
@@ -2278,12 +2336,14 @@ struct TemplateDeclarationWalker : public WalkerBase
 		symbol->accept(walker);
 		declaration = walker.declaration;
 		SEMANTIC_ASSERT(declaration != 0);
+#if 0
 		if(templateParams != 0) // explicit-specialization has no params
 		{
 			templateParams->name = declaration->name;
 			// TODO
 			//templateParams->parent = declaration->scope;
 		}
+#endif
 	}
 };
 

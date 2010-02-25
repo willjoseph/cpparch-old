@@ -1,4 +1,93 @@
 
+#if 1
+/* 3.4.1-7
+A name used in the definition of a class X outside of a member function body or nested class definition26
+shall be declared in one of the following ways:
+— before its use in class X or be a member of a base class of X (10.2)
+*/
+struct Base
+{
+	struct T
+	{
+		typedef int I;
+	};
+};
+
+namespace N5
+{
+	/* 10-2
+	The class-name in a base-specifier shall not be an incompletely defined class (Clause class); this class is
+	called a direct base class for the class being defined. During the lookup for a base class name, non-type
+	names are ignored (3.3.10)
+	*/
+	int Base;
+
+	struct Derived : public Base, public Base::T
+	{
+		T t;
+		I i;
+	};
+
+	template<typename T>
+	struct Derived3 : public T
+	{
+	};
+}
+#endif
+
+// testing name-lookup within declarator-suffix
+class C6
+{
+	enum { SIZE = 1 };
+	static int m[SIZE];
+
+	typedef int I;
+	void f(I);
+};
+
+int C6::m[SIZE];
+void C6::f(I)
+{
+}
+namespace N
+{
+	template<typename T>
+	void f()
+	{
+	}
+	typedef int I;
+	template<>
+	void f<I>();
+}
+
+template<>
+void N::f<N::I>()
+{
+}
+
+
+template<typename X>
+class C2
+{
+	template<typename T>
+	class C3
+	{
+		typedef T I;
+		static T m;
+		static T f(I);
+	};
+};
+
+template<typename X>
+template<typename T>
+T C2<X>::C3<T>::m = I();
+
+template<typename X>
+template<typename T>
+T C2<X>::C3<T>::f(I)
+{
+	I i;
+}
 
 namespace std
 {
@@ -110,41 +199,6 @@ void f()
 
 
 
-#if 1
-/* 3.4.1-7
-A name used in the definition of a class X outside of a member function body or nested class definition26
-shall be declared in one of the following ways:
-— before its use in class X or be a member of a base class of X (10.2)
-*/
-struct Base
-{
-	struct T
-	{
-		typedef int I;
-	};
-};
-
-namespace N5
-{
-	/* 10-2
-	The class-name in a base-specifier shall not be an incompletely defined class (Clause class); this class is
-	called a direct base class for the class being defined. During the lookup for a base class name, non-type
-	names are ignored (3.3.10)
-	*/
-	int Base;
-
-	struct Derived : public Base, public Base::T
-	{
-		T t;
-		I i;
-	};
-
-	template<typename T>
-	struct Derived3 : public T
-	{
-	};
-}
-#endif
 
 
 int f(int i)
@@ -285,8 +339,8 @@ int f(int a)
 	int t(a); // function-declaration or variable declaration with init
 	typedef int T;
 	int (*x)(T)(f);
-	int (*x)(T)[1];
 	// illegal
+	// int (*t)(T)[1];
 	// int t[1](a, b);
 	// int t(a)(b);
 	// int t(a)[1];
@@ -347,12 +401,13 @@ class C1
 };
 
 template<typename T>
-T C1::t;
+T C1<T>::t;
 
 template<>
 class C1<int>
 {
 };
+
 
 namespace std
 {
