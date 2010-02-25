@@ -1,4 +1,15 @@
 
+void testFor()
+{
+	for(int i = 0; i != 1; ++i)
+	{
+	}
+#if 0
+	for (_Iterator_base **_Pnext = (_Iterator_base **)&_Myfirstiter;
+			*_Pnext != 0; *_Pnext = (*_Pnext)->_Mynextiter)
+			(*_Pnext)->_Mycont = 0;
+#endif
+}
 #if 1
 /* 3.4.1-7
 A name used in the definition of a class X outside of a member function body or nested class definition26

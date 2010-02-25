@@ -93,7 +93,24 @@ int runTest(const Test& test)
 		add_macro_definition(context, "_NATIVE_WCHAR_T_DEFINED=1", true);
 		add_macro_definition(context, "__wchar_t=wchar_t", true);
 		add_macro_definition(context, "__declspec(modifiers)=", true);
-		
+
+		add_macro_definition(context, "__has_nothrow_constructor(type)=0", true);
+		add_macro_definition(context, "__has_nothrow_copy(type)=0", true);
+		add_macro_definition(context, "__has_trivial_assign(type)=0", true);
+		add_macro_definition(context, "__has_trivial_constructor(type)=0", true);
+		add_macro_definition(context, "__has_trivial_copy(type)=0", true);
+		add_macro_definition(context, "__has_trivial_destructor(type)=0", true);
+		add_macro_definition(context, "__has_virtual_destructor(type)=0", true);
+		add_macro_definition(context, "__is_abstract(type)=0", true);
+		add_macro_definition(context, "__is_base_of(base, derived)=0", true);
+		add_macro_definition(context, "__is_class(type)=0", true);
+		add_macro_definition(context, "__is_convertible_to(type)=0", true);
+		add_macro_definition(context, "__is_empty(type)=0", true);
+		add_macro_definition(context, "__is_enum(type)=0", true);
+		add_macro_definition(context, "__is_pod(type)=0", true);
+		add_macro_definition(context, "__is_polymorphic(type)=0", true);
+		add_macro_definition(context, "__is_union(type)=0", true);
+
 		// optional: _DEBUG, _DLL, /Ze=_MSC_EXTENSIONS, /MT=_MT
 		add_macro_definition(context, "_DEBUG", true);
 		add_macro_definition(context, "_WIN32", true);

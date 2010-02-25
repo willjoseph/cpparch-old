@@ -1332,6 +1332,10 @@ struct ExpressionWalker : public WalkerBase
 		: WalkerBase(base)
 	{
 	}
+	void visit(cpp::postfix_expression_member* symbol)
+	{
+		// TODO
+	}
 	void visit(cpp::type_id* symbol)
 	{
 		// TODO
@@ -2047,6 +2051,11 @@ struct ControlStatementWalker : public WalkerBase
 		SimpleDeclarationWalker walker(*this);
 		symbol->accept(walker);
 		SEMANTIC_ASSERT(walker.type != 0);
+	}
+	void visit(cpp::simple_declaration* symbol)
+	{
+		SimpleDeclarationWalker walker(*this);
+		symbol->accept(walker);
 	}
 	void visit(cpp::statement* symbol)
 	{
