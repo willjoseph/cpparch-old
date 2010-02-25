@@ -1,4 +1,20 @@
 
+class C9
+{
+	struct S
+	{
+		void f2()
+		{
+			f();
+		}
+	};
+
+	static void f()
+	{
+	};
+};
+
+
 void testFor()
 {
 	for(int i = 0; i != 1; ++i)
