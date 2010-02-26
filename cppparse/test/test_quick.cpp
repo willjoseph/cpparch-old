@@ -1,4 +1,36 @@
 
+//#include "predefined_msvc.h"
+//#include <xutility>
+
+namespace N
+{
+	template<class T>
+	void f(T)
+	{
+	}
+}
+
+namespace M
+{
+	template<class T>
+	void g(T)
+	{
+	}
+	template<class T>
+	int copy(T t)
+	{	// copy [_First, _Last) to [_Dest, ...)
+		return copy(::M::g(t), ::M::g(t), ::N::f(t)).base();
+	}
+}
+
+
+// template-dependent non-type-name
+template<typename T>
+void f()
+{
+	T::f();
+}
+
 
 /* 3.4.1-8
 A name used in the definition of a member function (9.3) of class X following the function’s declarator-id 33) shall be
@@ -341,7 +373,6 @@ class Template3
 };
 
 
-
 template<typename T>
 class Template2;
 
@@ -362,7 +393,9 @@ class Template
 {
 	void f()
 	{
-		Incomplete::X(); // should interpret this as a function-call
+#if 0
+		Incomplete::X(); // should give an error!
+#endif
 	};
 };
 

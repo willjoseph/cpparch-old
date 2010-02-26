@@ -186,6 +186,8 @@ Declaration gCtor(0, makeIdentifier("$ctor"), &gSpecial, 0);
 Declaration gTypename(0, makeIdentifier("$typename"), &gSpecial, 0);
 Declaration gBuiltin(0, makeIdentifier("$builtin"), &gSpecial, 0);
 
+Declaration gDependent(0, makeIdentifier("$dependent"), &gBuiltin, 0);
+
 Declaration gParam(0, makeIdentifier("$param"), &gClass, 0);
 
 Declaration gTemplateParams[] = 
@@ -806,9 +808,11 @@ typedef bool (*LookupFilter)(const Declaration&);
 struct WalkerContext
 {
 	Scope global;
+	Scope templateDependent;
 
 	WalkerContext() :
-		global(makeIdentifier("$global"), SCOPETYPE_NAMESPACE)
+		global(makeIdentifier("$global"), SCOPETYPE_NAMESPACE),
+		templateDependent(makeIdentifier("$template"), SCOPETYPE_CLASS)
 	{
 	}
 };
@@ -892,6 +896,10 @@ struct WalkerBase
 
 	Declaration* findDeclaration(const Identifier& id, LookupFilter filter = isAny)
 	{
+		if(qualifying == &context.templateDependent)
+		{
+			return &gDependent;
+		}
 #if 1
 		if(templateParams != 0)
 		{
@@ -995,15 +1003,24 @@ struct WalkerBase
 
 	void setQualifying(Declaration* declaration)
 	{
-		if(declaration->enclosed == 0)
+#if 0 // TODO
+		if(declaration->isTemplate)
 		{
-			// TODO
-			//printPosition(symbol->id->value.position);
-			std::cout << "'" << getValue(declaration->name) << "' is incomplete, declared here:" << std::endl;
-			printPosition(declaration->name.position);
-			throw SemanticError();
+			qualifying = &context.templateDependent;
 		}
-		qualifying = declaration->enclosed;
+		else
+#endif
+		{
+			if(declaration->enclosed == 0)
+			{
+				// TODO
+				//printPosition(symbol->id->value.position);
+				std::cout << "'" << getValue(declaration->name) << "' is incomplete, declared here:" << std::endl;
+				printPosition(declaration->name.position);
+				throw SemanticError();
+			}
+			qualifying = declaration->enclosed;
+		}
 	}
 
 	void reportIdentifierMismatch(const Identifier& id, Declaration* declaration, const char* expected)
@@ -1306,6 +1323,32 @@ struct UnqualifiedIdWalker : public WalkerBase
 	}
 };
 
+struct QualifiedIdWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	QualifiedIdWalker(const WalkerBase& base)
+		: WalkerBase(base)
+	{
+	}
+	void visit(cpp::nested_name_specifier* symbol)
+	{
+		NestedNameSpecifierWalker walker(*this);
+		symbol->accept(walker);
+		qualifying = walker.qualifying;
+	}
+	void visit(cpp::unqualified_id* symbol)
+	{
+		// TODO
+		UnqualifiedIdWalker walker(*this);
+		symbol->accept(walker);
+	}
+	void visit(cpp::qualified_id_global* symbol)
+	{
+		// TODO
+	}
+};
+
 struct IdExpressionWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
@@ -1317,6 +1360,8 @@ struct IdExpressionWalker : public WalkerBase
 	void visit(cpp::qualified_id* symbol)
 	{
 		// TODO
+		QualifiedIdWalker walker(*this);
+		symbol->accept(walker);
 	}
 	void visit(cpp::unqualified_id* symbol)
 	{
@@ -2040,6 +2085,15 @@ struct StatementWalker : public WalkerBase
 		ExpressionWalker walker(*this);
 		symbol->accept(walker);
 	}
+	void visit(cpp::jump_statement_return* symbol)
+	{
+		ExpressionWalker walker(*this);
+		symbol->accept(walker);
+	}
+	void visit(cpp::jump_statement_goto* symbol)
+	{
+		// TODO
+	}
 };
 
 struct ControlStatementWalker : public WalkerBase
@@ -2065,6 +2119,11 @@ struct ControlStatementWalker : public WalkerBase
 	void visit(cpp::statement* symbol)
 	{
 		StatementWalker walker(*this);
+		symbol->accept(walker);
+	}
+	void visit(cpp::expression* symbol)
+	{
+		ExpressionWalker walker(*this);
 		symbol->accept(walker);
 	}
 };
@@ -2287,7 +2346,7 @@ struct TemplateParameterListWalker : public WalkerBase
 	{
 		if(symbol->id != 0)
 		{
-			symbol->id->value.dec.p = pointOfDeclaration(enclosing, symbol->id->value, paramType++, 0, DECLSPEC_TYPEDEF);
+			symbol->id->value.dec.p = pointOfDeclaration(enclosing, symbol->id->value, paramType++, &context.templateDependent, DECLSPEC_TYPEDEF);
 		}
 	}
 	void visit(cpp::type_parameter_template* symbol)
@@ -2295,7 +2354,7 @@ struct TemplateParameterListWalker : public WalkerBase
 		// TODO
 		if(symbol->id != 0)
 		{
-			symbol->id->value.dec.p = pointOfDeclaration(enclosing, symbol->id->value, paramType++, 0, DECLSPEC_TYPEDEF, true);
+			symbol->id->value.dec.p = pointOfDeclaration(enclosing, symbol->id->value, paramType++, &context.templateDependent, DECLSPEC_TYPEDEF, true);
 		}
 	}
 	void visit(cpp::parameter_declaration* symbol)
