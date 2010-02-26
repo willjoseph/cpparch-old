@@ -1,19 +1,24 @@
 
-class C9
+
+/* 3.4.1-8
+A name used in the definition of a member function (9.3) of class X following the function’s declarator-id 33) shall be
+declared in one of the following ways:
+...
+— if X is a nested class of class Y (9.7), shall be a member of Y, or shall be a member of a base class of Y (this lookup
+applies in turn to Y ’s enclosing classes, starting with the innermost enclosing class),34) or
+*/
+struct Enclosing
 {
-	struct S
+	struct Nested
 	{
-		void f2()
+		int x;
+		Nested(int a = m) : x(m)
 		{
-			f();
+			int l = m;
 		}
 	};
-
-	static void f()
-	{
-	};
+	static const int m = 0;
 };
-
 
 void testFor()
 {

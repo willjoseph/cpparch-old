@@ -813,6 +813,9 @@ struct WalkerContext
 	}
 };
 
+
+typedef std::vector<struct DeferredSymbol> DeferredSymbols;
+
 struct WalkerBase
 {
 	WalkerContext& context;
@@ -821,9 +824,10 @@ struct WalkerBase
 	Scope* templateParams;
 	Scope* templateEnclosing;
 	bool* ambiguity;
+	DeferredSymbols* deferred;
 
 	WalkerBase(WalkerContext& context)
-		: context(context), enclosing(0), qualifying(0), templateParams(0), templateEnclosing(0), ambiguity(0)
+		: context(context), enclosing(0), qualifying(0), templateParams(0), templateEnclosing(0), ambiguity(0), deferred(0)
 	{
 	}
 
@@ -1225,8 +1229,6 @@ DeferredSymbol makeDeferredSymbol(const Walker& context, T* symbol)
 	DeferredSymbol result = { context, symbol, DeferredSymbol::Func(DeferredSymbolThunk<Walker, T>::thunk) };
 	return result;
 }
-
-typedef std::vector<DeferredSymbol> DeferredSymbols;
 
 struct Walker
 {
@@ -1723,20 +1725,19 @@ struct MemberDeclarationWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	Declaration* declaration;
-	DeferredSymbols* deferred;
-	MemberDeclarationWalker(const WalkerBase& base, DeferredSymbols* deferred)
-		: WalkerBase(base), declaration(0), deferred(deferred)
+	MemberDeclarationWalker(const WalkerBase& base)
+		: WalkerBase(base), declaration(0)
 	{
 	}
 	void visit(cpp::member_template_declaration* symbol)
 	{
-		TemplateDeclarationWalker walker(*this, deferred);
+		TemplateDeclarationWalker walker(*this);
 		symbol->accept(walker);
 		declaration = walker.declaration;
 	}
 	void visit(cpp::member_declaration_implicit* symbol)
 	{
-		SimpleDeclarationWalker walker(*this, deferred);
+		SimpleDeclarationWalker walker(*this);
 		symbol->accept(walker);
 		declaration = walker.declaration;
 	}
@@ -1752,7 +1753,7 @@ struct MemberDeclarationWalker : public WalkerBase
 		}
 		else
 		{
-			SimpleDeclarationWalker walker(*this, deferred);
+			SimpleDeclarationWalker walker(*this);
 			symbol->accept(walker);
 			SEMANTIC_ASSERT(walker.type != 0);
 			declaration = walker.declaration;
@@ -1760,7 +1761,7 @@ struct MemberDeclarationWalker : public WalkerBase
 	}
 	void visit(cpp::member_declaration_nested* symbol)
 	{
-		SimpleDeclarationWalker walker(*this, deferred);
+		SimpleDeclarationWalker walker(*this);
 		symbol->accept(walker);
 		declaration = walker.declaration;
 	}
@@ -1797,7 +1798,11 @@ struct ClassSpecifierWalker : public WalkerBase
 	}
 	void visit(cpp::member_declaration* symbol)
 	{
-		MemberDeclarationWalker walker(*this, &deferred);
+		MemberDeclarationWalker walker(*this);
+		if(walker.deferred == 0)
+		{
+			walker.deferred = &deferred;
+		}
 		symbol->accept(walker);
 	}
 };
@@ -2135,10 +2140,9 @@ struct SimpleDeclarationWalker : public WalkerBase
 	Declaration* type;
 	Declaration* declaration;
 	DeclSpecifiers specifiers;
-	DeferredSymbols* deferred;
 
-	SimpleDeclarationWalker(const WalkerBase& base, DeferredSymbols* deferred = 0)
-		: WalkerBase(base), type(&gCtor), declaration(0), deferred(deferred)
+	SimpleDeclarationWalker(const WalkerBase& base)
+		: WalkerBase(base), type(&gCtor), declaration(0)
 	{
 	}
 
@@ -2221,12 +2225,12 @@ struct SimpleDeclarationWalker : public WalkerBase
 	void visit(cpp::initializer* symbol)
 	{
 		InitializerWalker walker(*this);
-		walkDeferable(walker, symbol);
+		symbol->accept(walker);
 	}
 	template<typename Walker, typename T>
 	void walkDeferable(Walker& walker, T* symbol)
 	{
-		// TODO: also defer name-lookup for default-arguments and initializers
+		// defer name-lookup for function-body, default-arguments and ctor-initializers
 		if(deferred != 0)
 		{
 			deferred->push_back(makeDeferredSymbol(walker, symbol));
@@ -2244,7 +2248,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 	void visit(cpp::ctor_initializer* symbol)
 	{
 		// TODO
-		walkDeferable(*this, symbol);
+		//walkDeferable(*this, symbol);
 	}
 	void visit(cpp::handler_seq* symbol)
 	{
@@ -2306,9 +2310,8 @@ struct TemplateDeclarationWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	Declaration* declaration;
-	DeferredSymbols* deferred;
-	TemplateDeclarationWalker(WalkerBase& base, DeferredSymbols* deferred = 0)
-		: WalkerBase(base), declaration(0), deferred(deferred)
+	TemplateDeclarationWalker(WalkerBase& base)
+		: WalkerBase(base), declaration(0)
 	{
 		templateEnclosing = enclosing;
 	}
@@ -2341,7 +2344,7 @@ struct TemplateDeclarationWalker : public WalkerBase
 	}
 	void visit(cpp::member_declaration* symbol)
 	{
-		MemberDeclarationWalker walker(*this, deferred);
+		MemberDeclarationWalker walker(*this);
 		symbol->accept(walker);
 		declaration = walker.declaration;
 		SEMANTIC_ASSERT(declaration != 0);
