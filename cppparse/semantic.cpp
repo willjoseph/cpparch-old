@@ -40,8 +40,13 @@ int f(Second a, First b)
 
 #define SYMBOL_NAME(T) (typeid(T).name() + 12)
 
+#define ARRAY_COUNT(array) (sizeof(array) / sizeof(*array))
+#define ARRAY_END(array) ((array) + ARRAY_COUNT(array))
+
+
 #include <iostream>
 #include <list>
+#include <set>
 
 struct SemanticError
 {
@@ -328,6 +333,17 @@ bool isExtern(const Declaration& declaration)
 {
 	return declaration.specifiers.isExtern;
 }
+
+bool isTypeParameter(const Declaration& declaration)
+{
+	return !(&declaration < gTemplateParams) && &declaration < ARRAY_END(gTemplateParams);
+}
+
+bool isDependent(const Declaration& declaration)
+{
+	return isTypeParameter(getOriginalType(declaration));
+}
+
 
 const char* getDeclarationType(const Declaration& declaration)
 {
@@ -796,6 +812,52 @@ void printIdentifierMismatch(const IdentifierMismatch& e)
 	}
 }
 
+struct TemplateArgument
+{
+	union
+	{
+		Declaration* declaration;
+		int value;
+	};
+	bool isType;
+	bool isDependent;
+	TemplateArgument(Declaration* declaration) : isType(true)
+	{
+		this->declaration = declaration;
+	}
+	TemplateArgument(int value) : isType(false)
+	{
+		this->value = value;
+	}
+};
+
+bool operator<(const TemplateArgument& left, const TemplateArgument& right)
+{
+	return left.isType < right.isType ||
+		!(right.isType < left.isType) && left.declaration < right.declaration;
+}
+
+
+typedef std::vector<TemplateArgument> TemplateArguments;
+
+struct TemplateInstantiation
+{
+	Declaration* declaration;
+	TemplateArguments arguments;
+	TemplateInstantiation(Declaration* declaration, const TemplateArguments& arguments)
+		: declaration(declaration), arguments(arguments)
+	{
+	}
+};
+
+bool operator<(const TemplateInstantiation& left, const TemplateInstantiation& right)
+{
+	return left.declaration < right.declaration ||
+		!(right.declaration < left.declaration) && left.arguments < right.arguments;
+}
+
+typedef std::set<TemplateInstantiation> TemplateInstantiations;
+
 
 bool isAny(const Declaration& declaration)
 {
@@ -808,11 +870,12 @@ typedef bool (*LookupFilter)(const Declaration&);
 struct WalkerContext
 {
 	Scope global;
-	Scope templateDependent;
+	Scope dependent;
+	TemplateInstantiations instantiations;
 
 	WalkerContext() :
 		global(makeIdentifier("$global"), SCOPETYPE_NAMESPACE),
-		templateDependent(makeIdentifier("$template"), SCOPETYPE_CLASS)
+		dependent(makeIdentifier("$dependent"), SCOPETYPE_CLASS)
 	{
 	}
 };
@@ -896,10 +959,6 @@ struct WalkerBase
 
 	Declaration* findDeclaration(const Identifier& id, LookupFilter filter = isAny)
 	{
-		if(qualifying == &context.templateDependent)
-		{
-			return &gDependent;
-		}
 #if 1
 		if(templateParams != 0)
 		{
@@ -974,6 +1033,11 @@ struct WalkerBase
 		return result;
 	}
 
+	const TemplateInstantiation& pointOfInstantiation(Declaration* declaration, const TemplateArguments& arguments)
+	{
+		return *context.instantiations.insert(TemplateInstantiation(declaration, arguments)).first;
+	}
+
 	Scope* findScope(Scope* scope, Scope* other)
 	{
 		if(scope == 0)
@@ -1003,10 +1067,11 @@ struct WalkerBase
 
 	void setQualifying(Declaration* declaration)
 	{
-#if 0 // TODO
-		if(declaration->isTemplate)
+#if 1 // TODO
+		if(isDependent(*declaration)
+			&& enclosing != templateEnclosing) // not the declarator of a template function
 		{
-			qualifying = &context.templateDependent;
+			qualifying = &context.dependent;
 		}
 		else
 #endif
@@ -1340,8 +1405,11 @@ struct QualifiedIdWalker : public WalkerBase
 	void visit(cpp::unqualified_id* symbol)
 	{
 		// TODO
-		UnqualifiedIdWalker walker(*this);
-		symbol->accept(walker);
+		if(qualifying != &context.dependent)
+		{
+			UnqualifiedIdWalker walker(*this);
+			symbol->accept(walker);
+		}
 	}
 	void visit(cpp::qualified_id_global* symbol)
 	{
@@ -1406,21 +1474,25 @@ struct TemplateArgumentWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
+	TemplateArguments arguments;
+	bool dependent;
+
 	TemplateArgumentWalker(const WalkerBase& base)
-		: WalkerBase(base)
+		: WalkerBase(base), dependent(false)
 	{
 	}
 	void visit(cpp::type_id* symbol)
 	{
-		// TODO: store argument
 		TypeIdWalker walker(*this);
 		symbol->accept(walker);
+		arguments.push_back(TemplateArgument(walker.type));
+		dependent |= isDependent(*walker.type);
 	}
 	void visit(cpp::assignment_expression* symbol)
 	{
-		// TODO: store argument
 		ExpressionWalker walker(*this);
 		symbol->accept(walker);
+		arguments.push_back(TemplateArgument(0)); // todo: evaluate constant-expression (unless it's dependent expression)
 	}
 };
 
@@ -1430,8 +1502,9 @@ struct TemplateIdWalker : public WalkerBase
 
 	Declaration* declaration;
 	LookupFilter filter;
+	bool dependent;
 	TemplateIdWalker(const WalkerBase& base, LookupFilter filter = isAny)
-		: WalkerBase(base), declaration(0), filter(filter)
+		: WalkerBase(base), declaration(0), filter(filter), dependent(false)
 	{
 	}
 	void visit(cpp::identifier* symbol)
@@ -1450,9 +1523,11 @@ struct TemplateIdWalker : public WalkerBase
 	void visit(cpp::template_argument_list* symbol)
 	{
 		qualifying = 0;
-		// TODO: store list of arguments
+		// TODO: instantiation
 		TemplateArgumentWalker walker(*this);
 		symbol->accept(walker);
+		pointOfInstantiation(declaration, walker.arguments);
+		dependent = walker.dependent;
 	}
 };
 
@@ -1462,8 +1537,9 @@ struct TypeNameWalker : public WalkerBase
 
 	Declaration* declaration;
 	LookupFilter filter;
+	bool dependent;
 	TypeNameWalker(const WalkerBase& base, LookupFilter filter = isAny)
-		: WalkerBase(base), declaration(0), filter(filter)
+		: WalkerBase(base), declaration(0), filter(filter), dependent(false)
 	{
 	}
 	void visit(cpp::identifier* symbol)
@@ -1484,6 +1560,7 @@ struct TypeNameWalker : public WalkerBase
 		TemplateIdWalker walker(*this);
 		symbol->accept(walker);
 		declaration = walker.declaration;
+		dependent = walker.dependent;
 	}
 };
 
@@ -1503,15 +1580,37 @@ struct NestedNameSpecifierWalker : public WalkerBase
 	}
 	void visit(cpp::type_name* symbol)
 	{
-		TypeNameWalker walker(*this, isNestedName);
-		symbol->accept(walker);
-		setQualifying(walker.declaration);
+		if(qualifying != &context.dependent)
+		{
+			TypeNameWalker walker(*this, isNestedName);
+			symbol->accept(walker);
+			if(walker.dependent
+				&& enclosing != templateEnclosing)
+			{
+				qualifying = &context.dependent;
+			}
+			else
+			{
+				setQualifying(walker.declaration);
+			}
+		}
 	}
 	void visit(cpp::simple_template_id* symbol)
 	{
-		TemplateIdWalker walker(*this, isNestedName);
-		symbol->accept(walker);
-		setQualifying(walker.declaration);
+		if(qualifying != &context.dependent)
+		{
+			TemplateIdWalker walker(*this, isNestedName);
+			symbol->accept(walker);
+			if(walker.dependent
+				&& enclosing != templateEnclosing)
+			{
+				qualifying = &context.dependent;
+			}
+			else
+			{
+				setQualifying(walker.declaration);
+			}
+		}
 	}
 };
 
@@ -2346,7 +2445,7 @@ struct TemplateParameterListWalker : public WalkerBase
 	{
 		if(symbol->id != 0)
 		{
-			symbol->id->value.dec.p = pointOfDeclaration(enclosing, symbol->id->value, paramType++, &context.templateDependent, DECLSPEC_TYPEDEF);
+			symbol->id->value.dec.p = pointOfDeclaration(enclosing, symbol->id->value, paramType++, &context.dependent, DECLSPEC_TYPEDEF);
 		}
 	}
 	void visit(cpp::type_parameter_template* symbol)
@@ -2354,7 +2453,7 @@ struct TemplateParameterListWalker : public WalkerBase
 		// TODO
 		if(symbol->id != 0)
 		{
-			symbol->id->value.dec.p = pointOfDeclaration(enclosing, symbol->id->value, paramType++, &context.templateDependent, DECLSPEC_TYPEDEF, true);
+			symbol->id->value.dec.p = pointOfDeclaration(enclosing, symbol->id->value, paramType++, &context.dependent, DECLSPEC_TYPEDEF, true);
 		}
 	}
 	void visit(cpp::parameter_declaration* symbol)

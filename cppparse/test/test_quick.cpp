@@ -2,33 +2,81 @@
 //#include "predefined_msvc.h"
 //#include <xutility>
 
-namespace N
+
+template<typename T>
+struct Fwd;
+
+template<typename T>
+void f()
 {
-	template<class T>
-	void f(T)
-	{
-	}
+	Fwd<T>::f();
+	typedef Fwd<T> M;
+	M::f();
 }
 
-namespace M
+
+
+template<typename X>
+class C2
 {
-	template<class T>
-	void g(T)
+	template<typename T>
+	class C3
 	{
-	}
-	template<class T>
-	int copy(T t)
-	{	// copy [_First, _Last) to [_Dest, ...)
-		return copy(::M::g(t), ::M::g(t), ::N::f(t)).base();
-	}
+		typedef T I;
+		static T m;
+		static T f(I);
+	};
+};
+
+template<typename X>
+template<typename T>
+T C2<X>::C3<T>::m = I();
+
+template<typename X>
+template<typename T>
+T C2<X>::C3<T>::f(I)
+{
+	I i;
 }
 
+
+// test name-lookup for template-param-dependent nested-name-specifier
+template<typename T>
+struct Unspec
+{
+	void dependent()
+	{
+	}
+	template<typename X>
+	struct Dependent
+	{
+		void dependent()
+		{
+		}
+	};
+};
+
+template<typename T>
+struct TestDependent
+{
+	// template-dependent ]type-name
+	typename T::C m1;
+	typename Unspec<T>::template Dependent<T> m2;
+	void f()
+	{
+		// template-dependent non-type-name
+		T::dependent();
+		T::C::dependent();
+		Unspec<T>::dependent();
+		Unspec<T>::template Dependent<T>::dependent();
+	}
+};
 
 // template-dependent non-type-name
 template<typename T>
 void f()
 {
-	T::f();
+	T::f(); // TODO: T::C::f()
 }
 
 
@@ -130,28 +178,6 @@ void N::f<N::I>()
 }
 
 
-template<typename X>
-class C2
-{
-	template<typename T>
-	class C3
-	{
-		typedef T I;
-		static T m;
-		static T f(I);
-	};
-};
-
-template<typename X>
-template<typename T>
-T C2<X>::C3<T>::m = I();
-
-template<typename X>
-template<typename T>
-T C2<X>::C3<T>::f(I)
-{
-	I i;
-}
 
 namespace std
 {
