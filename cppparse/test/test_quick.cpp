@@ -2,6 +2,13 @@
 //#include "predefined_msvc.h"
 //#include <xutility>
 
+
+template<typename T>
+void f(T t)
+{
+	undeclared(t);
+}
+
 // nested-name-specifier should ignore non-class non-namespace names
 template<typename T>
 struct C9

@@ -1371,8 +1371,9 @@ struct UnqualifiedIdWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
+	bool isTypeDependent;
 	UnqualifiedIdWalker(const WalkerBase& base)
-		: WalkerBase(base)
+		: WalkerBase(base), isTypeDependent(false)
 	{
 	}
 	void visit(cpp::identifier* symbol)
@@ -1386,6 +1387,7 @@ struct UnqualifiedIdWalker : public WalkerBase
 		else
 		{
 			symbol->value.dec.p = declaration;
+			isTypeDependent |= isDependent(declaration->type);
 		}
 	}
 	void visit(cpp::template_id* symbol)
@@ -1402,8 +1404,9 @@ struct QualifiedIdWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
+	bool isTypeDependent;
 	QualifiedIdWalker(const WalkerBase& base)
-		: WalkerBase(base)
+		: WalkerBase(base), isTypeDependent(false)
 	{
 	}
 	void visit(cpp::nested_name_specifier* symbol)
@@ -1411,6 +1414,7 @@ struct QualifiedIdWalker : public WalkerBase
 		NestedNameSpecifierWalker walker(*this);
 		symbol->accept(walker);
 		qualifying = walker.qualifying;
+		isTypeDependent = qualifying == &context.dependent;
 	}
 	void visit(cpp::unqualified_id* symbol)
 	{
@@ -1419,6 +1423,7 @@ struct QualifiedIdWalker : public WalkerBase
 		{
 			UnqualifiedIdWalker walker(*this);
 			symbol->accept(walker);
+			isTypeDependent |= walker.isTypeDependent;
 		}
 	}
 	void visit(cpp::qualified_id_global* symbol)
@@ -1431,8 +1436,16 @@ struct IdExpressionWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
+	/* 14.6.2.2-3
+	An id-expression is type-dependent if it contains:
+	— an identifier that was declared with a dependent type,
+	— a template-id that is dependent,
+	— a conversion-function-id that specifies a dependent type,
+	— a nested-name-specifier or a qualified-id that names a member of an unknown specialization
+	*/
+	bool isTypeDependent;
 	IdExpressionWalker(const WalkerBase& base)
-		: WalkerBase(base)
+		: WalkerBase(base), isTypeDependent(false)
 	{
 	}
 	void visit(cpp::qualified_id* symbol)
@@ -1440,12 +1453,14 @@ struct IdExpressionWalker : public WalkerBase
 		// TODO
 		QualifiedIdWalker walker(*this);
 		symbol->accept(walker);
+		isTypeDependent |= walker.isTypeDependent;
 	}
 	void visit(cpp::unqualified_id* symbol)
 	{
 		// TODO
 		UnqualifiedIdWalker walker(*this);
 		symbol->accept(walker);
+		isTypeDependent |= walker.isTypeDependent;
 	}
 };
 
@@ -1453,13 +1468,24 @@ struct ExpressionWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
+	/* 14.6.2.2-1
+	...an expression is type-dependent if any subexpression is type-dependent.
+	*/
+	bool isTypeDependent;
 	ExpressionWalker(const WalkerBase& base)
-		: WalkerBase(base)
+		: WalkerBase(base), isTypeDependent(false)
 	{
 	}
 	void visit(cpp::postfix_expression_member* symbol)
 	{
 		// TODO
+	}
+	void visit(cpp::primary_expression_builtin* symbol)
+	{
+		// TODO
+		/* 14.6.2.2-2
+		'this' is type-dependent if the class type of the enclosing member function is dependent
+		*/
 	}
 	void visit(cpp::type_id* symbol)
 	{
@@ -1477,6 +1503,149 @@ struct ExpressionWalker : public WalkerBase
 		// TODO
 		IdExpressionWalker walker(*this);
 		symbol->accept(walker);
+		isTypeDependent |= walker.isTypeDependent;
+	}
+	void visit(cpp::postfix_expression_disambiguate* symbol)
+	{
+		// TODO
+		/* 14.6.2-1
+		In an expression of the form:
+		postfix-expression ( expression-list. )
+		where the postfix-expression is an unqualified-id but not a template-id, the unqualified-id denotes a dependent
+		name if and only if any of the expressions in the expression-list is a type-dependent expression (
+		*/
+		if(typeid(*symbol->left.p) == typeid(cpp::identifier)) // TODO: operator-function
+		{
+			ExpressionWalker walker(*this);
+			symbol->right->accept(walker);
+			if(!walker.isTypeDependent)
+			{
+				symbol->left->accept(*this);
+			}
+		}
+		else
+		{
+			symbol->accept(*this);
+		}
+	}
+	/* 14.6.2.2-3
+	Expressions of the following forms are type-dependent only if the type specified by the type-id, simple-type-specifier
+	or new-type-id is dependent, even if any subexpression is type-dependent:
+	- postfix-expression-construct
+	- new-expression
+	- postfix-expression-cast
+	- cast-expression
+	*/
+	void visit(cpp::postfix_expression_construct* symbol)
+	{
+		{
+			TypeSpecifierWalker walker(*this);
+			walker.visit(symbol->type);
+			isTypeDependent = isDependent(walker.type);
+		}
+		{
+			ExpressionWalker walker(*this);
+			walker.visit(symbol->args);
+		}
+	}
+	void visit(cpp::new_expression_placement* symbol)
+	{
+		{
+			ExpressionWalker walker(*this);
+			walker.visit(symbol->place);
+		}
+		{
+			TypeIdWalker walker(*this);
+			walker.visit(symbol->type);
+			isTypeDependent = isDependent(walker.type);
+		}
+		{
+			ExpressionWalker walker(*this);
+			walker.visit(symbol->init);
+		}
+	}
+	void visit(cpp::new_expression_default* symbol)
+	{
+		{
+			TypeIdWalker walker(*this);
+			walker.visit(symbol->type);
+			isTypeDependent = isDependent(walker.type);
+		}
+		{
+			ExpressionWalker walker(*this);
+			walker.visit(symbol->init);
+		}
+	}
+	void visit(cpp::postfix_expression_cast* symbol)
+	{
+		{
+			TypeIdWalker walker(*this);
+			walker.visit(symbol->type);
+			isTypeDependent = isDependent(walker.type);
+		}
+		{
+			ExpressionWalker walker(*this);
+			walker.visit(symbol->expr);
+		}
+	}
+	void visit(cpp::cast_expression_default* symbol)
+	{
+		{
+			TypeIdWalker walker(*this);
+			walker.visit(symbol->id);
+			isTypeDependent = isDependent(walker.type);
+		}
+		{
+			ExpressionWalker walker(*this);
+			walker.visit(symbol->expr);
+		}
+	}
+	/* 14.6.2.2-4
+	Expressions of the following forms are never type-dependent (because the type of the expression cannot be
+	dependent):
+	literal
+	postfix-expression . pseudo-destructor-name
+	postfix-expression -> pseudo-destructor-name
+	sizeof unary-expression
+	sizeof ( type-id )
+	sizeof ... ( identifier )
+	alignof ( type-id )
+	typeid ( expression )
+	typeid ( type-id )
+	::opt delete cast-expression
+	::opt delete [ ] cast-expression
+	throw assignment-expressionopt
+	*/
+	// TODO: destructor-call is not dependent
+	void visit(cpp::unary_expression_sizeof* symbol)
+	{
+		ExpressionWalker walker(*this);
+		walker.visit(symbol->expr);
+	}
+	void visit(cpp::unary_expression_sizeoftype* symbol)
+	{
+		TypeIdWalker walker(*this);
+		walker.visit(symbol->type);
+	}
+	void visit(cpp::postfix_expression_typeid* symbol)
+	{
+		ExpressionWalker walker(*this);
+		walker.visit(symbol->expr);
+	}
+	void visit(cpp::postfix_expression_typeidtype* symbol)
+	{
+		TypeIdWalker walker(*this);
+		walker.visit(symbol->type);
+	}
+	void visit(cpp::delete_expression* symbol)
+	{
+		ExpressionWalker walker(*this);
+		walker.visit(symbol->expr);
+	}
+	void visit(cpp::throw_expression* symbol)
+	{
+		ExpressionWalker walker(*this);
+		walker.visit(symbol->expr);
 	}
 };
 
