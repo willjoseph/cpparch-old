@@ -1161,7 +1161,6 @@ bool isTemplateName(const Declaration& declaration)
 bool isNestedName(const Declaration& declaration)
 {
 	return isTypeName(declaration)
-		|| isTemplateName(declaration)
 		|| isNamespaceName(declaration);
 }
 

@@ -2,6 +2,21 @@
 //#include "predefined_msvc.h"
 //#include <xutility>
 
+// nested-name-specifier should ignore non-class non-namespace names
+template<typename T>
+struct C9
+{
+	template<typename X>
+	C9()
+	{
+	}
+	void f()
+	{
+		C9::f();
+	}
+};
+
+// name-lookup within template member definition
 template<typename X>
 class C2
 {
