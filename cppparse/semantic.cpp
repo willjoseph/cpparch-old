@@ -98,17 +98,49 @@ struct DeclSpecifiers
 
 const DeclSpecifiers DECLSPEC_TYPEDEF = DeclSpecifiers(true, false, false, false);
 
+typedef std::vector<struct TemplateArgument> TemplateArguments;
+
+struct Type
+{
+	Declaration* declaration;
+	TemplateArguments arguments;
+	Type(Declaration* declaration) : declaration(declaration)
+	{
+	}
+};
+
+struct TemplateArgument
+{
+	Type type;
+	int value;
+	TemplateArgument(const Type& type) : type(type), value(0)
+	{
+	}
+	TemplateArgument(int value) : type(0), value(value)
+	{
+	}
+};
+
+#if 0
+bool operator<(const TemplateArgument& left, const TemplateArgument& right)
+{
+	return left.isType < right.isType ||
+		!(right.isType < left.isType) && left.declaration < right.declaration;
+}
+#endif
+
+
 struct Declaration
 {
 	Scope* scope;
 	Identifier name;
-	Declaration* type;
+	Type type;
 	Scope* enclosed;
 	DeclSpecifiers specifiers;
 	bool isTemplate;
 	bool isTemplateSpecialization;
 
-	Declaration(Scope* scope, Identifier name, Declaration* type, Scope* enclosed, DeclSpecifiers specifiers = DeclSpecifiers(), bool isTemplate = false, bool isTemplateSpecialization = false)
+	Declaration(Scope* scope, Identifier name, const Type& type, Scope* enclosed, DeclSpecifiers specifiers = DeclSpecifiers(), bool isTemplate = false, bool isTemplateSpecialization = false)
 		: scope(scope), name(name), type(type), enclosed(enclosed), specifiers(specifiers), isTemplate(isTemplate), isTemplateSpecialization(isTemplateSpecialization)
 	{
 	}
@@ -218,9 +250,9 @@ Identifier gAnonymousId = makeIdentifier("$anonymous");
 bool isType(const Declaration& type)
 {
 	return type.specifiers.isTypedef
-		|| type.type == &gSpecial
-		|| type.type == &gEnum
-		|| type.type == &gClass;
+		|| type.type.declaration == &gSpecial
+		|| type.type.declaration == &gEnum
+		|| type.type.declaration == &gClass;
 }
 
 // int i; // type -> int
@@ -241,34 +273,34 @@ bool isType(const Declaration& type)
 const Declaration* getType(const Declaration& declaration)
 {
 #if 0
-	if(declaration.type->type == 0)
+	if(declaration.type.declaration->type == 0)
 	{
 		return &declaration;
 	}
 #endif
 	if(declaration.specifiers.isTypedef)
 	{
-		return getType(*declaration.type);
+		return getType(*declaration.type.declaration);
 	}
-	return declaration.type;
+	return declaration.type.declaration;
 }
 
 const Declaration* getBaseType(const Declaration& declaration)
 {
-	if(declaration.type->specifiers.isTypedef)
+	if(declaration.type.declaration->specifiers.isTypedef)
 	{
-		return getBaseType(*declaration.type);
+		return getBaseType(*declaration.type.declaration);
 	}
-	return declaration.type;
+	return declaration.type.declaration;
 }
 
-const Declaration& getOriginalType(const Declaration& declaration)
+const Type& getOriginalType(const Type& type)
 {
-	if(declaration.specifiers.isTypedef)
+	if(type.declaration->specifiers.isTypedef)
 	{
-		return getOriginalType(*declaration.type);
+		return getOriginalType(type.declaration->type);
 	}
-	return declaration;
+	return type;
 }
 
 bool isFunction(const Declaration& declaration)
@@ -300,12 +332,12 @@ bool isTypedef(const Declaration& declaration)
 
 bool isClass(const Declaration& declaration)
 {
-	return declaration.type == &gClass;
+	return declaration.type.declaration == &gClass;
 }
 
 bool isEnum(const Declaration& declaration)
 {
-	return declaration.type == &gEnum;
+	return declaration.type.declaration == &gEnum;
 }
 
 bool isIncomplete(const Declaration& declaration)
@@ -320,7 +352,7 @@ bool isElaboratedType(const Declaration& declaration)
 
 bool isNamespace(const Declaration& declaration)
 {
-	return declaration.type == &gNamespace;
+	return declaration.type.declaration == &gNamespace;
 }
 
 bool isObject(const Declaration& declaration)
@@ -334,16 +366,28 @@ bool isExtern(const Declaration& declaration)
 	return declaration.specifiers.isExtern;
 }
 
-bool isTypeParameter(const Declaration& declaration)
+bool isTypeParameter(const Type& type)
 {
-	return !(&declaration < gTemplateParams) && &declaration < ARRAY_END(gTemplateParams);
+	return !(type.declaration < gTemplateParams) && type.declaration < ARRAY_END(gTemplateParams);
 }
 
-bool isDependent(const Declaration& declaration)
+bool isDependent(const Type& type)
 {
-	return isTypeParameter(getOriginalType(declaration));
+	const Type& original = getOriginalType(type);
+	if(isTypeParameter(original))
+	{
+		return true;
+	}
+	for(TemplateArguments::const_iterator i = original.arguments.begin(); i != original.arguments.end(); ++i)
+	{
+		if((*i).type.declaration != 0
+			&& isDependent((*i).type))
+		{
+			return true;
+		}
+	}
+	return false;
 }
-
 
 const char* getDeclarationType(const Declaration& declaration)
 {
@@ -812,34 +856,7 @@ void printIdentifierMismatch(const IdentifierMismatch& e)
 	}
 }
 
-struct TemplateArgument
-{
-	union
-	{
-		Declaration* declaration;
-		int value;
-	};
-	bool isType;
-	bool isDependent;
-	TemplateArgument(Declaration* declaration) : isType(true)
-	{
-		this->declaration = declaration;
-	}
-	TemplateArgument(int value) : isType(false)
-	{
-		this->value = value;
-	}
-};
-
-bool operator<(const TemplateArgument& left, const TemplateArgument& right)
-{
-	return left.isType < right.isType ||
-		!(right.isType < left.isType) && left.declaration < right.declaration;
-}
-
-
-typedef std::vector<TemplateArgument> TemplateArguments;
-
+#if 0
 struct TemplateInstantiation
 {
 	Declaration* declaration;
@@ -857,11 +874,11 @@ bool operator<(const TemplateInstantiation& left, const TemplateInstantiation& r
 }
 
 typedef std::set<TemplateInstantiation> TemplateInstantiations;
-
+#endif
 
 bool isAny(const Declaration& declaration)
 {
-	return declaration.type != &gCtor;
+	return declaration.type.declaration != &gCtor;
 }
 
 typedef bool (*LookupFilter)(const Declaration&);
@@ -871,7 +888,9 @@ struct WalkerContext
 {
 	Scope global;
 	Scope dependent;
+#if 0
 	TemplateInstantiations instantiations;
+#endif
 
 	WalkerContext() :
 		global(makeIdentifier("$global"), SCOPETYPE_NAMESPACE),
@@ -988,7 +1007,7 @@ struct WalkerBase
 		return &gUndeclared;
 	}
 
-	Declaration* pointOfDeclaration(Scope* parent, const Identifier& name, Declaration* type, Scope* enclosed, DeclSpecifiers specifiers = DeclSpecifiers(), bool isTemplate = false, bool isTemplateSpecialization = false)
+	Declaration* pointOfDeclaration(Scope* parent, const Identifier& name, const Type& type, Scope* enclosed, DeclSpecifiers specifiers = DeclSpecifiers(), bool isTemplate = false, bool isTemplateSpecialization = false)
 	{
 		if(ambiguity != 0)
 		{
@@ -1033,10 +1052,12 @@ struct WalkerBase
 		return result;
 	}
 
+#if 0
 	const TemplateInstantiation& pointOfInstantiation(Declaration* declaration, const TemplateArguments& arguments)
 	{
 		return *context.instantiations.insert(TemplateInstantiation(declaration, arguments)).first;
 	}
+#endif
 
 	Scope* findScope(Scope* scope, Scope* other)
 	{
@@ -1067,25 +1088,15 @@ struct WalkerBase
 
 	void setQualifying(Declaration* declaration)
 	{
-#if 1 // TODO
-		if(isDependent(*declaration)
-			&& enclosing != templateEnclosing) // not the declarator of a template function
+		if(declaration->enclosed == 0)
 		{
-			qualifying = &context.dependent;
+			// TODO
+			//printPosition(symbol->id->value.position);
+			std::cout << "'" << getValue(declaration->name) << "' is incomplete, declared here:" << std::endl;
+			printPosition(declaration->name.position);
+			throw SemanticError();
 		}
-		else
-#endif
-		{
-			if(declaration->enclosed == 0)
-			{
-				// TODO
-				//printPosition(symbol->id->value.position);
-				std::cout << "'" << getValue(declaration->name) << "' is incomplete, declared here:" << std::endl;
-				printPosition(declaration->name.position);
-				throw SemanticError();
-			}
-			qualifying = declaration->enclosed;
-		}
+		qualifying = declaration->enclosed;
 	}
 
 	void reportIdentifierMismatch(const Identifier& id, Declaration* declaration, const char* expected)
@@ -1344,7 +1355,7 @@ struct TypeIdWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Declaration* type;
+	Type type;
 	TypeIdWalker(const WalkerBase& base)
 		: WalkerBase(base), type(0)
 	{
@@ -1353,7 +1364,7 @@ struct TypeIdWalker : public WalkerBase
 	{
 		DeclSpecifierSeqWalker walker(*this);
 		symbol->accept(walker);
-		type = walker.declaration;
+		type = walker.type;
 	}
 };
 
@@ -1486,7 +1497,6 @@ struct TemplateArgumentWalker : public WalkerBase
 		TypeIdWalker walker(*this);
 		symbol->accept(walker);
 		arguments.push_back(TemplateArgument(walker.type));
-		dependent |= isDependent(*walker.type);
 	}
 	void visit(cpp::assignment_expression* symbol)
 	{
@@ -1500,16 +1510,15 @@ struct TemplateIdWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Declaration* declaration;
+	Type type;
 	LookupFilter filter;
-	bool dependent;
 	TemplateIdWalker(const WalkerBase& base, LookupFilter filter = isAny)
-		: WalkerBase(base), declaration(0), filter(filter), dependent(false)
+		: WalkerBase(base), type(0), filter(filter)
 	{
 	}
 	void visit(cpp::identifier* symbol)
 	{
-		declaration = findDeclaration(symbol->value, filter);
+		Declaration* declaration = findDeclaration(symbol->value, filter);
 		if(declaration == &gUndeclared
 			|| !isTemplateName(*declaration))
 		{
@@ -1519,6 +1528,7 @@ struct TemplateIdWalker : public WalkerBase
 		{
 			symbol->value.dec.p = declaration;
 		}
+		type.declaration = declaration;
 	}
 	void visit(cpp::template_argument_list* symbol)
 	{
@@ -1526,8 +1536,10 @@ struct TemplateIdWalker : public WalkerBase
 		// TODO: instantiation
 		TemplateArgumentWalker walker(*this);
 		symbol->accept(walker);
+#if 0
 		pointOfInstantiation(declaration, walker.arguments);
-		dependent = walker.dependent;
+#endif
+		type.arguments = walker.arguments;
 	}
 };
 
@@ -1535,16 +1547,15 @@ struct TypeNameWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Declaration* declaration;
+	Type type;
 	LookupFilter filter;
-	bool dependent;
 	TypeNameWalker(const WalkerBase& base, LookupFilter filter = isAny)
-		: WalkerBase(base), declaration(0), filter(filter), dependent(false)
+		: WalkerBase(base), type(0), filter(filter)
 	{
 	}
 	void visit(cpp::identifier* symbol)
 	{
-		declaration = findDeclaration(symbol->value, filter);
+		Declaration* declaration = findDeclaration(symbol->value, filter);
 		if(declaration == &gUndeclared
 			|| !isTypeName(*declaration))
 		{
@@ -1554,13 +1565,13 @@ struct TypeNameWalker : public WalkerBase
 		{
 			symbol->value.dec.p = declaration;
 		}
+		type.declaration = declaration;
 	}
 	void visit(cpp::simple_template_id* symbol)
 	{
 		TemplateIdWalker walker(*this);
 		symbol->accept(walker);
-		declaration = walker.declaration;
-		dependent = walker.dependent;
+		type = walker.type;
 	}
 };
 
@@ -1584,14 +1595,14 @@ struct NestedNameSpecifierWalker : public WalkerBase
 		{
 			TypeNameWalker walker(*this, isNestedName);
 			symbol->accept(walker);
-			if(walker.dependent
+			if(isDependent(walker.type)
 				&& enclosing != templateEnclosing)
 			{
 				qualifying = &context.dependent;
 			}
 			else
 			{
-				setQualifying(walker.declaration);
+				setQualifying(walker.type.declaration);
 			}
 		}
 	}
@@ -1601,14 +1612,14 @@ struct NestedNameSpecifierWalker : public WalkerBase
 		{
 			TemplateIdWalker walker(*this, isNestedName);
 			symbol->accept(walker);
-			if(walker.dependent
+			if(isDependent(walker.type)
 				&& enclosing != templateEnclosing)
 			{
 				qualifying = &context.dependent;
 			}
 			else
 			{
-				setQualifying(walker.declaration);
+				setQualifying(walker.type.declaration);
 			}
 		}
 	}
@@ -1618,9 +1629,9 @@ struct TypeSpecifierWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Declaration* declaration;
+	Type type;
 	TypeSpecifierWalker(const WalkerBase& base)
-		: WalkerBase(base), declaration(0)
+		: WalkerBase(base), type(0)
 	{
 	}
 
@@ -1628,8 +1639,8 @@ struct TypeSpecifierWalker : public WalkerBase
 	{
 		TypeNameWalker walker(*this);
 		symbol->accept(walker);
-		SEMANTIC_ASSERT(walker.declaration != 0);
-		declaration = walker.declaration;
+		SEMANTIC_ASSERT(walker.type.declaration != 0);
+		type = walker.type;
 	}
 	void visit(cpp::simple_type_specifier_name* symbol)
 	{
@@ -1657,13 +1668,13 @@ struct TypeSpecifierWalker : public WalkerBase
 	{
 		TemplateIdWalker walker(*this);
 		symbol->accept(walker);
-		SEMANTIC_ASSERT(walker.declaration != 0);
-		declaration = walker.declaration;
+		SEMANTIC_ASSERT(walker.type.declaration != 0);
+		type = walker.type;
 	}
 	void visit(cpp::simple_type_specifier_builtin* symbol)
 	{
 		// TODO
-		declaration = &gBuiltin;
+		type = &gBuiltin;
 	}
 };
 
@@ -1783,7 +1794,7 @@ struct BaseSpecifierWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Declaration* type;
+	Type type;
 	BaseSpecifierWalker(const WalkerBase& base)
 		: WalkerBase(base), type(0)
 	{
@@ -1804,7 +1815,7 @@ struct BaseSpecifierWalker : public WalkerBase
 		*/
 		TypeNameWalker walker(*this, isTypeName);
 		symbol->accept(walker);
-		type = walker.declaration;
+		type = walker.type;
 	}
 };
 
@@ -1854,12 +1865,12 @@ struct ClassHeadWalker : public WalkerBase
 	{
 		BaseSpecifierWalker walker(*this);
 		symbol->accept(walker);
-		SEMANTIC_ASSERT(walker.type != 0);
-		const Declaration& type = getOriginalType(*walker.type);
-		if(type.enclosed != 0) // TODO: template-param dependent bases
+		SEMANTIC_ASSERT(walker.type.declaration != 0);
+		const Type& type = getOriginalType(walker.type);
+		if(type.declaration->enclosed != 0) // TODO: template-param dependent bases
 		{
 			SEMANTIC_ASSERT(declaration->enclosed != 0);
-			declaration->enclosed->bases.push_back(type.enclosed);
+			declaration->enclosed->bases.push_back(type.declaration->enclosed);
 		}
 	}
 };
@@ -1899,7 +1910,7 @@ struct MemberDeclarationWalker : public WalkerBase
 		{
 			SimpleDeclarationWalker walker(*this);
 			symbol->accept(walker);
-			SEMANTIC_ASSERT(walker.type != 0);
+			SEMANTIC_ASSERT(walker.type.declaration != 0);
 			declaration = walker.declaration;
 		}
 	}
@@ -2021,7 +2032,7 @@ struct ElaboratedTypeSpecifierWalker : public WalkerBase
 			The class-key or enum keyword present in the elaborated-type-specifier shall agree in kind with the declaration
 			to which the name in the elaborated-type-specifier refers.
 			*/
-			if(declaration->type != type)
+			if(declaration->type.declaration != type)
 			{
 				printPosition(symbol->value.position);
 				std::cout << "'" << symbol->value.value << "': elaborated-type-specifier key does not match declaration" << std::endl;
@@ -2060,10 +2071,10 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Declaration* declaration;
+	Type type;
 	DeclSpecifiers specifiers;
 	DeclSpecifierSeqWalker(const WalkerBase& base)
-		: WalkerBase(base), declaration(0)
+		: WalkerBase(base), type(0)
 	{
 	}
 
@@ -2071,13 +2082,13 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 	{
 		TypeSpecifierWalker walker(*this);
 		symbol->accept(walker);
-		declaration = walker.declaration;
+		type = walker.type;
 	}
 	void visit(cpp::elaborated_type_specifier_template* symbol)
 	{
 		TypeSpecifierWalker walker(*this);
 		symbol->accept(walker);
-		declaration = walker.declaration;
+		type = walker.type;
 	}
 	void visit(cpp::elaborated_type_specifier_default* symbol)
 	{
@@ -2085,36 +2096,37 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 		{
 			ElaboratedTypeSpecifierWalker walker(*this);
 			symbol->accept(walker);
-			declaration = walker.declaration;
+			type = walker.declaration;
 		}
 		else
 		{
 			TypeSpecifierWalker walker(*this);
 			symbol->accept(walker);
-			declaration = walker.declaration;
+			type = walker.type;
 		}
 	}
 	void visit(cpp::typename_specifier* symbol)
 	{
-		declaration = &gTypename;
+		type = &gTypename;
 	}
 	void visit(cpp::class_specifier* symbol)
 	{
 		ClassSpecifierWalker walker(*this);
 		symbol->accept(walker);
-		declaration = walker.declaration;
+		type = walker.declaration;
 		walker.walkDeferred();
 	}
 	void visit(cpp::enum_specifier* symbol)
 	{
 		Identifier id = symbol->id.p != 0 ? symbol->id->value : makeIdentifier(enclosing->getUniqueName());
-		declaration = pointOfDeclaration(enclosing, id, &gEnum, 0);
+		Declaration* declaration = pointOfDeclaration(enclosing, id, &gEnum, 0);
 		if(symbol->id.p != 0)
 		{
 			symbol->id->value.dec.p = declaration;
 		}
 		EnumSpecifierWalker walker(*this);
 		symbol->accept(walker);
+		type = declaration;
 	}
 	void visit(cpp::decl_specifier_default* symbol)
 	{
@@ -2161,7 +2173,7 @@ struct StatementWalker : public WalkerBase
 		{
 			SimpleDeclarationWalker walker(*this);
 			symbol->accept(walker);
-			SEMANTIC_ASSERT(walker.type != 0);
+			SEMANTIC_ASSERT(walker.type.declaration != 0);
 		}
 	}
 	void visit(cpp::selection_statement* symbol)
@@ -2208,7 +2220,7 @@ struct ControlStatementWalker : public WalkerBase
 	{
 		SimpleDeclarationWalker walker(*this);
 		symbol->accept(walker);
-		SEMANTIC_ASSERT(walker.type != 0);
+		SEMANTIC_ASSERT(walker.type.declaration != 0);
 	}
 	void visit(cpp::simple_declaration* symbol)
 	{
@@ -2295,7 +2307,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Declaration* type;
+	Type type;
 	Declaration* declaration;
 	DeclSpecifiers specifiers;
 
@@ -2309,16 +2321,16 @@ struct SimpleDeclarationWalker : public WalkerBase
 	{
 		DeclSpecifierSeqWalker walker(*this);
 		symbol->accept(walker);
-		type = walker.declaration;
-		declaration = type; // if no declarator is specified later, this is probably a class-declaration
+		type = walker.type;
+		declaration = type.declaration; // if no declarator is specified later, this is probably a class-declaration
 		specifiers = walker.specifiers;
 	}
 	void visit(cpp::type_specifier_seq* symbol)
 	{
 		DeclSpecifierSeqWalker walker(*this);
 		symbol->accept(walker);
-		type = walker.declaration;
-		declaration = type; // if no declarator is specified later, this is probably a class-declaration
+		type = walker.type;
+		declaration = type.declaration; // if no declarator is specified later, this is probably a class-declaration
 	}
 
 	template<typename T>
@@ -2333,7 +2345,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 #if 0
 			walker.paramScope,
 #else	
-			specifiers.isTypedef ? type->enclosed : walker.paramScope,
+			specifiers.isTypedef ? type.declaration->enclosed : walker.paramScope,
 #endif
 			specifiers,
 			enclosing == templateEnclosing); // 3.3.1.1
@@ -2445,7 +2457,7 @@ struct TemplateParameterListWalker : public WalkerBase
 	{
 		if(symbol->id != 0)
 		{
-			symbol->id->value.dec.p = pointOfDeclaration(enclosing, symbol->id->value, paramType++, &context.dependent, DECLSPEC_TYPEDEF);
+			symbol->id->value.dec.p = pointOfDeclaration(enclosing, symbol->id->value, paramType++, 0, DECLSPEC_TYPEDEF);
 		}
 	}
 	void visit(cpp::type_parameter_template* symbol)
@@ -2453,7 +2465,7 @@ struct TemplateParameterListWalker : public WalkerBase
 		// TODO
 		if(symbol->id != 0)
 		{
-			symbol->id->value.dec.p = pointOfDeclaration(enclosing, symbol->id->value, paramType++, &context.dependent, DECLSPEC_TYPEDEF, true);
+			symbol->id->value.dec.p = pointOfDeclaration(enclosing, symbol->id->value, paramType++, 0, DECLSPEC_TYPEDEF, true);
 		}
 	}
 	void visit(cpp::parameter_declaration* symbol)
@@ -2546,7 +2558,7 @@ struct DeclarationWalker : public WalkerBase
 		{
 			SimpleDeclarationWalker walker(*this);
 			symbol->accept(walker);
-			SEMANTIC_ASSERT(walker.type != 0);
+			SEMANTIC_ASSERT(walker.type.declaration != 0);
 			declaration = walker.declaration;
 		}
 	}
@@ -2565,7 +2577,7 @@ struct DeclarationWalker : public WalkerBase
 		{
 			SimpleDeclarationWalker walker(*this);
 			symbol->accept(walker);
-			SEMANTIC_ASSERT(walker.type != 0);
+			SEMANTIC_ASSERT(walker.type.declaration != 0);
 			declaration = walker.declaration;
 		}
 	}

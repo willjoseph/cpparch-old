@@ -2,20 +2,6 @@
 //#include "predefined_msvc.h"
 //#include <xutility>
 
-
-template<typename T>
-struct Fwd;
-
-template<typename T>
-void f()
-{
-	Fwd<T>::f();
-	typedef Fwd<T> M;
-	M::f();
-}
-
-
-
 template<typename X>
 class C2
 {
@@ -38,6 +24,20 @@ T C2<X>::C3<T>::f(I)
 {
 	I i;
 }
+
+
+template<typename T>
+struct Fwd;
+
+template<typename T>
+void f()
+{
+	Fwd<T>::f();
+	typedef Fwd<T> M;
+	M::f();
+}
+
+
 
 
 // test name-lookup for template-param-dependent nested-name-specifier
