@@ -177,6 +177,7 @@ struct Scope
 	ScopeType type;
 	typedef std::vector<Type> Bases;
 	Bases bases;
+	Declarations templateParams;
 
 	Scope(const Identifier& name, ScopeType type = SCOPETYPE_UNKNOWN)
 		: parent(0), name(name), enclosedScopeCount(0), type(type)
@@ -226,17 +227,6 @@ Declaration gBuiltin(0, makeIdentifier("$builtin"), &gSpecial, 0);
 Declaration gDependent(0, makeIdentifier("$dependent"), &gBuiltin, 0);
 
 Declaration gParam(0, makeIdentifier("$param"), &gClass, 0);
-
-Declaration gTemplateParams[] = 
-{
-	gParam, gParam, gParam, gParam,
-	gParam, gParam, gParam, gParam,
-	gParam, gParam, gParam, gParam,
-	gParam, gParam, gParam, gParam,
-	gParam, gParam, gParam, gParam,
-	gParam, gParam, gParam, gParam,
-	gParam, gParam, gParam, gParam,
-};
 
 // objects
 Identifier gOperatorFunctionId = makeIdentifier("operator <op>");
@@ -366,18 +356,29 @@ bool isExtern(const Declaration& declaration)
 	return declaration.specifiers.isExtern;
 }
 
-bool isTypeParameter(const Type& type)
+bool isTypeParameter(const Scope& scope, Declaration* declaration)
 {
-	return !(type.declaration < gTemplateParams) && type.declaration < ARRAY_END(gTemplateParams);
+	for(Scope::Declarations::const_iterator i = scope.templateParams.begin(); i != scope.templateParams.end(); ++i)
+	{
+		if(&(*i) == declaration)
+		{
+			return true;
+		}
+	}
+	if(scope.parent != 0)
+	{
+		return isTypeParameter(*scope.parent, declaration);
+	}
+	return false;
 }
 
-bool isDependent(const Type& type);
+bool isDependent(const Scope& enclosing, const Type& type);
 
-bool isDependent(const Scope::Bases& bases)
+bool isDependent(const Scope& enclosing, const Scope::Bases& bases)
 {
 	for(Scope::Bases::const_iterator i = bases.begin(); i != bases.end(); ++i)
 	{
-		if(isDependent(*i))
+		if(isDependent(enclosing, *i))
 		{
 			return true;
 		}
@@ -385,17 +386,17 @@ bool isDependent(const Scope::Bases& bases)
 	return false;
 }
 
-bool isDependent(const Type& type)
+bool isDependent(const Scope& enclosing, const Type& type)
 {
 	const Type& original = getOriginalType(type);
-	if(isTypeParameter(original))
+	if(isTypeParameter(enclosing, original.declaration))
 	{
 		return true;
 	}
 	for(TemplateArguments::const_iterator i = original.arguments.begin(); i != original.arguments.end(); ++i)
 	{
 		if((*i).type.declaration != 0
-			&& isDependent((*i).type))
+			&& isDependent(enclosing, (*i).type))
 		{
 			return true;
 		}
@@ -403,7 +404,7 @@ bool isDependent(const Type& type)
 	Scope* enclosed = original.declaration->enclosed;
 	if(enclosed != 0)
 	{
-		return isDependent(enclosed->bases);
+		return isDependent(enclosing, enclosed->bases);
 	}
 	return false;
 }
@@ -1174,6 +1175,16 @@ struct WalkerBase
 			std::cout << "enclosing:" << std::endl;
 			::printScope(*enclosing);
 		}
+	}
+
+	bool isDependent(const Type& type)
+	{
+		return ::isDependent(*enclosing, type);
+	}
+
+	bool isDependent(const Scope::Bases& bases)
+	{
+		return ::isDependent(*enclosing, bases);
 	}
 
 	bool isDependentPrimaryExpression(cpp::primary_expression* symbol)
@@ -2679,16 +2690,16 @@ struct TemplateParameterListWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Declaration* paramType;
 	TemplateParameterListWalker(WalkerBase& base)
-		: WalkerBase(base), paramType(gTemplateParams)
+		: WalkerBase(base)
 	{
 	}
 	void visit(cpp::type_parameter_default* symbol)
 	{
 		if(symbol->id != 0)
 		{
-			symbol->id->value.dec.p = pointOfDeclaration(enclosing, symbol->id->value, paramType++, 0, DECLSPEC_TYPEDEF);
+			enclosing->templateParams.push_back(gParam);
+			symbol->id->value.dec.p = pointOfDeclaration(enclosing, symbol->id->value, &enclosing->templateParams.back(), 0, DECLSPEC_TYPEDEF);
 		}
 	}
 	void visit(cpp::type_parameter_template* symbol)
@@ -2696,7 +2707,8 @@ struct TemplateParameterListWalker : public WalkerBase
 		// TODO
 		if(symbol->id != 0)
 		{
-			symbol->id->value.dec.p = pointOfDeclaration(enclosing, symbol->id->value, paramType++, 0, DECLSPEC_TYPEDEF, true);
+			enclosing->templateParams.push_back(gParam);
+			symbol->id->value.dec.p = pointOfDeclaration(enclosing, symbol->id->value, &enclosing->templateParams.back(), 0, DECLSPEC_TYPEDEF, true);
 		}
 	}
 	void visit(cpp::parameter_declaration* symbol)
@@ -2733,15 +2745,6 @@ struct TemplateDeclarationWalker : public WalkerBase
 		symbol->accept(walker);
 		declaration = walker.declaration;
 		SEMANTIC_ASSERT(declaration != 0);
-#if 0
-		if(templateParams != 0) // explicit-specialization has no params
-		{
-			templateParams->name = declaration->name;
-			// TODO
-			//templateParams->parent = declaration->scope;
-			declaration->enclosed->templateParams = templateParams;
-		}
-#endif
 	}
 	void visit(cpp::member_declaration* symbol)
 	{
@@ -2749,14 +2752,6 @@ struct TemplateDeclarationWalker : public WalkerBase
 		symbol->accept(walker);
 		declaration = walker.declaration;
 		SEMANTIC_ASSERT(declaration != 0);
-#if 0
-		if(templateParams != 0) // explicit-specialization has no params
-		{
-			templateParams->name = declaration->name;
-			// TODO
-			//templateParams->parent = declaration->scope;
-		}
-#endif
 	}
 };
 

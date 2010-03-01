@@ -26,6 +26,7 @@ namespace std
 	class basic_string
 		: public _String_val<_Elem, _Ax>
 	{
+		typedef int size_type;
 	};
 
 	typedef basic_string<char, allocator<char> > string;
@@ -51,7 +52,7 @@ void f(T t)
 {
 	typename DependentTmpl<T>::dependent l; // member-typedef
 	DependentTmpl<T>::dependent(l); // function-call
-	int i = (DependentTmpl<T>::dependent)1;
+	int i = (typename DependentTmpl<T>::dependent)1;
 
 	typedef DependentTmpl<T> DependentType;
 	dependent(DependentType(t)); // dependent-type looks like a dependent-name
