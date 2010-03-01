@@ -2,12 +2,79 @@
 //#include "predefined_msvc.h"
 //#include <xutility>
 
+namespace std
+{
+
+	template<class _Ty>
+	struct _Allocator_base<const _Ty>
+	{
+	};
+
+	template<class _Ty>
+	class allocator: public _Allocator_base<_Ty>
+	{
+	};
+
+	template<class _Ty,
+	class _Alloc>
+	class _String_val
+	{
+	};
+
+	template<class _Elem,
+	class _Ax>
+	class basic_string
+		: public _String_val<_Elem, _Ax>
+	{
+	};
+
+	typedef basic_string<char, allocator<char> > string;
+
+	template<class _Elem,
+		class _InIt >
+	class num_get
+	{
+		void f()
+		{
+			(string::size_type)1;
+		}
+	};
+}
+
+template<typename T>
+class DependentTmpl
+{
+};
 
 template<typename T>
 void f(T t)
 {
-	undeclared(t);
+	typename DependentTmpl<T>::dependent l; // member-typedef
+	DependentTmpl<T>::dependent(l); // function-call
+	int i = (DependentTmpl<T>::dependent)1;
+
+	typedef DependentTmpl<T> DependentType;
+	dependent(DependentType(t)); // dependent-type looks like a dependent-name
+
+	dependent(DependentTmpl<T>());
+	dependent(t);
+	dependent(dependent(t));
 }
+
+template<typename T>
+class C10 : public T
+{
+	class DependentNested : public T
+	{
+	};
+
+	void f()
+	{
+		dependent(this);
+		dependent(DependentNested());
+	}
+};
+
 
 // nested-name-specifier should ignore non-class non-namespace names
 template<typename T>

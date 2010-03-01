@@ -175,7 +175,7 @@ struct Scope
 	typedef std::list<Declaration> Declarations;
 	Declarations declarations;
 	ScopeType type;
-	typedef std::vector<Scope*> Bases;
+	typedef std::vector<Type> Bases;
 	Bases bases;
 
 	Scope(const Identifier& name, ScopeType type = SCOPETYPE_UNKNOWN)
@@ -371,6 +371,20 @@ bool isTypeParameter(const Type& type)
 	return !(type.declaration < gTemplateParams) && type.declaration < ARRAY_END(gTemplateParams);
 }
 
+bool isDependent(const Type& type);
+
+bool isDependent(const Scope::Bases& bases)
+{
+	for(Scope::Bases::const_iterator i = bases.begin(); i != bases.end(); ++i)
+	{
+		if(isDependent(*i))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 bool isDependent(const Type& type)
 {
 	const Type& original = getOriginalType(type);
@@ -385,6 +399,11 @@ bool isDependent(const Type& type)
 		{
 			return true;
 		}
+	}
+	Scope* enclosed = original.declaration->enclosed;
+	if(enclosed != 0)
+	{
+		return isDependent(enclosed->bases);
 	}
 	return false;
 }
@@ -819,8 +838,12 @@ void printBases(const Scope::Bases& bases)
 	std::cout << "{ ";
 	for(Scope::Bases::const_iterator i = bases.begin(); i != bases.end();)
 	{
-		std::cout << getValue((*i)->name) << ": ";
-		printDeclarations((*i)->declarations);
+		std::cout << getValue((*i).declaration->name) << ": ";
+		Scope* scope = (*i).declaration->enclosed;
+		if(scope != 0)
+		{
+			printDeclarations((*i).declaration->enclosed->declarations);
+		}
 		if(++i != bases.end())
 		{
 			std::cout << ", ";
@@ -934,10 +957,14 @@ struct WalkerBase
 	{
 		for(Scope::Bases::iterator i = bases.begin(); i != bases.end(); ++i)
 		{
-			Declaration* result = findDeclaration((*i)->declarations, (*i)->bases, id, filter);
-			if(result != 0)
+			Scope* scope = (*i).declaration->enclosed;
+			if(scope != 0)
 			{
-				return result;
+				Declaration* result = findDeclaration(scope->declarations, scope->bases, id, filter);
+				if(result != 0)
+				{
+					return result;
+				}
 			}
 		}
 		return 0;
@@ -1119,6 +1146,15 @@ struct WalkerBase
 		return scope;
 	}
 
+	Scope* getClassScope()
+	{
+		Scope* scope = enclosing;
+		for(; scope->type != SCOPETYPE_CLASS; scope = scope->parent)
+		{
+		}
+		return scope;
+	}
+
 	void printScope()
 	{
 #if 1
@@ -1138,6 +1174,21 @@ struct WalkerBase
 			std::cout << "enclosing:" << std::endl;
 			::printScope(*enclosing);
 		}
+	}
+
+	bool isDependentPrimaryExpression(cpp::primary_expression* symbol)
+	{
+		cpp::identifier* p = dynamic_cast<cpp::identifier*>(symbol);
+		if(p != 0) // TODO: operator-function
+		{
+			Declaration* declaration = findDeclaration(p->value);
+			if(declaration == &gUndeclared
+				|| isObject(*declaration))
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 };
 
@@ -1390,13 +1441,24 @@ struct UnqualifiedIdWalker : public WalkerBase
 			isTypeDependent |= isDependent(declaration->type);
 		}
 	}
-	void visit(cpp::template_id* symbol)
+	void visit(cpp::simple_template_id* symbol)
 	{
-		// TODO
+		// TODO: args
+		Declaration* declaration = findDeclaration(symbol->id->value);
+		if(declaration == &gUndeclared
+			|| !isObject(*declaration))
+		{
+			reportIdentifierMismatch(symbol->id->value, declaration, "object-name");
+		}
+		else
+		{
+			symbol->id->value.dec.p = declaration;
+			isTypeDependent |= isDependent(declaration->type);
+		}
 	}
 	void visit(cpp::destructor_id* symbol)
 	{
-		// TODO
+		// TODO: can destructor-id be dependent?
 	}
 };
 
@@ -1486,6 +1548,7 @@ struct ExpressionWalker : public WalkerBase
 		/* 14.6.2.2-2
 		'this' is type-dependent if the class type of the enclosing member function is dependent
 		*/
+		isTypeDependent |= isDependent(getClassScope()->bases);
 	}
 	void visit(cpp::type_id* symbol)
 	{
@@ -1505,6 +1568,9 @@ struct ExpressionWalker : public WalkerBase
 		symbol->accept(walker);
 		isTypeDependent |= walker.isTypeDependent;
 	}
+	/* 14.6.2.2-1
+	... an expression is type-dependent if any subexpression is type-dependent.
+	*/
 	void visit(cpp::postfix_expression_disambiguate* symbol)
 	{
 		// TODO
@@ -1514,14 +1580,15 @@ struct ExpressionWalker : public WalkerBase
 		where the postfix-expression is an unqualified-id but not a template-id, the unqualified-id denotes a dependent
 		name if and only if any of the expressions in the expression-list is a type-dependent expression (
 		*/
-		if(typeid(*symbol->left.p) == typeid(cpp::identifier)) // TODO: operator-function
+		if(isDependentPrimaryExpression(symbol->left))
 		{
 			ExpressionWalker walker(*this);
-			symbol->right->accept(walker);
+			walker.visit(symbol->right);
 			if(!walker.isTypeDependent)
 			{
-				symbol->left->accept(*this);
+				walker.visit(symbol->left);
 			}
+			isTypeDependent |= walker.isTypeDependent;
 		}
 		else
 		{
@@ -2034,12 +2101,8 @@ struct ClassHeadWalker : public WalkerBase
 		BaseSpecifierWalker walker(*this);
 		symbol->accept(walker);
 		SEMANTIC_ASSERT(walker.type.declaration != 0);
-		const Type& type = getOriginalType(walker.type);
-		if(type.declaration->enclosed != 0) // TODO: template-param dependent bases
-		{
-			SEMANTIC_ASSERT(declaration->enclosed != 0);
-			declaration->enclosed->bases.push_back(type.declaration->enclosed);
-		}
+		SEMANTIC_ASSERT(declaration->enclosed != 0);
+		declaration->enclosed->bases.push_back(getOriginalType(walker.type));
 	}
 };
 
