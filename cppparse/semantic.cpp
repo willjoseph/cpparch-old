@@ -389,6 +389,10 @@ bool isDependent(const Scope& enclosing, const Scope::Bases& bases)
 bool isDependent(const Scope& enclosing, const Type& type)
 {
 	const Type& original = getOriginalType(type);
+	if(original.declaration == &gTypename)
+	{
+		return true;
+	}
 	if(isTypeParameter(enclosing, original.declaration))
 	{
 		return true;
@@ -1179,12 +1183,14 @@ struct WalkerBase
 
 	bool isDependent(const Type& type)
 	{
-		return ::isDependent(*enclosing, type);
+		return (templateParams != 0 && ::isDependent(*templateParams, type))
+			|| ::isDependent(*enclosing, type);
 	}
 
 	bool isDependent(const Scope::Bases& bases)
 	{
-		return ::isDependent(*enclosing, bases);
+		return (templateParams != 0 && ::isDependent(*templateParams, bases))
+			|| ::isDependent(*enclosing, bases);
 	}
 
 	bool isDependentPrimaryExpression(cpp::primary_expression* symbol)
@@ -1501,7 +1507,10 @@ struct QualifiedIdWalker : public WalkerBase
 	}
 	void visit(cpp::qualified_id_global* symbol)
 	{
-		// TODO
+		qualifying = &context.global;
+		UnqualifiedIdWalker walker(*this);
+		symbol->accept(walker);
+		isTypeDependent |= walker.isTypeDependent;
 	}
 };
 
@@ -1825,8 +1834,9 @@ struct NestedNameSpecifierWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	NestedNameSpecifierWalker(const WalkerBase& base)
-		: WalkerBase(base)
+	bool allowDependent;
+	NestedNameSpecifierWalker(const WalkerBase& base, bool allowDependent = false)
+		: WalkerBase(base), allowDependent(allowDependent)
 	{
 	}
 	void visit(cpp::namespace_name* symbol)
@@ -1841,8 +1851,8 @@ struct NestedNameSpecifierWalker : public WalkerBase
 		{
 			TypeNameWalker walker(*this, isNestedName);
 			symbol->accept(walker);
-			if(isDependent(walker.type)
-				&& enclosing != templateEnclosing)
+			if(!allowDependent
+				&& isDependent(walker.type))
 			{
 				qualifying = &context.dependent;
 			}
@@ -1858,8 +1868,8 @@ struct NestedNameSpecifierWalker : public WalkerBase
 		{
 			TemplateIdWalker walker(*this, isNestedName);
 			symbol->accept(walker);
-			if(isDependent(walker.type)
-				&& enclosing != templateEnclosing)
+			if(!allowDependent
+				&& isDependent(walker.type))
 			{
 				qualifying = &context.dependent;
 			}
@@ -1953,7 +1963,7 @@ struct DeclaratorIdWalker : public WalkerBase
 	}
 	void visit(cpp::nested_name_specifier* symbol)
 	{
-		NestedNameSpecifierWalker walker(*this);
+		NestedNameSpecifierWalker walker(*this, true);
 		symbol->accept(walker);
 		qualifying = walker.qualifying;
 	}
@@ -2349,6 +2359,8 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 	}
 	void visit(cpp::typename_specifier* symbol)
 	{
+		NestedNameSpecifierWalker walker(*this);
+		walker.visit(symbol->context);
 		type = &gTypename;
 	}
 	void visit(cpp::class_specifier* symbol)
@@ -2545,6 +2557,71 @@ struct InitializerWalker : public WalkerBase
 	}
 };
 
+struct MemInitializerWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	MemInitializerWalker(const WalkerBase& base)
+		: WalkerBase(base)
+	{
+	}
+	void visit(cpp::mem_initializer_id_base* symbol)
+	{
+		if(symbol->isGlobal.value != 0)
+		{
+			qualifying = &context.global;
+		}
+		symbol->accept(*this);
+	}
+	void visit(cpp::nested_name_specifier* symbol)
+	{
+		NestedNameSpecifierWalker walker(*this);
+		symbol->accept(walker);
+		qualifying = walker.qualifying;
+	}
+	void visit(cpp::class_name* symbol)
+	{
+		if(qualifying != &context.dependent)
+		{
+			TypeNameWalker walker(*this);
+			symbol->accept(walker);
+		}
+	}
+	void visit(cpp::identifier* symbol)
+	{
+		Declaration* declaration = findDeclaration(symbol->value);
+		if(declaration == &gUndeclared
+			|| !isObject(*declaration))
+		{
+			reportIdentifierMismatch(symbol->value, declaration, "object-name");
+		}
+		else
+		{
+			symbol->value.dec.p = declaration;
+		}
+	}
+	void visit(cpp::expression_list* symbol)
+	{
+		ExpressionWalker walker(*this);
+		symbol->accept(walker);
+	}
+};
+
+struct MemInitializerListWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	MemInitializerListWalker(const WalkerBase& base)
+		: WalkerBase(base)
+	{
+	}
+	void visit(cpp::mem_initializer* symbol)
+	{
+		MemInitializerWalker walker(*this);
+		symbol->accept(walker);
+	}
+};
+
 struct SimpleDeclarationWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
@@ -2659,8 +2736,8 @@ struct SimpleDeclarationWalker : public WalkerBase
 	}
 	void visit(cpp::ctor_initializer* symbol)
 	{
-		// TODO
-		//walkDeferable(*this, symbol);
+		MemInitializerListWalker walker(*this);
+		walkDeferable(walker, symbol);
 	}
 	void visit(cpp::handler_seq* symbol)
 	{

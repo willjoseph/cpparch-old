@@ -446,6 +446,7 @@ DECLARE_AMBIGUOUS(cpp::unary_expression);
 DECLARE_AMBIGUOUS(cpp::postfix_expression_prefix);
 DECLARE_AMBIGUOUS(cpp::nested_name);
 DECLARE_AMBIGUOUS(cpp::init_declarator);
+DECLARE_AMBIGUOUS(cpp::mem_initializer_id);
 
 DECLARE_AMBIGUOUS(cpp::expression);
 DECLARE_AMBIGUOUS(cpp::constant_expression);

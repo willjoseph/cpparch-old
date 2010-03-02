@@ -512,12 +512,22 @@ namespace cpp
 		));
 	};
 
-	struct identifier : public class_name, public namespace_name, public unqualified_id, public qualified_id_suffix
+	struct mem_initializer_id : public choice<mem_initializer_id>
+	{
+		VISITABLE_BASE(VISITORFUNCLIST3(
+			SYMBOLFWD(mem_initializer_id_base),
+			SYMBOLFWD(identifier),
+			ambiguity<mem_initializer_id>*
+		));
+	};
+
+	struct identifier : public class_name, public namespace_name, public unqualified_id, public qualified_id_suffix, public mem_initializer_id
 	{
 		VISITABLE_DERIVED(class_name);
 		VISITABLE_DERIVED(namespace_name);
 		VISITABLE_DERIVED(unqualified_id);
 		VISITABLE_DERIVED(qualified_id_suffix);
+		VISITABLE_DERIVED(mem_initializer_id);
 		terminal_identifier value;
 		FOREACH1(value);
 	};
@@ -748,9 +758,9 @@ namespace cpp
 	struct qualified_id_global : public qualified_id
 	{
 		VISITABLE_DERIVED(qualified_id);
-		terminal<boost::wave::T_COLON_COLON> scope;
+		terminal<boost::wave::T_COLON_COLON> isGlobal;
 		symbol<qualified_id_suffix> id;
-		FOREACH2(scope, id);
+		FOREACH2(isGlobal, id);
 	};
 
 	struct elaborated_type_specifier_key : public choice<elaborated_type_specifier_key>
@@ -1802,15 +1812,22 @@ namespace cpp
 		));
 	};
 
-	struct mem_initializer
+	struct mem_initializer_id_base : public mem_initializer_id
 	{
+		VISITABLE_DERIVED(mem_initializer_id);
 		terminal_optional<boost::wave::T_COLON_COLON> isGlobal;
 		symbol_optional<nested_name_specifier> context;
-		symbol<class_name> id;
+		symbol<class_name> type;
+		FOREACH3(isGlobal, context, type);
+	};
+
+	struct mem_initializer
+	{
+		symbol<mem_initializer_id> id;
 		terminal<boost::wave::T_LEFTPAREN> lp;
 		symbol_optional<expression_list> args;
 		terminal<boost::wave::T_RIGHTPAREN> rp;
-		FOREACH6(isGlobal, context, id, lp, args, rp);
+		FOREACH4(id, lp, args, rp);
 	};
 
 	struct mem_initializer_list

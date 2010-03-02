@@ -93,6 +93,8 @@ int runTest(const Test& test)
 		add_macro_definition(context, "_NATIVE_WCHAR_T_DEFINED=1", true);
 		add_macro_definition(context, "__wchar_t=wchar_t", true);
 		add_macro_definition(context, "__declspec(modifiers)=", true);
+		add_macro_definition(context, "__uuidof(type)=GUID()", true);
+		add_macro_definition(context, "__alignof(type)=4", true);
 
 		add_macro_definition(context, "__has_nothrow_constructor(type)=0", true);
 		add_macro_definition(context, "__has_nothrow_copy(type)=0", true);
@@ -327,8 +329,8 @@ int main(int argc, char *argv[])
 	{
 		const Test tests[] = {
 			makeTest("test/test_quick.cpp", verifyNull, parseFile),
-			makeTest("test/test_iostream.cpp", verifyNull, parseFile),
 			makeTest("test/test_vector.cpp", verifyNull, parseFile),
+			makeTest("test/test_iostream.cpp", verifyNull, parseFile),
 			makeTest("test/test_windows.cpp", verifyNull, parseFile),
 			makeTest("test/test_map.cpp", verifyNull, parseFile),
 			makeTest("test/test_error.cpp", verifyNull, parseFile),

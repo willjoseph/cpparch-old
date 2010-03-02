@@ -1368,10 +1368,23 @@ inline cpp::function_specifier_seq* parseSymbol(Parser& parser, cpp::function_sp
 	return result;
 }
 
-inline cpp::mem_initializer* parseSymbol(Parser& parser, cpp::mem_initializer* result)
+inline cpp::mem_initializer_id_base* parseSymbol(Parser& parser, cpp::mem_initializer_id_base* result)
 {
 	PARSE_TERMINAL(parser, result->isGlobal);
 	PARSE_OPTIONAL(parser, result->context);
+	PARSE_REQUIRED(parser, result->type);
+	return result;
+}
+
+inline cpp::mem_initializer_id* parseSymbol(Parser& parser, cpp::mem_initializer_id* result)
+{
+	PARSE_SELECT(parser, cpp::mem_initializer_id_base);
+	PARSE_SELECT(parser, cpp::identifier);
+	return result;
+}
+
+inline cpp::mem_initializer* parseSymbol(Parser& parser, cpp::mem_initializer* result)
+{
 	PARSE_REQUIRED(parser, result->id);
 	PARSE_TERMINAL(parser, result->lp);
 	PARSE_OPTIONAL(parser, result->args);
@@ -2824,7 +2837,7 @@ inline cpp::qualified_id_suffix* parseSymbol(Parser& parser, cpp::qualified_id_s
 
 inline cpp::qualified_id_global* parseSymbol(Parser& parser, cpp::qualified_id_global* result)
 {
-	PARSE_TERMINAL(parser, result->scope);
+	PARSE_TERMINAL(parser, result->isGlobal);
 	PARSE_REQUIRED(parser, result->id);
 	return result;
 }
