@@ -2020,7 +2020,7 @@ struct ParameterDeclarationClauseWalker : public WalkerBase
 
 	void visit(cpp::parameter_declaration* symbol)
 	{
-		SimpleDeclarationWalker walker(*this);
+		SimpleDeclarationWalker walker(*this, true);
 		symbol->accept(walker);
 	}
 };
@@ -2056,6 +2056,11 @@ struct DeclaratorWalker : public WalkerBase
 	void visit(cpp::exception_specification* symbol)
 	{
 		// TODO
+	}
+	void visit(cpp::constant_expression* symbol)
+	{
+		ExpressionWalker walker(*this);
+		symbol->accept(walker);
 	}
 };
 
@@ -2558,21 +2563,6 @@ struct HandlerSeqWalker : public WalkerBase
 	}
 };
 
-struct InitializerWalker : public WalkerBase
-{
-	TREEWALKER_DEFAULT;
-
-	InitializerWalker(const WalkerBase& base)
-		: WalkerBase(base)
-	{
-	}
-	void visit(cpp::assignment_expression* symbol)
-	{
-		ExpressionWalker walker(*this);
-		symbol->accept(walker);
-	}
-};
-
 struct QualifiedTypeNameWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
@@ -2656,9 +2646,10 @@ struct SimpleDeclarationWalker : public WalkerBase
 	Type type;
 	Declaration* declaration;
 	DeclSpecifiers specifiers;
+	bool isParameter;
 
-	SimpleDeclarationWalker(const WalkerBase& base)
-		: WalkerBase(base), type(&gCtor), declaration(0)
+	SimpleDeclarationWalker(const WalkerBase& base, bool isParameter = false)
+		: WalkerBase(base), type(&gCtor), declaration(0), isParameter(isParameter)
 	{
 	}
 
@@ -2738,15 +2729,18 @@ struct SimpleDeclarationWalker : public WalkerBase
 		}
 	}
 
-	void visit(cpp::initializer_default* symbol)
+	// handle assignment-expression(s) in initializer
+	void visit(cpp::assignment_expression* symbol)
 	{
-		InitializerWalker walker(*this);
-		symbol->accept(walker);
-	}
-	void visit(cpp::initializer_parenthesis* symbol) // intentional duplication: required for init_declarator_disambiguate
-	{
-		InitializerWalker walker(*this);
-		symbol->accept(walker);
+		ExpressionWalker walker(*this);
+		if(isParameter)
+		{
+			walkDeferable(walker, symbol);
+		}
+		else
+		{
+			symbol->accept(walker);
+		}
 	}
 	template<typename Walker, typename T>
 	void walkDeferable(Walker& walker, T* symbol)
