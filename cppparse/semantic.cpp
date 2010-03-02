@@ -2253,6 +2253,9 @@ struct EnumSpecifierWalker : public WalkerBase
 		// TODO: give enumerators a type
 		Declaration* declaration = pointOfDeclaration(enclosing, symbol->id->value, &gBuiltin, 0, DeclSpecifiers());
 		symbol->id->value.dec.p = declaration;
+
+		ExpressionWalker walker(*this);
+		walker.visit(symbol->init);
 	}
 };
 

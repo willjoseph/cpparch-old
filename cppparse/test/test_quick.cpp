@@ -2,6 +2,23 @@
 //#include "predefined_msvc.h"
 //#include <xutility>
 
+void f()
+{
+}
+
+template<typename T>
+class C13
+{
+	void f()
+	{
+		::f(get());
+	}
+
+	T* get()
+	{
+	}
+};
+
 /* 3.4.1-8
 A name used in the definition of a member function (9.3) of class X following the function’s declarator-id 33) shall be
 declared in one of the following ways:
@@ -594,7 +611,7 @@ class Tmpl
 };
 
 enum { ENUM1 };
-enum { ENUM2 };
+enum { ENUM2 = ENUM1 };
 
 template<typename T>
 class C1
