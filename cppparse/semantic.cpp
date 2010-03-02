@@ -1439,39 +1439,25 @@ struct UnqualifiedIdWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	bool isTypeDependent;
+	Declaration* declaration;
+	cpp::identifier* id;
 	UnqualifiedIdWalker(const WalkerBase& base)
-		: WalkerBase(base), isTypeDependent(false)
+		: WalkerBase(base), declaration(0), id(0)
 	{
 	}
 	void visit(cpp::identifier* symbol)
 	{
-		Declaration* declaration = findDeclaration(symbol->value);
-		if(declaration == &gUndeclared
-			|| !isObject(*declaration))
-		{
-			reportIdentifierMismatch(symbol->value, declaration, "object-name");
-		}
-		else
-		{
-			symbol->value.dec.p = declaration;
-			isTypeDependent |= isDependent(declaration->type);
-		}
+		id = symbol;
+		declaration = findDeclaration(symbol->value);
 	}
 	void visit(cpp::simple_template_id* symbol)
 	{
-		// TODO: args
-		Declaration* declaration = findDeclaration(symbol->id->value);
-		if(declaration == &gUndeclared
-			|| !isObject(*declaration))
-		{
-			reportIdentifierMismatch(symbol->id->value, declaration, "object-name");
-		}
-		else
-		{
-			symbol->id->value.dec.p = declaration;
-			isTypeDependent |= isDependent(declaration->type);
-		}
+		id = symbol->id;
+		declaration = findDeclaration(symbol->id->value);
+		qualifying = 0;
+		// TODO: store args
+		TemplateArgumentListWalker walker(*this);
+		walker.visit(symbol->args);
 	}
 	void visit(cpp::destructor_id* symbol)
 	{
@@ -1483,9 +1469,10 @@ struct QualifiedIdWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	bool isTypeDependent;
+	Declaration* declaration;
+	cpp::identifier* id;
 	QualifiedIdWalker(const WalkerBase& base)
-		: WalkerBase(base), isTypeDependent(false)
+		: WalkerBase(base), declaration(0), id(0)
 	{
 	}
 	void visit(cpp::nested_name_specifier* symbol)
@@ -1493,7 +1480,6 @@ struct QualifiedIdWalker : public WalkerBase
 		NestedNameSpecifierWalker walker(*this);
 		symbol->accept(walker);
 		qualifying = walker.qualifying;
-		isTypeDependent = qualifying == &context.dependent;
 	}
 	void visit(cpp::unqualified_id* symbol)
 	{
@@ -1502,7 +1488,8 @@ struct QualifiedIdWalker : public WalkerBase
 		{
 			UnqualifiedIdWalker walker(*this);
 			symbol->accept(walker);
-			isTypeDependent |= walker.isTypeDependent;
+			declaration = walker.declaration;
+			id = walker.id;
 		}
 	}
 	void visit(cpp::qualified_id_global* symbol)
@@ -1510,7 +1497,8 @@ struct QualifiedIdWalker : public WalkerBase
 		qualifying = &context.global;
 		UnqualifiedIdWalker walker(*this);
 		symbol->accept(walker);
-		isTypeDependent |= walker.isTypeDependent;
+		declaration = walker.declaration;
+		id = walker.id;
 	}
 };
 
@@ -1525,9 +1513,10 @@ struct IdExpressionWalker : public WalkerBase
 	— a conversion-function-id that specifies a dependent type,
 	— a nested-name-specifier or a qualified-id that names a member of an unknown specialization
 	*/
-	bool isTypeDependent;
+	Declaration* declaration;
+	cpp::identifier* id;
 	IdExpressionWalker(const WalkerBase& base)
-		: WalkerBase(base), isTypeDependent(false)
+		: WalkerBase(base), declaration(0), id(0)
 	{
 	}
 	void visit(cpp::qualified_id* symbol)
@@ -1535,14 +1524,18 @@ struct IdExpressionWalker : public WalkerBase
 		// TODO
 		QualifiedIdWalker walker(*this);
 		symbol->accept(walker);
-		isTypeDependent |= walker.isTypeDependent;
+		declaration = walker.declaration;
+		id = walker.id;
+		qualifying = walker.qualifying;
 	}
 	void visit(cpp::unqualified_id* symbol)
 	{
 		// TODO
 		UnqualifiedIdWalker walker(*this);
 		symbol->accept(walker);
-		isTypeDependent |= walker.isTypeDependent;
+		declaration = walker.declaration;
+		id = walker.id;
+		qualifying = walker.qualifying;
 	}
 };
 
@@ -1586,7 +1579,24 @@ struct ExpressionWalker : public WalkerBase
 		// TODO
 		IdExpressionWalker walker(*this);
 		symbol->accept(walker);
-		isTypeDependent |= walker.isTypeDependent;
+		Declaration* declaration = walker.declaration;
+		if(declaration != 0)
+		{
+			if(declaration == &gUndeclared
+				|| !isObject(*declaration))
+			{
+				reportIdentifierMismatch(walker.id->value, declaration, "object-name");
+			}
+			else
+			{
+				walker.id->value.dec.p = declaration;
+				isTypeDependent |= isDependent(declaration->type);
+			}
+		}
+		else if(walker.qualifying == &context.dependent)
+		{
+			isTypeDependent = true;
+		}
 	}
 	/* 14.6.2.2-1
 	... an expression is type-dependent if any subexpression is type-dependent.
@@ -1736,14 +1746,14 @@ struct ExpressionWalker : public WalkerBase
 	}
 };
 
-struct TemplateArgumentWalker : public WalkerBase
+struct TemplateArgumentListWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
 	TemplateArguments arguments;
 	bool dependent;
 
-	TemplateArgumentWalker(const WalkerBase& base)
+	TemplateArgumentListWalker(const WalkerBase& base)
 		: WalkerBase(base), dependent(false)
 	{
 	}
@@ -1789,7 +1799,7 @@ struct TemplateIdWalker : public WalkerBase
 	{
 		qualifying = 0;
 		// TODO: instantiation
-		TemplateArgumentWalker walker(*this);
+		TemplateArgumentListWalker walker(*this);
 		symbol->accept(walker);
 #if 0
 		pointOfInstantiation(declaration, walker.arguments);
@@ -1969,8 +1979,11 @@ struct DeclaratorIdWalker : public WalkerBase
 	}
 	void visit(cpp::simple_template_id* symbol) 
 	{
-		// TODO: args
 		id = &symbol->id->value;
+		qualifying = 0;
+		// TODO: store args
+		TemplateArgumentListWalker walker(*this);
+		walker.visit(symbol->args);
 	}
 	void visit(cpp::operator_function_id* symbol) 
 	{
@@ -2108,7 +2121,10 @@ struct ClassHeadWalker : public WalkerBase
 		symbol->id->value.dec.p = declaration;
 		SEMANTIC_ASSERT(enclosed != 0);
 		enclosed->name = declaration->name;
-		// TODO args
+		// TODO: store args
+		qualifying = 0;
+		TemplateArgumentListWalker walker(*this);
+		walker.visit(symbol->args);
 	}
 	void visit(cpp::class_head_anonymous* symbol)
 	{
@@ -2557,21 +2573,13 @@ struct InitializerWalker : public WalkerBase
 	}
 };
 
-struct MemInitializerWalker : public WalkerBase
+struct QualifiedTypeNameWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	MemInitializerWalker(const WalkerBase& base)
+	QualifiedTypeNameWalker(const WalkerBase& base)
 		: WalkerBase(base)
 	{
-	}
-	void visit(cpp::mem_initializer_id_base* symbol)
-	{
-		if(symbol->isGlobal.value != 0)
-		{
-			qualifying = &context.global;
-		}
-		symbol->accept(*this);
 	}
 	void visit(cpp::nested_name_specifier* symbol)
 	{
@@ -2586,6 +2594,25 @@ struct MemInitializerWalker : public WalkerBase
 			TypeNameWalker walker(*this);
 			symbol->accept(walker);
 		}
+	}
+};
+
+struct MemInitializerWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	MemInitializerWalker(const WalkerBase& base)
+		: WalkerBase(base)
+	{
+	}
+	void visit(cpp::mem_initializer_id_base* symbol)
+	{
+		if(symbol->isGlobal.value != 0)
+		{
+			qualifying = &context.global;
+		}
+		QualifiedTypeNameWalker walker(*this);
+		symbol->accept(walker);
 	}
 	void visit(cpp::identifier* symbol)
 	{
@@ -2711,7 +2738,12 @@ struct SimpleDeclarationWalker : public WalkerBase
 		}
 	}
 
-	void visit(cpp::initializer* symbol)
+	void visit(cpp::initializer_default* symbol)
+	{
+		InitializerWalker walker(*this);
+		symbol->accept(walker);
+	}
+	void visit(cpp::initializer_parenthesis* symbol) // intentional duplication: required for init_declarator_disambiguate
 	{
 		InitializerWalker walker(*this);
 		symbol->accept(walker);
@@ -2778,6 +2810,8 @@ struct TemplateParameterListWalker : public WalkerBase
 			enclosing->templateParams.push_back(gParam);
 			symbol->id->value.dec.p = pointOfDeclaration(enclosing, symbol->id->value, &enclosing->templateParams.back(), 0, DECLSPEC_TYPEDEF);
 		}
+		TypeIdWalker walker(*this);
+		walker.visit(symbol->init);
 	}
 	void visit(cpp::type_parameter_template* symbol)
 	{
@@ -2786,6 +2820,27 @@ struct TemplateParameterListWalker : public WalkerBase
 		{
 			enclosing->templateParams.push_back(gParam);
 			symbol->id->value.dec.p = pointOfDeclaration(enclosing, symbol->id->value, &enclosing->templateParams.back(), 0, DECLSPEC_TYPEDEF, true);
+		}
+		{
+			TemplateParameterListWalker walker(*this);
+			walker.visit(symbol->params);
+		}
+		{
+			IdExpressionWalker walker(*this);
+			walker.visit(symbol->init);
+			Declaration* declaration = walker.declaration;
+			if(declaration != 0)
+			{
+				if(declaration == &gUndeclared
+					|| !isTemplateName(*declaration))
+				{
+					reportIdentifierMismatch(walker.id->value, declaration, "template-name");
+				}
+				else
+				{
+					walker.id->value.dec.p = declaration;
+				}
+			}
 		}
 	}
 	void visit(cpp::parameter_declaration* symbol)

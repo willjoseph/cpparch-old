@@ -117,7 +117,7 @@ int runTest(const Test& test)
 		add_macro_definition(context, "_DEBUG", true);
 		add_macro_definition(context, "_WIN32", true);
 		add_macro_definition(context, "__FUNCTION__=\"<function-sig>\"", true);
-		add_macro_definition(context, "_INTEGRAL_MAX_BITS=32", true);
+		add_macro_definition(context, "_INTEGRAL_MAX_BITS=64", true); // long long
 		add_macro_definition(context, "_M_IX86=600", true); // /GB: Blend
 		add_macro_definition(context, "_MSC_VER=1400", true); // Visual C++ 8
 		add_macro_definition(context, "_MSC_FULL_VER=140050727", true); // Visual C++ 8

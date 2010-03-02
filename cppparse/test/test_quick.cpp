@@ -2,6 +2,28 @@
 //#include "predefined_msvc.h"
 //#include <xutility>
 
+
+
+
+int f(int i)
+{
+	int x(f(i));
+}
+
+
+
+template<typename T = int>
+class DummyTmpl
+{
+};
+
+
+template<template<typename X> class T = ::DummyTmpl>
+class TestTemplateTemplateParam
+{
+};
+
+
 template<typename T>
 class DependentTmpl
 {
@@ -30,6 +52,7 @@ class DependentMemInit : public T, public DependentTmpl<T>
 	{
 	}
 };
+
 
 
 namespace std
@@ -384,16 +407,6 @@ void f()
 		typedef float T;
 		T f;
 	}
-}
-
-
-
-
-
-
-int f(int i)
-{
-	int x(f(i));
 }
 
 
