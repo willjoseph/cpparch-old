@@ -2,16 +2,22 @@
 //#include "predefined_msvc.h"
 //#include <xutility>
 
+struct S7
+{
+	void m2(int)
+	{
+	}
+};
 
 template<typename T>
-class C13
+class C13 : public S7
 {
-	void f()
+	void f(T t)
 	{
-		f(get(), get());
+		m1(t);
+		m2(t);
 	}
-
-	T* get()
+	void m1(int)
 	{
 	}
 };

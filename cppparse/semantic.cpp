@@ -714,6 +714,14 @@ struct SymbolPrinter : PrintingWalker
 		printer.out << symbol->value.value;
 		printer.out << "</type>";
 	}
+	void visit(cpp::primary_expression_builtin* symbol)
+	{
+		printer.formatToken(symbol->key.ID);
+
+		printer.out << "<object>";
+		printer.out << symbol->key.value;
+		printer.out << "</object>";
+	}
 };
 
 
@@ -1200,7 +1208,7 @@ struct WalkerBase
 		{
 			Declaration* declaration = findDeclaration(p->value);
 			if(declaration == &gUndeclared
-				|| isObject(*declaration))
+				|| (isObject(*declaration) && declaration->scope->type == SCOPETYPE_NAMESPACE))
 			{
 				return true;
 			}
