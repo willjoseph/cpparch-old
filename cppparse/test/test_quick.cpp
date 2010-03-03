@@ -2,16 +2,13 @@
 //#include "predefined_msvc.h"
 //#include <xutility>
 
-void f()
-{
-}
 
 template<typename T>
 class C13
 {
 	void f()
 	{
-		::f(get());
+		f(get(), get());
 	}
 
 	T* get()

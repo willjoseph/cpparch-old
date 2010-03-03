@@ -1613,6 +1613,7 @@ struct ExpressionWalker : public WalkerBase
 		if(isDependentPrimaryExpression(symbol->left))
 		{
 			ExpressionWalker walker(*this);
+			walker.isTypeDependent = false;
 			walker.visit(symbol->right);
 			if(!walker.isTypeDependent)
 			{
@@ -1642,6 +1643,7 @@ struct ExpressionWalker : public WalkerBase
 		}
 		{
 			ExpressionWalker walker(*this);
+			walker.isTypeDependent = false;
 			walker.visit(symbol->args);
 		}
 	}
@@ -1658,6 +1660,7 @@ struct ExpressionWalker : public WalkerBase
 		}
 		{
 			ExpressionWalker walker(*this);
+			walker.isTypeDependent = false;
 			walker.visit(symbol->init);
 		}
 	}
@@ -1670,6 +1673,7 @@ struct ExpressionWalker : public WalkerBase
 		}
 		{
 			ExpressionWalker walker(*this);
+			walker.isTypeDependent = false;
 			walker.visit(symbol->init);
 		}
 	}
@@ -1682,6 +1686,7 @@ struct ExpressionWalker : public WalkerBase
 		}
 		{
 			ExpressionWalker walker(*this);
+			walker.isTypeDependent = false;
 			walker.visit(symbol->expr);
 		}
 	}
@@ -1694,6 +1699,7 @@ struct ExpressionWalker : public WalkerBase
 		}
 		{
 			ExpressionWalker walker(*this);
+			walker.isTypeDependent = false;
 			walker.visit(symbol->expr);
 		}
 	}
@@ -1717,6 +1723,7 @@ struct ExpressionWalker : public WalkerBase
 	void visit(cpp::unary_expression_sizeof* symbol)
 	{
 		ExpressionWalker walker(*this);
+		walker.isTypeDependent = false;
 		walker.visit(symbol->expr);
 	}
 	void visit(cpp::unary_expression_sizeoftype* symbol)
@@ -1727,6 +1734,7 @@ struct ExpressionWalker : public WalkerBase
 	void visit(cpp::postfix_expression_typeid* symbol)
 	{
 		ExpressionWalker walker(*this);
+		walker.isTypeDependent = false;
 		walker.visit(symbol->expr);
 	}
 	void visit(cpp::postfix_expression_typeidtype* symbol)
@@ -1737,11 +1745,13 @@ struct ExpressionWalker : public WalkerBase
 	void visit(cpp::delete_expression* symbol)
 	{
 		ExpressionWalker walker(*this);
+		walker.isTypeDependent = false;
 		walker.visit(symbol->expr);
 	}
 	void visit(cpp::throw_expression* symbol)
 	{
 		ExpressionWalker walker(*this);
+		walker.isTypeDependent = false;
 		walker.visit(symbol->expr);
 	}
 };
