@@ -347,7 +347,11 @@ T* createSymbol(Parser& parser, T*)
 	return new(parser.lexer.allocator.allocate(sizeof(T))) T;
 }
 
+#ifdef _DEBUG
 #define SYMBOL_NAME(T) (typeid(T).name() + 12)
+#else
+#define SYMBOL_NAME(T) "cpp::$symbol"
+#endif
 
 inline bool checkBacktrack(Parser& parser)
 {
@@ -452,8 +456,11 @@ DECLARE_AMBIGUOUS(cpp::expression);
 DECLARE_AMBIGUOUS(cpp::constant_expression);
 DECLARE_AMBIGUOUS(cpp::assignment_expression);
 
-
+#ifdef _DEBUG
 #define SYMBOLP_NAME(p) (typeid(*p).name() + 12)
+#else
+#define SYMBOLP_NAME(p) "cpp::$symbol"
+#endif
 
 template<typename T>
 T* pruneSymbol(T* symbol)
@@ -471,6 +478,7 @@ inline T* pruneBinaryExpression(T* symbol)
 template<typename T, typename OtherT>
 cpp::symbol<OtherT> parseSymbolChoice(Parser& parser, cpp::symbol<T> symbol, OtherT* other)
 {
+	ProfileScope profile(other == 0 ? gProfileParser : gProfileAmbiguity);
 	if(parser.position != 0)
 	{
 		if(!parser.lexer.canBacktrack(parser.position))
@@ -489,25 +497,28 @@ cpp::symbol<OtherT> parseSymbolChoice(Parser& parser, cpp::symbol<T> symbol, Oth
 		&& position == parser.position) // successfully parsed an alternative interpretation
 	{
 		OtherT* alt = pruneSymbol(p);
-		if(!isAmbiguous(other)) // debug: check that this is a known ambiguity
 		{
-			// if not, print diagnostic
-			printPosition(parser.get_position());
-			std::cout << std::endl;
-			std::cout << "  " << SYMBOL_NAME(OtherT) << ": ";
-			printSymbol(alt);
-			std::cout << std::endl;
-			std::cout << (!isAmbiguous(other) ? "  UNKNOWN: " : "  known: ");
-			std::cout << SYMBOLP_NAME(other) << std::endl;
-			std::cout << "    ";
-			printSymbol(other, true);
-			std::cout << std::endl;
-			std::cout << (!isAmbiguous(alt) ? "  UNKNOWN: " : "  known: ");
-			std::cout << SYMBOLP_NAME(alt) << std::endl;
-			std::cout << "    ";
-			printSymbol(alt, true);
-			std::cout << std::endl;
-			breakpoint();
+			ProfileScope profile(gProfileDiagnose);
+			if(!isAmbiguous(other)) // debug: check that this is a known ambiguity
+			{
+				// if not, print diagnostic
+				printPosition(parser.get_position());
+				std::cout << std::endl;
+				std::cout << "  " << SYMBOL_NAME(OtherT) << ": ";
+				printSymbol(alt);
+				std::cout << std::endl;
+				std::cout << (!isAmbiguous(other) ? "  UNKNOWN: " : "  known: ");
+				std::cout << SYMBOLP_NAME(other) << std::endl;
+				std::cout << "    ";
+				printSymbol(other, true);
+				std::cout << std::endl;
+				std::cout << (!isAmbiguous(alt) ? "  UNKNOWN: " : "  known: ");
+				std::cout << SYMBOLP_NAME(alt) << std::endl;
+				std::cout << "    ";
+				printSymbol(alt, true);
+				std::cout << std::endl;
+				breakpoint();
+			}
 		}
 #if 0
 		return cpp::symbol<OtherT>(other); // for now, ignore alternative interpretations
@@ -620,27 +631,6 @@ inline bool peekTemplateIdAmbiguityPrev(Parser& parser)
 	return result;
 }
 
-
-// Returns true if the current symbol should be ignored
-inline bool checkTemplateIdAmbiguity(Parser& parser, bool templateId)
-{
-	if(parser.ambiguity != 0
-		&& peekTemplateIdAmbiguity(parser))
-	{
-#ifdef AMBIGUITY_DEBUG
-		std::cout << "ambiguity check: " << templateId << std::endl;
-#endif
-		bool result = parser.ambiguity->ignoreTemplateId() == templateId;
-#if 0
-		if(!result)
-		{
-			parser.nextDepth();
-		}
-#endif
-		return result;
-	}
-	return false;
-}
 
 template<typename T, typename OtherT>
 cpp::symbol<OtherT> parseSymbolAmbiguous(Parser& parser, cpp::symbol<T> symbol, OtherT* result)

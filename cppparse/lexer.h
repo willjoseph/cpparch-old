@@ -6,6 +6,9 @@
 #include <fstream>
 
 #include "printer.h"
+#include "profiler.h"
+
+
 
 #include <boost/wave/token_ids.hpp>
 #include <boost/wave/util/file_position.hpp>
@@ -106,6 +109,7 @@ struct LinearAllocator
 	}
 	~LinearAllocator()
 	{
+		ProfileScope profile(gProfileAllocator);
 		for(Pages::iterator i = pages.begin(); i != pages.end(); ++i)
 		{
 			Page* p = *i;
@@ -122,6 +126,7 @@ struct LinearAllocator
 	}
 	void* allocate(size_t size)
 	{
+		ProfileScope profile(gProfileAllocator);
 		size_t available = sizeof(Page) - position % sizeof(Page);
 		if(size > available)
 		{
@@ -144,6 +149,7 @@ struct BacktrackStats
 	{
 	}
 };
+
 
 struct TokenBuffer
 {
@@ -298,6 +304,7 @@ struct Lexer
 
 	const char* makeIdentifier(const char* value)
 	{
+		ProfileScope profile(gProfileIdentifier);
 		return (*identifiers.insert(value).first).c_str();
 	}
 
@@ -336,7 +343,10 @@ struct Lexer
 				{
 					throw LexError();
 				}
-				::increment(first);
+				{
+					ProfileScope profile(gProfileWave);
+					::increment(first);
+				}
 				if(!isWhiteSpace(get_id())
 					|| first == last)
 				{

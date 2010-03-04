@@ -117,9 +117,12 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
+				Optimization="3"
+				InlineFunctionExpansion="2"
 				AdditionalIncludeDirectories="..\..\boost_1_41_0"
 				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;_SCL_SECURE_NO_WARNINGS"
 				RuntimeLibrary="2"
+				BufferSecurityCheck="false"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
 				Detect64BitPortabilityProblems="true"
@@ -224,11 +227,27 @@
 				>
 			</File>
 			<File
+				RelativePath=".\profiler.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\profiler.h"
+				>
+			</File>
+			<File
 				RelativePath=".\semantic.cpp"
 				>
 			</File>
 			<File
 				RelativePath=".\semantic.h"
+				>
+			</File>
+			<File
+				RelativePath=".\test.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\test.h"
 				>
 			</File>
 			<File

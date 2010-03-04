@@ -3496,6 +3496,7 @@ cpp::declaration_seq* parseFile(Lexer& lexer)
 	cpp::symbol_optional<cpp::declaration_seq> result(NULL);
 	try
 	{
+		ProfileScope profile(gProfileParser);
 		PARSE_SEQUENCE(parser, result);
 	}
 	catch(ParseError&)
@@ -3505,6 +3506,12 @@ cpp::declaration_seq* parseFile(Lexer& lexer)
 	{
 		printError(parser);
 	}
+	dumpProfile(gProfileWave);
+	dumpProfile(gProfileParser);
+	dumpProfile(gProfileAmbiguity);
+	dumpProfile(gProfileDiagnose);
+	dumpProfile(gProfileAllocator);
+	dumpProfile(gProfileIdentifier);
 	return result;
 }
 
@@ -3515,6 +3522,7 @@ cpp::statement_seq* parseFunction(Lexer& lexer)
 	cpp::symbol_optional<cpp::statement_seq> result(NULL);
 	try
 	{
+		ProfileScope profile(gProfileParser);
 		PARSE_SEQUENCE(parser, result);
 	}
 	catch(ParseError&)
