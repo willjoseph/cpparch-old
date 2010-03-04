@@ -136,12 +136,13 @@ struct Declaration
 	Identifier name;
 	Type type;
 	Scope* enclosed;
+	Declaration* overloaded;
 	DeclSpecifiers specifiers;
 	bool isTemplate;
 	bool isTemplateSpecialization;
 
 	Declaration(Scope* scope, Identifier name, const Type& type, Scope* enclosed, DeclSpecifiers specifiers = DeclSpecifiers(), bool isTemplate = false, bool isTemplateSpecialization = false)
-		: scope(scope), name(name), type(type), enclosed(enclosed), specifiers(specifiers), isTemplate(isTemplate), isTemplateSpecialization(isTemplateSpecialization)
+		: scope(scope), name(name), type(type), enclosed(enclosed), overloaded(0), specifiers(specifiers), isTemplate(isTemplate), isTemplateSpecialization(isTemplateSpecialization)
 	{
 	}
 };
@@ -1483,6 +1484,15 @@ struct QualifiedIdWalker : public WalkerBase
 		: WalkerBase(base), declaration(0), id(0)
 	{
 	}
+
+	void visit(cpp::qualified_id_default* symbol)
+	{
+		if(symbol->isGlobal.value != 0)
+		{
+			qualifying = &context.global;
+		}
+		symbol->accept(*this);
+	}
 	void visit(cpp::nested_name_specifier* symbol)
 	{
 		NestedNameSpecifierWalker walker(*this);
@@ -2166,6 +2176,50 @@ struct ClassHeadWalker : public WalkerBase
 	}
 };
 
+struct UsingDeclarationWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	UsingDeclarationWalker(const WalkerBase& base)
+		: WalkerBase(base)
+	{
+	}
+	void walkUnqualifiedId(cpp::symbol<cpp::unqualified_id> symbol)
+	{
+		UnqualifiedIdWalker walker(*this);
+		walker.visit(symbol);
+		Declaration* declaration = walker.declaration;
+		if(declaration == &gUndeclared
+			|| !(isObject(*declaration) || isTypeName(*declaration)))
+		{
+			reportIdentifierMismatch(walker.id->value, declaration, "object-name or type-name");
+		}
+		else
+		{
+			walker.id->value.dec.p = declaration;
+		}
+	}
+	void visit(cpp::using_declaration_global* symbol)
+	{
+		qualifying = &context.global;
+		walkUnqualifiedId(symbol->id);
+	}
+	void visit(cpp::using_declaration_nested* symbol)
+	{
+		if(symbol->isGlobal.value != 0)
+		{
+			qualifying = &context.global;
+		}
+		NestedNameSpecifierWalker walker(*this);
+		walker.visit(symbol->context);
+		qualifying = walker.qualifying;
+		if(symbol->isTypename.value == 0)
+		{
+			walkUnqualifiedId(symbol->id);
+		}
+	}
+};
+
 struct MemberDeclarationWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
@@ -2210,6 +2264,11 @@ struct MemberDeclarationWalker : public WalkerBase
 		SimpleDeclarationWalker walker(*this);
 		symbol->accept(walker);
 		declaration = walker.declaration;
+	}
+	void visit(cpp::using_declaration* symbol)
+	{
+		UsingDeclarationWalker walker(*this);
+		symbol->accept(walker);
 	}
 };
 
@@ -2965,6 +3024,11 @@ struct DeclarationWalker : public WalkerBase
 		TemplateDeclarationWalker walker(*this);
 		symbol->accept(walker);
 		declaration = walker.declaration;
+	}
+	void visit(cpp::using_declaration* symbol)
+	{
+		UsingDeclarationWalker walker(*this);
+		symbol->accept(walker);
 	}
 };
 

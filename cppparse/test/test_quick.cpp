@@ -2,6 +2,30 @@
 //#include "predefined_msvc.h"
 //#include <xutility>
 
+
+namespace N
+{
+	struct Blah
+	{
+	};
+};
+
+using N::Blah;
+
+// argument-dependent-lookup
+namespace N
+{
+	struct S {};
+	void f(S);
+}
+
+void g(N::S s)
+{
+	//f(s); // TODO!
+}
+
+
+// members should be bound as early as possible
 struct S7
 {
 	void m2(int)
@@ -16,6 +40,7 @@ class C13 : public S7
 	{
 		m1(t);
 		m2(t);
+		dependent(t);
 	}
 	void m1(int)
 	{
