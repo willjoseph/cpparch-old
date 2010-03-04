@@ -183,9 +183,10 @@ struct ParserState
 {
 	TemplateIdAmbiguityContext* ambiguity;
 	bool inTemplateArgumentList;
+	bool inGeneralAmbiguity; // for profiling!
 
 	ParserState()
-		: ambiguity(0), inTemplateArgumentList(false)
+		: ambiguity(0), inTemplateArgumentList(false), inGeneralAmbiguity(false)
 	{
 	}
 };
@@ -478,7 +479,11 @@ inline T* pruneBinaryExpression(T* symbol)
 template<typename T, typename OtherT>
 cpp::symbol<OtherT> parseSymbolChoice(Parser& parser, cpp::symbol<T> symbol, OtherT* other)
 {
-	ProfileScope profile(other == 0 ? gProfileParser : gProfileAmbiguity);
+	if(other != 0)
+	{
+		parser.inGeneralAmbiguity = true;
+	}
+	ProfileScope profile(parser.inGeneralAmbiguity ? gProfileAmbiguity : gProfileParser);
 	if(parser.position != 0)
 	{
 		if(!parser.lexer.canBacktrack(parser.position))
