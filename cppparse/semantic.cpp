@@ -2942,7 +2942,7 @@ struct DeclarationWalker : public WalkerBase
 	}
 	void visit(cpp::namespace_definition* symbol)
 	{
-		NamespaceWalker walker(*this, symbol->id != 0 ? symbol->id->value : IDENTIFIER_NULL);
+		NamespaceWalker walker(*this);
 		symbol->accept(walker);
 		declaration = walker.declaration;
 	}
@@ -3013,21 +3013,21 @@ struct NamespaceWalker : public WalkerBase
 		pushScope(&context.global);
 	}
 
-	NamespaceWalker(WalkerBase& base, Identifier& id)
+	NamespaceWalker(WalkerBase& base)
 		: WalkerBase(base)
 	{
-		if(id.value != 0)
-		{
-			declaration = pointOfDeclaration(enclosing, id, &gNamespace, 0);
-			id.dec.p = declaration;
-			if(declaration->enclosed == 0)
-			{
-				declaration->enclosed = new Scope(id, SCOPETYPE_NAMESPACE);
-			}
-			pushScope(declaration->enclosed);
-		}
 	}
 
+	void visit(cpp::identifier* symbol)
+	{
+		declaration = pointOfDeclaration(enclosing, symbol->value, &gNamespace, 0);
+		symbol->value.dec.p = declaration;
+		if(declaration->enclosed == 0)
+		{
+			declaration->enclosed = new Scope(symbol->value, SCOPETYPE_NAMESPACE);
+		}
+		pushScope(declaration->enclosed);
+	}
 	void visit(cpp::declaration* symbol)
 	{
 		DeclarationWalker walker(*this);
