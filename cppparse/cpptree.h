@@ -12,6 +12,7 @@
 typedef boost::wave::token_id LexTokenId;
 typedef boost::wave::util::file_position_type LexFilePosition;
 
+#if 0
 struct TypeListEnd
 {
 };
@@ -39,7 +40,7 @@ struct TypeList
 #define TYPELIST14(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13) TypeList<T0, TYPELIST13(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13)>
 #define TYPELIST15(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14) TypeList<T0, TYPELIST14(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14)>
 #define TYPELIST16(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15) TypeList<T0, TYPELIST15(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15)>
-
+#endif
 
 struct Declaration;
 
@@ -94,7 +95,7 @@ namespace cpp
 		}
 	};
 
-#define SYMBOLFWD(T) struct T*
+#define SYMBOLFWD(T) struct T
 
 	template<typename T>
 	struct choice
@@ -146,26 +147,26 @@ namespace cpp
 
 	struct template_argument : public choice<template_argument>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST4(
+		VISITABLE_BASE(TYPELIST4(
 			SYMBOLFWD(type_id),
 			SYMBOLFWD(assignment_expression),
 			SYMBOLFWD(id_expression), // TODO: assignment-expression contains id-expression
-			ambiguity<template_argument>*
+			ambiguity<template_argument>
 		));
 	};
 
 	struct template_parameter : public choice<template_parameter>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST3(
+		VISITABLE_BASE(TYPELIST3(
 			SYMBOLFWD(parameter_declaration),
 			SYMBOLFWD(type_parameter),
-			ambiguity<template_parameter>*
+			ambiguity<template_parameter>
 		));
 	};
 
 	struct exception_declarator : public choice<exception_declarator>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(declarator),
 			SYMBOLFWD(abstract_declarator)
 		));
@@ -174,7 +175,7 @@ namespace cpp
 	struct declarator : public choice<declarator>, public exception_declarator
 	{
 		VISITABLE_DERIVED(exception_declarator);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(declarator_ptr),
 			SYMBOLFWD(direct_declarator)
 		));
@@ -182,7 +183,7 @@ namespace cpp
 
 	struct declarator_disambiguate : public choice<declarator_disambiguate>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(direct_declarator_prefix),
 			SYMBOLFWD(declarator_ptr_disambiguate)
 		));
@@ -191,7 +192,7 @@ namespace cpp
 	struct direct_declarator_prefix : public choice<direct_declarator_prefix>, public declarator_disambiguate
 	{
 		VISITABLE_DERIVED(declarator_disambiguate);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(direct_declarator_parenthesis),
 			SYMBOLFWD(declarator_id)
 		));
@@ -200,14 +201,14 @@ namespace cpp
 	struct declarator_id : public choice<declarator_id>, public direct_declarator_prefix
 	{
 		VISITABLE_DERIVED(direct_declarator_prefix);
-		VISITABLE_BASE(VISITORFUNCLIST1(
+		VISITABLE_BASE(TYPELIST1(
 			SYMBOLFWD(id_expression)
 		));
 	};
 
 	struct condition : public choice<condition>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(condition_init),
 			SYMBOLFWD(expression)
 		));
@@ -216,16 +217,16 @@ namespace cpp
 	struct expression : public choice<expression>, public condition
 	{
 		VISITABLE_DERIVED(condition);
-		VISITABLE_BASE(VISITORFUNCLIST3(
+		VISITABLE_BASE(TYPELIST3(
 			SYMBOLFWD(expression_list),
 			SYMBOLFWD(assignment_expression),
-			ambiguity<expression>*
+			ambiguity<expression>
 		));
 	};
 
 	struct initializer : public choice<initializer>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(initializer_default),
 			SYMBOLFWD(initializer_parenthesis)
 		));
@@ -233,7 +234,7 @@ namespace cpp
 
 	struct initializer_clause : public choice<initializer_clause>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST3(
+		VISITABLE_BASE(TYPELIST3(
 			SYMBOLFWD(initializer_clause_empty),
 			SYMBOLFWD(initializer_clause_list),
 			SYMBOLFWD(assignment_expression)
@@ -245,19 +246,19 @@ namespace cpp
 		VISITABLE_DERIVED(expression);
 		VISITABLE_DERIVED(template_argument);
 		VISITABLE_DERIVED(initializer_clause);
-		VISITABLE_BASE(VISITORFUNCLIST4(
+		VISITABLE_BASE(TYPELIST4(
 			SYMBOLFWD(throw_expression),
 			SYMBOLFWD(logical_or_expression_precedent),
 			SYMBOLFWD(conditional_expression),
-			ambiguity<assignment_expression>*
+			ambiguity<assignment_expression>
 		));
 	};
 
 	struct constant_expression : public choice<constant_expression>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(conditional_expression),
-			ambiguity<constant_expression>*
+			ambiguity<constant_expression>
 		));
 	};
 
@@ -265,7 +266,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(assignment_expression);
 		VISITABLE_DERIVED(constant_expression);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(conditional_expression_default),
 			SYMBOLFWD(logical_or_expression)
 		));
@@ -274,7 +275,7 @@ namespace cpp
 	struct logical_or_expression : public choice<logical_or_expression>, public conditional_expression
 	{
 		VISITABLE_DERIVED(conditional_expression);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(logical_or_expression_default),
 			SYMBOLFWD(logical_and_expression)
 		));
@@ -283,7 +284,7 @@ namespace cpp
 	struct logical_and_expression : public choice<logical_and_expression>, public logical_or_expression
 	{
 		VISITABLE_DERIVED(logical_or_expression);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(logical_and_expression_default),
 			SYMBOLFWD(inclusive_or_expression)
 		));
@@ -292,7 +293,7 @@ namespace cpp
 	struct inclusive_or_expression : public choice<inclusive_or_expression>, public logical_and_expression
 	{
 		VISITABLE_DERIVED(logical_and_expression);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(inclusive_or_expression_default),
 			SYMBOLFWD(exclusive_or_expression)
 		));
@@ -301,7 +302,7 @@ namespace cpp
 	struct exclusive_or_expression : public choice<exclusive_or_expression>, public inclusive_or_expression
 	{
 		VISITABLE_DERIVED(inclusive_or_expression);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(exclusive_or_expression_default),
 			SYMBOLFWD(and_expression)
 		));
@@ -310,7 +311,7 @@ namespace cpp
 	struct and_expression : public choice<and_expression>, public exclusive_or_expression
 	{
 		VISITABLE_DERIVED(exclusive_or_expression);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(and_expression_default),
 			SYMBOLFWD(equality_expression)
 		));
@@ -319,7 +320,7 @@ namespace cpp
 	struct equality_expression : public choice<equality_expression>, public and_expression
 	{
 		VISITABLE_DERIVED(and_expression);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(equality_expression_default),
 			SYMBOLFWD(relational_expression)
 		));
@@ -328,7 +329,7 @@ namespace cpp
 	struct relational_expression : public choice<relational_expression>, public equality_expression
 	{
 		VISITABLE_DERIVED(equality_expression);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(relational_expression_default),
 			SYMBOLFWD(shift_expression)
 		));
@@ -337,7 +338,7 @@ namespace cpp
 	struct shift_expression : public choice<shift_expression>, public relational_expression
 	{
 		VISITABLE_DERIVED(relational_expression);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(shift_expression_default),
 			SYMBOLFWD(additive_expression)
 		));
@@ -346,7 +347,7 @@ namespace cpp
 	struct additive_expression : public choice<additive_expression>, public shift_expression
 	{
 		VISITABLE_DERIVED(shift_expression);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(additive_expression_default),
 			SYMBOLFWD(multiplicative_expression)
 		));
@@ -355,7 +356,7 @@ namespace cpp
 	struct multiplicative_expression : public choice<multiplicative_expression>, public additive_expression
 	{
 		VISITABLE_DERIVED(additive_expression);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(multiplicative_expression_default),
 			SYMBOLFWD(pm_expression)
 		));
@@ -364,7 +365,7 @@ namespace cpp
 	struct pm_expression : public choice<pm_expression>, public multiplicative_expression
 	{
 		VISITABLE_DERIVED(multiplicative_expression);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(pm_expression_default),
 			SYMBOLFWD(cast_expression)
 		));
@@ -373,31 +374,31 @@ namespace cpp
 	struct cast_expression : public choice<cast_expression>, public pm_expression
 	{
 		VISITABLE_DERIVED(pm_expression);
-		VISITABLE_BASE(VISITORFUNCLIST3(
+		VISITABLE_BASE(TYPELIST3(
 			SYMBOLFWD(cast_expression_default),
 			SYMBOLFWD(unary_expression),
-			ambiguity<cast_expression>*
+			ambiguity<cast_expression>
 		));
 	};
 
 	struct unary_expression : public choice<unary_expression>, public cast_expression
 	{
 		VISITABLE_DERIVED(cast_expression);
-		VISITABLE_BASE(VISITORFUNCLIST7(
+		VISITABLE_BASE(TYPELIST7(
 			SYMBOLFWD(postfix_expression),
 			SYMBOLFWD(unary_expression_sizeoftype),
 			SYMBOLFWD(unary_expression_sizeof),
 			SYMBOLFWD(unary_expression_op),
 			SYMBOLFWD(new_expression),
 			SYMBOLFWD(delete_expression),
-			ambiguity<unary_expression>*
+			ambiguity<unary_expression>
 		));
 	};
 
 	struct postfix_expression : public choice<postfix_expression>, public unary_expression
 	{
 		VISITABLE_DERIVED(unary_expression);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(postfix_expression_default),
 			SYMBOLFWD(postfix_expression_prefix)
 		));
@@ -406,21 +407,21 @@ namespace cpp
 	struct postfix_expression_prefix : public choice<postfix_expression_prefix>, public postfix_expression
 	{
 		VISITABLE_DERIVED(postfix_expression);
-		VISITABLE_BASE(VISITORFUNCLIST7(
+		VISITABLE_BASE(TYPELIST7(
 			SYMBOLFWD(primary_expression),
 			SYMBOLFWD(postfix_expression_disambiguate),
 			SYMBOLFWD(postfix_expression_construct),
 			SYMBOLFWD(postfix_expression_cast),
 			SYMBOLFWD(postfix_expression_typeid),
 			SYMBOLFWD(postfix_expression_typeidtype),
-			ambiguity<postfix_expression_prefix>*
+			ambiguity<postfix_expression_prefix>
 		));
 	};
 
 	struct primary_expression : public choice<primary_expression>, public postfix_expression_prefix
 	{
 		VISITABLE_DERIVED(postfix_expression_prefix);
-		VISITABLE_BASE(VISITORFUNCLIST4(
+		VISITABLE_BASE(TYPELIST4(
 			SYMBOLFWD(id_expression),
 			SYMBOLFWD(literal),
 			SYMBOLFWD(primary_expression_builtin),
@@ -432,7 +433,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(declarator_id);
 		VISITABLE_DERIVED(primary_expression);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(unqualified_id),
 			SYMBOLFWD(qualified_id)
 		));
@@ -441,7 +442,7 @@ namespace cpp
 	struct unqualified_id : public choice<unqualified_id>, public id_expression
 	{
 		VISITABLE_DERIVED(id_expression);
-		VISITABLE_BASE(VISITORFUNCLIST5(
+		VISITABLE_BASE(TYPELIST5(
 			SYMBOLFWD(template_id),
 			SYMBOLFWD(identifier),
 			SYMBOLFWD(operator_function_id),
@@ -453,7 +454,7 @@ namespace cpp
 	struct qualified_id : public choice<qualified_id>, public id_expression
 	{
 		VISITABLE_DERIVED(id_expression);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(qualified_id_default),
 			SYMBOLFWD(qualified_id_global)
 		));
@@ -461,7 +462,7 @@ namespace cpp
 
 	struct qualified_id_suffix : public choice<qualified_id_suffix>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST3(
+		VISITABLE_BASE(TYPELIST3(
 			SYMBOLFWD(identifier),
 			SYMBOLFWD(template_id),
 			SYMBOLFWD(operator_function_id)
@@ -472,7 +473,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(unqualified_id);
 		VISITABLE_DERIVED(qualified_id_suffix);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(simple_template_id),
 			SYMBOLFWD(template_id_operator_function)
 		));
@@ -480,17 +481,17 @@ namespace cpp
 
 	struct nested_name : public choice<nested_name>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST3(
+		VISITABLE_BASE(TYPELIST3(
 			SYMBOLFWD(type_name),
 			SYMBOLFWD(namespace_name),
-			ambiguity<nested_name>*
+			ambiguity<nested_name>
 		));
 	};
 
 	struct type_name : public choice<type_name>, public nested_name
 	{
 		VISITABLE_DERIVED(nested_name);
-		VISITABLE_BASE(VISITORFUNCLIST1(
+		VISITABLE_BASE(TYPELIST1(
 			SYMBOLFWD(class_name)
 		));
 	};
@@ -498,7 +499,7 @@ namespace cpp
 	struct class_name : public choice<class_name>, public type_name
 	{
 		VISITABLE_DERIVED(type_name);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(simple_template_id),
 			SYMBOLFWD(identifier)
 		));
@@ -507,17 +508,17 @@ namespace cpp
 	struct namespace_name : public choice<namespace_name>, public nested_name
 	{
 		VISITABLE_DERIVED(nested_name);
-		VISITABLE_BASE(VISITORFUNCLIST1(
+		VISITABLE_BASE(TYPELIST1(
 			SYMBOLFWD(identifier)
 		));
 	};
 
 	struct mem_initializer_id : public choice<mem_initializer_id>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST3(
+		VISITABLE_BASE(TYPELIST3(
 			SYMBOLFWD(mem_initializer_id_base),
 			SYMBOLFWD(identifier),
-			ambiguity<mem_initializer_id>*
+			ambiguity<mem_initializer_id>
 		));
 	};
 
@@ -541,7 +542,7 @@ namespace cpp
 
 	struct nested_name_specifier_suffix : public choice<nested_name_specifier_suffix>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(nested_name_specifier_suffix_default),
 			SYMBOLFWD(nested_name_specifier_suffix_template)
 		));
@@ -580,7 +581,7 @@ namespace cpp
 
 	struct type_specifier : public choice<type_specifier>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(type_specifier_noncv),
 			SYMBOLFWD(cv_qualifier)
 		));
@@ -589,7 +590,7 @@ namespace cpp
 	struct type_specifier_noncv : public choice<type_specifier_noncv>, public type_specifier
 	{
 		VISITABLE_DERIVED(type_specifier);
-		VISITABLE_BASE(VISITORFUNCLIST5(
+		VISITABLE_BASE(TYPELIST5(
 			SYMBOLFWD(typename_specifier),
 			SYMBOLFWD(simple_type_specifier),
 			SYMBOLFWD(class_specifier),
@@ -600,7 +601,7 @@ namespace cpp
 
 	struct decl_specifier_suffix : public choice<decl_specifier_suffix>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(decl_specifier_nontype),
 			SYMBOLFWD(simple_type_specifier_builtin)
 		));
@@ -609,7 +610,7 @@ namespace cpp
 	struct decl_specifier_nontype : public choice<decl_specifier_nontype>, public decl_specifier_suffix
 	{
 		VISITABLE_DERIVED(decl_specifier_suffix);
-		VISITABLE_BASE(VISITORFUNCLIST4(
+		VISITABLE_BASE(TYPELIST4(
 			SYMBOLFWD(storage_class_specifier),
 			SYMBOLFWD(decl_specifier_default),
 			SYMBOLFWD(function_specifier),
@@ -642,7 +643,7 @@ namespace cpp
 	struct simple_type_specifier : public choice<simple_type_specifier>, public type_specifier_noncv
 	{
 		VISITABLE_DERIVED(type_specifier_noncv);
-		VISITABLE_BASE(VISITORFUNCLIST3(
+		VISITABLE_BASE(TYPELIST3(
 			SYMBOLFWD(simple_type_specifier_builtin),
 			SYMBOLFWD(simple_type_specifier_template),
 			SYMBOLFWD(simple_type_specifier_name)
@@ -659,7 +660,7 @@ namespace cpp
 
 	struct overloadable_operator : public choice<overloadable_operator>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST15(
+		VISITABLE_BASE(TYPELIST15(
 			SYMBOLFWD(assignment_operator),
 			SYMBOLFWD(member_operator),
 			SYMBOLFWD(postfix_operator),
@@ -765,7 +766,7 @@ namespace cpp
 
 	struct elaborated_type_specifier_key : public choice<elaborated_type_specifier_key>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(class_key),
 			SYMBOLFWD(enum_key)
 		));
@@ -795,7 +796,7 @@ namespace cpp
 
 	struct base_specifier_prefix : public choice<base_specifier_prefix>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(base_specifier_access_virtual),
 			SYMBOLFWD(base_specifier_virtual_access)
 		));
@@ -844,7 +845,7 @@ namespace cpp
 
 	struct class_head : public choice<class_head>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(class_head_default),
 			SYMBOLFWD(class_head_anonymous)
 		));
@@ -881,7 +882,7 @@ namespace cpp
 
 	struct type_specifier_suffix : public choice<type_specifier_suffix>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(cv_qualifier),
 			SYMBOLFWD(simple_type_specifier_builtin)
 		));
@@ -945,7 +946,7 @@ namespace cpp
 	struct abstract_declarator : public choice<abstract_declarator>, public exception_declarator
 	{
 		VISITABLE_DERIVED(exception_declarator);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(abstract_declarator_ptr),
 			SYMBOLFWD(direct_abstract_declarator)
 		));
@@ -1004,7 +1005,7 @@ namespace cpp
 
 	struct member_initializer : public choice<member_initializer>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(constant_initializer), // TODO: ambiguity here!
 			SYMBOLFWD(pure_specifier)
 		));
@@ -1021,7 +1022,7 @@ namespace cpp
 	struct literal : public choice<literal>, public primary_expression
 	{
 		VISITABLE_DERIVED(primary_expression);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(numeric_literal),
 			SYMBOLFWD(string_literal)
 		));
@@ -1103,7 +1104,7 @@ namespace cpp
 
 	struct postfix_expression_suffix : public choice<postfix_expression_suffix>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST5(
+		VISITABLE_BASE(TYPELIST5(
 			SYMBOLFWD(postfix_expression_index),
 			SYMBOLFWD(postfix_expression_call),
 			SYMBOLFWD(postfix_expression_member),
@@ -1241,7 +1242,7 @@ namespace cpp
 
 	struct new_type : public choice<new_type>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(new_type_parenthesis),
 			SYMBOLFWD(new_type_default)
 		));
@@ -1249,7 +1250,7 @@ namespace cpp
 
 	struct new_declarator : public choice<new_declarator>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(direct_new_declarator),
 			SYMBOLFWD(new_declarator_ptr)
 		));
@@ -1310,7 +1311,7 @@ namespace cpp
 	struct new_expression : public choice<new_expression>, public unary_expression
 	{
 		VISITABLE_DERIVED(unary_expression);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(new_expression_placement), // TODO: ambiguity: 'new-placement' vs parenthesised 'type-id'
 			SYMBOLFWD(new_expression_default)
 		));
@@ -1542,7 +1543,7 @@ namespace cpp
 
 	struct logical_or_expression_suffix : public choice<logical_or_expression_suffix>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(conditional_expression_rhs),
 			SYMBOLFWD(assignment_expression_rhs)
 		));
@@ -1621,7 +1622,7 @@ namespace cpp
 
 	struct exception_type_list : public choice<exception_type_list>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(exception_type_all),
 			SYMBOLFWD(type_id_list)
 		));
@@ -1654,7 +1655,7 @@ namespace cpp
 
 	struct declarator_suffix : public choice<declarator_suffix>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(declarator_suffix_array),
 			SYMBOLFWD(declarator_suffix_function)
 		));
@@ -1716,9 +1717,9 @@ namespace cpp
 
 	struct statement : public choice<statement>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST11(
-			SYMBOLFWD(msext_asm_statement),
+		VISITABLE_BASE(TYPELIST11(
 			SYMBOLFWD(msext_asm_statement_braced),
+			SYMBOLFWD(msext_asm_statement),
 			SYMBOLFWD(compound_statement),
 			SYMBOLFWD(declaration_statement),
 			SYMBOLFWD(labeled_statement),
@@ -1727,7 +1728,7 @@ namespace cpp
 			SYMBOLFWD(iteration_statement),
 			SYMBOLFWD(jump_statement),
 			SYMBOLFWD(try_block),
-			ambiguity<statement>*
+			ambiguity<statement>
 		));
 	};
 
@@ -1740,7 +1741,7 @@ namespace cpp
 
 	struct function_body : public choice<function_body>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST1(
+		VISITABLE_BASE(TYPELIST1(
 			SYMBOLFWD(compound_statement)
 		));
 	};
@@ -1757,7 +1758,7 @@ namespace cpp
 
 	struct exception_declaration : public choice<exception_declaration>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(exception_declaration_all),
 			SYMBOLFWD(exception_declaration_default)
 		));
@@ -1791,7 +1792,7 @@ namespace cpp
 
 	struct linkage_specification_suffix : public choice<linkage_specification_suffix>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(linkage_specification_compound),
 			SYMBOLFWD(declaration)
 		));
@@ -1800,7 +1801,7 @@ namespace cpp
 	struct declaration : public choice<declaration>, public linkage_specification_suffix
 	{
 		VISITABLE_DERIVED(linkage_specification_suffix);
-		VISITABLE_BASE(VISITORFUNCLIST8(
+		VISITABLE_BASE(TYPELIST8(
 			SYMBOLFWD(linkage_specification),
 			SYMBOLFWD(explicit_instantiation),
 			SYMBOLFWD(template_declaration),
@@ -1847,16 +1848,16 @@ namespace cpp
 
 	struct general_declaration_suffix : public choice<general_declaration_suffix>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST3(
+		VISITABLE_BASE(TYPELIST3(
 			SYMBOLFWD(forward_declaration_suffix),
 			SYMBOLFWD(simple_declaration_named),
-			SYMBOLFWD(function_definition_suffix)
+			SYMBOLFWD(function_definition)
 		));
 	};
 
 	struct simple_declaration_suffix : public choice<simple_declaration_suffix>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(forward_declaration_suffix),
 			SYMBOLFWD(simple_declaration_named)
 		));
@@ -1864,11 +1865,11 @@ namespace cpp
 
 	struct member_declaration_suffix : public choice<member_declaration_suffix>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST4(
+		VISITABLE_BASE(TYPELIST4(
 			SYMBOLFWD(member_declaration_bitfield),
 			SYMBOLFWD(member_declaration_named),
 			SYMBOLFWD(forward_declaration_suffix),
-			SYMBOLFWD(function_definition_suffix)
+			SYMBOLFWD(function_definition)
 		));
 	};
 
@@ -1889,20 +1890,44 @@ namespace cpp
 		FOREACH2(spec, suffix);
 	};
 
-	struct function_definition_suffix : public general_declaration_suffix, public member_declaration_suffix
+	struct function_definition_suffix : public choice<function_definition_suffix>
+	{
+		VISITABLE_BASE(TYPELIST2(
+			SYMBOLFWD(function_try_block),
+			SYMBOLFWD(function_definition_suffix_default)
+		));
+	};
+
+	struct function_definition_suffix_default : public function_definition_suffix
+	{
+		VISITABLE_DERIVED(function_definition_suffix);
+		symbol_optional<ctor_initializer> init;
+		symbol<function_body> body;
+		FOREACH2(init, body);
+	};
+
+	struct function_try_block : public function_definition_suffix
+	{
+		VISITABLE_DERIVED(function_definition_suffix);
+		terminal<boost::wave::T_TRY> isTry;
+		symbol_optional<ctor_initializer> init;
+		symbol<function_body> body;
+		symbol<handler_seq> handlers;
+		FOREACH4(isTry, init, body, handlers);
+	};
+
+	struct function_definition : public general_declaration_suffix, public member_declaration_suffix
 	{
 		VISITABLE_DERIVED(general_declaration_suffix);
 		VISITABLE_DERIVED(member_declaration_suffix);
 		symbol<declarator> decl;
-		symbol_optional<ctor_initializer> init;
-		symbol<function_body> body;
-		symbol<handler_seq> handlers;
-		FOREACH4(decl, init, body, handlers);
+		symbol<function_definition_suffix> suffix;
+		FOREACH2(decl, suffix);
 	};
 
 	struct member_declarator : public choice<member_declarator>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(member_declarator_bitfield), // TODO: shared prefix ambiguity: 'identifier'
 			SYMBOLFWD(member_declarator_default)
 		));
@@ -1943,13 +1968,13 @@ namespace cpp
 
 	struct member_declaration : public choice<member_declaration>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST6(
+		VISITABLE_BASE(TYPELIST6(
 			SYMBOLFWD(using_declaration),
 			SYMBOLFWD(member_template_declaration),
 			SYMBOLFWD(member_declaration_implicit), // shared-prefix ambiguity:  this matches a constructor: Class(Type);
 			SYMBOLFWD(member_declaration_default), // this matches a member: Type(member);
 			SYMBOLFWD(member_declaration_nested),
-			ambiguity<member_declaration>*
+			ambiguity<member_declaration>
 		));
 	};
 
@@ -2009,7 +2034,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(declaration);
 		symbol_optional<function_specifier_seq> spec;
-		symbol<function_definition_suffix> suffix;
+		symbol<function_definition> suffix;
 		FOREACH2(spec, suffix);
 	};
 
@@ -2023,7 +2048,7 @@ namespace cpp
 
 	struct member_specification : public choice<member_specification>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(member_specification_access),
 			SYMBOLFWD(member_specification_list)
 		));
@@ -2086,7 +2111,7 @@ namespace cpp
 	struct elaborated_type_specifier : public choice<elaborated_type_specifier>, public type_specifier_noncv
 	{
 		VISITABLE_DERIVED(type_specifier_noncv);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(elaborated_type_specifier_template), // TODO: shared-prefix ambiguity: match 'simple-template-id' before 'identifier'
 			SYMBOLFWD(elaborated_type_specifier_default)
 		));
@@ -2127,17 +2152,17 @@ namespace cpp
 	struct parameter_declaration : public choice<parameter_declaration>, public template_parameter
 	{
 		VISITABLE_DERIVED(template_parameter);
-		VISITABLE_BASE(VISITORFUNCLIST3(
+		VISITABLE_BASE(TYPELIST3(
 			SYMBOLFWD(parameter_declaration_default),
 			SYMBOLFWD(parameter_declaration_abstract),
-			ambiguity<parameter_declaration>*
+			ambiguity<parameter_declaration>
 		));
 	};
 
 	struct type_parameter : public choice<type_parameter>, public template_parameter
 	{
 		VISITABLE_DERIVED(template_parameter);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(type_parameter_default),
 			SYMBOLFWD(type_parameter_template)
 		));
@@ -2287,7 +2312,7 @@ namespace cpp
 	struct declaration_statement : public choice<declaration_statement>, public statement
 	{
 		VISITABLE_DERIVED(statement);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(block_declaration),
 			SYMBOLFWD(simple_declaration)
 		));
@@ -2297,8 +2322,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(declaration_statement);
 		VISITABLE_DERIVED(declaration);
-		VISITABLE_BASE(VISITORFUNCLIST5(
-			SYMBOLFWD(simple_declaration),
+		VISITABLE_BASE(TYPELIST4(
 			SYMBOLFWD(asm_definition),
 			SYMBOLFWD(namespace_alias_definition),
 			SYMBOLFWD(using_declaration),
@@ -2319,7 +2343,7 @@ namespace cpp
 
 	struct msext_asm_element : public choice<msext_asm_element>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST3(
+		VISITABLE_BASE(TYPELIST3(
 			SYMBOLFWD(msext_asm_statement),
 			SYMBOLFWD(msext_asm_statement_braced),
 			SYMBOLFWD(msext_asm_terminal)
@@ -2389,7 +2413,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(block_declaration);
 		VISITABLE_DERIVED(member_declaration);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(using_declaration_global),
 			SYMBOLFWD(using_declaration_nested)
 		));
@@ -2431,19 +2455,19 @@ namespace cpp
 
 	struct for_init_statement : public choice<for_init_statement>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST3(
+		VISITABLE_BASE(TYPELIST3(
 			SYMBOLFWD(expression_statement),
 			SYMBOLFWD(simple_declaration),
-			ambiguity<for_init_statement>*
+			ambiguity<for_init_statement>
 		));
 	};
 
 	struct init_declarator : public choice<init_declarator>
 	{
-		VISITABLE_BASE(VISITORFUNCLIST3(
+		VISITABLE_BASE(TYPELIST3(
 			SYMBOLFWD(init_declarator_default),
 			SYMBOLFWD(init_declarator_disambiguate),
-			ambiguity<init_declarator>*
+			ambiguity<init_declarator>
 		));
 	};
 
@@ -2492,7 +2516,7 @@ namespace cpp
 	struct labeled_statement : public choice<labeled_statement>, public statement
 	{
 		VISITABLE_DERIVED(statement);
-		VISITABLE_BASE(VISITORFUNCLIST3(
+		VISITABLE_BASE(TYPELIST3(
 			SYMBOLFWD(labeled_statement_id),
 			SYMBOLFWD(labeled_statement_case),
 			SYMBOLFWD(labeled_statement_default)
@@ -2539,7 +2563,7 @@ namespace cpp
 	struct selection_statement : public choice<selection_statement>, public statement
 	{
 		VISITABLE_DERIVED(statement);
-		VISITABLE_BASE(VISITORFUNCLIST2(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(selection_statement_if),
 			SYMBOLFWD(selection_statement_switch)
 		));
@@ -2582,7 +2606,7 @@ namespace cpp
 	struct iteration_statement : public choice<iteration_statement>, public statement
 	{
 		VISITABLE_DERIVED(statement);
-		VISITABLE_BASE(VISITORFUNCLIST3(
+		VISITABLE_BASE(TYPELIST3(
 			SYMBOLFWD(iteration_statement_for),
 			SYMBOLFWD(iteration_statement_while),
 			SYMBOLFWD(iteration_statement_dowhile)
@@ -2630,7 +2654,7 @@ namespace cpp
 	struct jump_statement : public choice<jump_statement>, public statement
 	{
 		VISITABLE_DERIVED(statement);
-		VISITABLE_BASE(VISITORFUNCLIST3(
+		VISITABLE_BASE(TYPELIST3(
 			SYMBOLFWD(jump_statement_simple),
 			SYMBOLFWD(jump_statement_return),
 			SYMBOLFWD(jump_statement_goto)

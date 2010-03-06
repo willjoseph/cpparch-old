@@ -197,6 +197,7 @@ struct Parser : public ParserState
 	size_t position;
 	size_t allocation;
 	size_t ambiguityDepth;
+	size_t declarations;
 
 	Parser(Lexer& lexer)
 		: lexer(lexer), position(0), allocation(0), ambiguityDepth(0)
@@ -490,7 +491,7 @@ cpp::symbol<OtherT> parseSymbolChoice(Parser& parser, cpp::symbol<T> symbol, Oth
 		{
 			return cpp::symbol<OtherT>(other);
 		}
-		parser.backtrack(SYMBOL_NAME(T), true);
+		parser.backtrack(0 /*SYMBOL_NAME(T)*/, true);
 	}
 	size_t ambiguityDepth = parser.ambiguityDepth;
 	parser.ambiguityDepth = 0;
@@ -735,6 +736,117 @@ inline cpp::symbol_optional<T> parseSequence(Parser& parser, cpp::symbol_optiona
 
 #define PARSE_SEQUENCE(parser, p) p = parseSequence(parser, p)
 
+
+struct ParseResultFail
+{
+};
+
+struct ParseResultSkip
+{
+};
+
+struct ParsingVisitor
+{
+	Parser& parser;
+	ParsingVisitor(Parser& parser) : parser(parser)
+	{
+	}
+	template<typename T>
+	void visit(cpp::symbol<T>& s)
+	{
+		if((s = parseSymbolRequired(parser, s)) == 0)
+		{
+			throw ParseResultFail();
+		}
+	}
+	template<typename T>
+	void visit(cpp::symbol_optional<T>& s)
+	{
+		s = parseSymbolOptional(parser, s);
+	}
+	template<LexTokenId ID>
+	void visit(cpp::terminal<ID>& t)
+	{
+		if(parseTerminal(parser, t) == PARSERESULT_FAIL)
+		{
+			throw ParseResultFail();
+		}
+	}
+	template<LexTokenId ID>
+	void visit(cpp::terminal_optional<ID>& t)
+	{
+		parseTerminal(parser, t);
+	}
+	template<LexTokenId ID>
+	void visit(cpp::terminal_suffix<ID>& t)
+	{
+		switch(parseTerminal(parser, t))
+		{
+		case PARSERESULT_FAIL: throw ParseResultFail();
+		case PARSERESULT_SKIP: throw ParseResultSkip();
+		default: break;
+		}
+	}
+};
+
+
+template<typename T>
+inline T* parseSymbol(Parser& parser, T* result, const TypeListEnd&)
+{
+	try
+	{
+		ParsingVisitor visitor(parser);
+		result->accept(visitor);
+	}
+	catch(ParseResultFail&)
+	{
+		return 0;
+	}
+	catch(ParseResultSkip&)
+	{
+	}
+	return result;
+}
+
+
+template<typename T, typename Choices>
+struct ChoiceParser
+{
+	static T* parseSymbol(Parser& parser, T* result)
+	{
+		return ChoiceParser<T, typename Choices::Next>::parseSymbol(parser, parseSymbolChoice(parser, NullPtr<typename Choices::Item>::VALUE, result));
+	}
+};
+
+template<typename T>
+struct ChoiceParser<T, TypeListEnd>
+{
+	static T* parseSymbol(Parser& parser, T* result)
+	{
+		return result;
+	}
+};
+
+template<typename T>
+struct ChoiceParser<T, TYPELIST1(cpp::ambiguity<T>)>
+{
+	static T* parseSymbol(Parser& parser, T* result)
+	{
+		return result;
+	}
+};
+
+template<typename T, typename Choices>
+inline T* parseSymbol(Parser& parser, T* result, const Choices&)
+{
+	return ChoiceParser<T, Choices>::parseSymbol(parser, result);
+}
+
+template<typename T>
+inline T* parseSymbol(Parser& parser, T* result)
+{
+	return parseSymbol(parser, result, typename T::Choices());
+}
 
 
 cpp::declaration_seq* parseFile(Lexer& lexer);

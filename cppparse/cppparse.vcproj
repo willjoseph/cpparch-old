@@ -49,6 +49,7 @@
 				WarningLevel="3"
 				Detect64BitPortabilityProblems="true"
 				DebugInformationFormat="3"
+				DisableSpecificWarnings="4996"
 			/>
 			<Tool
 				Name="VCManagedResourceCompilerTool"
@@ -120,7 +121,7 @@
 				Optimization="3"
 				InlineFunctionExpansion="2"
 				AdditionalIncludeDirectories="..\..\boost_1_41_0"
-				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;_SCL_SECURE_NO_WARNINGS"
+				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE;_CRT_SECURE_NO_DEPRECATE;CRT_SECURE_NO_WARNINGS;_SCL_SECURE_NO_WARNINGS"
 				RuntimeLibrary="2"
 				BufferSecurityCheck="false"
 				UsePrecompiledHeader="0"

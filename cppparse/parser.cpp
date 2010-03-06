@@ -979,8 +979,9 @@ inline cpp::identifier* parseSymbol(Parser& parser, cpp::identifier* result)
 	}
 	return NULL;
 }
-
+#if 0
 inline cpp::declaration_seq* parseSymbol(Parser& parser, cpp::declaration_seq* result);
+#endif
 
 inline cpp::namespace_definition* parseSymbol(Parser& parser, cpp::namespace_definition* result)
 {
@@ -1178,7 +1179,9 @@ inline cpp::simple_type_specifier* parseSymbol(Parser& parser, cpp::simple_type_
 	return result;
 }
 
+#if 0
 inline cpp::using_declaration* parseSymbol(Parser& parser, cpp::using_declaration* result);
+#endif
 inline cpp::parameter_declaration* parseSymbol(Parser& parser, cpp::parameter_declaration* result);
 
 inline cpp::type_parameter_key* parseSymbol(Parser& parser, cpp::type_parameter_key* result)
@@ -1332,7 +1335,7 @@ inline cpp::member_declaration_suffix* parseSymbol(Parser& parser, cpp::member_d
 	PARSE_SELECT(parser, cpp::member_declaration_bitfield);
 	PARSE_SELECT(parser, cpp::member_declaration_named);
 	PARSE_SELECT(parser, cpp::forward_declaration_suffix);
-	PARSE_SELECT(parser, cpp::function_definition_suffix);
+	PARSE_SELECT(parser, cpp::function_definition);
 	return result;
 }
 
@@ -1407,7 +1410,9 @@ inline cpp::ctor_initializer* parseSymbol(Parser& parser, cpp::ctor_initializer*
 	return result;
 }
 
+#if 0
 inline cpp::compound_statement* parseSymbol(Parser& parser, cpp::compound_statement* result);
+#endif
 
 inline cpp::function_body* parseSymbol(Parser& parser, cpp::function_body* result)
 {
@@ -2905,18 +2910,36 @@ inline cpp::declarator* parseSymbol(Parser& parser, cpp::declarator* result)
 	return result;
 }
 
-inline cpp::function_definition_suffix* parseSymbol(Parser& parser, cpp::function_definition_suffix* result)
+#if 0
+inline cpp::function_definition_suffix_default* parseSymbol(Parser& parser, cpp::function_definition_suffix_default* result)
 {
-	// TODO
-	PARSE_REQUIRED(parser, result->decl);
-	bool isTry;
-	PARSE_TOKEN_OPTIONAL(parser, isTry, boost::wave::T_TRY);
 	PARSE_OPTIONAL(parser, result->init);
 	PARSE_REQUIRED(parser, result->body);
-	if(isTry)
-	{
-		PARSE_REQUIRED(parser, result->handlers);
-	}
+	return result;
+}
+
+inline cpp::function_try_block* parseSymbol(Parser& parser, cpp::function_try_block* result)
+{
+	PARSE_TERMINAL(parser, result->isTry);
+	PARSE_OPTIONAL(parser, result->init);
+	PARSE_REQUIRED(parser, result->body);
+	PARSE_REQUIRED(parser, result->handlers);
+	return result;
+}
+#endif
+
+inline cpp::function_definition_suffix* parseSymbol(Parser& parser, cpp::function_definition_suffix* result)
+{
+	PARSE_SELECT(parser, cpp::function_try_block);
+	PARSE_SELECT(parser, cpp::function_definition_suffix_default);
+	return result;
+}
+
+#if 0
+inline cpp::function_definition* parseSymbol(Parser& parser, cpp::function_definition* result)
+{
+	PARSE_REQUIRED(parser, result->decl);
+	PARSE_REQUIRED(parser, result->suffix);
 	return result;
 }
 
@@ -2927,6 +2950,7 @@ inline cpp::linkage_specification_compound* parseSymbol(Parser& parser, cpp::lin
 	PARSE_TERMINAL(parser, result->rb);
 	return result;
 }
+#endif
 
 inline cpp::linkage_specification_suffix* parseSymbol(Parser& parser, cpp::linkage_specification_suffix* result)
 {
@@ -2935,6 +2959,7 @@ inline cpp::linkage_specification_suffix* parseSymbol(Parser& parser, cpp::linka
 	return result;
 }
 
+#if 0
 inline cpp::linkage_specification* parseSymbol(Parser& parser, cpp::linkage_specification* result)
 {
 	PARSE_TERMINAL(parser, result->key);
@@ -2960,6 +2985,9 @@ inline cpp::explicit_specialization* parseSymbol(Parser& parser, cpp::explicit_s
 	return result;
 }
 
+#endif
+
+#if 0
 inline cpp::initializer_clause* parseSymbol(Parser& parser, cpp::initializer_clause* result);
 
 inline cpp::initializer_list* parseSymbol(Parser& parser, cpp::initializer_list* result)
@@ -2984,6 +3012,7 @@ inline cpp::initializer_clause_empty* parseSymbol(Parser& parser, cpp::initializ
 	PARSE_TERMINAL(parser, result->rb);
 	return result;
 }
+#endif
 
 inline cpp::initializer_clause* parseSymbol(Parser& parser, cpp::initializer_clause* result)
 {
@@ -2993,6 +3022,7 @@ inline cpp::initializer_clause* parseSymbol(Parser& parser, cpp::initializer_cla
 	return result;
 }
 
+#if 0
 inline cpp::initializer_default* parseSymbol(Parser& parser, cpp::initializer_default* result)
 {
 	PARSE_TERMINAL(parser, result->assign);
@@ -3007,6 +3037,7 @@ inline cpp::initializer_parenthesis* parseSymbol(Parser& parser, cpp::initialize
 	PARSE_TERMINAL(parser, result->rp);
 	return result;
 }
+#endif
 
 inline cpp::initializer* parseSymbol(Parser& parser, cpp::initializer* result)
 {
@@ -3015,6 +3046,7 @@ inline cpp::initializer* parseSymbol(Parser& parser, cpp::initializer* result)
 	return result;
 }
 
+#if 0
 inline cpp::init_declarator_default* parseSymbol(Parser& parser, cpp::init_declarator_default* result)
 {
 	PARSE_REQUIRED(parser, result->decl);
@@ -3028,6 +3060,7 @@ inline cpp::init_declarator_disambiguate* parseSymbol(Parser& parser, cpp::init_
 	PARSE_REQUIRED(parser, result->init);
 	return result;
 }
+#endif
 
 inline cpp::init_declarator* parseSymbol(Parser& parser, cpp::init_declarator* result)
 {
@@ -3036,6 +3069,7 @@ inline cpp::init_declarator* parseSymbol(Parser& parser, cpp::init_declarator* r
 	return result;
 }
 
+#if 0
 inline cpp::init_declarator_list* parseSymbol(Parser& parser, cpp::init_declarator_list* result)
 {
 	PARSE_REQUIRED(parser, result->item);
@@ -3043,14 +3077,18 @@ inline cpp::init_declarator_list* parseSymbol(Parser& parser, cpp::init_declarat
 	PARSE_REQUIRED(parser, result->next);
 	return result;
 }
+#endif
 
+#if 0
 inline cpp::simple_declaration_named* parseSymbol(Parser& parser, cpp::simple_declaration_named* result)
 {
 	PARSE_REQUIRED(parser, result->decl);
 	PARSE_TERMINAL(parser, result->semicolon);
 	return result;
 }
+#endif
 
+#if 0
 inline cpp::simple_declaration_suffix* parseSymbol(Parser& parser, cpp::simple_declaration_suffix* result)
 {
 	PARSE_SELECT(parser, cpp::forward_declaration_suffix);
@@ -3064,7 +3102,9 @@ inline cpp::simple_declaration* parseSymbol(Parser& parser, cpp::simple_declarat
 	PARSE_REQUIRED(parser, result->suffix);
 	return result;
 }
+#endif
 
+#if 0
 inline cpp::asm_definition* parseSymbol(Parser& parser, cpp::asm_definition* result)
 {
 	PARSE_TERMINAL(parser, result->key);
@@ -3144,7 +3184,7 @@ inline cpp::general_declaration_suffix* parseSymbol(Parser& parser, cpp::general
 {
 	PARSE_SELECT(parser, cpp::forward_declaration_suffix);
 	PARSE_SELECT(parser, cpp::simple_declaration_named);
-	PARSE_SELECT(parser, cpp::function_definition_suffix);
+	PARSE_SELECT(parser, cpp::function_definition);
 	return result;
 }
 
@@ -3348,14 +3388,14 @@ inline cpp::iteration_statement* parseSymbol(Parser& parser, cpp::iteration_stat
 	PARSE_SELECT(parser, cpp::iteration_statement_dowhile);
 	return result;
 }
-
+#endif
 inline cpp::jump_statement_key* parseSymbol(Parser& parser, cpp::jump_statement_key* result)
 {
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_BREAK, cpp::jump_statement_key::BREAK);
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_CONTINUE, cpp::jump_statement_key::CONTINUE);
 	return result;
 }
-
+#if 0
 inline cpp::jump_statement_simple* parseSymbol(Parser& parser, cpp::jump_statement_simple* result)
 {
 	PARSE_REQUIRED(parser, result->key);
@@ -3401,6 +3441,7 @@ inline cpp::expression_statement* parseSymbol(Parser& parser, cpp::expression_st
 	PARSE_TERMINAL(parser, result->semicolon);
 	return result;
 }
+#endif
 
 inline cpp::msext_asm_terminal* parseSymbol(Parser& parser, cpp::msext_asm_terminal* result)
 {
@@ -3415,6 +3456,7 @@ inline cpp::msext_asm_terminal* parseSymbol(Parser& parser, cpp::msext_asm_termi
 	return NULL;
 }
 
+#if 0
 inline cpp::msext_asm_element* parseSymbol(Parser& parser, cpp::msext_asm_element* result);
 
 inline cpp::msext_asm_element_list* parseSymbol(Parser& parser, cpp::msext_asm_element_list* result)
@@ -3424,7 +3466,7 @@ inline cpp::msext_asm_element_list* parseSymbol(Parser& parser, cpp::msext_asm_e
 	PARSE_TERMINAL(parser, result->semicolon);
 	return result;
 }
-
+#endif
 inline cpp::msext_asm_element_list_inline* parseSymbol(Parser& parser, cpp::msext_asm_element_list_inline* result)
 {
 	size_t line = parser.get_position().get_line();
@@ -3441,6 +3483,7 @@ inline cpp::msext_asm_element_list_inline* parseSymbol(Parser& parser, cpp::msex
 	return result;
 }
 
+#if 0
 inline cpp::msext_asm_statement* parseSymbol(Parser& parser, cpp::msext_asm_statement* result)
 {
 	PARSE_TERMINAL(parser, result->key);
@@ -3487,6 +3530,7 @@ inline cpp::statement_seq* parseSymbol(Parser& parser, cpp::statement_seq* resul
 	PARSE_REQUIRED(parser, result->item);
 	return result;
 }
+#endif
 
 
 cpp::declaration_seq* parseFile(Lexer& lexer)

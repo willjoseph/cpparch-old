@@ -2,7 +2,38 @@
 #ifndef INCLUDED_CPPPARSE_VISITOR_H
 #define INCLUDED_CPPPARSE_VISITOR_H
 
-#define FOREACH_SIGNATURE template<typename VisitorType> void accept(VisitorType& visitor)
+
+struct TypeListEnd
+{
+};
+
+template<typename ItemType, typename NextType>
+struct TypeList
+{
+	typedef ItemType Item;
+	typedef NextType Next;
+};
+
+#define TYPELIST1(T0) TypeList<T0, TypeListEnd>
+#define TYPELIST2(T0, T1) TypeList<T0, TYPELIST1(T1)>
+#define TYPELIST3(T0, T1, T2) TypeList<T0, TYPELIST2(T1, T2)>
+#define TYPELIST4(T0, T1, T2, T3) TypeList<T0, TYPELIST3(T1, T2, T3)>
+#define TYPELIST5(T0, T1, T2, T3, T4) TypeList<T0, TYPELIST4(T1, T2, T3, T4)>
+#define TYPELIST6(T0, T1, T2, T3, T4, T5) TypeList<T0, TYPELIST5(T1, T2, T3, T4, T5)>
+#define TYPELIST7(T0, T1, T2, T3, T4, T5, T6) TypeList<T0, TYPELIST6(T1, T2, T3, T4, T5, T6)>
+#define TYPELIST8(T0, T1, T2, T3, T4, T5, T6, T7) TypeList<T0, TYPELIST7(T1, T2, T3, T4, T5, T6, T7)>
+#define TYPELIST9(T0, T1, T2, T3, T4, T5, T6, T7, T8) TypeList<T0, TYPELIST8(T1, T2, T3, T4, T5, T6, T7, T8)>
+#define TYPELIST10(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9) TypeList<T0, TYPELIST9(T1, T2, T3, T4, T5, T6, T7, T8, T9)>
+#define TYPELIST11(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10) TypeList<T0, TYPELIST10(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10)>
+#define TYPELIST12(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11) TypeList<T0, TYPELIST11(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11)>
+#define TYPELIST13(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12) TypeList<T0, TYPELIST12(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12)>
+#define TYPELIST14(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13) TypeList<T0, TYPELIST13(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13)>
+#define TYPELIST15(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14) TypeList<T0, TYPELIST14(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14)>
+#define TYPELIST16(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15) TypeList<T0, TYPELIST15(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15)>
+
+
+
+#define FOREACH_SIGNATURE typedef TypeListEnd Choices; template<typename VisitorType> void accept(VisitorType& visitor)
 #define FOREACH1(a) FOREACH_SIGNATURE { visitor.visit(a); }
 #define FOREACH2(a, b) FOREACH_SIGNATURE { visitor.visit(a); visitor.visit(b); }
 #define FOREACH3(a, b, c) FOREACH_SIGNATURE { visitor.visit(a); visitor.visit(b); visitor.visit(c); }
@@ -53,44 +84,33 @@ struct TypeId
 	typedef T Type;
 };
 
-struct VisitorFuncListEnd
-{
-	template<typename VisitorType>
-	explicit VisitorFuncListEnd(const TypeId<VisitorType>&)
-	{
-	}
-};
 
-template<typename FuncType, typename NextType>
-struct VisitorFuncList : public FuncType, public NextType
+template<typename Types>
+struct VisitorFuncGeneric : public VisitorFunc<typename Types::Item*>, public VisitorFuncGeneric<typename Types::Next>
 {
+	typedef VisitorFunc<typename Types::Item*> FuncType;
+	typedef VisitorFuncGeneric<typename Types::Next> NextType;
 	template<typename VisitorType>
-	explicit VisitorFuncList(const TypeId<VisitorType>& visitorType) :
-	FuncType(VisitorThunk<VisitorType, typename FuncType::Type>::visit),
+	explicit VisitorFuncGeneric(const TypeId<VisitorType>& visitorType) :
+		FuncType(VisitorThunk<VisitorType, typename FuncType::Type>::visit),
 		NextType(visitorType)
 	{
 	}
 };
 
-#define VISITORFUNCLIST1(T0) VisitorFuncList<VisitorFunc<T0>, VisitorFuncListEnd>
-#define VISITORFUNCLIST2(T0, T1) VisitorFuncList<VisitorFunc<T0>, VISITORFUNCLIST1(T1)>
-#define VISITORFUNCLIST3(T0, T1, T2) VisitorFuncList<VisitorFunc<T0>, VISITORFUNCLIST2(T1, T2)>
-#define VISITORFUNCLIST4(T0, T1, T2, T3) VisitorFuncList<VisitorFunc<T0>, VISITORFUNCLIST3(T1, T2, T3)>
-#define VISITORFUNCLIST5(T0, T1, T2, T3, T4) VisitorFuncList<VisitorFunc<T0>, VISITORFUNCLIST4(T1, T2, T3, T4)>
-#define VISITORFUNCLIST6(T0, T1, T2, T3, T4, T5) VisitorFuncList<VisitorFunc<T0>, VISITORFUNCLIST5(T1, T2, T3, T4, T5)>
-#define VISITORFUNCLIST7(T0, T1, T2, T3, T4, T5, T6) VisitorFuncList<VisitorFunc<T0>, VISITORFUNCLIST6(T1, T2, T3, T4, T5, T6)>
-#define VISITORFUNCLIST8(T0, T1, T2, T3, T4, T5, T6, T7) VisitorFuncList<VisitorFunc<T0>, VISITORFUNCLIST7(T1, T2, T3, T4, T5, T6, T7)>
-#define VISITORFUNCLIST9(T0, T1, T2, T3, T4, T5, T6, T7, T8) VisitorFuncList<VisitorFunc<T0>, VISITORFUNCLIST8(T1, T2, T3, T4, T5, T6, T7, T8)>
-#define VISITORFUNCLIST10(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9) VisitorFuncList<VisitorFunc<T0>, VISITORFUNCLIST9(T1, T2, T3, T4, T5, T6, T7, T8, T9)>
-#define VISITORFUNCLIST11(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10) VisitorFuncList<VisitorFunc<T0>, VISITORFUNCLIST10(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10)>
-#define VISITORFUNCLIST12(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11) VisitorFuncList<VisitorFunc<T0>, VISITORFUNCLIST11(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11)>
-#define VISITORFUNCLIST13(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12) VisitorFuncList<VisitorFunc<T0>, VISITORFUNCLIST12(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12)>
-#define VISITORFUNCLIST14(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13) VisitorFuncList<VisitorFunc<T0>, VISITORFUNCLIST13(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13)>
-#define VISITORFUNCLIST15(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14) VisitorFuncList<VisitorFunc<T0>, VISITORFUNCLIST14(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14)>
-#define VISITORFUNCLIST16(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15) VisitorFuncList<VisitorFunc<T0>, VISITORFUNCLIST15(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15)>
+template<>
+struct VisitorFuncGeneric<TypeListEnd>
+{
+	template<typename VisitorType>
+	explicit VisitorFuncGeneric(const TypeId<VisitorType>&)
+	{
+	}
+};
 
-#define VISITABLE_BASE(Funcs) \
-	typedef Funcs VisitorFuncTable; \
+
+#define VISITABLE_BASE(Types) \
+	typedef Types Choices; \
+	typedef VisitorFuncGeneric<Choices> VisitorFuncTable; \
 	typedef VisitorCallback<VisitorFuncTable> Visitor; \
 	virtual void acceptAbstract(const Visitor& visitor) = 0; \
 	template<typename VisitorType> \
