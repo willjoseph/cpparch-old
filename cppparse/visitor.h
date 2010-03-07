@@ -33,15 +33,24 @@ struct TypeList
 
 
 
-#define FOREACH_SIGNATURE typedef TypeListEnd Choices; template<typename VisitorType> void accept(VisitorType& visitor)
-#define FOREACH1(a) FOREACH_SIGNATURE { visitor.visit(a); }
-#define FOREACH2(a, b) FOREACH_SIGNATURE { visitor.visit(a); visitor.visit(b); }
-#define FOREACH3(a, b, c) FOREACH_SIGNATURE { visitor.visit(a); visitor.visit(b); visitor.visit(c); }
-#define FOREACH4(a, b, c, d) FOREACH_SIGNATURE { visitor.visit(a); visitor.visit(b); visitor.visit(c); visitor.visit(d); }
-#define FOREACH5(a, b, c, d, e) FOREACH_SIGNATURE { visitor.visit(a); visitor.visit(b); visitor.visit(c); visitor.visit(d); visitor.visit(e); }
-#define FOREACH6(a, b, c, d, e, f) FOREACH_SIGNATURE { visitor.visit(a); visitor.visit(b); visitor.visit(c); visitor.visit(d); visitor.visit(e); visitor.visit(f); }
-#define FOREACH7(a, b, c, d, e, f, g) FOREACH_SIGNATURE { visitor.visit(a); visitor.visit(b); visitor.visit(c); visitor.visit(d); visitor.visit(e); visitor.visit(f); visitor.visit(g); }
-#define FOREACH8(a, b, c, d, e, f, g, h) FOREACH_SIGNATURE { visitor.visit(a); visitor.visit(b); visitor.visit(c); visitor.visit(d); visitor.visit(e); visitor.visit(f); visitor.visit(g); visitor.visit(h); }
+#define VISITABLE_ACCEPT template<typename VisitorType> void accept(VisitorType& visitor)
+#define PARSEABLE_ACCEPT typedef TypeListEnd Choices; template<typename ParserType> bool parse(ParserType& parser)
+#define FOREACH1(a) VISITABLE_ACCEPT { visitor.visit(a); } \
+	PARSEABLE_ACCEPT { return parser.visit(a); }
+#define FOREACH2(a, b) VISITABLE_ACCEPT { visitor.visit(a); visitor.visit(b); } \
+	PARSEABLE_ACCEPT { return parser.visit(a) && parser.visit(b); }
+#define FOREACH3(a, b, c) VISITABLE_ACCEPT { visitor.visit(a); visitor.visit(b); visitor.visit(c); } \
+	PARSEABLE_ACCEPT { return parser.visit(a) && parser.visit(b) && parser.visit(c); }
+#define FOREACH4(a, b, c, d) VISITABLE_ACCEPT { visitor.visit(a); visitor.visit(b); visitor.visit(c); visitor.visit(d); } \
+	PARSEABLE_ACCEPT { return parser.visit(a) && parser.visit(b) && parser.visit(c) && parser.visit(d); }
+#define FOREACH5(a, b, c, d, e) VISITABLE_ACCEPT { visitor.visit(a); visitor.visit(b); visitor.visit(c); visitor.visit(d); visitor.visit(e); } \
+	PARSEABLE_ACCEPT { return parser.visit(a) && parser.visit(b) && parser.visit(c) && parser.visit(d) && parser.visit(e); }
+#define FOREACH6(a, b, c, d, e, f) VISITABLE_ACCEPT { visitor.visit(a); visitor.visit(b); visitor.visit(c); visitor.visit(d); visitor.visit(e); visitor.visit(f); } \
+	PARSEABLE_ACCEPT { return parser.visit(a) && parser.visit(b) && parser.visit(c) && parser.visit(d) && parser.visit(e) && parser.visit(f); }
+#define FOREACH7(a, b, c, d, e, f, g) VISITABLE_ACCEPT { visitor.visit(a); visitor.visit(b); visitor.visit(c); visitor.visit(d); visitor.visit(e); visitor.visit(f); visitor.visit(g); } \
+	PARSEABLE_ACCEPT { return parser.visit(a) && parser.visit(b) && parser.visit(c) && parser.visit(d) && parser.visit(e) && parser.visit(f) && parser.visit(g); }
+#define FOREACH8(a, b, c, d, e, f, g, h) VISITABLE_ACCEPT { visitor.visit(a); visitor.visit(b); visitor.visit(c); visitor.visit(d); visitor.visit(e); visitor.visit(f); visitor.visit(g); visitor.visit(h); } \
+	PARSEABLE_ACCEPT { return parser.visit(a) && parser.visit(b) && parser.visit(c) && parser.visit(d) && parser.visit(e) && parser.visit(f) && parser.visit(g) && parser.visit(h); }
 
 
 template<typename VisitorType, typename T>

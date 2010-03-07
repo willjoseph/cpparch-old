@@ -967,8 +967,8 @@ inline bool isAmbiguous(cpp::nested_name* symbol)
 	return dynamic_cast<cpp::identifier*>(symbol) != 0;
 }
 
-
-inline cpp::identifier* parseSymbol(Parser& parser, cpp::identifier* result)
+template<typename WalkerType>
+inline cpp::identifier* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::identifier* result)
 {
 	if(TOKEN_EQUAL(parser, boost::wave::T_IDENTIFIER))
 	{
@@ -983,6 +983,7 @@ inline cpp::identifier* parseSymbol(Parser& parser, cpp::identifier* result)
 inline cpp::declaration_seq* parseSymbol(Parser& parser, cpp::declaration_seq* result);
 #endif
 
+#if 0
 inline cpp::namespace_definition* parseSymbol(Parser& parser, cpp::namespace_definition* result)
 {
 	PARSE_TERMINAL(parser, result->key);
@@ -992,15 +993,18 @@ inline cpp::namespace_definition* parseSymbol(Parser& parser, cpp::namespace_def
 	PARSE_TERMINAL(parser, result->rb);
 	return result;
 }
+#endif
 
-inline cpp::cv_qualifier* parseSymbol(Parser& parser, cpp::cv_qualifier* result)
+template<typename WalkerType>
+inline cpp::cv_qualifier* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::cv_qualifier* result)
 {
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_CONST, cpp::cv_qualifier::CONST);
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_VOLATILE, cpp::cv_qualifier::VOLATILE);
 	return result;
 }
 
-inline cpp::function_specifier* parseSymbol(Parser& parser, cpp::function_specifier* result)
+template<typename WalkerType>
+inline cpp::function_specifier* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::function_specifier* result)
 {
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_INLINE, cpp::function_specifier::INLINE);
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_EXPLICIT, cpp::function_specifier::EXPLICIT);
@@ -1008,7 +1012,8 @@ inline cpp::function_specifier* parseSymbol(Parser& parser, cpp::function_specif
 	return result;
 }
 
-inline cpp::storage_class_specifier* parseSymbol(Parser& parser, cpp::storage_class_specifier* result)
+template<typename WalkerType>
+inline cpp::storage_class_specifier* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::storage_class_specifier* result)
 {
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_REGISTER, cpp::storage_class_specifier::REGISTER);
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_STATIC, cpp::storage_class_specifier::STATIC);
@@ -1017,7 +1022,8 @@ inline cpp::storage_class_specifier* parseSymbol(Parser& parser, cpp::storage_cl
 	return result;
 }
 
-inline cpp::simple_type_specifier_builtin* parseSymbol(Parser& parser, cpp::simple_type_specifier_builtin* result)
+template<typename WalkerType>
+inline cpp::simple_type_specifier_builtin* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::simple_type_specifier_builtin* result)
 {
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_CHAR, cpp::simple_type_specifier_builtin::CHAR);
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_WCHART, cpp::simple_type_specifier_builtin::WCHAR_T);
@@ -1040,7 +1046,8 @@ inline cpp::simple_type_specifier_builtin* parseSymbol(Parser& parser, cpp::simp
 	return result;
 }
 
-inline cpp::decl_specifier_default* parseSymbol(Parser& parser, cpp::decl_specifier_default* result)
+template<typename WalkerType>
+inline cpp::decl_specifier_default* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::decl_specifier_default* result)
 {
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_FRIEND, cpp::decl_specifier_default::FRIEND);
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_TYPEDEF, cpp::decl_specifier_default::TYPEDEF);
@@ -1048,6 +1055,7 @@ inline cpp::decl_specifier_default* parseSymbol(Parser& parser, cpp::decl_specif
 }
 
 
+#if 0
 inline cpp::class_name* parseSymbol(Parser& parser, cpp::class_name* result)
 {
 	PARSE_SELECT(parser, cpp::simple_template_id); // TODO: ambiguity: shared prefix 'identifier'
@@ -1080,8 +1088,10 @@ inline cpp::template_argument* parseSymbol(Parser& parser, cpp::template_argumen
 	PARSE_SELECT(parser, cpp::assignment_expression);
 	return result;
 }
+#endif
 
-inline cpp::template_argument_list* parseSymbol(Parser& parser, cpp::template_argument_list* result)
+template<typename WalkerType>
+inline cpp::template_argument_list* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::template_argument_list* result)
 {
 	parser.inTemplateArgumentList = true;
 	PARSE_REQUIRED(parser, result->item);
@@ -1090,7 +1100,8 @@ inline cpp::template_argument_list* parseSymbol(Parser& parser, cpp::template_ar
 	return result;
 }
 
-inline cpp::simple_template_id* parseSymbol(Parser& parser, cpp::simple_template_id* result)
+template<typename WalkerType>
+inline cpp::simple_template_id* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::simple_template_id* result)
 {
 	if(parser.ambiguity != 0
 		&& peekTemplateIdAmbiguity(parser))
@@ -1111,6 +1122,7 @@ inline cpp::simple_template_id* parseSymbol(Parser& parser, cpp::simple_template
 	return result;
 }
 
+#if 0
 inline cpp::nested_name_specifier_prefix* parseSymbol(Parser& parser, cpp::nested_name_specifier_prefix* result)
 {
 	PARSE_REQUIRED(parser, result->id);
@@ -1178,19 +1190,22 @@ inline cpp::simple_type_specifier* parseSymbol(Parser& parser, cpp::simple_type_
 	PARSE_SELECT(parser, cpp::simple_type_specifier_name);
 	return result;
 }
+#endif
 
 #if 0
 inline cpp::using_declaration* parseSymbol(Parser& parser, cpp::using_declaration* result);
 #endif
 inline cpp::parameter_declaration* parseSymbol(Parser& parser, cpp::parameter_declaration* result);
 
-inline cpp::type_parameter_key* parseSymbol(Parser& parser, cpp::type_parameter_key* result)
+template<typename WalkerType>
+inline cpp::type_parameter_key* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::type_parameter_key* result)
 {
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_CLASS, cpp::type_parameter_key::CLASS);
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_TYPENAME, cpp::type_parameter_key::TYPENAME);
 	return result;
 }
 
+#if 0
 inline cpp::type_parameter_default* parseSymbol(Parser& parser, cpp::type_parameter_default* result)
 {
 	PARSE_REQUIRED(parser, result->key);
@@ -1310,8 +1325,10 @@ inline cpp::member_declarator* parseSymbol(Parser& parser, cpp::member_declarato
 	PARSE_SELECT(parser, cpp::member_declarator_default);
 	return result;
 }
+#endif
 
-inline cpp::member_declaration_bitfield* parseSymbol(Parser& parser, cpp::member_declaration_bitfield* result)
+template<typename WalkerType>
+inline cpp::member_declaration_bitfield* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::member_declaration_bitfield* result)
 {
 	PARSE_REQUIRED(parser, result->item);
 	PARSE_TERMINAL(parser, result->comma);
@@ -1323,6 +1340,7 @@ inline cpp::member_declaration_bitfield* parseSymbol(Parser& parser, cpp::member
 	return result;
 }
 
+#if 0
 inline cpp::member_declaration_named* parseSymbol(Parser& parser, cpp::member_declaration_named* result)
 {
 	PARSE_REQUIRED(parser, result->decl);
@@ -1409,11 +1427,13 @@ inline cpp::ctor_initializer* parseSymbol(Parser& parser, cpp::ctor_initializer*
 	PARSE_REQUIRED(parser, result->list);
 	return result;
 }
+#endif
 
 #if 0
 inline cpp::compound_statement* parseSymbol(Parser& parser, cpp::compound_statement* result);
 #endif
 
+#if 0
 inline cpp::function_body* parseSymbol(Parser& parser, cpp::function_body* result)
 {
 	PARSE_SELECT(parser, cpp::compound_statement);
@@ -1490,8 +1510,10 @@ inline cpp::member_specification_list* parseSymbol(Parser& parser, cpp::member_s
 	PARSE_OPTIONAL(parser, result->next);
 	return result;
 }
+#endif
 
-inline cpp::access_specifier* parseSymbol(Parser& parser, cpp::access_specifier* result)
+template<typename WalkerType>
+inline cpp::access_specifier* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::access_specifier* result)
 {
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_PRIVATE, cpp::access_specifier::PRIVATE);
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_PROTECTED, cpp::access_specifier::PROTECTED);
@@ -1499,6 +1521,7 @@ inline cpp::access_specifier* parseSymbol(Parser& parser, cpp::access_specifier*
 	return result;
 }
 
+#if 0
 inline cpp::member_specification_access* parseSymbol(Parser& parser, cpp::member_specification_access* result)
 {
 	PARSE_REQUIRED(parser, result->access);
@@ -1513,8 +1536,10 @@ inline cpp::member_specification* parseSymbol(Parser& parser, cpp::member_specif
 	PARSE_SELECT(parser, cpp::member_specification_list);
 	return result;
 }
+#endif
 
-inline cpp::class_key* parseSymbol(Parser& parser, cpp::class_key* result)
+template<typename WalkerType>
+inline cpp::class_key* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::class_key* result)
 {
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_CLASS, cpp::class_key::CLASS);
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_STRUCT, cpp::class_key::STRUCT);
@@ -1522,6 +1547,7 @@ inline cpp::class_key* parseSymbol(Parser& parser, cpp::class_key* result)
 	return result;
 }
 
+#if 0
 inline cpp::base_specifier_access_virtual* parseSymbol(Parser& parser, cpp::base_specifier_access_virtual* result)
 {
 	PARSE_REQUIRED(parser, result->access);
@@ -1735,15 +1761,17 @@ inline cpp::cv_qualifier_seq* parseSymbol(Parser& parser, cpp::cv_qualifier_seq*
 	PARSE_OPTIONAL(parser, result->next);
 	return result;
 }
+#endif
 
-inline cpp::ptr_operator_key* parseSymbol(Parser& parser, cpp::ptr_operator_key* result)
+template<typename WalkerType>
+inline cpp::ptr_operator_key* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::ptr_operator_key* result)
 {
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_STAR, cpp::ptr_operator_key::PTR);
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_AND, cpp::ptr_operator_key::REF);
 	return result;
 }
 
-
+#if 0
 inline cpp::ptr_operator* parseSymbol(Parser& parser, cpp::ptr_operator* result)
 {
 	PARSE_TERMINAL(parser, result->isGlobal);
@@ -1770,8 +1798,9 @@ inline cpp::throw_expression* parseSymbol(Parser& parser, cpp::throw_expression*
 	PARSE_OPTIONAL(parser, result->expr);
 	return result;
 }
-
-inline cpp::unary_operator* parseSymbol(Parser& parser, cpp::unary_operator* result)
+#endif
+template<typename WalkerType>
+inline cpp::unary_operator* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::unary_operator* result)
 {
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_PLUSPLUS, cpp::unary_operator::PLUSPLUS);
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_MINUSMINUS, cpp::unary_operator::MINUSMINUS);
@@ -1784,6 +1813,7 @@ inline cpp::unary_operator* parseSymbol(Parser& parser, cpp::unary_operator* res
 	return result;
 }
 
+#if 0
 inline cpp::cast_expression* parseSymbol(Parser& parser, cpp::cast_expression* result);
 
 inline cpp::unary_expression_op* parseSymbol(Parser& parser, cpp::unary_expression_op* result)
@@ -1792,8 +1822,9 @@ inline cpp::unary_expression_op* parseSymbol(Parser& parser, cpp::unary_expressi
 	PARSE_REQUIRED(parser, result->expr);
 	return result;
 }
-
-inline cpp::numeric_literal* parseSymbol(Parser& parser, cpp::numeric_literal* result)
+#endif
+template<typename WalkerType>
+inline cpp::numeric_literal* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::numeric_literal* result)
 {
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_PP_NUMBER, cpp::numeric_literal::INTEGER);
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_INTLIT, cpp::numeric_literal::INTEGER);
@@ -1804,7 +1835,8 @@ inline cpp::numeric_literal* parseSymbol(Parser& parser, cpp::numeric_literal* r
 	return result;
 }
 
-inline cpp::string_literal* parseSymbol(Parser& parser, cpp::string_literal* result)
+template<typename WalkerType>
+inline cpp::string_literal* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::string_literal* result)
 {
 	if(TOKEN_EQUAL(parser, boost::wave::T_STRINGLIT))
 	{
@@ -1816,6 +1848,7 @@ inline cpp::string_literal* parseSymbol(Parser& parser, cpp::string_literal* res
 	return NULL;
 }
 
+#if 0
 inline cpp::literal* parseSymbol(Parser& parser, cpp::literal* result)
 {
 	PARSE_SELECT(parser, cpp::numeric_literal);
@@ -1830,7 +1863,7 @@ inline cpp::primary_expression_builtin* parseSymbol(Parser& parser, cpp::primary
 }
 
 inline cpp::assignment_expression* parseSymbol(Parser& parser, cpp::assignment_expression* result);
-
+#endif
 inline cpp::expression* pruneSymbol(cpp::expression_list* symbol)
 {
 	if(symbol->right == 0)
@@ -1840,6 +1873,7 @@ inline cpp::expression* pruneSymbol(cpp::expression_list* symbol)
 	return symbol;
 }
 
+#if 0
 inline cpp::expression_list* parseSymbol(Parser& parser, cpp::expression_list* result)
 {
 	PARSE_REQUIRED(parser, result->left);
@@ -1847,14 +1881,17 @@ inline cpp::expression_list* parseSymbol(Parser& parser, cpp::expression_list* r
 	PARSE_REQUIRED(parser, result->right);
 	return result;
 }
+#endif
 
-inline cpp::expression* parseSymbol(Parser& parser, cpp::expression* result)
+template<typename WalkerType>
+inline cpp::expression* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::expression* result)
 {
 	PARSE_EXPRESSION_SPECIAL(parser, cpp::expression_list);
 	return result;
 }
 
-inline cpp::primary_expression_parenthesis* parseSymbol(Parser& parser, cpp::primary_expression_parenthesis* result)
+template<typename WalkerType>
+inline cpp::primary_expression_parenthesis* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::primary_expression_parenthesis* result)
 {
 	TemplateIdAmbiguityContext* ambiguity = parser.ambiguity;
 	size_t ambiguityDepth = parser.ambiguityDepth;
@@ -1871,6 +1908,7 @@ inline cpp::primary_expression_parenthesis* parseSymbol(Parser& parser, cpp::pri
 	return result;
 }
 
+#if 0
 inline cpp::id_expression* parseSymbol(Parser& parser, cpp::id_expression* result);
 
 inline cpp::primary_expression* parseSymbol(Parser& parser, cpp::primary_expression* result)
@@ -1897,14 +1935,17 @@ inline cpp::postfix_expression_call* parseSymbol(Parser& parser, cpp::postfix_ex
 	PARSE_TERMINAL(parser, result->rp);
 	return result;
 }
+#endif
 
-inline cpp::member_operator* parseSymbol(Parser& parser, cpp::member_operator* result)
+template<typename WalkerType>
+inline cpp::member_operator* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::member_operator* result)
 {
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_DOT, cpp::member_operator::DOT);
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_ARROW, cpp::member_operator::ARROW);
 	return result;
 }
 
+#if 0
 inline cpp::postfix_expression_member* parseSymbol(Parser& parser, cpp::postfix_expression_member* result)
 {
 	PARSE_REQUIRED(parser, result->op);
@@ -1921,14 +1962,17 @@ inline cpp::postfix_expression_destructor* parseSymbol(Parser& parser, cpp::post
 	PARSE_REQUIRED(parser, result->type);
 	return result;
 }
+#endif
 
-inline cpp::postfix_operator* parseSymbol(Parser& parser, cpp::postfix_operator* result)
+template<typename WalkerType>
+inline cpp::postfix_operator* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::postfix_operator* result)
 {
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_PLUSPLUS, cpp::postfix_operator::PLUSPLUS);
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_MINUSMINUS, cpp::postfix_operator::MINUSMINUS);
 	return result;
 }
 
+#if 0
 inline cpp::postfix_expression_construct* parseSymbol(Parser& parser, cpp::postfix_expression_construct* result)
 {
 	PARSE_REQUIRED(parser, result->type);
@@ -1937,8 +1981,10 @@ inline cpp::postfix_expression_construct* parseSymbol(Parser& parser, cpp::postf
 	PARSE_TERMINAL(parser, result->rp);
 	return result;
 }
+#endif
 
-inline cpp::cast_operator* parseSymbol(Parser& parser, cpp::cast_operator* result)
+template<typename WalkerType>
+inline cpp::cast_operator* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::cast_operator* result)
 {
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_DYNAMICCAST, cpp::cast_operator::DYNAMIC);
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_STATICCAST, cpp::cast_operator::STATIC);
@@ -1947,6 +1993,7 @@ inline cpp::cast_operator* parseSymbol(Parser& parser, cpp::cast_operator* resul
 	return result;
 }
 
+#if 0
 inline cpp::postfix_expression_cast* parseSymbol(Parser& parser, cpp::postfix_expression_cast* result)
 {
 	PARSE_REQUIRED(parser, result->op);
@@ -2012,6 +2059,7 @@ inline cpp::postfix_expression_suffix_seq* parseSymbol(Parser& parser, cpp::post
 	PARSE_OPTIONAL(parser, result->next);
 	return result;
 }
+#endif
 
 cpp::postfix_expression* pruneSymbol(cpp::postfix_expression_default* symbol)
 {
@@ -2022,19 +2070,22 @@ cpp::postfix_expression* pruneSymbol(cpp::postfix_expression_default* symbol)
 	return symbol;
 }
 
-inline cpp::postfix_expression_default* parseSymbol(Parser& parser, cpp::postfix_expression_default* result)
+template<typename WalkerType>
+inline cpp::postfix_expression_default* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::postfix_expression_default* result)
 {
 	PARSE_REQUIRED(parser, result->left);
 	PARSE_OPTIONAL(parser, result->right);
 	return result;
 }
 
-inline cpp::postfix_expression* parseSymbol(Parser& parser, cpp::postfix_expression* result)
+template<typename WalkerType>
+inline cpp::postfix_expression* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::postfix_expression* result)
 {
 	PARSE_EXPRESSION(parser, cpp::postfix_expression_default);
 	return result;
 }
 
+#if 0
 inline cpp::unary_expression_sizeoftype* parseSymbol(Parser& parser, cpp::unary_expression_sizeoftype* result)
 {
 	PARSE_TERMINAL(parser, result->key);
@@ -2183,8 +2234,10 @@ inline cpp::cast_expression* parseSymbol(Parser& parser, cpp::cast_expression* r
 	PARSE_SELECT(parser, cpp::unary_expression);
 	return result;
 }
+#endif
 
-inline cpp::pm_operator* parseSymbol(Parser& parser, cpp::pm_operator* result)
+template<typename WalkerType>
+inline cpp::pm_operator* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::pm_operator* result)
 {
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_DOTSTAR, cpp::pm_operator::DOTSTAR);
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_ARROWSTAR, cpp::pm_operator::ARROWSTAR);
@@ -2200,20 +2253,24 @@ cpp::pm_expression* pruneSymbol(cpp::pm_expression_default* symbol)
 	return symbol;
 }
 
-inline cpp::pm_expression_default* parseSymbol(Parser& parser, cpp::pm_expression_default* result)
+
+template<typename WalkerType>
+inline cpp::pm_expression_default* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::pm_expression_default* result)
 {
 	PARSE_REQUIRED(parser, result->op);
 	PARSE_REQUIRED(parser, result->right);
 	return result;
 }
 
-inline cpp::pm_expression* parseSymbol(Parser& parser, cpp::pm_expression* result)
+template<typename WalkerType>
+inline cpp::pm_expression* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::pm_expression* result)
 {
 	PARSE_EXPRESSION_LEFTASSOCIATIVE(parser, cpp::pm_expression_default);
 	return result;
 }
 
-inline cpp::multiplicative_operator* parseSymbol(Parser& parser, cpp::multiplicative_operator* result)
+template<typename WalkerType>
+inline cpp::multiplicative_operator* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::multiplicative_operator* result)
 {
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_STAR, cpp::multiplicative_operator::STAR);
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_DIVIDE, cpp::multiplicative_operator::DIVIDE);
@@ -2230,20 +2287,23 @@ cpp::multiplicative_expression* pruneSymbol(cpp::multiplicative_expression_defau
 	return symbol;
 }
 
-inline cpp::multiplicative_expression_default* parseSymbol(Parser& parser, cpp::multiplicative_expression_default* result)
+template<typename WalkerType>
+inline cpp::multiplicative_expression_default* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::multiplicative_expression_default* result)
 {
 	PARSE_REQUIRED(parser, result->op);
 	PARSE_REQUIRED(parser, result->right);
 	return result;
 }
 
-inline cpp::multiplicative_expression* parseSymbol(Parser& parser, cpp::multiplicative_expression* result)
+template<typename WalkerType>
+inline cpp::multiplicative_expression* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::multiplicative_expression* result)
 {
 	PARSE_EXPRESSION_LEFTASSOCIATIVE(parser, cpp::multiplicative_expression_default);
 	return result;
 }
 
-inline cpp::additive_operator* parseSymbol(Parser& parser, cpp::additive_operator* result)
+template<typename WalkerType>
+inline cpp::additive_operator* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::additive_operator* result)
 {
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_PLUS, cpp::additive_operator::PLUS);
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_MINUS, cpp::additive_operator::MINUS);
@@ -2259,20 +2319,23 @@ cpp::additive_expression* pruneSymbol(cpp::additive_expression_default* symbol)
 	return symbol;
 }
 
-inline cpp::additive_expression_default* parseSymbol(Parser& parser, cpp::additive_expression_default* result)
+template<typename WalkerType>
+inline cpp::additive_expression_default* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::additive_expression_default* result)
 {
 	PARSE_REQUIRED(parser, result->op);
 	PARSE_REQUIRED(parser, result->right);
 	return result;
 }
 
-inline cpp::additive_expression* parseSymbol(Parser& parser, cpp::additive_expression* result)
+template<typename WalkerType>
+inline cpp::additive_expression* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::additive_expression* result)
 {
 	PARSE_EXPRESSION_LEFTASSOCIATIVE(parser, cpp::additive_expression_default);
 	return result;
 }
 
-inline cpp::shift_operator* parseSymbol(Parser& parser, cpp::shift_operator* result)
+template<typename WalkerType>
+inline cpp::shift_operator* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::shift_operator* result)
 {
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_SHIFTLEFT, cpp::shift_operator::SHIFTLEFT);
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_SHIFTRIGHT, cpp::shift_operator::SHIFTRIGHT);
@@ -2288,20 +2351,23 @@ cpp::shift_expression* pruneSymbol(cpp::shift_expression_default* symbol)
 	return symbol;
 }
 
-inline cpp::shift_expression_default* parseSymbol(Parser& parser, cpp::shift_expression_default* result)
+template<typename WalkerType>
+inline cpp::shift_expression_default* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::shift_expression_default* result)
 {
 	PARSE_REQUIRED(parser, result->op);
 	PARSE_REQUIRED(parser, result->right);
 	return result;
 }
 
-inline cpp::shift_expression* parseSymbol(Parser& parser, cpp::shift_expression* result)
+template<typename WalkerType>
+inline cpp::shift_expression* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::shift_expression* result)
 {
 	PARSE_EXPRESSION_LEFTASSOCIATIVE(parser, cpp::shift_expression_default);
 	return result;
 }
 
-inline cpp::relational_operator* parseSymbol(Parser& parser, cpp::relational_operator* result)
+template<typename WalkerType>
+inline cpp::relational_operator* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::relational_operator* result)
 {
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_LESS, cpp::relational_operator::LESS);
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_GREATER, cpp::relational_operator::GREATER);
@@ -2319,7 +2385,8 @@ cpp::relational_expression* pruneSymbol(cpp::relational_expression_default* symb
 	return symbol;
 }
 
-inline cpp::relational_expression_default* parseSymbol(Parser& parser, cpp::relational_expression_default* result)
+template<typename WalkerType>
+inline cpp::relational_expression_default* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::relational_expression_default* result)
 {
 	if(parser.ambiguity != 0
 		&& peekTemplateIdAmbiguityPrev(parser))
@@ -2344,13 +2411,15 @@ inline cpp::relational_expression_default* parseSymbol(Parser& parser, cpp::rela
 	return result;
 }
 
-inline cpp::relational_expression* parseSymbol(Parser& parser, cpp::relational_expression* result)
+template<typename WalkerType>
+inline cpp::relational_expression* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::relational_expression* result)
 {
 	PARSE_EXPRESSION_LEFTASSOCIATIVE(parser, cpp::relational_expression_default);
 	return result;
 }
 
-inline cpp::equality_operator* parseSymbol(Parser& parser, cpp::equality_operator* result)
+template<typename WalkerType>
+inline cpp::equality_operator* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::equality_operator* result)
 {
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_EQUAL, cpp::equality_operator::EQUAL);
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_NOTEQUAL, cpp::equality_operator::NOTEQUAL);
@@ -2366,14 +2435,16 @@ cpp::equality_expression* pruneSymbol(cpp::equality_expression_default* symbol)
 	return symbol;
 }
 
-inline cpp::equality_expression_default* parseSymbol(Parser& parser, cpp::equality_expression_default* result)
+template<typename WalkerType>
+inline cpp::equality_expression_default* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::equality_expression_default* result)
 {
 	PARSE_REQUIRED(parser, result->op);
 	PARSE_REQUIRED(parser, result->right);
 	return result;
 }
 
-inline cpp::equality_expression* parseSymbol(Parser& parser, cpp::equality_expression* result)
+template<typename WalkerType>
+inline cpp::equality_expression* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::equality_expression* result)
 {
 	PARSE_EXPRESSION_LEFTASSOCIATIVE(parser, cpp::equality_expression_default);
 	return result;
@@ -2388,14 +2459,16 @@ cpp::and_expression* pruneSymbol(cpp::and_expression_default* symbol)
 	return symbol;
 }
 
-inline cpp::and_expression_default* parseSymbol(Parser& parser, cpp::and_expression_default* result)
+template<typename WalkerType>
+inline cpp::and_expression_default* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::and_expression_default* result)
 {
 	PARSE_TERMINAL(parser, result->op);
 	PARSE_REQUIRED(parser, result->right);
 	return result;
 }
 
-inline cpp::and_expression* parseSymbol(Parser& parser, cpp::and_expression* result)
+template<typename WalkerType>
+inline cpp::and_expression* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::and_expression* result)
 {
 	PARSE_EXPRESSION_LEFTASSOCIATIVE(parser, cpp::and_expression_default);
 	return result;
@@ -2410,14 +2483,16 @@ inline cpp::exclusive_or_expression* pruneSymbol(cpp::exclusive_or_expression_de
 	return symbol;
 }
 
-inline cpp::exclusive_or_expression_default* parseSymbol(Parser& parser, cpp::exclusive_or_expression_default* result)
+template<typename WalkerType>
+inline cpp::exclusive_or_expression_default* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::exclusive_or_expression_default* result)
 {
 	PARSE_TERMINAL(parser, result->op);
 	PARSE_REQUIRED(parser, result->right);
 	return result;
 }
 
-inline cpp::exclusive_or_expression* parseSymbol(Parser& parser, cpp::exclusive_or_expression* result)
+template<typename WalkerType>
+inline cpp::exclusive_or_expression* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::exclusive_or_expression* result)
 {
 	PARSE_EXPRESSION_LEFTASSOCIATIVE(parser, cpp::exclusive_or_expression_default);
 	return result;
@@ -2432,14 +2507,16 @@ inline cpp::inclusive_or_expression* pruneSymbol(cpp::inclusive_or_expression_de
 	return symbol;
 }
 
-inline cpp::inclusive_or_expression_default* parseSymbol(Parser& parser, cpp::inclusive_or_expression_default* result)
+template<typename WalkerType>
+inline cpp::inclusive_or_expression_default* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::inclusive_or_expression_default* result)
 {
 	PARSE_TERMINAL(parser, result->op);
 	PARSE_REQUIRED(parser, result->right);
 	return result;
 }
 
-inline cpp::inclusive_or_expression* parseSymbol(Parser& parser, cpp::inclusive_or_expression* result)
+template<typename WalkerType>
+inline cpp::inclusive_or_expression* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::inclusive_or_expression* result)
 {
 	PARSE_EXPRESSION_LEFTASSOCIATIVE(parser, cpp::inclusive_or_expression_default);
 	return result;
@@ -2454,14 +2531,16 @@ inline cpp::logical_and_expression* pruneSymbol(cpp::logical_and_expression_defa
 	return symbol;
 }
 
-inline cpp::logical_and_expression_default* parseSymbol(Parser& parser, cpp::logical_and_expression_default* result)
+template<typename WalkerType>
+inline cpp::logical_and_expression_default* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::logical_and_expression_default* result)
 {
 	PARSE_TERMINAL(parser, result->op);
 	PARSE_REQUIRED(parser, result->right);
 	return result;
 }
 
-inline cpp::logical_and_expression* parseSymbol(Parser& parser, cpp::logical_and_expression* result)
+template<typename WalkerType>
+inline cpp::logical_and_expression* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::logical_and_expression* result)
 {
 	PARSE_EXPRESSION_LEFTASSOCIATIVE(parser, cpp::logical_and_expression_default);
 	return result;
@@ -2476,19 +2555,22 @@ inline cpp::logical_or_expression* pruneSymbol(cpp::logical_or_expression_defaul
 	return symbol;
 }
 
-inline cpp::logical_or_expression_default* parseSymbol(Parser& parser, cpp::logical_or_expression_default* result)
+template<typename WalkerType>
+inline cpp::logical_or_expression_default* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::logical_or_expression_default* result)
 {
 	PARSE_TERMINAL(parser, result->op);
 	PARSE_REQUIRED(parser, result->right);
 	return result;
 }
 
-inline cpp::logical_or_expression* parseSymbol(Parser& parser, cpp::logical_or_expression* result)
+template<typename WalkerType>
+inline cpp::logical_or_expression* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::logical_or_expression* result)
 {
 	PARSE_EXPRESSION_LEFTASSOCIATIVE(parser, cpp::logical_or_expression_default);
 	return result;
 }
 
+#if 0
 inline cpp::conditional_expression_rhs* parseSymbol(Parser& parser, cpp::conditional_expression_rhs* result)
 {
 	PARSE_TERMINAL(parser, result->key);
@@ -2497,8 +2579,10 @@ inline cpp::conditional_expression_rhs* parseSymbol(Parser& parser, cpp::conditi
 	PARSE_REQUIRED(parser, result->right);
 	return result;
 }
+#endif
 
-inline cpp::assignment_operator* parseSymbol(Parser& parser, cpp::assignment_operator* result)
+template<typename WalkerType>
+inline cpp::assignment_operator* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::assignment_operator* result)
 {
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_ASSIGN, cpp::assignment_operator::ASSIGN);
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_STARASSIGN, cpp::assignment_operator::STAR);
@@ -2514,6 +2598,7 @@ inline cpp::assignment_operator* parseSymbol(Parser& parser, cpp::assignment_ope
 	return result;
 }
 
+#if 0
 inline cpp::assignment_expression* parseSymbol(Parser& parser, cpp::assignment_expression* result);
 
 inline cpp::assignment_expression_rhs* parseSymbol(Parser& parser, cpp::assignment_expression_rhs* result)
@@ -2536,6 +2621,7 @@ inline cpp::logical_or_expression_precedent* parseSymbol(Parser& parser, cpp::lo
 	PARSE_OPTIONAL(parser, result->right);
 	return result;
 }
+#endif
 
 inline cpp::conditional_expression* pruneSymbol(cpp::conditional_expression_default* symbol)
 {
@@ -2546,7 +2632,8 @@ inline cpp::conditional_expression* pruneSymbol(cpp::conditional_expression_defa
 	return symbol;
 }
 
-inline cpp::conditional_expression_default* parseSymbol(Parser& parser, cpp::conditional_expression_default* result)
+template<typename WalkerType>
+inline cpp::conditional_expression_default* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::conditional_expression_default* result)
 {
 	PARSE_REQUIRED(parser, result->left);
 	PARSE_OPTIONAL(parser, result->right);
@@ -2562,20 +2649,23 @@ inline cpp::assignment_expression* pruneSymbol(cpp::logical_or_expression_preced
 	return symbol;
 }
 
-inline cpp::conditional_expression* parseSymbol(Parser& parser, cpp::conditional_expression* result)
+template<typename WalkerType>
+inline cpp::conditional_expression* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::conditional_expression* result)
 {
 	PARSE_EXPRESSION(parser, cpp::conditional_expression_default);
 	return result;
 }
 
 
-inline cpp::assignment_expression* parseSymbol(Parser& parser, cpp::assignment_expression* result)
+template<typename WalkerType>
+inline cpp::assignment_expression* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::assignment_expression* result)
 {
 	PARSE_EXPRESSION_SPECIAL(parser, cpp::logical_or_expression_precedent);
 	PARSE_SELECT(parser, cpp::throw_expression); // NOTE: PARSE_EXPRESSION must be the first statement - it relies on 'parser' being untouched
 	return result;
 }
 
+#if 0
 inline cpp::parameter_declaration_default* parseSymbol(Parser& parser, cpp::parameter_declaration_default* result)
 {
 	PARSE_REQUIRED(parser, result->spec);
@@ -2631,8 +2721,10 @@ inline cpp::parameter_declaration* parseSymbol(Parser& parser, cpp::parameter_de
 	PARSE_SELECT(parser, cpp::parameter_declaration_abstract);
 	return result;
 }
+#endif
 
-inline cpp::parameter_declaration_list* parseSymbol(Parser& parser, cpp::parameter_declaration_list* result)
+template<typename WalkerType>
+inline cpp::parameter_declaration_list* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::parameter_declaration_list* result)
 {
 	PARSE_REQUIRED(parser, result->item);
 	PARSE_TERMINAL(parser, result->comma);
@@ -2643,6 +2735,7 @@ inline cpp::parameter_declaration_list* parseSymbol(Parser& parser, cpp::paramet
 	return result;
 }
 
+#if 0
 inline cpp::parameter_declaration_clause* parseSymbol(Parser& parser, cpp::parameter_declaration_clause* result)
 {
 	PARSE_OPTIONAL(parser, result->list);
@@ -2864,7 +2957,6 @@ inline cpp::id_expression* parseSymbol(Parser& parser, cpp::id_expression* resul
 inline cpp::declarator_id* parseSymbol(Parser& parser, cpp::declarator_id* result)
 {
 	PARSE_SELECT(parser, cpp::id_expression);
-	// TODO: qualified form
 	return result;
 }
 
@@ -2909,6 +3001,7 @@ inline cpp::declarator* parseSymbol(Parser& parser, cpp::declarator* result)
 	PARSE_SELECT(parser, cpp::direct_declarator);
 	return result;
 }
+#endif
 
 #if 0
 inline cpp::function_definition_suffix_default* parseSymbol(Parser& parser, cpp::function_definition_suffix_default* result)
@@ -2928,6 +3021,7 @@ inline cpp::function_try_block* parseSymbol(Parser& parser, cpp::function_try_bl
 }
 #endif
 
+#if 0
 inline cpp::function_definition_suffix* parseSymbol(Parser& parser, cpp::function_definition_suffix* result)
 {
 	PARSE_SELECT(parser, cpp::function_try_block);
@@ -2935,7 +3029,6 @@ inline cpp::function_definition_suffix* parseSymbol(Parser& parser, cpp::functio
 	return result;
 }
 
-#if 0
 inline cpp::function_definition* parseSymbol(Parser& parser, cpp::function_definition* result)
 {
 	PARSE_REQUIRED(parser, result->decl);
@@ -2950,7 +3043,6 @@ inline cpp::linkage_specification_compound* parseSymbol(Parser& parser, cpp::lin
 	PARSE_TERMINAL(parser, result->rb);
 	return result;
 }
-#endif
 
 inline cpp::linkage_specification_suffix* parseSymbol(Parser& parser, cpp::linkage_specification_suffix* result)
 {
@@ -2959,7 +3051,6 @@ inline cpp::linkage_specification_suffix* parseSymbol(Parser& parser, cpp::linka
 	return result;
 }
 
-#if 0
 inline cpp::linkage_specification* parseSymbol(Parser& parser, cpp::linkage_specification* result)
 {
 	PARSE_TERMINAL(parser, result->key);
@@ -2985,9 +3076,7 @@ inline cpp::explicit_specialization* parseSymbol(Parser& parser, cpp::explicit_s
 	return result;
 }
 
-#endif
 
-#if 0
 inline cpp::initializer_clause* parseSymbol(Parser& parser, cpp::initializer_clause* result);
 
 inline cpp::initializer_list* parseSymbol(Parser& parser, cpp::initializer_list* result)
@@ -3012,7 +3101,6 @@ inline cpp::initializer_clause_empty* parseSymbol(Parser& parser, cpp::initializ
 	PARSE_TERMINAL(parser, result->rb);
 	return result;
 }
-#endif
 
 inline cpp::initializer_clause* parseSymbol(Parser& parser, cpp::initializer_clause* result)
 {
@@ -3022,7 +3110,6 @@ inline cpp::initializer_clause* parseSymbol(Parser& parser, cpp::initializer_cla
 	return result;
 }
 
-#if 0
 inline cpp::initializer_default* parseSymbol(Parser& parser, cpp::initializer_default* result)
 {
 	PARSE_TERMINAL(parser, result->assign);
@@ -3037,7 +3124,6 @@ inline cpp::initializer_parenthesis* parseSymbol(Parser& parser, cpp::initialize
 	PARSE_TERMINAL(parser, result->rp);
 	return result;
 }
-#endif
 
 inline cpp::initializer* parseSymbol(Parser& parser, cpp::initializer* result)
 {
@@ -3046,7 +3132,6 @@ inline cpp::initializer* parseSymbol(Parser& parser, cpp::initializer* result)
 	return result;
 }
 
-#if 0
 inline cpp::init_declarator_default* parseSymbol(Parser& parser, cpp::init_declarator_default* result)
 {
 	PARSE_REQUIRED(parser, result->decl);
@@ -3060,7 +3145,6 @@ inline cpp::init_declarator_disambiguate* parseSymbol(Parser& parser, cpp::init_
 	PARSE_REQUIRED(parser, result->init);
 	return result;
 }
-#endif
 
 inline cpp::init_declarator* parseSymbol(Parser& parser, cpp::init_declarator* result)
 {
@@ -3069,7 +3153,6 @@ inline cpp::init_declarator* parseSymbol(Parser& parser, cpp::init_declarator* r
 	return result;
 }
 
-#if 0
 inline cpp::init_declarator_list* parseSymbol(Parser& parser, cpp::init_declarator_list* result)
 {
 	PARSE_REQUIRED(parser, result->item);
@@ -3077,18 +3160,14 @@ inline cpp::init_declarator_list* parseSymbol(Parser& parser, cpp::init_declarat
 	PARSE_REQUIRED(parser, result->next);
 	return result;
 }
-#endif
 
-#if 0
 inline cpp::simple_declaration_named* parseSymbol(Parser& parser, cpp::simple_declaration_named* result)
 {
 	PARSE_REQUIRED(parser, result->decl);
 	PARSE_TERMINAL(parser, result->semicolon);
 	return result;
 }
-#endif
 
-#if 0
 inline cpp::simple_declaration_suffix* parseSymbol(Parser& parser, cpp::simple_declaration_suffix* result)
 {
 	PARSE_SELECT(parser, cpp::forward_declaration_suffix);
@@ -3102,9 +3181,7 @@ inline cpp::simple_declaration* parseSymbol(Parser& parser, cpp::simple_declarat
 	PARSE_REQUIRED(parser, result->suffix);
 	return result;
 }
-#endif
 
-#if 0
 inline cpp::asm_definition* parseSymbol(Parser& parser, cpp::asm_definition* result)
 {
 	PARSE_TERMINAL(parser, result->key);
@@ -3389,7 +3466,8 @@ inline cpp::iteration_statement* parseSymbol(Parser& parser, cpp::iteration_stat
 	return result;
 }
 #endif
-inline cpp::jump_statement_key* parseSymbol(Parser& parser, cpp::jump_statement_key* result)
+template<typename WalkerType>
+inline cpp::jump_statement_key* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::jump_statement_key* result)
 {
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_BREAK, cpp::jump_statement_key::BREAK);
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_CONTINUE, cpp::jump_statement_key::CONTINUE);
@@ -3443,7 +3521,8 @@ inline cpp::expression_statement* parseSymbol(Parser& parser, cpp::expression_st
 }
 #endif
 
-inline cpp::msext_asm_terminal* parseSymbol(Parser& parser, cpp::msext_asm_terminal* result)
+template<typename WalkerType>
+inline cpp::msext_asm_terminal* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::msext_asm_terminal* result)
 {
 	if(!TOKEN_EQUAL(parser, boost::wave::T_RIGHTBRACE)
 		&& !TOKEN_EQUAL(parser, boost::wave::T_SEMICOLON)
@@ -3467,7 +3546,9 @@ inline cpp::msext_asm_element_list* parseSymbol(Parser& parser, cpp::msext_asm_e
 	return result;
 }
 #endif
-inline cpp::msext_asm_element_list_inline* parseSymbol(Parser& parser, cpp::msext_asm_element_list_inline* result)
+
+template<typename WalkerType>
+inline cpp::msext_asm_element_list_inline* parseSymbol(ParserGeneric<WalkerType>& parser, cpp::msext_asm_element_list_inline* result)
 {
 	size_t line = parser.get_position().get_line();
 	PARSE_REQUIRED(parser, result->item);
@@ -3532,10 +3613,14 @@ inline cpp::statement_seq* parseSymbol(Parser& parser, cpp::statement_seq* resul
 }
 #endif
 
+struct WalkerTest
+{
+};
 
 cpp::declaration_seq* parseFile(Lexer& lexer)
 {
-	Parser parser(lexer);
+	WalkerTest walker;
+	ParserGeneric<WalkerTest> parser(lexer, walker);
 
 	cpp::symbol_optional<cpp::declaration_seq> result(NULL);
 	try
@@ -3561,7 +3646,8 @@ cpp::declaration_seq* parseFile(Lexer& lexer)
 
 cpp::statement_seq* parseFunction(Lexer& lexer)
 {
-	Parser parser(lexer);
+	WalkerTest walker;
+	ParserGeneric<WalkerTest> parser(lexer, walker);
 
 	cpp::symbol_optional<cpp::statement_seq> result(NULL);
 	try
