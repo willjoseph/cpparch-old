@@ -365,26 +365,12 @@ inline bool checkBacktrack(Parser& parser)
 	return false;
 };
 
-template<typename WalkerType>
-struct ParserGeneric : public Parser
-{
-	WalkerType& walker;
-	ParserGeneric(Lexer& lexer, WalkerType& walker)
-		: Parser(lexer), walker(walker)
-	{
-	}
-	ParserGeneric(ParserGeneric& other)
-		: Parser(other), walker(other.walker)
-	{
-	}
-};
-
-template<typename WalkerType, typename T>
-cpp::symbol<T> parseSymbolRequired(ParserGeneric<WalkerType>& parser, cpp::symbol<T> symbol, size_t best = 0)
+template<typename ParserType, typename T>
+cpp::symbol<T> parseSymbolRequired(ParserType& parser, cpp::symbol<T> symbol, size_t best = 0)
 {
 	T* p = symbol.p;
 	PARSE_ASSERT(!checkBacktrack(parser));
-	ParserGeneric<WalkerType> tmp(parser);
+	ParserType tmp(parser);
 	parser.lexer.push();
 	p = SymbolAllocator<T>(parser.lexer.allocator).allocate(p);
 	p = parseSymbol(tmp, p);
@@ -401,8 +387,8 @@ cpp::symbol<T> parseSymbolRequired(ParserGeneric<WalkerType>& parser, cpp::symbo
 	return cpp::symbol<T>(0);
 }
 
-template<typename WalkerType, typename T>
-cpp::symbol_optional<T> parseSymbolOptional(ParserGeneric<WalkerType>& parser, cpp::symbol_optional<T> symbol)
+template<typename ParserType, typename T>
+cpp::symbol_optional<T> parseSymbolOptional(ParserType& parser, cpp::symbol_optional<T> symbol)
 {
 	return cpp::symbol_optional<T>(parseSymbolRequired(parser, symbol));
 }
@@ -491,8 +477,8 @@ inline T* pruneBinaryExpression(T* symbol)
 }
 
 
-template<typename WalkerType, typename T, typename OtherT>
-cpp::symbol<OtherT> parseSymbolChoice(ParserGeneric<WalkerType>& parser, cpp::symbol<T> symbol, OtherT* other)
+template<typename ParserType, typename T, typename OtherT>
+cpp::symbol<OtherT> parseSymbolChoice(ParserType& parser, cpp::symbol<T> symbol, OtherT* other)
 {
 	if(other != 0)
 	{
@@ -652,8 +638,8 @@ inline bool peekTemplateIdAmbiguityPrev(Parser& parser)
 }
 
 
-template<typename WalkerType, typename T, typename OtherT>
-cpp::symbol<OtherT> parseSymbolAmbiguous(ParserGeneric<WalkerType>& parser, cpp::symbol<T> symbol, OtherT* result)
+template<typename ParserType, typename T, typename OtherT>
+cpp::symbol<OtherT> parseSymbolAmbiguous(ParserType& parser, cpp::symbol<T> symbol, OtherT* result)
 {
 	TemplateIdAmbiguityContext context;
 	if(parser.ambiguity == 0)
@@ -706,8 +692,8 @@ inline cpp::symbol<T> makeSymbol(T* p)
 }
 
 
-template<typename WalkerType, typename T, typename Base>
-inline cpp::symbol<Base> parseExpression(ParserGeneric<WalkerType>& parser, cpp::symbol<T> symbol, Base* result)
+template<typename ParserType, typename T, typename Base>
+inline cpp::symbol<Base> parseExpression(ParserType& parser, cpp::symbol<T> symbol, Base* result)
 {
 	// HACK: create temporary copy of expression-symbol to get RHS-symbol
 	result = parseSymbolRequired(parser, T().right);
@@ -731,8 +717,8 @@ inline cpp::symbol<Base> parseExpression(ParserGeneric<WalkerType>& parser, cpp:
 
 #define PARSE_EXPRESSION_LEFTASSOCIATIVE(parser, Type) result = parseExpression(parser, NullPtr<Type>::VALUE, result)
 
-template<typename WalkerType, typename T>
-inline cpp::symbol_optional<T> parseSequence(ParserGeneric<WalkerType>& parser, cpp::symbol_optional<T>)
+template<typename ParserType, typename T>
+inline cpp::symbol_optional<T> parseSequence(ParserType& parser, cpp::symbol_optional<T>)
 {
 	T tmp;
 	cpp::symbol_optional<T> p(&tmp);
@@ -759,11 +745,11 @@ struct ParseResultSkip
 {
 };
 
-template<typename WalkerType>
+template<typename ParserType>
 struct ParsingVisitor
 {
-	ParserGeneric<WalkerType>& parser;
-	ParsingVisitor(ParserGeneric<WalkerType>& parser) : parser(parser)
+	ParserType& parser;
+	ParsingVisitor(ParserType& parser) : parser(parser)
 	{
 	}
 	template<typename T>
@@ -802,12 +788,12 @@ struct ParsingVisitor
 };
 
 
-template<typename WalkerType, typename T>
-inline T* parseSymbol(ParserGeneric<WalkerType>& parser, T* result, const TypeListEnd&)
+template<typename ParserType, typename T>
+inline T* parseSymbol(ParserType& parser, T* result, const TypeListEnd&)
 {
 	try
 	{
-		ParsingVisitor<WalkerType> visitor(parser);
+		ParsingVisitor<ParserType> visitor(parser);
 		if(!result->parse(visitor))
 		{
 			return 0;
@@ -820,41 +806,41 @@ inline T* parseSymbol(ParserGeneric<WalkerType>& parser, T* result, const TypeLi
 }
 
 
-template<typename WalkerType, typename T, typename Choices>
+template<typename ParserType, typename T, typename Choices>
 struct ChoiceParser
 {
-	static T* parseSymbol(ParserGeneric<WalkerType>& parser, T* result)
+	static T* parseSymbol(ParserType& parser, T* result)
 	{
-		return ChoiceParser<WalkerType, T, typename Choices::Next>::parseSymbol(parser, parseSymbolChoice(parser, NullPtr<typename Choices::Item>::VALUE, result));
+		return ChoiceParser<ParserType, T, typename Choices::Next>::parseSymbol(parser, parseSymbolChoice(parser, NullPtr<typename Choices::Item>::VALUE, result));
 	}
 };
 
-template<typename WalkerType, typename T>
-struct ChoiceParser<WalkerType, T, TypeListEnd>
+template<typename ParserType, typename T>
+struct ChoiceParser<ParserType, T, TypeListEnd>
 {
-	static T* parseSymbol(ParserGeneric<WalkerType>& parser, T* result)
-	{
-		return result;
-	}
-};
-
-template<typename WalkerType, typename T>
-struct ChoiceParser<WalkerType, T, TYPELIST1(cpp::ambiguity<T>)>
-{
-	static T* parseSymbol(ParserGeneric<WalkerType>& parser, T* result)
+	static T* parseSymbol(ParserType& parser, T* result)
 	{
 		return result;
 	}
 };
 
-template<typename WalkerType, typename T, typename Choices>
-inline T* parseSymbol(ParserGeneric<WalkerType>& parser, T* result, const Choices&)
+template<typename ParserType, typename T>
+struct ChoiceParser<ParserType, T, TYPELIST1(cpp::ambiguity<T>)>
 {
-	return ChoiceParser<WalkerType, T, Choices>::parseSymbol(parser, result);
+	static T* parseSymbol(ParserType& parser, T* result)
+	{
+		return result;
+	}
+};
+
+template<typename ParserType, typename T, typename Choices>
+inline T* parseSymbol(ParserType& parser, T* result, const Choices&)
+{
+	return ChoiceParser<ParserType, T, Choices>::parseSymbol(parser, result);
 }
 
-template<typename WalkerType, typename T>
-inline T* parseSymbol(ParserGeneric<WalkerType>& parser, T* result)
+template<typename ParserType, typename T>
+inline T* parseSymbol(ParserType& parser, T* result)
 {
 	return parseSymbol(parser, result, typename T::Choices());
 }
