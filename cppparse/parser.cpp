@@ -2831,8 +2831,9 @@ inline cpp::delete_operator* parseSymbol(Parser& parser, cpp::delete_operator* r
 	PARSE_OPTIONAL(parser, result->array);
 	return result;
 };
-
-inline cpp::overloadable_operator* parseSymbol(Parser& parser, cpp::overloadable_operator* result)
+#endif
+template<typename ParserType>
+inline cpp::overloadable_operator* parseSymbol(ParserType& parser, cpp::overloadable_operator* result)
 {
 	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::assignment_operator);
 	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::member_operator);
@@ -2851,7 +2852,7 @@ inline cpp::overloadable_operator* parseSymbol(Parser& parser, cpp::overloadable
 	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::array_operator);
 	return result;
 };
-
+#if 0
 inline cpp::operator_function_id_suffix* parseSymbol(Parser& parser, cpp::operator_function_id_suffix* result)
 {
 	PARSE_TERMINAL(parser, result->lt);
@@ -3619,7 +3620,7 @@ struct ContextN
 {
 	struct Context1 : public ContextBase
 	{
-		PARSERCONTEXT_DEFAULT
+		PARSERCONTEXT_DEFAULT;
 		void visit(cpp::declaration* symbol)
 		{
 			Context2 walker;
@@ -3629,7 +3630,7 @@ struct ContextN
 
 	struct Context2 : public ContextBase
 	{
-		PARSERCONTEXT_DEFAULT
+		PARSERCONTEXT_DEFAULT;
 		void visit(cpp::declaration* symbol)
 		{
 			Context1 walker;
@@ -3647,7 +3648,7 @@ cpp::declaration_seq* parseFile(Lexer& lexer)
 	try
 	{
 		ProfileScope profile(gProfileParser);
-		PARSE_SEQUENCE(parser, result);
+		PARSE_OPTIONAL(parser, result);
 	}
 	catch(ParseError&)
 	{
@@ -3674,7 +3675,7 @@ cpp::statement_seq* parseFunction(Lexer& lexer)
 	try
 	{
 		ProfileScope profile(gProfileParser);
-		PARSE_SEQUENCE(parser, result);
+		PARSE_OPTIONAL(parser, result);
 	}
 	catch(ParseError&)
 	{

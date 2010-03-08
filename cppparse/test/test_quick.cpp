@@ -2,6 +2,13 @@
 //#include "predefined_msvc.h"
 //#include <xutility>
 
+template<typename T>
+struct TemplateParamTest
+{
+	void f(T t)
+	{
+	}
+};
 
 namespace N
 {

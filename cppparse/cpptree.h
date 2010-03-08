@@ -147,10 +147,10 @@ namespace cpp
 
 	struct template_argument : public choice<template_argument>
 	{
-		VISITABLE_BASE(TYPELIST4(
+		VISITABLE_BASE(TYPELIST3(
 			SYMBOLFWD(type_id),
 			SYMBOLFWD(assignment_expression),
-			SYMBOLFWD(id_expression), // TODO: assignment-expression contains id-expression
+			//SYMBOLFWD(id_expression), // TODO: assignment-expression contains id-expression
 			ambiguity<template_argument>
 		));
 	};
@@ -158,8 +158,8 @@ namespace cpp
 	struct template_parameter : public choice<template_parameter>
 	{
 		VISITABLE_BASE(TYPELIST3(
+			SYMBOLFWD(type_parameter), // NOTE: ambiguity 'typename T' could be typename-specifier or type-parameter
 			SYMBOLFWD(parameter_declaration),
-			SYMBOLFWD(type_parameter),
 			ambiguity<template_parameter>
 		));
 	};
@@ -2785,6 +2785,12 @@ namespace cpp
 		terminal<boost::wave::T_RIGHTBRACE> rb;
 		FOREACH5(key, id, lb, body, rb);
 	};
+}
+
+template<typename T>
+inline cpp::symbol<T> makeSymbol(T* p)
+{
+	return cpp::symbol<T>(p);
 }
 
 #endif

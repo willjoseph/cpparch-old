@@ -357,6 +357,12 @@ struct Lexer
 	}
 };
 
+inline void printPosition(const LexFilePosition& position)
+{
+	std::cout << position.get_file() << "(" << position.get_line() << "): ";
+}
+
+
 #endif
 
 

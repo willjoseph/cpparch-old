@@ -269,11 +269,6 @@ struct Parser : public ParserState
 	}
 };
 
-inline void printPosition(const LexFilePosition& position)
-{
-	std::cout << position.get_file() << "(" << position.get_line() << "): ";
-}
-
 inline void printError(Parser& parser)
 {
 #if 0
@@ -689,13 +684,6 @@ cpp::symbol<OtherT> parseSymbolAmbiguous(ParserType& parser, cpp::symbol<T> symb
 #else
 #define PARSE_EXPRESSION PARSE_EXPRESSION_SPECIAL
 #endif
-
-
-template<typename T>
-inline cpp::symbol<T> makeSymbol(T* p)
-{
-	return cpp::symbol<T>(p);
-}
 
 
 template<typename ParserType, typename T, typename Base>
