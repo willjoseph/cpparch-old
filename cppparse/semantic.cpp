@@ -1476,13 +1476,13 @@ struct QualifiedIdWalker : public WalkerBase
 	{
 	}
 
-	void visit(cpp::qualified_id_default* symbol)
+	void visit(cpp::terminal<boost::wave::T_COLON_COLON> symbol)
 	{
-		if(symbol->isGlobal.value != 0)
+		TREEWALKER_LEAF(symbol);
+		if(symbol.value != 0)
 		{
 			qualifying = &context.global;
 		}
-		TREEWALKER_WALK(*this, symbol);
 	}
 	void visit(cpp::nested_name_specifier* symbol)
 	{
@@ -1929,21 +1929,13 @@ struct TypeSpecifierWalker : public WalkerBase
 		SEMANTIC_ASSERT(walker.type.declaration != 0);
 		type = walker.type;
 	}
-	void visit(cpp::simple_type_specifier_name* symbol)
+	void visit(cpp::terminal<boost::wave::T_COLON_COLON> symbol)
 	{
-		if(symbol->isGlobal.value != 0)
+		TREEWALKER_LEAF(symbol);
+		if(symbol.value != 0)
 		{
 			qualifying = &context.global;
 		}
-		TREEWALKER_WALK(*this, symbol);
-	}
-	void visit(cpp::simple_type_specifier_template* symbol)
-	{
-		if(symbol->isGlobal.value != 0)
-		{
-			qualifying = &context.global;
-		}
-		TREEWALKER_WALK(*this, symbol);
 	}
 	void visit(cpp::nested_name_specifier* symbol)
 	{
@@ -1975,18 +1967,13 @@ struct DeclaratorIdWalker : public WalkerBase
 	{
 	}
 
-	void visit(cpp::qualified_id_global* symbol) 
+	void visit(cpp::terminal<boost::wave::T_COLON_COLON> symbol)
 	{
-		qualifying = &context.global;
-		TREEWALKER_WALK(*this, symbol);
-	}
-	void visit(cpp::qualified_id_default* symbol) 
-	{
-		if(symbol->isGlobal.value != 0)
+		TREEWALKER_LEAF(symbol);
+		if(symbol.value != 0)
 		{
 			qualifying = &context.global;
 		}
-		TREEWALKER_WALK(*this, symbol);
 	}
 	void visit(cpp::identifier* symbol)
 	{
@@ -2174,8 +2161,13 @@ struct UsingDeclarationWalker : public WalkerBase
 		: WalkerBase(base), isTypename(false)
 	{
 	}
-	void walkUnqualifiedId(cpp::symbol<cpp::unqualified_id> symbol)
+	void visit(cpp::terminal<boost::wave::T_COLON_COLON> symbol)
 	{
+		TREEWALKER_LEAF(symbol);
+		if(symbol.value != 0)
+		{
+			qualifying = &context.global;
+		}
 	}
 	void visit(cpp::using_declaration_global* symbol)
 	{
@@ -2206,14 +2198,10 @@ struct UsingDeclarationWalker : public WalkerBase
 			}
 		}
 	}
-	void visit(cpp::using_declaration_nested* symbol)
+	void visit(cpp::terminal<boost::wave::T_TYPENAME> symbol)
 	{
-		if(symbol->isGlobal.value != 0)
-		{
-			qualifying = &context.global;
-		}
-		isTypename = symbol->isTypename.value != 0;
-		TREEWALKER_WALK(*this, symbol);
+		TREEWALKER_LEAF(symbol);
+		isTypename = true;
 	}
 };
 
@@ -2351,20 +2339,16 @@ struct ElaboratedTypeSpecifierWalker : public WalkerBase
 		: WalkerBase(base), key(0), type(0), id(0)
 	{
 	}
-	void visit(cpp::elaborated_type_specifier_template* symbol)
+	void visit(cpp::terminal<boost::wave::T_COLON_COLON> symbol)
 	{
-		if(symbol->isGlobal.value != 0)
+		TREEWALKER_LEAF(symbol);
+		if(symbol.value != 0)
 		{
 			qualifying = &context.global;
 		}
-		TREEWALKER_WALK(*this, symbol);
 	}
 	void visit(cpp::elaborated_type_specifier_default* symbol)
 	{
-		if(symbol->isGlobal.value != 0)
-		{
-			qualifying = &context.global;
-		}
 		TREEWALKER_WALK(*this, symbol);
 		if(!isUnqualified(symbol)
 			|| type.declaration != &gUndeclared)
@@ -2683,6 +2667,14 @@ struct QualifiedTypeNameWalker : public WalkerBase
 		: WalkerBase(base)
 	{
 	}
+	void visit(cpp::terminal<boost::wave::T_COLON_COLON> symbol)
+	{
+		TREEWALKER_LEAF(symbol);
+		if(symbol.value != 0)
+		{
+			qualifying = &context.global;
+		}
+	}
 	void visit(cpp::nested_name_specifier* symbol)
 	{
 		NestedNameSpecifierWalker walker(*this);
@@ -2709,10 +2701,6 @@ struct MemInitializerWalker : public WalkerBase
 	}
 	void visit(cpp::mem_initializer_id_base* symbol)
 	{
-		if(symbol->isGlobal.value != 0)
-		{
-			qualifying = &context.global;
-		}
 		QualifiedTypeNameWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
 	}
