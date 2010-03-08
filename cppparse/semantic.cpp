@@ -2240,23 +2240,10 @@ struct MemberDeclarationWalker : public WalkerBase
 	}
 	void visit(cpp::member_declaration_default* symbol)
 	{
-#if 0
-		if(typeid(*symbol->suffix.p) == typeid(cpp::forward_declaration_suffix)
-			&& isForwardDeclaration(symbol->spec))
-		{
-			ForwardDeclarationWalker walker(*this);
-			TREEWALKER_WALK(walker, symbol);
-			SEMANTIC_ASSERT(walker.declaration != 0);
-			declaration = walker.declaration;
-		}
-		else
-#endif
-		{
-			SimpleDeclarationWalker walker(*this);
-			TREEWALKER_WALK(walker, symbol);
-			SEMANTIC_ASSERT(walker.type.declaration != 0);
-			declaration = walker.declaration;
-		}
+		SimpleDeclarationWalker walker(*this);
+		TREEWALKER_WALK(walker, symbol);
+		SEMANTIC_ASSERT(walker.type.declaration != 0);
+		declaration = walker.declaration;
 	}
 	void visit(cpp::member_declaration_nested* symbol)
 	{
@@ -2571,21 +2558,9 @@ struct StatementWalker : public WalkerBase
 	}
 	void visit(cpp::simple_declaration* symbol)
 	{
-#if 0
-		if(typeid(*symbol->suffix.p) == typeid(cpp::forward_declaration_suffix)
-			&& isForwardDeclaration(symbol->spec))
-		{
-			ForwardDeclarationWalker walker(*this);
-			TREEWALKER_WALK(walker, symbol);
-			SEMANTIC_ASSERT(walker.declaration != 0);
-		}
-		else
-#endif
-		{
-			SimpleDeclarationWalker walker(*this);
-			TREEWALKER_WALK(walker, symbol);
-			SEMANTIC_ASSERT(walker.type.declaration != 0);
-		}
+		SimpleDeclarationWalker walker(*this);
+		TREEWALKER_WALK(walker, symbol);
+		SEMANTIC_ASSERT(walker.type.declaration != 0);
 	}
 	void visit(cpp::selection_statement* symbol)
 	{
@@ -2886,8 +2861,11 @@ struct SimpleDeclarationWalker : public WalkerBase
 	{
 		MemberDeclaratorBitfieldWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
-		declaration = pointOfDeclaration(enclosing, *walker.id, type, 0, specifiers); // 3.3.1.1
-		walker.id->dec.p = declaration;
+		if(walker.id != 0)
+		{
+			declaration = pointOfDeclaration(enclosing, *walker.id, type, 0, specifiers); // 3.3.1.1
+			walker.id->dec.p = declaration;
+		}
 	}
 
 	// handle assignment-expression(s) in initializer
@@ -2971,23 +2949,6 @@ struct SimpleDeclarationWalker : public WalkerBase
 			forward->dec.p = declaration;
 			type = declaration;
 		}
-	}
-};
-
-struct ForwardDeclarationWalker : public WalkerBase
-{
-	TREEWALKER_DEFAULT;
-
-	Declaration* declaration;
-	ForwardDeclarationWalker(WalkerBase& base)
-		: WalkerBase(base), declaration(0)
-	{
-	}
-
-	void visit(cpp::elaborated_type_specifier_default* symbol)
-	{
-		declaration = pointOfDeclaration(enclosing, symbol->id->value, &gClass, 0, DeclSpecifiers(), enclosing == templateEnclosing);
-		symbol->id->value.dec.p = declaration;
 	}
 };
 
@@ -3118,44 +3079,18 @@ struct DeclarationWalker : public WalkerBase
 	}
 	void visit(cpp::general_declaration* symbol)
 	{
-#if 0
-		if(typeid(*symbol->suffix.p) == typeid(cpp::forward_declaration_suffix)
-			&& isForwardDeclaration(symbol->spec))
-		{
-			ForwardDeclarationWalker walker(*this);
-			TREEWALKER_WALK(walker, symbol);
-			SEMANTIC_ASSERT(walker.declaration != 0);
-			declaration = walker.declaration;
-		}
-		else
-#endif
-		{
-			SimpleDeclarationWalker walker(*this);
-			TREEWALKER_WALK(walker, symbol);
-			SEMANTIC_ASSERT(walker.type.declaration != 0);
-			declaration = walker.declaration;
-		}
+		SimpleDeclarationWalker walker(*this);
+		TREEWALKER_WALK(walker, symbol);
+		SEMANTIC_ASSERT(walker.type.declaration != 0);
+		declaration = walker.declaration;
 	}
 	// occurs in for-init-statement
 	void visit(cpp::simple_declaration* symbol)
 	{
-#if 0
-		if(typeid(*symbol->suffix.p) == typeid(cpp::forward_declaration_suffix)
-			&& isForwardDeclaration(symbol->spec))
-		{
-			ForwardDeclarationWalker walker(*this);
-			TREEWALKER_WALK(walker, symbol);
-			SEMANTIC_ASSERT(walker.declaration != 0);
-			declaration = walker.declaration;
-		}
-		else
-#endif
-		{
-			SimpleDeclarationWalker walker(*this);
-			TREEWALKER_WALK(walker, symbol);
-			SEMANTIC_ASSERT(walker.type.declaration != 0);
-			declaration = walker.declaration;
-		}
+		SimpleDeclarationWalker walker(*this);
+		TREEWALKER_WALK(walker, symbol);
+		SEMANTIC_ASSERT(walker.type.declaration != 0);
+		declaration = walker.declaration;
 	}
 	void visit(cpp::template_declaration* symbol)
 	{
