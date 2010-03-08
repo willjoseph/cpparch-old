@@ -3613,61 +3613,35 @@ inline cpp::statement_seq* parseSymbol(Parser& parser, cpp::statement_seq* resul
 }
 #endif
 
-struct ContextTest
-{
-};
 
-template<typename Context>
-struct ParserGeneric : public Parser
-{
-	Context& context;
-	ParserGeneric(Lexer& lexer, Context& context)
-		: Parser(lexer), context(context)
-	{
-	}
-	ParserGeneric(ParserGeneric& other)
-		: Parser(other), context(other.context)
-	{
-	}
 
-	void visit(cpp::terminal_identifier symbol)
+struct ContextN
+{
+	struct Context1 : public ContextBase
 	{
-	}
-	void visit(cpp::terminal_string symbol)
-	{
-	}
-	void visit(cpp::terminal_choice2 symbol)
-	{
-	}
-	template<LexTokenId id>
-	void visit(cpp::terminal<id> symbol)
-	{
-	}
-	template<typename T>
-	void visit(T* symbol)
-	{
-		symbol->accept(*this);
-	}
-	template<typename T>
-	void visit(cpp::symbol<T> symbol)
-	{
-		if(symbol.p != 0)
+		PARSERCONTEXT_DEFAULT
+		void visit(cpp::declaration* symbol)
 		{
-			visit(symbol.p);
+			Context2 walker;
+			SYMBOL_WALK(walker, symbol);
 		}
-	}
-	template<typename T>
-	void visit(cpp::ambiguity<T>* symbol)
-	{
-		// TODO
-	}
-};
+	};
 
+	struct Context2 : public ContextBase
+	{
+		PARSERCONTEXT_DEFAULT
+		void visit(cpp::declaration* symbol)
+		{
+			Context1 walker;
+			SYMBOL_WALK(walker, symbol);
+		}
+	};
+};
 
 cpp::declaration_seq* parseFile(Lexer& lexer)
 {
-	ContextTest context;
-	ParserGeneric<ContextTest> parser(lexer, context);
+	ContextN::Context1 context;
+	ParserGeneric<ContextN::Context1> parser(lexer, context);
 
 	cpp::symbol_optional<cpp::declaration_seq> result(NULL);
 	try
@@ -3693,8 +3667,8 @@ cpp::declaration_seq* parseFile(Lexer& lexer)
 
 cpp::statement_seq* parseFunction(Lexer& lexer)
 {
-	ContextTest context;
-	ParserGeneric<ContextTest> parser(lexer, context);
+	ContextN::Context1 context;
+	ParserGeneric<ContextN::Context1> parser(lexer, context);
 
 	cpp::symbol_optional<cpp::statement_seq> result(NULL);
 	try

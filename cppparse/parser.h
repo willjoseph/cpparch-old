@@ -373,7 +373,11 @@ cpp::symbol<T> parseSymbolRequired(ParserType& parser, cpp::symbol<T> symbol, si
 	ParserType tmp(parser);
 	parser.lexer.push();
 	p = SymbolAllocator<T>(parser.lexer.allocator).allocate(p);
+#if 0
 	p = parseSymbol(tmp, p);
+#else
+	p = tmp.parse(p);
+#endif
 	parser.lexer.pop();
 	if(p != 0
 		&& tmp.position >= best)
@@ -745,11 +749,62 @@ struct ParseResultSkip
 {
 };
 
+struct ParserOpaque : public Parser
+{
+	void* context;
+	ParserOpaque(Lexer& lexer, void* context)
+		: Parser(lexer), context(context)
+	{
+	}
+};
+
+template<typename Context>
+struct ParserGeneric : public ParserOpaque
+{
+	ParserGeneric(Lexer& lexer, Context& context)
+		: ParserOpaque(lexer, &context)
+	{
+	}
+	template<typename T>
+	T* parse(T* symbol)
+	{
+		return static_cast<Context*>(context)->parse(*this, symbol);
+	}
+};
+
+struct ContextBase
+{
+	ParserOpaque* parser;
+	void* result;
+};
+
+#define SYMBOL_WALK(walker, symbol) if((result = walk(walker, symbol)) == 0) return
+#define PARSERCONTEXT_DEFAULT \
+	template<typename ContextType, typename T> \
+	T* walk(ContextType& context, T* symbol) \
+	{ \
+		parser->context = &context; \
+		return parseSymbol(*static_cast<ParserGeneric<ContextType>*>(parser), symbol); \
+	} \
+	template<typename T> \
+	void visit(T* symbol) \
+	{ \
+		SYMBOL_WALK(*this, symbol); \
+	} \
+	template<typename T> \
+	T* parse(ParserOpaque& parser, T* symbol) \
+	{ \
+		this->parser = &parser; \
+		visit(symbol); \
+		return static_cast<T*>(result); \
+	}
+
 template<typename ParserType>
 struct ParsingVisitor
 {
 	ParserType& parser;
-	ParsingVisitor(ParserType& parser) : parser(parser)
+	bool skip;
+	ParsingVisitor(ParserType& parser) : parser(parser), skip(false)
 	{
 	}
 	template<typename T>
@@ -766,7 +821,7 @@ struct ParsingVisitor
 	template<LexTokenId ID>
 	bool visit(cpp::terminal<ID>& t)
 	{
-		return parseTerminal(parser, t) != PARSERESULT_FAIL;
+		return parseTerminal(parser, t) == PARSERESULT_PASS;
 	}
 	template<LexTokenId ID>
 	bool visit(cpp::terminal_optional<ID>& t)
@@ -777,16 +832,10 @@ struct ParsingVisitor
 	template<LexTokenId ID>
 	bool visit(cpp::terminal_suffix<ID>& t)
 	{
-		switch(parseTerminal(parser, t))
-		{
-		case PARSERESULT_FAIL: return false;
-		case PARSERESULT_SKIP: throw ParseResultSkip();
-		default: break;
-		}
-		return true;
+		skip = parseTerminal(parser, t) != PARSERESULT_PASS;
+		return !skip;
 	}
 };
-
 
 template<typename ParserType, typename T>
 inline T* parseSymbol(ParserType& parser, T* result, const TypeListEnd&)
@@ -796,7 +845,11 @@ inline T* parseSymbol(ParserType& parser, T* result, const TypeListEnd&)
 		ParsingVisitor<ParserType> visitor(parser);
 		if(!result->parse(visitor))
 		{
-			return 0;
+#if 0
+			std::cout << "rejected: '" << SYMBOL_NAME(T) << "'" << std::endl;
+			printSequence(parser.lexer); // rejected tokens
+#endif
+			return visitor.skip ? result : 0;
 		}
 	}
 	catch(ParseResultSkip&)
