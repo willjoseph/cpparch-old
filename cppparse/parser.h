@@ -508,6 +508,7 @@ cpp::symbol<OtherT> parseSymbolChoice(ParserType& parser, cpp::symbol<T> symbol,
 	{
 		OtherT* alt = pruneSymbol(p);
 		{
+#if 0
 			ProfileScope profile(gProfileDiagnose);
 			if(!isAmbiguous(other)) // debug: check that this is a known ambiguity
 			{
@@ -529,6 +530,7 @@ cpp::symbol<OtherT> parseSymbolChoice(ParserType& parser, cpp::symbol<T> symbol,
 				std::cout << std::endl;
 				breakpoint();
 			}
+#endif
 		}
 #if 0
 		return cpp::symbol<OtherT>(other); // for now, ignore alternative interpretations
