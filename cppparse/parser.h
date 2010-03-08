@@ -842,20 +842,14 @@ struct ParsingVisitor
 template<typename ParserType, typename T>
 inline T* parseSymbol(ParserType& parser, T* result, const TypeListEnd&)
 {
-	try
+	ParsingVisitor<ParserType> visitor(parser);
+	if(!result->parse(visitor))
 	{
-		ParsingVisitor<ParserType> visitor(parser);
-		if(!result->parse(visitor))
-		{
 #if 0
-			std::cout << "rejected: '" << SYMBOL_NAME(T) << "'" << std::endl;
-			printSequence(parser.lexer); // rejected tokens
+		std::cout << "rejected: '" << SYMBOL_NAME(T) << "'" << std::endl;
+		printSequence(parser.lexer); // rejected tokens
 #endif
-			return visitor.skip ? result : 0;
-		}
-	}
-	catch(ParseResultSkip&)
-	{
+		return visitor.skip ? result : 0;
 	}
 	return result;
 }
