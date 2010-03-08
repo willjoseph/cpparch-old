@@ -1866,9 +1866,9 @@ namespace cpp
 	struct member_declaration_suffix : public choice<member_declaration_suffix>
 	{
 		VISITABLE_BASE(TYPELIST4(
+			SYMBOLFWD(forward_declaration_suffix),
 			SYMBOLFWD(member_declaration_bitfield),
 			SYMBOLFWD(member_declaration_named),
-			SYMBOLFWD(forward_declaration_suffix),
 			SYMBOLFWD(function_definition)
 		));
 	};

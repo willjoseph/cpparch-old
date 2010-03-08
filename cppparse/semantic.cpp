@@ -161,7 +161,7 @@ struct Scope
 	}
 };
 
-bool enclosesElt(ScopeType type)
+bool enclosesEts(ScopeType type)
 {
 	return type == SCOPETYPE_NAMESPACE
 		|| type == SCOPETYPE_LOCAL;
@@ -1117,10 +1117,10 @@ struct WalkerBase
 		throw SemanticError();
 	}
 
-	Scope* getEltScope()
+	Scope* getEtsScope()
 	{
 		Scope* scope = enclosing;
-		for(; !enclosesElt(scope->type); scope = scope->parent)
+		for(; !enclosesEts(scope->type); scope = scope->parent)
 		{
 		}
 		return scope;
@@ -2240,6 +2240,7 @@ struct MemberDeclarationWalker : public WalkerBase
 	}
 	void visit(cpp::member_declaration_default* symbol)
 	{
+#if 0
 		if(typeid(*symbol->suffix.p) == typeid(cpp::forward_declaration_suffix)
 			&& isForwardDeclaration(symbol->spec))
 		{
@@ -2249,6 +2250,7 @@ struct MemberDeclarationWalker : public WalkerBase
 			declaration = walker.declaration;
 		}
 		else
+#endif
 		{
 			SimpleDeclarationWalker walker(*this);
 			TREEWALKER_WALK(walker, symbol);
@@ -2355,21 +2357,56 @@ struct ElaboratedTypeSpecifierWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Declaration* type;
-	Declaration* declaration;
+	Declaration* key;
+	Type type;
+	Identifier* id;
 	ElaboratedTypeSpecifierWalker(const WalkerBase& base)
-		: WalkerBase(base), type(0), declaration(0)
+		: WalkerBase(base), key(0), type(0), id(0)
 	{
+	}
+	void visit(cpp::elaborated_type_specifier_template* symbol)
+	{
+		if(symbol->isGlobal.value != 0)
+		{
+			qualifying = &context.global;
+		}
+		TREEWALKER_WALK(*this, symbol);
+	}
+	void visit(cpp::elaborated_type_specifier_default* symbol)
+	{
+		if(symbol->isGlobal.value != 0)
+		{
+			qualifying = &context.global;
+		}
+		TREEWALKER_WALK(*this, symbol);
+		if(!isUnqualified(symbol)
+			|| type.declaration != &gUndeclared)
+		{
+			id = 0;
+		}
+	}
+	void visit(cpp::nested_name_specifier* symbol)
+	{
+		NestedNameSpecifierWalker walker(*this);
+		TREEWALKER_WALK(walker, symbol);
+		qualifying = walker.qualifying;
 	}
 	void visit(cpp::class_key* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		type = &gClass;
+		key = &gClass;
 	}
 	void visit(cpp::enum_key* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		type = &gEnum;
+		key = &gEnum;
+	}
+	void visit(cpp::simple_template_id* symbol)
+	{
+		SEMANTIC_ASSERT(key == &gClass);
+		TemplateIdWalker walker(*this, isType);
+		TREEWALKER_WALK(walker, symbol);
+		type = walker.type;
 	}
 	void visit(cpp::identifier* symbol)
 	{
@@ -2382,7 +2419,8 @@ struct ElaboratedTypeSpecifierWalker : public WalkerBase
 		the class-key and this lookup does not find a previously declared type-name ...
 		the elaborated-type-specifier is a declaration that introduces the class-name as described in 3.3.1.
 		*/
-		declaration = findDeclaration(symbol->value, isType);
+		id = &symbol->value;
+		Declaration* declaration = findDeclaration(symbol->value, isType);
 		if(declaration != &gUndeclared)
 		{
 			symbol->value.dec.p = declaration;
@@ -2403,7 +2441,7 @@ struct ElaboratedTypeSpecifierWalker : public WalkerBase
 			The class-key or enum keyword present in the elaborated-type-specifier shall agree in kind with the declaration
 			to which the name in the elaborated-type-specifier refers.
 			*/
-			if(declaration->type.declaration != type)
+			if(declaration->type.declaration != key)
 			{
 				printPosition(symbol->value.position);
 				std::cout << "'" << symbol->value.value << "': elaborated-type-specifier key does not match declaration" << std::endl;
@@ -2419,22 +2457,15 @@ struct ElaboratedTypeSpecifierWalker : public WalkerBase
 			the class-key and this lookup does not find a previously declared type-name ...
 			the elaborated-type-specifier is a declaration that introduces the class-name as described in 3.3.1.
 			*/
-			if(type != &gClass)
+			if(key != &gClass)
 			{
-				SEMANTIC_ASSERT(type == &gEnum);
+				SEMANTIC_ASSERT(key == &gEnum);
 				printPosition(symbol->value.position);
 				std::cout << "'" << symbol->value.value << "': elaborated-type-specifier refers to undefined enum" << std::endl;
 				throw SemanticError();
 			}
-			/* 3.3.1-6
-			if the elaborated-type-specifier is used in the decl-specifier-seq or parameter-declaration-clause of a
-			function defined in namespace scope, the identifier is declared as a class-name in the namespace that
-			contains the declaration; otherwise, except as a friend declaration, the identifier is declared in the
-			smallest non-class, non-function-prototype scope that contains the declaration.
-			*/
-			declaration = pointOfDeclaration(getEltScope(), symbol->value, &gClass, 0, DeclSpecifiers(), enclosing == templateEnclosing);
-			symbol->value.dec.p = declaration;
 		}
+		type = declaration;
 	}
 };
 
@@ -2460,8 +2491,9 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 
 	Type type;
 	DeclSpecifiers specifiers;
+	Identifier* forward;
 	DeclSpecifierSeqWalker(const WalkerBase& base)
-		: WalkerBase(base), type(0)
+		: WalkerBase(base), type(0), forward(0)
 	{
 	}
 
@@ -2471,26 +2503,12 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		type = walker.type;
 	}
-	void visit(cpp::elaborated_type_specifier_template* symbol)
+	void visit(cpp::elaborated_type_specifier* symbol)
 	{
-		TypeSpecifierWalker walker(*this);
+		ElaboratedTypeSpecifierWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
+		forward = walker.id;
 		type = walker.type;
-	}
-	void visit(cpp::elaborated_type_specifier_default* symbol)
-	{
-		if(isUnqualified(symbol))
-		{
-			ElaboratedTypeSpecifierWalker walker(*this);
-			TREEWALKER_WALK(walker, symbol);
-			type = walker.declaration;
-		}
-		else
-		{
-			TypeSpecifierWalker walker(*this);
-			TREEWALKER_WALK(walker, symbol);
-			type = walker.type;
-		}
 	}
 	void visit(cpp::typename_specifier* symbol)
 	{
@@ -2553,6 +2571,7 @@ struct StatementWalker : public WalkerBase
 	}
 	void visit(cpp::simple_declaration* symbol)
 	{
+#if 0
 		if(typeid(*symbol->suffix.p) == typeid(cpp::forward_declaration_suffix)
 			&& isForwardDeclaration(symbol->spec))
 		{
@@ -2561,6 +2580,7 @@ struct StatementWalker : public WalkerBase
 			SEMANTIC_ASSERT(walker.declaration != 0);
 		}
 		else
+#endif
 		{
 			SimpleDeclarationWalker walker(*this);
 			TREEWALKER_WALK(walker, symbol);
@@ -2785,10 +2805,11 @@ struct SimpleDeclarationWalker : public WalkerBase
 	Type type;
 	Declaration* declaration;
 	DeclSpecifiers specifiers;
+	Identifier* forward;
 	bool isParameter;
 
 	SimpleDeclarationWalker(const WalkerBase& base, bool isParameter = false)
-		: WalkerBase(base), type(&gCtor), declaration(0), isParameter(isParameter)
+		: WalkerBase(base), type(&gCtor), declaration(0), forward(0), isParameter(isParameter)
 	{
 	}
 
@@ -2800,6 +2821,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		type = walker.type;
 		declaration = type.declaration; // if no declarator is specified later, this is probably a class-declaration
 		specifiers = walker.specifiers;
+		forward = walker.forward;
 	}
 	void visit(cpp::type_specifier_seq* symbol)
 	{
@@ -2807,6 +2829,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		type = walker.type;
 		declaration = type.declaration; // if no declarator is specified later, this is probably a class-declaration
+		forward = walker.forward;
 	}
 
 	template<typename T>
@@ -2907,6 +2930,47 @@ struct SimpleDeclarationWalker : public WalkerBase
 	{
 		HandlerSeqWalker walker(*this);
 		walkDeferable(walker, symbol);
+	}
+
+	void declareEts()
+	{
+		if(type.declaration == &gUndeclared)
+		{
+			SEMANTIC_ASSERT(forward != 0);
+			/* 3.3.1-6
+			if the elaborated-type-specifier is used in the decl-specifier-seq or parameter-declaration-clause of a
+			function defined in namespace scope, the identifier is declared as a class-name in the namespace that
+			contains the declaration; otherwise, except as a friend declaration, the identifier is declared in the
+			smallest non-class, non-function-prototype scope that contains the declaration.
+			*/
+			declaration = pointOfDeclaration(getEtsScope(), *forward, &gClass, 0, DeclSpecifiers(), enclosing == templateEnclosing);
+			forward->dec.p = declaration;
+			type = declaration;
+		}
+	}
+	void visit(cpp::simple_declaration_named* symbol)
+	{
+		declareEts();
+		TREEWALKER_WALK(*this, symbol);
+	}
+	void visit(cpp::member_declaration_named* symbol)
+	{
+		declareEts();
+		TREEWALKER_WALK(*this, symbol);
+	}
+	void visit(cpp::function_definition* symbol)
+	{
+		declareEts();
+		TREEWALKER_WALK(*this, symbol);
+	}
+	void visit(cpp::forward_declaration_suffix* symbol)
+	{
+		if(forward != 0)
+		{
+			declaration = pointOfDeclaration(enclosing, *forward, &gClass, 0, DeclSpecifiers(), enclosing == templateEnclosing);
+			forward->dec.p = declaration;
+			type = declaration;
+		}
 	}
 };
 
@@ -3054,6 +3118,7 @@ struct DeclarationWalker : public WalkerBase
 	}
 	void visit(cpp::general_declaration* symbol)
 	{
+#if 0
 		if(typeid(*symbol->suffix.p) == typeid(cpp::forward_declaration_suffix)
 			&& isForwardDeclaration(symbol->spec))
 		{
@@ -3063,6 +3128,7 @@ struct DeclarationWalker : public WalkerBase
 			declaration = walker.declaration;
 		}
 		else
+#endif
 		{
 			SimpleDeclarationWalker walker(*this);
 			TREEWALKER_WALK(walker, symbol);
@@ -3073,6 +3139,7 @@ struct DeclarationWalker : public WalkerBase
 	// occurs in for-init-statement
 	void visit(cpp::simple_declaration* symbol)
 	{
+#if 0
 		if(typeid(*symbol->suffix.p) == typeid(cpp::forward_declaration_suffix)
 			&& isForwardDeclaration(symbol->spec))
 		{
@@ -3082,6 +3149,7 @@ struct DeclarationWalker : public WalkerBase
 			declaration = walker.declaration;
 		}
 		else
+#endif
 		{
 			SimpleDeclarationWalker walker(*this);
 			TREEWALKER_WALK(walker, symbol);
@@ -3126,6 +3194,7 @@ struct NamespaceWalker : public WalkerBase
 
 	void visit(cpp::identifier* symbol)
 	{
+		TREEWALKER_LEAF(symbol);
 		declaration = pointOfDeclaration(enclosing, symbol->value, &gNamespace, 0);
 		symbol->value.dec.p = declaration;
 		if(declaration->enclosed == 0)
