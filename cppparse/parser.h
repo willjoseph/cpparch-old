@@ -344,12 +344,6 @@ T* createSymbol(Parser& parser, T*)
 	return new(parser.lexer.allocator.allocate(sizeof(T))) T;
 }
 
-#ifdef _DEBUG
-#define SYMBOL_NAME(T) (typeid(T).name() + 12)
-#else
-#define SYMBOL_NAME(T) "cpp::$symbol"
-#endif
-
 inline bool checkBacktrack(Parser& parser)
 {
 	if(parser.lexer.maxBacktrack)

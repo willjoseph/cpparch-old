@@ -2793,6 +2793,13 @@ inline cpp::symbol<T> makeSymbol(T* p)
 	return cpp::symbol<T>(p);
 }
 
+
+#ifdef _DEBUG
+#define SYMBOL_NAME(T) (typeid(T).name() + 12)
+#else
+#define SYMBOL_NAME(T) "$symbol"
+#endif
+
 #endif
 
 

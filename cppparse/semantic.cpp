@@ -10,8 +10,6 @@
 
 #include <fstream>
 
-#define SYMBOL_NAME(T) (typeid(T).name() + 12)
-
 #define ARRAY_COUNT(array) (sizeof(array) / sizeof(*array))
 #define ARRAY_END(array) ((array) + ARRAY_COUNT(array))
 
@@ -1224,7 +1222,6 @@ const char* getIdentifierType(IdentifierFunc func)
 	return "<unknown>";
 }
 
-#define SYMBOL_NAME(T) (typeid(T).name() + 12)
 
 template<typename Walker, typename T>
 inline T* walkAmbiguity(Walker& walker, cpp::ambiguity<T>* symbol)
