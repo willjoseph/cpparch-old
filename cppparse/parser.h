@@ -530,7 +530,7 @@ cpp::symbol<OtherT> parseSymbolChoice(ParserType& parser, cpp::symbol<T> symbol,
 #if 0
 		return cpp::symbol<OtherT>(other); // for now, ignore alternative interpretations
 #else
-		return cpp::symbol<OtherT>(resolveAmbiguity(parser.lexer.allocator, other, alt, IsAmbiguous<OtherT>::Result()));
+		return cpp::symbol<OtherT>(resolveAmbiguity(parser.lexer.allocator, other, alt, typename IsAmbiguous<OtherT>::Result()));
 #endif
 	}
 	if(p == 0)
@@ -828,7 +828,7 @@ struct ParsingVisitor
 };
 
 template<typename ParserType, typename T>
-inline T* parseSymbol(ParserType& parser, T* result, const TypeListEnd&)
+inline T* parseSymbol(ParserType& parser, T* result, const TypeListEnd&, const False&)
 {
 	ParsingVisitor<ParserType> visitor(parser);
 	if(!result->parse(visitor))
@@ -848,7 +848,8 @@ struct ChoiceParser
 {
 	static T* parseSymbol(ParserType& parser, T* result)
 	{
-		return ChoiceParser<ParserType, T, typename Choices::Next>::parseSymbol(parser, parseSymbolChoice(parser, NullPtr<typename Choices::Item>::VALUE, result));
+		result = parseSymbolChoice(parser, NullPtr<typename Choices::Item>::VALUE, result);
+		return ChoiceParser<ParserType, T, typename Choices::Next>::parseSymbol(parser, result);
 	}
 };
 
@@ -871,15 +872,52 @@ struct ChoiceParser<ParserType, T, TYPELIST1(cpp::ambiguity<T>)>
 };
 
 template<typename ParserType, typename T, typename Choices>
-inline T* parseSymbol(ParserType& parser, T* result, const Choices&)
+inline T* parseSymbol(ParserType& parser, T* result, const Choices&, const True&)
 {
 	return ChoiceParser<ParserType, T, Choices>::parseSymbol(parser, result);
+}
+
+template<typename ParserType, typename T, typename Choices>
+struct ChoiceParserUnambiguous
+{
+	static T* parseSymbol(ParserType& parser, T* result)
+	{
+#if 0
+		result = parseSymbolChoice(parser, NullPtr<typename Choices::Item>::VALUE, result);
+#else
+		if(result = parseSymbolRequired(parser, NullPtr<typename Choices::Item>::VALUE))
+		{
+#if 0
+			std::cout << "matched: " << SYMBOL_NAME(typename Choices::Item) << std::endl;
+			printSymbol(result);
+			std::cout << std::endl;
+#endif
+			return result;
+		}
+#endif
+		return ChoiceParserUnambiguous<ParserType, T, typename Choices::Next>::parseSymbol(parser, result);
+	}
+};
+
+template<typename ParserType, typename T>
+struct ChoiceParserUnambiguous<ParserType, T, TypeListEnd>
+{
+	static T* parseSymbol(ParserType& parser, T* result)
+	{
+		return result;
+	}
+};
+
+template<typename ParserType, typename T, typename Choices>
+inline T* parseSymbol(ParserType& parser, T* result, const Choices&, const False&)
+{
+	return ChoiceParserUnambiguous<ParserType, T, Choices>::parseSymbol(parser, result);
 }
 
 template<typename ParserType, typename T>
 inline T* parseSymbol(ParserType& parser, T* result)
 {
-	return parseSymbol(parser, result, typename T::Choices());
+	return parseSymbol(parser, result, typename T::Choices(), typename IsAmbiguous<T>::Result());
 }
 
 

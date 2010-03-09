@@ -148,7 +148,7 @@ namespace cpp
 	struct template_argument : public choice<template_argument>
 	{
 		VISITABLE_BASE(TYPELIST3(
-			SYMBOLFWD(type_id),
+			SYMBOLFWD(type_id), // TODO: ambiguity: 'type-id' and 'primary-expression' may both be 'identifier'. Prefer type-id to handle 'T(*)()'.
 			SYMBOLFWD(assignment_expression),
 			//SYMBOLFWD(id_expression), // TODO: assignment-expression contains id-expression
 			ambiguity<template_argument>
@@ -158,8 +158,8 @@ namespace cpp
 	struct template_parameter : public choice<template_parameter>
 	{
 		VISITABLE_BASE(TYPELIST3(
-			SYMBOLFWD(type_parameter), // NOTE: ambiguity 'typename T' could be typename-specifier or type-parameter
-			SYMBOLFWD(parameter_declaration),
+			SYMBOLFWD(type_parameter), // TODO: ambiguity 'typename T' could be typename-specifier or type-parameter
+			SYMBOLFWD(parameter_declaration), // TODO: ambiguity 'class C' could be elaborated-type-specifier or type-parameter
 			ambiguity<template_parameter>
 		));
 	};
@@ -434,8 +434,8 @@ namespace cpp
 		VISITABLE_DERIVED(declarator_id);
 		VISITABLE_DERIVED(primary_expression);
 		VISITABLE_BASE(TYPELIST2(
-			SYMBOLFWD(unqualified_id),
-			SYMBOLFWD(qualified_id)
+			SYMBOLFWD(qualified_id), // TODO: shared prefix ambiguity: 'identifier' vs 'nested-name-specifier'
+			SYMBOLFWD(unqualified_id)
 		));
 	};
 
@@ -500,7 +500,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(type_name);
 		VISITABLE_BASE(TYPELIST2(
-			SYMBOLFWD(simple_template_id),
+			SYMBOLFWD(simple_template_id), // TODO: ambiguity: shared prefix 'identifier'
 			SYMBOLFWD(identifier)
 		));
 	};
@@ -1718,7 +1718,7 @@ namespace cpp
 	struct statement : public choice<statement>
 	{
 		VISITABLE_BASE(TYPELIST11(
-			SYMBOLFWD(msext_asm_statement_braced),
+			SYMBOLFWD(msext_asm_statement_braced), // TODO: shared-prefix ambiguity: braced and unbraced start with '__asm'
 			SYMBOLFWD(msext_asm_statement),
 			SYMBOLFWD(compound_statement),
 			SYMBOLFWD(declaration_statement),
@@ -2153,7 +2153,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(template_parameter);
 		VISITABLE_BASE(TYPELIST3(
-			SYMBOLFWD(parameter_declaration_default),
+			SYMBOLFWD(parameter_declaration_default), // TODO: ambiguity: 'C::A(X)' could be 'C::A X' or 'C::A(*)(X)'
 			SYMBOLFWD(parameter_declaration_abstract),
 			ambiguity<parameter_declaration>
 		));
@@ -2344,8 +2344,8 @@ namespace cpp
 	struct msext_asm_element : public choice<msext_asm_element>
 	{
 		VISITABLE_BASE(TYPELIST3(
+			SYMBOLFWD(msext_asm_statement_braced), // TODO: shared-prefix ambiguity: braced and unbraced start with '__asm'
 			SYMBOLFWD(msext_asm_statement),
-			SYMBOLFWD(msext_asm_statement_braced),
 			SYMBOLFWD(msext_asm_terminal)
 		));
 	};
