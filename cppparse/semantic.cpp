@@ -3193,6 +3193,7 @@ cpp::declaration_seq* parseFile(Lexer& lexer)
 	dumpProfile(gProfileDiagnose);
 	dumpProfile(gProfileAllocator);
 	dumpProfile(gProfileIdentifier);
+	dumpProfile(gProfileTemplateId);
 	return result;
 }
 

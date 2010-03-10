@@ -633,9 +633,11 @@ inline bool peekTemplateIdAmbiguityPrev(Parser& parser)
 }
 
 
+
 template<typename ParserType, typename T, typename OtherT>
 cpp::symbol<OtherT> parseSymbolAmbiguous(ParserType& parser, cpp::symbol<T> symbol, OtherT* result)
 {
+	static size_t gTemplateIdAmbiguityNest = 0;
 	TemplateIdAmbiguityContext context;
 	if(parser.ambiguity == 0)
 	{
@@ -643,15 +645,30 @@ cpp::symbol<OtherT> parseSymbolAmbiguous(ParserType& parser, cpp::symbol<T> symb
 #ifdef AMBIGUITY_DEBUG
 		std::cout << "ambiguity begin: " << SYMBOL_NAME(T) << std::endl;
 #endif
+		++gTemplateIdAmbiguityNest;
 	}
 	result = parseSymbolChoice(parser, symbol, result);
 	if(parser.ambiguity == &context)
 	{
+		--gTemplateIdAmbiguityNest;
 #ifdef AMBIGUITY_DEBUG
 		std::cout << "ambiguity end: " << SYMBOL_NAME(T) << std::endl;
 #endif
 		if(context.depth != 0)
 		{
+			ProfileScope profile(gProfileTemplateId);
+
+#if 0
+			for(size_t i = 0; i != gTemplateIdAmbiguityNest; ++i)
+			{
+				std::cout << " ";
+			}
+			std::cout << "ambiguous expression " << SYMBOL_NAME(T) << ": depth=" << context.depth << ": ";
+			std::cout << std::endl;
+			printSymbol(result);
+			std::cout << std::endl;
+#endif
+
 			// debug
 			size_t depth = context.depth;
 			OtherT* original = result;
@@ -664,6 +681,14 @@ cpp::symbol<OtherT> parseSymbolAmbiguous(ParserType& parser, cpp::symbol<T> symb
 #endif
 				result = parseSymbolChoice(parser, symbol, result);
 				width = std::max(width, size_t(1 << context.depth)); // handle failure of initial parse, increase depth when a solution is found
+
+				// TEMP HACK
+				if(depth > 2)
+				{
+					// don't bother to brute-force check complex ambiguities for now.
+
+					break;
+				}
 			}
 		}
 		parser.ambiguity = 0;

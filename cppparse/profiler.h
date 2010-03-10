@@ -80,6 +80,7 @@ extern ProfileEntry gProfileDiagnose;
 extern ProfileEntry gProfileAmbiguity;
 extern ProfileEntry gProfileAllocator;
 extern ProfileEntry gProfileIdentifier;
+extern ProfileEntry gProfileTemplateId;
 
 #endif
 

@@ -608,8 +608,17 @@ namespace cpp
 		FOREACH3(prefix, type, suffix);
 	};
 
-	struct simple_type_specifier : public choice<simple_type_specifier>, public type_specifier_noncv
+	struct postfix_expression_type_specifier : public choice<postfix_expression_type_specifier>
 	{
+		VISITABLE_BASE(TYPELIST2(
+			SYMBOLFWD(simple_type_specifier),
+			SYMBOLFWD(typename_specifier)
+		));
+	};
+
+	struct simple_type_specifier : public choice<simple_type_specifier>, public type_specifier_noncv, public postfix_expression_type_specifier
+	{
+		VISITABLE_DERIVED(postfix_expression_type_specifier);
 		VISITABLE_DERIVED(type_specifier_noncv);
 		VISITABLE_BASE(TYPELIST3(
 			SYMBOLFWD(simple_type_specifier_builtin),
@@ -791,8 +800,9 @@ namespace cpp
 		symbol_optional<base_specifier_prefix> prefix;
 		terminal_optional<boost::wave::T_COLON_COLON> isGlobal;
 		symbol_optional<nested_name_specifier> context;
+		terminal_optional<boost::wave::T_TEMPLATE> isTemplate; // TODO: disallow 'template' followed by non-template-id
 		symbol<class_name> id;
-		FOREACH4(prefix, isGlobal, context, id);
+		FOREACH5(prefix, isGlobal, context, isTemplate, id);
 	};
 
 
@@ -843,7 +853,7 @@ namespace cpp
 		VISITABLE_DERIVED(template_id);
 		symbol<identifier> id;
 		terminal<boost::wave::T_LESS> lb;
-		symbol<template_argument_list> args;
+		symbol_optional<template_argument_list> args;
 		terminal<boost::wave::T_GREATER> rb;
 		FOREACH4(id, lb, args, rb);
 	};
@@ -1161,7 +1171,7 @@ namespace cpp
 	struct postfix_expression_construct : public postfix_expression_prefix
 	{
 		VISITABLE_DERIVED(postfix_expression_prefix);
-		symbol<simple_type_specifier> type;
+		symbol<postfix_expression_type_specifier> type;
 		terminal<boost::wave::T_LEFTPAREN> lp;
 		symbol_optional<expression_list> args;
 		terminal<boost::wave::T_RIGHTPAREN> rp;
@@ -2106,9 +2116,10 @@ namespace cpp
 		FOREACH5(key, isGlobal, context, isTemplate, id);
 	};
 
-	struct typename_specifier : public type_specifier_noncv
+	struct typename_specifier : public type_specifier_noncv, public postfix_expression_type_specifier
 	{
 		VISITABLE_DERIVED(type_specifier_noncv);
+		VISITABLE_DERIVED(postfix_expression_type_specifier);
 		terminal<boost::wave::T_TYPENAME> key;
 		terminal_optional<boost::wave::T_COLON_COLON> isGlobal;
 		symbol_optional<nested_name_specifier> context;

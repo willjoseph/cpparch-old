@@ -1096,7 +1096,16 @@ inline cpp::template_argument_list* parseSymbol(ParserType& parser, cpp::templat
 	parser.inTemplateArgumentList = true;
 	PARSE_REQUIRED(parser, result->item);
 	PARSE_TERMINAL(parser, result->comma);
+
+	TemplateIdAmbiguityContext* ambiguity = parser.ambiguity;
+	size_t ambiguityDepth = parser.ambiguityDepth;
+	parser.ambiguity = 0; // comma disambiguates
+	parser.ambiguityDepth = 0;
+
 	PARSE_REQUIRED(parser, result->next);
+
+	parser.ambiguity = ambiguity;
+	parser.ambiguityDepth = ambiguityDepth;
 	return result;
 }
 
@@ -1117,7 +1126,7 @@ inline cpp::simple_template_id* parseSymbol(ParserType& parser, cpp::simple_temp
 	}
 	PARSE_REQUIRED(parser, result->id);
 	PARSE_TERMINAL(parser, result->lb);
-	PARSE_REQUIRED(parser, result->args);
+	PARSE_OPTIONAL(parser, result->args);
 	PARSE_TERMINAL(parser, result->rb);
 	return result;
 }
@@ -1574,6 +1583,7 @@ inline cpp::base_specifier* parseSymbol(Parser& parser, cpp::base_specifier* res
 	PARSE_OPTIONAL(parser, result->prefix);
 	PARSE_TERMINAL(parser, result->isGlobal);
 	PARSE_OPTIONAL(parser, result->context);
+	PARSE_TERMINAL(parser, result->isTemplate);
 	PARSE_REQUIRED(parser, result->id);
 	return result;
 }

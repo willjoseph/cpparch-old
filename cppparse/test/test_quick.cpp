@@ -2,30 +2,43 @@
 //#include "predefined_msvc.h"
 //#include <xutility>
 
-template <class Cat>
-struct old_category_to_traversal
-: mpl::eval_if<
-      is_convertible<Cat,std::random_access_iterator_tag>
-    , mpl::identity<random_access_traversal_tag>
-    , mpl::eval_if<
-          is_convertible<Cat,std::bidirectional_iterator_tag>
-        , mpl::identity<bidirectional_traversal_tag>
-        , mpl::eval_if<
-              is_convertible<Cat,std::forward_iterator_tag>
-            , mpl::identity<forward_traversal_tag>
-            , mpl::eval_if<
-                  is_convertible<Cat,std::input_iterator_tag>
-                , mpl::identity<single_pass_traversal_tag>
-                , mpl::eval_if<
-                      is_convertible<Cat,std::output_iterator_tag>
-                    , mpl::identity<incrementable_traversal_tag>
-                    , void
-                  >
+
+template <typename E, class A>
+const typename SimpleStringStorage<E, A>::Data
+SimpleStringStorage<E, A>::emptyString_ = 
+typename SimpleStringStorage<E, A>::Data();
+
+template <typename T>
+struct Tmpl
+	: Base< T >::template Dependent<T>
+{
+};
+
+
+// pathological case for template-id ambiguity
+#if 0
+template<class T>
+struct Tmpl
+: Tmpl<
+      Tmpl<T,T>
+    , Tmpl<T>
+    , Tmpl<
+          Tmpl<T,T>
+        , Tmpl<T>
+        , Tmpl<
+              Tmpl<T,T>
+            , Tmpl<T>
+            , Tmpl<
+                  Tmpl<T,T>
+                , Tmpl<T>
+                , void
               >
           >
       >
   >
-{};
+{
+};
+#endif
 
 // name-lookup within template member definition
 template<typename X>
