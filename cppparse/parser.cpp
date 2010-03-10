@@ -1809,6 +1809,25 @@ inline cpp::throw_expression* parseSymbol(Parser& parser, cpp::throw_expression*
 	return result;
 }
 #endif
+
+template<typename ParserType>
+inline cpp::logical_operator* parseSymbol(ParserType& parser, cpp::logical_operator* result)
+{
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_ANDAND, cpp::logical_operator::AND);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_OROR, cpp::logical_operator::OR);
+	return result;
+}
+
+template<typename ParserType>
+inline cpp::bitwise_operator* parseSymbol(ParserType& parser, cpp::bitwise_operator* result)
+{
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_AND, cpp::bitwise_operator::AND);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_OR, cpp::bitwise_operator::OR);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_XOR, cpp::bitwise_operator::XOR);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_NOT, cpp::bitwise_operator::NOT);
+	return result;
+}
+
 template<typename ParserType>
 inline cpp::unary_operator* parseSymbol(ParserType& parser, cpp::unary_operator* result)
 {

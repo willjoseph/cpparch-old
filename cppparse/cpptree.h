@@ -637,7 +637,7 @@ namespace cpp
 
 	struct overloadable_operator : public choice<overloadable_operator>
 	{
-		VISITABLE_BASE(TYPELIST15(
+		VISITABLE_BASE(TYPELIST17(
 			SYMBOLFWD(assignment_operator),
 			SYMBOLFWD(member_operator),
 			SYMBOLFWD(postfix_operator),
@@ -652,8 +652,26 @@ namespace cpp
 			SYMBOLFWD(delete_operator),
 			SYMBOLFWD(comma_operator),
 			SYMBOLFWD(function_operator),
-			SYMBOLFWD(array_operator)
+			SYMBOLFWD(array_operator),
+			SYMBOLFWD(bitwise_operator),
+			SYMBOLFWD(logical_operator)
 		));
+	};
+
+	struct bitwise_operator : public overloadable_operator
+	{
+		VISITABLE_DERIVED(overloadable_operator);
+		enum { AND, OR, XOR, NOT } id;
+		terminal_choice2 value;
+		FOREACH1(value);
+	};
+
+	struct logical_operator : public overloadable_operator
+	{
+		VISITABLE_DERIVED(overloadable_operator);
+		enum { AND, OR } id;
+		terminal_choice2 value;
+		FOREACH1(value);
 	};
 
 	struct array_operator : public overloadable_operator
