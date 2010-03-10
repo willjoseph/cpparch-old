@@ -50,19 +50,15 @@ public:
 		{
 			++path;
 		}
-		std::cout << "  included: " << path;
-		std::cout << " from: " << includes[depth - 1];
-		std::cout << std::endl;
 		includes[depth] = path;
+		std::cout << includes[depth - 1] << "  included: " << includes[depth] << std::endl;
 		++depth;
 	}
 	template <typename ContextT>
 	void returning_from_include_file(ContextT const &ctx)
 	{
 		--depth;
-		std::cout << "  return: " << includes[depth - 1];
-		std::cout << " from: " << includes[depth];
-		std::cout << std::endl;
+		std::cout << includes[depth - 1] << "  returned: " << includes[depth] << std::endl;
 	}
 };
 
