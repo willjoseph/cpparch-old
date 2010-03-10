@@ -377,7 +377,7 @@ int main(int argc, char *argv[])
 			"_SCL_SECURE_NO_WARNINGS",
 		};
 		const CharConstPointer INCLUDES_CPPPARSE[] = {
-			"D:\\z\\work\\boost_1_41_0",
+			"../../boost_1_41_0",
 		};
 		const Test tests[] = {
 			makeTest("lexer.cpp", ARRAY_RANGE(DEFINITIONS_CPPPARSE), ARRAY_RANGE(INCLUDES_CPPPARSE), verifyNull, parseFile),
