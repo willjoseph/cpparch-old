@@ -658,7 +658,7 @@ namespace cpp
 		));
 	};
 
-	struct bitwise_operator : public overloadable_operator
+	struct bitwise_operator : public terminal_choice, public overloadable_operator
 	{
 		VISITABLE_DERIVED(overloadable_operator);
 		enum { AND, OR, XOR, NOT } id;
@@ -666,7 +666,7 @@ namespace cpp
 		FOREACH1(value);
 	};
 
-	struct logical_operator : public overloadable_operator
+	struct logical_operator : public terminal_choice, public overloadable_operator
 	{
 		VISITABLE_DERIVED(overloadable_operator);
 		enum { AND, OR } id;

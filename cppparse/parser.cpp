@@ -2879,6 +2879,8 @@ inline cpp::overloadable_operator* parseSymbol(ParserType& parser, cpp::overload
 	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::comma_operator);
 	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::function_operator);
 	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::array_operator);
+	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::bitwise_operator);
+	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::logical_operator);
 	return result;
 };
 #if 0
