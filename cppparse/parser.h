@@ -216,7 +216,7 @@ struct Parser : public ParserState
 	{
 		return lexer.get_value();
 	}
-	LexFilePosition get_position()
+	FilePosition get_position()
 	{
 		return lexer.get_position();
 	}
@@ -362,7 +362,7 @@ cpp::symbol<T> parseSymbolRequired(ParserType& parser, cpp::symbol<T> symbol, si
 	ParserType tmp(parser);
 	parser.lexer.push();
 	p = SymbolAllocator<T>(parser.lexer.allocator).allocate(p);
-#if 0
+#if 1
 	p = parseSymbol(tmp, p);
 #else
 	p = tmp.parse(p);

@@ -2,16 +2,17 @@
 #ifndef INCLUDED_CPPPARSE_LEXER_H
 #define INCLUDED_CPPPARSE_LEXER_H
 
+#include <boost/wave/token_ids.hpp>
+#include <boost/wave/util/file_position.hpp>
+
 #include <string>
 #include <fstream>
 
+#include "common.h"
 #include "printer.h"
 #include "profiler.h"
+#include "allocator.h"
 
-
-
-#include <boost/wave/token_ids.hpp>
-#include <boost/wave/util/file_position.hpp>
 
 typedef boost::wave::token_id LexTokenId;
 typedef boost::wave::util::file_position_type LexFilePosition;
@@ -47,7 +48,7 @@ void increment(LexIterator& i);
 const LexToken& dereference(const LexIterator& i);
 const char* get_value(const LexToken& token);
 LexTokenId get_id(const LexToken& token);
-LexFilePosition get_position(const LexToken& token);
+const LexFilePosition& get_position(const LexToken& token);
 
 
 #include <vector>
@@ -73,13 +74,13 @@ struct Token
 {
 	LexTokenId id;
 	const char* value;
-	LexFilePosition position;
+	FilePosition position;
 
 	Token()
 		: id(boost::wave::T_UNKNOWN)
 	{
 	}
-	Token(LexTokenId id, const char* value, const LexFilePosition& position)
+	Token(LexTokenId id, const char* value, const FilePosition& position)
 		: id(id), value(value), position(position)
 	{
 	}
@@ -143,7 +144,7 @@ struct BacktrackStats
 {
 	size_t count;
 	const char* symbol;
-	LexFilePosition position;
+	FilePosition position;
 	BacktrackStats()
 		: count(0)
 	{
@@ -214,6 +215,7 @@ struct TokenBuffer
 
 typedef TokenPrinter<std::ofstream> FileTokenPrinter;
 
+
 struct Lexer
 {
 	std::ofstream out;
@@ -228,8 +230,9 @@ struct Lexer
 	Tokens history;
 	Tokens::const_iterator position;
 
-	typedef std::set<std::string> Identifiers;
+	typedef std::set<std::string, std::less<std::string>, DebugAllocator<std::string> > Identifiers;
 	Identifiers identifiers;
+	Identifiers filenames;
 
 	typedef std::vector<size_t> Positions;
 	Positions stacktrace;
@@ -307,6 +310,16 @@ struct Lexer
 		ProfileScope profile(gProfileIdentifier);
 		return (*identifiers.insert(value).first).c_str();
 	}
+	FilePosition makeFilePosition(const LexFilePosition& position)
+	{
+		ProfileScope profile(gProfileIdentifier);
+		FilePosition result = {
+			(*filenames.insert(position.get_file().c_str()).first).c_str(),
+			position.get_line(),
+			position.get_column()
+		};
+		return result;
+	}
 
 	bool finished() const
 	{
@@ -321,9 +334,9 @@ struct Lexer
 	{
 		return position != history.end() ? (*position).value : makeIdentifier(::get_value(dereference(first)));
 	}
-	LexFilePosition get_position()
+	FilePosition get_position()
 	{
-		return position != history.end() ? (*position).position : ::get_position(dereference(first));
+		return position != history.end() ? (*position).position : makeFilePosition(::get_position(dereference(first)));
 	}
 
 	void increment()
@@ -334,7 +347,12 @@ struct Lexer
 		}
 		else
 		{
-			printer.printToken(get_id(), get_value());
+#if 0
+			{
+				ProfileScope profile(gProfileDiagnose);
+				printer.printToken(get_id(), get_value());
+			}
+#endif
 			history.push_back(Token(get_id(), get_value(), get_position()));
 			position = history.end();
 			for(;;)
@@ -362,6 +380,10 @@ inline void printPosition(const LexFilePosition& position)
 	std::cout << position.get_file() << "(" << position.get_line() << "): ";
 }
 
+inline void printPosition(const FilePosition& position)
+{
+	std::cout << position.file << "(" << position.line << "): ";
+}
 
 #endif
 

@@ -1,6 +1,7 @@
 
 #include "lexer.h"
 
+
 #include <string.h> // strrchr
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -15,7 +16,7 @@
 //  This token type is one of the central types used throughout the library, 
 //  because it is a template parameter to some of the public classes and  
 //  instances of this type are returned from the iterators.
-typedef boost::wave::cpplexer::lex_token<> token_type;
+typedef boost::wave::cpplexer::lex_token<boost::wave::util::file_position_type> token_type;
 
 //  The template boost::wave::cpplexer::lex_iterator<> is the lexer type to
 //  to use as the token source for the preprocessing engine. It is 
@@ -199,7 +200,7 @@ LexTokenId get_id(const LexToken& token)
 	return token;
 }
 
-LexFilePosition get_position(const LexToken& token)
+const LexFilePosition& get_position(const LexToken& token)
 {
 	return token.get_position();
 }

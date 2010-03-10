@@ -10,9 +10,6 @@
 
 #include <fstream>
 
-#define ARRAY_COUNT(array) (sizeof(array) / sizeof(*array))
-#define ARRAY_END(array) ((array) + ARRAY_COUNT(array))
-
 
 #include <iostream>
 #include <list>

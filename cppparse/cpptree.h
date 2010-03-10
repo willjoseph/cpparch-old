@@ -7,40 +7,8 @@
 #include "visitor.h"
 
 #include <boost/wave/token_ids.hpp>
-#include <boost/wave/util/file_position.hpp>
 
 typedef boost::wave::token_id LexTokenId;
-typedef boost::wave::util::file_position_type LexFilePosition;
-
-#if 0
-struct TypeListEnd
-{
-};
-
-template<typename ItemType, typename NextType>
-struct TypeList
-{
-	typedef ItemType Item;
-	typedef NextType Next;
-};
-
-#define TYPELIST1(T0) TypeList<T0, TypeListEnd>
-#define TYPELIST2(T0, T1) TypeList<T0, TYPELIST1(T1)>
-#define TYPELIST3(T0, T1, T2) TypeList<T0, TYPELIST2(T1, T2)>
-#define TYPELIST4(T0, T1, T2, T3) TypeList<T0, TYPELIST3(T1, T2, T3)>
-#define TYPELIST5(T0, T1, T2, T3, T4) TypeList<T0, TYPELIST4(T1, T2, T3, T4)>
-#define TYPELIST6(T0, T1, T2, T3, T4, T5) TypeList<T0, TYPELIST5(T1, T2, T3, T4, T5)>
-#define TYPELIST7(T0, T1, T2, T3, T4, T5, T6) TypeList<T0, TYPELIST6(T1, T2, T3, T4, T5, T6)>
-#define TYPELIST8(T0, T1, T2, T3, T4, T5, T6, T7) TypeList<T0, TYPELIST7(T1, T2, T3, T4, T5, T6, T7)>
-#define TYPELIST9(T0, T1, T2, T3, T4, T5, T6, T7, T8) TypeList<T0, TYPELIST8(T1, T2, T3, T4, T5, T6, T7, T8)>
-#define TYPELIST10(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9) TypeList<T0, TYPELIST9(T1, T2, T3, T4, T5, T6, T7, T8, T9)>
-#define TYPELIST11(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10) TypeList<T0, TYPELIST10(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10)>
-#define TYPELIST12(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11) TypeList<T0, TYPELIST11(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11)>
-#define TYPELIST13(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12) TypeList<T0, TYPELIST12(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12)>
-#define TYPELIST14(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13) TypeList<T0, TYPELIST13(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13)>
-#define TYPELIST15(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14) TypeList<T0, TYPELIST14(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14)>
-#define TYPELIST16(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15) TypeList<T0, TYPELIST15(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15)>
-#endif
 
 struct Declaration;
 
@@ -126,7 +94,7 @@ namespace cpp
 	struct terminal_identifier
 	{
 		const char* value;
-		LexFilePosition position;
+		FilePosition position;
 		decoration dec;
 	};
 
@@ -2799,6 +2767,7 @@ inline cpp::symbol<T> makeSymbol(T* p)
 #else
 #define SYMBOL_NAME(T) "$symbol"
 #endif
+
 
 #endif
 

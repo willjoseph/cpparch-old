@@ -6,21 +6,53 @@
 #include <fstream>
 #include <string>
 
+template<typename T>
+struct ArrayRange
+{
+	const T* first;
+	const T* last;
+	ArrayRange(const T* first, const T* last)
+		: first(first), last(last)
+	{
+	}
+};
+
+template<typename T>
+ArrayRange<T> makeRange(const T* first, const T* last)
+{
+	return ArrayRange<T>(first, last);
+}
+
+#define ARRAY_RANGE(array) makeRange(array, ARRAY_END(array))
+
+
+
 typedef int (*VerifyFunc)(void* output, const char* path);
 
 typedef void* (*ParseFunc)(Lexer& lexer);
 
+typedef const char* CharConstPointer;
+typedef ArrayRange<CharConstPointer> CharConstPointerRange;
+const CharConstPointer DEFINITIONS_DEBUG[] = {
+	"WIN32",
+	"_DEBUG"
+};
+
+const CharConstPointerRange CHARCONSTPOINTERRANGE_EMPTY = CharConstPointerRange(0, 0);
+
 struct Test
 {
 	const char* input;
+	CharConstPointerRange definitions;
+	CharConstPointerRange includes;
 	VerifyFunc verify;
 	ParseFunc parse;
 };
 
 template<typename Result>
-Test makeTest(const char* input, int (*verify)(Result*, const char*), Result* (*parse)(Lexer&))
+Test makeTest(const char* input, const CharConstPointerRange& definitions, const CharConstPointerRange& includes, int (*verify)(Result*, const char*), Result* (*parse)(Lexer&))
 {
-	Test result = { input, VerifyFunc(verify), ParseFunc(parse) };
+	Test result = { input, definitions, includes, VerifyFunc(verify), ParseFunc(parse) };
 	return result;
 }
 
@@ -114,13 +146,22 @@ int runTest(const Test& test)
 		add_macro_definition(context, "__is_union(type)=0", true);
 
 		// optional: _DEBUG, _DLL, /Ze=_MSC_EXTENSIONS, /MT=_MT
-		add_macro_definition(context, "_DEBUG", true);
 		add_macro_definition(context, "_WIN32", true);
 		add_macro_definition(context, "__FUNCTION__=\"<function-sig>\"", true);
 		add_macro_definition(context, "_INTEGRAL_MAX_BITS=64", true); // long long
 		add_macro_definition(context, "_M_IX86=600", true); // /GB: Blend
 		add_macro_definition(context, "_MSC_VER=1400", true); // Visual C++ 8
 		add_macro_definition(context, "_MSC_FULL_VER=140050727", true); // Visual C++ 8
+
+		for(const CharConstPointer* p = test.definitions.first; p != test.definitions.last; ++p)
+		{
+			add_macro_definition(context, *p, true);
+		}
+		for(const CharConstPointer* p = test.includes.first; p != test.includes.last; ++p)
+		{
+			add_include_path(context, *p);
+			add_sysinclude_path(context, *p);
+		}
 #if 1
 		StringRange root(test.input, strrchr(test.input, '.'));
 		Lexer lexer(context, Concatenate(root, makeRange(".prepro.cpp")).c_str());
@@ -327,23 +368,38 @@ int main(int argc, char *argv[])
 {
 	if(argc == 1)
 	{
+		const CharConstPointer DEFINITIONS_CPPPARSE[] = {
+			"WIN32",
+			"_DEBUG",
+			"_CONSOLE",
+			"_CRT_SECURE_NO_DEPRECATE",
+			"CRT_SECURE_NO_WARNINGS",
+			"_SCL_SECURE_NO_WARNINGS",
+		};
+		const CharConstPointer INCLUDES_CPPPARSE[] = {
+			"D:\\z\\work\\boost_1_41_0",
+		};
 		const Test tests[] = {
-			makeTest("test/test_quick.cpp", verifyNull, parseFile),
-			makeTest("test/test_vector.cpp", verifyNull, parseFile),
-			makeTest("test/test_iostream.cpp", verifyNull, parseFile),
-			makeTest("test/test_windows.cpp", verifyNull, parseFile),
-			makeTest("test/test_map.cpp", verifyNull, parseFile),
-			makeTest("test/test_error.cpp", verifyNull, parseFile),
-			makeTest("test/test_amb_constructor.cpp", verifyAmbConstructor, parseFile),
-			makeTest("test/test_amb_func_cast.cpp", verifyAmbFuncCast, parseFunction),
-			makeTest("test/test_amb_ones_comp.cpp", verifyAmbOnesComp, parseFunction),
-			makeTest("test/test_for.cpp", verifyFor, parseFunction),
-			makeTest("test/test_if.cpp", verifyIf, parseFunction),
-			makeTest("test/test_function_definition.cpp", verifyFunctionDefinition, parseFile),
-			makeTest("test/test_amb_cast_expr.cpp", verifyAmbCastExpr, parseFunction),
-			makeTest("test/test_ptr.cpp", verifyPtr, parseFile),
-			makeTest("test/test_amb_decl_spec.cpp", verifyAmbDeclSpec, parseFile),
-			makeTest("test/test_namespace.cpp", verifyNamespace, parseFile),
+			makeTest("lexer.cpp", ARRAY_RANGE(DEFINITIONS_CPPPARSE), ARRAY_RANGE(INCLUDES_CPPPARSE), verifyNull, parseFile),
+			makeTest("cppparse.cpp", ARRAY_RANGE(DEFINITIONS_CPPPARSE), ARRAY_RANGE(INCLUDES_CPPPARSE), verifyNull, parseFile),
+			makeTest("parser.cpp", ARRAY_RANGE(DEFINITIONS_CPPPARSE), ARRAY_RANGE(INCLUDES_CPPPARSE), verifyNull, parseFile),
+			makeTest("semantic.cpp", ARRAY_RANGE(DEFINITIONS_CPPPARSE), ARRAY_RANGE(INCLUDES_CPPPARSE), verifyNull, parseFile),
+			makeTest("test/test_quick.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyNull, parseFile),
+			makeTest("test/test_vector.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyNull, parseFile),
+			makeTest("test/test_iostream.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyNull, parseFile),
+			makeTest("test/test_windows.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyNull, parseFile),
+			makeTest("test/test_map.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyNull, parseFile),
+			makeTest("test/test_error.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyNull, parseFile),
+			makeTest("test/test_amb_constructor.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyAmbConstructor, parseFile),
+			makeTest("test/test_amb_func_cast.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyAmbFuncCast, parseFunction),
+			makeTest("test/test_amb_ones_comp.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyAmbOnesComp, parseFunction),
+			makeTest("test/test_for.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyFor, parseFunction),
+			makeTest("test/test_if.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyIf, parseFunction),
+			makeTest("test/test_function_definition.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyFunctionDefinition, parseFile),
+			makeTest("test/test_amb_cast_expr.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyAmbCastExpr, parseFunction),
+			makeTest("test/test_ptr.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyPtr, parseFile),
+			makeTest("test/test_amb_decl_spec.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyAmbDeclSpec, parseFile),
+			makeTest("test/test_namespace.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyNamespace, parseFile),
 		};
 		for(const Test* p = tests; p != tests + (sizeof(tests) / sizeof(*tests)); ++p)
 		{
@@ -363,5 +419,5 @@ int main(int argc, char *argv[])
 
 	const char* input = argv[1];
 
-	return runTest(makeTest(input, verifyNull, parseFile));
+	return runTest(makeTest(input, ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyNull, parseFile));
 }

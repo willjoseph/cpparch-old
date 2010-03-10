@@ -3551,9 +3551,9 @@ inline cpp::msext_asm_element_list* parseSymbol(Parser& parser, cpp::msext_asm_e
 template<typename ParserType>
 inline cpp::msext_asm_element_list_inline* parseSymbol(ParserType& parser, cpp::msext_asm_element_list_inline* result)
 {
-	size_t line = parser.get_position().get_line();
+	size_t line = parser.get_position().line;
 	PARSE_REQUIRED(parser, result->item);
-	if(parser.get_position().get_line() == line) // HACK: only continue until end of line
+	if(parser.get_position().line == line) // HACK: only continue until end of line
 	{
 		PARSE_OPTIONAL(parser, result->next);
 		PARSE_TERMINAL(parser, result->semicolon);
