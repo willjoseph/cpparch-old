@@ -28,6 +28,14 @@ typedef boost::wave::iteration_context_policies::load_file_to_string input_polic
 class Hooks : public boost::wave::context_policies::eat_whitespace<token_type>
 {
 public:
+	std::string includes[1024];
+	size_t depth;
+
+	Hooks() : depth(1)
+	{
+		includes[0] = "$outer";
+	}
+
 	template <typename ContextT>
 	void opened_include_file(ContextT const &ctx, 
 		std::string const &relname, std::string const& absname,
@@ -42,7 +50,19 @@ public:
 		{
 			++path;
 		}
-		std::cout << "  included: " << path << std::endl;
+		std::cout << "  included: " << path;
+		std::cout << " from: " << includes[depth - 1];
+		std::cout << std::endl;
+		includes[depth] = path;
+		++depth;
+	}
+	template <typename ContextT>
+	void returning_from_include_file(ContextT const &ctx)
+	{
+		--depth;
+		std::cout << "  return: " << includes[depth - 1];
+		std::cout << " from: " << includes[depth];
+		std::cout << std::endl;
 	}
 };
 
