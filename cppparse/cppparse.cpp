@@ -71,16 +71,33 @@ StringRange makeRange(const char* s)
 	return StringRange(s, s + strlen(s));
 }
 
+size_t getLength(const StringRange& range)
+{
+	return range.last - range.first;
+}
+
 struct Concatenate
 {
 	typedef std::vector<char> Buffer;
 	Buffer buffer;
 	Concatenate(const StringRange& left, const StringRange& right)
 	{
-		buffer.reserve((left.last - left.first) + (right.last - right.first) + 1);
-		buffer.insert(buffer.end(), left.first, left.last);
-		buffer.insert(buffer.end(), right.first, right.last);
+		buffer.reserve(getLength(left) + getLength(right) + 1);
+		append(left);
+		append(right);
 		buffer.push_back('\0');
+	}
+	Concatenate(const StringRange& left, const StringRange& mid, const StringRange& right)
+	{
+		buffer.reserve(getLength(left) + getLength(mid) + getLength(right) + 1);
+		append(left);
+		append(mid);
+		append(right);
+		buffer.push_back('\0');
+	}
+	void append(const StringRange& range)
+	{
+		buffer.insert(buffer.end(), range.first, range.last);
 	}
 	const char* c_str() const
 	{
@@ -94,19 +111,23 @@ int runTest(const Test& test)
 		//[quick_start_main
 		//  The following preprocesses the given input file.
 		//  Open and read in the specified input file.
-		std::ifstream instream(test.input);
 		std::string instring;
+#if 1
+		instring = Concatenate(makeRange("#include \"test/predefined_msvc.h\"\n#include \""), makeRange(test.input), makeRange("\"\n")).c_str();
+#else
+		std::ifstream instream(test.input);
 
 		if (!instream.is_open()) {
-			std::cerr << "Could not lb input file: " << test.input << std::endl;
+			std::cerr << "Could not open input file: " << test.input << std::endl;
 			return -2;
 		}
 		std::cout << "reading input file: " << test.input << std::endl;
 		instream.unsetf(std::ios::skipws);
 		instring = std::string(std::istreambuf_iterator<char>(instream.rdbuf()),
 			std::istreambuf_iterator<char>());
+#endif
 
-		LexContext& context = createContext(instring, test.input);
+		LexContext& context = createContext(instring, "$outer.cpp");
 		add_sysinclude_path(context, "C:\\Program Files\\Microsoft Visual Studio 8\\VC\\include");
 		add_sysinclude_path(context, "C:\\Program Files\\Microsoft Visual Studio 8\\VC\\PlatformSDK\\include");
 		add_sysinclude_path(context, "C:\\Program Files\\Microsoft Platform SDK for Windows Server 2003 R2\\include");

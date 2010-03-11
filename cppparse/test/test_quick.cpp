@@ -4,7 +4,7 @@
 
 void f()
 {
-	new object_with_id_base_supply<IdT>();
+	new int();
 }
 
 
@@ -32,15 +32,9 @@ void f()
 	s.operator()<CONSTANT < 0>(); // older versions of Comeau fail to compile this
 }
 
-
-template <typename E, class A>
-const typename SimpleStringStorage<E, A>::Data
-SimpleStringStorage<E, A>::emptyString_ = 
-typename SimpleStringStorage<E, A>::Data();
-
 template <typename T>
-struct Tmpl
-	: Base< T >::template Dependent<T>
+struct Tmpl3
+	: Tmpl3< T >::template Dependent<T>
 {
 };
 

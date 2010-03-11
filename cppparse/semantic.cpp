@@ -2082,14 +2082,17 @@ struct BaseSpecifierWalker : public WalkerBase
 	}
 	void visit(cpp::class_name* symbol)
 	{
-		/* 10-2
-		The class-name in a base-specifier shall not be an incompletely defined class (Clause class); this class is
-		called a direct base class for the class being defined. During the lookup for a base class name, non-type
-		names are ignored (3.3.10)
-		*/
-		TypeNameWalker walker(*this, isTypeName);
-		TREEWALKER_WALK(walker, symbol);
-		type = walker.type;
+		if(qualifying != &context.dependent)
+		{
+			/* 10-2
+			The class-name in a base-specifier shall not be an incompletely defined class (Clause class); this class is
+			called a direct base class for the class being defined. During the lookup for a base class name, non-type
+			names are ignored (3.3.10)
+			*/
+			TypeNameWalker walker(*this, isTypeName);
+			TREEWALKER_WALK(walker, symbol);
+			type = walker.type;
+		}
 	}
 };
 
