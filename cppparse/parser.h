@@ -162,7 +162,8 @@ struct TemplateIdAmbiguityContext
 {
 	size_t depth;
 	size_t solution;
-	TemplateIdAmbiguityContext() : depth(0), solution(0)
+	size_t max;
+	TemplateIdAmbiguityContext() : depth(0), solution(0), max(0)
 	{
 	}
 	void nextDepth()
@@ -172,6 +173,7 @@ struct TemplateIdAmbiguityContext
 			throw ParseError();
 		}
 		++depth;
+		max = std::max(max, depth);
 	}
 	bool ignoreTemplateId() const
 	{
@@ -651,10 +653,11 @@ cpp::symbol<OtherT> parseSymbolAmbiguous(ParserType& parser, cpp::symbol<T> symb
 	if(parser.ambiguity == &context)
 	{
 		--gTemplateIdAmbiguityNest;
+		// temp hack
 #ifdef AMBIGUITY_DEBUG
 		std::cout << "ambiguity end: " << SYMBOL_NAME(T) << std::endl;
 #endif
-		if(context.depth != 0)
+		if(context.max != 0)
 		{
 			ProfileScope profile(gProfileTemplateId);
 
@@ -673,7 +676,7 @@ cpp::symbol<OtherT> parseSymbolAmbiguous(ParserType& parser, cpp::symbol<T> symb
 			size_t depth = context.depth;
 			OtherT* original = result;
 
-			size_t width = 1 << context.depth;
+			size_t width = 1 << context.max;
 			while(++context.solution != width)
 			{
 #ifdef AMBIGUITY_DEBUG
@@ -683,7 +686,7 @@ cpp::symbol<OtherT> parseSymbolAmbiguous(ParserType& parser, cpp::symbol<T> symb
 				width = std::max(width, size_t(1 << context.depth)); // handle failure of initial parse, increase depth when a solution is found
 
 				// TEMP HACK
-				if(depth > 2)
+				if(depth > 8)
 				{
 					// don't bother to brute-force check complex ambiguities for now.
 

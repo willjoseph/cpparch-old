@@ -501,6 +501,39 @@ namespace cpp
 		FOREACH1(value);
 	};
 
+	struct template_argument_list
+	{
+		symbol<template_argument> item;
+		terminal_suffix<boost::wave::T_COMMA> comma;
+		symbol<template_argument_list> next;
+		FOREACH3(item, comma, next);
+	};
+
+	struct template_argument_clause_disambiguate : public choice<template_argument_clause_disambiguate>
+	{
+		VISITABLE_BASE(TYPELIST1(
+			SYMBOLFWD(template_argument_clause) // disambiguates: < CONSTANT_EXPRESSION < 0 >
+		));
+	};
+
+	struct template_argument_clause : public template_argument_clause_disambiguate
+	{
+		VISITABLE_DERIVED(template_argument_clause_disambiguate);
+		terminal<boost::wave::T_LESS> lb;
+		symbol_optional<template_argument_list> args;
+		terminal<boost::wave::T_GREATER> rb;
+		FOREACH3(lb, args, rb);
+	};
+
+	struct simple_template_id : public template_id, public class_name
+	{
+		VISITABLE_DERIVED(class_name);
+		VISITABLE_DERIVED(template_id);
+		symbol<identifier> id;
+		symbol<template_argument_clause_disambiguate> args;
+		FOREACH2(id, args);
+	};
+
 	struct nested_name_specifier_prefix
 	{
 		symbol<nested_name> id;
@@ -627,14 +660,6 @@ namespace cpp
 		));
 	};
 
-	struct template_argument_list
-	{
-		symbol<template_argument> item;
-		terminal_suffix<boost::wave::T_COMMA> comma;
-		symbol<template_argument_list> next;
-		FOREACH3(item, comma, next);
-	};
-
 	struct overloadable_operator : public choice<overloadable_operator>
 	{
 		VISITABLE_BASE(TYPELIST17(
@@ -713,32 +738,21 @@ namespace cpp
 		FOREACH2(key, array);
 	};
 
-	struct operator_function_id_suffix
-	{
-		terminal<boost::wave::T_LESS> lt;
-		symbol_optional<template_argument_list> args;
-		terminal<boost::wave::T_GREATER> gt;
-		FOREACH3(lt, args, gt);
-	};
-
 	struct operator_function_id : public unqualified_id, public qualified_id_suffix
 	{
 		VISITABLE_DERIVED(unqualified_id);
 		VISITABLE_DERIVED(qualified_id_suffix);
 		terminal<boost::wave::T_OPERATOR> key;
 		symbol<overloadable_operator> op;
-		symbol_optional<operator_function_id_suffix> suffix;
-		FOREACH3(key, op, suffix);
+		FOREACH2(key, op);
 	};
 
 	struct template_id_operator_function : public template_id
 	{
 		VISITABLE_DERIVED(template_id);
 		symbol<operator_function_id> id;
-		terminal<boost::wave::T_LESS> lt;
-		symbol_optional<template_argument_list> args;
-		terminal<boost::wave::T_GREATER> gt;
-		FOREACH4(id, lt, args, gt);
+		symbol<template_argument_clause_disambiguate> args;
+		FOREACH2(id, args);
 	};
 
 	struct qualified_id_default : public qualified_id
@@ -863,17 +877,6 @@ namespace cpp
 		symbol<class_name> id;
 		symbol_optional<base_clause> base;
 		FOREACH4(key, context, id, base);
-	};
-
-	struct simple_template_id : public template_id, public class_name
-	{
-		VISITABLE_DERIVED(class_name);
-		VISITABLE_DERIVED(template_id);
-		symbol<identifier> id;
-		terminal<boost::wave::T_LESS> lb;
-		symbol_optional<template_argument_list> args;
-		terminal<boost::wave::T_GREATER> rb;
-		FOREACH4(id, lb, args, rb);
 	};
 
 	struct type_specifier_suffix : public choice<type_specifier_suffix>
@@ -1299,7 +1302,7 @@ namespace cpp
 	struct new_initializer
 	{
 		terminal<boost::wave::T_LEFTPAREN> lp;
-		symbol<expression_list> expr;
+		symbol_optional<expression_list> expr;
 		terminal<boost::wave::T_RIGHTPAREN> rp;
 		FOREACH3(lp, expr, rp);
 	};

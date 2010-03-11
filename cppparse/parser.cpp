@@ -544,6 +544,16 @@ inline bool isAmbiguousTemplateArgumentList(cpp::template_argument_list* symbol)
 	return true;
 }
 
+inline bool isAmbiguousTemplateArgumentList(cpp::template_argument_clause* symbol)
+{
+	return isAmbiguousTemplateArgumentList(symbol->args);
+}
+
+inline bool isAmbiguousTemplateArgumentList(cpp::template_argument_clause_disambiguate* symbol)
+{
+	return isAmbiguousTemplateArgumentList(dynamic_cast<cpp::template_argument_clause*>(symbol));
+}
+
 // matches: 'A<B>', 'A<B && D>', 'A<B, D>'
 // ambiguous with nested/parenthesised relational-expression lhs
 inline bool isAmbiguousTemplateId(cpp::simple_template_id* symbol)
@@ -1110,6 +1120,13 @@ inline cpp::template_argument_list* parseSymbol(ParserType& parser, cpp::templat
 }
 
 template<typename ParserType>
+inline cpp::template_argument_clause_disambiguate* parseSymbol(ParserType& parser, cpp::template_argument_clause_disambiguate* result)
+{
+	PARSE_EXPRESSION_SPECIAL(parser, cpp::template_argument_clause);
+	return result;
+}
+
+template<typename ParserType>
 inline cpp::simple_template_id* parseSymbol(ParserType& parser, cpp::simple_template_id* result)
 {
 	if(parser.ambiguity != 0
@@ -1125,9 +1142,7 @@ inline cpp::simple_template_id* parseSymbol(ParserType& parser, cpp::simple_temp
 		parser.nextDepth();
 	}
 	PARSE_REQUIRED(parser, result->id);
-	PARSE_TERMINAL(parser, result->lb);
-	PARSE_OPTIONAL(parser, result->args);
-	PARSE_TERMINAL(parser, result->rb);
+	PARSE_REQUIRED(parser, result->args);
 	return result;
 }
 
@@ -2896,7 +2911,6 @@ inline cpp::operator_function_id* parseSymbol(Parser& parser, cpp::operator_func
 {
 	PARSE_TERMINAL(parser, result->key);
 	PARSE_REQUIRED(parser, result->op);
-	PARSE_OPTIONAL(parser, result->suffix);
 	return result;
 }
 
