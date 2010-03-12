@@ -2,6 +2,27 @@
 //#include "predefined_msvc.h"
 //#include <xutility>
 
+template <class Tag,class T>
+class error_info;
+
+typedef error_info<struct throw_function_,char const *> throw_function;
+typedef error_info<struct throw_file_,char const *> throw_file;
+typedef error_info<struct throw_line_,int> throw_line;
+
+template <>
+class
+	error_info<throw_function_,char const *>
+{
+public:
+	typedef char const * value_type;
+	value_type v_;
+	explicit
+		error_info( value_type v ):
+	v_(v)
+	{
+	}
+};
+
 void f()
 {
 	new int();
