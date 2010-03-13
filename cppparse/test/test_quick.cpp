@@ -2,6 +2,21 @@
 //#include "predefined_msvc.h"
 //#include <xutility>
 
+
+namespace boost
+{
+  namespace detail {
+   template <class Category, class T, class Distance, class Pointer, class Reference>
+   struct iterator_base
+   {
+   };
+  }
+
+  template <class Category, class T, class Distance,
+            class Pointer, class Reference>
+  struct iterator : boost::detail::iterator_base<Category, T, Distance, Pointer, Reference> {};
+}
+#if 1
 template <class Tag,class T>
 class error_info;
 
@@ -22,6 +37,7 @@ public:
 	{
 	}
 };
+#endif
 
 void f()
 {
@@ -489,11 +505,11 @@ void Template7::f(Y)
 template<typename First, typename Second>
 int f(First x, Second y);
 
-struct S
+struct S4
 {
 };
 
-int x = f(S(), int());
+int x = f(S4(), int());
 
 template<typename Second, typename First>
 int f(Second a, First b)
@@ -721,7 +737,7 @@ class C3
 
 
 template<typename T>
-class Tmpl
+class Tmpl7
 {
 	template<typename Q>
 	void func()

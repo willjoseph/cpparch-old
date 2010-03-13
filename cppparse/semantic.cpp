@@ -1121,6 +1121,23 @@ struct WalkerBase
 		return scope;
 	}
 
+	void declareEts(Type& type, Identifier* forward)
+	{
+		if(type.declaration == &gUndeclared)
+		{
+			SEMANTIC_ASSERT(forward != 0);
+			/* 3.3.1-6
+			if the elaborated-type-specifier is used in the decl-specifier-seq or parameter-declaration-clause of a
+			function defined in namespace scope, the identifier is declared as a class-name in the namespace that
+			contains the declaration; otherwise, except as a friend declaration, the identifier is declared in the
+			smallest non-class, non-function-prototype scope that contains the declaration.
+			*/
+			Declaration* declaration = pointOfDeclaration(getEtsScope(), *forward, &gClass, 0, DeclSpecifiers(), enclosing == templateEnclosing);
+			forward->dec.p = declaration;
+			type = declaration;
+		}
+	}
+
 	Scope* getClassScope()
 	{
 		Scope* scope = enclosing;
@@ -1406,6 +1423,7 @@ struct TypeIdWalker : public WalkerBase
 		DeclSpecifierSeqWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
 		type = walker.type;
+		declareEts(type, walker.forward);
 	}
 };
 
@@ -1864,6 +1882,22 @@ struct NestedNameSpecifierWalker : public WalkerBase
 		: WalkerBase(base), allowDependent(allowDependent)
 	{
 	}
+	void visit(cpp::identifier* symbol)
+	{
+		if(qualifying != &context.dependent)
+		{
+			Declaration* declaration = findDeclaration(symbol->value, isNestedName);
+			if(declaration == &gUndeclared)
+			{
+				reportIdentifierMismatch(symbol->value, declaration, "nested-name");
+			}
+			else
+			{
+				symbol->value.dec.p = declaration;
+			}
+			setQualifying(declaration);
+		}
+	}
 	void visit(cpp::namespace_name* symbol)
 	{
 		NamespaceNameWalker walker(*this, isNestedName);
@@ -2143,9 +2177,11 @@ struct ClassHeadWalker : public WalkerBase
 	{
 		BaseSpecifierWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
-		SEMANTIC_ASSERT(walker.type.declaration != 0);
-		SEMANTIC_ASSERT(declaration->enclosed != 0);
-		declaration->enclosed->bases.push_back(getOriginalType(walker.type));
+		if(walker.type.declaration != 0) // declaration == 0 if base-class is dependent
+		{
+			SEMANTIC_ASSERT(declaration->enclosed != 0);
+			declaration->enclosed->bases.push_back(getOriginalType(walker.type));
+		}
 	}
 };
 
@@ -2895,35 +2931,19 @@ struct SimpleDeclarationWalker : public WalkerBase
 		walkDeferable(walker, symbol);
 	}
 
-	void declareEts()
-	{
-		if(type.declaration == &gUndeclared)
-		{
-			SEMANTIC_ASSERT(forward != 0);
-			/* 3.3.1-6
-			if the elaborated-type-specifier is used in the decl-specifier-seq or parameter-declaration-clause of a
-			function defined in namespace scope, the identifier is declared as a class-name in the namespace that
-			contains the declaration; otherwise, except as a friend declaration, the identifier is declared in the
-			smallest non-class, non-function-prototype scope that contains the declaration.
-			*/
-			declaration = pointOfDeclaration(getEtsScope(), *forward, &gClass, 0, DeclSpecifiers(), enclosing == templateEnclosing);
-			forward->dec.p = declaration;
-			type = declaration;
-		}
-	}
 	void visit(cpp::simple_declaration_named* symbol)
 	{
-		declareEts();
+		declareEts(type, forward);
 		TREEWALKER_WALK(*this, symbol);
 	}
 	void visit(cpp::member_declaration_named* symbol)
 	{
-		declareEts();
+		declareEts(type, forward);
 		TREEWALKER_WALK(*this, symbol);
 	}
 	void visit(cpp::function_definition* symbol)
 	{
-		declareEts();
+		declareEts(type, forward);
 		TREEWALKER_WALK(*this, symbol);
 	}
 	void visit(cpp::forward_declaration_suffix* symbol)
