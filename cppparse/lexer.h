@@ -347,7 +347,7 @@ struct Lexer
 		}
 		else
 		{
-#if 0
+#ifdef _DEBUG
 			{
 				ProfileScope profile(gProfileDiagnose);
 				printer.printToken(get_id(), get_value());

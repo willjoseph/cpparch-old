@@ -199,7 +199,6 @@ struct Parser : public ParserState
 	size_t position;
 	size_t allocation;
 	size_t ambiguityDepth;
-	size_t declarations;
 
 	Parser(Lexer& lexer)
 		: lexer(lexer), position(0), allocation(0), ambiguityDepth(0)

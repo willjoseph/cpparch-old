@@ -1,21 +1,62 @@
 
-//#include "predefined_msvc.h"
-//#include <xutility>
 
-
-namespace boost
+void f()
 {
-  namespace detail {
-   template <class Category, class T, class Distance, class Pointer, class Reference>
-   struct iterator_base
-   {
-   };
-  }
+	int x, y;
+	((x) & y);
+	((x) + y);
+	((x) - y);
+	((x) * y);
+	((x) ~ y);
+};
 
-  template <class Category, class T, class Distance,
-            class Pointer, class Reference>
-  struct iterator : boost::detail::iterator_base<Category, T, Distance, Pointer, Reference> {};
+class C18
+{
+    union
+    {
+        mutable int buf_;
+        int align_;
+    };
+
+	void f()
+	{
+		buf_ = 0;
+	}
+};
+
+
+
+template<typename T, typename X>
+struct Spec1;
+
+template<typename T>
+struct Spec1<T, int>
+{
+};
+
+template<typename T, typename X>
+struct Spec1
+{
+};
+
+
+
+namespace N
+{
+	namespace N
+	{
+		template <class T>
+		struct Tmpl
+		{
+		};
+	}
+
+	template<class T>
+	struct Tmpl : N::N::Tmpl<T>
+	{
+	};
 }
+
 #if 1
 template <class Tag,class T>
 class error_info;
@@ -249,7 +290,7 @@ class DependentMemInit : public T, public DependentTmpl<T>
 
 
 
-namespace std
+namespace stdTEST
 {
 
 	template<class _Ty>

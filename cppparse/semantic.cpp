@@ -730,6 +730,10 @@ inline const Declaration& getPrimaryDeclaration(const Declaration& first, const 
 			{
 				return second; // TODO
 			}
+			if(first.isTemplateSpecialization)
+			{
+				return first; // TODO
+			}
 			if(isIncomplete(second))
 			{
 				return first; // forward-declaration of previously-defined class
@@ -2136,13 +2140,22 @@ struct ClassHeadWalker : public WalkerBase
 
 	Declaration* declaration;
 	Scope* enclosed;
-	ClassHeadWalker(const WalkerBase& base, Scope* enclosed)
-		: WalkerBase(base), declaration(0), enclosed(enclosed)
+	bool isUnion;
+	ClassHeadWalker(const WalkerBase& base)
+		: WalkerBase(base), declaration(0), enclosed(0), isUnion(false)
 	{
 	}
 
+	void visit(cpp::class_key* symbol)
+	{
+		TREEWALKER_WALK(*this, symbol);
+		enclosed = templateParams != 0 ? templateParams : new Scope(makeIdentifier("$class"));
+		enclosed->type = SCOPETYPE_CLASS;
+		isUnion = symbol->id == cpp::class_key::UNION;
+	}
 	void visit(cpp::identifier* symbol)
 	{
+		TREEWALKER_LEAF(symbol);
 		// 3.3.1.3 The point of declaration for a class first declared by a class-specifier is immediately after the identifier or simple-template-id (if any) in its class-head
 		declaration = pointOfDeclaration(enclosing, symbol->value, &gClass, enclosed, DeclSpecifiers(), enclosing == templateEnclosing);
 		symbol->value.dec.p = declaration;
@@ -2168,10 +2181,23 @@ struct ClassHeadWalker : public WalkerBase
 	}
 	void visit(cpp::class_head_anonymous* symbol)
 	{
-		declaration = pointOfDeclaration(enclosing, makeIdentifier(enclosing->getUniqueName()), &gClass, enclosed);
-		SEMANTIC_ASSERT(enclosed != 0);
-		enclosed->name = declaration->name;
 		TREEWALKER_WALK(*this, symbol);
+		if(isUnion)
+		{
+			/* class.union-2
+			The names of the members of an anonymous union
+			shall be distinct from the names of any other entity in the scope in which the anonymous union is declared.
+			For the purpose of name lookup, after the anonymous union definition, the members of the anonymous union
+			are considered to have been defined in the scope in which the anonymous union is declared.
+			*/
+			enclosed = 0;
+		}
+		declaration = pointOfDeclaration(enclosing, makeIdentifier(enclosing->getUniqueName()), &gClass, enclosed);
+		SEMANTIC_ASSERT(isUnion || enclosed != 0);
+		if(enclosed != 0)
+		{
+			enclosed->name = declaration->name;
+		}
 	}
 	void visit(cpp::base_specifier* symbol) 
 	{
@@ -2300,12 +2326,18 @@ struct ClassSpecifierWalker : public WalkerBase
 
 	void visit(cpp::class_head* symbol)
 	{
-		Scope* scope = templateParams != 0 ? templateParams : new Scope(makeIdentifier("$class"));
-		scope->type = SCOPETYPE_CLASS;
-		ClassHeadWalker walker(*this, scope);
+		ClassHeadWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
 		declaration = walker.declaration;
-		pushScope(scope); // 3.3.6.1.1 // class scope
+		/* basic.scope.class-1
+		The potential scope of a name declared in a class consists not only of the declarative region following
+		the name’s point of declaration, but also of all function bodies, brace-or-equal-initializers of non-static
+		data members, and default arguments in that class (including such things in nested classes).
+		*/
+		if(walker.enclosed != 0)
+		{
+			pushScope(walker.enclosed);
+		}
 		templateParams = 0;
 	}
 	void visit(cpp::member_declaration* symbol)
