@@ -1,6 +1,46 @@
 
 
+struct UnionTest
+{
+	union { int a; } x;
+	union { int a; } y;
+	union z { int a; };
+};
 
+// test name-lookup for template-param-dependent nested-name-specifier
+template<typename T>
+struct Unspec
+{
+	void dependent()
+	{
+	}
+	template<typename X>
+	struct Dependent
+	{
+		void dependent()
+		{
+		}
+	};
+};
+
+template<typename T>
+struct TestDependent
+{
+	// template-dependent ]type-name
+	typename T::C m1;
+	typename Unspec<T>::template Dependent<T> m2;
+	void f()
+	{
+		// template-dependent non-type-name
+		T::dependent();
+		T::C::dependent();
+		Unspec<T>::dependent();
+		Unspec<T>::template Dependent<T>::dependent();
+	}
+};
+
+
+// test deferal of name-lookup for function-call identifier
 template<typename T>
 class DependentTmpl
 {
@@ -9,13 +49,13 @@ class DependentTmpl
 template<typename T>
 typename T::dependent f(typename T::dependent t)
 {
+	DependentTmpl<T>::dependent(t); // function-call
 	dependent(dependent(t));
 
 	typedef DependentTmpl<T> DependentType;
 	dependent(DependentType(t)); // dependent-type looks like a dependent-name
 
 	typename DependentTmpl<T>::dependent l; // member-typedef
-	DependentTmpl<T>::dependent(l); // function-call
 	int i = (typename DependentTmpl<T>::dependent)1;
 
 	dependent(DependentTmpl<T>());
@@ -378,37 +418,6 @@ void f()
 
 
 
-// test name-lookup for template-param-dependent nested-name-specifier
-template<typename T>
-struct Unspec
-{
-	void dependent()
-	{
-	}
-	template<typename X>
-	struct Dependent
-	{
-		void dependent()
-		{
-		}
-	};
-};
-
-template<typename T>
-struct TestDependent
-{
-	// template-dependent ]type-name
-	typename T::C m1;
-	typename Unspec<T>::template Dependent<T> m2;
-	void f()
-	{
-		// template-dependent non-type-name
-		T::dependent();
-		T::C::dependent();
-		Unspec<T>::dependent();
-		Unspec<T>::template Dependent<T>::dependent();
-	}
-};
 
 // template-dependent non-type-name
 template<typename T>

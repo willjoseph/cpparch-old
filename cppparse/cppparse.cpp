@@ -402,14 +402,14 @@ int main(int argc, char *argv[])
 		};
 		const Test tests[] = {
 			makeTest("test/test_quick.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyNull, parseFile),
-			makeTest("lexer.cpp", ARRAY_RANGE(DEFINITIONS_CPPPARSE), ARRAY_RANGE(INCLUDES_CPPPARSE), verifyNull, parseFile),
-			makeTest("cppparse.cpp", ARRAY_RANGE(DEFINITIONS_CPPPARSE), ARRAY_RANGE(INCLUDES_CPPPARSE), verifyNull, parseFile),
-			makeTest("parser.cpp", ARRAY_RANGE(DEFINITIONS_CPPPARSE), ARRAY_RANGE(INCLUDES_CPPPARSE), verifyNull, parseFile),
-			makeTest("semantic.cpp", ARRAY_RANGE(DEFINITIONS_CPPPARSE), ARRAY_RANGE(INCLUDES_CPPPARSE), verifyNull, parseFile),
 			makeTest("test/test_vector.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyNull, parseFile),
 			makeTest("test/test_iostream.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyNull, parseFile),
 			makeTest("test/test_windows.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyNull, parseFile),
 			makeTest("test/test_map.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyNull, parseFile),
+			makeTest("lexer.cpp", ARRAY_RANGE(DEFINITIONS_CPPPARSE), ARRAY_RANGE(INCLUDES_CPPPARSE), verifyNull, parseFile),
+			makeTest("cppparse.cpp", ARRAY_RANGE(DEFINITIONS_CPPPARSE), ARRAY_RANGE(INCLUDES_CPPPARSE), verifyNull, parseFile),
+			makeTest("parser.cpp", ARRAY_RANGE(DEFINITIONS_CPPPARSE), ARRAY_RANGE(INCLUDES_CPPPARSE), verifyNull, parseFile),
+			makeTest("semantic.cpp", ARRAY_RANGE(DEFINITIONS_CPPPARSE), ARRAY_RANGE(INCLUDES_CPPPARSE), verifyNull, parseFile),
 			makeTest("test/test_error.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyNull, parseFile),
 			makeTest("test/test_amb_constructor.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyAmbConstructor, parseFile),
 			makeTest("test/test_amb_func_cast.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyAmbFuncCast, parseFunction),
