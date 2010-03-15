@@ -857,11 +857,11 @@ namespace cpp
 	{
 		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(class_head_default),
-			SYMBOLFWD(class_head_anonymous)
+			SYMBOLFWD(class_head_unnamed)
 		));
 	};
 
-	struct class_head_anonymous : public class_head
+	struct class_head_unnamed : public class_head
 	{
 		VISITABLE_DERIVED(class_head);
 		symbol<class_key> key;
@@ -1848,7 +1848,7 @@ namespace cpp
 	struct general_declaration_suffix : public choice<general_declaration_suffix>
 	{
 		VISITABLE_BASE(TYPELIST3(
-			SYMBOLFWD(forward_declaration_suffix),
+			SYMBOLFWD(type_declaration_suffix),
 			SYMBOLFWD(simple_declaration_named),
 			SYMBOLFWD(function_definition)
 		));
@@ -1857,7 +1857,7 @@ namespace cpp
 	struct simple_declaration_suffix : public choice<simple_declaration_suffix>
 	{
 		VISITABLE_BASE(TYPELIST2(
-			SYMBOLFWD(forward_declaration_suffix),
+			SYMBOLFWD(type_declaration_suffix),
 			SYMBOLFWD(simple_declaration_named)
 		));
 	};
@@ -1865,14 +1865,14 @@ namespace cpp
 	struct member_declaration_suffix : public choice<member_declaration_suffix>
 	{
 		VISITABLE_BASE(TYPELIST4(
-			SYMBOLFWD(forward_declaration_suffix),
+			SYMBOLFWD(type_declaration_suffix),
 			SYMBOLFWD(member_declaration_bitfield),
 			SYMBOLFWD(member_declaration_named),
 			SYMBOLFWD(function_definition)
 		));
 	};
 
-	struct forward_declaration_suffix : public general_declaration_suffix, public simple_declaration_suffix, public member_declaration_suffix
+	struct type_declaration_suffix : public general_declaration_suffix, public simple_declaration_suffix, public member_declaration_suffix
 	{
 		VISITABLE_DERIVED(general_declaration_suffix);
 		VISITABLE_DERIVED(simple_declaration_suffix);

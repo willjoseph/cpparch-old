@@ -388,6 +388,10 @@ const char* getDeclarationType(const Declaration& declaration)
 	return "object";
 }
 
+bool isAnonymous(const Declaration& declaration)
+{
+	return *declaration.name.value == '$';
+}
 
 template<typename OutputStreamType>
 struct TreePrinter // TODO: better name
@@ -2278,21 +2282,11 @@ struct ClassHeadWalker : public WalkerBase
 		SEMANTIC_ASSERT(enclosed != 0);
 		enclosed->name = declaration->name;
 	}
-	void visit(cpp::class_head_anonymous* symbol)
+	void visit(cpp::class_head_unnamed* symbol)
 	{
 		TREEWALKER_WALK(*this, symbol);
-		if(isUnion)
-		{
-			/* class.union-2
-			The names of the members of an anonymous union
-			shall be distinct from the names of any other entity in the scope in which the anonymous union is declared.
-			For the purpose of name lookup, after the anonymous union definition, the members of the anonymous union
-			are considered to have been defined in the scope in which the anonymous union is declared.
-			*/
-			enclosed = 0;
-		}
 		declaration = pointOfDeclaration(enclosing, makeIdentifier(enclosing->getUniqueName()), &gClass, enclosed);
-		SEMANTIC_ASSERT(isUnion || enclosed != 0);
+		SEMANTIC_ASSERT(enclosed != 0);
 		if(enclosed != 0)
 		{
 			enclosed->name = declaration->name;
@@ -2411,8 +2405,9 @@ struct ClassSpecifierWalker : public WalkerBase
 
 	Declaration* declaration;
 	DeferredSymbols deferred;
+	bool isUnion;
 	ClassSpecifierWalker(const WalkerBase& base)
-		: WalkerBase(base), declaration(0)
+		: WalkerBase(base), declaration(0), isUnion(false)
 	{
 	}
 	void walkDeferred()
@@ -2428,6 +2423,7 @@ struct ClassSpecifierWalker : public WalkerBase
 		ClassHeadWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
 		declaration = walker.declaration;
+		isUnion = walker.isUnion;
 		/* basic.scope.class-1
 		The potential scope of a name declared in a class consists not only of the declarative region following
 		the name’s point of declaration, but also of all function bodies, brace-or-equal-initializers of non-static
@@ -2658,8 +2654,9 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 	Type type;
 	DeclSpecifiers specifiers;
 	Identifier* forward;
+	bool isUnion;
 	DeclSpecifierSeqWalker(const WalkerBase& base)
-		: WalkerBase(base), type(0), forward(0)
+		: WalkerBase(base), type(0), forward(0), isUnion(false)
 	{
 	}
 
@@ -2688,6 +2685,7 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		type = walker.declaration;
 		walker.walkDeferred();
+		isUnion = walker.isUnion;
 	}
 	void visit(cpp::enum_specifier* symbol)
 	{
@@ -2959,9 +2957,10 @@ struct SimpleDeclarationWalker : public WalkerBase
 	DeclSpecifiers specifiers;
 	Identifier* forward;
 	bool isParameter;
+	bool isUnion;
 
 	SimpleDeclarationWalker(const WalkerBase& base, bool isParameter = false)
-		: WalkerBase(base), type(&gCtor), declaration(0), forward(0), isParameter(isParameter)
+		: WalkerBase(base), type(&gCtor), declaration(0), forward(0), isParameter(isParameter), isUnion(false)
 	{
 	}
 
@@ -2974,6 +2973,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		declaration = type.declaration; // if no declarator is specified later, this is probably a class-declaration
 		specifiers = walker.specifiers;
 		forward = walker.forward;
+		isUnion = walker.isUnion;
 	}
 	void visit(cpp::type_specifier_seq* symbol)
 	{
@@ -2982,6 +2982,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		type = walker.type;
 		declaration = type.declaration; // if no declarator is specified later, this is probably a class-declaration
 		forward = walker.forward;
+		isUnion = walker.isUnion;
 	}
 
 	template<typename T>
@@ -3102,7 +3103,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		declareEts(type, forward);
 		TREEWALKER_WALK(*this, symbol);
 	}
-	void visit(cpp::forward_declaration_suffix* symbol)
+	void visit(cpp::type_declaration_suffix* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
 		if(forward != 0)
@@ -3110,6 +3111,19 @@ struct SimpleDeclarationWalker : public WalkerBase
 			declaration = pointOfDeclaration(enclosing, *forward, &gClass, 0, DeclSpecifiers(), enclosing == templateEnclosing);
 			forward->dec.p = declaration;
 			type = declaration;
+		}
+
+		if(isUnion
+			&& isAnonymous(*declaration))
+		{
+			/* class.union-2
+			The names of the members of an anonymous union
+			shall be distinct from the names of any other entity in the scope in which the anonymous union is declared.
+			For the purpose of name lookup, after the anonymous union definition, the members of the anonymous union
+			are considered to have been defined in the scope in which the anonymous union is declared.
+			*/
+			// TODO: verify that member names are distinct
+			enclosing->declarations.splice(enclosing->declarations.end(), declaration->enclosed->declarations);
 		}
 	}
 };

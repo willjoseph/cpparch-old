@@ -366,7 +366,7 @@ inline bool isAmbiguousVariableDeclaration(cpp::simple_declaration* simple)
 	{
 		return false;
 	}
-	cpp::forward_declaration_suffix* type = dynamic_cast<cpp::forward_declaration_suffix*>(simple->suffix.p);
+	cpp::type_declaration_suffix* type = dynamic_cast<cpp::type_declaration_suffix*>(simple->suffix.p);
 	if(type == 0)
 	{
 		// '(X)'
@@ -1376,7 +1376,7 @@ inline cpp::member_declaration_suffix* parseSymbol(Parser& parser, cpp::member_d
 {
 	PARSE_SELECT(parser, cpp::member_declaration_bitfield);
 	PARSE_SELECT(parser, cpp::member_declaration_named);
-	PARSE_SELECT(parser, cpp::forward_declaration_suffix);
+	PARSE_SELECT(parser, cpp::type_declaration_suffix);
 	PARSE_SELECT(parser, cpp::function_definition);
 	return result;
 }
@@ -1618,7 +1618,7 @@ inline cpp::base_clause* parseSymbol(Parser& parser, cpp::base_clause* result)
 	return result;
 }
 
-inline cpp::class_head_anonymous* parseSymbol(Parser& parser, cpp::class_head_anonymous* result)
+inline cpp::class_head_unnamed* parseSymbol(Parser& parser, cpp::class_head_unnamed* result)
 {
 	PARSE_REQUIRED(parser, result->key);
 	PARSE_OPTIONAL(parser, result->base);
@@ -1637,7 +1637,7 @@ inline cpp::class_head_default* parseSymbol(Parser& parser, cpp::class_head_defa
 inline cpp::class_head* parseSymbol(Parser& parser, cpp::class_head* result)
 {
 	PARSE_SELECT(parser, cpp::class_head_default); // TODO: shared prefix ambiguity: both start with 'class-key'
-	PARSE_SELECT(parser, cpp::class_head_anonymous);
+	PARSE_SELECT(parser, cpp::class_head_unnamed);
 	return result;
 }
 
@@ -3216,7 +3216,7 @@ inline cpp::simple_declaration_named* parseSymbol(Parser& parser, cpp::simple_de
 
 inline cpp::simple_declaration_suffix* parseSymbol(Parser& parser, cpp::simple_declaration_suffix* result)
 {
-	PARSE_SELECT(parser, cpp::forward_declaration_suffix);
+	PARSE_SELECT(parser, cpp::type_declaration_suffix);
 	PARSE_SELECT(parser, cpp::simple_declaration_named);
 	return result;
 }
@@ -3297,7 +3297,7 @@ inline cpp::block_declaration* parseSymbol(Parser& parser, cpp::block_declaratio
 	return result;
 }
 
-inline cpp::forward_declaration_suffix* parseSymbol(Parser& parser, cpp::forward_declaration_suffix* result)
+inline cpp::type_declaration_suffix* parseSymbol(Parser& parser, cpp::type_declaration_suffix* result)
 {
 	PARSE_TERMINAL(parser, result->semicolon);
 	return result;
@@ -3305,7 +3305,7 @@ inline cpp::forward_declaration_suffix* parseSymbol(Parser& parser, cpp::forward
 
 inline cpp::general_declaration_suffix* parseSymbol(Parser& parser, cpp::general_declaration_suffix* result)
 {
-	PARSE_SELECT(parser, cpp::forward_declaration_suffix);
+	PARSE_SELECT(parser, cpp::type_declaration_suffix);
 	PARSE_SELECT(parser, cpp::simple_declaration_named);
 	PARSE_SELECT(parser, cpp::function_definition);
 	return result;
