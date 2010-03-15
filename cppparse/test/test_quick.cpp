@@ -1,5 +1,38 @@
 
 
+
+template<typename T>
+class DependentTmpl
+{
+};
+
+template<typename T>
+typename T::dependent f(typename T::dependent t)
+{
+	dependent(dependent(t));
+
+	typedef DependentTmpl<T> DependentType;
+	dependent(DependentType(t)); // dependent-type looks like a dependent-name
+
+	typename DependentTmpl<T>::dependent l; // member-typedef
+	DependentTmpl<T>::dependent(l); // function-call
+	int i = (typename DependentTmpl<T>::dependent)1;
+
+	dependent(DependentTmpl<T>());
+	dependent(t);
+}
+
+template<typename T>
+class DependentMemInit : public T, public DependentTmpl<T>
+{
+	typename T::M m;
+	DependentMemInit() : T(0), DependentTmpl<T>(0), m(0)
+	{
+	}
+};
+
+
+#if 0
 void f()
 {
 	int x, y;
@@ -9,6 +42,7 @@ void f()
 	((x) * y);
 	((x) ~ y);
 };
+#endif
 
 class C18
 {
@@ -257,37 +291,6 @@ template<template<typename X> class T = ::DummyTmpl>
 class TestTemplateTemplateParam
 {
 };
-
-
-template<typename T>
-class DependentTmpl
-{
-};
-
-template<typename T>
-typename T::dependent f(typename T::dependent t)
-{
-	typename DependentTmpl<T>::dependent l; // member-typedef
-	DependentTmpl<T>::dependent(l); // function-call
-	int i = (typename DependentTmpl<T>::dependent)1;
-
-	typedef DependentTmpl<T> DependentType;
-	dependent(DependentType(t)); // dependent-type looks like a dependent-name
-
-	dependent(DependentTmpl<T>());
-	dependent(t);
-	dependent(dependent(t));
-}
-
-template<typename T>
-class DependentMemInit : public T, public DependentTmpl<T>
-{
-	typename T::M m;
-	DependentMemInit() : T(0), DependentTmpl<T>(0), m(0)
-	{
-	}
-};
-
 
 
 namespace stdTEST
