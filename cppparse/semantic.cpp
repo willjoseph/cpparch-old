@@ -177,6 +177,8 @@ Declaration gFriend(0, makeIdentifier("$friend"), 0, 0);
 // meta types
 Declaration gSpecial(0, makeIdentifier("$special"), 0, 0);
 Declaration gClass(0, makeIdentifier("$class"), 0, 0);
+Declaration gStruct(0, makeIdentifier("$struct"), 0, 0);
+Declaration gUnion(0, makeIdentifier("$union"), 0, 0);
 Declaration gEnum(0, makeIdentifier("$enum"), 0, 0);
 
 // types
@@ -280,6 +282,13 @@ bool isStaticMember(const Declaration& declaration)
 bool isTypedef(const Declaration& declaration)
 {
 	return declaration.specifiers.isTypedef;
+}
+
+bool isClassKey(const Declaration& declaration)
+{
+	return &declaration == &gClass
+		|| &declaration == &gStruct
+		|| &declaration == &gUnion;
 }
 
 bool isClass(const Declaration& declaration)
@@ -1131,7 +1140,7 @@ struct WalkerBase
 
 	void declareEts(Type& type, Identifier* forward)
 	{
-		if(type.declaration == &gUndeclared)
+		if(isClassKey(*type.declaration))
 		{
 			SEMANTIC_ASSERT(forward != 0);
 			/* 3.3.1-6
@@ -2524,7 +2533,7 @@ struct ElaboratedTypeSpecifierWalker : public WalkerBase
 	{
 		TREEWALKER_WALK(*this, symbol);
 		if(!isUnqualified(symbol)
-			|| type.declaration != &gUndeclared)
+			|| !isClassKey(*type.declaration))
 		{
 			id = 0;
 		}
@@ -2592,6 +2601,7 @@ struct ElaboratedTypeSpecifierWalker : public WalkerBase
 				printPosition(declaration->name.position);
 				throw SemanticError();
 			}
+			type = declaration;
 		}
 		else
 		{
@@ -2608,8 +2618,8 @@ struct ElaboratedTypeSpecifierWalker : public WalkerBase
 				std::cout << "'" << symbol->value.value << "': elaborated-type-specifier refers to undefined enum" << std::endl;
 				throw SemanticError();
 			}
+			type = key;
 		}
-		type = declaration;
 	}
 };
 
@@ -3123,7 +3133,32 @@ struct SimpleDeclarationWalker : public WalkerBase
 			are considered to have been defined in the scope in which the anonymous union is declared.
 			*/
 			// TODO: verify that member names are distinct
+			for(Scope::Declarations::iterator i = declaration->enclosed->declarations.begin(); i != declaration->enclosed->declarations.end(); ++i)
+			{
+				if(isAnonymous(*i))
+				{
+					const Identifier& name = makeIdentifier(enclosing->getUniqueName());
+					(*i).name = name;
+					if((*i).enclosed != 0)
+					{
+						(*i).enclosed->name = name;
+					}
+				}
+				else
+				{
+					Declaration* declaration = findDeclaration(enclosing->declarations, (*i).name);
+					if(declaration != 0)
+					{
+						printPosition((*i).name.position);
+						std::cout << "'" << (*i).name.value << "': anonymous union member already declared" << std::endl;
+						printPosition(declaration->name.position);
+						throw SemanticError();
+					}
+				}
+				(*i).scope = enclosing;
+			}
 			enclosing->declarations.splice(enclosing->declarations.end(), declaration->enclosed->declarations);
+
 		}
 	}
 };

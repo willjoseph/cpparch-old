@@ -1,10 +1,20 @@
 
+// template-param-dependent value
+
+template<bool VALUE>
+struct ValTmpl
+{
+    typedef typename ValTmpl<!VALUE>::Type Type;
+};
+
 
 struct UnionTest
 {
 	union { int a; } x;
 	union { int a; } y;
 	union z { int a; };
+	union { struct { int a; }; struct { int b; }; };
+	union { int b; };
 };
 
 // test name-lookup for template-param-dependent nested-name-specifier
