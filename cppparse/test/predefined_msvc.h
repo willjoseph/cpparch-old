@@ -1,4 +1,5 @@
 
+#if 1
 // size_t
 
 #if Wp64
@@ -135,3 +136,4 @@ __declspec(unmanaged) void __cdecl __annotation(const wchar_t *, ...);
 __declspec(unmanaged) void __cdecl __annotation(const unsigned short *, ...);
 #endif
 
+#endif

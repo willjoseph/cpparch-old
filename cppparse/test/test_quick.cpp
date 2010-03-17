@@ -4,7 +4,18 @@
 template<bool VALUE>
 struct ValTmpl
 {
-    typedef typename ValTmpl<!VALUE>::Type Type;
+	static const int I = VALUE;
+	typedef typename ValTmpl<I>::Type J;
+
+	typedef char P[VALUE];
+	typedef typename ValTmpl<sizeof(P)>::Type Q;
+
+	typedef typename ValTmpl<sizeof(char[VALUE])>::Type Y;
+	typedef typename ValTmpl<!VALUE>::Type X;
+	typedef typename ValTmpl<sizeof(Y)>::Type Z;
+
+	enum { E = VALUE };
+	typedef typename ValTmpl<E>::Type F;
 };
 
 
