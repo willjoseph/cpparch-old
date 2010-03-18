@@ -1,6 +1,66 @@
 
-// template-param-dependent value
+namespace N
+{
+	namespace N
+	{
+		struct S { static const int x = 0; };
+		namespace N
+		{
+			struct S { static const int y = 0; };
+		}
+	}
+	struct T : N::N::S
+	{
+		static const int a = y;
+	};
+}
 
+
+// test conversion-operator
+template<typename T>
+struct C99
+{
+	template<class _Other>
+	operator C99<_Other>()
+	{
+		return (C99<_Other>(*this));
+	}
+};
+
+// test deferal of name-lookup for function-call identifier
+template<typename T>
+class DependentTmpl
+{
+};
+
+template<typename T>
+typename T::dependent f(typename T::dependent t)
+{
+	dependent1(T::dependent2());
+
+	DependentTmpl<T>::dependent(t); // function-call
+	dependent(dependent(t));
+
+	typedef DependentTmpl<T> DependentType;
+	dependent(DependentType(t)); // dependent-type looks like a dependent-name
+
+	typename DependentTmpl<T>::dependent l; // member-typedef
+	int i = (typename DependentTmpl<T>::dependent)1;
+
+	dependent(DependentTmpl<T>());
+	dependent(t);
+}
+
+template<typename T>
+class DependentMemInit : public T, public DependentTmpl<T>
+{
+	typename T::M m;
+	DependentMemInit() : T(0), DependentTmpl<T>(0), m(0)
+	{
+	}
+};
+
+// template-param-dependent value
 template<bool VALUE>
 struct ValTmpl
 {
@@ -57,38 +117,6 @@ struct TestDependent
 		T::C::dependent();
 		Unspec<T>::dependent();
 		Unspec<T>::template Dependent<T>::dependent();
-	}
-};
-
-
-// test deferal of name-lookup for function-call identifier
-template<typename T>
-class DependentTmpl
-{
-};
-
-template<typename T>
-typename T::dependent f(typename T::dependent t)
-{
-	DependentTmpl<T>::dependent(t); // function-call
-	dependent(dependent(t));
-
-	typedef DependentTmpl<T> DependentType;
-	dependent(DependentType(t)); // dependent-type looks like a dependent-name
-
-	typename DependentTmpl<T>::dependent l; // member-typedef
-	int i = (typename DependentTmpl<T>::dependent)1;
-
-	dependent(DependentTmpl<T>());
-	dependent(t);
-}
-
-template<typename T>
-class DependentMemInit : public T, public DependentTmpl<T>
-{
-	typename T::M m;
-	DependentMemInit() : T(0), DependentTmpl<T>(0), m(0)
-	{
 	}
 };
 

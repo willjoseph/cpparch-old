@@ -649,6 +649,12 @@ struct SymbolPrinter : PrintingWalker
 		}
 	}
 
+	template<typename T>
+	void visit(cpp::ambiguity<T>* symbol)
+	{
+		SEMANTIC_ASSERT(symbol->second == 0);
+		visit(symbol->first);
+	}
 #if 0
 	void visit(cpp::declaration* symbol)
 	{
@@ -1347,6 +1353,7 @@ inline T* walkAmbiguity(Walker& walker, cpp::ambiguity<T>* symbol)
 		{ \
 			std::swap(symbol->first, symbol->second); \
 		} \
+		symbol->second = 0; \
 	}
 #endif
 
@@ -1631,6 +1638,13 @@ struct DependentPrimaryExpressionWalker : public WalkerBase
 	}
 	void visit(cpp::id_expression* symbol)
 	{
+		/* temp.dep.expr
+		An id-expression is type-dependent if it contains:
+		— an identifier that was declared with a dependent type,
+		— a template-id that is dependent,
+		— a conversion-function-id that specifies a dependent type,
+		— a nested-name-specifier or a qualified-id that names a member of an unknown specialization.
+		*/
 		IdExpressionWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
 		declaration = walker.declaration;
@@ -1659,6 +1673,7 @@ struct DependentPrimaryExpressionWalker : public WalkerBase
 			else if(walker.id != 0)
 			{
 				walker.id->dec.p = &gDependentObject;
+				isTypeDependent = true;
 			}
 		}
 	}
@@ -1785,6 +1800,7 @@ struct ExpressionWalker : public WalkerBase
 		}
 		else if(walker.qualifying == &context.dependent)
 		{
+			walker.id->dec.p = &gDependentObject;
 			isTypeDependent = true;
 		}
 	}
@@ -2196,7 +2212,8 @@ struct DeclaratorIdWalker : public WalkerBase
 	}
 	void visit(cpp::conversion_function_id* symbol) 
 	{
-		TREEWALKER_LEAF(symbol);
+		TypeIdWalker walker(*this);
+		TREEWALKER_WALK(walker, symbol);
 		// TODO
 		id = &gConversionFunctionId;
 	}
