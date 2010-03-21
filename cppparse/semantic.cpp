@@ -1110,6 +1110,41 @@ struct WalkerBase
 		return declaration;
 	}
 
+	Declaration* declareObject(Scope* parent, Identifier* id, const Type& type, Scope* paramScope, DeclSpecifiers specifiers, bool isValueDependent)
+	{
+		Declaration* declaration = pointOfDeclaration(
+			parent,
+			*id,
+			type,
+			specifiers.isTypedef ? type.declaration->enclosed : paramScope,
+			specifiers,
+			enclosing == templateEnclosing,
+			false,
+			isValueDependent); // 3.3.1.1
+		if(id != &gAnonymousId)
+		{
+			id->dec.p = declaration;
+		}
+		Scope* enclosed = templateParams != 0 ? templateParams : declaration->enclosed;
+		if(enclosed != 0
+			&& !specifiers.isTypedef)
+		{
+			enclosed->name = declaration->name;
+		}
+		enclosing = parent;
+		if(paramScope != 0)
+		{
+			enclosing = paramScope; // 3.3.2.1 parameter scope
+		}
+		else if(templateParams != 0)
+		{
+			pushScope(templateParams);
+		}
+		templateParams = 0;
+		return declaration;
+	}
+
+
 #if 0
 	const TemplateInstantiation& pointOfInstantiation(Declaration* declaration, const TemplateArguments& arguments)
 	{
@@ -2935,22 +2970,6 @@ struct CompoundStatementWalker : public WalkerBase
 	}
 };
 
-
-struct FunctionBodyWalker : public WalkerBase
-{
-	TREEWALKER_DEFAULT;
-
-	FunctionBodyWalker(const WalkerBase& base)
-		: WalkerBase(base)
-	{
-	}
-	void visit(cpp::compound_statement* symbol)
-	{
-		CompoundStatementWalker walker(*this);
-		TREEWALKER_WALK(walker, symbol);
-	}
-};
-
 struct HandlerSeqWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
@@ -3026,21 +3045,6 @@ struct MemInitializerWalker : public WalkerBase
 	void visit(cpp::expression_list* symbol)
 	{
 		ExpressionWalker walker(*this);
-		TREEWALKER_WALK(walker, symbol);
-	}
-};
-
-struct MemInitializerListWalker : public WalkerBase
-{
-	TREEWALKER_DEFAULT;
-
-	MemInitializerListWalker(const WalkerBase& base)
-		: WalkerBase(base)
-	{
-	}
-	void visit(cpp::mem_initializer* symbol)
-	{
-		MemInitializerWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
 	}
 };
@@ -3134,39 +3138,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 	{
 		DeclaratorWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
-		declaration = pointOfDeclaration(
-			walker.enclosing,
-			*walker.id,
-			type,
-#if 0
-			walker.paramScope,
-#else	
-			specifiers.isTypedef ? type.declaration->enclosed : walker.paramScope,
-#endif
-			specifiers,
-			enclosing == templateEnclosing,
-			false,
-			isTemplateParameter | walker.isValueDependent); // 3.3.1.1
-		if(walker.id != &gAnonymousId)
-		{
-			walker.id->dec.p = declaration;
-		}
-		Scope* enclosed = templateParams != 0 ? templateParams : declaration->enclosed;
-		if(enclosed != 0
-			&& !specifiers.isTypedef)
-		{
-			enclosed->name = declaration->name;
-		}
-		enclosing = walker.enclosing;
-		if(walker.paramScope != 0)
-		{
-			enclosing = walker.paramScope; // 3.3.2.1 parameter scope
-		}
-		else if(templateParams != 0)
-		{
-			pushScope(templateParams);
-		}
-		templateParams = 0;
+		declaration = declareObject(walker.enclosing, walker.id, type, walker.paramScope, specifiers, isTemplateParameter | walker.isValueDependent);
 	}
 	void visit(cpp::declarator* symbol)
 	{
@@ -3190,6 +3162,26 @@ struct SimpleDeclarationWalker : public WalkerBase
 			declaration = pointOfDeclaration(enclosing, *walker.id, type, 0, specifiers); // 3.3.1.1
 			walker.id->dec.p = declaration;
 		}
+	}
+	void visit(cpp::terminal<boost::wave::T_ASSIGN> symbol)
+	{
+		TREEWALKER_LEAF(symbol);
+	}
+	void visit(cpp::terminal<boost::wave::T_TRY> symbol)
+	{
+		TREEWALKER_LEAF(symbol);
+	}
+	void visit(cpp::terminal<boost::wave::T_LEFTBRACE> symbol)
+	{
+		TREEWALKER_LEAF(symbol);
+	}
+	void visit(cpp::terminal<boost::wave::T_COMMA> symbol)
+	{
+		TREEWALKER_LEAF(symbol);
+	}
+	void visit(cpp::terminal<boost::wave::T_SEMICOLON> symbol)
+	{
+		TREEWALKER_LEAF(symbol);
 	}
 
 	// handle assignment-expression(s) in initializer
@@ -3225,14 +3217,14 @@ struct SimpleDeclarationWalker : public WalkerBase
 			TREEWALKER_WALK(walker, symbol);
 		}
 	}
-	void visit(cpp::function_body* symbol)
+	void visit(cpp::statement_seq* symbol)
 	{
-		FunctionBodyWalker walker(*this);
+		CompoundStatementWalker walker(*this);
 		walkDeferable(walker, symbol);
 	}
-	void visit(cpp::ctor_initializer* symbol)
+	void visit(cpp::mem_initializer* symbol)
 	{
-		MemInitializerListWalker walker(*this);
+		MemInitializerWalker walker(*this);
 		walkDeferable(walker, symbol);
 	}
 	void visit(cpp::handler_seq* symbol)
