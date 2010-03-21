@@ -1097,6 +1097,19 @@ struct WalkerBase
 		return result;
 	}
 
+	Declaration* declareClass(Identifier* id, bool isTemplateSpecialisation = false)
+	{
+		Scope* enclosed = templateParams != 0 ? templateParams : new Scope(makeIdentifier("$class"));
+		enclosed->type = SCOPETYPE_CLASS;
+		Declaration* declaration = pointOfDeclaration(enclosing, id == 0 ? makeIdentifier(enclosing->getUniqueName()) : *id, &gClass, enclosed, DeclSpecifiers(), enclosing == templateEnclosing, isTemplateSpecialisation);
+		if(id != 0)
+		{
+			id->dec.p = declaration;
+		}
+		enclosed->name = declaration->name;
+		return declaration;
+	}
+
 #if 0
 	const TemplateInstantiation& pointOfInstantiation(Declaration* declaration, const TemplateArguments& arguments)
 	{
@@ -2340,28 +2353,23 @@ struct ClassHeadWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	Declaration* declaration;
-	Scope* enclosed;
+	Identifier* id;
 	bool isUnion;
+	bool isTemplateSpecialisation;
 	ClassHeadWalker(const WalkerBase& base)
-		: WalkerBase(base), declaration(0), enclosed(0), isUnion(false)
+		: WalkerBase(base), declaration(0), id(0), isUnion(false), isTemplateSpecialisation(false)
 	{
 	}
 
 	void visit(cpp::class_key* symbol)
 	{
 		TREEWALKER_WALK(*this, symbol);
-		enclosed = templateParams != 0 ? templateParams : new Scope(makeIdentifier("$class"));
-		enclosed->type = SCOPETYPE_CLASS;
 		isUnion = symbol->id == cpp::class_key::UNION;
 	}
 	void visit(cpp::identifier* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		// 3.3.1.3 The point of declaration for a class first declared by a class-specifier is immediately after the identifier or simple-template-id (if any) in its class-head
-		declaration = pointOfDeclaration(enclosing, symbol->value, &gClass, enclosed, DeclSpecifiers(), enclosing == templateEnclosing);
-		symbol->value.dec.p = declaration;
-		SEMANTIC_ASSERT(enclosed != 0);
-		enclosed->name = declaration->name;
+		id = &symbol->value;
 	}
 	void visit(cpp::nested_name_specifier* symbol)
 	{
@@ -2374,21 +2382,15 @@ struct ClassHeadWalker : public WalkerBase
 		UncheckedTemplateIdWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
 		// TODO: don't declare anything - this is a template (partial) specialisation
-		// 3.3.1.3 The point of declaration for a class first declared by a class-specifier is immediately after the identifier or simple-template-id (if any) in its class-head
-		declaration = pointOfDeclaration(enclosing, *walker.id, &gClass, enclosed, DeclSpecifiers(), enclosing == templateEnclosing, true);
-		walker.id->dec.p = declaration;
-		SEMANTIC_ASSERT(enclosed != 0);
-		enclosed->name = declaration->name;
+		id = walker.id;
+		isTemplateSpecialisation = true;
 	}
-	void visit(cpp::class_head_unnamed* symbol)
+	void visit(cpp::terminal<boost::wave::T_COLON> symbol)
 	{
-		TREEWALKER_WALK(*this, symbol);
-		declaration = pointOfDeclaration(enclosing, makeIdentifier(enclosing->getUniqueName()), &gClass, enclosed);
-		SEMANTIC_ASSERT(enclosed != 0);
-		if(enclosed != 0)
-		{
-			enclosed->name = declaration->name;
-		}
+		TREEWALKER_LEAF(symbol);
+		// defer class declaration until we know this is a class-specifier - it may be an elaborated-type-specifier until ':' is discovered
+		// 3.3.1.3 The point of declaration for a class first declared by a class-specifier is immediately after the identifier or simple-template-id (if any) in its class-head
+		declaration = declareClass(id, isTemplateSpecialisation);
 	}
 	void visit(cpp::base_specifier* symbol) 
 	{
@@ -2506,10 +2508,12 @@ struct ClassSpecifierWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	Declaration* declaration;
+	Identifier* id;
 	DeferredSymbols deferred;
 	bool isUnion;
+	bool isTemplateSpecialisation;
 	ClassSpecifierWalker(const WalkerBase& base)
-		: WalkerBase(base), declaration(0), isUnion(false)
+		: WalkerBase(base), declaration(0), id(0), isUnion(false), isTemplateSpecialisation(false)
 	{
 	}
 	void walkDeferred()
@@ -2525,15 +2529,27 @@ struct ClassSpecifierWalker : public WalkerBase
 		ClassHeadWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
 		declaration = walker.declaration;
+		id = walker.id;
 		isUnion = walker.isUnion;
+		isTemplateSpecialisation = walker.isTemplateSpecialisation;
+	}
+	void visit(cpp::terminal<boost::wave::T_LEFTBRACE> symbol)
+	{
+		// defer class declaration until we know this is a class-specifier - it may be an elaborated-type-specifier until '{' is discovered
+		if(declaration == 0)
+		{
+			// 3.3.1.3 The point of declaration for a class first declared by a class-specifier is immediately after the identifier or simple-template-id (if any) in its class-head
+			declaration = declareClass(id, isTemplateSpecialisation);
+		}
+
 		/* basic.scope.class-1
 		The potential scope of a name declared in a class consists not only of the declarative region following
 		the name’s point of declaration, but also of all function bodies, brace-or-equal-initializers of non-static
 		data members, and default arguments in that class (including such things in nested classes).
 		*/
-		if(walker.enclosed != 0)
+		if(declaration->enclosed != 0)
 		{
-			pushScope(walker.enclosed);
+			pushScope(declaration->enclosed);
 		}
 		templateParams = 0;
 	}
