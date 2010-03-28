@@ -978,61 +978,13 @@ inline void skipParenthesised(Parser& parser)
 	}
 }
 
-// skips an assignment-expression within a parameter-declaration
-inline void skipParameter(Parser& parser)
-{
-	while(!TOKEN_EQUAL(parser, boost::wave::T_RIGHTPAREN)
-		&& !TOKEN_EQUAL(parser, boost::wave::T_COMMA))
-	{
-		if(TOKEN_EQUAL(parser, boost::wave::T_LEFTPAREN))
-		{
-			parser.increment();
-			skipParenthesised(parser);
-			parser.increment();
-		}
-		else
-		{
-			parser.increment();
-		}
-	}
-}
-
-// skips an assignment-expression within an initializer
-inline void skipInitializer(Parser& parser)
-{
-	while(!TOKEN_EQUAL(parser, boost::wave::T_SEMICOLON)
-		&& !TOKEN_EQUAL(parser, boost::wave::T_COMMA)
-		&& !TOKEN_EQUAL(parser, boost::wave::T_RIGHTBRACE))
-	{
-		if(TOKEN_EQUAL(parser, boost::wave::T_LEFTPAREN))
-		{
-			parser.increment();
-			skipParenthesised(parser);
-			parser.increment();
-		}
-		else
-		{
-			parser.increment();
-		}
-	}
-}
-
-// skips an assignment-expression within a mem-initializer
-inline void skipMemInitializer(Parser& parser)
+// skips a mem-initializer-list
+inline void skipMemInitializerList(Parser& parser)
 {
 	while(!TOKEN_EQUAL(parser, boost::wave::T_LEFTBRACE)
-		&& !TOKEN_EQUAL(parser, boost::wave::T_COMMA))
+		&& !TOKEN_EQUAL(parser, boost::wave::T_SEMICOLON)) // not strictly necessary - catches syntax error earlier
 	{
-		if(TOKEN_EQUAL(parser, boost::wave::T_LEFTPAREN))
-		{
-			parser.increment();
-			skipParenthesised(parser);
-			parser.increment();
-		}
-		else
-		{
-			parser.increment();
-		}
+		parser.increment();
 	}
 }
 

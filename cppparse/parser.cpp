@@ -3693,16 +3693,36 @@ struct ContextTest
 	struct DefaultContext : public ContextBase
 	{
 		PARSERCONTEXT_DEFAULT;
+		void visit(cpp::member_declaration* symbol)
+		{
+			MemberDeclarationContext walker;
+			SYMBOL_WALK(walker, symbol);
+		}
+	};
+	struct MemberDeclarationContext : public ContextBase
+	{
+		PARSERCONTEXT_DEFAULT;
 		void visit(cpp::function_body* symbol)
 		{
 			FunctionBodyContext walker;
 			SYMBOL_WALK(walker, symbol);
 		}
-		void visit(cpp::parameter_declaration* symbol)
+#if 0
+		void visit(cpp::parameter_declaration_clause* symbol)
 		{
-			ParameterDeclarationContext walker;
+			ScopedSkip<skipParenthesised> skip(*parser);
+			DefaultContext walker;
 			SYMBOL_WALK(walker, symbol);
 		}
+#endif
+#if 0
+		void visit(cpp::mem_initializer_list* symbol)
+		{
+			ScopedSkip<skipMemInitializerList> skip(*parser);
+			DefaultContext walker;
+			SYMBOL_WALK(walker, symbol);
+		}
+#endif
 	};
 
 	struct FunctionBodyContext : public ContextBase
@@ -3711,26 +3731,6 @@ struct ContextTest
 		void visit(cpp::statement_seq* symbol)
 		{
 			ScopedSkip<skipBraced> skip(*parser);
-			DefaultContext walker;
-			SYMBOL_WALK(walker, symbol);
-		}
-	};
-	struct ParameterDeclarationContext : public ContextBase
-	{
-		PARSERCONTEXT_DEFAULT;
-		void visit(cpp::decl_specifier_seq* symbol)
-		{
-			DefaultContext walker;
-			SYMBOL_WALK(walker, symbol);
-		}
-		void visit(cpp::declarator* symbol)
-		{
-			DefaultContext walker;
-			SYMBOL_WALK(walker, symbol);
-		}
-		void visit(cpp::assignment_expression* symbol)
-		{
-			ScopedSkip<skipInitializer> skip(*parser);
 			DefaultContext walker;
 			SYMBOL_WALK(walker, symbol);
 		}
