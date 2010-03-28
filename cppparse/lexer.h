@@ -152,42 +152,66 @@ struct BacktrackStats
 };
 
 
-struct TokenBuffer
+
+class TokenBuffer
 {
-	enum { SIZE = 1024 };
-	Token tokens[SIZE];
+	TokenBuffer(const TokenBuffer&);
+	TokenBuffer& operator=(const TokenBuffer&);
+public:
+	Token* tokens;
+	size_t m_size;
+	TokenBuffer(size_t size)
+		: tokens(new Token[size]), m_size(size)
+	{
+	}
+	~TokenBuffer()
+	{
+		delete[] tokens;
+	}
+
+	void swap(TokenBuffer& other)
+	{
+		std::swap(tokens, other.tokens);
+		std::swap(m_size, other.m_size);
+	}
+};
+
+
+struct BacktrackBuffer : public TokenBuffer
+{
 	Token* position;
 
 	typedef Token* iterator;
 	typedef const Token* const_iterator;
 
-	TokenBuffer() : position(tokens)
+	BacktrackBuffer(size_t count)
+		: TokenBuffer(count), position(tokens)
 	{
 	}
 
 	iterator next(iterator i)
 	{
 		++i;
-		return i == tokens + SIZE ? tokens : i;
+		return i == tokens + m_size ? tokens : i;
 	}
 	const_iterator next(const_iterator i) const
 	{
 		++i;
-		return i == tokens + SIZE ? tokens : i;
+		return i == tokens + m_size ? tokens : i;
 	}
 
-	size_t distance(const_iterator i, const_iterator other)
+	size_t distance(const_iterator i, const_iterator other) const
 	{
-		return (i > other) ? SIZE - (i - other) : other - i;
+		return (i > other) ? m_size - (i - other) : other - i;
 	}
 
 	const_iterator backtrack(const_iterator i, size_t count)
 	{
-		return (count > size_t(i - tokens)) ? i + (SIZE - count) : i - count;
+		return (count > size_t(i - tokens)) ? i + (m_size - count) : i - count;
 	}
 	const_iterator advance(const_iterator i, size_t count)
 	{
-		return (i + count < tokens + SIZE) ? i + count : i - (SIZE - count);
+		return (i + count < tokens + m_size) ? i + count : i - (m_size - count);
 	}
 
 	iterator begin()
@@ -211,7 +235,32 @@ struct TokenBuffer
 		*position = token;
 		position = next(position);
 	}
+	size_t size() const
+	{
+		return m_size;
+	}
 };
+
+inline size_t distance(const BacktrackBuffer& buffer, BacktrackBuffer::const_iterator first, BacktrackBuffer::const_iterator last)
+{
+	return buffer.distance(first, last);
+}
+
+inline BacktrackBuffer::const_iterator next(const BacktrackBuffer& buffer, BacktrackBuffer::const_iterator position)
+{
+	return buffer.next(position);
+}
+
+inline BacktrackBuffer::const_iterator backtrack(BacktrackBuffer& buffer, BacktrackBuffer::const_iterator position, size_t count)
+{
+	return buffer.backtrack(position, count);
+}
+
+inline BacktrackBuffer::const_iterator advance(BacktrackBuffer& buffer, BacktrackBuffer::const_iterator position, size_t count)
+{
+	return buffer.advance(position, count);
+}
+
 
 typedef TokenPrinter<std::ofstream> FileTokenPrinter;
 
@@ -226,7 +275,8 @@ struct Lexer
 	LexIterator& first;
 	LexIterator& last;
 
-	typedef TokenBuffer Tokens;
+	enum { BACKTRACK_MAX = 1024 };
+	typedef BacktrackBuffer Tokens;
 	Tokens history;
 	Tokens::const_iterator position;
 
@@ -246,6 +296,7 @@ struct Lexer
 		printer(out),
 		first(createBegin(context)),
 		last(createEnd(context)),
+		history(BACKTRACK_MAX),
 		position(history.end()),
 		stackpos(stacktrace.end()),
 		maxBacktrack(false)
@@ -262,7 +313,7 @@ struct Lexer
 	}
 	bool canBacktrack(size_t count)
 	{
-		return history.distance(position, history.end()) + count < TokenBuffer::SIZE;
+		return ::distance(history, position, history.end()) + count < history.size();
 	}
 	void backtrack(size_t count, const char* symbol = 0)
 	{
@@ -276,7 +327,7 @@ struct Lexer
 		}
 		else
 		{
-			position = history.backtrack(position, count);
+			position = ::backtrack(history, position, count);
 			if(count > stats.count
 				&& symbol != 0)
 			{
@@ -292,7 +343,7 @@ struct Lexer
 		{
 			return;
 		}
-		position = history.advance(position, count);
+		position = ::advance(history, position, count);
 	}
 	void push()
 	{
@@ -343,7 +394,7 @@ struct Lexer
 	{
 		if(position != history.end())
 		{
-			position = history.next(position);
+			position = ::next(history, position);
 		}
 		else
 		{

@@ -42,7 +42,7 @@ inline void printSequence(Lexer& lexer)
 	std::cout << "   ";
 	bool space = false;
 	bool endline = false;
-	for( Lexer::Tokens::const_iterator i = lexer.position; i != lexer.history.end(); i = lexer.history.next(i))
+	for( Lexer::Tokens::const_iterator i = lexer.position; i != lexer.history.end(); i = next(lexer.history, i))
 	{
 		if(space && isIdentifier(*(*i).value))
 		{
