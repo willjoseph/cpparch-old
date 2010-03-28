@@ -3652,14 +3652,90 @@ inline cpp::statement* parseSymbol(Parser& parser, cpp::statement* result)
 	return result;
 }
 
-inline cpp::statement_seq* parseSymbol(Parser& parser, cpp::statement_seq* result)
+
+template<typename ParserType>
+inline cpp::statement_seq* parseSymbol(ParserType& parser, cpp::statement_seq* result)
 {
 	PARSE_REQUIRED(parser, result->item);
 	return result;
 }
 #endif
 
+template<void skipFunc(Parser&)>
+struct ScopedSkip
+{
+	Parser& parser;
+	TokenBuffer buffer;
+	ScopedSkip(Parser& parser)
+		: parser(parser), buffer(1024 * 128)
+	{
+		parser.lexer.history.swap(buffer);
+		parser.lexer.position = parser.lexer.history.end();
+		skipFunc(parser);
+		size_t count = distance(parser.lexer.history, parser.lexer.history.tokens, parser.lexer.history.end());
+		std::cout << "skipped: " << count << std::endl;
+		parser.lexer.history.swap(buffer);
+		parser.lexer.position = parser.lexer.history.end();
 
+		parser.lexer.history.swap(buffer);
+		parser.lexer.history.position = parser.lexer.history.tokens + count;
+		parser.lexer.position = parser.lexer.history.tokens;
+	}
+	~ScopedSkip()
+	{
+		parser.lexer.history.swap(buffer);
+		parser.lexer.position = parser.lexer.history.end();
+	}
+};
+
+struct ContextTest
+{
+	struct DefaultContext : public ContextBase
+	{
+		PARSERCONTEXT_DEFAULT;
+		void visit(cpp::function_body* symbol)
+		{
+			FunctionBodyContext walker;
+			SYMBOL_WALK(walker, symbol);
+		}
+		void visit(cpp::parameter_declaration* symbol)
+		{
+			ParameterDeclarationContext walker;
+			SYMBOL_WALK(walker, symbol);
+		}
+	};
+
+	struct FunctionBodyContext : public ContextBase
+	{
+		PARSERCONTEXT_DEFAULT;
+		void visit(cpp::statement_seq* symbol)
+		{
+			ScopedSkip<skipBraced> skip(*parser);
+			DefaultContext walker;
+			SYMBOL_WALK(walker, symbol);
+		}
+	};
+	struct ParameterDeclarationContext : public ContextBase
+	{
+		PARSERCONTEXT_DEFAULT;
+		void visit(cpp::decl_specifier_seq* symbol)
+		{
+			DefaultContext walker;
+			SYMBOL_WALK(walker, symbol);
+		}
+		void visit(cpp::declarator* symbol)
+		{
+			DefaultContext walker;
+			SYMBOL_WALK(walker, symbol);
+		}
+		void visit(cpp::assignment_expression* symbol)
+		{
+			ScopedSkip<skipInitializer> skip(*parser);
+			DefaultContext walker;
+			SYMBOL_WALK(walker, symbol);
+		}
+	};
+};
 
 struct ContextN
 {
@@ -3686,8 +3762,8 @@ struct ContextN
 
 cpp::declaration_seq* parseFile(Lexer& lexer)
 {
-	ContextN::Context1 context;
-	ParserGeneric<ContextN::Context1> parser(lexer, context);
+	ContextTest::DefaultContext context;
+	ParserGeneric<ContextTest::DefaultContext> parser(lexer, context);
 
 	cpp::symbol_optional<cpp::declaration_seq> result(NULL);
 	try

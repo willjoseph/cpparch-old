@@ -239,6 +239,11 @@ struct BacktrackBuffer : public TokenBuffer
 	{
 		return m_size;
 	}
+	void swap(TokenBuffer& other)
+	{
+		TokenBuffer::swap(other);
+		position = tokens;
+	}
 };
 
 inline size_t distance(const BacktrackBuffer& buffer, BacktrackBuffer::const_iterator first, BacktrackBuffer::const_iterator last)
@@ -275,7 +280,7 @@ struct Lexer
 	LexIterator& first;
 	LexIterator& last;
 
-	enum { BACKTRACK_MAX = 1024 };
+	enum { BACKTRACK_MAX = 1024 * 128 };
 	typedef BacktrackBuffer Tokens;
 	Tokens history;
 	Tokens::const_iterator position;

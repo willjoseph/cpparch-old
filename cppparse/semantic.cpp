@@ -3219,6 +3219,12 @@ struct SimpleDeclarationWalker : public WalkerBase
 	}
 	void visit(cpp::statement_seq* symbol)
 	{
+#if 0
+		ParserOpaque* parser = 0;
+		TokenBuffer buffer;
+		parser->lexer.history.swap(buffer);
+		skipBraced(*parser);
+#endif
 		CompoundStatementWalker walker(*this);
 		walkDeferable(walker, symbol);
 	}

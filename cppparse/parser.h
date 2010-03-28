@@ -363,7 +363,7 @@ cpp::symbol<T> parseSymbolRequired(ParserType& parser, cpp::symbol<T> symbol, si
 	ParserType tmp(parser);
 	parser.lexer.push();
 	p = SymbolAllocator<T>(parser.lexer.allocator).allocate(p);
-#if 1
+#if 0
 	p = parseSymbol(tmp, p);
 #else
 	p = tmp.parse(p);
@@ -584,7 +584,7 @@ inline ParseResult parseTerminal(Parser& parser, cpp::terminal_suffix<id>& resul
 }
 
 
-#define TOKEN_EQUAL(parser, token) isToken(parser.get_id(), token)
+#define TOKEN_EQUAL(parser, token) isToken((parser).get_id(), token)
 // TODO: avoid dependency on 'result'
 #define PARSE_TERMINAL(parser, t) switch(parseTerminal(parser, t)) { case PARSERESULT_FAIL: return 0; case PARSERESULT_SKIP: return result; default: break; }
 
@@ -941,6 +941,100 @@ inline T* parseSymbol(ParserType& parser, T* result)
 	return parseSymbol(parser, result, typename T::Choices(), typename IsAmbiguous<T>::Result());
 }
 
+
+// skips a braced token sequence
+inline void skipBraced(Parser& parser)
+{
+	while(!TOKEN_EQUAL(parser, boost::wave::T_RIGHTBRACE))
+	{
+		if(TOKEN_EQUAL(parser, boost::wave::T_LEFTBRACE))
+		{
+			parser.increment();
+			skipBraced(parser);
+			parser.increment();
+		}
+		else
+		{
+			parser.increment();
+		}
+	}
+}
+
+// skips a parenthesised expression
+inline void skipParenthesised(Parser& parser)
+{
+	while(!TOKEN_EQUAL(parser, boost::wave::T_RIGHTPAREN))
+	{
+		if(TOKEN_EQUAL(parser, boost::wave::T_LEFTPAREN))
+		{
+			parser.increment();
+			skipParenthesised(parser);
+			parser.increment();
+		}
+		else
+		{
+			parser.increment();
+		}
+	}
+}
+
+// skips an assignment-expression within a parameter-declaration
+inline void skipParameter(Parser& parser)
+{
+	while(!TOKEN_EQUAL(parser, boost::wave::T_RIGHTPAREN)
+		&& !TOKEN_EQUAL(parser, boost::wave::T_COMMA))
+	{
+		if(TOKEN_EQUAL(parser, boost::wave::T_LEFTPAREN))
+		{
+			parser.increment();
+			skipParenthesised(parser);
+			parser.increment();
+		}
+		else
+		{
+			parser.increment();
+		}
+	}
+}
+
+// skips an assignment-expression within an initializer
+inline void skipInitializer(Parser& parser)
+{
+	while(!TOKEN_EQUAL(parser, boost::wave::T_SEMICOLON)
+		&& !TOKEN_EQUAL(parser, boost::wave::T_COMMA)
+		&& !TOKEN_EQUAL(parser, boost::wave::T_RIGHTBRACE))
+	{
+		if(TOKEN_EQUAL(parser, boost::wave::T_LEFTPAREN))
+		{
+			parser.increment();
+			skipParenthesised(parser);
+			parser.increment();
+		}
+		else
+		{
+			parser.increment();
+		}
+	}
+}
+
+// skips an assignment-expression within a mem-initializer
+inline void skipMemInitializer(Parser& parser)
+{
+	while(!TOKEN_EQUAL(parser, boost::wave::T_LEFTBRACE)
+		&& !TOKEN_EQUAL(parser, boost::wave::T_COMMA))
+	{
+		if(TOKEN_EQUAL(parser, boost::wave::T_LEFTPAREN))
+		{
+			parser.increment();
+			skipParenthesised(parser);
+			parser.increment();
+		}
+		else
+		{
+			parser.increment();
+		}
+	}
+}
 
 cpp::declaration_seq* parseFile(Lexer& lexer);
 cpp::statement_seq* parseFunction(Lexer& lexer);
