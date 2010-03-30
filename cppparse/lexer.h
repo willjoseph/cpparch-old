@@ -160,6 +160,10 @@ class TokenBuffer
 public:
 	Token* tokens;
 	size_t m_size;
+	TokenBuffer()
+		: tokens(0), m_size(0)
+	{
+	}
 	TokenBuffer(size_t size)
 		: tokens(new Token[size]), m_size(size)
 	{
@@ -167,6 +171,12 @@ public:
 	~TokenBuffer()
 	{
 		delete[] tokens;
+	}
+
+	void resize(size_t count)
+	{
+		this->~TokenBuffer();
+		new(this) TokenBuffer(count);
 	}
 
 	void swap(TokenBuffer& other)
@@ -184,6 +194,9 @@ struct BacktrackBuffer : public TokenBuffer
 	typedef Token* iterator;
 	typedef const Token* const_iterator;
 
+	BacktrackBuffer() : position(0)
+	{
+	}
 	BacktrackBuffer(size_t count)
 		: TokenBuffer(count), position(tokens)
 	{
@@ -239,10 +252,16 @@ struct BacktrackBuffer : public TokenBuffer
 	{
 		return m_size;
 	}
-	void swap(TokenBuffer& other)
+
+	void resize(size_t count)
+	{
+		TokenBuffer::resize(count);
+		position = tokens;
+	}
+	void swap(BacktrackBuffer& other)
 	{
 		TokenBuffer::swap(other);
-		position = tokens;
+		std::swap(position, other.position);
 	}
 };
 

@@ -776,10 +776,18 @@ struct ParserGeneric : public ParserOpaque
 		: ParserOpaque(lexer, &context)
 	{
 	}
+	Context& makeContext()
+	{
+		Context& context = *static_cast<Context*>(ParserOpaque::context);
+		context.parser = this;
+		return context;
+	}
 	template<typename T>
 	T* parse(T* symbol)
 	{
-		return static_cast<Context*>(context)->parse(*this, symbol);
+		Context& context = makeContext();
+		context.visit(symbol);
+		return static_cast<T*>(context.result);
 	}
 };
 
@@ -787,27 +795,21 @@ struct ContextBase
 {
 	ParserOpaque* parser;
 	void* result;
+	template<typename ContextType>
+	ParserGeneric<ContextType>& getParser(ContextType& context)
+	{
+		parser->context = &context;
+		return *static_cast<ParserGeneric<ContextType>*>(parser);
+	}
 };
 
-#define SYMBOL_WALK(walker, symbol) if((result = walk(walker, symbol)) == 0) return
+
+#define SYMBOL_WALK(walker, symbol) if((result = parseSymbol(getParser(walker), symbol)) == 0) return
 #define PARSERCONTEXT_DEFAULT \
-	template<typename ContextType, typename T> \
-	T* walk(ContextType& context, T* symbol) \
-	{ \
-		parser->context = &context; \
-		return parseSymbol(*static_cast<ParserGeneric<ContextType>*>(parser), symbol); \
-	} \
 	template<typename T> \
 	void visit(T* symbol) \
 	{ \
 		SYMBOL_WALK(*this, symbol); \
-	} \
-	template<typename T> \
-	T* parse(ParserOpaque& parser, T* symbol) \
-	{ \
-		this->parser = &parser; \
-		visit(symbol); \
-		return static_cast<T*>(result); \
 	}
 
 template<typename ParserType>
@@ -826,7 +828,7 @@ struct ParsingVisitor
 	template<typename T>
 	bool visit(cpp::symbol_optional<T>& s)
 	{
-		s = parseSymbolOptional(parser, s);
+		s = cpp::symbol_optional<T>(parseSymbolRequired(parser, s));
 		return true;
 	}
 	template<LexTokenId ID>
@@ -849,7 +851,7 @@ struct ParsingVisitor
 };
 
 template<typename ParserType, typename T>
-inline T* parseSymbol(ParserType& parser, T* result, const TypeListEnd&, const False&)
+inline T* parseSymbol(ParserType& parser, T* result, const False&, const False&)
 {
 	ParsingVisitor<ParserType> visitor(parser);
 	if(!result->parse(visitor))
@@ -862,6 +864,103 @@ inline T* parseSymbol(ParserType& parser, T* result, const TypeListEnd&, const F
 	}
 	return result;
 }
+
+
+#define GENERIC_ITERATE1(i, op) op(i);
+#define GENERIC_ITERATE2(i, op) op(i); GENERIC_ITERATE1(i + 1, op)
+#define GENERIC_ITERATE3(i, op) op(i); GENERIC_ITERATE2(i + 1, op)
+#define GENERIC_ITERATE4(i, op) op(i); GENERIC_ITERATE3(i + 1, op)
+#define GENERIC_ITERATE5(i, op) op(i); GENERIC_ITERATE4(i + 1, op)
+#define GENERIC_ITERATE6(i, op) op(i); GENERIC_ITERATE5(i + 1, op)
+#define GENERIC_ITERATE7(i, op) op(i); GENERIC_ITERATE6(i + 1, op)
+#define GENERIC_ITERATE8(i, op) op(i); GENERIC_ITERATE7(i + 1, op)
+#define GENERIC_ITERATE9(i, op) op(i); GENERIC_ITERATE8(i + 1, op)
+#define GENERIC_ITERATE10(i, op) op(i); GENERIC_ITERATE9(i + 1, op)
+#define GENERIC_ITERATE11(i, op) op(i); GENERIC_ITERATE10(i + 1, op)
+#define GENERIC_ITERATE12(i, op) op(i); GENERIC_ITERATE11(i + 1, op)
+#define GENERIC_ITERATE13(i, op) op(i); GENERIC_ITERATE12(i + 1, op)
+#define GENERIC_ITERATE14(i, op) op(i); GENERIC_ITERATE13(i + 1, op)
+#define GENERIC_ITERATE15(i, op) op(i); GENERIC_ITERATE14(i + 1, op)
+#define GENERIC_ITERATE16(i, op) op(i); GENERIC_ITERATE15(i + 1, op)
+#define GENERIC_ITERATE17(i, op) op(i); GENERIC_ITERATE16(i + 1, op)
+
+template<typename T>
+struct TypeListCount<TYPELIST1(cpp::ambiguity<T>)>
+{
+	enum { RESULT = 0 };
+};
+
+template<typename ParserType, typename T, size_t N>
+struct ChoiceParserN
+{
+};
+
+#define DEFINE_CHOICEPARSER(N) \
+	template<typename ParserType, typename T> \
+	struct ChoiceParserN<ParserType, T, N> \
+	{ \
+		static T* parseSymbol(ParserType& parser, T* result) \
+		{ \
+			GENERIC_ITERATE##N(0, CHOICEPARSER_OP) \
+			return result; \
+		} \
+	}
+
+#define CHOICEPARSER_OP(N) result = parseSymbolChoice(parser, NullPtr<typename TypeListNth<typename T::Choices, N>::Result>::VALUE, result)
+DEFINE_CHOICEPARSER(1);
+DEFINE_CHOICEPARSER(2);
+DEFINE_CHOICEPARSER(3);
+DEFINE_CHOICEPARSER(4);
+DEFINE_CHOICEPARSER(5);
+DEFINE_CHOICEPARSER(6);
+DEFINE_CHOICEPARSER(7);
+DEFINE_CHOICEPARSER(8);
+DEFINE_CHOICEPARSER(9);
+DEFINE_CHOICEPARSER(10);
+DEFINE_CHOICEPARSER(11);
+DEFINE_CHOICEPARSER(12);
+DEFINE_CHOICEPARSER(13);
+DEFINE_CHOICEPARSER(14);
+DEFINE_CHOICEPARSER(15);
+DEFINE_CHOICEPARSER(16);
+DEFINE_CHOICEPARSER(17);
+#undef CHOICEPARSER_OP
+
+template<typename ParserType, typename T, size_t N>
+struct ChoiceParserUnambiguousN
+{
+};
+
+#define DEFINE_CHOICEPARSERUNAMBIGUOUS(N) \
+	template<typename ParserType, typename T> \
+	struct ChoiceParserUnambiguousN<ParserType, T, N> \
+	{ \
+		static T* parseSymbol(ParserType& parser, T* result) \
+		{ \
+			GENERIC_ITERATE##N(0, CHOICEPARSER_OP) \
+			return result; \
+		} \
+	}
+
+#define CHOICEPARSER_OP(N) if(result = parseSymbolRequired(parser, NullPtr<typename TypeListNth<typename T::Choices, N>::Result>::VALUE)) return result
+DEFINE_CHOICEPARSERUNAMBIGUOUS(1);
+DEFINE_CHOICEPARSERUNAMBIGUOUS(2);
+DEFINE_CHOICEPARSERUNAMBIGUOUS(3);
+DEFINE_CHOICEPARSERUNAMBIGUOUS(4);
+DEFINE_CHOICEPARSERUNAMBIGUOUS(5);
+DEFINE_CHOICEPARSERUNAMBIGUOUS(6);
+DEFINE_CHOICEPARSERUNAMBIGUOUS(7);
+DEFINE_CHOICEPARSERUNAMBIGUOUS(8);
+DEFINE_CHOICEPARSERUNAMBIGUOUS(9);
+DEFINE_CHOICEPARSERUNAMBIGUOUS(10);
+DEFINE_CHOICEPARSERUNAMBIGUOUS(11);
+DEFINE_CHOICEPARSERUNAMBIGUOUS(12);
+DEFINE_CHOICEPARSERUNAMBIGUOUS(13);
+DEFINE_CHOICEPARSERUNAMBIGUOUS(14);
+DEFINE_CHOICEPARSERUNAMBIGUOUS(15);
+DEFINE_CHOICEPARSERUNAMBIGUOUS(16);
+DEFINE_CHOICEPARSERUNAMBIGUOUS(17);
+#undef CHOICEPARSER_OP
 
 
 template<typename ParserType, typename T, typename Choices>
@@ -892,10 +991,14 @@ struct ChoiceParser<ParserType, T, TYPELIST1(cpp::ambiguity<T>)>
 	}
 };
 
-template<typename ParserType, typename T, typename Choices>
-inline T* parseSymbol(ParserType& parser, T* result, const Choices&, const True&)
+template<typename ParserType, typename T>
+inline T* parseSymbol(ParserType& parser, T* result, const True&, const True&)
 {
-	return ChoiceParser<ParserType, T, Choices>::parseSymbol(parser, result);
+#if 1
+	return ChoiceParserN<ParserType, T, TypeListCount<typename T::Choices>::RESULT>::parseSymbol(parser, result);
+#else
+	return ChoiceParser<ParserType, T, typename T::Choices>::parseSymbol(parser, result);
+#endif
 }
 
 template<typename ParserType, typename T, typename Choices>
@@ -929,16 +1032,32 @@ struct ChoiceParserUnambiguous<ParserType, T, TypeListEnd>
 	}
 };
 
-template<typename ParserType, typename T, typename Choices>
-inline T* parseSymbol(ParserType& parser, T* result, const Choices&, const False&)
+template<typename ParserType, typename T>
+inline T* parseSymbol(ParserType& parser, T* result, const True&, const False&)
 {
-	return ChoiceParserUnambiguous<ParserType, T, Choices>::parseSymbol(parser, result);
+#if 1
+	return ChoiceParserUnambiguousN<ParserType, T, TypeListCount<typename T::Choices>::RESULT>::parseSymbol(parser, result);
+#else
+	return ChoiceParserUnambiguous<ParserType, T, typename T::Choices>::parseSymbol(parser, result);
+#endif
 }
+
+template<typename T>
+struct IsChoice
+{
+	typedef True Result;
+};
+
+template<>
+struct IsChoice<TypeListEnd>
+{
+	typedef False Result;
+};
 
 template<typename ParserType, typename T>
 inline T* parseSymbol(ParserType& parser, T* result)
 {
-	return parseSymbol(parser, result, typename T::Choices(), typename IsAmbiguous<T>::Result());
+	return parseSymbol(parser, result, typename IsChoice<typename T::Choices>::Result(), typename IsAmbiguous<T>::Result());
 }
 
 
@@ -965,6 +1084,7 @@ inline void skipParenthesised(Parser& parser)
 {
 	while(!TOKEN_EQUAL(parser, boost::wave::T_RIGHTPAREN))
 	{
+		PARSE_ASSERT(!TOKEN_EQUAL(parser, boost::wave::T_SEMICOLON));
 		if(TOKEN_EQUAL(parser, boost::wave::T_LEFTPAREN))
 		{
 			parser.increment();
@@ -981,9 +1101,9 @@ inline void skipParenthesised(Parser& parser)
 // skips a mem-initializer-list
 inline void skipMemInitializerList(Parser& parser)
 {
-	while(!TOKEN_EQUAL(parser, boost::wave::T_LEFTBRACE)
-		&& !TOKEN_EQUAL(parser, boost::wave::T_SEMICOLON)) // not strictly necessary - catches syntax error earlier
+	while(!TOKEN_EQUAL(parser, boost::wave::T_LEFTBRACE))
 	{
+		PARSE_ASSERT(!TOKEN_EQUAL(parser, boost::wave::T_SEMICOLON));
 		parser.increment();
 	}
 }

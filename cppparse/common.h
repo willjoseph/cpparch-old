@@ -49,6 +49,31 @@ struct TypeList
 #define TYPELIST16(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15) TypeList<T0, TYPELIST15(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15)>
 #define TYPELIST17(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16) TypeList<T0, TYPELIST16(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16)>
 
+template<typename Types, size_t N>
+struct TypeListNth
+{
+	typedef typename TypeListNth<typename Types::Next, N - 1>::Result Result;
+};
+
+template<typename Types>
+struct TypeListNth<Types, 0>
+{
+	typedef typename Types::Item Result;
+};
+
+template<typename Types>
+struct TypeListCount
+{
+	enum { RESULT = TypeListCount<typename Types::Next>::RESULT + 1 };
+};
+
+template<>
+struct TypeListCount<TypeListEnd>
+{
+	enum { RESULT = 0 };
+};
+
+
 #endif
 
 

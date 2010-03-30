@@ -3665,26 +3665,32 @@ template<void skipFunc(Parser&)>
 struct ScopedSkip
 {
 	Parser& parser;
-	TokenBuffer buffer;
+	BacktrackBuffer buffer;
+	const Token* position;
 	ScopedSkip(Parser& parser)
-		: parser(parser), buffer(1024 * 128)
+		: parser(parser)
 	{
-		parser.lexer.history.swap(buffer);
-		parser.lexer.position = parser.lexer.history.end();
+		const Token* first = parser.lexer.position;
 		skipFunc(parser);
-		size_t count = distance(parser.lexer.history, parser.lexer.history.tokens, parser.lexer.history.end());
+		size_t count = ::distance(parser.lexer.history, first, parser.lexer.position);
 		std::cout << "skipped: " << count << std::endl;
-		parser.lexer.history.swap(buffer);
-		parser.lexer.position = parser.lexer.history.end();
+		buffer.resize(count + 1); // adding 1 for EOF and to allow use as circular buffer
+		for(const Token* p = first; p != parser.lexer.position; p = ::next(parser.lexer.history, p))
+		{
+			*buffer.position++ = *first++;
+		}
+		FilePosition nullPos = { "$null.cpp", 0, 0 };
+		*buffer.position = Token(boost::wave::T_EOF, "", nullPos);
 
+		position = parser.lexer.position;
 		parser.lexer.history.swap(buffer);
-		parser.lexer.history.position = parser.lexer.history.tokens + count;
 		parser.lexer.position = parser.lexer.history.tokens;
 	}
 	~ScopedSkip()
 	{
+		PARSE_ASSERT(parser.lexer.position == parser.lexer.history.end());
 		parser.lexer.history.swap(buffer);
-		parser.lexer.position = parser.lexer.history.end();
+		parser.lexer.position = position;
 	}
 };
 
@@ -3702,12 +3708,14 @@ struct ContextTest
 	struct MemberDeclarationContext : public ContextBase
 	{
 		PARSERCONTEXT_DEFAULT;
+#if 0
 		void visit(cpp::function_body* symbol)
 		{
 			FunctionBodyContext walker;
 			SYMBOL_WALK(walker, symbol);
 		}
-#if 0
+#endif
+#if 1
 		void visit(cpp::parameter_declaration_clause* symbol)
 		{
 			ScopedSkip<skipParenthesised> skip(*parser);
