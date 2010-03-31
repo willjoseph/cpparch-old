@@ -1218,8 +1218,8 @@ inline cpp::simple_type_specifier* parseSymbol(Parser& parser, cpp::simple_type_
 
 #if 0
 inline cpp::using_declaration* parseSymbol(Parser& parser, cpp::using_declaration* result);
-#endif
 inline cpp::parameter_declaration* parseSymbol(Parser& parser, cpp::parameter_declaration* result);
+#endif
 
 template<typename ParserType>
 inline cpp::type_parameter_key* parseSymbol(ParserType& parser, cpp::type_parameter_key* result)
@@ -3668,29 +3668,39 @@ struct ScopedSkip
 	BacktrackBuffer buffer;
 	const Token* position;
 	ScopedSkip(Parser& parser)
-		: parser(parser)
+		: parser(parser), position(0)
 	{
 		const Token* first = parser.lexer.position;
 		skipFunc(parser);
 		size_t count = ::distance(parser.lexer.history, first, parser.lexer.position);
-		std::cout << "skipped: " << count << std::endl;
-		buffer.resize(count + 1); // adding 1 for EOF and to allow use as circular buffer
-		for(const Token* p = first; p != parser.lexer.position; p = ::next(parser.lexer.history, p))
+		if(count != 0)
 		{
-			*buffer.position++ = *first++;
-		}
-		FilePosition nullPos = { "$null.cpp", 0, 0 };
-		*buffer.position = Token(boost::wave::T_EOF, "", nullPos);
+			printPosition(first->position);
+			std::cout << "skipped: " << count << std::endl;
+			buffer.resize(count + 2); // adding 1 for EOF and 1 to allow use as circular buffer
+			for(const Token* p = first; p != parser.lexer.position; p = ::next(parser.lexer.history, p))
+			{
+				*buffer.position++ = *first++;
+			}
+			FilePosition nullPos = { "$null.cpp", 0, 0 };
+			*buffer.position++ = Token(boost::wave::T_EOF, "", nullPos);
 
-		position = parser.lexer.position;
-		parser.lexer.history.swap(buffer);
-		parser.lexer.position = parser.lexer.history.tokens;
+			parser.position -= count;
+			parser.lexer.backtrack(count);
+			position = parser.lexer.position;
+			parser.lexer.history.swap(buffer);
+			parser.lexer.position = parser.lexer.history.tokens;
+		}
 	}
 	~ScopedSkip()
 	{
-		PARSE_ASSERT(parser.lexer.position == parser.lexer.history.end());
-		parser.lexer.history.swap(buffer);
-		parser.lexer.position = position;
+		if(position != 0)
+		{
+			size_t count = (parser.lexer.position - parser.lexer.history.tokens);
+			parser.lexer.history.swap(buffer);
+			parser.lexer.position = position;
+			parser.lexer.advance(count);
+		}
 	}
 };
 
@@ -3708,7 +3718,7 @@ struct ContextTest
 	struct MemberDeclarationContext : public ContextBase
 	{
 		PARSERCONTEXT_DEFAULT;
-#if 0
+#if 1
 		void visit(cpp::function_body* symbol)
 		{
 			FunctionBodyContext walker;
@@ -3723,7 +3733,7 @@ struct ContextTest
 			SYMBOL_WALK(walker, symbol);
 		}
 #endif
-#if 0
+#if 1
 		void visit(cpp::mem_initializer_list* symbol)
 		{
 			ScopedSkip<skipMemInitializerList> skip(*parser);
@@ -3770,8 +3780,12 @@ struct ContextN
 
 cpp::declaration_seq* parseFile(Lexer& lexer)
 {
+#if 0
+	Parser parser(lexer);
+#else
 	ContextTest::DefaultContext context;
 	ParserGeneric<ContextTest::DefaultContext> parser(lexer, context);
+#endif
 
 	cpp::symbol_optional<cpp::declaration_seq> result(NULL);
 	try
