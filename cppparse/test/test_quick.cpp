@@ -1,6 +1,7 @@
 
 typedef int I;
-struct S19 {
+struct S19
+{
 	I (*func)(I);
 	I (func)(I);
 };

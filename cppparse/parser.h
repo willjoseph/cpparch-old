@@ -1066,6 +1066,7 @@ inline void skipBraced(Parser& parser)
 {
 	while(!TOKEN_EQUAL(parser, boost::wave::T_RIGHTBRACE))
 	{
+		PARSE_ASSERT(!TOKEN_EQUAL(parser, boost::wave::T_EOF));
 		if(TOKEN_EQUAL(parser, boost::wave::T_LEFTBRACE))
 		{
 			parser.increment();
@@ -1084,6 +1085,7 @@ inline void skipParenthesised(Parser& parser)
 {
 	while(!TOKEN_EQUAL(parser, boost::wave::T_RIGHTPAREN))
 	{
+		PARSE_ASSERT(!TOKEN_EQUAL(parser, boost::wave::T_EOF));
 		PARSE_ASSERT(!TOKEN_EQUAL(parser, boost::wave::T_SEMICOLON));
 		if(TOKEN_EQUAL(parser, boost::wave::T_LEFTPAREN))
 		{
@@ -1103,6 +1105,7 @@ inline void skipMemInitializerList(Parser& parser)
 {
 	while(!TOKEN_EQUAL(parser, boost::wave::T_LEFTBRACE))
 	{
+		PARSE_ASSERT(!TOKEN_EQUAL(parser, boost::wave::T_EOF));
 		PARSE_ASSERT(!TOKEN_EQUAL(parser, boost::wave::T_SEMICOLON));
 		parser.increment();
 	}

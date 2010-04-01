@@ -3661,12 +3661,46 @@ inline cpp::statement_seq* parseSymbol(ParserType& parser, cpp::statement_seq* r
 }
 #endif
 
+#if 0
+struct DeferredParse
+{
+	typedef void (Func)(Parser&, ContextBase&, void*);
+	BacktrackBuffer buffer;
+	ContextBase context;
+	void* symbol;
+	Func func;
+
+	// hack!
+	DeferredParse& operator=(const DeferredParse& other)
+	{
+		if(&other != this)
+		{
+			this->~DeferredParse();
+			new(this) DeferredParse(other);
+		}
+		return *this;
+	}
+};
+
+typedef std::list<DeferredParse> DeferredParseList;
+
+void parseDeferred(DeferredParseList& deferred, Parser& parser)
+{
+	for(DeferredParseList::const_iterator i = deferred.begin(); i != deferred.end(); ++i)
+	{
+		DeferredParse& item = (*i);
+		item.func(
+	}
+}
+
+#endif
+
 template<void skipFunc(Parser&)>
 struct ScopedSkip
 {
 	Parser& parser;
-	BacktrackBuffer buffer;
 	const Token* position;
+	BacktrackBuffer buffer;
 	ScopedSkip(Parser& parser)
 		: parser(parser), position(0)
 	{
@@ -3718,29 +3752,33 @@ struct ContextTest
 	struct MemberDeclarationContext : public ContextBase
 	{
 		PARSERCONTEXT_DEFAULT;
-#if 1
 		void visit(cpp::function_body* symbol)
 		{
 			FunctionBodyContext walker;
 			SYMBOL_WALK(walker, symbol);
 		}
-#endif
-#if 1
 		void visit(cpp::parameter_declaration_clause* symbol)
 		{
+#if 1
+			skipParenthesised(*parser);
+			result = symbol;
+#else
 			ScopedSkip<skipParenthesised> skip(*parser);
 			DefaultContext walker;
 			SYMBOL_WALK(walker, symbol);
-		}
 #endif
-#if 1
+		}
 		void visit(cpp::mem_initializer_list* symbol)
 		{
+#if 1
+			skipMemInitializerList(*parser);
+			result = symbol;
+#else
 			ScopedSkip<skipMemInitializerList> skip(*parser);
 			DefaultContext walker;
 			SYMBOL_WALK(walker, symbol);
-		}
 #endif
+		}
 	};
 
 	struct FunctionBodyContext : public ContextBase
@@ -3748,9 +3786,14 @@ struct ContextTest
 		PARSERCONTEXT_DEFAULT;
 		void visit(cpp::statement_seq* symbol)
 		{
+#if 1
+			skipBraced(*parser);
+			result = symbol;
+#else
 			ScopedSkip<skipBraced> skip(*parser);
 			DefaultContext walker;
 			SYMBOL_WALK(walker, symbol);
+#endif
 		}
 	};
 };
