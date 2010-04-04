@@ -138,6 +138,25 @@ struct LinearAllocator
 		position += size;
 		return p;
 	}
+	void backtrack(size_t original)
+	{
+#ifdef _DEBUG
+		Pages::iterator first = pages.begin() + original / sizeof(Page);
+		Pages::iterator last = pages.begin() + position / sizeof(Page);
+		for(Pages::iterator i = first; i != pages.end(); ++i)
+		{
+			std::uninitialized_fill(
+				(*i)->buffer + (i == first ? original % sizeof(Page) : 0),
+				(*i)->buffer + (i == last ? position % sizeof(Page) : sizeof(Page)),
+				0xfafafafa);
+			if(i == last)
+			{
+				break;
+			}
+		}
+#endif
+		position = original;
+	}	
 };
 
 struct BacktrackStats

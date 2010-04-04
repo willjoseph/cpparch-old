@@ -233,7 +233,7 @@ struct Parser : public ParserState
 		lexer.backtrack(position, symbol);
 		if(!preserveAllocation)
 		{
-			lexer.allocator.position = allocation;
+			lexer.allocator.backtrack(allocation);
 		}
 		if(ambiguity != 0
 			&& ambiguityDepth != 0)
@@ -790,19 +790,6 @@ struct ParserGeneric : public ParserOpaque
 		return static_cast<T*>(context.result);
 	}
 };
-
-struct ContextBase
-{
-	ParserOpaque* parser;
-	void* result;
-	template<typename ContextType>
-	ParserGeneric<ContextType>& getParser(ContextType& context)
-	{
-		parser->context = &context;
-		return *static_cast<ParserGeneric<ContextType>*>(parser);
-	}
-};
-
 
 #define SYMBOL_WALK(walker, symbol) if((result = parseSymbol(getParser(walker), symbol)) == 0) return
 #define PARSERCONTEXT_DEFAULT \

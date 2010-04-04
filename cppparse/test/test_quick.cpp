@@ -1,4 +1,34 @@
 
+
+namespace N
+{
+	class CA
+	{
+	public:
+		int operator*() const
+		{
+		}
+		int operator->() const
+		{
+		}
+	};
+}
+
+namespace N
+{
+	typedef int I;
+
+	class CD
+	{
+	public:
+		CD(I *a = 0) throw()
+			: m(a), n(a == 0)
+		{
+		}
+		int m, n;
+	};
+}
+
 typedef int I;
 struct S19
 {

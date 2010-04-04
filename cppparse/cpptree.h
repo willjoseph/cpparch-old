@@ -19,6 +19,10 @@ namespace cpp
 	{
 		static const LexTokenId ID = id;
 		const char* value;
+		terminal()
+			: value(0)
+		{
+		}
 	};
 
 	template<LexTokenId id>

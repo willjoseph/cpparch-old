@@ -3661,39 +3661,7 @@ inline cpp::statement_seq* parseSymbol(ParserType& parser, cpp::statement_seq* r
 }
 #endif
 
-#if 0
-struct DeferredParse
-{
-	typedef void (Func)(Parser&, ContextBase&, void*);
-	BacktrackBuffer buffer;
-	ContextBase context;
-	void* symbol;
-	Func func;
 
-	// hack!
-	DeferredParse& operator=(const DeferredParse& other)
-	{
-		if(&other != this)
-		{
-			this->~DeferredParse();
-			new(this) DeferredParse(other);
-		}
-		return *this;
-	}
-};
-
-typedef std::list<DeferredParse> DeferredParseList;
-
-void parseDeferred(DeferredParseList& deferred, Parser& parser)
-{
-	for(DeferredParseList::const_iterator i = deferred.begin(); i != deferred.end(); ++i)
-	{
-		DeferredParse& item = (*i);
-		item.func(
-	}
-}
-
-#endif
 
 template<void skipFunc(Parser&)>
 struct ScopedSkip
@@ -3738,44 +3706,216 @@ struct ScopedSkip
 	}
 };
 
+
+#include <list>
+
+typedef std::list<struct DeferredParse> DeferredParseList;
+
+struct ContextBase
+{
+	ParserOpaque* parser;
+	void* result;
+	DeferredParseList* deferred;
+
+	ContextBase()
+		: deferred(0)
+	{
+	}
+
+	template<typename ContextType>
+	ParserGeneric<ContextType>& getParser(ContextType& context)
+	{
+		parser->context = &context;
+		return *static_cast<ParserGeneric<ContextType>*>(parser);
+	}
+};
+
+
+
+template<typename ContextType, typename T>
+struct DeferredParseThunk
+{
+	static void* thunk(const ContextBase& base, void* p)
+	{
+		ContextType walker(base);
+		T* symbol = static_cast<T*>(p);
+		return parseSymbol(walker.getParser(walker), symbol);
+	}
+};
+
+struct DeferredParseBase
+{
+	typedef void* (*Func)(ContextBase&, void*);
+	ContextBase context;
+	void* symbol;
+	Func func;
+};
+
+struct DeferredParse : public DeferredParseBase
+{
+	BacktrackBuffer buffer;
+
+	// hack!
+	DeferredParse(const DeferredParseBase& base)
+		: buffer(), DeferredParseBase(base)
+	{
+	}
+	DeferredParse(const DeferredParse& other)
+		: buffer(), DeferredParseBase(other)
+	{
+	}
+	DeferredParse& operator=(const DeferredParse& other)
+	{
+		if(&other != this)
+		{
+			this->~DeferredParse();
+			new(this) DeferredParse(other);
+		}
+		return *this;
+	}
+};
+
+template<typename Walker, typename T>
+DeferredParse makeDeferredParse(const Walker& context, T* symbol)
+{
+	DeferredParseBase result = { context, symbol, DeferredParse::Func(DeferredParseThunk<Walker, T>::thunk) };
+	return result;
+}
+
+void parseDeferred(DeferredParseList& deferred, ParserOpaque& parser)
+{
+	const Token* position = parser.lexer.position;
+	for(DeferredParseList::iterator i = deferred.begin(); i != deferred.end(); ++i)
+	{
+		DeferredParse& item = (*i);
+
+		parser.lexer.history.swap(item.buffer);
+		parser.lexer.position = parser.lexer.history.tokens;
+		item.context.parser = &parser;
+
+		void* result = item.func(item.context, item.symbol);
+
+		if(result == 0
+			|| parser.lexer.position != parser.lexer.history.end() - 1)
+		{
+			printError(parser);
+		}
+
+		parser.lexer.history.swap(item.buffer);
+	}
+	parser.lexer.position = position;
+}
+
+template<typename ContextType, typename T>
+T* defer(DeferredParseList& deferred, ContextType& walker, void (*skipFunc)(Parser&), T* symbol)
+{
+	Parser& parser = *walker.parser;
+	const Token* first = parser.lexer.position;
+
+	skipFunc(parser);
+
+	size_t count = ::distance(parser.lexer.history, first, parser.lexer.position);
+	if(count != 0)
+	{
+		deferred.push_back(makeDeferredParse(walker, symbol));
+
+		BacktrackBuffer buffer;
+		buffer.resize(count + 2); // adding 1 for EOF and 1 to allow use as circular buffer
+		for(const Token* p = first; p != parser.lexer.position; p = ::next(parser.lexer.history, p))
+		{
+			*buffer.position++ = *first++;
+		}
+		FilePosition nullPos = { "$null.cpp", 0, 0 };
+		*buffer.position++ = Token(boost::wave::T_EOF, "", nullPos);
+
+		deferred.back().buffer.swap(buffer);
+
+		return symbol;
+	}
+	return 0;
+}
+
+
 struct ContextTest
 {
 	struct DefaultContext : public ContextBase
 	{
 		PARSERCONTEXT_DEFAULT;
-		void visit(cpp::member_declaration* symbol)
+		DefaultContext(const ContextBase& base)
+			: ContextBase(base)
 		{
-			MemberDeclarationContext walker;
+		}
+		void visit(cpp::class_specifier* symbol)
+		{
+			ClassSpecifierContext walker(*this);
 			SYMBOL_WALK(walker, symbol);
+			parseDeferred(walker.deferred, *parser);
+		}
+	};
+	struct ClassSpecifierContext : public ContextBase
+	{
+		PARSERCONTEXT_DEFAULT;
+		DeferredParseList deferred;
+		ClassSpecifierContext(const ContextBase& base)
+			: ContextBase(base)
+		{
+			if(ContextBase::deferred == 0) // first class-specifier takes priority
+			{
+				ContextBase::deferred = &deferred;
+			}
+		}
+		void visit(cpp::member_declaration_named* symbol)
+		{
+			MemberDeclarationContext walker(*this);
+			SYMBOL_WALK(walker, symbol);
+			deferred.splice(deferred.end(), walker.deferred);
+		}
+		void visit(cpp::function_definition* symbol)
+		{
+			MemberDeclarationContext walker(*this);
+			SYMBOL_WALK(walker, symbol);
+			deferred.splice(deferred.end(), walker.deferred);
 		}
 	};
 	struct MemberDeclarationContext : public ContextBase
 	{
 		PARSERCONTEXT_DEFAULT;
+		DeferredParseList deferred;
+		MemberDeclarationContext(const ContextBase& base)
+			: ContextBase(base)
+		{
+			ContextBase::deferred = &deferred;
+		}
 		void visit(cpp::function_body* symbol)
 		{
-			FunctionBodyContext walker;
+			FunctionBodyContext walker(*this);
 			SYMBOL_WALK(walker, symbol);
 		}
 		void visit(cpp::parameter_declaration_clause* symbol)
 		{
-#if 1
+#if 0
 			skipParenthesised(*parser);
 			result = symbol;
+#elif 1
+			DefaultContext walker(*this);
+			result = defer(*ContextBase::deferred, walker, skipParenthesised, symbol);
 #else
 			ScopedSkip<skipParenthesised> skip(*parser);
-			DefaultContext walker;
+			DefaultContext walker(*this);
 			SYMBOL_WALK(walker, symbol);
 #endif
 		}
 		void visit(cpp::mem_initializer_list* symbol)
 		{
-#if 1
+#if 0
 			skipMemInitializerList(*parser);
 			result = symbol;
+#elif 1
+			DefaultContext walker(*this);
+			result = defer(*ContextBase::deferred, walker, skipMemInitializerList, symbol);
 #else
 			ScopedSkip<skipMemInitializerList> skip(*parser);
-			DefaultContext walker;
+			DefaultContext walker(*this);
 			SYMBOL_WALK(walker, symbol);
 #endif
 		}
@@ -3784,14 +3924,21 @@ struct ContextTest
 	struct FunctionBodyContext : public ContextBase
 	{
 		PARSERCONTEXT_DEFAULT;
+		FunctionBodyContext(const ContextBase& base)
+			: ContextBase(base)
+		{
+		}
 		void visit(cpp::statement_seq* symbol)
 		{
-#if 1
+#if 0
 			skipBraced(*parser);
 			result = symbol;
+#elif 1
+			DefaultContext walker(*this);
+			result = defer(*ContextBase::deferred, walker, skipBraced, symbol);
 #else
 			ScopedSkip<skipBraced> skip(*parser);
-			DefaultContext walker;
+			DefaultContext walker(*this);
 			SYMBOL_WALK(walker, symbol);
 #endif
 		}
@@ -3803,9 +3950,13 @@ struct ContextN
 	struct Context1 : public ContextBase
 	{
 		PARSERCONTEXT_DEFAULT;
+		Context1(const ContextBase& base)
+			: ContextBase(base)
+		{
+		}
 		void visit(cpp::declaration* symbol)
 		{
-			Context2 walker;
+			Context2 walker(*this);
 			SYMBOL_WALK(walker, symbol);
 		}
 	};
@@ -3813,9 +3964,13 @@ struct ContextN
 	struct Context2 : public ContextBase
 	{
 		PARSERCONTEXT_DEFAULT;
+		Context2(const ContextBase& base)
+			: ContextBase(base)
+		{
+		}
 		void visit(cpp::declaration* symbol)
 		{
-			Context1 walker;
+			Context1 walker(*this);
 			SYMBOL_WALK(walker, symbol);
 		}
 	};
@@ -3826,7 +3981,7 @@ cpp::declaration_seq* parseFile(Lexer& lexer)
 #if 0
 	Parser parser(lexer);
 #else
-	ContextTest::DefaultContext context;
+	ContextTest::DefaultContext context = ContextBase();
 	ParserGeneric<ContextTest::DefaultContext> parser(lexer, context);
 #endif
 
@@ -3854,7 +4009,7 @@ cpp::declaration_seq* parseFile(Lexer& lexer)
 
 cpp::statement_seq* parseFunction(Lexer& lexer)
 {
-	ContextN::Context1 context;
+	ContextN::Context1 context = ContextBase();
 	ParserGeneric<ContextN::Context1> parser(lexer, context);
 
 	cpp::symbol_optional<cpp::statement_seq> result(NULL);
