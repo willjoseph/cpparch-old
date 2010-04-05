@@ -3142,14 +3142,26 @@ struct SimpleDeclarationWalker : public WalkerBase
 	}
 	void visit(cpp::declarator* symbol)
 	{
+		if(isParameter)
+		{
+			declareEts(type, forward);
+		}
 		walkDeclarator(symbol);
 	}
 	void visit(cpp::declarator_disambiguate* symbol)
 	{
+		if(isParameter)
+		{
+			declareEts(type, forward);
+		}
 		walkDeclarator(symbol);
 	}
 	void visit(cpp::abstract_declarator* symbol)
 	{
+		if(isParameter)
+		{
+			declareEts(type, forward);
+		}
 		DeclaratorWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
 	}

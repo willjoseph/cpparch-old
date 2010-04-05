@@ -1,13 +1,4 @@
 
-namespace N66
-{
-	class C* f(union U* (*)(struct S*));
-
-	U* u;
-	S* s;
-	C* c;
-}
-
 namespace N15
 {
 	struct S
@@ -19,6 +10,15 @@ namespace N15
 		D* d;
 	};
 	D* d;
+}
+
+namespace N66
+{
+	class C* f(union U* (*)(struct S*));
+
+	U* u;
+	S* s;
+	C* c;
 }
 
 
