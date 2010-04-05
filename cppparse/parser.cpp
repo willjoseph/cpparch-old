@@ -3898,7 +3898,8 @@ struct ContextTest
 			result = symbol;
 #elif 1
 			DefaultContext walker(*this);
-			result = defer(*ContextBase::deferred, walker, skipParenthesised, symbol);
+			defer(*ContextBase::deferred, walker, skipParenthesised, symbol);
+			result = symbol; // always succeeds!
 #else
 			ScopedSkip<skipParenthesised> skip(*parser);
 			DefaultContext walker(*this);
