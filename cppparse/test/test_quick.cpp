@@ -1,8 +1,30 @@
 
-
-namespace N
+namespace N66
 {
-	class CA
+	class C* f(union U* (*)(struct S*));
+
+	U* u;
+	S* s;
+	C* c;
+}
+
+namespace N15
+{
+	struct S
+	{
+		S(class D* a) : d((D*)(class C*)a)
+		{
+			C* c = (C*)0;
+		}
+		D* d;
+	};
+	D* d;
+}
+
+
+namespace N75
+{
+	class 
 	{
 	public:
 		int operator*() const
@@ -14,14 +36,14 @@ namespace N
 	};
 }
 
-namespace N
+namespace N24
 {
 	typedef int I;
 
-	class CD
+	class C
 	{
 	public:
-		CD(I *a = 0) throw()
+		C(I *a = 0) throw()
 			: m(a), n(a == 0)
 		{
 		}

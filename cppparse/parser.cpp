@@ -3806,8 +3806,8 @@ void parseDeferred(DeferredParseList& deferred, ParserOpaque& parser)
 	parser.lexer.position = position;
 }
 
-template<typename ContextType, typename T>
-T* defer(DeferredParseList& deferred, ContextType& walker, void (*skipFunc)(Parser&), T* symbol)
+template<typename ContextType, typename T, typename Func>
+T* defer(DeferredParseList& deferred, ContextType& walker, Func skipFunc, T* symbol)
 {
 	Parser& parser = *walker.parser;
 	const Token* first = parser.lexer.position;
@@ -3891,6 +3891,17 @@ struct ContextTest
 			FunctionBodyContext walker(*this);
 			SYMBOL_WALK(walker, symbol);
 		}
+		struct DeclareEts
+		{
+			ContextBase& context;
+			DeclareEts(ContextBase& context) : context(context)
+			{
+			}
+			void operator()(const char* id, const FilePosition& position) const
+			{
+				// todo: record ETS declaration
+			}
+		};
 		void visit(cpp::parameter_declaration_clause* symbol)
 		{
 #if 0
@@ -3898,7 +3909,7 @@ struct ContextTest
 			result = symbol;
 #elif 1
 			DefaultContext walker(*this);
-			defer(*ContextBase::deferred, walker, skipParenthesised, symbol);
+			defer(*ContextBase::deferred, walker, makeSkipParenthesised(DeclareEts(walker)), symbol);
 			result = symbol; // always succeeds!
 #else
 			ScopedSkip<skipParenthesised> skip(*parser);

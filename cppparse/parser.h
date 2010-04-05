@@ -603,34 +603,32 @@ inline ParseResult parseTerminal(Parser& parser, cpp::terminal_suffix<id>& resul
 #define PARSE_PREFIX(parser, Type) if(cpp::symbol<Type> p = parseSymbolRequired(parser, NullPtr<Type>::VALUE)) { if(p->right == 0) return p->left; return p; }
 
 
+inline bool peekForward(Parser& parser, LexTokenId id)
+{
+	parser.lexer.increment();
+	bool result = isToken(parser.lexer.get_id(), id);
+	parser.lexer.backtrack(1);
+	return result;
+}
+
+inline bool peekBackward(Parser& parser, LexTokenId id)
+{
+	parser.lexer.backtrack(1);
+	bool result = isToken(parser.lexer.get_id(), id);
+	parser.lexer.increment();
+	return result;
+}
+
 inline bool peekTemplateIdAmbiguity(Parser& parser)
 {
-	bool result = false;
-	if(isToken(parser.lexer.get_id(), boost::wave::T_IDENTIFIER))
-	{
-		parser.lexer.increment();
-		if(isToken(parser.lexer.get_id(), boost::wave::T_LESS))
-		{
-			result = true;
-		}
-		parser.lexer.backtrack(1);
-	}
-	return result;
+	return isToken(parser.lexer.get_id(), boost::wave::T_IDENTIFIER)
+		&& peekForward(parser, boost::wave::T_LESS);
 }
 
 inline bool peekTemplateIdAmbiguityPrev(Parser& parser)
 {
-	bool result = false;
-	if(isToken(parser.lexer.get_id(), boost::wave::T_LESS))
-	{
-		parser.lexer.backtrack(1);
-		if(isToken(parser.lexer.get_id(), boost::wave::T_IDENTIFIER))
-		{
-			result = true;
-		}
-		parser.lexer.increment();
-	}
-	return result;
+	return isToken(parser.lexer.get_id(), boost::wave::T_LESS)
+		&& peekBackward(parser, boost::wave::T_IDENTIFIER);
 }
 
 
@@ -1068,23 +1066,57 @@ inline void skipBraced(Parser& parser)
 }
 
 // skips a parenthesised expression
-inline void skipParenthesised(Parser& parser)
+template<typename Declare>
+struct SkipParenthesised
 {
-	while(!TOKEN_EQUAL(parser, boost::wave::T_RIGHTPAREN))
+	Declare declare;
+	SkipParenthesised(Declare declare) : declare(declare)
 	{
-		PARSE_ASSERT(!TOKEN_EQUAL(parser, boost::wave::T_EOF));
-		PARSE_ASSERT(!TOKEN_EQUAL(parser, boost::wave::T_SEMICOLON));
-		if(TOKEN_EQUAL(parser, boost::wave::T_LEFTPAREN))
+	}
+	inline void operator()(Parser& parser) const
+	{
+		while(!TOKEN_EQUAL(parser, boost::wave::T_RIGHTPAREN))
 		{
-			parser.increment();
-			skipParenthesised(parser);
-			parser.increment();
-		}
-		else
-		{
-			parser.increment();
+			PARSE_ASSERT(!TOKEN_EQUAL(parser, boost::wave::T_EOF));
+			PARSE_ASSERT(!TOKEN_EQUAL(parser, boost::wave::T_SEMICOLON));
+
+#if 0
+			if(TOKEN_EQUAL(parser, boost::wave::T_CLASS)
+				|| TOKEN_EQUAL(parser, boost::wave::T_STRUCT)
+				|| TOKEN_EQUAL(parser, boost::wave::T_UNION))
+			{
+				// elaborated-type-specifier of the form 'class-key identifier' declares 'identifier' in enclosing scope
+				parser.increment();
+				PARSE_ASSERT(TOKEN_EQUAL(parser, boost::wave::T_IDENTIFIER));
+				const char* id = parser.get_value();
+				FilePosition position = parser.get_position();
+				parser.increment();
+				if(!TOKEN_EQUAL(parser, boost::wave::T_LESS) // template-id
+					&& !TOKEN_EQUAL(parser, boost::wave::T_COLON_COLON)) // nested-name-specifier
+				{
+					declare(id, position);
+				}
+			}
+			else 
+#endif
+			if(TOKEN_EQUAL(parser, boost::wave::T_LEFTPAREN))
+			{
+				parser.increment();
+				(*this)(parser);
+				parser.increment();
+			}
+			else
+			{
+				parser.increment();
+			}
 		}
 	}
+};
+
+template<typename Declare>
+inline SkipParenthesised<Declare> makeSkipParenthesised(Declare declare)
+{
+	return SkipParenthesised<Declare>(declare);
 }
 
 // skips a mem-initializer-list
