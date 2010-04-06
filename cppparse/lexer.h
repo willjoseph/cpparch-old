@@ -322,6 +322,7 @@ struct Lexer
 	typedef BacktrackBuffer Tokens;
 	Tokens history;
 	Tokens::const_iterator position;
+	Tokens::const_iterator error;
 
 	typedef std::set<std::string, std::less<std::string>, DebugAllocator<std::string> > Identifiers;
 	Identifiers identifiers;
@@ -341,6 +342,7 @@ struct Lexer
 		last(createEnd(context)),
 		history(BACKTRACK_MAX),
 		position(history.end()),
+		error(history.end()),
 		stackpos(stacktrace.end()),
 		maxBacktrack(false)
 	{
@@ -370,6 +372,10 @@ struct Lexer
 		}
 		else
 		{
+			if(::distance(history, position, history.end()) < ::distance(history, error, history.end()))
+			{
+				error = position;
+			}
 			position = ::backtrack(history, position, count);
 			if(count > stats.count
 				&& symbol != 0)
@@ -431,6 +437,14 @@ struct Lexer
 	FilePosition get_position()
 	{
 		return position != history.end() ? (*position).position : makeFilePosition(::get_position(dereference(first)));
+	}
+	const char* getErrorValue()
+	{
+		return error != history.end() ? (*error).value : ::get_value(dereference(first));
+	}
+	FilePosition getErrorPosition()
+	{
+		return error != history.end() ? (*error).position : makeFilePosition(::get_position(dereference(first)));
 	}
 
 	void increment()

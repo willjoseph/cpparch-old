@@ -42,7 +42,7 @@ inline void printSequence(Lexer& lexer)
 	std::cout << "   ";
 	bool space = false;
 	bool endline = false;
-	for( Lexer::Tokens::const_iterator i = lexer.position; i != lexer.history.end(); i = next(lexer.history, i))
+	for( Lexer::Tokens::const_iterator i = lexer.position; i != lexer.error; i = next(lexer.history, i))
 	{
 		if(space && isIdentifier(*(*i).value))
 		{
@@ -278,8 +278,8 @@ inline void printError(Parser& parser)
 	}
 	printPosition(parser.lexer, lexer.history[parser.lexer.stacktrace.back()].position);
 #endif
-	printPosition(get_position(dereference(parser.lexer.first)));
-	std::cout << "syntax error: '" << get_value(dereference(parser.lexer.first)) << "'" << std::endl;
+	printPosition(parser.lexer.getErrorPosition());
+	std::cout << "syntax error: '" << parser.lexer.getErrorValue() << "'" << std::endl;
 	printSequence(parser.lexer); // rejected tokens
 }
 
