@@ -1130,6 +1130,137 @@ inline void skipMemInitializerList(Parser& parser)
 	}
 }
 
+
+
+#include <list>
+
+typedef std::list<struct DeferredParse> DeferredParseList;
+
+struct ContextBase
+{
+	ParserOpaque* parser;
+	void* result;
+	DeferredParseList* deferred;
+
+	ContextBase()
+		: deferred(0)
+	{
+	}
+
+	template<typename ContextType>
+	ParserGeneric<ContextType>& getParser(ContextType& context)
+	{
+		parser->context = &context;
+		return *static_cast<ParserGeneric<ContextType>*>(parser);
+	}
+};
+
+
+
+template<typename ContextType, typename T>
+struct DeferredParseThunk
+{
+	static void* thunk(const ContextBase& base, void* p)
+	{
+		ContextType walker(base);
+		T* symbol = static_cast<T*>(p);
+		return parseSymbol(walker.getParser(walker), symbol);
+	}
+};
+
+struct DeferredParseBase
+{
+	typedef void* (*Func)(ContextBase&, void*);
+	ContextBase context;
+	void* symbol;
+	Func func;
+};
+
+struct DeferredParse : public DeferredParseBase
+{
+	BacktrackBuffer buffer;
+
+	// hack!
+	DeferredParse(const DeferredParseBase& base)
+		: buffer(), DeferredParseBase(base)
+	{
+	}
+	DeferredParse(const DeferredParse& other)
+		: buffer(), DeferredParseBase(other)
+	{
+	}
+	DeferredParse& operator=(const DeferredParse& other)
+	{
+		if(&other != this)
+		{
+			this->~DeferredParse();
+			new(this) DeferredParse(other);
+		}
+		return *this;
+	}
+};
+
+template<typename Walker, typename T>
+inline DeferredParse makeDeferredParse(const Walker& context, T* symbol)
+{
+	DeferredParseBase result = { context, symbol, DeferredParse::Func(DeferredParseThunk<Walker, T>::thunk) };
+	return result;
+}
+
+inline void parseDeferred(DeferredParseList& deferred, ParserOpaque& parser)
+{
+	const Token* position = parser.lexer.position;
+	for(DeferredParseList::iterator i = deferred.begin(); i != deferred.end(); ++i)
+	{
+		DeferredParse& item = (*i);
+
+		parser.lexer.history.swap(item.buffer);
+		parser.lexer.position = parser.lexer.history.tokens;
+		item.context.parser = &parser;
+
+		void* result = item.func(item.context, item.symbol);
+
+		if(result == 0
+			|| parser.lexer.position != parser.lexer.history.end() - 1)
+		{
+			printError(parser);
+		}
+
+		parser.lexer.history.swap(item.buffer);
+	}
+	parser.lexer.position = position;
+}
+
+template<typename ContextType, typename T, typename Func>
+inline T* defer(DeferredParseList& deferred, ContextType& walker, Func skipFunc, T* symbol)
+{
+	Parser& parser = *walker.parser;
+	const Token* first = parser.lexer.position;
+
+	skipFunc(parser);
+
+	size_t count = ::distance(parser.lexer.history, first, parser.lexer.position);
+	if(count != 0)
+	{
+		deferred.push_back(makeDeferredParse(walker, symbol));
+
+		BacktrackBuffer buffer;
+		buffer.resize(count + 2); // adding 1 for EOF and 1 to allow use as circular buffer
+		for(const Token* p = first; p != parser.lexer.position; p = ::next(parser.lexer.history, p))
+		{
+			*buffer.position++ = *first++;
+		}
+		FilePosition nullPos = { "$null.cpp", 0, 0 };
+		*buffer.position++ = Token(boost::wave::T_EOF, "", nullPos);
+
+		deferred.back().buffer.swap(buffer);
+
+		return symbol;
+	}
+	return 0;
+}
+
+
 cpp::declaration_seq* parseFile(Lexer& lexer);
 cpp::statement_seq* parseFunction(Lexer& lexer);
 

@@ -422,311 +422,6 @@ bool isAnonymous(const Declaration& declaration)
 	return *declaration.name.value == '$';
 }
 
-template<typename OutputStreamType>
-struct TreePrinter // TODO: better name
-{
-	OutputStreamType& out;
-	bool visited;
-	TreePrinter(OutputStreamType& out)
-		: out(out), visited(false)
-	{
-	}
-
-	void visit(cpp::terminal_identifier symbol)
-	{
-	}
-
-	void visit(cpp::terminal_string symbol)
-	{
-	}
-
-	void visit(cpp::terminal_choice2 symbol)
-	{
-	}
-
-	template<LexTokenId id>
-	void visit(cpp::terminal<id> symbol)
-	{
-	}
-
-	template<typename T>
-	void visit(T* symbol)
-	{
-		if(typeid(T) != typeid(*symbol)) // if abstract
-		{
-			TREEWALKER_WALK(*this, symbol);
-		}
-		else
-		{
-			if(visited)
-			{
-				out << ", ";
-			}
-			visited = true;
-			out << SYMBOL_NAME(*symbol);
-#if 0 // don't print children
-			out << '(';
-			TreePrinter<OutputStreamType> tmp(out);
-			symbol->accept(tmp);
-			out << ')';
-#endif
-		}
-	}
-
-	template<typename T>
-	void visit(cpp::symbol<T> symbol)
-	{
-		if(symbol.p != 0)
-		{
-			visit(symbol.p);
-		}
-	}
-
-	void visit(cpp::declaration* symbol)
-	{
-	}
-
-	void visit(cpp::member_declaration* symbol)
-	{
-	}
-
-	void visit(cpp::statement* symbol)
-	{
-	}
-};
-
-typedef TokenPrinter<std::ofstream> FileTokenPrinter;
-
-struct PrintingWalker
-{
-	FileTokenPrinter& printer;
-	PrintingWalker(FileTokenPrinter& printer)
-		: printer(printer)
-	{
-	}
-	template<typename T>
-	void printSymbol(T* symbol)
-	{
-		SymbolPrinter walker(*this);
-		TREEWALKER_WALK(walker, symbol);
-	}
-
-	void printName(Scope* scope)
-	{
-		if(scope != 0
-			&& scope->parent != 0)
-		{
-			printName(scope->parent);
-			printer.out << getValue(scope->name) << ".";
-		}
-	}
-
-	void printName(Declaration* name)
-	{
-		if(name == 0)
-		{
-			printer.out << "<unknown>";
-		}
-		else
-		{
-			printName(name->scope);
-			printer.out << getValue(name->name);
-		}
-	}
-
-	void printName(const char* caption, Declaration* type, Declaration* name)
-	{
-		printer.out << "/* ";
-		printer.out << caption;
-		printName(type);
-		printer.out << ": ";
-		printName(name);
-		printer.out << " */";
-	}
-
-};
-
-const char* escapeTerminal(LexTokenId id, const char* value)
-{
-	switch(id)
-	{
-	case boost::wave::T_LESS: return "&lt;";
-	case boost::wave::T_LESSEQUAL: return "&lt;=";
-	case boost::wave::T_SHIFTLEFT: return "&lt;&lt;";
-	case boost::wave::T_SHIFTLEFTASSIGN: return "&lt;&lt;=";
-	case boost::wave::T_AND_ALT:
-	case boost::wave::T_AND: return "&amp;";
-	case boost::wave::T_ANDAND_ALT:
-	case boost::wave::T_ANDAND: return "&amp;&amp;";
-	case boost::wave::T_ANDASSIGN_ALT:
-	case boost::wave::T_ANDASSIGN: return "&amp;=";
-	default: break;
-	}
-
-	return value;
-}
-
-template<LexTokenId id> 
-const char* escapeTerminal(cpp::terminal<id> symbol)
-{
-	return escapeTerminal(id, symbol.value);
-}
-
-
-const char* escapeTerminal(cpp::terminal_choice2 symbol)
-{
-	return escapeTerminal(symbol.id, symbol.value);
-}
-
-
-bool isPrimary(const Identifier& id)
-{
-	// TODO: optimise
-	return id.dec.p != 0 && id.position == id.dec.p->name.position;
-}
-
-struct SymbolPrinter : PrintingWalker
-{
-	std::ofstream out;
-	FileTokenPrinter printer;
-
-	SymbolPrinter(const char* path)
-		: PrintingWalker(printer),
-		out(path),
-		printer(out)
-	{
-		printer.out << "<html>\n"
-			"<head>\n"
-			"<link rel='stylesheet' type='text/css' href='identifier.css'/>\n"
-			"</style>\n"
-			"</head>\n"
-			"<body>\n"
-			"<pre style='color:#000000;background:#ffffff;'>\n";
-	}
-	~SymbolPrinter()
-	{
-		printer.out << "</pre>\n"
-			"</body>\n"
-			"</html>\n";
-	}
-
-	void visit(cpp::terminal_identifier symbol)
-	{
-		printer.printToken(boost::wave::T_IDENTIFIER, symbol.value);
-	}
-
-	void visit(cpp::terminal_string symbol)
-	{
-		printer.printToken(boost::wave::T_STRINGLIT, symbol.value);
-	}
-
-	void visit(cpp::terminal_choice2 symbol)
-	{
-		printer.printToken(symbol.id, escapeTerminal(symbol));
-	}
-
-	template<LexTokenId id>
-	void visit(cpp::terminal<id> symbol)
-	{
-		if(symbol.value != 0)
-		{
-			printer.printToken(id, escapeTerminal(symbol));
-		}
-	}
-
-	template<typename T>
-	void visit(T* symbol)
-	{
-		symbol->accept(*this);
-	}
-
-	template<typename T>
-	void visit(cpp::symbol<T> symbol)
-	{
-		if(symbol.p != 0)
-		{
-			visit(symbol.p);
-		}
-	}
-
-	template<typename T>
-	void visit(cpp::ambiguity<T>* symbol)
-	{
-		SEMANTIC_ASSERT(symbol->second == 0);
-		visit(symbol->first);
-	}
-#if 0
-	void visit(cpp::declaration* symbol)
-	{
-		symbol->accept(*this);
-		printer.out << " // ";
-		TreePrinter<std::ofstream> tmp(printer.out);
-		symbol->accept(tmp);
-	}
-
-	void visit(cpp::member_declaration* symbol)
-	{
-		symbol->accept(*this);
-		printer.out << " // ";
-		TreePrinter<std::ofstream> tmp(printer.out);
-		symbol->accept(tmp);
-	}
-
-	void visit(cpp::statement* symbol)
-	{
-		symbol->accept(*this);
-		printer.out << " // ";
-		TreePrinter<std::ofstream> tmp(printer.out);
-		symbol->accept(tmp);
-	}
-#endif
-
-	void visit(cpp::identifier* symbol)
-	{
-		printer.formatToken(boost::wave::T_IDENTIFIER);
-
-		const char* type = symbol->value.dec.p != 0 ? getDeclarationType(*symbol->value.dec.p) : "unknown";
-		if(isPrimary(symbol->value))
-		{
-			printer.out << "<a name='";
-			printName(symbol->value.dec.p);
-			printer.out << "'></a>";
-		}
-		else
-		{
-			printer.out << "<a href='#";
-			printName(symbol->value.dec.p);
-			printer.out << "'>";
-		}
-		printer.out << "<" << type << ">";
-		printer.out << getValue(symbol->value);
-		printer.out << "</" << type << ">";
-		if(!isPrimary(symbol->value))
-		{
-			printer.out << "</a>";
-		}
-	}
-
-	void visit(cpp::simple_type_specifier_builtin* symbol)
-	{
-		printer.formatToken(symbol->value.id);
-
-		printer.out << "<type>";
-		printer.out << symbol->value.value;
-		printer.out << "</type>";
-	}
-	void visit(cpp::primary_expression_builtin* symbol)
-	{
-		printer.formatToken(symbol->key.ID);
-
-		printer.out << "<object>";
-		printer.out << symbol->key.value;
-		printer.out << "</object>";
-	}
-};
-
-
-
 struct DeclarationError
 {
 	const char* description;
@@ -3510,6 +3205,313 @@ struct NamespaceWalker : public WalkerBase
 };
 
 };
+
+
+
+template<typename OutputStreamType>
+struct TreePrinter // TODO: better name
+{
+	OutputStreamType& out;
+	bool visited;
+	TreePrinter(OutputStreamType& out)
+		: out(out), visited(false)
+	{
+	}
+
+	void visit(cpp::terminal_identifier symbol)
+	{
+	}
+
+	void visit(cpp::terminal_string symbol)
+	{
+	}
+
+	void visit(cpp::terminal_choice2 symbol)
+	{
+	}
+
+	template<LexTokenId id>
+	void visit(cpp::terminal<id> symbol)
+	{
+	}
+
+	template<typename T>
+	void visit(T* symbol)
+	{
+		if(typeid(T) != typeid(*symbol)) // if abstract
+		{
+			TREEWALKER_WALK(*this, symbol);
+		}
+		else
+		{
+			if(visited)
+			{
+				out << ", ";
+			}
+			visited = true;
+			out << SYMBOL_NAME(*symbol);
+#if 0 // don't print children
+			out << '(';
+			TreePrinter<OutputStreamType> tmp(out);
+			symbol->accept(tmp);
+			out << ')';
+#endif
+		}
+	}
+
+	template<typename T>
+	void visit(cpp::symbol<T> symbol)
+	{
+		if(symbol.p != 0)
+		{
+			visit(symbol.p);
+		}
+	}
+
+	void visit(cpp::declaration* symbol)
+	{
+	}
+
+	void visit(cpp::member_declaration* symbol)
+	{
+	}
+
+	void visit(cpp::statement* symbol)
+	{
+	}
+};
+
+typedef TokenPrinter<std::ofstream> FileTokenPrinter;
+
+struct PrintingWalker
+{
+	FileTokenPrinter& printer;
+	PrintingWalker(FileTokenPrinter& printer)
+		: printer(printer)
+	{
+	}
+	template<typename T>
+	void printSymbol(T* symbol)
+	{
+		SymbolPrinter walker(*this);
+		TREEWALKER_WALK(walker, symbol);
+	}
+
+	void printName(Scope* scope)
+	{
+		if(scope != 0
+			&& scope->parent != 0)
+		{
+			printName(scope->parent);
+			printer.out << getValue(scope->name) << ".";
+		}
+	}
+
+	void printName(Declaration* name)
+	{
+		if(name == 0)
+		{
+			printer.out << "<unknown>";
+		}
+		else
+		{
+			printName(name->scope);
+			printer.out << getValue(name->name);
+		}
+	}
+
+	void printName(const char* caption, Declaration* type, Declaration* name)
+	{
+		printer.out << "/* ";
+		printer.out << caption;
+		printName(type);
+		printer.out << ": ";
+		printName(name);
+		printer.out << " */";
+	}
+
+};
+
+const char* escapeTerminal(LexTokenId id, const char* value)
+{
+	switch(id)
+	{
+	case boost::wave::T_LESS: return "&lt;";
+	case boost::wave::T_LESSEQUAL: return "&lt;=";
+	case boost::wave::T_SHIFTLEFT: return "&lt;&lt;";
+	case boost::wave::T_SHIFTLEFTASSIGN: return "&lt;&lt;=";
+	case boost::wave::T_AND_ALT:
+	case boost::wave::T_AND: return "&amp;";
+	case boost::wave::T_ANDAND_ALT:
+	case boost::wave::T_ANDAND: return "&amp;&amp;";
+	case boost::wave::T_ANDASSIGN_ALT:
+	case boost::wave::T_ANDASSIGN: return "&amp;=";
+	default: break;
+	}
+
+	return value;
+}
+
+template<LexTokenId id> 
+const char* escapeTerminal(cpp::terminal<id> symbol)
+{
+	return escapeTerminal(id, symbol.value);
+}
+
+
+const char* escapeTerminal(cpp::terminal_choice2 symbol)
+{
+	return escapeTerminal(symbol.id, symbol.value);
+}
+
+
+bool isPrimary(const Identifier& id)
+{
+	// TODO: optimise
+	return id.dec.p != 0 && id.position == id.dec.p->name.position;
+}
+
+struct SymbolPrinter : PrintingWalker
+{
+	std::ofstream out;
+	FileTokenPrinter printer;
+
+	SymbolPrinter(const char* path)
+		: PrintingWalker(printer),
+		out(path),
+		printer(out)
+	{
+		printer.out << "<html>\n"
+			"<head>\n"
+			"<link rel='stylesheet' type='text/css' href='identifier.css'/>\n"
+			"</style>\n"
+			"</head>\n"
+			"<body>\n"
+			"<pre style='color:#000000;background:#ffffff;'>\n";
+	}
+	~SymbolPrinter()
+	{
+		printer.out << "</pre>\n"
+			"</body>\n"
+			"</html>\n";
+	}
+
+	void visit(cpp::terminal_identifier symbol)
+	{
+		printer.printToken(boost::wave::T_IDENTIFIER, symbol.value);
+	}
+
+	void visit(cpp::terminal_string symbol)
+	{
+		printer.printToken(boost::wave::T_STRINGLIT, symbol.value);
+	}
+
+	void visit(cpp::terminal_choice2 symbol)
+	{
+		printer.printToken(symbol.id, escapeTerminal(symbol));
+	}
+
+	template<LexTokenId id>
+	void visit(cpp::terminal<id> symbol)
+	{
+		if(symbol.value != 0)
+		{
+			printer.printToken(id, escapeTerminal(symbol));
+		}
+	}
+
+	template<typename T>
+	void visit(T* symbol)
+	{
+		symbol->accept(*this);
+	}
+
+	template<typename T>
+	void visit(cpp::symbol<T> symbol)
+	{
+		if(symbol.p != 0)
+		{
+			visit(symbol.p);
+		}
+	}
+
+	template<typename T>
+	void visit(cpp::ambiguity<T>* symbol)
+	{
+		SEMANTIC_ASSERT(symbol->second == 0);
+		visit(symbol->first);
+	}
+#if 0
+	void visit(cpp::declaration* symbol)
+	{
+		symbol->accept(*this);
+		printer.out << " // ";
+		TreePrinter<std::ofstream> tmp(printer.out);
+		symbol->accept(tmp);
+	}
+
+	void visit(cpp::member_declaration* symbol)
+	{
+		symbol->accept(*this);
+		printer.out << " // ";
+		TreePrinter<std::ofstream> tmp(printer.out);
+		symbol->accept(tmp);
+	}
+
+	void visit(cpp::statement* symbol)
+	{
+		symbol->accept(*this);
+		printer.out << " // ";
+		TreePrinter<std::ofstream> tmp(printer.out);
+		symbol->accept(tmp);
+	}
+#endif
+
+	void visit(cpp::identifier* symbol)
+	{
+		printer.formatToken(boost::wave::T_IDENTIFIER);
+
+		const char* type = symbol->value.dec.p != 0 ? getDeclarationType(*symbol->value.dec.p) : "unknown";
+		if(isPrimary(symbol->value))
+		{
+			printer.out << "<a name='";
+			printName(symbol->value.dec.p);
+			printer.out << "'></a>";
+		}
+		else
+		{
+			printer.out << "<a href='#";
+			printName(symbol->value.dec.p);
+			printer.out << "'>";
+		}
+		printer.out << "<" << type << ">";
+		printer.out << getValue(symbol->value);
+		printer.out << "</" << type << ">";
+		if(!isPrimary(symbol->value))
+		{
+			printer.out << "</a>";
+		}
+	}
+
+	void visit(cpp::simple_type_specifier_builtin* symbol)
+	{
+		printer.formatToken(symbol->value.id);
+
+		printer.out << "<type>";
+		printer.out << symbol->value.value;
+		printer.out << "</type>";
+	}
+	void visit(cpp::primary_expression_builtin* symbol)
+	{
+		printer.formatToken(symbol->key.ID);
+
+		printer.out << "<object>";
+		printer.out << symbol->key.value;
+		printer.out << "</object>";
+	}
+};
+
+
 
 
 void printSymbol(cpp::declaration_seq* p, const char* path)

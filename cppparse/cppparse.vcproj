@@ -275,6 +275,18 @@
 				RelativePath=".\visitor.h"
 				>
 			</File>
+			<Filter
+				Name="parser"
+				>
+				<File
+					RelativePath=".\parser\symbols.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\parser\symbols.h"
+					>
+				</File>
+			</Filter>
 		</Filter>
 	</Files>
 	<Globals>
