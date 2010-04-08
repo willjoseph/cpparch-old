@@ -2004,6 +2004,7 @@ struct ParameterDeclarationClauseWalker : public WalkerBase
 	{
 		SimpleDeclarationWalker walker(*this, true);
 		TREEWALKER_WALK(walker, symbol);
+		walker.declareDeferred();
 	}
 };
 
@@ -2082,10 +2083,12 @@ struct DeclaratorWalker : public WalkerBase
 	}
 	void visit(cpp::parameter_declaration_clause* symbol)
 	{
-		pushScope(templateParams != 0 ? templateParams : new Scope(makeIdentifier("$declarator")));
-		enclosing->type = SCOPETYPE_PROTOTYPE;
-		templateParams = 0;
-		ParameterDeclarationClauseWalker walker(*this);
+		// hack to resolve issue: when mingled with parser, deferred parse causes constructor of ParameterDeclarationClauseWalker to be invoked twice
+		WalkerBase base(*this);
+		base.pushScope(templateParams != 0 ? templateParams : new Scope(makeIdentifier("$declarator")));
+		base.enclosing->type = SCOPETYPE_PROTOTYPE;
+		base.templateParams = 0;
+		ParameterDeclarationClauseWalker walker(base);
 #ifdef MINGLE
 		if(WalkerBase::deferred != 0)
 		{
@@ -2854,19 +2857,40 @@ struct SimpleDeclarationWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Type type;
 	Declaration* declaration;
+	Scope* parent;
+	Identifier* id;
+	Type type;
+	Scope* enclosed;
 	DeclSpecifiers specifiers;
 	Identifier* forward;
 	bool isParameter;
 	bool isTemplateParameter;
 	bool isUnion;
+	bool isValueDependent;
 
-	SimpleDeclarationWalker(const WalkerBase& base, bool isParameter = false, bool isTemplateParameter = false)
-		: WalkerBase(base), type(&gCtor), declaration(0), forward(0), isParameter(isParameter), isTemplateParameter(isTemplateParameter), isUnion(false)
+	SimpleDeclarationWalker(const WalkerBase& base, bool isParameter = false, bool isTemplateParameter = false) : WalkerBase(base),
+		declaration(0),
+		parent(0),
+		id(0),
+		type(&gCtor),
+		enclosed(0),
+		forward(0),
+		isParameter(isParameter),
+		isTemplateParameter(isTemplateParameter),
+		isUnion(false),
+		isValueDependent(false)
 	{
 	}
 
+	void declareDeferred()
+	{
+		if(id != 0)
+		{
+			declaration = declareObject(parent, id, type, enclosed, specifiers, isValueDependent);
+			id = 0;
+		}
+	}
 
 	void visit(cpp::decl_specifier_seq* symbol)
 	{
@@ -2893,7 +2917,10 @@ struct SimpleDeclarationWalker : public WalkerBase
 	{
 		DeclaratorWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
-		declaration = declareObject(walker.enclosing, walker.id, type, walker.paramScope, specifiers, isTemplateParameter | walker.isValueDependent);
+		parent = walker.enclosing;
+		id = walker.id;
+		enclosed = walker.paramScope;
+		isValueDependent = isTemplateParameter | walker.isValueDependent;
 	}
 	void visit(cpp::declarator* symbol)
 	{
@@ -2932,18 +2959,45 @@ struct SimpleDeclarationWalker : public WalkerBase
 	}
 	void visit(cpp::terminal<boost::wave::T_ASSIGN> symbol)
 	{
+		if(symbol.value != 0)
+		{
+			declareDeferred();
+		}
 	}
 	void visit(cpp::terminal<boost::wave::T_TRY> symbol)
 	{
+		if(symbol.value != 0)
+		{
+			declareDeferred();
+		}
 	}
 	void visit(cpp::terminal<boost::wave::T_LEFTBRACE> symbol)
 	{
+		if(symbol.value != 0)
+		{
+			declareDeferred();
+		}
 	}
 	void visit(cpp::terminal<boost::wave::T_COMMA> symbol)
 	{
+		if(symbol.value != 0)
+		{
+			declareDeferred();
+		}
 	}
 	void visit(cpp::terminal<boost::wave::T_SEMICOLON> symbol)
 	{
+		if(symbol.value != 0)
+		{
+			declareDeferred();
+		}
+	}
+	void visit(cpp::terminal<boost::wave::T_COLON> symbol)
+	{
+		if(symbol.value != 0)
+		{
+			declareDeferred();
+		}
 	}
 
 	// handle assignment-expression(s) in initializer
@@ -3153,6 +3207,7 @@ struct TemplateParameterListWalker : public WalkerBase
 	{
 		SimpleDeclarationWalker walker(*this, false, true);
 		TREEWALKER_WALK(walker, symbol);
+		walker.declareDeferred();
 	}
 };
 
