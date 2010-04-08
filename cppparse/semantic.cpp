@@ -2854,29 +2854,16 @@ struct SimpleDeclarationWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Declaration* declaration;
-	Scope* parent;
-	Identifier* id;
 	Type type;
-	Scope* enclosed;
+	Declaration* declaration;
 	DeclSpecifiers specifiers;
 	Identifier* forward;
 	bool isParameter;
 	bool isTemplateParameter;
 	bool isUnion;
-	bool isValueDependent;
 
-	SimpleDeclarationWalker(const WalkerBase& base, bool isParameter = false, bool isTemplateParameter = false) : WalkerBase(base),
-		declaration(0),
-		parent(0),
-		id(0),
-		type(&gCtor),
-		enclosed(0),
-		forward(0),
-		isParameter(isParameter),
-		isTemplateParameter(isTemplateParameter),
-		isUnion(false),
-		isValueDependent(false)
+	SimpleDeclarationWalker(const WalkerBase& base, bool isParameter = false, bool isTemplateParameter = false)
+		: WalkerBase(base), type(&gCtor), declaration(0), forward(0), isParameter(isParameter), isTemplateParameter(isTemplateParameter), isUnion(false)
 	{
 	}
 
@@ -2906,11 +2893,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 	{
 		DeclaratorWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
-		parent = walker.enclosing;
-		id = walker.id;
-		enclosed = walker.paramScope;
-		isValueDependent = isTemplateParameter | walker.isValueDependent;
-		declaration = declareObject(parent, id, type, enclosed, specifiers, isValueDependent);
+		declaration = declareObject(walker.enclosing, walker.id, type, walker.paramScope, specifiers, isTemplateParameter | walker.isValueDependent);
 	}
 	void visit(cpp::declarator* symbol)
 	{
