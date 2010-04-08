@@ -789,12 +789,16 @@ struct ParserGeneric : public ParserOpaque
 	}
 };
 
-#define SYMBOL_WALK(walker, symbol) if((result = parseSymbol(getParser(walker), symbol)) == 0) return
+#define SYMBOL_WALK(walker, symbol) if((result = symbol = parseSymbol(getParser(walker), symbol)) == 0) return
 #define PARSERCONTEXT_DEFAULT \
 	template<typename T> \
 	void visit(T* symbol) \
 	{ \
 		SYMBOL_WALK(*this, symbol); \
+	} \
+	template<LexTokenId id> \
+	void visit(cpp::terminal<id> symbol) \
+	{ \
 	}
 
 template<typename ParserType>
@@ -819,18 +823,37 @@ struct ParsingVisitor
 	template<LexTokenId ID>
 	bool visit(cpp::terminal<ID>& t)
 	{
-		return parseTerminal(parser, t) == PARSERESULT_PASS;
+		bool result = parseTerminal(parser, t) == PARSERESULT_PASS;
+#if 1
+		if(t.value != 0)
+		{
+			parser.makeContext().visit(t);
+		}
+#endif
+		return result;
 	}
 	template<LexTokenId ID>
 	bool visit(cpp::terminal_optional<ID>& t)
 	{
 		parseTerminal(parser, t);
+#if 1
+		if(t.value != 0)
+		{
+			parser.makeContext().visit(t);
+		}
+#endif
 		return true;
 	}
 	template<LexTokenId ID>
 	bool visit(cpp::terminal_suffix<ID>& t)
 	{
 		skip = parseTerminal(parser, t) != PARSERESULT_PASS;
+#if 1
+		if(t.value != 0)
+		{
+			parser.makeContext().visit(t);
+		}
+#endif
 		return !skip;
 	}
 };
@@ -1080,7 +1103,7 @@ struct SkipParenthesised
 			PARSE_ASSERT(!TOKEN_EQUAL(parser, boost::wave::T_EOF));
 			PARSE_ASSERT(!TOKEN_EQUAL(parser, boost::wave::T_SEMICOLON));
 
-#if 0
+#if 1
 			if(TOKEN_EQUAL(parser, boost::wave::T_CLASS)
 				|| TOKEN_EQUAL(parser, boost::wave::T_STRUCT)
 				|| TOKEN_EQUAL(parser, boost::wave::T_UNION))
@@ -1088,13 +1111,12 @@ struct SkipParenthesised
 				// elaborated-type-specifier of the form 'class-key identifier' declares 'identifier' in enclosing scope
 				parser.increment();
 				PARSE_ASSERT(TOKEN_EQUAL(parser, boost::wave::T_IDENTIFIER));
-				const char* id = parser.get_value();
-				FilePosition position = parser.get_position();
+				cpp::terminal_identifier id = { parser.get_value(), parser.get_position() };
 				parser.increment();
 				if(!TOKEN_EQUAL(parser, boost::wave::T_LESS) // template-id
 					&& !TOKEN_EQUAL(parser, boost::wave::T_COLON_COLON)) // nested-name-specifier
 				{
-					declare(id, position);
+					declare(id);
 				}
 			}
 			else 
@@ -1134,33 +1156,12 @@ inline void skipMemInitializerList(Parser& parser)
 
 #include <list>
 
-typedef std::list<struct DeferredParse> DeferredParseList;
-
-struct ContextBase
-{
-	ParserOpaque* parser;
-	void* result;
-	DeferredParseList* deferred;
-
-	ContextBase()
-		: deferred(0)
-	{
-	}
-
-	template<typename ContextType>
-	ParserGeneric<ContextType>& getParser(ContextType& context)
-	{
-		parser->context = &context;
-		return *static_cast<ParserGeneric<ContextType>*>(parser);
-	}
-};
-
 
 
 template<typename ContextType, typename T>
 struct DeferredParseThunk
 {
-	static void* thunk(const ContextBase& base, void* p)
+	static void* thunk(const typename ContextType::Base& base, void* p)
 	{
 		ContextType walker(base);
 		T* symbol = static_cast<T*>(p);
@@ -1168,25 +1169,27 @@ struct DeferredParseThunk
 	}
 };
 
+template<typename ContextType>
 struct DeferredParseBase
 {
-	typedef void* (*Func)(ContextBase&, void*);
-	ContextBase context;
+	typedef void* (*Func)(ContextType&, void*);
+	ContextType context;
 	void* symbol;
 	Func func;
 };
 
-struct DeferredParse : public DeferredParseBase
+template<typename ContextType>
+struct DeferredParse : public DeferredParseBase<ContextType>
 {
 	BacktrackBuffer buffer;
 
 	// hack!
-	DeferredParse(const DeferredParseBase& base)
-		: buffer(), DeferredParseBase(base)
+	DeferredParse(const DeferredParseBase<ContextType>& base)
+		: buffer(), DeferredParseBase<ContextType>(base)
 	{
 	}
 	DeferredParse(const DeferredParse& other)
-		: buffer(), DeferredParseBase(other)
+		: buffer(), DeferredParseBase<ContextType>(other)
 	{
 	}
 	DeferredParse& operator=(const DeferredParse& other)
@@ -1200,19 +1203,34 @@ struct DeferredParse : public DeferredParseBase
 	}
 };
 
-template<typename Walker, typename T>
-inline DeferredParse makeDeferredParse(const Walker& context, T* symbol)
+struct ContextBase
 {
-	DeferredParseBase result = { context, symbol, DeferredParse::Func(DeferredParseThunk<Walker, T>::thunk) };
+	ParserOpaque* parser;
+	void* result;
+
+	template<typename ContextType>
+	ParserGeneric<ContextType>& getParser(ContextType& context)
+	{
+		parser->context = &context;
+		return *static_cast<ParserGeneric<ContextType>*>(parser);
+	}
+};
+
+
+template<typename Walker, typename T>
+inline DeferredParse<typename Walker::Base> makeDeferredParse(const Walker& context, T* symbol)
+{
+	DeferredParseBase<typename Walker::Base> result = { context, symbol, DeferredParse<typename Walker::Base>::Func(DeferredParseThunk<Walker, T>::thunk) };
 	return result;
 }
 
-inline void parseDeferred(DeferredParseList& deferred, ParserOpaque& parser)
+template<typename ListType>
+inline void parseDeferred(ListType& deferred, ParserOpaque& parser)
 {
 	const Token* position = parser.lexer.position;
-	for(DeferredParseList::iterator i = deferred.begin(); i != deferred.end(); ++i)
+	for(ListType::iterator i = deferred.begin(); i != deferred.end(); ++i)
 	{
-		DeferredParse& item = (*i);
+		typename ListType::value_type& item = (*i);
 
 		parser.lexer.history.swap(item.buffer);
 		parser.lexer.position = parser.lexer.history.tokens;
@@ -1231,8 +1249,8 @@ inline void parseDeferred(DeferredParseList& deferred, ParserOpaque& parser)
 	parser.lexer.position = position;
 }
 
-template<typename ContextType, typename T, typename Func>
-inline T* defer(DeferredParseList& deferred, ContextType& walker, Func skipFunc, T* symbol)
+template<typename ListType, typename ContextType, typename T, typename Func>
+inline T* defer(ListType& deferred, ContextType& walker, Func skipFunc, T* symbol)
 {
 	Parser& parser = *walker.parser;
 	const Token* first = parser.lexer.position;
@@ -1263,6 +1281,8 @@ inline T* defer(DeferredParseList& deferred, ContextType& walker, Func skipFunc,
 
 cpp::declaration_seq* parseFile(Lexer& lexer);
 cpp::statement_seq* parseFunction(Lexer& lexer);
+
+//#define MINGLE
 
 #endif
 

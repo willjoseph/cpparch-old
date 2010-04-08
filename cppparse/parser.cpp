@@ -47,14 +47,28 @@ struct ScopedSkip
 	}
 };
 
+typedef std::list< DeferredParse<struct ContextDefer> > DeferredParseList;
+
+struct ContextDefer : public ContextBase
+{
+	typedef ContextDefer Base;
+
+	DeferredParseList* deferred;
+
+	ContextDefer()
+		: deferred(0)
+	{
+	}
+};
+
 
 struct ContextTest
 {
-	struct DefaultContext : public ContextBase
+	struct DefaultContext : public ContextDefer
 	{
 		PARSERCONTEXT_DEFAULT;
-		DefaultContext(const ContextBase& base)
-			: ContextBase(base)
+		DefaultContext(const ContextDefer& base)
+			: ContextDefer(base)
 		{
 		}
 		void visit(cpp::class_specifier* symbol)
@@ -64,16 +78,16 @@ struct ContextTest
 			parseDeferred(walker.deferred, *parser);
 		}
 	};
-	struct ClassSpecifierContext : public ContextBase
+	struct ClassSpecifierContext : public ContextDefer
 	{
 		PARSERCONTEXT_DEFAULT;
 		DeferredParseList deferred;
-		ClassSpecifierContext(const ContextBase& base)
-			: ContextBase(base)
+		ClassSpecifierContext(const ContextDefer& base)
+			: ContextDefer(base)
 		{
-			if(ContextBase::deferred == 0) // first class-specifier takes priority
+			if(ContextDefer::deferred == 0) // first class-specifier takes priority
 			{
-				ContextBase::deferred = &deferred;
+				ContextDefer::deferred = &deferred;
 			}
 		}
 		void visit(cpp::member_declaration_named* symbol)
@@ -89,14 +103,14 @@ struct ContextTest
 			deferred.splice(deferred.end(), walker.deferred);
 		}
 	};
-	struct MemberDeclarationContext : public ContextBase
+	struct MemberDeclarationContext : public ContextDefer
 	{
 		PARSERCONTEXT_DEFAULT;
 		DeferredParseList deferred;
-		MemberDeclarationContext(const ContextBase& base)
-			: ContextBase(base)
+		MemberDeclarationContext(const ContextDefer& base)
+			: ContextDefer(base)
 		{
-			ContextBase::deferred = &deferred;
+			ContextDefer::deferred = &deferred;
 		}
 		void visit(cpp::function_body* symbol)
 		{
@@ -109,7 +123,7 @@ struct ContextTest
 			DeclareEts(ContextBase& context) : context(context)
 			{
 			}
-			void operator()(const char* id, const FilePosition& position) const
+			void operator()(cpp::terminal_identifier& id) const
 			{
 				// todo: record ETS declaration
 			}
@@ -121,7 +135,7 @@ struct ContextTest
 			result = symbol;
 #elif 1
 			DefaultContext walker(*this);
-			defer(*ContextBase::deferred, walker, makeSkipParenthesised(DeclareEts(walker)), symbol);
+			defer(*ContextDefer::deferred, walker, makeSkipParenthesised(DeclareEts(walker)), symbol);
 			result = symbol; // always succeeds!
 #else
 			ScopedSkip<skipParenthesised> skip(*parser);
@@ -136,7 +150,7 @@ struct ContextTest
 			result = symbol;
 #elif 1
 			DefaultContext walker(*this);
-			result = defer(*ContextBase::deferred, walker, skipMemInitializerList, symbol);
+			result = defer(*ContextDefer::deferred, walker, skipMemInitializerList, symbol);
 #else
 			ScopedSkip<skipMemInitializerList> skip(*parser);
 			DefaultContext walker(*this);
@@ -145,11 +159,11 @@ struct ContextTest
 		}
 	};
 
-	struct FunctionBodyContext : public ContextBase
+	struct FunctionBodyContext : public ContextDefer
 	{
 		PARSERCONTEXT_DEFAULT;
-		FunctionBodyContext(const ContextBase& base)
-			: ContextBase(base)
+		FunctionBodyContext(const ContextDefer& base)
+			: ContextDefer(base)
 		{
 		}
 		void visit(cpp::statement_seq* symbol)
@@ -159,7 +173,7 @@ struct ContextTest
 			result = symbol;
 #elif 1
 			DefaultContext walker(*this);
-			result = defer(*ContextBase::deferred, walker, skipBraced, symbol);
+			result = defer(*ContextDefer::deferred, walker, skipBraced, symbol);
 #else
 			ScopedSkip<skipBraced> skip(*parser);
 			DefaultContext walker(*this);
@@ -200,12 +214,13 @@ struct ContextN
 	};
 };
 
+#ifndef MINGLE
 cpp::declaration_seq* parseFile(Lexer& lexer)
 {
 #if 0
 	Parser parser(lexer);
 #else
-	ContextTest::DefaultContext context = ContextBase();
+	ContextTest::DefaultContext context = ContextDefer();
 	ParserGeneric<ContextTest::DefaultContext> parser(lexer, context);
 #endif
 
@@ -252,3 +267,4 @@ cpp::statement_seq* parseFunction(Lexer& lexer)
 	return result;
 }
 
+#endif
