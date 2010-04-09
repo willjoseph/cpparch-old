@@ -834,16 +834,6 @@ struct WalkerBase
 		{
 			enclosed->name = declaration->name;
 		}
-		enclosing = parent;
-		if(paramScope != 0)
-		{
-			enclosing = paramScope; // 3.3.2.1 parameter scope
-		}
-		else if(templateParams != 0)
-		{
-			pushScope(templateParams);
-		}
-		templateParams = 0;
 		return declaration;
 	}
 
@@ -2004,7 +1994,7 @@ struct ParameterDeclarationClauseWalker : public WalkerBase
 	{
 		SimpleDeclarationWalker walker(*this, true);
 		TREEWALKER_WALK(walker, symbol);
-		walker.declareDeferred();
+		walker.commit();
 	}
 };
 
@@ -2570,8 +2560,9 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 	DeclSpecifiers specifiers;
 	Identifier* forward;
 	bool isUnion;
-	DeclSpecifierSeqWalker(const WalkerBase& base)
-		: WalkerBase(base), type(0), forward(0), isUnion(false)
+	bool isTemplateParameter;
+	DeclSpecifierSeqWalker(const WalkerBase& base, bool isTemplateParameter = false)
+		: WalkerBase(base), type(0), forward(0), isUnion(false), isTemplateParameter(isTemplateParameter)
 	{
 	}
 
@@ -2583,6 +2574,13 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 	}
 	void visit(cpp::elaborated_type_specifier* symbol)
 	{
+#ifdef MINGLE
+		if(isTemplateParameter)
+		{
+			result = 0;
+			return;
+		}
+#endif
 		ElaboratedTypeSpecifierWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
 		forward = walker.id;
@@ -2864,6 +2862,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 	Scope* enclosed;
 	DeclSpecifiers specifiers;
 	Identifier* forward;
+	DeferredSymbols deferred;
 	bool isParameter;
 	bool isTemplateParameter;
 	bool isUnion;
@@ -2883,18 +2882,23 @@ struct SimpleDeclarationWalker : public WalkerBase
 	{
 	}
 
-	void declareDeferred()
+	void commit()
 	{
 		if(id != 0)
 		{
 			declaration = declareObject(parent, id, type, enclosed, specifiers, isValueDependent);
 			id = 0;
 		}
+		if(WalkerBase::deferred != 0
+			&& !deferred.empty())
+		{
+			WalkerBase::deferred->splice(WalkerBase::deferred->end(), deferred);
+		}
 	}
 
 	void visit(cpp::decl_specifier_seq* symbol)
 	{
-		DeclSpecifierSeqWalker walker(*this);
+		DeclSpecifierSeqWalker walker(*this, isTemplateParameter);
 		TREEWALKER_WALK(walker, symbol);
 		type = walker.type;
 		declaration = type.declaration; // if no declarator is specified later, this is probably a class-declaration
@@ -2912,15 +2916,34 @@ struct SimpleDeclarationWalker : public WalkerBase
 		isUnion = walker.isUnion;
 	}
 
+#ifdef MINGLE
+	void visit(cpp::init_declarator_disambiguate* symbol)
+	{
+		result = 0;
+	}
+#endif
+
 	template<typename T>
 	void walkDeclarator(T* symbol)
 	{
 		DeclaratorWalker walker(*this);
+		walker.deferred = &deferred;
 		TREEWALKER_WALK(walker, symbol);
 		parent = walker.enclosing;
 		id = walker.id;
 		enclosed = walker.paramScope;
 		isValueDependent = isTemplateParameter | walker.isValueDependent;
+
+		enclosing = parent;
+		if(walker.paramScope != 0)
+		{
+			enclosing = walker.paramScope; // 3.3.2.1 parameter scope
+		}
+		else if(templateParams != 0)
+		{
+			pushScope(templateParams);
+		}
+		templateParams = 0;
 	}
 	void visit(cpp::declarator* symbol)
 	{
@@ -2961,42 +2984,42 @@ struct SimpleDeclarationWalker : public WalkerBase
 	{
 		if(symbol.value != 0)
 		{
-			declareDeferred();
+			commit();
 		}
 	}
 	void visit(cpp::terminal<boost::wave::T_TRY> symbol)
 	{
 		if(symbol.value != 0)
 		{
-			declareDeferred();
+			commit();
 		}
 	}
 	void visit(cpp::terminal<boost::wave::T_LEFTBRACE> symbol)
 	{
 		if(symbol.value != 0)
 		{
-			declareDeferred();
+			commit();
 		}
 	}
 	void visit(cpp::terminal<boost::wave::T_COMMA> symbol)
 	{
 		if(symbol.value != 0)
 		{
-			declareDeferred();
+			commit();
 		}
 	}
 	void visit(cpp::terminal<boost::wave::T_SEMICOLON> symbol)
 	{
 		if(symbol.value != 0)
 		{
-			declareDeferred();
+			commit();
 		}
 	}
 	void visit(cpp::terminal<boost::wave::T_COLON> symbol)
 	{
 		if(symbol.value != 0)
 		{
-			declareDeferred();
+			commit();
 		}
 	}
 
@@ -3047,7 +3070,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 #ifdef MINGLE
 		if(WalkerBase::deferred != 0)
 		{
-			result = defer(*WalkerBase::deferred, walker, skipBraced, symbol);
+			result = defer(deferred, walker, skipBraced, symbol);
 		}
 		else
 #endif
@@ -3066,9 +3089,13 @@ struct SimpleDeclarationWalker : public WalkerBase
 		walkDeferable(walker, symbol);
 	}
 #ifdef MINGLE
-	void visit(cpp::mem_initializer_list* symbol)
+	void visit(cpp::ctor_initializer* symbol)
 	{
-		result = defer(*WalkerBase::deferred, *this, skipMemInitializerList, symbol);
+		result = defer(deferred, *this, skipCtorInitializer, symbol);
+		if(result != 0)
+		{
+			commit();
+		}
 	}
 #endif
 
@@ -3207,7 +3234,7 @@ struct TemplateParameterListWalker : public WalkerBase
 	{
 		SimpleDeclarationWalker walker(*this, false, true);
 		TREEWALKER_WALK(walker, symbol);
-		walker.declareDeferred();
+		walker.commit();
 	}
 };
 

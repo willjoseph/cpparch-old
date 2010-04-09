@@ -1142,13 +1142,17 @@ inline SkipParenthesised<Declare> makeSkipParenthesised(Declare declare)
 }
 
 // skips a mem-initializer-list
-inline void skipMemInitializerList(Parser& parser)
+inline void skipCtorInitializer(Parser& parser)
 {
-	while(!TOKEN_EQUAL(parser, boost::wave::T_LEFTBRACE))
+	if(TOKEN_EQUAL(parser, boost::wave::T_COLON))
 	{
-		PARSE_ASSERT(!TOKEN_EQUAL(parser, boost::wave::T_EOF));
-		PARSE_ASSERT(!TOKEN_EQUAL(parser, boost::wave::T_SEMICOLON));
 		parser.increment();
+		while(!TOKEN_EQUAL(parser, boost::wave::T_LEFTBRACE))
+		{
+			PARSE_ASSERT(!TOKEN_EQUAL(parser, boost::wave::T_EOF));
+			PARSE_ASSERT(!TOKEN_EQUAL(parser, boost::wave::T_SEMICOLON));
+			parser.increment();
+		}
 	}
 }
 
@@ -1233,7 +1237,7 @@ inline void parseDeferred(ListType& deferred, ParserOpaque& parser)
 		typename ListType::value_type& item = (*i);
 
 		parser.lexer.history.swap(item.buffer);
-		parser.lexer.position = parser.lexer.history.tokens;
+		parser.lexer.position = parser.lexer.error = parser.lexer.history.tokens;
 		item.context.parser = &parser;
 
 		void* result = item.func(item.context, item.symbol);
@@ -1246,7 +1250,7 @@ inline void parseDeferred(ListType& deferred, ParserOpaque& parser)
 
 		parser.lexer.history.swap(item.buffer);
 	}
-	parser.lexer.position = position;
+	parser.lexer.position = parser.lexer.error = position;
 }
 
 template<typename ListType, typename ContextType, typename T, typename Func>
@@ -1282,7 +1286,7 @@ inline T* defer(ListType& deferred, ContextType& walker, Func skipFunc, T* symbo
 cpp::declaration_seq* parseFile(Lexer& lexer);
 cpp::statement_seq* parseFunction(Lexer& lexer);
 
-//#define MINGLE
+#define MINGLE
 
 #endif
 

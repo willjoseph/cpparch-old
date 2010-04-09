@@ -1,4 +1,11 @@
 
+typedef int I;
+struct S19
+{
+	I (*func)(I);
+	I (func)(I);
+};
+
 namespace N15
 {
 	struct S
@@ -51,12 +58,6 @@ namespace N24
 	};
 }
 
-typedef int I;
-struct S19
-{
-	I (*func)(I);
-	I (func)(I);
-};
 
 /* 3.4.1-8
 A name used in the definition of a member function (9.3) of class X following the function’s declarator-id 33) shall be
