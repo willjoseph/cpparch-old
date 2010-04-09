@@ -1,4 +1,23 @@
 
+// testing name-lookup within declarator-suffix
+class C6
+{
+	enum { SIZE = 1 };
+	static int m[SIZE];
+};
+
+int C6::m[SIZE];
+
+class C8
+{
+	typedef int I;
+	void f(I);
+};
+
+void C8::f(I)
+{
+}
+
 typedef int I;
 struct S19
 {
@@ -586,20 +605,6 @@ namespace N5
 }
 #endif
 
-// testing name-lookup within declarator-suffix
-class C6
-{
-	enum { SIZE = 1 };
-	static int m[SIZE];
-
-	typedef int I;
-	void f(I);
-};
-
-int C6::m[SIZE];
-void C6::f(I)
-{
-}
 namespace N
 {
 	template<typename T>

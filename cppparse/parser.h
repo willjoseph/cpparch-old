@@ -1286,7 +1286,7 @@ inline T* defer(ListType& deferred, ContextType& walker, Func skipFunc, T* symbo
 cpp::declaration_seq* parseFile(Lexer& lexer);
 cpp::statement_seq* parseFunction(Lexer& lexer);
 
-#define MINGLE
+//#define MINGLE
 
 #endif
 

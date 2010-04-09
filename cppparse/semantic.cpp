@@ -2927,7 +2927,10 @@ struct SimpleDeclarationWalker : public WalkerBase
 	void walkDeclarator(T* symbol)
 	{
 		DeclaratorWalker walker(*this);
-		walker.deferred = &deferred;
+		if(WalkerBase::deferred != 0)
+		{
+			walker.deferred = &deferred;
+		}
 		TREEWALKER_WALK(walker, symbol);
 		parent = walker.enclosing;
 		id = walker.id;
