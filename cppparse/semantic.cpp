@@ -2862,7 +2862,9 @@ struct SimpleDeclarationWalker : public WalkerBase
 	Scope* enclosed;
 	DeclSpecifiers specifiers;
 	Identifier* forward;
+#ifdef MINGLE
 	DeferredSymbols deferred;
+#endif
 	bool isParameter;
 	bool isTemplateParameter;
 	bool isUnion;
@@ -2889,11 +2891,13 @@ struct SimpleDeclarationWalker : public WalkerBase
 			declaration = declareObject(parent, id, type, enclosed, specifiers, isValueDependent);
 			id = 0;
 		}
+#ifdef MINGLE
 		if(WalkerBase::deferred != 0
 			&& !deferred.empty())
 		{
 			WalkerBase::deferred->splice(WalkerBase::deferred->end(), deferred);
 		}
+#endif
 	}
 
 	void visit(cpp::decl_specifier_seq* symbol)
@@ -2927,10 +2931,12 @@ struct SimpleDeclarationWalker : public WalkerBase
 	void walkDeclarator(T* symbol)
 	{
 		DeclaratorWalker walker(*this);
+#ifdef MINGLE
 		if(WalkerBase::deferred != 0)
 		{
 			walker.deferred = &deferred;
 		}
+#endif
 		TREEWALKER_WALK(walker, symbol);
 		parent = walker.enclosing;
 		id = walker.id;
