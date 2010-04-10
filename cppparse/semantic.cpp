@@ -2889,6 +2889,18 @@ struct SimpleDeclarationWalker : public WalkerBase
 		if(id != 0)
 		{
 			declaration = declareObject(parent, id, type, enclosed, specifiers, isValueDependent);
+
+			enclosing = parent;
+			if(enclosed != 0)
+			{
+				enclosing = enclosed; // 3.3.2.1 parameter scope
+			}
+			else if(templateParams != 0)
+			{
+				pushScope(templateParams);
+			}
+			templateParams = 0;
+
 			id = 0;
 		}
 #ifdef MINGLE
@@ -2942,17 +2954,6 @@ struct SimpleDeclarationWalker : public WalkerBase
 		id = walker.id;
 		enclosed = walker.paramScope;
 		isValueDependent = isTemplateParameter | walker.isValueDependent;
-
-		enclosing = parent;
-		if(walker.paramScope != 0)
-		{
-			enclosing = walker.paramScope; // 3.3.2.1 parameter scope
-		}
-		else if(templateParams != 0)
-		{
-			pushScope(templateParams);
-		}
-		templateParams = 0;
 	}
 	void visit(cpp::declarator* symbol)
 	{
