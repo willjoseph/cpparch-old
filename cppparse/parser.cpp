@@ -143,7 +143,7 @@ struct ContextTest
 			SYMBOL_WALK(walker, symbol);
 #endif
 		}
-		void visit(cpp::mem_initializer_list* symbol)
+		void visit(cpp::ctor_initializer* symbol)
 		{
 #if 0
 			skipCtorInitializer(*parser);
