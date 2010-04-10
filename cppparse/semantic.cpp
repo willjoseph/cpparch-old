@@ -3098,13 +3098,9 @@ struct SimpleDeclarationWalker : public WalkerBase
 		walkDeferable(walker, symbol);
 	}
 #ifdef MINGLE
-	void visit(cpp::ctor_initializer* symbol)
+	void visit(cpp::mem_initializer_clause* symbol)
 	{
-		result = defer(deferred, *this, skipCtorInitializer, symbol);
-		if(result != 0)
-		{
-			commit();
-		}
+		result = defer(deferred, *this, skipMemInitializerClause, symbol);
 	}
 #endif
 

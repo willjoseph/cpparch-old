@@ -1842,10 +1842,16 @@ namespace cpp
 		FOREACH3(item, comma, next);
 	};
 
+	struct mem_initializer_clause
+	{
+		symbol<mem_initializer_list> list;
+		FOREACH1(list);
+	};
+
 	struct ctor_initializer
 	{
 		terminal<boost::wave::T_COLON> colon;
-		symbol<mem_initializer_list> list;
+		symbol<mem_initializer_clause> list;
 		FOREACH2(colon, list);
 	};
 

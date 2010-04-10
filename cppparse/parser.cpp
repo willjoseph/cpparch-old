@@ -143,16 +143,16 @@ struct ContextTest
 			SYMBOL_WALK(walker, symbol);
 #endif
 		}
-		void visit(cpp::ctor_initializer* symbol)
+		void visit(cpp::mem_initializer_clause* symbol)
 		{
 #if 0
-			skipCtorInitializer(*parser);
+			skipMemInitializerClause(*parser);
 			result = symbol;
 #elif 1
 			DefaultContext walker(*this);
-			result = defer(*ContextDefer::deferred, walker, skipCtorInitializer, symbol);
+			result = defer(*ContextDefer::deferred, walker, skipMemInitializerClause, symbol);
 #else
-			ScopedSkip<skipCtorInitializer> skip(*parser);
+			ScopedSkip<skipMemInitializerClause> skip(*parser);
 			DefaultContext walker(*this);
 			SYMBOL_WALK(walker, symbol);
 #endif

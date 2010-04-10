@@ -1142,17 +1142,14 @@ inline SkipParenthesised<Declare> makeSkipParenthesised(Declare declare)
 }
 
 // skips a mem-initializer-list
-inline void skipCtorInitializer(Parser& parser)
+inline void skipMemInitializerClause(Parser& parser)
 {
-	if(TOKEN_EQUAL(parser, boost::wave::T_COLON))
+	parser.increment();
+	while(!TOKEN_EQUAL(parser, boost::wave::T_LEFTBRACE))
 	{
+		PARSE_ASSERT(!TOKEN_EQUAL(parser, boost::wave::T_EOF));
+		PARSE_ASSERT(!TOKEN_EQUAL(parser, boost::wave::T_SEMICOLON));
 		parser.increment();
-		while(!TOKEN_EQUAL(parser, boost::wave::T_LEFTBRACE))
-		{
-			PARSE_ASSERT(!TOKEN_EQUAL(parser, boost::wave::T_EOF));
-			PARSE_ASSERT(!TOKEN_EQUAL(parser, boost::wave::T_SEMICOLON));
-			parser.increment();
-		}
 	}
 }
 
