@@ -3178,7 +3178,7 @@ struct TypeParameterWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	bool isTemplate;
-	TypeParameterWalker(WalkerBase& base, bool isTemplate = false)
+	TypeParameterWalker(const WalkerBase& base, bool isTemplate = false)
 		: WalkerBase(base), isTemplate(isTemplate)
 	{
 	}
@@ -3225,7 +3225,7 @@ struct TemplateParameterListWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	TemplateParameterListWalker(WalkerBase& base)
+	TemplateParameterListWalker(const WalkerBase& base)
 		: WalkerBase(base)
 	{
 	}
@@ -3252,7 +3252,7 @@ struct TemplateDeclarationWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	Declaration* declaration;
-	TemplateDeclarationWalker(WalkerBase& base)
+	TemplateDeclarationWalker(const WalkerBase& base)
 		: WalkerBase(base), declaration(0)
 	{
 		templateEnclosing = enclosing;
@@ -3289,7 +3289,7 @@ struct DeclarationWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	Declaration* declaration;
-	DeclarationWalker(WalkerBase& base)
+	DeclarationWalker(const WalkerBase& base)
 		: WalkerBase(base), declaration(0)
 	{
 	}
@@ -3344,7 +3344,7 @@ struct NamespaceWalker : public WalkerBase
 		pushScope(&context.global);
 	}
 
-	NamespaceWalker(WalkerBase& base)
+	NamespaceWalker(const WalkerBase& base)
 		: WalkerBase(base)
 	{
 	}

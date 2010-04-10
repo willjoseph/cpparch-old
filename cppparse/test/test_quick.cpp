@@ -1,4 +1,18 @@
 
+template<typename A>
+class Template7
+{
+	template<typename B>
+	void f(B);
+};
+
+template<typename X>
+template<typename Y>
+void Template7::f(Y)
+{
+}
+
+
 // testing name-lookup within declarator-suffix
 class C6
 {
@@ -656,19 +670,6 @@ namespace std
 		_Ty1 first;	// the first stored value
 		_Ty2 second;	// the second stored value
 	};
-}
-
-template<typename A>
-class Template7
-{
-	template<typename B>
-	void f(B);
-};
-
-template<typename X>
-template<typename Y>
-void Template7::f(Y)
-{
 }
 
 
