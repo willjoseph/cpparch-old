@@ -128,10 +128,10 @@ int runTest(const Test& test)
 #endif
 
 		LexContext& context = createContext(instring, "$outer.cpp");
-		add_sysinclude_path(context, "C:\\Program Files\\Microsoft Visual Studio 8\\VC\\include");
-		add_sysinclude_path(context, "C:\\Program Files\\Microsoft Visual Studio 8\\VC\\PlatformSDK\\include");
 		add_sysinclude_path(context, "C:\\Program Files (x86)\\Microsoft Visual Studio 8\\VC\\include");
 		add_sysinclude_path(context, "C:\\Program Files (x86)\\Microsoft Visual Studio 8\\VC\\PlatformSDK\\include");
+		add_sysinclude_path(context, "C:\\Program Files\\Microsoft Visual Studio 8\\VC\\include");
+		add_sysinclude_path(context, "C:\\Program Files\\Microsoft Visual Studio 8\\VC\\PlatformSDK\\include");
 		add_sysinclude_path(context, "C:\\Program Files\\Microsoft Platform SDK for Windows Server 2003 R2\\include");
 		add_macro_definition(context, "__fastcall=", true);
 		add_macro_definition(context, "__thiscall=", true);

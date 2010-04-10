@@ -1734,8 +1734,8 @@ struct TemplateIdWalker : public WalkerBase
 			else
 			{
 				symbol->value.dec.p = declaration;
+				type.declaration = declaration;
 			}
-			type.declaration = declaration;
 		}
 		else if(!isTypename)
 		{
@@ -1784,8 +1784,8 @@ struct TypeNameWalker : public WalkerBase
 			else
 			{
 				symbol->value.dec.p = declaration;
+				type.declaration = declaration;
 			}
-			type.declaration = declaration;
 		}
 		else if(!isTypename)
 		{
@@ -1826,8 +1826,8 @@ struct NestedNameSpecifierWalker : public WalkerBase
 			else
 			{
 				symbol->value.dec.p = declaration;
+				setQualifying(declaration);
 			}
-			setQualifying(declaration);
 		}
 		else
 		{
