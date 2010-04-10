@@ -140,7 +140,7 @@ struct Scope
 	ScopeType type;
 	typedef std::vector<Type> Bases;
 	Bases bases;
-	Declarations templateParams;
+	Declarations templateParamTypes;
 
 	Scope(const Identifier& name, ScopeType type = SCOPETYPE_UNKNOWN)
 		: parent(0), name(name), enclosedScopeCount(0), type(type)
@@ -331,14 +331,24 @@ bool isExtern(const Declaration& declaration)
 	return declaration.specifiers.isExtern;
 }
 
-bool isTypeParameter(const Scope& scope, Declaration* declaration)
+Scope::Declarations::const_iterator findDeclaration(const Scope::Declarations& declarations, const Declaration* declaration)
 {
-	for(Scope::Declarations::const_iterator i = scope.templateParams.begin(); i != scope.templateParams.end(); ++i)
+	Scope::Declarations::const_iterator i = declarations.begin();
+	for(; i != declarations.end(); ++i)
 	{
 		if(&(*i) == declaration)
 		{
-			return true;
+			break;
 		}
+	}
+	return i;
+}
+
+bool isTypeParameter(const Scope& scope, Declaration* declaration)
+{
+	if(findDeclaration(scope.templateParamTypes, declaration) != scope.templateParamTypes.end())
+	{
+		return true;
 	}
 	if(scope.parent != 0)
 	{
@@ -813,13 +823,13 @@ struct WalkerBase
 		return declaration;
 	}
 
-	Declaration* declareObject(Scope* parent, Identifier* id, const Type& type, Scope* paramScope, DeclSpecifiers specifiers, bool isValueDependent)
+	Declaration* declareObject(Scope* parent, Identifier* id, const Type& type, Scope* enclosed, DeclSpecifiers specifiers, bool isValueDependent)
 	{
 		Declaration* declaration = pointOfDeclaration(
 			parent,
 			*id,
 			type,
-			specifiers.isTypedef ? type.declaration->enclosed : paramScope,
+			specifiers.isTypedef ? type.declaration->enclosed : enclosed,
 			specifiers,
 			enclosing == templateEnclosing,
 			false,
@@ -827,12 +837,6 @@ struct WalkerBase
 		if(id != &gAnonymousId)
 		{
 			id->dec.p = declaration;
-		}
-		Scope* enclosed = templateParams != 0 ? templateParams : declaration->enclosed;
-		if(enclosed != 0
-			&& !specifiers.isTypedef)
-		{
-			enclosed->name = declaration->name;
 		}
 		return declaration;
 	}
@@ -2075,9 +2079,21 @@ struct DeclaratorWalker : public WalkerBase
 	{
 		// hack to resolve issue: when mingled with parser, deferred parse causes constructor of ParameterDeclarationClauseWalker to be invoked twice
 		WalkerBase base(*this);
-		base.pushScope(templateParams != 0 ? templateParams : new Scope(makeIdentifier("$declarator")));
+		base.pushScope(new Scope(makeIdentifier("$declarator")));
 		base.enclosing->type = SCOPETYPE_PROTOTYPE;
 		base.templateParams = 0;
+		if(templateParams != 0)
+		{
+			base.enclosing->declarations = templateParams->declarations;
+			for(Scope::Declarations::iterator i = base.enclosing->declarations.begin(); i != base.enclosing->declarations.end(); ++i)
+			{
+				if(::findDeclaration(templateParams->templateParamTypes, (*i).type.declaration) != templateParams->templateParamTypes.end())
+				{
+					base.enclosing->templateParamTypes.push_back(gParam);
+					(*i).type = &base.enclosing->templateParamTypes.back();
+				}
+			}
+		}
 		ParameterDeclarationClauseWalker walker(base);
 #ifdef MINGLE
 		if(WalkerBase::deferred != 0)
@@ -2891,13 +2907,11 @@ struct SimpleDeclarationWalker : public WalkerBase
 			declaration = declareObject(parent, id, type, enclosed, specifiers, isValueDependent);
 
 			enclosing = parent;
+
 			if(enclosed != 0)
 			{
+				enclosed->name = declaration->name;
 				enclosing = enclosed; // 3.3.2.1 parameter scope
-			}
-			else if(templateParams != 0)
-			{
-				pushScope(templateParams);
 			}
 			templateParams = 0;
 
@@ -3182,8 +3196,8 @@ struct TypeParameterWalker : public WalkerBase
 	void visit(cpp::identifier* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		enclosing->templateParams.push_back(gParam);
-		symbol->value.dec.p = pointOfDeclaration(enclosing, symbol->value, &enclosing->templateParams.back(), 0, DECLSPEC_TYPEDEF, isTemplate);
+		enclosing->templateParamTypes.push_back(gParam);
+		symbol->value.dec.p = pointOfDeclaration(enclosing, symbol->value, &enclosing->templateParamTypes.back(), 0, DECLSPEC_TYPEDEF, isTemplate);
 	}
 	void visit(cpp::type_id* symbol)
 	{

@@ -2,21 +2,7 @@
 template<typename T>
 typename T::dependent f(typename T::dependent t)
 {
-	dependent1(T::dependent2());
-
-	DependentTmpl<T>::dependent(t); // function-call
-	dependent(dependent(t));
-
-	typedef DependentTmpl<T> DependentType;
-	dependent(DependentType(t)); // dependent-type looks like a dependent-name
-
-	typename DependentTmpl<T>::dependent l; // member-typedef
-	int i = (typename DependentTmpl<T>::dependent)1;
-
-	dependent(DependentTmpl<T>());
-	dependent(t);
 }
-
 
 template<typename A>
 class Template7
@@ -177,6 +163,24 @@ template<typename T>
 class DependentTmpl
 {
 };
+
+template<typename T>
+typename T::dependent f(typename T::dependent t)
+{
+	dependent1(T::dependent2());
+
+	DependentTmpl<T>::dependent(t); // function-call
+	dependent(dependent(t));
+
+	typedef DependentTmpl<T> DependentType;
+	dependent(DependentType(t)); // dependent-type looks like a dependent-name
+
+	typename DependentTmpl<T>::dependent l; // member-typedef
+	int i = (typename DependentTmpl<T>::dependent)1;
+
+	dependent(DependentTmpl<T>());
+	dependent(t);
+}
 
 template<typename T>
 class DependentMemInit : public T, public DependentTmpl<T>
