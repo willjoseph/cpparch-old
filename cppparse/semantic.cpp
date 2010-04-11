@@ -1817,6 +1817,18 @@ struct NestedNameSpecifierWalker : public WalkerBase
 		: WalkerBase(base), allowDependent(allowDependent)
 	{
 	}
+	void visit(cpp::nested_name_specifier_prefix* symbol)
+	{
+		NestedNameSpecifierWalker walker(*this, allowDependent);
+		TREEWALKER_WALK(walker, symbol);
+		qualifying = walker.qualifying;
+	}
+	void visit(cpp::nested_name_specifier_suffix* symbol)
+	{
+		NestedNameSpecifierWalker walker(*this, allowDependent);
+		TREEWALKER_WALK(walker, symbol);
+		qualifying = walker.qualifying;
+	}
 	void visit(cpp::identifier* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
@@ -2399,16 +2411,26 @@ struct EnumSpecifierWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	Declaration* declaration;
+	Identifier* id;
 	EnumSpecifierWalker(const WalkerBase& base)
-		: WalkerBase(base), declaration(0)
+		: WalkerBase(base), declaration(0), id(0)
 	{
 	}
 
 	void visit(cpp::identifier* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		declaration = pointOfDeclaration(enclosing, symbol->value, &gEnum, 0);
-		symbol->value.dec.p = declaration;
+		id = &symbol->value;
+	}
+
+	void visit(cpp::terminal<boost::wave::T_LEFTBRACE> symbol)
+	{
+		// defer declaration until '{' resolves ambiguity between enum-specifier and elaborated-type-specifier
+		if(id != 0)
+		{
+			declaration = pointOfDeclaration(enclosing, *id, &gEnum, 0);
+			id->dec.p = declaration;
+		}
 	}
 
 	void visit(cpp::enumerator_definition* symbol)
@@ -3696,10 +3718,10 @@ void printSymbol(cpp::declaration_seq* p, const char* path)
 		WalkerContext context;
 		Walker::NamespaceWalker walker(context);
 		walker.visit(makeSymbol(p));
-#endif
 
 		SymbolPrinter printer(path);
 		printer.visit(makeSymbol(p));
+#endif
 	}
 	catch(SemanticError&)
 	{
@@ -3714,10 +3736,10 @@ void printSymbol(cpp::statement_seq* p, const char* path)
 		WalkerContext context;
 		Walker::NamespaceWalker walker(context);
 		walker.visit(makeSymbol(p));
-#endif
 
 		SymbolPrinter printer(path);
 		printer.visit(makeSymbol(p));
+#endif
 	}
 	catch(SemanticError&)
 	{

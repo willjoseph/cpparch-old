@@ -1,8 +1,40 @@
 
-template<typename T>
-typename T::dependent f(typename T::dependent t)
+
+/* 3.4.4-1
+An elaborated-type-specifier (7.1.6.3) may be used to refer to a previously declared class-name or enum-name
+even though the name has been hidden by a non-type declaration (3.3.10).
+*/
+struct Hidden
 {
+	typedef int T;
+};
+namespace N3
+{
+	int Hidden;
+	struct S
+	{
+		struct Hidden h;
+	};
+	Hidden::T i;
 }
+
+/* 3.4.4-1
+An elaborated-type-specifier (7.1.6.3) may be used to refer to a previously declared class-name or enum-name
+even though the name has been hidden by a non-type declaration (3.3.10).
+*/
+enum HiddenE
+{
+	VALUE
+};
+namespace N5
+{
+	namespace HiddenE
+	{
+	}
+	enum HiddenE e;
+}
+
+
 
 template<typename A>
 class Template7
@@ -739,39 +771,6 @@ void f()
 
 
 
-/* 3.4.4-1
-An elaborated-type-specifier (7.1.6.3) may be used to refer to a previously declared class-name or enum-name
-even though the name has been hidden by a non-type declaration (3.3.10).
-*/
-struct Hidden
-{
-	typedef int T;
-};
-namespace N3
-{
-	int Hidden;
-	struct S
-	{
-		struct Hidden h;
-	};
-	Hidden::T i;
-}
-
-/* 3.4.4-1
-An elaborated-type-specifier (7.1.6.3) may be used to refer to a previously declared class-name or enum-name
-even though the name has been hidden by a non-type declaration (3.3.10).
-*/
-enum HiddenE
-{
-	VALUE
-};
-namespace N5
-{
-	namespace HiddenE
-	{
-	}
-	enum HiddenE e;
-}
 
 /* 3.4.3-1
 During the lookup for a name preceding the :: scope resolution
