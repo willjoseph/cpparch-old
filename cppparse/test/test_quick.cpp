@@ -1,5 +1,11 @@
 
 
+
+void f(int a)
+{
+	(a.x == a);
+}
+
 /* 3.4.4-1
 An elaborated-type-specifier (7.1.6.3) may be used to refer to a previously declared class-name or enum-name
 even though the name has been hidden by a non-type declaration (3.3.10).

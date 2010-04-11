@@ -1507,8 +1507,10 @@ struct ExpressionWalker : public WalkerBase
 	}
 	void visit(cpp::postfix_expression_member* symbol)
 	{
-		// TODO
-		TREEWALKER_LEAF(symbol);
+		IdExpressionWalker walker(*this);
+		TREEWALKER_WALK(walker, symbol);
+		// TODO: name-lookup for member id-expression
+		// TODO: inherit type-dependent property
 	}
 	void visit(cpp::primary_expression_builtin* symbol)
 	{

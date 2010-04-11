@@ -113,7 +113,7 @@ int runTest(const Test& test)
 		//  Open and read in the specified input file.
 		std::string instring;
 #if 1
-		instring = Concatenate(makeRange(/*"#include \"test/predefined_msvc.h\"\n"*/ " #include \""), makeRange(test.input), makeRange("\"\n")).c_str();
+		instring = Concatenate(makeRange("#include \"test/predefined_msvc.h\"\n" " #include \""), makeRange(test.input), makeRange("\"\n")).c_str();
 #else
 		std::ifstream instream(test.input);
 
