@@ -2217,13 +2217,19 @@ namespace cpp
 		FOREACH8(key, lt, params, gt, key2, id, assign, init);
 	};
 
+	struct default_parameter
+	{
+		symbol<assignment_expression> expr;
+		FOREACH1(expr);
+	};
+
 	struct parameter_declaration_default : public parameter_declaration
 	{
 		VISITABLE_DERIVED(parameter_declaration);
 		symbol<decl_specifier_seq> spec;
 		symbol<declarator> decl;
 		terminal_suffix<boost::wave::T_ASSIGN> assign;
-		symbol<assignment_expression> init;
+		symbol<default_parameter> init;
 		FOREACH4(spec, decl, assign, init);
 	};
 
@@ -2233,7 +2239,7 @@ namespace cpp
 		symbol<decl_specifier_seq> spec;
 		symbol_optional<abstract_declarator> decl;
 		terminal_suffix<boost::wave::T_ASSIGN> assign;
-		symbol<assignment_expression> init;
+		symbol<default_parameter> init;
 		FOREACH4(spec, decl, assign, init);
 	};
 

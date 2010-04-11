@@ -2109,7 +2109,7 @@ struct DeclaratorWalker : public WalkerBase
 			}
 		}
 		ParameterDeclarationClauseWalker walker(base);
-#ifdef MINGLE
+#if 0//def MINGLE
 		if(WalkerBase::deferred != 0)
 		{
 			defer(*WalkerBase::deferred, walker, makeSkipParenthesised(DeclareEts(walker)), symbol);
@@ -2891,6 +2891,20 @@ struct TypeIdWalker : public WalkerBase
 	}
 };
 
+struct IsTemplateName
+{
+	WalkerBase& context;
+	IsTemplateName(WalkerBase& context) : context(context)
+	{
+	}
+	bool operator()(Identifier& id) const
+	{
+		Declaration* declaration = context.findDeclaration(id);
+		return declaration != &gUndeclared && isTemplateName(*declaration);
+	}
+};
+
+
 struct SimpleDeclarationWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
@@ -3072,17 +3086,26 @@ struct SimpleDeclarationWalker : public WalkerBase
 	}
 
 	// handle assignment-expression(s) in initializer
+	void visit(cpp::default_parameter* symbol)
+	{
+#ifdef MINGLE
+		// todo: this fails if default-argument contains a template-name that is declared later in the class.
+		// Comeau fails in this case too..
+		if(WalkerBase::deferred != 0)
+		{
+			result = defer(*WalkerBase::deferred, *this, makeSkipDefaultArgument(IsTemplateName(*this)), symbol);
+		}
+		else
+#endif
+		{
+			walkDeferable(*this, symbol);
+		}
+	}
+	// handle assignment-expression(s) in initializer
 	void visit(cpp::assignment_expression* symbol)
 	{
 		ExpressionWalker walker(*this);
-		if(isParameter)
-		{
-			walkDeferable(walker, symbol);
-		}
-		else
-		{
-			TREEWALKER_WALK(walker, symbol);
-		}
+		TREEWALKER_WALK(walker, symbol);
 	}
 	void visit(cpp::constant_expression* symbol)
 	{

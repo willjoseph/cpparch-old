@@ -21,6 +21,8 @@ struct GeneralError
 
 #define ASSERT(condition) if(!(condition)) { throw GeneralError(); }
 
+#define MINGLE
+
 inline bool isAlphabet(char c)
 {
 	return (c >= 'a' && c <= 'z')
@@ -428,12 +430,16 @@ struct IsAmbiguous
 	typedef False Result;
 };
 
+#ifdef MINGLE
+#define DECLARE_AMBIGUOUS(T)
+#else
 #define DECLARE_AMBIGUOUS(T) \
 	template<> \
 	struct IsAmbiguous<T> \
 	{ \
 		typedef True Result; \
 	}
+#endif
 
 DECLARE_AMBIGUOUS(cpp::template_argument);
 DECLARE_AMBIGUOUS(cpp::parameter_declaration);
@@ -1088,6 +1094,45 @@ inline void skipBraced(Parser& parser)
 	}
 }
 
+// skips a parenthesised token sequence
+inline void skipParenthesised(Parser& parser)
+{
+	while(!TOKEN_EQUAL(parser, boost::wave::T_RIGHTPAREN))
+	{
+		PARSE_ASSERT(!TOKEN_EQUAL(parser, boost::wave::T_EOF));
+		PARSE_ASSERT(!TOKEN_EQUAL(parser, boost::wave::T_SEMICOLON));
+		if(TOKEN_EQUAL(parser, boost::wave::T_LEFTPAREN))
+		{
+			parser.increment();
+			skipBraced(parser);
+			parser.increment();
+		}
+		else
+		{
+			parser.increment();
+		}
+	}
+}
+
+// skips a template argument list
+inline void skipTemplateArgumentList(Parser& parser)
+{
+	while(!TOKEN_EQUAL(parser, boost::wave::T_GREATER))
+	{
+		PARSE_ASSERT(!TOKEN_EQUAL(parser, boost::wave::T_EOF));
+		if(TOKEN_EQUAL(parser, boost::wave::T_LEFTPAREN))
+		{
+			parser.increment();
+			skipParenthesised(parser);
+			parser.increment();
+		}
+		else
+		{
+			parser.increment();
+		}
+	}
+}
+
 // skips a parenthesised expression
 template<typename Declare>
 struct SkipParenthesised
@@ -1139,6 +1184,55 @@ template<typename Declare>
 inline SkipParenthesised<Declare> makeSkipParenthesised(Declare declare)
 {
 	return SkipParenthesised<Declare>(declare);
+}
+
+// skips a default-argument
+template<typename IsTemplateName>
+struct SkipDefaultArgument
+{
+	IsTemplateName isTemplateName;
+	SkipDefaultArgument(IsTemplateName isTemplateName) : isTemplateName(isTemplateName)
+	{
+	}
+	void operator()(Parser& parser) const
+	{
+		while(!TOKEN_EQUAL(parser, boost::wave::T_RIGHTPAREN)
+			&& !TOKEN_EQUAL(parser, boost::wave::T_COMMA))
+		{
+			PARSE_ASSERT(!TOKEN_EQUAL(parser, boost::wave::T_EOF));
+			PARSE_ASSERT(!TOKEN_EQUAL(parser, boost::wave::T_SEMICOLON));
+
+			if(TOKEN_EQUAL(parser, boost::wave::T_IDENTIFIER))
+			{
+				// may be template-name 
+				cpp::terminal_identifier id = { parser.get_value(), parser.get_position() };
+				parser.increment();
+				if(TOKEN_EQUAL(parser, boost::wave::T_LESS)
+					&& isTemplateName(id))
+				{
+					parser.increment();
+					skipTemplateArgumentList(parser);
+					parser.increment();
+				}
+			}
+			else if(TOKEN_EQUAL(parser, boost::wave::T_LEFTPAREN))
+			{
+				parser.increment();
+				skipParenthesised(parser);
+				parser.increment();
+			}
+			else
+			{
+				parser.increment();
+			}
+		}
+	}
+};
+
+template<typename IsTemplateName>
+inline SkipDefaultArgument<IsTemplateName> makeSkipDefaultArgument(IsTemplateName isTemplateName)
+{
+	return SkipDefaultArgument<IsTemplateName>(isTemplateName);
 }
 
 // skips a mem-initializer-list
@@ -1283,7 +1377,6 @@ inline T* defer(ListType& deferred, ContextType& walker, Func skipFunc, T* symbo
 cpp::declaration_seq* parseFile(Lexer& lexer);
 cpp::statement_seq* parseFunction(Lexer& lexer);
 
-#define MINGLE
 
 #endif
 

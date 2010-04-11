@@ -1,5 +1,36 @@
 
 
+typedef int I;
+
+class C53
+{
+	C53(I);
+	C53(I, bool b);
+};
+
+class C77
+{
+	C77(I = 0);
+};
+
+namespace N92
+{
+	struct B
+	{
+	};
+	B b;
+	struct S
+	{
+		template<int x>
+		struct X : public B
+		{
+			X(B);
+		};
+
+		S(B a = X<0>(b));
+	};
+}
+
 
 void f(int a)
 {
