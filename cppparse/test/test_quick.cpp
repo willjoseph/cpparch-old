@@ -1,5 +1,32 @@
 
 
+struct S
+{
+	template<bool>
+	void operator()()
+	{
+	}
+};
+void f()
+{
+	enum { CONSTANT = 0 };
+	S s;
+	s.operator()<true>();
+	s.operator()<CONSTANT < 0>(); // older versions of Comeau fail to compile this
+}
+
+
+template<bool>
+struct Tmpl
+{
+};
+
+enum { CONSTANT = 0 };
+
+Tmpl< CONSTANT < 0 > t1;
+
+
+
 typedef int I;
 
 class C53
@@ -406,31 +433,6 @@ public:
 void f()
 {
 	new int();
-}
-
-
-template<bool>
-struct Tmpl
-{
-};
-
-enum { CONSTANT = 0 };
-
-Tmpl< CONSTANT < 0 > t1;
-
-struct S
-{
-	template<bool>
-	void operator()()
-	{
-	}
-};
-void f()
-{
-	enum { CONSTANT = 0 };
-	S s;
-	s.operator()<true>();
-	s.operator()<CONSTANT < 0>(); // older versions of Comeau fail to compile this
 }
 
 template <typename T>

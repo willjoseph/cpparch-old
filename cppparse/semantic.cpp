@@ -1249,7 +1249,17 @@ struct UnqualifiedIdWalker : public WalkerBase
 		if(qualifying != &context.dependent)
 		{
 			declaration = findDeclaration(*id);
+			if(declaration == &gUndeclared
+				|| !isTemplateName(*declaration))
+			{
+				reportIdentifierMismatch(*id, declaration, "template-name");
+			}
 		}
+	}
+	void visit(cpp::template_id_operator_function* symbol)
+	{
+		UncheckedTemplateIdWalker walker(*this);
+		TREEWALKER_WALK(walker, symbol);
 	}
 	void visit(cpp::destructor_id* symbol)
 	{

@@ -701,13 +701,18 @@ cpp::symbol<OtherT> parseSymbolAmbiguous(ParserType& parser, cpp::symbol<T> symb
 	}
 	return cpp::symbol<OtherT>(result);
 }
-#define PARSE_EXPRESSION_SPECIAL(parser, Type) result = parseSymbolAmbiguous(parser, NullPtr<Type>::VALUE, result)
 
+#ifdef MINGLE
+#define PARSE_EXPRESSION PARSE_SELECT
+#define PARSE_EXPRESSION_SPECIAL PARSE_SELECT
+#else
+#define PARSE_EXPRESSION_SPECIAL(parser, Type) result = parseSymbolAmbiguous(parser, NullPtr<Type>::VALUE, result)
 
 #if 1
 #define PARSE_EXPRESSION PARSE_PREFIX
 #else
 #define PARSE_EXPRESSION PARSE_EXPRESSION_SPECIAL
+#endif
 #endif
 
 
