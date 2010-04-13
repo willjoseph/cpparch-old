@@ -548,8 +548,8 @@ namespace cpp
 	struct nested_name_specifier_suffix : public choice<nested_name_specifier_suffix>
 	{
 		VISITABLE_BASE(TYPELIST2(
-			SYMBOLFWD(nested_name_specifier_suffix_default),
-			SYMBOLFWD(nested_name_specifier_suffix_template)
+			SYMBOLFWD(nested_name_specifier_suffix_template),
+			SYMBOLFWD(nested_name_specifier_suffix_default)
 		));
 	};
 

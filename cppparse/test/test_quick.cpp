@@ -1,5 +1,99 @@
 
 
+namespace N16
+{
+	template<typename T>
+	void f()
+	{
+	}
+	typedef int I;
+	template<>
+	void f<I>();
+}
+
+template<>
+void N16::f<N16::I>()
+{
+}
+
+
+// name-lookup within template member definition
+template<typename X>
+class C2
+{
+	template<typename T>
+	class C3
+	{
+		typedef T I;
+		static T m;
+		static T f(I);
+	};
+};
+
+template<typename X>
+template<typename T>
+T C2<X>::C3<T>::m = I();
+
+template<typename X>
+template<typename T>
+T C2<X>::C3<T>::f(I)
+{
+	I i;
+}
+
+
+#if 0
+namespace N
+{
+	namespace N
+	{
+		template <class T>
+		struct Tmpl
+		{
+		};
+	}
+
+	template<class T>
+	struct Tmpl : N::N::Tmpl<T>
+	{
+	};
+}
+#endif
+
+namespace N
+{
+	namespace N
+	{
+		template <class T>
+		struct Tmpl
+		{
+			typedef T X;
+		};
+	}
+
+	template<class T>
+	struct Tmpl
+	{
+		typedef N::Tmpl<T> Y;
+	};
+
+	typedef Tmpl<int> I;
+}
+
+template<typename T>
+struct Spec4
+{
+	typedef T I;
+};
+
+void f()
+{
+	typedef int I;
+	typedef Spec4<I> Spec;
+
+	Spec::I i = 0;
+}
+
 struct S
 {
 	template<bool>
@@ -391,22 +485,6 @@ struct Spec1
 
 
 
-namespace N
-{
-	namespace N
-	{
-		template <class T>
-		struct Tmpl
-		{
-		};
-	}
-
-	template<class T>
-	struct Tmpl : N::N::Tmpl<T>
-	{
-	};
-}
-
 #if 1
 template <class Tag,class T>
 class error_info;
@@ -467,29 +545,6 @@ struct Tmpl
 };
 #endif
 
-// name-lookup within template member definition
-template<typename X>
-class C2
-{
-	template<typename T>
-	class C3
-	{
-		typedef T I;
-		static T m;
-		static T f(I);
-	};
-};
-
-template<typename X>
-template<typename T>
-T C2<X>::C3<T>::m = I();
-
-template<typename X>
-template<typename T>
-T C2<X>::C3<T>::f(I)
-{
-	I i;
-}
 
 
 template<typename T>
@@ -694,22 +749,6 @@ namespace N5
 	};
 }
 #endif
-
-namespace N
-{
-	template<typename T>
-	void f()
-	{
-	}
-	typedef int I;
-	template<>
-	void f<I>();
-}
-
-template<>
-void N::f<N::I>()
-{
-}
 
 
 

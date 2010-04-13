@@ -876,6 +876,12 @@ struct WalkerBase
 		templateParams = scope;
 	}
 
+	void addBase(Declaration* declaration, const Type& base)
+	{
+		SEMANTIC_ASSERT(base.declaration != declaration);
+		declaration->enclosed->bases.push_back(base);
+	}
+
 	void setQualifying(Declaration* declaration)
 	{
 #ifndef MINGLE // allow incomplete types as qualifying, while trying possible parse
@@ -1202,6 +1208,7 @@ struct UncheckedTemplateIdWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	Identifier* id;
+	TemplateArguments arguments;
 	UncheckedTemplateIdWalker(const WalkerBase& base)
 		: WalkerBase(base), id(0)
 	{
@@ -1217,6 +1224,7 @@ struct UncheckedTemplateIdWalker : public WalkerBase
 		// TODO: store args
 		TemplateArgumentListWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
+		arguments = walker.arguments;
 	}
 };
 
@@ -1820,6 +1828,61 @@ struct TypeNameWalker : public WalkerBase
 	}
 };
 
+struct NestedNameSpecifierSuffixWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	bool allowDependent;
+	NestedNameSpecifierSuffixWalker(const WalkerBase& base, bool allowDependent = false)
+		: WalkerBase(base), allowDependent(allowDependent)
+	{
+	}
+	void visit(cpp::identifier* symbol)
+	{
+		TREEWALKER_LEAF(symbol);
+		if(qualifying != &context.dependent)
+		{
+			Declaration* declaration = findDeclaration(qualifying->declarations, symbol->value, isNestedName);
+			if(declaration == 0)
+			{
+				reportIdentifierMismatch(symbol->value, &gUndeclared, "nested-name");
+			}
+			else
+			{
+				symbol->value.dec.p = declaration;
+				setQualifying(declaration);
+			}
+		}
+		else
+		{
+			symbol->value.dec.p = &gDependentNested;
+		}
+	}
+	void visit(cpp::simple_template_id* symbol)
+	{
+		UncheckedTemplateIdWalker walker(*this);
+		TREEWALKER_WALK(walker, symbol);
+		if(qualifying != &context.dependent)
+		{
+			Type type = findDeclaration(qualifying->declarations, *walker.id, isNestedName);
+			type.arguments.swap(walker.arguments);
+			if(type.declaration == 0)
+			{
+				reportIdentifierMismatch(*walker.id, &gUndeclared, "nested-name");
+			}
+			else if(!allowDependent
+				&& isDependent(type))
+			{
+				qualifying = &context.dependent;
+			}
+			else
+			{
+				setQualifying(type.declaration);
+			}
+		}
+	}
+};
+
 struct NestedNameSpecifierWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
@@ -1837,30 +1900,9 @@ struct NestedNameSpecifierWalker : public WalkerBase
 	}
 	void visit(cpp::nested_name_specifier_suffix* symbol)
 	{
-		NestedNameSpecifierWalker walker(*this, allowDependent);
+		NestedNameSpecifierSuffixWalker walker(*this, allowDependent);
 		TREEWALKER_WALK(walker, symbol);
 		qualifying = walker.qualifying;
-	}
-	void visit(cpp::identifier* symbol)
-	{
-		TREEWALKER_LEAF(symbol);
-		if(qualifying != &context.dependent)
-		{
-			Declaration* declaration = findDeclaration(symbol->value, isNestedName);
-			if(declaration == &gUndeclared)
-			{
-				reportIdentifierMismatch(symbol->value, declaration, "nested-name");
-			}
-			else
-			{
-				symbol->value.dec.p = declaration;
-				setQualifying(declaration);
-			}
-		}
-		else
-		{
-			symbol->value.dec.p = &gDependentNested;
-		}
 	}
 	void visit(cpp::namespace_name* symbol)
 	{
@@ -1914,6 +1956,18 @@ struct TypeSpecifierWalker : public WalkerBase
 	{
 	}
 
+	void visit(cpp::simple_type_specifier_name* symbol)
+	{
+		TypeSpecifierWalker walker(*this);
+		TREEWALKER_WALK(walker, symbol);
+		type = walker.type;
+	}
+	void visit(cpp::simple_type_specifier_template* symbol)
+	{
+		TypeSpecifierWalker walker(*this);
+		TREEWALKER_WALK(walker, symbol);
+		type = walker.type;
+	}
 	void visit(cpp::type_name* symbol)
 	{
 		TypeNameWalker walker(*this);
@@ -2224,7 +2278,7 @@ struct ClassHeadWalker : public WalkerBase
 		if(walker.type.declaration != 0) // declaration == 0 if base-class is dependent
 		{
 			SEMANTIC_ASSERT(declaration->enclosed != 0);
-			declaration->enclosed->bases.push_back(getOriginalType(walker.type));
+			addBase(declaration, getOriginalType(walker.type));
 		}
 	}
 };
