@@ -333,6 +333,7 @@ bool isExtern(const Declaration& declaration)
 
 Scope::Declarations::const_iterator findDeclaration(const Scope::Declarations& declarations, const Declaration* declaration)
 {
+	ProfileScope profile(gProfileIdentifier);
 	Scope::Declarations::const_iterator i = declarations.begin();
 	for(; i != declarations.end(); ++i)
 	{
@@ -384,6 +385,7 @@ bool isValueDependent(const Type& type)
 
 bool isDependent(const Scope& enclosing, const Type& type)
 {
+	ProfileScope profile(gProfileIdentifier);
 	if(isValueDependent(type))
 	{
 		return true;
@@ -673,6 +675,7 @@ struct WalkerBase
 
 	Declaration* findDeclaration(Scope::Declarations& declarations, const Identifier& id, LookupFilter filter = isAny)
 	{
+		ProfileScope profile(gProfileIdentifier);
 		for(Scope::Declarations::iterator i = declarations.begin(); i != declarations.end(); ++i)
 		{
 			if((*i).name.value == id.value
@@ -686,6 +689,7 @@ struct WalkerBase
 
 	Declaration* findDeclaration(Scope::Bases& bases, const Identifier& id, LookupFilter filter = isAny)
 	{
+		ProfileScope profile(gProfileIdentifier);
 		for(Scope::Bases::iterator i = bases.begin(); i != bases.end(); ++i)
 		{
 			Scope* scope = (*i).declaration->enclosed;
