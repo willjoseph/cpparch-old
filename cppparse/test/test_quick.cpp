@@ -1,4 +1,41 @@
 
+#if 0
+#include <boost/mpl/lambda.hpp>
+#endif
+
+namespace N39
+{
+	template<typename T>
+	struct lambda;
+
+	template<>
+	struct lambda<int>
+	{
+		typedef int result_;
+	};
+
+	template<typename T>
+	struct lambda
+	{
+		typedef T result_;
+	};
+}
+
+namespace N33
+{
+	template <class Iterator>
+	struct S
+	{};
+}
+namespace N77
+{
+	template <class Iterator>
+	struct S
+		: N33::S<Iterator>
+	{};
+}
+
+
 
 namespace N16
 {

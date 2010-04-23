@@ -478,7 +478,7 @@ inline const Declaration& getPrimaryDeclaration(const Declaration& first, const 
 			}
 			if(first.isTemplateSpecialization)
 			{
-				return first; // TODO
+				return second; // TODO
 			}
 			if(isIncomplete(second))
 			{
@@ -653,6 +653,12 @@ typedef std::list< DeferredParse<struct WalkerBase> > DeferredSymbols;
 typedef std::vector<struct DeferredSymbol> DeferredSymbols;
 #endif
 
+#if 0//def MINGLE
+#define TREEWALKER_NEW(T, args) (new(parser->lexer.allocator.allocate(sizeof(T))) T args)
+#else
+#define TREEWALKER_NEW(T, args) new T args
+#endif
+
 struct WalkerBase
 #ifdef MINGLE
 	: public ContextBase
@@ -740,16 +746,6 @@ struct WalkerBase
 
 	Declaration* findDeclaration(const Identifier& id, LookupFilter filter = isAny)
 	{
-#if 1
-		if(templateParams != 0)
-		{
-			Declaration* result = findDeclaration(*templateParams, id, filter);
-			if(result != 0)
-			{
-				return result;
-			}
-		}
-#endif
 		if(qualifying != 0)
 		{
 			Declaration* result = findDeclaration(*qualifying, id, filter);
@@ -760,6 +756,16 @@ struct WalkerBase
 		}
 		else
 		{
+#if 1
+			if(templateParams != 0)
+			{
+				Declaration* result = findDeclaration(*templateParams, id, filter);
+				if(result != 0)
+				{
+					return result;
+				}
+			}
+#endif
 			Declaration* result = findDeclaration(*enclosing, id, filter);
 			if(result != 0)
 			{
@@ -816,7 +822,7 @@ struct WalkerBase
 
 	Declaration* declareClass(Identifier* id, bool isTemplateSpecialisation = false)
 	{
-		Scope* enclosed = templateParams != 0 ? templateParams : new Scope(makeIdentifier("$class"));
+		Scope* enclosed = templateParams != 0 ? templateParams : TREEWALKER_NEW(Scope, (makeIdentifier("$class")));
 		enclosed->type = SCOPETYPE_CLASS;
 		Declaration* declaration = pointOfDeclaration(enclosing, id == 0 ? makeIdentifier(enclosing->getUniqueName()) : *id, &gClass, enclosed, DeclSpecifiers(), enclosing == templateEnclosing, isTemplateSpecialisation);
 		if(id != 0)
@@ -882,13 +888,16 @@ struct WalkerBase
 
 	void addBase(Declaration* declaration, const Type& base)
 	{
-		SEMANTIC_ASSERT(base.declaration != declaration);
+		if(base.declaration == declaration)
+		{
+			return; // TODO: implement template-instantiation, and disallow inheriting from current-instantiation
+		}
 		declaration->enclosed->bases.push_back(base);
 	}
 
 	void setQualifying(Declaration* declaration)
 	{
-#ifndef MINGLE // allow incomplete types as qualifying, while trying possible parse
+#if 1//ndef MINGLE // allow incomplete types as qualifying, while trying possible parse
 		if(declaration->enclosed == 0)
 		{
 			// TODO
@@ -1078,7 +1087,7 @@ inline T* walkAmbiguity(Walker& walker, cpp::ambiguity<T>* symbol)
 
 #ifdef MINGLE
 #define TREEWALKER_WALK(walker, symbol) SYMBOL_WALK(walker, symbol)
-#define TREEWALKER_LEAF(symbol)  SYMBOL_WALK(*this, symbol)
+#define TREEWALKER_LEAF(symbol) SYMBOL_WALK(*this, symbol)
 #define TREEWALKER_DEFAULT PARSERCONTEXT_DEFAULT
 #else
 #define TREEWALKER_WALK(walker, symbol) symbol->accept(walker)
@@ -1836,9 +1845,10 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
+	Declaration* declaration;
 	bool allowDependent;
 	NestedNameSpecifierSuffixWalker(const WalkerBase& base, bool allowDependent = false)
-		: WalkerBase(base), allowDependent(allowDependent)
+		: WalkerBase(base), declaration(0), allowDependent(allowDependent)
 	{
 	}
 	void visit(cpp::identifier* symbol)
@@ -1846,7 +1856,7 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 		TREEWALKER_LEAF(symbol);
 		if(qualifying != &context.dependent)
 		{
-			Declaration* declaration = findDeclaration(qualifying->declarations, symbol->value, isNestedName);
+			declaration = findDeclaration(symbol->value, isNestedName);
 			if(declaration == 0)
 			{
 				reportIdentifierMismatch(symbol->value, &gUndeclared, "nested-name");
@@ -1854,7 +1864,6 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 			else
 			{
 				symbol->value.dec.p = declaration;
-				setQualifying(declaration);
 			}
 		}
 		else
@@ -1868,20 +1877,34 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		if(qualifying != &context.dependent)
 		{
-			Type type = findDeclaration(qualifying->declarations, *walker.id, isNestedName);
-			type.arguments.swap(walker.arguments);
-			if(type.declaration == 0)
+			declaration = findDeclaration(*walker.id, isNestedName);
+			if(declaration == 0)
 			{
 				reportIdentifierMismatch(*walker.id, &gUndeclared, "nested-name");
 			}
-			else if(!allowDependent
-				&& isDependent(type))
+			else
 			{
-				qualifying = &context.dependent;
+				Type type = declaration;
+				type.arguments.swap(walker.arguments);
+				if(!allowDependent
+					&& isDependent(type))
+				{
+					declaration = 0;
+				}
+			}
+		}
+	}
+	void visit(cpp::terminal<boost::wave::T_COLON_COLON> symbol)
+	{
+		if(symbol.value != 0)
+		{
+			if(declaration != 0)
+			{
+				setQualifying(declaration);
 			}
 			else
 			{
-				setQualifying(type.declaration);
+				qualifying = &context.dependent;
 			}
 		}
 	}
@@ -1891,9 +1914,10 @@ struct NestedNameSpecifierWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
+	Declaration* declaration;
 	bool allowDependent;
 	NestedNameSpecifierWalker(const WalkerBase& base, bool allowDependent = false)
-		: WalkerBase(base), allowDependent(allowDependent)
+		: WalkerBase(base), declaration(0), allowDependent(allowDependent)
 	{
 	}
 	void visit(cpp::nested_name_specifier_prefix* symbol)
@@ -1912,7 +1936,7 @@ struct NestedNameSpecifierWalker : public WalkerBase
 	{
 		NamespaceNameWalker walker(*this, isNestedName);
 		TREEWALKER_WALK(walker, symbol);
-		setQualifying(walker.declaration);
+		declaration = walker.declaration;
 	}
 	void visit(cpp::type_name* symbol)
 	{
@@ -1920,14 +1944,10 @@ struct NestedNameSpecifierWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		if(qualifying != &context.dependent)
 		{
-			if(!allowDependent
-				&& isDependent(walker.type))
+			if(allowDependent
+				|| !isDependent(walker.type))
 			{
-				qualifying = &context.dependent;
-			}
-			else
-			{
-				setQualifying(walker.type.declaration);
+				declaration = walker.type.declaration;
 			}
 		}
 	}
@@ -1937,14 +1957,24 @@ struct NestedNameSpecifierWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		if(qualifying != &context.dependent)
 		{
-			if(!allowDependent
-				&& isDependent(walker.type))
+			if(allowDependent
+				|| !isDependent(walker.type))
 			{
-				qualifying = &context.dependent;
+				declaration = walker.type.declaration;
+			}
+		}
+	}
+	void visit(cpp::terminal<boost::wave::T_COLON_COLON> symbol)
+	{
+		if(symbol.value != 0)
+		{
+			if(declaration != 0)
+			{
+				setQualifying(declaration);
 			}
 			else
 			{
-				setQualifying(walker.type.declaration);
+				qualifying = &context.dependent;
 			}
 		}
 	}
@@ -2161,7 +2191,7 @@ struct DeclaratorWalker : public WalkerBase
 	{
 		// hack to resolve issue: when mingled with parser, deferred parse causes constructor of ParameterDeclarationClauseWalker to be invoked twice
 		WalkerBase base(*this);
-		base.pushScope(new Scope(makeIdentifier("$declarator")));
+		base.pushScope(TREEWALKER_NEW(Scope, (makeIdentifier("$declarator"))));
 		base.enclosing->type = SCOPETYPE_PROTOTYPE;
 		base.templateParams = 0;
 		if(templateParams != 0)
@@ -2793,7 +2823,7 @@ struct ControlStatementWalker : public WalkerBase
 	ControlStatementWalker(const WalkerBase& base)
 		: WalkerBase(base)
 	{
-		pushScope(new Scope(makeIdentifier(enclosing->getUniqueName()), SCOPETYPE_LOCAL));
+		pushScope(TREEWALKER_NEW(Scope, (makeIdentifier(enclosing->getUniqueName()), SCOPETYPE_LOCAL)));
 	}
 	void visit(cpp::condition_init* symbol)
 	{
@@ -2825,7 +2855,7 @@ struct CompoundStatementWalker : public WalkerBase
 	CompoundStatementWalker(const WalkerBase& base)
 		: WalkerBase(base)
 	{
-		pushScope(new Scope(makeIdentifier(enclosing->getUniqueName()), SCOPETYPE_LOCAL)); // local scope
+		pushScope(TREEWALKER_NEW(Scope, (makeIdentifier(enclosing->getUniqueName()), SCOPETYPE_LOCAL))); // local scope
 	}
 
 	void visit(cpp::statement* symbol)
@@ -3386,7 +3416,7 @@ struct TemplateDeclarationWalker : public WalkerBase
 	void visit(cpp::template_parameter_list* symbol)
 	{
 		// collect template-params into a new scope
-		Scope* params = templateParams != 0 ? templateParams : new Scope(makeIdentifier("$template"), SCOPETYPE_TEMPLATE);
+		Scope* params = templateParams != 0 ? templateParams : TREEWALKER_NEW(Scope, (makeIdentifier("$template"), SCOPETYPE_TEMPLATE));
 		templateParams = 0;
 		pushScope(params);
 		TemplateParameterListWalker walker(*this);
@@ -3482,7 +3512,7 @@ struct NamespaceWalker : public WalkerBase
 		symbol->value.dec.p = declaration;
 		if(declaration->enclosed == 0)
 		{
-			declaration->enclosed = new Scope(symbol->value, SCOPETYPE_NAMESPACE);
+			declaration->enclosed = TREEWALKER_NEW(Scope, (symbol->value, SCOPETYPE_NAMESPACE));
 		}
 		pushScope(declaration->enclosed);
 	}
