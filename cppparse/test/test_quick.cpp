@@ -1,7 +1,59 @@
 
-#if 0
-#include <boost/mpl/lambda.hpp>
-#endif
+// name-lookup within (nested class) template member definition
+template<typename X>
+class C2
+{
+	template<typename T>
+	class C3
+	{
+		typedef T I;
+		static T m;
+		static T f(I);
+	};
+};
+
+template<typename X>
+template<typename T>
+T C2<X>::C3<T>::m = I();
+
+template<typename X>
+template<typename T>
+T C2<X>::C3<T>::f(I)
+{
+	I i;
+}
+
+namespace N88
+{
+	template<typename T>
+	struct flex_string
+	{
+		typedef int size_type;
+		static const size_type npos;
+	};
+
+	template<typename X>
+	const typename flex_string<X>::size_type
+		flex_string<X>::npos = (typename flex_string<X>::size_type)(-1);
+}
+
+
+namespace N092
+{
+	template<typename T>
+	struct Base
+	{
+	};
+
+	template<typename T>
+	class Derived
+		: public Base< Derived<T> >
+	{
+		typedef int I;
+	};
+
+	typedef Derived<int>::I I;
+}
 
 namespace N39
 {
@@ -54,29 +106,6 @@ void N16::f<N16::I>()
 }
 
 
-// name-lookup within template member definition
-template<typename X>
-class C2
-{
-	template<typename T>
-	class C3
-	{
-		typedef T I;
-		static T m;
-		static T f(I);
-	};
-};
-
-template<typename X>
-template<typename T>
-T C2<X>::C3<T>::m = I();
-
-template<typename X>
-template<typename T>
-T C2<X>::C3<T>::f(I)
-{
-	I i;
-}
 
 
 #if 0

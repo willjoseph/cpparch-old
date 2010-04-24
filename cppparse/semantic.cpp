@@ -65,7 +65,8 @@ struct Type
 {
 	Declaration* declaration;
 	TemplateArguments arguments;
-	Type(Declaration* declaration) : declaration(declaration)
+	mutable bool visited;
+	Type(Declaration* declaration) : declaration(declaration), visited(false)
 	{
 	}
 };
@@ -263,7 +264,7 @@ const Type& getOriginalType(const Type& type)
 
 bool isFunction(const Declaration& declaration)
 {
-	return declaration.enclosed != 0;
+	return declaration.enclosed != 0 && declaration.enclosed->type == SCOPETYPE_PROTOTYPE;
 }
 
 bool isMemberObject(const Declaration& declaration)
@@ -364,6 +365,10 @@ bool isDependent(const Scope& enclosing, const Scope::Bases& bases)
 {
 	for(Scope::Bases::const_iterator i = bases.begin(); i != bases.end(); ++i)
 	{
+		if((*i).visited)
+		{
+			continue;
+		}
 		if(isDependent(enclosing, *i))
 		{
 			return true;
@@ -383,7 +388,25 @@ bool isValueDependent(const Type& type)
 	return false;
 }
 
-bool isDependent(const Scope& enclosing, const Type& type)
+bool isDependent(const Scope& enclosing, const TemplateArguments& arguments)
+{
+	for(TemplateArguments::const_iterator i = arguments.begin(); i != arguments.end(); ++i)
+	{
+		if((*i).type.visited)
+		{
+			continue;
+		}
+		if((*i).isDependent
+			|| ((*i).type.declaration != 0
+			&& isDependent(enclosing, (*i).type)))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+bool isDependentInternal(const Scope& enclosing, const Type& type)
 {
 	ProfileScope profile(gProfileIdentifier);
 	if(isValueDependent(type))
@@ -399,14 +422,9 @@ bool isDependent(const Scope& enclosing, const Type& type)
 	{
 		return true;
 	}
-	for(TemplateArguments::const_iterator i = original.arguments.begin(); i != original.arguments.end(); ++i)
+	if(isDependent(enclosing, original.arguments))
 	{
-		if((*i).isDependent
-			|| ((*i).type.declaration != 0
-				&& isDependent(enclosing, (*i).type)))
-		{
-			return true;
-		}
+		return true;
 	}
 	Scope* enclosed = original.declaration->enclosed;
 	if(enclosed != 0)
@@ -414,6 +432,14 @@ bool isDependent(const Scope& enclosing, const Type& type)
 		return isDependent(enclosing, enclosed->bases);
 	}
 	return false;
+}
+
+bool isDependent(const Scope& enclosing, const Type& type)
+{
+	type.visited = true;
+	bool result = isDependentInternal(enclosing, type);
+	type.visited = false;
+	return result;
 }
 
 const char* getDeclarationType(const Declaration& declaration)
@@ -3040,6 +3066,12 @@ struct SimpleDeclarationWalker : public WalkerBase
 	{
 		if(id != 0)
 		{
+			if(enclosed == 0
+				&& templateParams != 0)
+			{
+				templateParams->parent = parent;
+				enclosed = templateParams; // for a static-member-variable definition, store template-params with different names than those in the class definition
+			}
 			declaration = declareObject(parent, id, type, enclosed, specifiers, isValueDependent);
 
 			enclosing = parent;
