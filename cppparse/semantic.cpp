@@ -923,7 +923,7 @@ struct WalkerBase
 
 	void setQualifying(Declaration* declaration)
 	{
-#if 1//ndef MINGLE // allow incomplete types as qualifying, while trying possible parse
+#if 0 // allow incomplete types as qualifying, for nested-name-specifier in ptr-operator (defining member-function-ptr)
 		if(declaration->enclosed == 0)
 		{
 			// TODO
