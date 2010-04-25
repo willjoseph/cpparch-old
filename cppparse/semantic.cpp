@@ -2403,11 +2403,6 @@ struct UsingDeclarationWalker : public WalkerBase
 			qualifying = &context.global;
 		}
 	}
-	void visit(cpp::using_declaration_global* symbol)
-	{
-		qualifying = &context.global;
-		TREEWALKER_WALK(*this, symbol);
-	}
 	void visit(cpp::nested_name_specifier* symbol)
 	{
 		NestedNameSpecifierWalker walker(*this);
@@ -2418,7 +2413,8 @@ struct UsingDeclarationWalker : public WalkerBase
 	{
 		UnqualifiedIdWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
-		if(!isTypename)
+		if(!isTypename
+			&& qualifying != &context.dependent)
 		{
 			Declaration* declaration = walker.declaration;
 			if(declaration == &gUndeclared
