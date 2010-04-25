@@ -1,4 +1,16 @@
 
+#if 0
+#include <boost/multi_index_container_fwd.hpp>
+#endif
+
+template< typename Base >
+struct s_item
+    : Base
+{
+    using Base::order_by_key_;
+};
+
+
 // name-lookup for explicit argument-specification of overloaded function-template
 namespace N91
 {

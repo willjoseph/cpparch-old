@@ -14,6 +14,7 @@
 #include <iostream>
 #include <list>
 #include <set>
+#include <map>
 
 struct SemanticError
 {
@@ -148,12 +149,17 @@ struct Scope
 	Scope* parent;
 	Identifier name;
 	size_t enclosedScopeCount; // number of scopes directly enclosed by this scope
+#if 1
+	typedef std::multimap<const char*, Declaration> Declarations;
+#else
 	typedef std::list<Declaration> Declarations;
+#endif
 	Declarations declarations;
 	ScopeType type;
 	typedef std::vector<Type> Bases;
 	Bases bases;
-	Declarations templateParamTypes;
+	typedef std::list<Declaration> DeclarationList;
+	DeclarationList templateParamTypes;
 
 	Scope(const Identifier& name, ScopeType type = SCOPETYPE_UNKNOWN)
 		: parent(0), name(name), enclosedScopeCount(0), type(type)
@@ -344,10 +350,10 @@ bool isExtern(const Declaration& declaration)
 	return declaration.specifiers.isExtern;
 }
 
-Scope::Declarations::const_iterator findDeclaration(const Scope::Declarations& declarations, const Declaration* declaration)
+Scope::DeclarationList::const_iterator findDeclaration(const Scope::DeclarationList& declarations, const Declaration* declaration)
 {
 	ProfileScope profile(gProfileIdentifier);
-	Scope::Declarations::const_iterator i = declarations.begin();
+	Scope::DeclarationList::const_iterator i = declarations.begin();
 	for(; i != declarations.end(); ++i)
 	{
 		if(&(*i) == declaration)
@@ -587,7 +593,7 @@ void printDeclarations(const Scope::Declarations& declarations)
 	std::cout << "{ ";
 	for(Scope::Declarations::const_iterator i = declarations.begin(); i != declarations.end();)
 	{
-		std::cout << getValue((*i).name);
+		std::cout << getValue((*i).second.name);
 		if(++i != declarations.end())
 		{
 			std::cout << ", ";
@@ -720,6 +726,19 @@ struct WalkerBase
 	Declaration* findDeclaration(Scope::Declarations& declarations, const Identifier& id, LookupFilter filter = isAny)
 	{
 		ProfileScope profile(gProfileIdentifier);
+#if 1
+		Scope::Declarations::iterator i = declarations.upper_bound(id.value);
+		
+		for(; i != declarations.begin()
+			&& (*--i).first == id.value;)
+		{
+			if(filter((*i).second))
+			{
+				return &(*i).second;
+			}
+		}
+		return 0;
+#else
 		for(Scope::Declarations::iterator i = declarations.begin(); i != declarations.end(); ++i)
 		{
 			if((*i).name.value == id.value
@@ -729,6 +748,7 @@ struct WalkerBase
 			}
 		}
 		return 0;
+#endif
 	}
 
 	Declaration* findDeclaration(Scope::Bases& bases, const Identifier& id, LookupFilter filter = isAny)
@@ -860,9 +880,13 @@ struct WalkerBase
 				}
 			}
 		}
+#if 1
+		return &(*parent->declarations.insert(Scope::Declarations::value_type(name.value, other))).second;
+#else
 		parent->declarations.push_front(other);
 		Declaration* result = &parent->declarations.front();
 		return result;
+#endif
 	}
 
 	Declaration* declareClass(Identifier* id, bool isTemplateSpecialisation = false)
@@ -2245,10 +2269,10 @@ struct DeclaratorWalker : public WalkerBase
 			base.enclosing->declarations = templateParams->declarations;
 			for(Scope::Declarations::iterator i = base.enclosing->declarations.begin(); i != base.enclosing->declarations.end(); ++i)
 			{
-				if(::findDeclaration(templateParams->templateParamTypes, (*i).type.declaration) != templateParams->templateParamTypes.end())
+				if(::findDeclaration(templateParams->templateParamTypes, (*i).second.type.declaration) != templateParams->templateParamTypes.end())
 				{
 					base.enclosing->templateParamTypes.push_back(gParam);
-					(*i).type = &base.enclosing->templateParamTypes.back();
+					(*i).second.type = &base.enclosing->templateParamTypes.back();
 				}
 			}
 		}
@@ -3353,29 +3377,35 @@ struct SimpleDeclarationWalker : public WalkerBase
 			// TODO: verify that member names are distinct
 			for(Scope::Declarations::iterator i = declaration->enclosed->declarations.begin(); i != declaration->enclosed->declarations.end(); ++i)
 			{
-				if(isAnonymous(*i))
+				Declaration& member = (*i).second;
+				if(isAnonymous(member))
 				{
 					const Identifier& name = makeIdentifier(enclosing->getUniqueName());
-					(*i).name = name;
-					if((*i).enclosed != 0)
+					member.name = name;
+					if(member.enclosed != 0)
 					{
-						(*i).enclosed->name = name;
+						member.enclosed->name = name;
 					}
 				}
 				else
 				{
-					Declaration* declaration = findDeclaration(enclosing->declarations, (*i).name);
+					Declaration* declaration = findDeclaration(enclosing->declarations, member.name);
 					if(declaration != 0)
 					{
-						printPosition((*i).name.position);
-						std::cout << "'" << (*i).name.value << "': anonymous union member already declared" << std::endl;
+						printPosition(member.name.position);
+						std::cout << "'" << member.name.value << "': anonymous union member already declared" << std::endl;
 						printPosition(declaration->name.position);
 						throw SemanticError();
 					}
 				}
-				(*i).scope = enclosing;
+				member.scope = enclosing;
+#if 1
+				enclosing->declarations.insert(*i);
+#endif
 			}
+#if 0
 			enclosing->declarations.splice(enclosing->declarations.end(), declaration->enclosed->declarations);
+#endif
 
 		}
 	}
