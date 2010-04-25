@@ -1,4 +1,17 @@
 
+// name-lookup for explicit argument-specification of overloaded function-template
+namespace N91
+{
+	template<typename T>
+	T f()
+	{
+	}
+	int f()
+	{
+		  return f<int>();
+	}
+}
+
 // name-lookup within (nested class) template member definition
 template<typename X>
 class C2

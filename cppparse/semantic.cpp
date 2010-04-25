@@ -69,15 +69,27 @@ struct Type
 	Type(Declaration* declaration) : declaration(declaration), visited(false)
 	{
 	}
+	void swap(Type& other)
+	{
+		std::swap(declaration, other.declaration);
+		std::swap(arguments, other.arguments);
+	}
+#if 0
+private:
+	Type(const Type&);
+	Type& operator=(const Type&);
+#endif
 };
 
 struct TemplateArgument
 {
 	Type type;
 	bool isDependent;
+#if 0
 	TemplateArgument(const Type& type, bool isDependent) : type(type), isDependent(isDependent)
 	{
 	}
+#endif
 	TemplateArgument(bool isDependent) : type(0), isDependent(isDependent)
 	{
 	}
@@ -839,6 +851,13 @@ struct WalkerBase
 					printPosition(declaration->name.position);
 					throw SemanticError();
 				}
+				if(!isNamespace(other)
+					&& !isType(other)
+					&& isFunction(other))
+				{
+					// quick hack - if any template overload of a function has been declared, all subsequent declarations are template functions
+					other.isTemplate |= declaration->isTemplate;
+				}
 			}
 		}
 		parent->declarations.push_front(other);
@@ -1263,7 +1282,7 @@ struct UncheckedTemplateIdWalker : public WalkerBase
 		// TODO: store args
 		TemplateArgumentListWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
-		arguments = walker.arguments;
+		arguments.swap(walker.arguments);
 	}
 };
 
@@ -1762,7 +1781,8 @@ struct TemplateArgumentListWalker : public WalkerBase
 	{
 		TypeIdWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
-		arguments.push_back(TemplateArgument(walker.type, walker.isValueDependent));
+		arguments.push_back(TemplateArgument(walker.isValueDependent));
+		arguments.back().type.swap(walker.type);
 	}
 	void visit(cpp::assignment_expression* symbol)
 	{
@@ -1818,7 +1838,7 @@ struct TemplateIdWalker : public WalkerBase
 #if 0
 		pointOfInstantiation(declaration, walker.arguments);
 #endif
-		type.arguments = walker.arguments;
+		type.arguments.swap(walker.arguments);
 	}
 };
 
