@@ -2674,7 +2674,8 @@ struct ElaboratedTypeSpecifierWalker : public WalkerBase
 		*/
 		id = &symbol->value;
 		Declaration* declaration = findDeclaration(symbol->value, isType);
-		if(declaration != &gUndeclared)
+		if(declaration != &gUndeclared
+			&& !isTypedef(*declaration))
 		{
 			symbol->value.dec.p = declaration;
 			/* 7.1.6.3-2
@@ -2683,6 +2684,7 @@ struct ElaboratedTypeSpecifierWalker : public WalkerBase
 			same way a simple-type-specifier introduces its type-name. If the identifier resolves to a typedef-name, the
 			elaborated-type-specifier is ill-formed.
 			*/
+#if 0 // allow hiding a typedef with a forward-declaration
 			if(isTypedef(*declaration))
 			{
 				printPosition(symbol->value.position);
@@ -2690,6 +2692,7 @@ struct ElaboratedTypeSpecifierWalker : public WalkerBase
 				printPosition(declaration->name.position);
 				throw SemanticError();
 			}
+#endif
 			/* 7.1.6.3-3
 			The class-key or enum keyword present in the elaborated-type-specifier shall agree in kind with the declaration
 			to which the name in the elaborated-type-specifier refers.

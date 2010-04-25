@@ -1,4 +1,17 @@
 
+#include <boost/type_traits/type_with_alignment.hpp>
+
+namespace N89
+{
+	typedef int size_t;
+
+	namespace N
+	{
+		template<size_t N>
+		struct size_t;
+	}
+}
+
 namespace N84
 {
 	template<typename Base>
