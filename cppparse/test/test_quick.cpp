@@ -1,14 +1,12 @@
 
-#if 0
-#include <boost/multi_index_container_fwd.hpp>
-#endif
-
-template< typename Base >
-struct s_item
-    : Base
+namespace N84
 {
-    using Base::order_by_key_;
-};
+	template<typename Base>
+	struct S : Base
+	{
+		using Base::dependent;
+	};
+}
 
 
 // name-lookup for explicit argument-specification of overloaded function-template
