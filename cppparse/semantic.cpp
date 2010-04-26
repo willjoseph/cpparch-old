@@ -1986,7 +1986,7 @@ struct NestedNameSpecifierWalker : public WalkerBase
 	Declaration* declaration;
 	bool allowDependent;
 	NestedNameSpecifierWalker(const WalkerBase& base, bool allowDependent = false)
-		: WalkerBase(base), declaration(0), allowDependent(allowDependent)
+		: WalkerBase(base), declaration(0), allowDependent(allowDependent || templateEnclosing == 0) // perform name-lookup on dependent-names if not within a template!
 	{
 	}
 	void visit(cpp::nested_name_specifier_prefix* symbol)
