@@ -1926,9 +1926,9 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 		if(qualifying != &context.dependent)
 		{
 			declaration = findDeclaration(symbol->value, isNestedName);
-			if(declaration == 0)
+			if(declaration == &gUndeclared)
 			{
-				reportIdentifierMismatch(symbol->value, &gUndeclared, "nested-name");
+				reportIdentifierMismatch(symbol->value, declaration, "nested-name");
 			}
 			else
 			{
@@ -1947,9 +1947,9 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 		if(qualifying != &context.dependent)
 		{
 			declaration = findDeclaration(*walker.id, isNestedName);
-			if(declaration == 0)
+			if(declaration == &gUndeclared)
 			{
-				reportIdentifierMismatch(*walker.id, &gUndeclared, "nested-name");
+				reportIdentifierMismatch(*walker.id, declaration, "nested-name");
 			}
 			else
 			{
