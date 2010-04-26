@@ -1,5 +1,22 @@
 
-#include <boost/type_traits/type_with_alignment.hpp>
+namespace N55
+{
+	template<bool b>
+	struct tmpl
+	{
+		typedef int type;
+	};
+
+	namespace test
+	{
+		enum { value = 0 };
+	}
+ 
+	typedef tmpl<
+		test::value < 0
+	>::type t1; 
+}
+
 
 namespace N89
 {

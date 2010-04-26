@@ -1389,9 +1389,8 @@ struct QualifiedIdWalker : public WalkerBase
 		declaration = walker.declaration;
 		id = walker.id;
 	}
-	void visit(cpp::qualified_id_global* symbol)
+	void visit(cpp::qualified_id_suffix* symbol)
 	{
-		qualifying = &context.global;
 		UnqualifiedIdWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
 		declaration = walker.declaration;
