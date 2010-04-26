@@ -1,17 +1,34 @@
 
-#if 0
+#if 1
 #include <boost/type_traits/type_with_alignment.hpp>
 #endif
 
-namespace N84
+namespace BLAH
 {
-	template<typename Base>
-	struct S : Base
+	template<bool b>
+	struct Tmpl
 	{
-		using Base::dependent;
+		typedef int I;
+	};
+
+	template<typename T>
+	struct S
+	{
+		template<typename U>
+		struct Q
+		{
+			enum { value = sizeof(T) + sizeof(U) };
+		};
+
+		typedef typename Tmpl<Q<int>::value>::I I;
+	};
+
+	template<typename T>
+	struct X
+	{
+		typedef Tmpl<S<int>::Q<int>::value>::I I; // no need for 'typename' because 'value' is not dependent
 	};
 }
-
 
 namespace N57
 {
@@ -67,6 +84,15 @@ namespace N55
 	typedef tmpl<
 		test::value < 0
 		>::type t1; 
+}
+
+namespace N84
+{
+	template<typename Base>
+	struct S : Base
+	{
+		using Base::dependent;
+	};
 }
 
 
