@@ -460,6 +460,18 @@ bool isDependent(const Scope& enclosing, const Type& type)
 	return result;
 }
 
+inline Scope* findEnclosingTemplate(Scope* scope)
+{
+	for(; scope != 0; scope = scope->parent)
+	{
+		if(!scope->templateParamTypes.empty())
+		{
+			return scope;
+		}
+	}
+	return 0;
+}
+
 const char* getDeclarationType(const Declaration& declaration)
 {
 	if(isNamespace(declaration))
@@ -1364,8 +1376,9 @@ struct QualifiedIdWalker : public WalkerBase
 
 	Declaration* declaration;
 	Identifier* id;
+	bool isEnclosedByTemplate;
 	QualifiedIdWalker(const WalkerBase& base)
-		: WalkerBase(base), declaration(0), id(0)
+		: WalkerBase(base), declaration(0), id(0), isEnclosedByTemplate(false)
 	{
 	}
 
@@ -1381,6 +1394,7 @@ struct QualifiedIdWalker : public WalkerBase
 		NestedNameSpecifierWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
 		qualifying = walker.qualifying;
+		isEnclosedByTemplate = walker.isEnclosedByTemplate;
 	}
 	void visit(cpp::unqualified_id* symbol)
 	{
@@ -1412,8 +1426,9 @@ struct IdExpressionWalker : public WalkerBase
 	Declaration* declaration;
 	Identifier* id;
 	bool isIdentifier;
+	bool isEnclosedByTemplate;
 	IdExpressionWalker(const WalkerBase& base)
-		: WalkerBase(base), declaration(0), id(0), isIdentifier(false)
+		: WalkerBase(base), declaration(0), id(0), isIdentifier(false), isEnclosedByTemplate(false)
 	{
 	}
 	void visit(cpp::qualified_id* symbol)
@@ -1424,6 +1439,7 @@ struct IdExpressionWalker : public WalkerBase
 		declaration = walker.declaration;
 		id = walker.id;
 		qualifying = walker.qualifying;
+		isEnclosedByTemplate = walker.isEnclosedByTemplate;
 	}
 	void visit(cpp::unqualified_id* symbol)
 	{
@@ -1434,6 +1450,7 @@ struct IdExpressionWalker : public WalkerBase
 		id = walker.id;
 		qualifying = walker.qualifying;
 		isIdentifier = walker.isIdentifier;
+		isEnclosedByTemplate = templateEnclosing != 0;
 	}
 };
 
@@ -1653,7 +1670,8 @@ struct ExpressionWalker : public WalkerBase
 			{
 				walker.id->dec.p = declaration;
 				isTypeDependent |= isDependent(declaration->type);
-				isValueDependent |= isDependent(declaration->type) || declaration->isValueDependent;
+				isValueDependent |= isDependent(declaration->type)
+					|| (walker.isEnclosedByTemplate && declaration->isValueDependent); // value-dependent 'identifier' fully qualified by non-dependent names cannot be dependent 
 			}
 		}
 		else if(walker.qualifying == &context.dependent)
@@ -1985,8 +2003,9 @@ struct NestedNameSpecifierWalker : public WalkerBase
 
 	Declaration* declaration;
 	bool allowDependent;
+	bool isEnclosedByTemplate;
 	NestedNameSpecifierWalker(const WalkerBase& base, bool allowDependent = false)
-		: WalkerBase(base), declaration(0), allowDependent(allowDependent || templateEnclosing == 0) // perform name-lookup on dependent-names if not within a template!
+		: WalkerBase(base), declaration(0), allowDependent(allowDependent), isEnclosedByTemplate(false)
 	{
 	}
 	void visit(cpp::nested_name_specifier_prefix* symbol)
@@ -1994,6 +2013,9 @@ struct NestedNameSpecifierWalker : public WalkerBase
 		NestedNameSpecifierWalker walker(*this, allowDependent);
 		TREEWALKER_WALK(walker, symbol);
 		qualifying = walker.qualifying;
+		isEnclosedByTemplate = qualifying != 0
+			&& qualifying != &context.dependent
+			&& findEnclosingTemplate(qualifying->parent) != 0;
 	}
 	void visit(cpp::nested_name_specifier_suffix* symbol)
 	{

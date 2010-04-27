@@ -1,7 +1,366 @@
 
-#if 1
+#if 0
 #include <boost/type_traits/type_with_alignment.hpp>
 #endif
+
+namespace N60
+{
+	namespace mpl
+	{
+		template<typename T>
+		struct result_
+		{
+			typedef T type;
+		};
+
+		template<bool Cond, typename True, typename False>
+		struct if_c
+		{
+			typedef result_<True> type;
+		};
+	}
+
+	namespace detail
+	{
+		union max_align
+		{
+			int m;
+		};
+		template<int i>
+		struct is_aligned
+		{
+			enum { value = i };
+		};
+
+		template<int target>
+		union lower_alignment
+		{
+			is_aligned<target> m;
+		};
+
+		template<int Align>
+		class type_with_alignment_imp
+		{
+			typedef::N60::detail::lower_alignment<Align>t1;
+			typedef typename mpl::if_c< ::N60::detail::is_aligned<4>::value, t1, ::N60::detail::max_align>::type align_t;
+		};
+	}
+};
+
+#if 1
+namespace boost
+{
+	namespace mpl
+	{
+		template<typename T>
+		struct result_
+		{
+			typedef T type;
+		};
+
+		template<bool Cond, typename True, typename False>
+		struct if_c
+		{
+			typedef result_<True> type;
+		};
+	}
+
+	template<typename T>
+	struct alignment_of
+	{
+		enum { value = sizeof(T) };
+	};
+}
+
+namespace boost
+{
+	namespace detail
+	{
+		class alignment_dummy;
+		typedef void(*function_ptr)();
+		typedef int(alignment_dummy::*member_ptr);
+		typedef int(alignment_dummy::*member_function_ptr)();
+
+		template<bool found, int target, class TestType>
+		struct lower_alignment_helper
+		{
+			typedef char type;
+			enum
+			{
+				value=true
+			};
+		};
+		template<int target, class TestType>
+		struct lower_alignment_helper<false, target, TestType>
+		{
+			enum
+			{
+				value=(alignment_of<TestType>::value==target)
+			};
+			typedef typename mpl::if_c<value, TestType, char>::type type;
+		};
+		template<typename T>
+		struct has_one_T
+		{
+			T data;
+		};
+		template<int target>
+		union lower_alignment
+		{
+			enum
+			{
+				found0=false
+			};
+			typename lower_alignment_helper<found0, target, char>::type t0;
+			enum
+			{
+				found1=lower_alignment_helper<found0, target, char>::value
+			};
+			typename lower_alignment_helper<found1, target, short>::type t1;
+			enum
+			{
+				found2=lower_alignment_helper<found1, target, short>::value
+			};
+			typename lower_alignment_helper<found2, target, int>::type t2;
+			enum
+			{
+				found3=lower_alignment_helper<found2, target, int>::value
+			};
+			typename lower_alignment_helper<found3, target, long>::type t3;
+			enum
+			{
+				found4=lower_alignment_helper<found3, target, long>::value
+			};
+			typename lower_alignment_helper<found4, target, float>::type t4;
+			enum
+			{
+				found5=lower_alignment_helper<found4, target, float>::value
+			};
+			typename lower_alignment_helper<found5, target, double>::type t5;
+			enum
+			{
+				found6=lower_alignment_helper<found5, target, double>::value
+			};
+			typename lower_alignment_helper<found6, target, long double>::type t6;
+			enum
+			{
+				found7=lower_alignment_helper<found6, target, long double>::value
+			};
+			typename lower_alignment_helper<found7, target, void*>::type t7;
+			enum
+			{
+				found8=lower_alignment_helper<found7, target, void*>::value
+			};
+			typename lower_alignment_helper<found8, target, function_ptr>::type t8;
+			enum
+			{
+				found9=lower_alignment_helper<found8, target, function_ptr>::value
+			};
+			typename lower_alignment_helper<found9, target, member_ptr>::type t9;
+			enum
+			{
+				found10=lower_alignment_helper<found9, target, member_ptr>::value
+			};
+			typename lower_alignment_helper<found10, target, member_function_ptr>::type t10;
+			enum
+			{
+				found11=lower_alignment_helper<found10, target, member_function_ptr>::value
+			};
+			typename lower_alignment_helper<found11, target, boost::detail::has_one_T<char> >::type t11;
+			enum
+			{
+				found12=lower_alignment_helper<found11, target, boost::detail::has_one_T<char> >::value
+			};
+			typename lower_alignment_helper<found12, target, boost::detail::has_one_T<short> >::type t12;
+			enum
+			{
+				found13=lower_alignment_helper<found12, target, boost::detail::has_one_T<short> >::value
+			};
+			typename lower_alignment_helper<found13, target, boost::detail::has_one_T<int> >::type t13;
+			enum
+			{
+				found14=lower_alignment_helper<found13, target, boost::detail::has_one_T<int> >::value
+			};
+			typename lower_alignment_helper<found14, target, boost::detail::has_one_T<long> >::type t14;
+			enum
+			{
+				found15=lower_alignment_helper<found14, target, boost::detail::has_one_T<long> >::value
+			};
+			typename lower_alignment_helper<found15, target, boost::detail::has_one_T<float> >::type t15;
+			enum
+			{
+				found16=lower_alignment_helper<found15, target, boost::detail::has_one_T<float> >::value
+			};
+			typename lower_alignment_helper<found16, target, boost::detail::has_one_T<double> >::type t16;
+			enum
+			{
+				found17=lower_alignment_helper<found16, target, boost::detail::has_one_T<double> >::value
+			};
+			typename lower_alignment_helper<found17, target, boost::detail::has_one_T<long double> >::type t17;
+			enum
+			{
+				found18=lower_alignment_helper<found17, target, boost::detail::has_one_T<long double> >::value
+			};
+			typename lower_alignment_helper<found18, target, boost::detail::has_one_T<void*> >::type t18;
+			enum
+			{
+				found19=lower_alignment_helper<found18, target, boost::detail::has_one_T<void*> >::value
+			};
+			typename lower_alignment_helper<found19, target, boost::detail::has_one_T<function_ptr> >::type t19;
+			enum
+			{
+				found20=lower_alignment_helper<found19, target, boost::detail::has_one_T<function_ptr> >::value
+			};
+			typename lower_alignment_helper<found20, target, boost::detail::has_one_T<member_ptr> >::type t20;
+			enum
+			{
+				found21=lower_alignment_helper<found20, target, boost::detail::has_one_T<member_ptr> >::value
+			};
+			typename lower_alignment_helper<found21, target, boost::detail::has_one_T<member_function_ptr> >::type t21;
+			enum
+			{
+				found22=lower_alignment_helper<found21, target, boost::detail::has_one_T<member_function_ptr> >::value
+			};
+		};
+		union max_align
+		{
+			char t0;
+			short t1;
+			int t2;
+			long t3;
+			float t4;
+			double t5;
+			long double t6;
+			void*t7;
+			function_ptr t8;
+			member_ptr t9;
+			member_function_ptr t10;
+			boost::detail::has_one_T<char>t11;
+			boost::detail::has_one_T<short>t12;
+			boost::detail::has_one_T<int>t13;
+			boost::detail::has_one_T<long>t14;
+			boost::detail::has_one_T<float>t15;
+			boost::detail::has_one_T<double>t16;
+			boost::detail::has_one_T<long double>t17;
+			boost::detail::has_one_T<void*>t18;
+			boost::detail::has_one_T<function_ptr>t19;
+			boost::detail::has_one_T<member_ptr>t20;
+			boost::detail::has_one_T<member_function_ptr>t21;
+		};
+		template<int TAlign, int Align>
+		struct is_aligned
+		{
+			static const bool value=(TAlign>=Align)&(TAlign%Align==0);
+		};
+	}
+	namespace detail
+	{
+		template<int Align>
+		class type_with_alignment_imp
+		{
+			typedef::boost::detail::lower_alignment<Align>t1;
+			typedef typename mpl::if_c< ::boost::detail::is_aligned<4>::value, t1, ::boost::detail::max_align>::type align_t;
+			static const int found=alignment_of<align_t>::value;
+		public:
+			typedef align_t type;
+		};
+	}
+	template<int Align>
+	class type_with_alignment: public::boost::detail::type_with_alignment_imp<Align>
+	{
+	};
+	namespace align
+	{
+		struct a8
+		{
+			char m[8];
+			typedef a8 type;
+		};
+		struct a16
+		{
+			char m[16];
+			typedef a16 type;
+		};
+		struct a32
+		{
+			char m[32];
+			typedef a32 type;
+		};
+		struct a64
+		{
+			char m[64];
+			typedef a64 type;
+		};
+		struct a128
+		{
+			char m[128];
+			typedef a128 type;
+		};
+	}
+
+	template<>
+	class type_with_alignment<8>  
+	{ 
+		typedef mpl::if_c<
+			::boost::alignment_of<detail::max_align>::value < 8,
+			align::a8,
+			detail::type_with_alignment_imp<8> >::type t1; 
+	public: 
+		typedef t1::type type;
+	};
+	template<>
+	class type_with_alignment<8>  
+	{ 
+	   typedef mpl::if_c<
+		  ::boost::alignment_of<detail::max_align>::value < 8,
+		  align::a8,
+		  detail::type_with_alignment_imp<8> >::type t1; 
+	public: 
+	   typedef t1::type type;
+	};
+	template<>
+	class type_with_alignment<16> 
+	{ 
+	   typedef mpl::if_c<
+		  ::boost::alignment_of<detail::max_align>::value < 16,
+		  align::a16,
+		  detail::type_with_alignment_imp<16> >::type t1; 
+	public: 
+	   typedef t1::type type;
+	};
+	template<>
+	class type_with_alignment<32> 
+	{ 
+	   typedef mpl::if_c<
+		  ::boost::alignment_of<detail::max_align>::value < 32,
+		  align::a32,
+		  detail::type_with_alignment_imp<32> >::type t1; 
+	public: 
+	   typedef t1::type type;
+	};
+	template<>
+	class type_with_alignment<64>
+	{
+	   typedef mpl::if_c<
+		  ::boost::alignment_of<detail::max_align>::value < 64,
+		  align::a64,
+		  detail::type_with_alignment_imp<64> >::type t1; 
+	public: 
+	   typedef t1::type type;
+	};
+	template<>
+	class type_with_alignment<128>
+	{
+	   typedef mpl::if_c<
+		  ::boost::alignment_of<detail::max_align>::value < 128,
+		  align::a128,
+		  detail::type_with_alignment_imp<128> >::type t1; 
+	public: 
+	   typedef t1::type type;
+	};
+}
+#endif
+
 
 namespace BLAH
 {
@@ -14,19 +373,27 @@ namespace BLAH
 	template<typename T>
 	struct S
 	{
-		template<typename U>
-		struct Q
+		struct P
 		{
-			enum { value = sizeof(T) + sizeof(U) };
+			template<typename U>
+			struct Q
+			{
+				enum { value = sizeof(T) + sizeof(U) };
+			};
 		};
 
-		typedef typename Tmpl<Q<int>::value>::I I;
+		struct R
+		{
+			typedef typename Tmpl<P::Q<int>::value>::I I;
+		};
 	};
 
 	template<typename T>
 	struct X
 	{
-		typedef Tmpl<S<int>::Q<int>::value>::I I; // no need for 'typename' because 'value' is not dependent
+		typedef Tmpl<S<int>::P::Q<int>::value>::I I; // no need for 'typename' because 'value' is not dependent
+		// this is because 'value' is dependent on template-params that are not visible
+		// i.e. 'value' is first qualified by 'S' which is not a member of a template
 	};
 }
 

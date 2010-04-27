@@ -32,25 +32,5 @@ int f(Second a, First b)
 	return b;
 }
 
-
-namespace N57
-{
-	template<bool b>
-	struct tmpl
-	{
-		typedef int type;
-	};
-
-	template<typename T>
-	struct test
-	{
-		enum { value = sizeof(T) };
-	};
-
-	typedef tmpl<
-		test<int>::value < 0
-		>::type t1; 
-}
-
 #endif
 
