@@ -3,6 +3,19 @@
 #include <boost/type_traits/type_with_alignment.hpp>
 #endif
 
+namespace N64
+{
+
+typedef struct { typedef int T; } S1;
+typedef struct { typedef int T; } S2;
+
+S1::T s1t;
+S2::T s2t;
+
+}
+
+
+#if 0
 namespace N61
 {
 	template<typename T>
@@ -75,6 +88,7 @@ namespace BLAH
 		// i.e. 'value' is first qualified by 'S' which is not a member of a template
 	};
 }
+#endif
 
 namespace N57
 {
@@ -1194,12 +1208,6 @@ class Template1
 	friend class Template1;
 	typedef Template1<int> Type;
 };
-
-typedef struct { typedef int T; } S1;
-typedef struct { typedef int T; } S2;
-
-S1::T s1t;
-S2::T s2t;
 
 
 void f()

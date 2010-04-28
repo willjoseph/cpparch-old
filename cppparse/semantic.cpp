@@ -923,15 +923,7 @@ struct WalkerBase
 
 	Declaration* declareObject(Scope* parent, Identifier* id, const Type& type, Scope* enclosed, DeclSpecifiers specifiers, bool isValueDependent)
 	{
-		Declaration* declaration = pointOfDeclaration(
-			parent,
-			*id,
-			type,
-			specifiers.isTypedef ? type.declaration->enclosed : enclosed,
-			specifiers,
-			enclosing == templateEnclosing,
-			false,
-			isValueDependent); // 3.3.1.1
+		Declaration* declaration = pointOfDeclaration(parent, *id, type, enclosed, specifiers, enclosing == templateEnclosing, false, isValueDependent); // 3.3.1.1
 		if(id != &gAnonymousId)
 		{
 			id->dec.p = declaration;
@@ -2076,7 +2068,7 @@ struct NestedNameSpecifierWalker : public WalkerBase
 		{
 			if(type.declaration != 0)
 			{
-				qualifying.push_back(type);
+				qualifying.push_back(getOriginalType(type));
 			}
 			else
 			{
