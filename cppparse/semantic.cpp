@@ -283,6 +283,48 @@ const Type& getOriginalType(const Type& type)
 	return type;
 }
 
+Scope::DeclarationList::const_iterator findDeclaration(const Scope::DeclarationList& declarations, const Declaration* declaration)
+{
+	ProfileScope profile(gProfileIdentifier);
+	Scope::DeclarationList::const_iterator i = declarations.begin();
+	for(; i != declarations.end(); ++i)
+	{
+		if(&(*i) == declaration)
+		{
+			break;
+		}
+	}
+	return i;
+}
+
+const Type& getInstantiatedType(const Type& type)
+{
+	if(type.declaration->specifiers.isTypedef)
+	{
+		const Type& original = getInstantiatedType(type.declaration->type);
+
+		const Scope::DeclarationList& templateParamTypes = original.declaration->scope->templateParamTypes;
+		Scope::DeclarationList::const_iterator param = findDeclaration(templateParamTypes, original.declaration);
+		if(param != templateParamTypes.end())
+		{
+			// original type is a template-parameter
+			size_t index = std::distance( templateParamTypes.begin(), param);
+			// find template-specialisation in list of qualifiers
+			for(Types::const_iterator i = type.qualifying.begin(); i != type.qualifying.end(); ++i)
+			{
+				if((*i).declaration->enclosed == original.declaration->scope
+					&& index < (*i).arguments.size())
+				{
+					return (*i).arguments[index].type;
+				}
+			}
+		}
+
+		return original;
+	}
+	return type;
+}
+
 bool isFunction(const Declaration& declaration)
 {
 	return declaration.enclosed != 0 && declaration.enclosed->type == SCOPETYPE_PROTOTYPE;
@@ -351,20 +393,6 @@ bool isObject(const Declaration& declaration)
 bool isExtern(const Declaration& declaration)
 {
 	return declaration.specifiers.isExtern;
-}
-
-Scope::DeclarationList::const_iterator findDeclaration(const Scope::DeclarationList& declarations, const Declaration* declaration)
-{
-	ProfileScope profile(gProfileIdentifier);
-	Scope::DeclarationList::const_iterator i = declarations.begin();
-	for(; i != declarations.end(); ++i)
-	{
-		if(&(*i) == declaration)
-		{
-			break;
-		}
-	}
-	return i;
 }
 
 bool isTypeParameter(const Scope& scope, Declaration* declaration)
@@ -1107,7 +1135,7 @@ bool isNamespaceName(const Declaration& declaration)
 
 bool isTemplateName(const Declaration& declaration)
 {
-	return declaration.isTemplate;
+	return declaration.isTemplate && (isClass(declaration) || isFunction(declaration));
 }
 
 bool isNestedName(const Declaration& declaration)
@@ -1952,10 +1980,10 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Declaration* declaration;
+	Type type;
 	bool allowDependent;
 	NestedNameSpecifierSuffixWalker(const WalkerBase& base, bool allowDependent = false)
-		: WalkerBase(base), declaration(0), allowDependent(allowDependent)
+		: WalkerBase(base), type(0), allowDependent(allowDependent)
 	{
 	}
 	void visit(cpp::identifier* symbol)
@@ -1963,7 +1991,7 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 		TREEWALKER_LEAF(symbol);
 		if(getQualifyingScope() != &context.dependent)
 		{
-			declaration = findDeclaration(symbol->value, isNestedName);
+			Declaration* declaration = findDeclaration(symbol->value, isNestedName);
 			if(declaration == &gUndeclared)
 			{
 				reportIdentifierMismatch(symbol->value, declaration, "nested-name");
@@ -1971,6 +1999,7 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 			else
 			{
 				symbol->value.dec.p = declaration;
+				type = declaration;
 			}
 		}
 		else
@@ -1984,19 +2013,19 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		if(getQualifyingScope() != &context.dependent)
 		{
-			declaration = findDeclaration(*walker.id, isNestedName);
+			Declaration* declaration = findDeclaration(*walker.id, isNestedName);
 			if(declaration == &gUndeclared)
 			{
 				reportIdentifierMismatch(*walker.id, declaration, "nested-name");
 			}
 			else
 			{
-				Type type = declaration;
+				type = declaration;
 				type.arguments.swap(walker.arguments);
 				if(!allowDependent
 					&& isDependent(type))
 				{
-					declaration = 0;
+					type = 0;
 				}
 			}
 		}
@@ -2005,9 +2034,9 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 	{
 		if(symbol.value != 0)
 		{
-			if(declaration != 0)
+			if(type.declaration != 0)
 			{
-				setQualifying(declaration);
+				qualifying.push_back(getInstantiatedType(type));
 			}
 			else
 			{
@@ -2068,7 +2097,7 @@ struct NestedNameSpecifierWalker : public WalkerBase
 		{
 			if(type.declaration != 0)
 			{
-				qualifying.push_back(getOriginalType(type));
+				qualifying.push_back(getInstantiatedType(type));
 			}
 			else
 			{
@@ -2300,6 +2329,7 @@ struct DeclaratorWalker : public WalkerBase
 				if(::findDeclaration(templateParams->templateParamTypes, (*i).second.type.declaration) != templateParams->templateParamTypes.end())
 				{
 					base.enclosing->templateParamTypes.push_back(gParam);
+					base.enclosing->templateParamTypes.back().scope = base.enclosing;
 					(*i).second.type = &base.enclosing->templateParamTypes.back();
 				}
 			}
@@ -3451,6 +3481,7 @@ struct TypeParameterWalker : public WalkerBase
 	{
 		TREEWALKER_LEAF(symbol);
 		enclosing->templateParamTypes.push_back(gParam);
+		enclosing->templateParamTypes.back().scope = enclosing;
 		symbol->value.dec.p = pointOfDeclaration(enclosing, symbol->value, &enclosing->templateParamTypes.back(), 0, DECLSPEC_TYPEDEF, isTemplate);
 	}
 	void visit(cpp::type_id* symbol)

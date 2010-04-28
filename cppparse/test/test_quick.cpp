@@ -1,21 +1,46 @@
 
-#if 0
-#include <boost/type_traits/type_with_alignment.hpp>
-#endif
-
-namespace N64
+namespace N65
 {
+	template<typename T>
+	struct Tmpl
+	{
+		static const int value = 0;
+	};
+	template<typename T>
+	const int Tmpl<T>::value;
 
-typedef struct { typedef int T; } S1;
-typedef struct { typedef int T; } S2;
+	template<bool b>
+	struct Cond
+	{
+		typedef int type;
+	};
 
-S1::T s1t;
-S2::T s2t;
-
+	typedef Cond<
+		Tmpl<int>::value < 8 // parse fails if 'value' is thought to be a template-name
+		>::type t1;
 }
 
+namespace N62
+{
+	template<typename T>
+	struct Tmpl
+	{
+		template<typename U>
+		struct Nested
+		{
+			typedef T Type;
+		};
+	};
 
-#if 0
+	struct S
+	{
+		typedef int I;
+	};
+
+	typedef Tmpl<S>::Nested<int>::Type T;
+	T::I i; // parse fails if 'T' is not resolved to 'S'
+}
+
 namespace N61
 {
 	template<typename T>
@@ -30,30 +55,12 @@ namespace N61
 	};
 
 	typedef Tmpl<S>::Type T;
-	T::I i;
+	T::I i; // parse fails if 'T' is not resolved to 'S'
+	typedef T U;
+	U::I j; // parse fails if 'U' is not resolved to 'S' via 'T'
 }
 
-namespace N62
-{
-	template<typename T>
-	struct Tmpl
-	{
-		template<typename U>
-		struct Nested
-		{
-			typedef T Type;
-		}
-	};
-
-	struct S
-	{
-		typedef int I;
-	};
-
-	typedef Tmpl<S>::Nested<int>::Type T;
-	T::I i;
-}
-
+#if 1
 namespace BLAH
 {
 	template<bool b>
@@ -89,6 +96,18 @@ namespace BLAH
 	};
 }
 #endif
+
+namespace N64
+{
+
+	typedef struct { typedef int T; } S1;
+	typedef struct { typedef int T; } S2;
+
+	S1::T s1t;
+	S2::T s2t;
+
+}
+
 
 namespace N57
 {
