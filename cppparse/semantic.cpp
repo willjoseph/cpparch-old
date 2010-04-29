@@ -303,19 +303,22 @@ const Type& getInstantiatedType(const Type& type)
 	{
 		const Type& original = getInstantiatedType(type.declaration->type);
 
-		const Scope::DeclarationList& templateParamTypes = original.declaration->scope->templateParamTypes;
-		Scope::DeclarationList::const_iterator param = findDeclaration(templateParamTypes, original.declaration);
-		if(param != templateParamTypes.end())
+		if(original.declaration->scope != 0)
 		{
-			// original type is a template-parameter
-			size_t index = std::distance( templateParamTypes.begin(), param);
-			// find template-specialisation in list of qualifiers
-			for(Types::const_iterator i = type.qualifying.begin(); i != type.qualifying.end(); ++i)
+			const Scope::DeclarationList& templateParamTypes = original.declaration->scope->templateParamTypes;
+			Scope::DeclarationList::const_iterator param = findDeclaration(templateParamTypes, original.declaration);
+			if(param != templateParamTypes.end())
 			{
-				if((*i).declaration->enclosed == original.declaration->scope
-					&& index < (*i).arguments.size())
+				// original type is a template-parameter
+				size_t index = std::distance( templateParamTypes.begin(), param);
+				// find template-specialisation in list of qualifiers
+				for(Types::const_iterator i = type.qualifying.begin(); i != type.qualifying.end(); ++i)
 				{
-					return (*i).arguments[index].type;
+					if((*i).declaration->enclosed == original.declaration->scope
+						&& index < (*i).arguments.size())
+					{
+						return (*i).arguments[index].type;
+					}
 				}
 			}
 		}
@@ -722,18 +725,14 @@ typedef bool (*LookupFilter)(const Declaration&);
 struct WalkerContext
 {
 	Scope global;
-	Scope dependent;
 	Declaration globalDecl;
-	Declaration dependentDecl;
 #if 0
 	TemplateInstantiations instantiations;
 #endif
 
 	WalkerContext() :
 		global(makeIdentifier("$global"), SCOPETYPE_NAMESPACE),
-		dependent(makeIdentifier("$dependent"), SCOPETYPE_CLASS),
-		globalDecl(0, makeIdentifier("$global"), 0, &global),
-		dependentDecl(0, makeIdentifier("$dependent"), 0, &dependent)
+		globalDecl(0, makeIdentifier("$global"), 0, &global)
 	{
 	}
 };
@@ -1135,7 +1134,8 @@ bool isNamespaceName(const Declaration& declaration)
 
 bool isTemplateName(const Declaration& declaration)
 {
-	return declaration.isTemplate && (isClass(declaration) || isFunction(declaration));
+	// returns true if \p declaration is a template class, function or template-parameter
+	return declaration.isTemplate && (isClass(declaration) || isFunction(declaration) || isTypedef(declaration));
 }
 
 bool isNestedName(const Declaration& declaration)
@@ -1384,7 +1384,7 @@ struct UnqualifiedIdWalker : public WalkerBase
 		TREEWALKER_LEAF(symbol);
 		id = &symbol->value;
 		isIdentifier = true;
-		if(getQualifyingScope() != &context.dependent)
+		if(!isDependent(qualifying))
 		{
 			declaration = findDeclaration(*id);
 		}
@@ -1394,7 +1394,7 @@ struct UnqualifiedIdWalker : public WalkerBase
 		UncheckedTemplateIdWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
 		id = walker.id;
-		if(getQualifyingScope() != &context.dependent)
+		if(!isDependent(qualifying))
 		{
 			declaration = findDeclaration(*id);
 			if(declaration == &gUndeclared
@@ -1720,7 +1720,7 @@ struct ExpressionWalker : public WalkerBase
 					|| (walker.isEnclosedByTemplate && declaration->isValueDependent); // value-dependent 'identifier' fully qualified by non-dependent names cannot be dependent 
 			}
 		}
-		else if(walker.getQualifyingScope() == &context.dependent)
+		else if(isDependent(walker.qualifying))
 		{
 			walker.id->dec.p = &gDependentObject;
 			isTypeDependent = true;
@@ -1893,7 +1893,7 @@ struct TemplateIdWalker : public WalkerBase
 	void visit(cpp::identifier* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		if(getQualifyingScope() != &context.dependent)
+		if(!isDependent(qualifying))
 		{
 			Declaration* declaration = findDeclaration(symbol->value, filter);
 			if(declaration == &gUndeclared
@@ -1944,7 +1944,7 @@ struct TypeNameWalker : public WalkerBase
 	void visit(cpp::identifier* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		if(getQualifyingScope() != &context.dependent)
+		if(!isDependent(qualifying))
 		{
 			Declaration* declaration = findDeclaration(symbol->value, filter);
 			if(declaration == &gUndeclared
@@ -1982,14 +1982,23 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 
 	Type type;
 	bool allowDependent;
+	bool isTemplate;
 	NestedNameSpecifierSuffixWalker(const WalkerBase& base, bool allowDependent = false)
-		: WalkerBase(base), type(0), allowDependent(allowDependent)
+		: WalkerBase(base), type(0), allowDependent(allowDependent), isTemplate(false)
 	{
+	}
+	void visit(cpp::terminal<boost::wave::T_TEMPLATE> symbol)
+	{
+		if(symbol.value != 0)
+		{
+			isTemplate = true;
+		}
 	}
 	void visit(cpp::identifier* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		if(getQualifyingScope() != &context.dependent)
+		if(allowDependent
+			|| !isDependent(qualifying))
 		{
 			Declaration* declaration = findDeclaration(symbol->value, isNestedName);
 			if(declaration == &gUndeclared)
@@ -2011,7 +2020,9 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 	{
 		UncheckedTemplateIdWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
-		if(getQualifyingScope() != &context.dependent)
+		if(!isTemplate
+			&& (allowDependent
+				|| !isDependent(qualifying)))
 		{
 			Declaration* declaration = findDeclaration(*walker.id, isNestedName);
 			if(declaration == &gUndeclared)
@@ -2022,11 +2033,6 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 			{
 				type = declaration;
 				type.arguments.swap(walker.arguments);
-				if(!allowDependent
-					&& isDependent(type))
-				{
-					type = 0;
-				}
 			}
 		}
 	}
@@ -2037,10 +2043,6 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 			if(type.declaration != 0)
 			{
 				qualifying.push_back(getInstantiatedType(type));
-			}
-			else
-			{
-				setQualifying(&context.dependentDecl);
 			}
 		}
 	}
@@ -2063,7 +2065,7 @@ struct NestedNameSpecifierWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		setQualifying(walker.qualifying);
 		isEnclosedByTemplate = getQualifyingScope() != 0
-			&& getQualifyingScope() != &context.dependent
+			&& (allowDependent || !isDependent(qualifying))
 			&& findEnclosingTemplate(getQualifyingScope()->parent) != 0;
 	}
 	void visit(cpp::nested_name_specifier_suffix* symbol)
@@ -2082,13 +2084,10 @@ struct NestedNameSpecifierWalker : public WalkerBase
 	{
 		TypeNameWalker walker(*this, isNestedName, true);
 		TREEWALKER_WALK(walker, symbol);
-		if(getQualifyingScope() != &context.dependent)
+		if(allowDependent
+			|| !isDependent(qualifying))
 		{
-			if(allowDependent
-				|| !isDependent(walker.type))
-			{
-				type.swap(walker.type);
-			}
+			type.swap(walker.type);
 		}
 	}
 	void visit(cpp::terminal<boost::wave::T_COLON_COLON> symbol)
@@ -2098,10 +2097,6 @@ struct NestedNameSpecifierWalker : public WalkerBase
 			if(type.declaration != 0)
 			{
 				qualifying.push_back(getInstantiatedType(type));
-			}
-			else
-			{
-				setQualifying(&context.dependentDecl);
 			}
 		}
 	}
@@ -2472,7 +2467,7 @@ struct UsingDeclarationWalker : public WalkerBase
 		UnqualifiedIdWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
 		if(!isTypename
-			&& getQualifyingScope() != &context.dependent)
+			&& !isDependent(qualifying))
 		{
 			Declaration* declaration = walker.declaration;
 			if(declaration == &gUndeclared

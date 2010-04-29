@@ -1,5 +1,4 @@
 
-
 #if 0
 #include <boost/type_traits/type_with_alignment.hpp>
 
@@ -42,31 +41,6 @@ namespace boost
 
 	typedef t1::type type;
 }
-#else
 
-
-namespace boost
-{
-	template<bool C>
-	struct Cond
-	{
-		typedef int type;
-	};
-
-	template<int N>
-	struct A
-	{
-	};
-
-	template<int val>
-	struct B : public A<val>
-	{
-		static const int value=0;
-	};
-
-	typedef Cond<
-		B<8>::value < 8 // fails if 'B<int, 8>' is found to be 'dependent'
-	>::type t1; 
-}
 
 #endif

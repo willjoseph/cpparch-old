@@ -1,4 +1,125 @@
 
+
+
+#if 0
+namespace N66
+{
+	template<bool C>
+	struct Cond
+	{
+		typedef int type;
+	};
+
+	template<typename T, T N>
+	struct A
+	{
+		static const T value=0;
+	};
+
+	template<class T, T val>
+	struct B : public A<T, val>
+	{
+	};
+
+	typedef Cond<
+		B<int, 8>::value < 8 // fails if 'B<int, 8>' is found to be 'dependent'
+		>::type t1; 
+}
+#endif
+
+
+// template-template params
+template<template<typename X> class T>
+struct TmplTmpl
+{
+	typedef T<int> M;
+};
+
+
+
+namespace N32
+{
+	template<long C_>
+	struct Base
+	{
+	};
+
+	// multi-part dependent nested-name-specifier
+	template<typename T>
+	struct Derived : Base<T::type::value>
+	{
+	};
+}
+
+
+// name-lookup within (nested class) template member definition
+template<typename X>
+class C2
+{
+	template<typename T>
+	class C3
+	{
+		typedef T I;
+		static T m;
+		static T f(I);
+	};
+};
+
+template<typename X>
+template<typename T>
+T C2<X>::C3<T>::m = I();
+
+template<typename X>
+template<typename T>
+T C2<X>::C3<T>::f(I)
+{
+	I i;
+}
+
+
+// test deferal of name-lookup for function-call identifier
+template<typename T>
+class DependentTmpl
+{
+};
+
+template<typename T>
+typename T::dependent f(typename T::dependent t)
+{
+	dependent1(T::dependent2());
+
+	DependentTmpl<T>::dependent(t); // function-call
+	dependent(dependent(t));
+
+	typedef DependentTmpl<T> DependentType;
+	dependent(DependentType(t)); // dependent-type looks like a dependent-name
+
+	typename DependentTmpl<T>::dependent l; // member-typedef
+	int i = (typename DependentTmpl<T>::dependent)1;
+
+	dependent(DependentTmpl<T>());
+	dependent(t);
+}
+
+template<typename T>
+class DependentMemInit : public T, public DependentTmpl<T>
+{
+	typename T::M m;
+	DependentMemInit() : T(0), DependentTmpl<T>(0), m(0)
+	{
+	}
+};
+
+
+namespace N84
+{
+	template<typename Base>
+	struct S : Base
+	{
+		using Base::dependent;
+	};
+}
+
 namespace N65
 {
 	template<typename T>
@@ -165,16 +286,6 @@ namespace N55
 		>::type t1; 
 }
 
-namespace N84
-{
-	template<typename Base>
-	struct S : Base
-	{
-		using Base::dependent;
-	};
-}
-
-
 namespace N89
 {
 	typedef int size_t;
@@ -198,30 +309,6 @@ namespace N91
 	{
 		  return f<int>();
 	}
-}
-
-// name-lookup within (nested class) template member definition
-template<typename X>
-class C2
-{
-	template<typename T>
-	class C3
-	{
-		typedef T I;
-		static T m;
-		static T f(I);
-	};
-};
-
-template<typename X>
-template<typename T>
-T C2<X>::C3<T>::m = I();
-
-template<typename X>
-template<typename T>
-T C2<X>::C3<T>::f(I)
-{
-	I i;
 }
 
 namespace N88
@@ -612,39 +699,6 @@ struct C99
 	operator C99<_Other>()
 	{
 		return (C99<_Other>(*this));
-	}
-};
-
-// test deferal of name-lookup for function-call identifier
-template<typename T>
-class DependentTmpl
-{
-};
-
-template<typename T>
-typename T::dependent f(typename T::dependent t)
-{
-	dependent1(T::dependent2());
-
-	DependentTmpl<T>::dependent(t); // function-call
-	dependent(dependent(t));
-
-	typedef DependentTmpl<T> DependentType;
-	dependent(DependentType(t)); // dependent-type looks like a dependent-name
-
-	typename DependentTmpl<T>::dependent l; // member-typedef
-	int i = (typename DependentTmpl<T>::dependent)1;
-
-	dependent(DependentTmpl<T>());
-	dependent(t);
-}
-
-template<typename T>
-class DependentMemInit : public T, public DependentTmpl<T>
-{
-	typename T::M m;
-	DependentMemInit() : T(0), DependentTmpl<T>(0), m(0)
-	{
 	}
 };
 

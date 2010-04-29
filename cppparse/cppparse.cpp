@@ -113,7 +113,7 @@ int runTest(const Test& test)
 		//  Open and read in the specified input file.
 		std::string instring;
 #if 1
-		instring = Concatenate(makeRange(/*"#include \"test/predefined_msvc.h\"\n"*/ " #include \""), makeRange(test.input), makeRange("\"\n")).c_str();
+		instring = Concatenate(makeRange("#include \"test/predefined_msvc.h\"\n" " #include \""), makeRange(test.input), makeRange("\"\n")).c_str();
 #else
 		std::ifstream instream(test.input);
 
@@ -189,8 +189,11 @@ int runTest(const Test& test)
 		StringRange root(test.input, strrchr(test.input, '.'));
 		Lexer lexer(context, Concatenate(root, makeRange(".prepro.cpp")).c_str());
 		int result = test.verify(test.parse(lexer), Concatenate(root, makeRange(".html")).c_str());
-		printPosition(lexer.stats.position);
-		std::cout << "backtrack: " << lexer.stats.symbol << ": " << lexer.stats.count << std::endl;
+		if(lexer.stats.count != 0)
+		{
+			printPosition(lexer.stats.position);
+			std::cout << "backtrack: " << lexer.stats.symbol << ": " << lexer.stats.count << std::endl;
+		}
 #else
 		LexIterator& first = createBegin(context);
 		LexIterator& last = createEnd(context);
