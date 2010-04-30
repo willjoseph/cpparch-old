@@ -1,7 +1,7 @@
 
 
 
-#if 0
+#if 1
 namespace N66
 {
 	template<bool C>

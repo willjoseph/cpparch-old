@@ -42,5 +42,46 @@ namespace boost
 	typedef t1::type type;
 }
 
+#elif 0
+
+namespace boost
+{
+
+	template<bool C, typename T1, typename T2>
+	struct if_c
+	{
+		typedef T1 type;
+	};
+	template<typename T1, typename T2>
+	struct if_c<false, T1, T2>
+	{
+		typedef T2 type;
+	};
+
+	template<class T, T val>
+	struct integral_constant
+	{
+		enum { value = val };
+	};
+	template<>
+	struct integral_constant<bool, true>
+	{
+	};
+	template<>
+	struct integral_constant<bool, false>
+	{
+	};
+
+
+	template<typename T>
+	struct alignment_of : integral_constant<int, 8>
+	{
+	};
+
+	typedef if_c<
+		alignment_of<double>::value < 8,
+		double,
+		double >::type t1; 
+}
 
 #endif
