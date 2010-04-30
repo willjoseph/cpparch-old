@@ -22,7 +22,7 @@ namespace N66
 	};
 
 	typedef Cond<
-		B<int, 8>::value < 8 // fails if 'B<int, 8>' is found to be 'dependent'
+		B<int, 8>::value < 8 // fails if 'B<int, 8>' is dependent
 		>::type t1; 
 }
 #endif

@@ -63,11 +63,75 @@ const DeclSpecifiers DECLSPEC_TYPEDEF = DeclSpecifiers(true, false, false, false
 typedef std::vector<struct TemplateArgument> TemplateArguments;
 typedef std::vector<struct Type> Types;
 
+template<typename T>
+class Copied
+{
+	T* p;
+public:
+	Copied()
+		: p(0)
+	{
+	}
+	~Copied()
+	{
+		delete p;
+	}
+	Copied(const T& value)
+		: p(new T(value))
+	{
+	}
+	Copied(const Copied& other)
+		: p(other.p == 0 ? 0 : new T(*other.p))
+	{
+	}
+	Copied& operator=(const Copied& other)
+	{
+		Copied tmp(other);
+		tmp.swap(*this);
+		return *this;
+	}
+	Copied& operator=(const T& value)
+	{
+		Copied tmp(value);
+		tmp.swap(*this);
+		return *this;
+	}
+
+	void swap(Copied& other)
+	{
+		std::swap(p, other.p);
+	}
+
+	T* get()
+	{
+		return p;
+	}
+	const T* get() const
+	{
+		return p;
+	}
+
+	bool empty() const
+	{
+		return p == 0;
+	}
+	T& back()
+	{
+		return *p;
+	}
+	const T& back() const
+	{
+		return *p;
+	}
+};
+
+typedef Copied<Type> Qualifying;
+
 struct Type
 {
 	Declaration* declaration;
 	TemplateArguments arguments;
-	Types qualifying;
+	Qualifying qualifying;
 	mutable bool visited;
 	Type(Declaration* declaration) : declaration(declaration), visited(false)
 	{
@@ -312,12 +376,13 @@ const Type& getInstantiatedType(const Type& type)
 				// original type is a template-parameter
 				size_t index = std::distance( templateParamTypes.begin(), param);
 				// find template-specialisation in list of qualifiers
-				for(Types::const_iterator i = type.qualifying.begin(); i != type.qualifying.end(); ++i)
+				for(const Type* i = type.qualifying.get(); i != 0; i = (*i).qualifying.get())
 				{
-					if((*i).declaration->enclosed == original.declaration->scope
-						&& index < (*i).arguments.size())
+					const Type& instantiated = getInstantiatedType(*i);
+					if(instantiated.declaration->enclosed == original.declaration->scope
+						&& index < instantiated.arguments.size())
 					{
-						return (*i).arguments[index].type;
+						return instantiated.arguments[index].type;
 					}
 				}
 			}
@@ -758,7 +823,7 @@ struct WalkerBase
 
 	WalkerContext& context;
 	Scope* enclosing;
-	Types qualifying;
+	Qualifying qualifying;
 	Scope* templateParams;
 	Scope* templateEnclosing;
 	bool* ambiguity;
@@ -1008,12 +1073,12 @@ struct WalkerBase
 		{
 			return 0;
 		}
-		return qualifying.back().declaration->enclosed;
+		return getInstantiatedType(qualifying.back()).declaration->enclosed;
 	}
 
 	void clearQualifying()
 	{
-		qualifying.clear();
+		qualifying = Qualifying();
 	}
 
 	void setQualifying(const Type& type)
@@ -1028,12 +1093,11 @@ struct WalkerBase
 			throw SemanticError();
 		}
 #endif
-		qualifying.clear();
-		qualifying.push_back(type);
+		qualifying = type;
 	}
-	void setQualifying(const Types& types)
+	void setQualifying(const Qualifying& other)
 	{
-		qualifying = types;
+		qualifying = other;
 	}
 
 	void reportIdentifierMismatch(const Identifier& id, Declaration* declaration, const char* expected)
@@ -1117,6 +1181,20 @@ struct WalkerBase
 	{
 		return (templateParams != 0 && ::isDependent(*templateParams, bases))
 			|| ::isDependent(*enclosing, bases);
+	}
+
+	bool isDependent(const Qualifying& qualifying)
+	{
+		if(qualifying.empty())
+		{
+			return false;
+		}
+		const Type& instantiated = getInstantiatedType(qualifying.back());
+		if(isDependent(instantiated.qualifying))
+		{
+			return true;
+		}
+		return isDependent(instantiated);
 	}
 };
 
@@ -2042,7 +2120,8 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 		{
 			if(type.declaration != 0)
 			{
-				qualifying.push_back(getInstantiatedType(type));
+				type.qualifying.swap(qualifying);
+				qualifying = type;
 			}
 		}
 	}
@@ -2096,7 +2175,8 @@ struct NestedNameSpecifierWalker : public WalkerBase
 		{
 			if(type.declaration != 0)
 			{
-				qualifying.push_back(getInstantiatedType(type));
+				type.qualifying.swap(qualifying);
+				qualifying = type;
 			}
 		}
 	}
