@@ -748,10 +748,12 @@ Declaration* findPrimaryTemplate(Declaration* declaration)
 #if 1
 	return declaration;
 #else
+	SEMANTIC_ASSERT(declaration->isTemplate == ISTEMPLATE_PRIMARY);
 	for(;declaration != 0; declaration = declaration->overloaded)
 	{
-		if(!declaration->isTemplateSpecialisation)
+		if(declaration->isTemplate != ISTEMPLATE_SPECIAL)
 		{
+			SEMANTIC_ASSERT(declaration->isTemplate == ISTEMPLATE_PRIMARY);
 			return declaration;
 		}
 	}

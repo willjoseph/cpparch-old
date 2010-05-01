@@ -18,15 +18,14 @@ namespace N67
 	typedef Tmpl<>::type T;
 	T::I i;
 
-
 	struct D : public T
 	{
 		I m;
-	}
+	};
 }
 #endif
 
-// test deferal of name-lookup for function-call identifier
+// test deferral of name-lookup for function-call identifier
 template<typename T>
 class DependentTmpl
 {
