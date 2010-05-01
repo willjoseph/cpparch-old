@@ -1,5 +1,48 @@
 
 #if 0
+namespace mpl
+{
+	struct na
+	{
+		typedef na type;
+		enum { value = 0 };
+	};
+
+	template<typename Dummy=na>
+	struct vector0;
+	template<>
+	struct vector0<na>
+	{
+		typedef vector0 type;
+	};
+
+	template<
+		typename T0 = na, typename T1 = na, typename T2 = na, typename T3 = na
+		, typename T4 = na, typename T5 = na, typename T6 = na, typename T7 = na
+		, typename T8 = na, typename T9 = na, typename T10 = na, typename T11 = na
+		, typename T12 = na, typename T13 = na, typename T14 = na
+		, typename T15 = na, typename T16 = na, typename T17 = na
+		, typename T18 = na, typename T19 = na
+	>
+	struct vector;
+}
+namespace mpl
+{
+	template<
+
+	>
+	struct vector<
+		na, na, na, na, na, na, na, na, na, na, na, na, na, na, na, na, na
+		, na, na, na
+	>
+	: vector0<  >
+	{
+		typedef vector0<  >::type type;
+	};
+}
+#endif
+
+#if 0
 #include <boost/type_traits/type_with_alignment.hpp>
 
 #elif 0

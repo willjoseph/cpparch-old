@@ -1,4 +1,87 @@
 
+#if 1
+namespace N69
+{
+	template<typename T = int>
+	struct Tmpl; // not defined!
+
+	template<>
+	struct Tmpl<int>
+	{
+		typedef int I;
+	};
+
+	Tmpl<>::I i;
+}
+
+namespace N68
+{
+	template<typename X>
+	struct Tmpl
+	{
+	};
+	template<>
+	struct Tmpl<char>
+	{
+		static const char VALUE = 0;
+	};
+
+	const char Tmpl<char>::VALUE;
+
+	template<>
+	struct Tmpl<int>
+	{
+		static const int VALUE = 0;
+	};
+	const int Tmpl<int>::VALUE;
+}
+#endif
+
+namespace stdTEST
+{
+
+	template<class _Ty>
+	struct _Allocator_base
+	{
+	};
+
+	template<class _Ty>
+	struct _Allocator_base<const _Ty>
+	{
+	};
+
+	template<class _Ty>
+	class allocator: public _Allocator_base<_Ty>
+	{
+	};
+
+	template<class _Ty,
+	class _Alloc>
+	class _String_val
+	{
+	};
+
+	template<class _Elem,
+	class _Ax>
+	class basic_string
+		: public _String_val<_Elem, _Ax>
+	{
+		typedef int size_type;
+	};
+
+	typedef basic_string<char, allocator<char> > string;
+
+	template<class _Elem,
+	class _InIt >
+	class num_get
+	{
+		void f()
+		{
+			(string::size_type)1;
+		}
+	};
+}
+
 
 #if 1
 // default-template-parameter
@@ -967,45 +1050,6 @@ class TestTemplateTemplateParam
 };
 
 
-namespace stdTEST
-{
-
-	template<class _Ty>
-	struct _Allocator_base<const _Ty>
-	{
-	};
-
-	template<class _Ty>
-	class allocator: public _Allocator_base<_Ty>
-	{
-	};
-
-	template<class _Ty,
-	class _Alloc>
-	class _String_val
-	{
-	};
-
-	template<class _Elem,
-	class _Ax>
-	class basic_string
-		: public _String_val<_Elem, _Ax>
-	{
-		typedef int size_type;
-	};
-
-	typedef basic_string<char, allocator<char> > string;
-
-	template<class _Elem,
-		class _InIt >
-	class num_get
-	{
-		void f()
-		{
-			(string::size_type)1;
-		}
-	};
-}
 
 template<typename T>
 class C10 : public T
