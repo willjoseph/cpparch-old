@@ -232,6 +232,15 @@ bool operator<(const TemplateArgument& left, const TemplateArgument& right)
 }
 #endif
 
+enum IsTemplate
+{
+	ISTEMPLATE_NONE,
+	ISTEMPLATE_PRIMARY,
+	ISTEMPLATE_SPECIAL,
+};
+
+const size_t INDEX_INVALID = size_t(-1);
+
 struct Declaration
 {
 	Scope* scope;
@@ -241,16 +250,14 @@ struct Declaration
 	Declaration* overloaded;
 	Dependent valueDependent;
 	DeclSpecifiers specifiers;
-	bool isTemplate;
-	bool isTemplateSpecialisation;
-	bool isNonTypeParameter;
+	IsTemplate isTemplate;
+	size_t templateParameter;
 
-	Declaration(Scope* scope, Identifier name, const Type& type, Scope* enclosed, DeclSpecifiers specifiers = DeclSpecifiers(), bool isTemplate = false, bool isTemplateSpecialisation = false)
-		: scope(scope), name(name), type(type), enclosed(enclosed), overloaded(0), specifiers(specifiers), isTemplate(isTemplate), isTemplateSpecialisation(isTemplateSpecialisation), isNonTypeParameter(false)
+	Declaration(Scope* scope, Identifier name, const Type& type, Scope* enclosed, DeclSpecifiers specifiers = DeclSpecifiers(), IsTemplate isTemplate = ISTEMPLATE_NONE, size_t templateParameter = INDEX_INVALID)
+		: scope(scope), name(name), type(type), enclosed(enclosed), overloaded(0), specifiers(specifiers), isTemplate(isTemplate), templateParameter(templateParameter)
 	{
 	}
 };
-
 
 struct UniqueName
 {
@@ -285,10 +292,8 @@ struct Scope
 #endif
 	Declarations declarations;
 	ScopeType type;
-	typedef std::vector<Type> Bases;
-	Bases bases;
-	typedef std::list<Declaration> DeclarationList;
-	DeclarationList templateParamTypes;
+	Types bases;
+	Types templateParamDefaults;
 
 	Scope(const Identifier& name, ScopeType type = SCOPETYPE_UNKNOWN)
 		: parent(0), name(name), enclosedScopeCount(0), type(type)
@@ -339,7 +344,7 @@ Declaration gBuiltin(0, makeIdentifier("$builtin"), &gSpecial, 0);
 
 Declaration gDependentType(0, makeIdentifier("$type"), &gSpecial, 0);
 Declaration gDependentObject(0, makeIdentifier("$object"), &gBuiltin, 0);
-Declaration gDependentTemplate(0, makeIdentifier("$template"), &gSpecial, 0, DeclSpecifiers(), true);
+Declaration gDependentTemplate(0, makeIdentifier("$template"), &gSpecial, 0, DeclSpecifiers(), ISTEMPLATE_PRIMARY);
 Declaration gDependentNested(0, makeIdentifier("$nested"), &gSpecial, 0);
 
 Declaration gParam(0, makeIdentifier("$param"), &gClass, 0);
@@ -402,51 +407,34 @@ const Declaration* getBaseType(const Declaration& declaration)
 
 const Type& getOriginalType(const Type& type)
 {
-	if(type.declaration->specifiers.isTypedef)
+	if(type.declaration->specifiers.isTypedef
+		&& type.declaration->templateParameter == INDEX_INVALID)
 	{
 		return getOriginalType(type.declaration->type);
 	}
 	return type;
 }
 
-Scope::DeclarationList::const_iterator findDeclaration(const Scope::DeclarationList& declarations, const Declaration* declaration)
-{
-	ProfileScope profile(gProfileIdentifier);
-	Scope::DeclarationList::const_iterator i = declarations.begin();
-	for(; i != declarations.end(); ++i)
-	{
-		if(&(*i) == declaration)
-		{
-			break;
-		}
-	}
-	return i;
-}
-
 const Type& getInstantiatedType(const Type& type)
 {
-	if(type.declaration->specifiers.isTypedef)
+	if(type.declaration->specifiers.isTypedef
+		&& type.declaration->templateParameter == INDEX_INVALID)
 	{
 		const Type& original = getInstantiatedType(type.declaration->type);
 
-		if(original.declaration->scope != 0)
+		size_t index = original.declaration->templateParameter;
+		if(index != INDEX_INVALID)
 		{
-			const Scope::DeclarationList& templateParamTypes = original.declaration->scope->templateParamTypes;
-			Scope::DeclarationList::const_iterator param = findDeclaration(templateParamTypes, original.declaration);
-			if(param != templateParamTypes.end())
+			// original type is a template-parameter
+			// find template-specialisation in list of qualifiers
+			for(const Type* i = type.qualifying.get(); i != 0; i = (*i).qualifying.get())
 			{
-				// original type is a template-parameter
-				size_t index = std::distance( templateParamTypes.begin(), param);
-				// find template-specialisation in list of qualifiers
-				for(const Type* i = type.qualifying.get(); i != 0; i = (*i).qualifying.get())
+				const Type& instantiated = getInstantiatedType(*i);
+				if(instantiated.declaration->enclosed == original.declaration->scope
+					&& index < instantiated.arguments.size())
 				{
-					const Type& instantiated = getInstantiatedType(*i);
-					if(instantiated.declaration->enclosed == original.declaration->scope
-						&& index < instantiated.arguments.size())
-					{
-						SEMANTIC_ASSERT(instantiated.arguments[index].type.declaration != 0);
-						return instantiated.arguments[index].type;
-					}
+					SEMANTIC_ASSERT(instantiated.arguments[index].type.declaration != 0);
+					return instantiated.arguments[index].type;
 				}
 			}
 		}
@@ -526,19 +514,6 @@ bool isExtern(const Declaration& declaration)
 	return declaration.specifiers.isExtern;
 }
 
-bool isTypeParameter(Declaration* declaration, const Scope& scope)
-{
-	if(findDeclaration(scope.templateParamTypes, declaration) != scope.templateParamTypes.end())
-	{
-		return true;
-	}
-	if(scope.parent != 0)
-	{
-		return isTypeParameter(declaration, *scope.parent);
-	}
-	return false;
-}
-
 bool isVisible(Declaration* declaration, const Scope& scope)
 {
 	if(declaration->scope == &scope)
@@ -552,16 +527,17 @@ bool isVisible(Declaration* declaration, const Scope& scope)
 	return false;
 }
 
-bool isNonTypeParameter(Declaration* declaration, const DependentContext& context)
+bool isTemplateParameter(Declaration* declaration, const DependentContext& context)
 {
-	return declaration->isNonTypeParameter && (isVisible(declaration, context.templateParams) || isVisible(declaration, context.enclosing));
+	return declaration->templateParameter != INDEX_INVALID && (isVisible(declaration, context.templateParams) || isVisible(declaration, context.enclosing));
 }
+
 
 bool isDependent(const Type& type, const DependentContext& context);
 
-bool isDependent(const Scope::Bases& bases, const DependentContext& context)
+bool isDependent(const Types& bases, const DependentContext& context)
 {
-	for(Scope::Bases::const_iterator i = bases.begin(); i != bases.end(); ++i)
+	for(Types::const_iterator i = bases.begin(); i != bases.end(); ++i)
 	{
 		if((*i).visited)
 		{
@@ -594,31 +570,11 @@ bool isDependent(const TemplateArguments& arguments, const DependentContext& con
 		{
 			continue;
 		}
-		if((*i).type.declaration != 0)
+		if(evaluateDependent((*i).dependent.head, context) // array-size or constant-initializer
+			|| ((*i).type.declaration != 0
+				&& isDependent((*i).type, context)))
 		{
-			if(
-#if 1
-				evaluateDependent((*i).dependent.head, context) // array-size
-#else
-				(*i).isDependent // array-size
-#endif
-				|| isDependent((*i).type, context))
-			{
-				return true;
-			}
-		}
-		else
-		{
-			if(
-#if 1
-				evaluateDependent((*i).dependent.head, context) // array-size
-#else
-				(*i).isDependent // initializer
-#endif
-			)
-			{
-				return true;
-			}
+			return true;
 		}
 	}
 	return false;
@@ -636,11 +592,7 @@ bool isDependentInternal(const Type& type, const DependentContext& context)
 	{
 		return true;
 	}
-	if(isTypeParameter(original.declaration, context.templateParams))
-	{
-		return true;
-	}
-	if(isTypeParameter(original.declaration, context.enclosing))
+	if(isTemplateParameter(original.declaration, context))
 	{
 		return true;
 	}
@@ -666,7 +618,9 @@ bool isDependent(const Type& type, const DependentContext& context)
 
 bool isDependentName(Declaration* declaration, const DependentContext& context)
 {
-	return isNonTypeParameter(declaration, context) || isDependent(declaration->type, context) || evaluateDependent(declaration->valueDependent.head, context);
+	return isTemplateParameter(declaration, context)
+		|| isDependent(declaration->type, context)
+		|| evaluateDependent(declaration->valueDependent.head, context);
 }
 
 bool isDependentType(Type* type, const DependentContext& context)
@@ -679,18 +633,6 @@ bool isDependentClass(Scope* scope, const DependentContext& context)
 	return isDependent(scope->bases, context);
 }
 
-inline Scope* findEnclosingTemplate(Scope* scope)
-{
-	for(; scope != 0; scope = scope->parent)
-	{
-		if(!scope->templateParamTypes.empty())
-		{
-			return scope;
-		}
-	}
-	return 0;
-}
-
 const char* getDeclarationType(const Declaration& declaration)
 {
 	if(isNamespace(declaration))
@@ -699,7 +641,7 @@ const char* getDeclarationType(const Declaration& declaration)
 	}
 	if(isType(declaration))
 	{
-		return declaration.isTemplate ? "template" : "type";
+		return declaration.isTemplate != ISTEMPLATE_NONE ? "template" : "type";
 	}
 	return "object";
 }
@@ -747,11 +689,11 @@ inline const Declaration& getPrimaryDeclaration(const Declaration& first, const 
 		}
 		if(isClass(first))
 		{
-			if(second.isTemplateSpecialisation)
+			if(second.isTemplate == ISTEMPLATE_SPECIAL)
 			{
 				return second; // TODO
 			}
-			if(first.isTemplateSpecialisation)
+			if(first.isTemplate == ISTEMPLATE_SPECIAL)
 			{
 				return second; // TODO
 			}
@@ -849,10 +791,10 @@ void printDeclarations(const Scope::Declarations& declarations)
 	std::cout << " }";
 }
 
-void printBases(const Scope::Bases& bases)
+void printBases(const Types& bases)
 {
 	std::cout << "{ ";
-	for(Scope::Bases::const_iterator i = bases.begin(); i != bases.end();)
+	for(Types::const_iterator i = bases.begin(); i != bases.end();)
 	{
 		std::cout << getValue((*i).declaration->name) << ": ";
 		Scope* scope = (*i).declaration->enclosed;
@@ -998,10 +940,10 @@ struct WalkerBase
 #endif
 	}
 
-	Declaration* findDeclaration(Scope::Bases& bases, const Identifier& id, LookupFilter filter = isAny)
+	Declaration* findDeclaration(Types& bases, const Identifier& id, LookupFilter filter = isAny)
 	{
 		ProfileScope profile(gProfileIdentifier);
-		for(Scope::Bases::iterator i = bases.begin(); i != bases.end(); ++i)
+		for(Types::iterator i = bases.begin(); i != bases.end(); ++i)
 		{
 			Scope* scope = (*i).declaration->enclosed;
 			if(scope != 0)
@@ -1016,7 +958,7 @@ struct WalkerBase
 		return 0;
 	}
 
-	Declaration* findDeclaration(Scope::Declarations& declarations, Scope::Bases& bases, const Identifier& id, LookupFilter filter = isAny)
+	Declaration* findDeclaration(Scope::Declarations& declarations, Types& bases, const Identifier& id, LookupFilter filter = isAny)
 	{
 		{
 			Declaration* result = findDeclaration(declarations, id, filter);
@@ -1080,7 +1022,7 @@ struct WalkerBase
 		return &gUndeclared;
 	}
 
-	Declaration* pointOfDeclaration(Scope* parent, const Identifier& name, const Type& type, Scope* enclosed, DeclSpecifiers specifiers = DeclSpecifiers(), bool isTemplate = false, bool isTemplateSpecialisation = false)
+	Declaration* pointOfDeclaration(Scope* parent, const Identifier& name, const Type& type, Scope* enclosed, DeclSpecifiers specifiers = DeclSpecifiers(), IsTemplate isTemplate = ISTEMPLATE_NONE, size_t templateParameter = INDEX_INVALID)
 	{
 		if(ambiguity != 0)
 		{
@@ -1093,7 +1035,7 @@ struct WalkerBase
 			return &gFriend;
 		}
 		
-		Declaration other(parent, name, type, enclosed, specifiers, isTemplate, isTemplateSpecialisation);
+		Declaration other(parent, name, type, enclosed, specifiers, isTemplate, templateParameter);
 		if(name.value != 0) // unnamed class/struct/union/enum
 		{
 			/* 3.4.4-1
@@ -1123,7 +1065,10 @@ struct WalkerBase
 					&& isFunction(other))
 				{
 					// quick hack - if any template overload of a function has been declared, all subsequent declarations are template functions
-					other.isTemplate |= declaration->isTemplate;
+					if(declaration->isTemplate != ISTEMPLATE_NONE)
+					{
+						other.isTemplate = ISTEMPLATE_PRIMARY;
+					}
 				}
 				other.overloaded = declaration;
 			}
@@ -1141,7 +1086,8 @@ struct WalkerBase
 	{
 		Scope* enclosed = templateParams != 0 ? templateParams : TREEWALKER_NEW(Scope, (makeIdentifier("$class")));
 		enclosed->type = SCOPETYPE_CLASS;
-		Declaration* declaration = pointOfDeclaration(enclosing, id == 0 ? makeIdentifier(enclosing->getUniqueName()) : *id, &gClass, enclosed, DeclSpecifiers(), enclosing == templateEnclosing, isTemplateSpecialisation);
+		IsTemplate isTemplate = enclosing == templateEnclosing ? isTemplateSpecialisation ? ISTEMPLATE_SPECIAL : ISTEMPLATE_PRIMARY : ISTEMPLATE_NONE;
+		Declaration* declaration = pointOfDeclaration(enclosing, id == 0 ? makeIdentifier(enclosing->getUniqueName()) : *id, &gClass, enclosed, DeclSpecifiers(), isTemplate);
 		if(id != 0)
 		{
 			id->dec.p = declaration;
@@ -1150,9 +1096,11 @@ struct WalkerBase
 		return declaration;
 	}
 
-	Declaration* declareObject(Scope* parent, Identifier* id, const Type& type, Scope* enclosed, DeclSpecifiers specifiers)
+	Declaration* declareObject(Scope* parent, Identifier* id, const Type& type, Scope* enclosed, DeclSpecifiers specifiers, Dependent valueDependent, size_t templateParameter)
 	{
-		Declaration* declaration = pointOfDeclaration(parent, *id, type, enclosed, specifiers, enclosing == templateEnclosing, false); // 3.3.1.1
+		IsTemplate isTemplate = enclosing == templateEnclosing ? ISTEMPLATE_PRIMARY : ISTEMPLATE_NONE;
+		Declaration* declaration = pointOfDeclaration(parent, *id, type, enclosed, specifiers, isTemplate, templateParameter); // 3.3.1.1
+		declaration->valueDependent = valueDependent;
 		if(id != &gAnonymousId)
 		{
 			id->dec.p = declaration;
@@ -1197,7 +1145,7 @@ struct WalkerBase
 
 	void addBase(Declaration* declaration, const Type& base)
 	{
-		if(base.declaration == declaration)
+		if(getInstantiatedType(base).declaration == declaration)
 		{
 			return; // TODO: implement template-instantiation, and disallow inheriting from current-instantiation
 		}
@@ -1272,7 +1220,8 @@ struct WalkerBase
 			contains the declaration; otherwise, except as a friend declaration, the identifier is declared in the
 			smallest non-class, non-function-prototype scope that contains the declaration.
 			*/
-			Declaration* declaration = pointOfDeclaration(getEtsScope(), *forward, &gClass, 0, DeclSpecifiers(), enclosing == templateEnclosing);
+			IsTemplate isTemplate = enclosing == templateEnclosing ? ISTEMPLATE_PRIMARY : ISTEMPLATE_NONE;
+			Declaration* declaration = pointOfDeclaration(getEtsScope(), *forward, &gClass, 0, DeclSpecifiers(), isTemplate);
 			forward->dec.p = declaration;
 			type = declaration;
 		}
@@ -1313,7 +1262,7 @@ struct WalkerBase
 		return ::isDependent(type, DependentContext(*enclosing, templateParams != 0 ? *templateParams : Scope(IDENTIFIER_NULL)));
 	}
 
-	bool isDependent(const Scope::Bases& bases)
+	bool isDependent(const Types& bases)
 	{
 		return ::isDependent(bases, DependentContext(*enclosing, templateParams != 0 ? *templateParams : Scope(IDENTIFIER_NULL)));
 	}
@@ -1376,7 +1325,7 @@ bool isNamespaceName(const Declaration& declaration)
 bool isTemplateName(const Declaration& declaration)
 {
 	// returns true if \p declaration is a template class, function or template-parameter
-	return declaration.isTemplate && (isClass(declaration) || isFunction(declaration) || isTypedef(declaration));
+	return declaration.isTemplate != ISTEMPLATE_NONE && (isClass(declaration) || isFunction(declaration) || isTypedef(declaration));
 }
 
 bool isNestedName(const Declaration& declaration)
@@ -2116,14 +2065,14 @@ struct TemplateArgumentListWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		arguments.push_back(TemplateArgument());
 		arguments.back().type.swap(walker.type);
-		addDependent(arguments.back().dependent, walker.valueDependent);
+		arguments.back().dependent = walker.valueDependent;
 	}
 	void visit(cpp::assignment_expression* symbol)
 	{
 		ExpressionWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
 		arguments.push_back(TemplateArgument()); // todo: evaluate constant-expression (unless it's dependent expression)
-		addDependent(arguments.back().dependent, walker.typeDependent);
+		arguments.back().dependent = walker.typeDependent;
 		addDependent(arguments.back().dependent, walker.valueDependent);
 	}
 };
@@ -2509,7 +2458,8 @@ struct DeclareEts
 	void operator()(Identifier& id) const
 	{
 		// todo: record ETS declaration
-		Declaration* declaration = context.pointOfDeclaration(context.getEtsScope(), id, &gClass, 0, DeclSpecifiers(), context.enclosing == context.templateEnclosing);
+		IsTemplate isTemplate = context.enclosing == context.templateEnclosing ? ISTEMPLATE_PRIMARY : ISTEMPLATE_NONE;
+		Declaration* declaration = context.pointOfDeclaration(context.getEtsScope(), id, &gClass, 0, DeclSpecifiers(), isTemplate);
 		id.dec.p = declaration;
 	}
 };
@@ -2570,12 +2520,7 @@ struct DeclaratorWalker : public WalkerBase
 			base.enclosing->declarations = templateParams->declarations;
 			for(Scope::Declarations::iterator i = base.enclosing->declarations.begin(); i != base.enclosing->declarations.end(); ++i)
 			{
-				if(::findDeclaration(templateParams->templateParamTypes, (*i).second.type.declaration) != templateParams->templateParamTypes.end())
-				{
-					base.enclosing->templateParamTypes.push_back(gParam);
-					base.enclosing->templateParamTypes.back().scope = base.enclosing;
-					(*i).second.type = &base.enclosing->templateParamTypes.back();
-				}
+				(*i).second.scope = base.enclosing;
 			}
 		}
 		ParameterDeclarationClauseWalker walker(base);
@@ -2684,7 +2629,7 @@ struct ClassHeadWalker : public WalkerBase
 		if(walker.type.declaration != 0) // declaration == 0 if base-class is dependent
 		{
 			SEMANTIC_ASSERT(declaration->enclosed != 0);
-			addBase(declaration, getOriginalType(walker.type));
+			addBase(declaration, walker.type);
 		}
 	}
 };
@@ -3389,11 +3334,11 @@ struct SimpleDeclarationWalker : public WalkerBase
 	DeferredSymbols deferred;
 #endif
 	Dependent valueDependent;
+	size_t templateParameter;
 	bool isParameter;
-	bool isTemplateParameter;
 	bool isUnion;
 
-	SimpleDeclarationWalker(const WalkerBase& base, bool isParameter = false, bool isTemplateParameter = false) : WalkerBase(base),
+	SimpleDeclarationWalker(const WalkerBase& base, bool isParameter = false, size_t templateParameter = INDEX_INVALID) : WalkerBase(base),
 		declaration(0),
 		parent(0),
 		id(0),
@@ -3401,7 +3346,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		enclosed(0),
 		forward(0),
 		isParameter(isParameter),
-		isTemplateParameter(isTemplateParameter),
+		templateParameter(templateParameter),
 		isUnion(false)
 	{
 	}
@@ -3416,9 +3361,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 				templateParams->parent = parent;
 				enclosed = templateParams; // for a static-member-variable definition, store template-params with different names than those in the class definition
 			}
-			declaration = declareObject(parent, id, type, enclosed, specifiers);
-			addDependent(declaration->valueDependent, valueDependent);
-			declaration->isNonTypeParameter = isTemplateParameter;
+			declaration = declareObject(parent, id, type, enclosed, specifiers, valueDependent, templateParameter);
 
 			enclosing = parent;
 
@@ -3442,7 +3385,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 
 	void visit(cpp::decl_specifier_seq* symbol)
 	{
-		DeclSpecifierSeqWalker walker(*this, isTemplateParameter);
+		DeclSpecifierSeqWalker walker(*this, templateParameter != INDEX_INVALID);
 		TREEWALKER_WALK(walker, symbol);
 		type = walker.type;
 		declaration = type.declaration; // if no declarator is specified later, this is probably a class-declaration
@@ -3668,7 +3611,8 @@ struct SimpleDeclarationWalker : public WalkerBase
 		TREEWALKER_LEAF(symbol);
 		if(forward != 0)
 		{
-			declaration = pointOfDeclaration(enclosing, *forward, &gClass, 0, DeclSpecifiers(), enclosing == templateEnclosing);
+			IsTemplate isTemplate = enclosing == templateEnclosing ? ISTEMPLATE_PRIMARY : ISTEMPLATE_NONE;
+			declaration = pointOfDeclaration(enclosing, *forward, &gClass, 0, DeclSpecifiers(), isTemplate);
 			forward->dec.p = declaration;
 			type = declaration;
 		}
@@ -3731,15 +3675,15 @@ struct TypeParameterWalker : public WalkerBase
 	void visit(cpp::identifier* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		enclosing->templateParamTypes.push_back(gParam);
-		enclosing->templateParamTypes.back().scope = enclosing;
-		symbol->value.dec.p = pointOfDeclaration(enclosing, symbol->value, &enclosing->templateParamTypes.back(), 0, DECLSPEC_TYPEDEF, isTemplate);
+		symbol->value.dec.p = pointOfDeclaration(enclosing, symbol->value, &gParam, 0, DECLSPEC_TYPEDEF, isTemplate ? ISTEMPLATE_PRIMARY : ISTEMPLATE_NONE, enclosing->templateParamDefaults.size());
+		enclosing->templateParamDefaults.push_back(Type(0));
 	}
 	void visit(cpp::type_id* symbol)
 	{
 		SEMANTIC_ASSERT(!isTemplate);
 		TypeIdWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
+		enclosing->templateParamDefaults.back().swap(walker.type);
 	}
 	void visit(cpp::template_parameter_list* symbol)
 	{
@@ -3788,12 +3732,11 @@ struct TemplateParameterListWalker : public WalkerBase
 	}
 	void visit(cpp::parameter_declaration* symbol)
 	{
-		SimpleDeclarationWalker walker(*this, false, true);
+		SimpleDeclarationWalker walker(*this, false, enclosing->templateParamDefaults.size());
 		TREEWALKER_WALK(walker, symbol);
 		walker.commit();
 		// push a dummy param so that we have the same number of template-params as template-arguments
-		enclosing->templateParamTypes.push_back(gParam);
-		enclosing->templateParamTypes.back().scope = enclosing;
+		enclosing->templateParamDefaults.push_back(Type(0)); // TODO: default value for non-type template-param
 	}
 };
 

@@ -1,5 +1,77 @@
 
+// test deferal of name-lookup for function-call identifier
+template<typename T>
+class DependentTmpl
+{
+};
 
+template<typename T>
+typename T::dependent f(typename T::dependent t)
+{
+	dependent1(T::dependent2());
+
+	DependentTmpl<T>::dependent(t); // function-call
+	dependent(dependent(t));
+
+	typedef DependentTmpl<T> DependentType;
+	dependent(DependentType(t)); // dependent-type looks like a dependent-name
+
+	typename DependentTmpl<T>::dependent l; // member-typedef
+	int i = (typename DependentTmpl<T>::dependent)1;
+
+	dependent(DependentTmpl<T>());
+	dependent(t);
+}
+
+template<typename T>
+class DependentMemInit : public T, public DependentTmpl<T>
+{
+	typename T::M m;
+	DependentMemInit() : T(0), DependentTmpl<T>(0), m(0)
+	{
+	}
+};
+
+namespace N62
+{
+	template<typename T>
+	struct Tmpl
+	{
+		template<typename U>
+		struct Nested
+		{
+			typedef T Type;
+		};
+	};
+
+	struct S
+	{
+		typedef int I;
+	};
+
+	typedef Tmpl<S>::Nested<int>::Type T;
+	T::I i; // parse fails if 'T' is not resolved to 'S'
+}
+
+
+#if 0
+// default-template-parameter
+namespace N67
+{
+	struct S
+	{
+		typedef int I;
+	};
+
+	template<typename T = S>
+	struct Tmpl
+	{
+		typedef T type;
+	};
+
+	Tmpl<>::type::I i;
+}
+#endif
 
 #if 1
 namespace N66
@@ -77,38 +149,6 @@ T C2<X>::C3<T>::f(I)
 }
 
 
-// test deferal of name-lookup for function-call identifier
-template<typename T>
-class DependentTmpl
-{
-};
-
-template<typename T>
-typename T::dependent f(typename T::dependent t)
-{
-	dependent1(T::dependent2());
-
-	DependentTmpl<T>::dependent(t); // function-call
-	dependent(dependent(t));
-
-	typedef DependentTmpl<T> DependentType;
-	dependent(DependentType(t)); // dependent-type looks like a dependent-name
-
-	typename DependentTmpl<T>::dependent l; // member-typedef
-	int i = (typename DependentTmpl<T>::dependent)1;
-
-	dependent(DependentTmpl<T>());
-	dependent(t);
-}
-
-template<typename T>
-class DependentMemInit : public T, public DependentTmpl<T>
-{
-	typename T::M m;
-	DependentMemInit() : T(0), DependentTmpl<T>(0), m(0)
-	{
-	}
-};
 
 
 namespace N84
@@ -139,27 +179,6 @@ namespace N65
 	typedef Cond<
 		Tmpl<int>::value < 8 // parse fails if 'value' is thought to be a template-name
 		>::type t1;
-}
-
-namespace N62
-{
-	template<typename T>
-	struct Tmpl
-	{
-		template<typename U>
-		struct Nested
-		{
-			typedef T Type;
-		};
-	};
-
-	struct S
-	{
-		typedef int I;
-	};
-
-	typedef Tmpl<S>::Nested<int>::Type T;
-	T::I i; // parse fails if 'T' is not resolved to 'S'
 }
 
 namespace N61
