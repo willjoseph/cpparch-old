@@ -1,4 +1,31 @@
 
+
+#if 1
+// default-template-parameter
+namespace N67
+{
+	struct S
+	{
+		typedef int I;
+	};
+
+	template<typename T = S>
+	struct Tmpl
+	{
+		typedef T type;
+	};
+
+	typedef Tmpl<>::type T;
+	T::I i;
+
+
+	struct D : public T
+	{
+		I m;
+	}
+}
+#endif
+
 // test deferal of name-lookup for function-call identifier
 template<typename T>
 class DependentTmpl
@@ -53,25 +80,6 @@ namespace N62
 	T::I i; // parse fails if 'T' is not resolved to 'S'
 }
 
-
-#if 0
-// default-template-parameter
-namespace N67
-{
-	struct S
-	{
-		typedef int I;
-	};
-
-	template<typename T = S>
-	struct Tmpl
-	{
-		typedef T type;
-	};
-
-	Tmpl<>::type::I i;
-}
-#endif
 
 #if 1
 namespace N66

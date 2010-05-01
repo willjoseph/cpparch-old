@@ -405,16 +405,6 @@ const Declaration* getBaseType(const Declaration& declaration)
 	return declaration.type.declaration;
 }
 
-const Type& getOriginalType(const Type& type)
-{
-	if(type.declaration->specifiers.isTypedef
-		&& type.declaration->templateParameter == INDEX_INVALID)
-	{
-		return getOriginalType(type.declaration->type);
-	}
-	return type;
-}
-
 const Type& getInstantiatedType(const Type& type)
 {
 	if(type.declaration->specifiers.isTypedef
@@ -430,11 +420,19 @@ const Type& getInstantiatedType(const Type& type)
 			for(const Type* i = type.qualifying.get(); i != 0; i = (*i).qualifying.get())
 			{
 				const Type& instantiated = getInstantiatedType(*i);
-				if(instantiated.declaration->enclosed == original.declaration->scope
-					&& index < instantiated.arguments.size())
+				if(instantiated.declaration->enclosed == original.declaration->scope)
 				{
-					SEMANTIC_ASSERT(instantiated.arguments[index].type.declaration != 0);
-					return instantiated.arguments[index].type;
+					if(index < instantiated.arguments.size())
+					{
+						SEMANTIC_ASSERT(instantiated.arguments[index].type.declaration != 0);
+						return instantiated.arguments[index].type;
+					}
+					else
+					{
+						SEMANTIC_ASSERT(index < original.declaration->scope->templateParamDefaults.size()
+							&& original.declaration->scope->templateParamDefaults[index].declaration != 0);
+						return original.declaration->scope->templateParamDefaults[index];
+					}
 				}
 			}
 		}
@@ -587,7 +585,7 @@ bool isDependentInternal(const Type& type, const DependentContext& context)
 	{
 		return true;
 	}
-	const Type& original = getOriginalType(type);
+	const Type& original = getInstantiatedType(type);
 	if(original.declaration == &gTypename)
 	{
 		return true;
