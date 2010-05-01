@@ -945,7 +945,7 @@ struct WalkerBase
 		ProfileScope profile(gProfileIdentifier);
 		for(Types::iterator i = bases.begin(); i != bases.end(); ++i)
 		{
-			Scope* scope = (*i).declaration->enclosed;
+			Scope* scope = getInstantiatedType(*i).declaration->enclosed;
 			if(scope != 0)
 			{
 				Declaration* result = findDeclaration(scope->declarations, scope->bases, id, filter);
