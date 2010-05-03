@@ -1,4 +1,6 @@
 
+#include <boost/wave/cpp_context.hpp>
+
 #if 0
 
 namespace std

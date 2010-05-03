@@ -188,7 +188,10 @@ void increment(LexIterator& i)
 		std::cerr 
 			<< e.file_name() << "(" << e.line_no() << "): "
 			<< e.description() << std::endl;
-		throw LexError();
+		if(!boost::wave::is_recoverable(e))
+		{
+			throw LexError();
+		}
 	}
 }
 
