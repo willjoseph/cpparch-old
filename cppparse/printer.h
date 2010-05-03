@@ -106,7 +106,13 @@ struct TokenPrinter
 		if((isSeparated(prev)
 			&& isSeparated(id))
 			|| prev == boost::wave::T_COMMA
-			|| prev == boost::wave::T_COLON)
+			|| prev == boost::wave::T_COLON
+			|| (prev == boost::wave::T_GREATER
+				&& id == boost::wave::T_GREATER) // '>>'
+			|| (prev == boost::wave::T_STAR
+				&& id == boost::wave::T_ASSIGN) // '*='
+			|| (prev == boost::wave::T_LESS
+				&& id == boost::wave::T_COLON_COLON)) // '<::'
 		{
 			out << " ";
 		}

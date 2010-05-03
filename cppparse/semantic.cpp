@@ -2724,11 +2724,14 @@ struct UsingDeclarationWalker : public WalkerBase
 			}
 			else
 			{
+				// TODO: check for conflicts with earlier declarations
+				enclosing->declarations.insert(Scope::Declarations::value_type(declaration->name.value, *declaration));
 				walker.id->dec.p = declaration;
 			}
 		}
 		else
 		{
+			// TODO: introduce typename into enclosing namespace
 			walker.id->dec.p = &gDependentType;
 		}
 	}
@@ -3081,7 +3084,7 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 	}
 	void visit(cpp::elaborated_type_specifier* symbol)
 	{
-#ifdef MINGLE
+#if 0 //def MINGLE
 		if(isTemplateParameter)
 		{
 			result = 0;

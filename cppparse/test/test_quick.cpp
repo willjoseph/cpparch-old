@@ -1,4 +1,32 @@
 
+namespace N8
+{
+	namespace N
+	{
+		class C
+		{
+		};
+	}
+
+	using N::C;
+
+	C c;
+}
+
+
+namespace N7
+{
+	enum E
+	{
+	};
+
+	template<enum E L>
+	inline void f(enum E l)
+	{
+	}
+}
+
+
 #if 1
 namespace N69
 {

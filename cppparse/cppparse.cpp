@@ -176,6 +176,9 @@ int runTest(const Test& test)
 		add_macro_definition(context, "_MSC_VER=1400", true); // Visual C++ 8
 		add_macro_definition(context, "_MSC_FULL_VER=140050727", true); // Visual C++ 8
 
+		add_macro_definition(context, "_CPPP_TEST", true);
+
+
 		for(const CharConstPointer* p = test.definitions.first; p != test.definitions.last; ++p)
 		{
 			add_macro_definition(context, *p, true);

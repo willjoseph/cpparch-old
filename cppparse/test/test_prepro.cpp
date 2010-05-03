@@ -1,4 +1,54 @@
 
+namespace boost
+{
+	namespace multi_index
+	{
+		namespace detail
+		{
+			template<int N>
+			struct uintptr_candidates;
+			template<>
+			struct uintptr_candidates<-1>
+			{
+				typedef unsigned int type;
+			};
+			template<>
+			struct uintptr_candidates<0>
+			{
+				typedef unsigned int type;
+			};
+			template<>
+			struct uintptr_candidates<1>
+			{
+				typedef unsigned short type;
+			};
+			template<>
+			struct uintptr_candidates<2>
+			{
+				typedef unsigned long type;
+			};
+			template<>
+			struct uintptr_candidates<3>
+			{
+				typedef unsigned int type;
+			};
+			template<>
+			struct uintptr_candidates<4>
+			{
+				typedef unsigned __int64 type;
+			};
+			struct uintptr_aux
+			{
+				static const int index=sizeof(void*)==sizeof(uintptr_candidates<0>::type)?0:
+					sizeof(void*)==sizeof(uintptr_candidates<1>::type)?1:
+					sizeof(void*)==sizeof(uintptr_candidates<2>::type)?2:
+					sizeof(void*)==sizeof(uintptr_candidates<3>::type)?3:
+					sizeof(void*)==sizeof(uintptr_candidates<4>::type)?4:-1;
+			};
+		}
+	}
+}
+
 #if 0
 namespace mpl
 {
