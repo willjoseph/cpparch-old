@@ -766,7 +766,7 @@ bool isEqual(const Type& l, const Type& r)
 		|| r.declaration == 0)
 	{
 		// TODO: non-type parameters
-		return false;
+		return l.declaration == r.declaration; // match any non-type param value
 	}
 	const Type& left = getInstantiatedType(l);
 	const Type& right = getInstantiatedType(r);
