@@ -334,10 +334,78 @@ Declaration gNamespace(0, makeIdentifier("$namespace"), 0, 0);
 
 Declaration gCtor(0, makeIdentifier("$ctor"), &gSpecial, 0);
 Declaration gTypename(0, makeIdentifier("$typename"), &gSpecial, 0);
-Declaration gBuiltin(0, makeIdentifier("$builtin"), &gSpecial, 0);
+Declaration gEnumerator(0, makeIdentifier("$enumerator"), &gSpecial, 0);
+Declaration gUnknown(0, makeIdentifier("$unknown"), &gSpecial, 0);
+
+Declaration gChar(0, makeIdentifier("$char"), &gSpecial, 0);
+Declaration gSignedChar(0, makeIdentifier("$signed-char"), &gSpecial, 0);
+Declaration gUnsignedChar(0, makeIdentifier("$unsigned-char"), &gSpecial, 0);
+Declaration gSignedShortInt(0, makeIdentifier("$signed-short-int"), &gSpecial, 0);
+Declaration gUnsignedShortInt(0, makeIdentifier("$unsigned-short-int"), &gSpecial, 0);
+Declaration gSignedInt(0, makeIdentifier("$signed-int"), &gSpecial, 0);
+Declaration gUnsignedInt(0, makeIdentifier("$unsigned-int"), &gSpecial, 0);
+Declaration gSignedLongInt(0, makeIdentifier("$signed-long-int"), &gSpecial, 0);
+Declaration gUnsignedLongInt(0, makeIdentifier("$unsigned-long-int"), &gSpecial, 0);
+Declaration gSignedLongLongInt(0, makeIdentifier("$signed-long-long-int"), &gSpecial, 0);
+Declaration gUnsignedLongLongInt(0, makeIdentifier("$unsigned-long-long-int"), &gSpecial, 0);
+Declaration gWCharT(0, makeIdentifier("$wchar_t"), &gSpecial, 0);
+Declaration gBool(0, makeIdentifier("$bool"), &gSpecial, 0);
+Declaration gFloat(0, makeIdentifier("$float"), &gSpecial, 0);
+Declaration gDouble(0, makeIdentifier("$double"), &gSpecial, 0);
+Declaration gLongDouble(0, makeIdentifier("$long-double"), &gSpecial, 0);
+Declaration gVoid(0, makeIdentifier("$void"), &gSpecial, 0);
+
+unsigned combineFundamental(unsigned fundamental, unsigned token)
+{
+	unsigned mask = 1 << token;
+	if((fundamental & mask) != 0)
+	{
+		mask <<= 16;
+	}
+	return fundamental | mask;
+}
+
+#define MAKE_FUNDAMENTAL(token) (1 << cpp::simple_type_specifier_builtin::token)
+#define MAKE_FUNDAMENTAL2(token) (MAKE_FUNDAMENTAL(token) << 16)
+
+Declaration* getFundamentalType(unsigned fundamental)
+{
+	switch(fundamental)
+	{
+	case MAKE_FUNDAMENTAL(CHAR): return &gChar;
+	case MAKE_FUNDAMENTAL(SIGNED) | MAKE_FUNDAMENTAL(CHAR): return &gSignedChar;
+	case MAKE_FUNDAMENTAL(UNSIGNED) | MAKE_FUNDAMENTAL(CHAR): return &gUnsignedChar;
+	case MAKE_FUNDAMENTAL(SHORT):
+	case MAKE_FUNDAMENTAL(SIGNED) | MAKE_FUNDAMENTAL(SHORT):
+	case MAKE_FUNDAMENTAL(SIGNED) | MAKE_FUNDAMENTAL(SHORT) | MAKE_FUNDAMENTAL(INT): return &gSignedShortInt;
+	case MAKE_FUNDAMENTAL(UNSIGNED) | MAKE_FUNDAMENTAL(SHORT):
+	case MAKE_FUNDAMENTAL(UNSIGNED) | MAKE_FUNDAMENTAL(SHORT) | MAKE_FUNDAMENTAL(INT): return &gUnsignedShortInt;
+	case MAKE_FUNDAMENTAL(INT):
+	case MAKE_FUNDAMENTAL(SIGNED) | MAKE_FUNDAMENTAL(INT): return &gSignedInt;
+	case MAKE_FUNDAMENTAL(UNSIGNED):
+	case MAKE_FUNDAMENTAL(UNSIGNED) | MAKE_FUNDAMENTAL(INT): return &gUnsignedInt;
+	case MAKE_FUNDAMENTAL(LONG):
+	case MAKE_FUNDAMENTAL(SIGNED) | MAKE_FUNDAMENTAL(LONG):
+	case MAKE_FUNDAMENTAL(SIGNED) | MAKE_FUNDAMENTAL(LONG) | MAKE_FUNDAMENTAL(INT): return &gSignedLongInt;
+	case MAKE_FUNDAMENTAL(UNSIGNED) | MAKE_FUNDAMENTAL(LONG):
+	case MAKE_FUNDAMENTAL(UNSIGNED) | MAKE_FUNDAMENTAL(LONG) | MAKE_FUNDAMENTAL(INT): return &gUnsignedLongInt;
+	case MAKE_FUNDAMENTAL(LONG) | MAKE_FUNDAMENTAL2(LONG):
+	case MAKE_FUNDAMENTAL(SIGNED) | MAKE_FUNDAMENTAL(LONG) | MAKE_FUNDAMENTAL2(LONG):
+	case MAKE_FUNDAMENTAL(SIGNED) | MAKE_FUNDAMENTAL(LONG) | MAKE_FUNDAMENTAL2(LONG) | MAKE_FUNDAMENTAL(INT): return &gSignedLongLongInt;
+	case MAKE_FUNDAMENTAL(UNSIGNED) | MAKE_FUNDAMENTAL(LONG) | MAKE_FUNDAMENTAL2(LONG):
+	case MAKE_FUNDAMENTAL(UNSIGNED) | MAKE_FUNDAMENTAL(LONG) | MAKE_FUNDAMENTAL2(LONG) | MAKE_FUNDAMENTAL(INT): return &gUnsignedLongLongInt;
+	case MAKE_FUNDAMENTAL(WCHAR_T): return &gWCharT;
+	case MAKE_FUNDAMENTAL(BOOL): return &gBool;
+	case MAKE_FUNDAMENTAL(FLOAT): return &gFloat;
+	case MAKE_FUNDAMENTAL(DOUBLE): return &gDouble;
+	case MAKE_FUNDAMENTAL(LONG) | MAKE_FUNDAMENTAL(DOUBLE): return &gLongDouble;
+	case MAKE_FUNDAMENTAL(VOID): return &gVoid;
+	}
+	return 0;
+}
 
 Declaration gDependentType(0, makeIdentifier("$type"), &gSpecial, 0);
-Declaration gDependentObject(0, makeIdentifier("$object"), &gBuiltin, 0);
+Declaration gDependentObject(0, makeIdentifier("$object"), &gUnknown, 0);
 Declaration gDependentTemplate(0, makeIdentifier("$template"), &gSpecial, 0, DeclSpecifiers(), true);
 Declaration gDependentNested(0, makeIdentifier("$nested"), &gSpecial, 0);
 
@@ -2359,8 +2427,9 @@ struct TypeSpecifierWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	Type type;
+	unsigned fundamental;
 	TypeSpecifierWalker(const WalkerBase& base)
-		: WalkerBase(base), type(0)
+		: WalkerBase(base), type(0), fundamental(0)
 	{
 	}
 
@@ -2369,12 +2438,14 @@ struct TypeSpecifierWalker : public WalkerBase
 		TypeSpecifierWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
 		type = walker.type;
+		fundamental = walker.fundamental;
 	}
 	void visit(cpp::simple_type_specifier_template* symbol)
 	{
 		TypeSpecifierWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
 		type = walker.type;
+		fundamental = walker.fundamental;
 	}
 	void visit(cpp::type_name* symbol)
 	{
@@ -2406,8 +2477,7 @@ struct TypeSpecifierWalker : public WalkerBase
 	void visit(cpp::simple_type_specifier_builtin* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		// TODO
-		type = &gBuiltin;
+		fundamental = symbol->id;
 	}
 };
 
@@ -2556,7 +2626,8 @@ struct DeclaratorWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		id = walker.id;
 
-		if(walker.getQualifyingScope() != 0)
+		if(walker.getQualifyingScope() != 0
+			&& enclosing->type != SCOPETYPE_CLASS) // in 'class C { friend Q::N(X); };' X should be looked up in the scope of C rather than Q
 		{
 			enclosing = walker.getQualifyingScope(); // names in declarator suffix (array-size, parameter-declaration) are looked up in declarator-id's qualifying scope
 		}
@@ -2864,7 +2935,7 @@ struct EnumeratorDefinitionWalker : public WalkerBase
 		The point of declaration for an enumerator is immediately after its enumerator-definition.
 		*/
 		// TODO: give enumerators a type
-		declaration = pointOfDeclaration(enclosing, symbol->value, &gBuiltin, 0, DeclSpecifiers());
+		declaration = pointOfDeclaration(enclosing, symbol->value, &gEnumerator, 0, DeclSpecifiers());
 		symbol->value.dec.p = declaration;
 	}
 	void visit(cpp::constant_expression* symbol)
@@ -3067,12 +3138,13 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	Type type;
+	unsigned fundamental;
 	DeclSpecifiers specifiers;
 	Identifier* forward;
 	bool isUnion;
 	bool isTemplateParameter;
 	DeclSpecifierSeqWalker(const WalkerBase& base, bool isTemplateParameter = false)
-		: WalkerBase(base), type(0), forward(0), isUnion(false), isTemplateParameter(isTemplateParameter)
+		: WalkerBase(base), type(0), fundamental(0), forward(0), isUnion(false), isTemplateParameter(isTemplateParameter)
 	{
 	}
 
@@ -3081,6 +3153,17 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 		TypeSpecifierWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
 		type = walker.type;
+		if(walker.type.declaration == 0)
+		{
+			fundamental = combineFundamental(0, walker.fundamental);
+			type = getFundamentalType(fundamental);
+		}
+	}
+	void visit(cpp::simple_type_specifier_builtin* symbol)
+	{
+		TREEWALKER_LEAF(symbol);
+		fundamental = combineFundamental(fundamental, symbol->id);
+		type = getFundamentalType(fundamental);
 	}
 	void visit(cpp::elaborated_type_specifier* symbol)
 	{

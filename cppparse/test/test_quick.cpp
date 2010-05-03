@@ -1,4 +1,26 @@
 
+namespace N9
+{
+	namespace detail
+	{
+		class unbounded_helper;
+	}
+
+	detail::unbounded_helper unbounded(detail::unbounded_helper);
+
+	namespace detail
+	{
+		class unbounded_helper
+		{
+			friend unbounded_helper N9::unbounded(unbounded_helper);
+		};
+	}
+}
+
+
+unsigned long long int i;
+
+
 namespace N8
 {
 	namespace N
@@ -28,6 +50,23 @@ namespace N7
 
 
 #if 1
+
+namespace N692
+{
+	template<typename T>
+	struct Tmpl
+	{
+		typedef T I;
+	};
+
+	template<>
+	struct Tmpl<int>
+	{
+	};
+
+	Tmpl<char>::I i;
+}
+
 namespace N69
 {
 	template<typename T = int>
