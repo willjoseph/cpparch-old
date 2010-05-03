@@ -1,4 +1,11 @@
 
+namespace 
+{
+	inline void f()
+	{
+	}
+}
+
 namespace N31
 {
 	namespace N

@@ -4039,7 +4039,7 @@ struct NamespaceWalker : public WalkerBase
 	}
 
 	NamespaceWalker(const WalkerBase& base)
-		: WalkerBase(base)
+		: WalkerBase(base), declaration(0), id(0)
 	{
 	}
 
@@ -4050,13 +4050,19 @@ struct NamespaceWalker : public WalkerBase
 	}
 	void visit(cpp::terminal<boost::wave::T_LEFTBRACE> symbol)
 	{
-		declaration = pointOfDeclaration(enclosing, *id, &gNamespace, 0);
-		id->dec.p = declaration;
-		if(declaration->enclosed == 0)
+		if(symbol.value != 0)
 		{
-			declaration->enclosed = TREEWALKER_NEW(Scope, (*id, SCOPETYPE_NAMESPACE));
+			if(id != 0)
+			{
+				declaration = pointOfDeclaration(enclosing, *id, &gNamespace, 0);
+				id->dec.p = declaration;
+				if(declaration->enclosed == 0)
+				{
+					declaration->enclosed = TREEWALKER_NEW(Scope, (*id, SCOPETYPE_NAMESPACE));
+				}
+				pushScope(declaration->enclosed);
+			}
 		}
-		pushScope(declaration->enclosed);
 	}
 	void visit(cpp::declaration* symbol)
 	{
