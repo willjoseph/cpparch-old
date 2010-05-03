@@ -3285,6 +3285,11 @@ struct StatementWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		SEMANTIC_ASSERT(walker.type.declaration != 0);
 	}
+	void visit(cpp::namespace_alias_definition* symbol)
+	{
+		NamespaceAliasDefinitionWalker walker(*this);
+		TREEWALKER_WALK(walker, symbol);
+	}
 	void visit(cpp::selection_statement* symbol)
 	{
 		ControlStatementWalker walker(*this);
@@ -3987,6 +3992,11 @@ struct DeclarationWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		declaration = walker.declaration;
 	}
+	void visit(cpp::namespace_alias_definition* symbol)
+	{
+		NamespaceAliasDefinitionWalker walker(*this);
+		TREEWALKER_WALK(walker, symbol);
+	}
 	void visit(cpp::general_declaration* symbol)
 	{
 		SimpleDeclarationWalker walker(*this);
@@ -4017,11 +4027,6 @@ struct DeclarationWalker : public WalkerBase
 	void visit(cpp::using_declaration* symbol)
 	{
 		UsingDeclarationWalker walker(*this);
-		TREEWALKER_WALK(walker, symbol);
-	}
-	void visit(cpp::namespace_alias_definition* symbol)
-	{
-		NamespaceAliasDefinitionWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
 	}
 };

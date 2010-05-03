@@ -11,11 +11,21 @@ namespace N31
 	namespace N
 	{
 		typedef int I;
+
+		I f()
+		{
+		}
 	}
 	
 	namespace M = N31::N;
 
 	M::I i;
+
+	void f()
+	{
+		namespace O = N31::N;
+		O::I i = O::f();
+	}
 }
 
 namespace N9
