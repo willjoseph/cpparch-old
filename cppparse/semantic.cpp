@@ -2812,6 +2812,52 @@ struct UsingDeclarationWalker : public WalkerBase
 	}
 };
 
+struct NamespaceAliasDefinitionWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	Identifier* id;
+	NamespaceAliasDefinitionWalker(const WalkerBase& base)
+		: WalkerBase(base), id(0)
+	{
+	}
+	void visit(cpp::terminal<boost::wave::T_COLON_COLON> symbol)
+	{
+		if(symbol.value != 0)
+		{
+			setQualifying(&context.globalDecl);
+		}
+	}
+	void visit(cpp::nested_name_specifier* symbol)
+	{
+		NestedNameSpecifierWalker walker(*this);
+		TREEWALKER_WALK(walker, symbol);
+		setQualifying(walker.qualifying);
+	}
+	void visit(cpp::identifier* symbol)
+	{
+		TREEWALKER_LEAF(symbol);
+		if(id == 0)
+		{
+			id = &symbol->value;
+		}
+		else
+		{
+			Declaration* declaration = findDeclaration(symbol->value, isNamespace);
+			if(declaration == &gUndeclared)
+			{
+				reportIdentifierMismatch(symbol->value, declaration, "namespace-name");
+			}
+			else
+			{
+				// TODO: check for conflicts with earlier declarations
+				declaration = pointOfDeclaration(enclosing, *id, &gNamespace, declaration->enclosed);
+				id->dec.p = declaration;
+			}
+		}
+	}
+};
+
 struct MemberDeclarationWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
@@ -3973,6 +4019,11 @@ struct DeclarationWalker : public WalkerBase
 		UsingDeclarationWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
 	}
+	void visit(cpp::namespace_alias_definition* symbol)
+	{
+		NamespaceAliasDefinitionWalker walker(*this);
+		TREEWALKER_WALK(walker, symbol);
+	}
 };
 
 struct NamespaceWalker : public WalkerBase
@@ -3980,8 +4031,9 @@ struct NamespaceWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	Declaration* declaration;
+	Identifier* id;
 	NamespaceWalker(WalkerContext& context)
-		: WalkerBase(context), declaration(0)
+		: WalkerBase(context), declaration(0), id(0)
 	{
 		pushScope(&context.global);
 	}
@@ -3994,11 +4046,15 @@ struct NamespaceWalker : public WalkerBase
 	void visit(cpp::identifier* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		declaration = pointOfDeclaration(enclosing, symbol->value, &gNamespace, 0);
-		symbol->value.dec.p = declaration;
+		id = &symbol->value;
+	}
+	void visit(cpp::terminal<boost::wave::T_LEFTBRACE> symbol)
+	{
+		declaration = pointOfDeclaration(enclosing, *id, &gNamespace, 0);
+		id->dec.p = declaration;
 		if(declaration->enclosed == 0)
 		{
-			declaration->enclosed = TREEWALKER_NEW(Scope, (symbol->value, SCOPETYPE_NAMESPACE));
+			declaration->enclosed = TREEWALKER_NEW(Scope, (*id, SCOPETYPE_NAMESPACE));
 		}
 		pushScope(declaration->enclosed);
 	}

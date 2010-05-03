@@ -1,4 +1,16 @@
 
+namespace N31
+{
+	namespace N
+	{
+		typedef int I;
+	}
+	
+	namespace M = N31::N;
+
+	M::I i;
+}
+
 namespace N9
 {
 	namespace detail
