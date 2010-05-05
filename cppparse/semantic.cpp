@@ -1681,8 +1681,9 @@ struct UnqualifiedIdWalker : public WalkerBase
 	Declaration* declaration;
 	Identifier* id;
 	bool isIdentifier;
-	UnqualifiedIdWalker(const WalkerBase& base)
-		: WalkerBase(base), declaration(0), id(0), isIdentifier(false)
+	bool isTemplate;
+	UnqualifiedIdWalker(const WalkerBase& base, bool isTemplate = false)
+		: WalkerBase(base), declaration(0), id(0), isIdentifier(false), isTemplate(isTemplate)
 	{
 	}
 	void visit(cpp::identifier* symbol)
@@ -1700,7 +1701,8 @@ struct UnqualifiedIdWalker : public WalkerBase
 		UncheckedTemplateIdWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
 		id = walker.id;
-		if(!isDependent(qualifying))
+		if(!isTemplate
+			&& !isDependent(qualifying))
 		{
 			declaration = findDeclaration(*id);
 			if(declaration == &gUndeclared
@@ -1732,8 +1734,9 @@ struct QualifiedIdWalker : public WalkerBase
 
 	Declaration* declaration;
 	Identifier* id;
+	bool isTemplate;
 	QualifiedIdWalker(const WalkerBase& base)
-		: WalkerBase(base), declaration(0), id(0)
+		: WalkerBase(base), declaration(0), id(0), isTemplate(false)
 	{
 	}
 
@@ -1750,16 +1753,23 @@ struct QualifiedIdWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		setQualifying(walker.qualifying);
 	}
+	void visit(cpp::terminal<boost::wave::T_TEMPLATE> symbol)
+	{
+		if(symbol.value != 0)
+		{
+			isTemplate = true;
+		}
+	}
 	void visit(cpp::unqualified_id* symbol)
 	{
-		UnqualifiedIdWalker walker(*this);
+		UnqualifiedIdWalker walker(*this, isTemplate);
 		TREEWALKER_WALK(walker, symbol);
 		declaration = walker.declaration;
 		id = walker.id;
 	}
 	void visit(cpp::qualified_id_suffix* symbol)
 	{
-		UnqualifiedIdWalker walker(*this);
+		UnqualifiedIdWalker walker(*this, isTemplate);
 		TREEWALKER_WALK(walker, symbol);
 		declaration = walker.declaration;
 		id = walker.id;
@@ -1780,9 +1790,18 @@ struct IdExpressionWalker : public WalkerBase
 	Declaration* declaration;
 	Identifier* id;
 	bool isIdentifier;
+	bool isTemplate;
 	IdExpressionWalker(const WalkerBase& base)
-		: WalkerBase(base), declaration(0), id(0), isIdentifier(false)
+		: WalkerBase(base), declaration(0), id(0), isIdentifier(false), isTemplate(false)
 	{
+	}
+	// HACK: for postfix-expression-member 
+	void visit(cpp::terminal<boost::wave::T_TEMPLATE> symbol)
+	{
+		if(symbol.value != 0)
+		{
+			isTemplate = true;
+		}
 	}
 	void visit(cpp::qualified_id* symbol)
 	{
@@ -1796,7 +1815,7 @@ struct IdExpressionWalker : public WalkerBase
 	void visit(cpp::unqualified_id* symbol)
 	{
 		// TODO
-		UnqualifiedIdWalker walker(*this);
+		UnqualifiedIdWalker walker(*this, isTemplate);
 		TREEWALKER_WALK(walker, symbol);
 		declaration = walker.declaration;
 		id = walker.id;
@@ -4006,6 +4025,13 @@ struct DeclarationWalker : public WalkerBase
 	}
 	// occurs in for-init-statement
 	void visit(cpp::simple_declaration* symbol)
+	{
+		SimpleDeclarationWalker walker(*this);
+		TREEWALKER_WALK(walker, symbol);
+		SEMANTIC_ASSERT(walker.type.declaration != 0);
+		declaration = walker.declaration;
+	}
+	void visit(cpp::constructor_definition* symbol)
 	{
 		SimpleDeclarationWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);

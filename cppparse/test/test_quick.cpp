@@ -1,4 +1,30 @@
 
+namespace N74
+{
+	struct S
+	{
+		template<typename T>
+		void f()
+		{
+		}
+	};
+
+	void f()
+	{
+		S s;
+		s.f<int>();
+	}
+}
+
+namespace N73
+{
+	template <class T, class U>
+	void f(const U& u, void* a)
+	{
+		u.template dependent<T>(a);
+	}
+}
+
 namespace 
 {
 	inline void f()

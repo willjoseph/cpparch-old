@@ -1,4 +1,22 @@
 
+namespace N74
+{
+	struct S
+	{
+		template<typename T>
+		void f()
+		{
+		}
+	};
+
+	void f()
+	{
+		S s;
+		s.f<int>();
+	}
+}
+
+
 #include <boost/wave/cpp_context.hpp>
 
 #if 0
