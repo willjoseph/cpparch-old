@@ -1,6 +1,22 @@
 
+class C
+{
+	template<typename T>
+	struct S;
+};
 
-#include <boost/wave/cpp_context.hpp>
+template<typename T>
+struct Tmpl
+{
+};
+
+template<typename T>
+struct C::S : public Tmpl<C::S<T> >
+{
+};
+
+#include <boost/spirit/home/classic/tree/common.hpp>
+//#include <boost/wave/cpp_context.hpp>
 
 #if 0
 
