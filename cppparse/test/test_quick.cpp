@@ -1,4 +1,5 @@
 
+#if 0 // TODO!
 namespace N74
 {
 	struct S
@@ -15,6 +16,7 @@ namespace N74
 		s.f<int>();
 	}
 }
+#endif
 
 namespace N73
 {
