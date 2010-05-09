@@ -2464,7 +2464,7 @@ namespace cpp
 		terminal<boost::wave::T_NAMESPACE> key2;
 		terminal_optional<boost::wave::T_COLON_COLON> isGlobal;
 		symbol_optional<nested_name_specifier> context;
-		symbol<identifier> id;
+		symbol<namespace_name> id;
 		terminal<boost::wave::T_SEMICOLON> semicolon;
 		FOREACH6(key, key2, isGlobal, context, id, semicolon);
 	};

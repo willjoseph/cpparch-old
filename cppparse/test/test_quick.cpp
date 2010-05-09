@@ -1,4 +1,57 @@
 
+namespace N78
+{
+
+	namespace N
+	{
+		int i;
+	}
+
+	namespace M
+	{
+		using namespace N;
+
+		void f()
+		{
+			i = 0;
+			M::i = 0;
+		}
+	}
+
+	namespace O
+	{
+		using namespace M;
+
+		void f()
+		{
+			i = 0;
+			O::i = 0;
+		}
+	}
+}
+
+namespace N77
+{
+	template<typename T>
+	struct Tmpl
+	{
+	};
+
+	struct C
+	{
+		template<typename T>
+		struct S;
+	};
+	template<typename T>
+	struct C::S
+		: public Tmpl< C::S<T> >
+	{
+		void f(T)
+		{
+		}
+	};
+}
+
 namespace N76
 {
 	struct C

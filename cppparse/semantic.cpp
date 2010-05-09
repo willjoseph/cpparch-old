@@ -277,6 +277,8 @@ struct Scope
 	Declarations declarations;
 	ScopeType type;
 	Types bases;
+	typedef std::vector<Scope*> Scopes;
+	Scopes usingNamespaces;
 
 	Scope(const Identifier& name, ScopeType type = SCOPETYPE_UNKNOWN)
 		: parent(0), name(name), enclosedScopeCount(0), type(type)
@@ -1027,7 +1029,8 @@ struct WalkerBase
 			Scope* scope = getInstantiatedType(*i).declaration->enclosed;
 			if(scope != 0)
 			{
-				Declaration* result = findDeclaration(scope->declarations, scope->bases, id, filter);
+				SEMANTIC_ASSERT(scope->usingNamespaces.empty());
+				Declaration* result = findDeclaration(scope->declarations, scope->bases, scope->usingNamespaces, id, filter);
 				if(result != 0)
 				{
 					return result;
@@ -1037,7 +1040,23 @@ struct WalkerBase
 		return 0;
 	}
 
-	Declaration* findDeclaration(Scope::Declarations& declarations, Types& bases, const Identifier& id, LookupFilter filter = isAny)
+	Declaration* findDeclaration(Scope::Scopes& scopes, const Identifier& id, LookupFilter filter = isAny)
+	{
+		ProfileScope profile(gProfileIdentifier);
+		for(Scope::Scopes::iterator i = scopes.begin(); i != scopes.end(); ++i)
+		{
+			Scope* scope = *i;
+			SEMANTIC_ASSERT(scope->bases.empty());
+			Declaration* result = findDeclaration(scope->declarations, scope->bases, scope->usingNamespaces, id, filter);
+			if(result != 0)
+			{
+				return result;
+			}
+		}
+		return 0;
+	}
+
+	Declaration* findDeclaration(Scope::Declarations& declarations, Types& bases, Scope::Scopes& usingNamespaces, const Identifier& id, LookupFilter filter = isAny)
 	{
 		{
 			Declaration* result = findDeclaration(declarations, id, filter);
@@ -1053,12 +1072,19 @@ struct WalkerBase
 				return result;
 			}
 		}
+		{
+			Declaration* result = findDeclaration(usingNamespaces, id, filter);
+			if(result != 0)
+			{
+				return result;
+			}
+		}
 		return 0;
 	}
 
 	Declaration* findDeclaration(Scope& scope, const Identifier& id, LookupFilter filter = isAny)
 	{
-		Declaration* result = findDeclaration(scope.declarations, scope.bases, id, filter);
+		Declaration* result = findDeclaration(scope.declarations, scope.bases, scope.usingNamespaces, id, filter);
 		if(result != 0)
 		{
 			return result;
@@ -1158,10 +1184,9 @@ struct WalkerBase
 
 	Declaration* declareClass(Identifier* id, const TemplateArguments& arguments)
 	{
-		Scope* scope = getQualifyingScope() != 0 ? getQualifyingScope() : enclosing; // names in declaration of nested-class are looked up in scope of enclosing class
 		Scope* enclosed = templateParams != 0 ? templateParams : TREEWALKER_NEW(Scope, (makeIdentifier("$class")));
 		enclosed->type = SCOPETYPE_CLASS;
-		Declaration* declaration = pointOfDeclaration(scope, id == 0 ? makeIdentifier(scope->getUniqueName()) : *id, &gClass, enclosed, DeclSpecifiers(), enclosing == templateEnclosing, arguments);
+		Declaration* declaration = pointOfDeclaration(enclosing, id == 0 ? makeIdentifier(enclosing->getUniqueName()) : *id, &gClass, enclosed, DeclSpecifiers(), enclosing == templateEnclosing, arguments);
 		if(id != 0)
 		{
 			id->dec.p = declaration;
@@ -2696,7 +2721,15 @@ struct ClassHeadWalker : public WalkerBase
 	{
 		NestedNameSpecifierWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
-		qualifying.swap(walker.qualifying);
+
+		if(walker.getQualifyingScope() != 0)
+		{
+			if(enclosing == templateEnclosing)
+			{
+				templateEnclosing = walker.getQualifyingScope();
+			}
+			enclosing = walker.getQualifyingScope(); // names in declaration of nested-class are looked up in scope of enclosing class
+		}
 	}
 	void visit(cpp::simple_template_id* symbol) 
 	{
@@ -2775,6 +2808,38 @@ struct UsingDeclarationWalker : public WalkerBase
 	void visit(cpp::terminal<boost::wave::T_TYPENAME> symbol)
 	{
 		isTypename = true;
+	}
+};
+
+struct UsingDirectiveWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	UsingDirectiveWalker(const WalkerBase& base)
+		: WalkerBase(base)
+	{
+	}
+	void visit(cpp::terminal<boost::wave::T_COLON_COLON> symbol)
+	{
+		if(symbol.value != 0)
+		{
+			setQualifying(&context.globalDecl);
+		}
+	}
+	void visit(cpp::nested_name_specifier* symbol)
+	{
+		NestedNameSpecifierWalker walker(*this);
+		TREEWALKER_WALK(walker, symbol);
+		setQualifying(walker.qualifying);
+	}
+	void visit(cpp::namespace_name* symbol)
+	{
+		NamespaceNameWalker walker(*this);
+		TREEWALKER_WALK(walker, symbol);
+		if(!findScope(enclosing, walker.declaration->enclosed))
+		{
+			enclosing->usingNamespaces.push_back(walker.declaration->enclosed);
+		}
 	}
 };
 
@@ -2898,7 +2963,7 @@ struct ClassSpecifierWalker : public WalkerBase
 		id = walker.id;
 		isUnion = walker.isUnion;
 		arguments.swap(walker.arguments);
-		qualifying.swap(walker.qualifying);
+		enclosing = walker.enclosing;
 	}
 	void visit(cpp::terminal<boost::wave::T_LEFTBRACE> symbol)
 	{
@@ -3990,6 +4055,11 @@ struct DeclarationWalker : public WalkerBase
 	void visit(cpp::using_declaration* symbol)
 	{
 		UsingDeclarationWalker walker(*this);
+		TREEWALKER_WALK(walker, symbol);
+	}
+	void visit(cpp::using_directive* symbol)
+	{
+		UsingDirectiveWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
 	}
 };
