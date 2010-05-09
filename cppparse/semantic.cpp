@@ -224,13 +224,6 @@ struct TemplateArgument
 	}
 };
 
-#if 0
-bool operator<(const TemplateArgument& left, const TemplateArgument& right)
-{
-	return left.isType < right.isType ||
-		!(right.isType < left.isType) && left.declaration < right.declaration;
-}
-#endif
 
 const size_t INDEX_INVALID = size_t(-1);
 
@@ -280,11 +273,7 @@ struct Scope
 	Scope* parent;
 	Identifier name;
 	size_t enclosedScopeCount; // number of scopes directly enclosed by this scope
-#if 1
 	typedef std::multimap<const char*, Declaration> Declarations;
-#else
-	typedef std::list<Declaration> Declarations;
-#endif
 	Declarations declarations;
 	ScopeType type;
 	Types bases;
@@ -458,6 +447,7 @@ const Declaration* getType(const Declaration& declaration)
 	return declaration.type.declaration;
 }
 
+#if 0
 const Declaration* getBaseType(const Declaration& declaration)
 {
 	if(declaration.type.declaration->specifiers.isTypedef)
@@ -466,6 +456,7 @@ const Declaration* getBaseType(const Declaration& declaration)
 	}
 	return declaration.type.declaration;
 }
+#endif
 
 const Type& getInstantiatedType(const Type& type)
 {
@@ -956,26 +947,6 @@ void printIdentifierMismatch(const IdentifierMismatch& e)
 	}
 }
 
-#if 0
-struct TemplateInstantiation
-{
-	Declaration* declaration;
-	TemplateArguments arguments;
-	TemplateInstantiation(Declaration* declaration, const TemplateArguments& arguments)
-		: declaration(declaration), arguments(arguments)
-	{
-	}
-};
-
-bool operator<(const TemplateInstantiation& left, const TemplateInstantiation& right)
-{
-	return left.declaration < right.declaration ||
-		!(right.declaration < left.declaration) && left.arguments < right.arguments;
-}
-
-typedef std::set<TemplateInstantiation> TemplateInstantiations;
-#endif
-
 bool isAny(const Declaration& declaration)
 {
 	return declaration.type.declaration != &gCtor;
@@ -988,9 +959,6 @@ struct WalkerContext
 {
 	Scope global;
 	Declaration globalDecl;
-#if 0
-	TemplateInstantiations instantiations;
-#endif
 
 	WalkerContext() :
 		global(makeIdentifier("$global"), SCOPETYPE_NAMESPACE),
@@ -1010,6 +978,9 @@ typedef std::vector<struct DeferredSymbol> DeferredSymbols;
 #else
 #define TREEWALKER_NEW(T, args) new T args
 #endif
+
+const IdentifierMismatch IDENTIFIERMISMATCH_NULL = IdentifierMismatch(IDENTIFIER_NULL, 0, 0);
+IdentifierMismatch gIdentifierMismatch = IDENTIFIERMISMATCH_NULL;
 
 struct WalkerBase
 #ifdef MINGLE
@@ -1034,7 +1005,7 @@ struct WalkerBase
 	Declaration* findDeclaration(Scope::Declarations& declarations, const Identifier& id, LookupFilter filter = isAny)
 	{
 		ProfileScope profile(gProfileIdentifier);
-#if 1
+
 		Scope::Declarations::iterator i = declarations.upper_bound(id.value);
 		
 		for(; i != declarations.begin()
@@ -1046,17 +1017,6 @@ struct WalkerBase
 			}
 		}
 		return 0;
-#else
-		for(Scope::Declarations::iterator i = declarations.begin(); i != declarations.end(); ++i)
-		{
-			if((*i).name.value == id.value
-				&& filter(*i))
-			{
-				return &(*i);
-			}
-		}
-		return 0;
-#endif
 	}
 
 	Declaration* findDeclaration(Types& bases, const Identifier& id, LookupFilter filter = isAny)
@@ -1192,20 +1152,16 @@ struct WalkerBase
 				other.overloaded = declaration;
 			}
 		}
-#if 1
+
 		return &(*parent->declarations.insert(Scope::Declarations::value_type(name.value, other))).second;
-#else
-		parent->declarations.push_front(other);
-		Declaration* result = &parent->declarations.front();
-		return result;
-#endif
 	}
 
 	Declaration* declareClass(Identifier* id, const TemplateArguments& arguments)
 	{
+		Scope* scope = getQualifyingScope() != 0 ? getQualifyingScope() : enclosing; // names in declaration of nested-class are looked up in scope of enclosing class
 		Scope* enclosed = templateParams != 0 ? templateParams : TREEWALKER_NEW(Scope, (makeIdentifier("$class")));
 		enclosed->type = SCOPETYPE_CLASS;
-		Declaration* declaration = pointOfDeclaration(enclosing, id == 0 ? makeIdentifier(enclosing->getUniqueName()) : *id, &gClass, enclosed, DeclSpecifiers(), enclosing == templateEnclosing, arguments);
+		Declaration* declaration = pointOfDeclaration(scope, id == 0 ? makeIdentifier(scope->getUniqueName()) : *id, &gClass, enclosed, DeclSpecifiers(), enclosing == templateEnclosing, arguments);
 		if(id != 0)
 		{
 			id->dec.p = declaration;
@@ -1224,14 +1180,6 @@ struct WalkerBase
 		}
 		return declaration;
 	}
-
-
-#if 0
-	const TemplateInstantiation& pointOfInstantiation(Declaration* declaration, const TemplateArguments& arguments)
-	{
-		return *context.instantiations.insert(TemplateInstantiation(declaration, arguments)).first;
-	}
-#endif
 
 	Scope* findScope(Scope* scope, Scope* other)
 	{
@@ -1306,6 +1254,7 @@ struct WalkerBase
 	{
 #ifdef MINGLE
 		result = 0;
+		gIdentifierMismatch = IdentifierMismatch(id, declaration, expected);
 #else
 		if(ambiguity != 0)
 		{
@@ -2256,12 +2205,10 @@ struct TemplateIdWalker : public WalkerBase
 	void visit(cpp::template_argument_list* symbol)
 	{
 		clearQualifying();
-		// TODO: instantiation
+
 		TemplateArgumentListWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
-#if 0
-		pointOfInstantiation(declaration, walker.arguments);
-#endif
+
 		if(type.declaration != 0)
 		{
 			type.declaration = findTemplateSpecialization(type.declaration, walker.arguments);
@@ -2749,7 +2696,7 @@ struct ClassHeadWalker : public WalkerBase
 	{
 		NestedNameSpecifierWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
-		setQualifying(walker.qualifying);
+		qualifying.swap(walker.qualifying);
 	}
 	void visit(cpp::simple_template_id* symbol) 
 	{
@@ -2951,6 +2898,7 @@ struct ClassSpecifierWalker : public WalkerBase
 		id = walker.id;
 		isUnion = walker.isUnion;
 		arguments.swap(walker.arguments);
+		qualifying.swap(walker.qualifying);
 	}
 	void visit(cpp::terminal<boost::wave::T_LEFTBRACE> symbol)
 	{
@@ -3765,12 +3713,6 @@ struct SimpleDeclarationWalker : public WalkerBase
 	}
 	void visit(cpp::statement_seq* symbol)
 	{
-#if 0
-		ParserOpaque* parser = 0;
-		TokenBuffer buffer;
-		parser->lexer.history.swap(buffer);
-		skipBraced(*parser);
-#endif
 		CompoundStatementWalker walker(*this);
 #ifdef MINGLE
 		if(WalkerBase::deferred != 0)
@@ -3859,13 +3801,8 @@ struct SimpleDeclarationWalker : public WalkerBase
 					}
 				}
 				member.scope = enclosing;
-#if 1
 				enclosing->declarations.insert(*i);
-#endif
 			}
-#if 0
-			enclosing->declarations.splice(enclosing->declarations.end(), declaration->enclosed->declarations);
-#endif
 
 		}
 	}

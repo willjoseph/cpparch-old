@@ -2,9 +2,9 @@
 <VisualStudioProject
 	ProjectType="Visual C++"
 	Version="8.00"
-	Name="cppparse"
-	ProjectGUID="{4F894837-7C14-462F-9183-5A4709FAC74D}"
-	RootNamespace="cppparse"
+	Name="test"
+	ProjectGUID="{1D27052E-379D-4C67-81F5-2AEDCD9FD172}"
+	RootNamespace="test"
 	Keyword="Win32Proj"
 	>
 	<Platforms>
@@ -19,7 +19,7 @@
 			Name="Debug|Win32"
 			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
 			IntermediateDirectory="$(ConfigurationName)"
-			ConfigurationType="1"
+			ConfigurationType="4"
 			CharacterSet="1"
 			>
 			<Tool
@@ -61,18 +61,10 @@
 				Name="VCPreLinkEventTool"
 			/>
 			<Tool
-				Name="VCLinkerTool"
-				LinkIncremental="2"
-				AdditionalLibraryDirectories="..\..\boost_1_41_0\stage\lib"
-				GenerateDebugInformation="true"
-				SubSystem="1"
-				TargetMachine="1"
+				Name="VCLibrarianTool"
 			/>
 			<Tool
 				Name="VCALinkTool"
-			/>
-			<Tool
-				Name="VCManifestTool"
 			/>
 			<Tool
 				Name="VCXDCMakeTool"
@@ -84,12 +76,6 @@
 				Name="VCFxCopTool"
 			/>
 			<Tool
-				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
-			/>
-			<Tool
 				Name="VCPostBuildEventTool"
 			/>
 		</Configuration>
@@ -97,7 +83,7 @@
 			Name="Release|Win32"
 			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
 			IntermediateDirectory="$(ConfigurationName)"
-			ConfigurationType="1"
+			ConfigurationType="4"
 			CharacterSet="1"
 			WholeProgramOptimization="1"
 			>
@@ -139,21 +125,10 @@
 				Name="VCPreLinkEventTool"
 			/>
 			<Tool
-				Name="VCLinkerTool"
-				LinkIncremental="1"
-				AdditionalLibraryDirectories="..\..\boost_1_41_0\stage\lib"
-				IgnoreDefaultLibraryNames=""
-				GenerateDebugInformation="true"
-				SubSystem="1"
-				OptimizeReferences="2"
-				EnableCOMDATFolding="2"
-				TargetMachine="1"
+				Name="VCLibrarianTool"
 			/>
 			<Tool
 				Name="VCALinkTool"
-			/>
-			<Tool
-				Name="VCManifestTool"
 			/>
 			<Tool
 				Name="VCXDCMakeTool"
@@ -163,12 +138,6 @@
 			/>
 			<Tool
 				Name="VCFxCopTool"
-			/>
-			<Tool
-				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -183,107 +152,11 @@
 			Filter="cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx"
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
 			>
-			<File
-				RelativePath=".\allocator.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\allocator.h"
-				>
-			</File>
-			<File
-				RelativePath=".\common.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\common.h"
-				>
-			</File>
-			<File
-				RelativePath=".\cppparse.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\cpptree.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\cpptree.h"
-				>
-			</File>
-			<File
-				RelativePath=".\generator.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\generator.h"
-				>
-			</File>
-			<File
-				RelativePath=".\lexer.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\lexer.h"
-				>
-			</File>
-			<File
-				RelativePath=".\parser.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\parser.h"
-				>
-			</File>
-			<File
-				RelativePath=".\printer.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\printer.h"
-				>
-			</File>
-			<File
-				RelativePath=".\profiler.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\profiler.h"
-				>
-			</File>
-			<File
-				RelativePath=".\semantic.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\semantic.h"
-				>
-			</File>
-			<File
-				RelativePath=".\test.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\test.h"
-				>
-			</File>
-			<File
-				RelativePath=".\visitor.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\visitor.h"
-				>
-			</File>
 			<Filter
-				Name="parser"
+				Name="test"
 				>
 				<File
-					RelativePath=".\parser\symbols.cpp"
-					>
-				</File>
-				<File
-					RelativePath=".\parser\symbols.h"
+					RelativePath=".\test\test_prepro.cpp"
 					>
 				</File>
 			</Filter>

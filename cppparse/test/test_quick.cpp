@@ -1,5 +1,41 @@
 
-#if 0 // TODO!
+namespace N76
+{
+	struct C
+	{
+		struct R
+		{
+		};
+		struct S;
+	};
+
+	struct C::S : public R
+	{
+	};
+}
+
+namespace N75
+{
+	struct S
+	{
+	};
+
+	class C
+	{
+		struct S;
+		struct T;
+	};
+
+	struct C::S
+	{
+	};
+	struct C::T : public S
+	{
+	};
+}
+
+
+#if 0 // TODO: explicit-specification of template arguments in member function call expression
 namespace N74
 {
 	struct S
