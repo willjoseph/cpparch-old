@@ -1,7 +1,10 @@
 
 
+#if 0
+#include <boost/integer_fwd.hpp>
+#endif
 
-#if 1
+#if 0
 #include <boost/wave/util/interpret_pragma.hpp>
 #endif
 
