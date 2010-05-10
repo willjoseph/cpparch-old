@@ -1,19 +1,28 @@
 
-namespace N79
+namespace N80
 {
+	// Comeau/VC8 compiles this, but fails if g() is moved from N1::impl to N2::impl
+	namespace N1
+	{
+		namespace impl
+		{
+			inline void g()
+			{
+			}
+		}
+	}
+	namespace N2
+	{
+		namespace impl
+		{
+		}
+	}
 	namespace N1
 	{
 		void f()
 		{
-		}
-	}
-
-	namespace N2
-	{
-		void g()
-		{
-			using namespace N1;
-			f();
+			using namespace N2;
+			impl::g();
 		}
 	}
 }
@@ -48,6 +57,26 @@ namespace N78
 		}
 	}
 }
+
+namespace N79
+{
+	namespace N1
+	{
+		void f()
+		{
+		}
+	}
+
+	namespace N2
+	{
+		void g()
+		{
+			using namespace N1;
+			f();
+		}
+	}
+}
+
 
 namespace N77
 {

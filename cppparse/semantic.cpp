@@ -278,7 +278,7 @@ struct Scope
 	ScopeType type;
 	Types bases;
 	typedef std::vector<Scope*> Scopes;
-	Scopes usingNamespaces;
+	Scopes usingDirectives;
 
 	Scope(const Identifier& name, ScopeType type = SCOPETYPE_UNKNOWN)
 		: parent(0), name(name), enclosedScopeCount(0), type(type)
@@ -1029,8 +1029,11 @@ struct WalkerBase
 			Scope* scope = getInstantiatedType(*i).declaration->enclosed;
 			if(scope != 0)
 			{
-				SEMANTIC_ASSERT(scope->usingNamespaces.empty());
-				Declaration* result = findDeclaration(scope->declarations, scope->bases, scope->usingNamespaces, id, filter);
+				/* namespace.udir
+				A using-directive shall not appear in class scope, but may appear in namespace scope or in block scope.
+				*/
+				SEMANTIC_ASSERT(scope->usingDirectives.empty());
+				Declaration* result = findDeclaration(scope->declarations, scope->bases, id, filter);
 				if(result != 0)
 				{
 					return result;
@@ -1047,16 +1050,25 @@ struct WalkerBase
 		{
 			Scope* scope = *i;
 			SEMANTIC_ASSERT(scope->bases.empty());
-			Declaration* result = findDeclaration(scope->declarations, scope->bases, scope->usingNamespaces, id, filter);
-			if(result != 0)
 			{
-				return result;
+				Declaration* result = findDeclaration(scope->declarations, scope->bases, id, filter);
+				if(result != 0)
+				{
+					return result;
+				}
+			}
+			{
+				Declaration* result = findDeclaration(scope->usingDirectives, id, filter);
+				if(result != 0)
+				{
+					return result;
+				}
 			}
 		}
 		return 0;
 	}
 
-	Declaration* findDeclaration(Scope::Declarations& declarations, Types& bases, Scope::Scopes& usingNamespaces, const Identifier& id, LookupFilter filter = isAny)
+	Declaration* findDeclaration(Scope::Declarations& declarations, Types& bases, const Identifier& id, LookupFilter filter = isAny)
 	{
 		{
 			Declaration* result = findDeclaration(declarations, id, filter);
@@ -1072,28 +1084,31 @@ struct WalkerBase
 				return result;
 			}
 		}
-		{
-			Declaration* result = findDeclaration(usingNamespaces, id, filter);
-			if(result != 0)
-			{
-				return result;
-			}
-		}
 		return 0;
 	}
 
 	Declaration* findDeclaration(Scope& scope, const Identifier& id, LookupFilter filter = isAny)
 	{
-		Declaration* result = findDeclaration(scope.declarations, scope.bases, scope.usingNamespaces, id, filter);
+		Declaration* result = findDeclaration(scope.declarations, scope.bases, id, filter);
 		if(result != 0)
 		{
 			return result;
 		}
 		if(scope.parent != 0)
 		{
-			return findDeclaration(*scope.parent, id, filter);
+			Declaration* result = findDeclaration(*scope.parent, id, filter);
+			if(result != 0)
+			{
+				return result;
+			}
 		}
-		return 0;
+		/* basic.lookup.unqual
+		The declarations from the namespace nominated by a using-directive become visible in a namespace enclosing
+		the using-directive; see 7.3.4. For the purpose of the unqualified name lookup rules described in 3.4.1, the
+		declarations from the namespace nominated by the using-directive are considered members of that enclosing
+		namespace.
+		*/
+		return findDeclaration(scope.usingDirectives, id, filter);
 	}
 
 	Declaration* findDeclaration(const Identifier& id, LookupFilter filter = isAny)
@@ -2834,11 +2849,15 @@ struct UsingDirectiveWalker : public WalkerBase
 	}
 	void visit(cpp::namespace_name* symbol)
 	{
-		NamespaceNameWalker walker(*this);
+		/* basic.lookup.udir
+		When looking up a namespace-name in a using-directive or namespace-alias-definition, only namespace
+		names are considered.
+		*/
+		NamespaceNameWalker walker(*this, isNamespaceName);
 		TREEWALKER_WALK(walker, symbol);
 		if(!findScope(enclosing, walker.declaration->enclosed))
 		{
-			enclosing->usingNamespaces.push_back(walker.declaration->enclosed);
+			enclosing->usingDirectives.push_back(walker.declaration->enclosed);
 		}
 	}
 };
