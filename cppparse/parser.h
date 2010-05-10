@@ -23,45 +23,6 @@ struct GeneralError
 
 #define MINGLE
 
-inline bool isAlphabet(char c)
-{
-	return (c >= 'a' && c <= 'z')
-		|| (c >= 'A' && c <= 'Z');
-}
-
-inline bool isNumber(char c)
-{
-	return (c >= '0' && c <= '9');
-}
-
-inline bool isIdentifier(char c)
-{
-	return isAlphabet(c) || isNumber(c) || c == '_';
-}
-
-inline void printSequence(Lexer& lexer)
-{
-	std::cout << "   ";
-	bool space = false;
-	bool endline = false;
-	for( Lexer::Tokens::const_iterator i = lexer.position; i != lexer.error; i = next(lexer.history, i))
-	{
-		if(space && isIdentifier(*(*i).value))
-		{
-			std::cout << " ";
-		}
-		std::cout << (*i).value;
-		space = isIdentifier((*i).value[strlen((*i).value) - 1]);
-	}
-	std::cout << std::endl;
-}
-
-inline void printSequence(Lexer& lexer, size_t position)
-{
-	//position = std::min(std::min(lexer.history.size(), size_t(32)), position);
-	//printSequence(lexer.position - position, lexer.position);
-}
-
 struct SymbolDebug
 {
 	bool disambiguated;
@@ -160,6 +121,145 @@ void printSymbol(T* symbol, bool disambiguated = false)
 
 //#define AMBIGUITY_DEBUG
 
+
+inline bool isAlphabet(char c)
+{
+	return (c >= 'a' && c <= 'z')
+		|| (c >= 'A' && c <= 'Z');
+}
+
+inline bool isNumber(char c)
+{
+	return (c >= '0' && c <= '9');
+}
+
+inline bool isIdentifier(char c)
+{
+	return isAlphabet(c) || isNumber(c) || c == '_';
+}
+
+inline bool isToken(LexTokenId token, boost::wave::token_id id)
+{
+	return token == id;
+}
+
+inline bool isIdentifier(LexTokenId token)
+{
+	return isToken(token, boost::wave::T_IDENTIFIER);
+}
+
+inline void printSequence(BacktrackBuffer& buffer, BacktrackBuffer::const_iterator first, BacktrackBuffer::const_iterator last)
+{
+	std::cout << "   ";
+	bool space = false;
+	bool endline = false;
+	for( BacktrackBuffer::const_iterator i = first; i != last; i = next(buffer, i))
+	{
+		if(space && isIdentifier(*(*i).value))
+		{
+			std::cout << " ";
+		}
+		std::cout << (*i).value;
+		space = isIdentifier((*i).value[strlen((*i).value) - 1]);
+	}
+}
+
+inline void printSequence(Lexer& lexer)
+{
+	printSequence(lexer.history, lexer.position, lexer.error);
+	std::cout << std::endl;
+}
+
+inline void printSequence(Lexer& lexer, size_t position)
+{
+	//position = std::min(std::min(lexer.history.size(), size_t(32)), position);
+	//printSequence(lexer.position - position, lexer.position);
+}
+
+struct VisualiserNode
+{
+	const VisualiserNode* parent;
+	const char* name;
+	size_t allocation;
+	BacktrackBuffer::const_iterator position;
+};
+
+const VisualiserNode VISUALISERNODE_ROOT = { 0, 0, 0, 0 };
+
+inline void printIndent(const VisualiserNode* node)
+{
+	for(const VisualiserNode* p = node; p != 0; p = p->parent)
+	{
+		if(p->name != SYMBOL_NAME(cpp::declaration_seq)
+			&& p->name != SYMBOL_NAME(cpp::statement_seq))
+		{
+			std::cout << ".";
+		}
+	}
+}
+
+struct Visualiser
+{
+	LinearAllocator allocator;
+	const VisualiserNode* node;
+	Visualiser() : node(&VISUALISERNODE_ROOT)
+	{
+	}
+
+	void push(const char* name, BacktrackBuffer::const_iterator position)
+	{
+		VisualiserNode tmp = { node, name, allocator.position, position };
+		node = new(allocator.allocate(sizeof(VisualiserNode))) VisualiserNode(tmp);
+	}
+	void pop(bool hit)
+	{
+		const VisualiserNode* parent = node->parent;
+		if(hit
+			&& (node->name == SYMBOL_NAME(cpp::declaration)
+				|| node->name == SYMBOL_NAME(cpp::statement)))
+		{
+			allocator.backtrack(node->allocation);
+		}
+		node = parent;
+	}
+
+	void print(BacktrackBuffer& buffer)
+	{
+		LinearAllocator::Pages::iterator last = allocator.pages.begin() + allocator.position / sizeof(Page);
+		for(LinearAllocator::Pages::iterator i = allocator.pages.begin(); i != allocator.pages.end(); ++i)
+		{
+			size_t pageSize = i == last ? allocator.position % Page::SIZE : Page::SIZE;
+			const VisualiserNode* first = reinterpret_cast<const VisualiserNode*>((*i)->buffer);
+			const VisualiserNode* last = first + pageSize / sizeof(VisualiserNode);
+			for(const VisualiserNode* p = first; p != last; ++p)
+			{
+#if 0
+				if(p->parent->position != 0
+					&& p->parent->position != p->position)
+				{
+					printSequence(buffer, p->parent->position, p->position);
+				}
+				std::cout << std::endl;
+#endif
+				printIndent(p);
+				std::cout << p->name;
+				if(p->name == SYMBOL_NAME(cpp::identifier))
+				{
+					std::cout << "(" << (*p->position).value << ")";
+				}
+				std::cout << std::endl;
+			}
+
+			if(pageSize != Page::SIZE)
+			{
+				break;
+			}
+		}
+		std::cout << std::endl;
+	}
+};
+
+
 struct TemplateIdAmbiguityContext
 {
 	size_t depth;
@@ -195,14 +295,23 @@ struct ParserState
 	}
 };
 
+struct ParserContext : Lexer
+{
+	Visualiser visualiser;
+	ParserContext(LexContext& context, const char* path)
+		: Lexer(context, path)
+	{
+	}
+};
+
 struct Parser : public ParserState
 {
-	Lexer& lexer;
+	ParserContext& lexer;
 	size_t position;
 	size_t allocation;
 	size_t ambiguityDepth;
 
-	Parser(Lexer& lexer)
+	Parser(ParserContext& lexer)
 		: lexer(lexer), position(0), allocation(0), ambiguityDepth(0)
 	{
 	}
@@ -282,6 +391,9 @@ inline void printError(Parser& parser)
 #endif
 	printPosition(parser.lexer.getErrorPosition());
 	std::cout << "syntax error: '" << parser.lexer.getErrorValue() << "'" << std::endl;
+#if 0 // TODO!
+	parser.lexer.visualiser.print(parser.lexer.history);
+#endif
 	printSequence(parser.lexer); // rejected tokens
 }
 
@@ -292,16 +404,6 @@ inline void printSequence(Parser& parser)
 
 #define PARSE_ERROR() throw ParseError()
 #define PARSE_ASSERT(condition) if(!(condition)) { PARSE_ERROR(); }
-
-inline bool isToken(LexTokenId token, boost::wave::token_id id)
-{
-	return token == id;
-}
-
-inline bool isIdentifier(LexTokenId token)
-{
-	return isToken(token, boost::wave::T_IDENTIFIER);
-}
 
 inline void parseToken(Parser& parser, boost::wave::token_id id)
 {
@@ -364,6 +466,7 @@ cpp::symbol<T> parseSymbolRequired(ParserType& parser, cpp::symbol<T> symbol, si
 	PARSE_ASSERT(!checkBacktrack(parser));
 	ParserType tmp(parser);
 	parser.lexer.push();
+	parser.lexer.visualiser.push(SYMBOL_NAME(T), parser.lexer.position);
 	p = SymbolAllocator<T>(parser.lexer.allocator).allocate(p);
 #if 0
 	p = parseSymbol(tmp, p);
@@ -374,11 +477,13 @@ cpp::symbol<T> parseSymbolRequired(ParserType& parser, cpp::symbol<T> symbol, si
 	if(p != 0
 		&& tmp.position >= best)
 	{
+		parser.lexer.visualiser.pop(true);
 		parser.position += tmp.position;
 		parser.ambiguityDepth += tmp.ambiguityDepth;
 		return cpp::symbol<T>(p);
 	}
 
+	parser.lexer.visualiser.pop(false);
 	tmp.backtrack(SYMBOL_NAME(T));
 	return cpp::symbol<T>(0);
 }
@@ -772,7 +877,7 @@ struct ParseResultSkip
 struct ParserOpaque : public Parser
 {
 	void* context;
-	ParserOpaque(Lexer& lexer, void* context)
+	ParserOpaque(ParserContext& lexer, void* context)
 		: Parser(lexer), context(context)
 	{
 	}
@@ -781,7 +886,7 @@ struct ParserOpaque : public Parser
 template<typename Context>
 struct ParserGeneric : public ParserOpaque
 {
-	ParserGeneric(Lexer& lexer, Context& context)
+	ParserGeneric(ParserContext& lexer, Context& context)
 		: ParserOpaque(lexer, &context)
 	{
 	}
@@ -1379,8 +1484,8 @@ inline T* defer(ListType& deferred, ContextType& walker, Func skipFunc, T* symbo
 }
 
 
-cpp::declaration_seq* parseFile(Lexer& lexer);
-cpp::statement_seq* parseFunction(Lexer& lexer);
+cpp::declaration_seq* parseFile(ParserContext& lexer);
+cpp::statement_seq* parseFunction(ParserContext& lexer);
 
 
 #endif

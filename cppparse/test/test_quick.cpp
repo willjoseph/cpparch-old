@@ -1,4 +1,23 @@
 
+namespace N79
+{
+	namespace N1
+	{
+		void f()
+		{
+		}
+	}
+
+	namespace N2
+	{
+		void g()
+		{
+			using namespace N1;
+			f();
+		}
+	}
+}
+
 namespace N78
 {
 

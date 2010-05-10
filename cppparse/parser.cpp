@@ -215,7 +215,7 @@ struct ContextN
 };
 
 #ifndef MINGLE
-cpp::declaration_seq* parseFile(Lexer& lexer)
+cpp::declaration_seq* parseFile(ParserContext& lexer)
 {
 #if 0
 	Parser parser(lexer);
@@ -246,7 +246,7 @@ cpp::declaration_seq* parseFile(Lexer& lexer)
 	return result;
 }
 
-cpp::statement_seq* parseFunction(Lexer& lexer)
+cpp::statement_seq* parseFunction(ParserContext& lexer)
 {
 	ContextN::Context1 context = ContextBase();
 	ParserGeneric<ContextN::Context1> parser(lexer, context);

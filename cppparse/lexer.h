@@ -304,9 +304,7 @@ inline BacktrackBuffer::const_iterator advance(BacktrackBuffer& buffer, Backtrac
 	return buffer.advance(position, count);
 }
 
-
 typedef TokenPrinter<std::ofstream> FileTokenPrinter;
-
 
 struct Lexer
 {

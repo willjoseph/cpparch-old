@@ -29,7 +29,7 @@ ArrayRange<T> makeRange(const T* first, const T* last)
 
 typedef int (*VerifyFunc)(void* output, const char* path);
 
-typedef void* (*ParseFunc)(Lexer& lexer);
+typedef void* (*ParseFunc)(ParserContext& lexer);
 
 typedef const char* CharConstPointer;
 typedef ArrayRange<CharConstPointer> CharConstPointerRange;
@@ -50,7 +50,7 @@ struct Test
 };
 
 template<typename Result>
-Test makeTest(const char* input, const CharConstPointerRange& definitions, const CharConstPointerRange& includes, int (*verify)(Result*, const char*), Result* (*parse)(Lexer&))
+Test makeTest(const char* input, const CharConstPointerRange& definitions, const CharConstPointerRange& includes, int (*verify)(Result*, const char*), Result* (*parse)(ParserContext&))
 {
 	Test result = { input, definitions, includes, VerifyFunc(verify), ParseFunc(parse) };
 	return result;
@@ -113,7 +113,7 @@ int runTest(const Test& test)
 		//  Open and read in the specified input file.
 		std::string instring;
 #if 1
-		instring = Concatenate(makeRange("#include \"test/predefined_msvc.h\"\n" " #include \""), makeRange(test.input), makeRange("\"\n")).c_str();
+		instring = Concatenate(makeRange(/*"#include \"test/predefined_msvc.h\"\n"*/ " #include \""), makeRange(test.input), makeRange("\"\n")).c_str();
 #else
 		std::ifstream instream(test.input);
 
@@ -190,7 +190,7 @@ int runTest(const Test& test)
 		}
 #if 1
 		StringRange root(test.input, strrchr(test.input, '.'));
-		Lexer lexer(context, Concatenate(root, makeRange(".prepro.cpp")).c_str());
+		ParserContext lexer(context, Concatenate(root, makeRange(".prepro.cpp")).c_str());
 		int result = test.verify(test.parse(lexer), Concatenate(root, makeRange(".html")).c_str());
 		if(lexer.stats.count != 0)
 		{

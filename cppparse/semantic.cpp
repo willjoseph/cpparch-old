@@ -3352,6 +3352,11 @@ struct StatementWalker : public WalkerBase
 		TREEWALKER_LEAF(symbol);
 		// TODO
 	}
+	void visit(cpp::using_directive* symbol)
+	{
+		UsingDirectiveWalker walker(*this);
+		TREEWALKER_WALK(walker, symbol);
+	}
 };
 
 struct ControlStatementWalker : public WalkerBase
@@ -4460,7 +4465,7 @@ void printSymbol(cpp::statement_seq* p, const char* path)
 
 
 #ifdef MINGLE
-cpp::declaration_seq* parseFile(Lexer& lexer)
+cpp::declaration_seq* parseFile(ParserContext& lexer)
 {
 	WalkerContext context;
 	Walker::NamespaceWalker walker(context);
@@ -4492,7 +4497,7 @@ cpp::declaration_seq* parseFile(Lexer& lexer)
 	return result;
 }
 
-cpp::statement_seq* parseFunction(Lexer& lexer)
+cpp::statement_seq* parseFunction(ParserContext& lexer)
 {
 	WalkerContext context;
 	Walker::CompoundStatementWalker walker(context);
