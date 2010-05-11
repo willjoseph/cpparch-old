@@ -1,4 +1,6 @@
 
+#include "boost\spirit\home\support\iterators\detail\combine_policies.hpp"
+
 template<typename T>
 struct Bool
 {
