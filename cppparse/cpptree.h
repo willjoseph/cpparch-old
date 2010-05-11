@@ -1782,15 +1782,21 @@ namespace cpp
 		FOREACH1(key);
 	};
 
-	struct handler_seq
+	struct handler
 	{
 		terminal<boost::wave::T_CATCH> key;
 		terminal<boost::wave::T_LEFTPAREN> lp;
 		symbol<exception_declaration> decl;
 		terminal<boost::wave::T_RIGHTPAREN> rp;
 		symbol<compound_statement> body;
+		FOREACH5(key, lp, decl, rp, body);
+	};
+
+	struct handler_seq
+	{
+		symbol<handler> item;
 		symbol_optional<handler_seq> next;
-		FOREACH6(key, lp, decl, rp, body, next);
+		FOREACH2(item, next);
 	};
 
 	struct linkage_specification_suffix : public choice<linkage_specification_suffix>

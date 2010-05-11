@@ -1710,10 +1710,24 @@ struct UnqualifiedIdWalker : public WalkerBase
 		UncheckedTemplateIdWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
 	}
+	void visit(cpp::operator_function_id* symbol) 
+	{
+		TREEWALKER_LEAF(symbol);
+		// TODO
+		id = &gOperatorFunctionId;
+	}
+	void visit(cpp::conversion_function_id* symbol) 
+	{
+		TypeIdWalker walker(*this);
+		TREEWALKER_WALK(walker, symbol);
+		// TODO
+		id = &gConversionFunctionId;
+	}
 	void visit(cpp::destructor_id* symbol)
 	{
 		// TODO: can destructor-id be dependent?
 		TREEWALKER_WALK(*this, symbol);
+		id = &symbol->name->value;
 	}
 };
 
@@ -3453,6 +3467,23 @@ struct CompoundStatementWalker : public WalkerBase
 	}
 };
 
+struct HandlerWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	HandlerWalker(const WalkerBase& base)
+		: WalkerBase(base)
+	{
+		pushScope(TREEWALKER_NEW(Scope, (makeIdentifier(enclosing->getUniqueName()), SCOPETYPE_LOCAL)));
+	}
+	void visit(cpp::exception_declaration_default* symbol)
+	{
+		SimpleDeclarationWalker walker(*this);
+		TREEWALKER_WALK(walker, symbol);
+		walker.commit();
+	}
+};
+
 struct HandlerSeqWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
@@ -3461,11 +3492,10 @@ struct HandlerSeqWalker : public WalkerBase
 		: WalkerBase(base)
 	{
 	}
-	void visit(cpp::exception_declaration_default* symbol)
+	void visit(cpp::handler* symbol)
 	{
-		SimpleDeclarationWalker walker(*this);
+		HandlerWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
-		walker.commit();
 	}
 	void visit(cpp::compound_statement* symbol)
 	{
@@ -3793,7 +3823,8 @@ struct SimpleDeclarationWalker : public WalkerBase
 #ifdef MINGLE
 		// todo: this fails if default-argument contains a template-name that is declared later in the class.
 		// Comeau fails in this case too..
-		if(WalkerBase::deferred != 0)
+		if(WalkerBase::deferred != 0
+			&& templateParameter == INDEX_INVALID) // don't defer parse of default for non-type template-argument
 		{
 			result = defer(*WalkerBase::deferred, *this, makeSkipDefaultArgument(IsTemplateName(*this)), symbol);
 		}
