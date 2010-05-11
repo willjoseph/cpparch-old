@@ -1,5 +1,16 @@
 
 
+void f()
+{
+	try
+	{
+	}
+	catch(int i)
+	{
+		i = 0;
+	}
+}
+
 #if 0
 #include <boost/integer_fwd.hpp>
 #endif

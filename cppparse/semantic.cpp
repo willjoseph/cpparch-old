@@ -3322,6 +3322,27 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 	}
 };
 
+struct TryBlockWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	TryBlockWalker(const WalkerBase& base)
+		: WalkerBase(base)
+	{
+	}
+
+	void visit(cpp::compound_statement* symbol)
+	{
+		CompoundStatementWalker walker(*this);
+		TREEWALKER_WALK(walker, symbol);
+	}
+	void visit(cpp::handler_seq* symbol)
+	{
+		HandlerSeqWalker walker(*this);
+		TREEWALKER_WALK(walker, symbol);
+	}
+};
+
 struct StatementWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
@@ -3335,6 +3356,11 @@ struct StatementWalker : public WalkerBase
 		SimpleDeclarationWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
 		SEMANTIC_ASSERT(walker.type.declaration != 0);
+	}
+	void visit(cpp::try_block* symbol)
+	{
+		TryBlockWalker walker(*this);
+		TREEWALKER_WALK(walker, symbol);
 	}
 	void visit(cpp::namespace_alias_definition* symbol)
 	{
@@ -3435,7 +3461,12 @@ struct HandlerSeqWalker : public WalkerBase
 		: WalkerBase(base)
 	{
 	}
-	// TODO: handler
+	void visit(cpp::exception_declaration_default* symbol)
+	{
+		SimpleDeclarationWalker walker(*this);
+		TREEWALKER_WALK(walker, symbol);
+		walker.commit();
+	}
 	void visit(cpp::compound_statement* symbol)
 	{
 		CompoundStatementWalker walker(*this);
