@@ -1,29 +1,18 @@
 
-namespace boost
+namespace N84
 {
-	namespace spirit
+	template<typename T>
+	struct Base
 	{
-		namespace iterator_policies
+	};
+	template<typename T>
+	struct C
+	{
+		struct Derived : Base<int>
 		{
-			template<typename Input, typename Storage>
-			struct multi_pass_shared: Storage
-			{
-			};
-			template<typename Input>
-			struct default_policy
-			{
-				template<typename T>
-				struct shared : multi_pass_shared<
-					typename Input::template shared<T>,
-					typename Input::template shared<typename Input::template unique<T>::value_type>
-				>
-				{
-					typedef typename Input::template shared<typename Input::template unique<T>::value_type> 
-						storage_policy;
-				};
-			};
-		}
-	}
+			typedef typename T::X Y;
+		};
+	};
 }
 
 #if 0
