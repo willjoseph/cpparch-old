@@ -1,4 +1,20 @@
 
+namespace N84
+{
+	template<typename T>
+	struct Base
+	{
+	};
+	template<typename T>
+	struct C
+	{
+		struct Derived : Base<int>
+		{
+			typedef typename T::X Y; // name-lookup finds T in Base and incorrectly determines that T is not a dependent-name
+		};
+	};
+}
+
 namespace N81
 {
 	template<typename T>
@@ -9,7 +25,7 @@ namespace N81
 
 	struct S
 	{
-		template<bool b = Bool<int>::value>
+		template<bool b = Bool<int>::value> // default template-argument parse is incorrectly deferred - should be parsed immediately
 		class M;
 	};
 }
@@ -21,11 +37,11 @@ namespace N82
 		try
 		{
 		}
-		catch(int e)
+		catch(int e) // name-lookup for exception-declaration not supported
 		{
 			e = 0;
 		}
-		catch(float e)
+		catch(float e) // scope for names declared in exception-declaration extends only to end of handler
 		{
 			e = 0;
 		}
@@ -38,7 +54,7 @@ namespace N83
 	{
 		void f()
 		{
-			operator=(*this);
+			operator=(*this); // explicit call of operator not supported
 		}
 	};
 }
@@ -66,7 +82,7 @@ namespace N80
 		void f()
 		{
 			using namespace N2;
-			impl::g();
+			impl::g(); // g should be looked up in N1 before N2
 		}
 	}
 }
@@ -86,7 +102,7 @@ namespace N78
 		void f()
 		{
 			i = 0;
-			M::i = 0;
+			M::i = 0; // i should be found in N
 		}
 	}
 
@@ -97,7 +113,7 @@ namespace N78
 		void f()
 		{
 			i = 0;
-			O::i = 0;
+			O::i = 0; // i should be found in N via M
 		}
 	}
 }
@@ -116,7 +132,7 @@ namespace N79
 		void g()
 		{
 			using namespace N1;
-			f();
+			f(); // f should be found in N1
 		}
 	}
 }
@@ -135,10 +151,10 @@ namespace N77
 		struct S;
 	};
 	template<typename T>
-	struct C::S
-		: public Tmpl< C::S<T> >
+	struct C::S // out-of-line declaration of nested class
+		: public Tmpl< C::S<T> > // template-param T should be visible here
 	{
-		void f(T)
+		void f(T) // template-param T should be visible here
 		{
 		}
 	};
@@ -154,7 +170,8 @@ namespace N76
 		struct S;
 	};
 
-	struct C::S : public R
+	 // out-of-line declaration of nested class
+	struct C::S : public R // C:: is not required to find R
 	{
 	};
 }
@@ -171,10 +188,10 @@ namespace N75
 		struct T;
 	};
 
-	struct C::S
+	struct C::S // declaration of S does not conflict with declaration in enclosing namespace
 	{
 	};
-	struct C::T : public S
+	struct C::T : public S // C:: is not required to find S
 	{
 	};
 }
@@ -204,13 +221,13 @@ namespace N73
 	template <class T, class U>
 	void f(const U& u, void* a)
 	{
-		u.template dependent<T>(a);
+		u.template dependent<T>(a); // interpret 'dependent' as a template if preceded by 'template'
 	}
 }
 
 namespace 
 {
-	inline void f()
+	inline void f() // inline specifier
 	{
 	}
 }
@@ -226,37 +243,38 @@ namespace N31
 		}
 	}
 	
-	namespace M = N31::N;
+	namespace M = N31::N; // namespace-alias as declaration
 
-	M::I i;
+	M::I i; // N::I should be found via namespace-alias M
 
 	void f()
 	{
-		namespace O = N31::N;
-		O::I i = O::f();
+		namespace O = N31::N; // namespace-alias as statement
+		O::I i = O::f();// N::I and N::f() should be found via namespace-alias O
 	}
 }
 
 namespace N9
 {
-	namespace detail
+	namespace N
 	{
-		class unbounded_helper;
+		class C;
 	}
 
-	detail::unbounded_helper unbounded(detail::unbounded_helper);
+	N::C f(N::C);
 
-	namespace detail
+	namespace N
 	{
-		class unbounded_helper
+		class C
 		{
-			friend unbounded_helper N9::unbounded(unbounded_helper);
+			friend T N9::f(C); // a friend declared with a qualified declarator-id declares 'f' in specified namespace
+			// and C is looked up first in the context of the enclosing class
 		};
 	}
 }
 
 
-unsigned long long int i;
+unsigned long long int i; // should be interpreted as the fundamental type 'unsigned-long-long-int'
 
 
 namespace N8
@@ -268,9 +286,9 @@ namespace N8
 		};
 	}
 
-	using N::C;
+	using N::C; // using-declaration with nested-name-specifier
 
-	C c;
+	C c; // N::C should be found via using declaration
 }
 
 
@@ -280,7 +298,7 @@ namespace N7
 	{
 	};
 
-	template<enum E L>
+	template<enum E L> // allow elaborated-type-specifier in non-type template-param
 	inline void f(enum E l)
 	{
 	}
@@ -302,7 +320,7 @@ namespace N692
 	{
 	};
 
-	Tmpl<char>::I i;
+	Tmpl<char>::I i; // I should be found in the primary-template
 }
 
 namespace N69
@@ -316,7 +334,7 @@ namespace N69
 		typedef int I;
 	};
 
-	Tmpl<>::I i;
+	Tmpl<>::I i; // I should be found in the specialisation for 'int'
 }
 
 namespace N68
@@ -338,7 +356,7 @@ namespace N68
 	{
 		static const int VALUE = 0;
 	};
-	const int Tmpl<int>::VALUE;
+	const int Tmpl<int>::VALUE; // Tmpl<int>::VALUE should be distinct from Tmpl<char>::VALUE
 }
 #endif
 
@@ -382,7 +400,7 @@ namespace stdTEST
 	{
 		void f()
 		{
-			(string::size_type)1;
+			(string::size_type)1; // string should be determined not to be a dependent-type
 		}
 	};
 }
