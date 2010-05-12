@@ -1,4 +1,48 @@
 
+namespace N81
+{
+	template<typename T>
+	struct Bool
+	{
+		enum { value = false };
+	};
+
+	struct S
+	{
+		template<bool b = Bool<int>::value>
+		class M;
+	};
+}
+
+namespace N82
+{
+	void f()
+	{
+		try
+		{
+		}
+		catch(int e)
+		{
+			e = 0;
+		}
+		catch(float e)
+		{
+			e = 0;
+		}
+	}
+}
+
+namespace N83
+{
+	class C
+	{
+		void f()
+		{
+			operator=(*this);
+		}
+	};
+}
+
 namespace N80
 {
 	// Comeau/VC8 compiles this, but fails if g() is moved from N1::impl to N2::impl
