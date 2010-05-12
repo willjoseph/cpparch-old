@@ -1079,7 +1079,8 @@ struct WalkerBase
 		}
 		{
 			Declaration* result = findDeclaration(bases, id, filter);
-			if(result != 0)
+			if(result != 0
+				&& result->templateParameter == INDEX_INVALID) // template-params of base-class are not visible outside the class
 			{
 				return result;
 			}
