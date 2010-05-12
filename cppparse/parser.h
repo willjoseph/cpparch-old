@@ -178,49 +178,65 @@ inline void printSequence(Lexer& lexer, size_t position)
 
 struct VisualiserNode
 {
-	const VisualiserNode* parent;
+	VisualiserNode* parent;
 	const char* name;
 	size_t allocation;
 	BacktrackBuffer::const_iterator position;
+	Declaration* declaration;
 };
 
-const VisualiserNode VISUALISERNODE_ROOT = { 0, 0, 0, 0 };
-
-inline void printIndent(const VisualiserNode* node)
+inline void printIndent(VisualiserNode* node)
 {
-	for(const VisualiserNode* p = node; p != 0; p = p->parent)
+	for(VisualiserNode* p = node; p != 0; p = p->parent)
 	{
 		if(p->name != SYMBOL_NAME(cpp::declaration_seq)
-			&& p->name != SYMBOL_NAME(cpp::statement_seq))
+			&& p->name != SYMBOL_NAME(cpp::statement_seq)
+			&& p->name != SYMBOL_NAME(cpp::member_specification))
 		{
 			std::cout << ".";
 		}
 	}
 }
 
+cpp::terminal_identifier& getDeclarationId(Declaration* declaration);
+
 struct Visualiser
 {
 	LinearAllocator allocator;
-	const VisualiserNode* node;
-	Visualiser() : node(&VISUALISERNODE_ROOT)
+	VisualiserNode* node;
+	Visualiser() : node(0)
 	{
 	}
 
 	void push(const char* name, BacktrackBuffer::const_iterator position)
 	{
-		VisualiserNode tmp = { node, name, allocator.position, position };
+		VisualiserNode tmp = { node, name, allocator.position, position, 0 };
 		node = new(allocator.allocate(sizeof(VisualiserNode))) VisualiserNode(tmp);
 	}
 	void pop(bool hit)
 	{
-		const VisualiserNode* parent = node->parent;
-		if(hit
-			&& (node->name == SYMBOL_NAME(cpp::declaration)
-				|| node->name == SYMBOL_NAME(cpp::statement)))
+		VisualiserNode* parent = node->parent;
+		if(hit)
 		{
-			allocator.backtrack(node->allocation);
+			if(node->name == SYMBOL_NAME(cpp::declaration)
+				|| node->name == SYMBOL_NAME(cpp::statement)
+				|| node->name == SYMBOL_NAME(cpp::member_declaration))
+			{
+				allocator.backtrack(node->allocation);
+			}
+			node->allocation = size_t(-1);
 		}
 		node = parent;
+	}
+	void pop(cpp::identifier* symbol)
+	{
+		node->declaration = symbol->value.dec.p;
+		pop(symbol != 0);
+	}
+	template<typename T>
+	void pop(T* symbol)
+	{
+		pop(symbol != 0);
 	}
 
 	void print(BacktrackBuffer& buffer)
@@ -229,25 +245,44 @@ struct Visualiser
 		for(LinearAllocator::Pages::iterator i = allocator.pages.begin(); i != allocator.pages.end(); ++i)
 		{
 			size_t pageSize = i == last ? allocator.position % Page::SIZE : Page::SIZE;
-			const VisualiserNode* first = reinterpret_cast<const VisualiserNode*>((*i)->buffer);
-			const VisualiserNode* last = first + pageSize / sizeof(VisualiserNode);
-			for(const VisualiserNode* p = first; p != last; ++p)
+			VisualiserNode* first = reinterpret_cast<VisualiserNode*>((*i)->buffer);
+			VisualiserNode* last = first + pageSize / sizeof(VisualiserNode);
+			for(VisualiserNode* p = first; p != last; ++p)
 			{
+				if(p->name != SYMBOL_NAME(cpp::declaration_seq)
+					&& p->name != SYMBOL_NAME(cpp::statement_seq))
+				{
 #if 0
-				if(p->parent->position != 0
-					&& p->parent->position != p->position)
-				{
-					printSequence(buffer, p->parent->position, p->position);
-				}
-				std::cout << std::endl;
+					if(p->parent->position != 0
+						&& p->parent->position != p->position)
+					{
+						printSequence(buffer, p->parent->position, p->position);
+					}
+					std::cout << std::endl;
 #endif
-				printIndent(p);
-				std::cout << p->name;
-				if(p->name == SYMBOL_NAME(cpp::identifier))
-				{
-					std::cout << "(" << (*p->position).value << ")";
+					bool success = p->allocation == size_t(-1);
+					printIndent(p);
+					std::cout << p->name;
+					std::cout << (success ? "*" : "");
+					if(p->name == SYMBOL_NAME(cpp::identifier))
+					{
+						std::cout << " ";
+						if(p->declaration != 0)
+						{
+							cpp::terminal_identifier& id = getDeclarationId(p->declaration);
+							std::cout << id.value << " ";
+							if(id.position.file != 0)
+							{
+								printPosition(id.position);
+							}
+						}
+						else
+						{
+							std::cout << (*p->position).value;
+						}
+					}
+					std::cout << std::endl;
 				}
-				std::cout << std::endl;
 			}
 
 			if(pageSize != Page::SIZE)
@@ -391,7 +426,7 @@ inline void printError(Parser& parser)
 #endif
 	printPosition(parser.lexer.getErrorPosition());
 	std::cout << "syntax error: '" << parser.lexer.getErrorValue() << "'" << std::endl;
-#if 0 // TODO!
+#if 1 // TODO!
 	parser.lexer.visualiser.print(parser.lexer.history);
 #endif
 	printSequence(parser.lexer); // rejected tokens
@@ -477,7 +512,7 @@ cpp::symbol<T> parseSymbolRequired(ParserType& parser, cpp::symbol<T> symbol, si
 	if(p != 0
 		&& tmp.position >= best)
 	{
-		parser.lexer.visualiser.pop(true);
+		parser.lexer.visualiser.pop(p);
 		parser.position += tmp.position;
 		parser.ambiguityDepth += tmp.ambiguityDepth;
 		return cpp::symbol<T>(p);

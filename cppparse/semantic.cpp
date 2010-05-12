@@ -247,6 +247,11 @@ struct Declaration
 	}
 };
 
+cpp::terminal_identifier& getDeclarationId(Declaration* declaration)
+{
+	return declaration->name;
+}
+
 struct UniqueName
 {
 	char buffer[10];
@@ -1632,10 +1637,7 @@ struct NamespaceNameWalker : public WalkerBase
 		{
 			reportIdentifierMismatch(symbol->value, declaration, "namespace-name");
 		}
-		else
-		{
-			symbol->value.dec.p = declaration;
-		}
+		symbol->value.dec.p = declaration;
 	}
 };
 
@@ -1913,9 +1915,9 @@ struct DependentPrimaryExpressionWalker : public WalkerBase
 				}
 				else
 				{
-					walker.id->dec.p = declaration;
 					addDependentType(typeDependent, declaration);
 				}
+				walker.id->dec.p = declaration;
 			}
 			else if(walker.id != 0)
 			{
@@ -1972,9 +1974,9 @@ struct DependentPostfixExpressionWalker : public WalkerBase
 					}
 					else
 					{
-						id->dec.p = declaration;
 						addDependentType(typeDependent, declaration);
 					}
+					id->dec.p = declaration;
 				}
 			}
 			else
@@ -2045,11 +2047,11 @@ struct ExpressionWalker : public WalkerBase
 			}
 			else
 			{
-				walker.id->dec.p = declaration;
 				addDependentType(typeDependent, declaration);
 				addDependentType(valueDependent, declaration);
 				addDependentName(valueDependent, declaration);
 			}
+			walker.id->dec.p = declaration;
 		}
 		else
 		{
@@ -2243,14 +2245,15 @@ struct TemplateIdWalker : public WalkerBase
 			}
 			else
 			{
-				symbol->value.dec.p = declaration;
 				type.declaration = declaration;
 				type.qualifying = qualifying;
 			}
+			symbol->value.dec.p = declaration;
 		}
 		else if(!isTypename)
 		{
 			reportIdentifierMismatch(symbol->value, &gUndeclared, "typename");
+			symbol->value.dec.p = &gUndeclared;
 		}
 		else
 		{
@@ -2296,14 +2299,15 @@ struct TypeNameWalker : public WalkerBase
 			}
 			else
 			{
-				symbol->value.dec.p = declaration;
 				type.declaration = declaration;
 				type.qualifying = qualifying;
 			}
+			symbol->value.dec.p = declaration;
 		}
 		else if(!isTypename)
 		{
 			reportIdentifierMismatch(symbol->value, &gUndeclared, "typename");
+			symbol->value.dec.p = &gUndeclared;
 		}
 		else
 		{
@@ -2349,9 +2353,9 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 			}
 			else
 			{
-				symbol->value.dec.p = declaration;
 				type = declaration;
 			}
+			symbol->value.dec.p = declaration;
 		}
 		else
 		{
@@ -2826,8 +2830,8 @@ struct UsingDeclarationWalker : public WalkerBase
 			{
 				// TODO: check for conflicts with earlier declarations
 				enclosing->declarations.insert(Scope::Declarations::value_type(declaration->name.value, *declaration));
-				walker.id->dec.p = declaration;
 			}
+			walker.id->dec.p = declaration;
 		}
 		else
 		{
@@ -2917,8 +2921,8 @@ struct NamespaceAliasDefinitionWalker : public WalkerBase
 			{
 				// TODO: check for conflicts with earlier declarations
 				declaration = pointOfDeclaration(enclosing, *id, &gNamespace, declaration->enclosed);
-				id->dec.p = declaration;
 			}
+			id->dec.p = declaration;
 		}
 	}
 };
@@ -3555,10 +3559,7 @@ struct MemInitializerWalker : public WalkerBase
 		{
 			reportIdentifierMismatch(symbol->value, declaration, "object-name");
 		}
-		else
-		{
-			symbol->value.dec.p = declaration;
-		}
+		symbol->value.dec.p = declaration;
 	}
 	void visit(cpp::expression_list* symbol)
 	{
@@ -4003,10 +4004,7 @@ struct TypeParameterWalker : public WalkerBase
 			{
 				reportIdentifierMismatch(*walker.id, declaration, "template-name");
 			}
-			else
-			{
-				walker.id->dec.p = declaration;
-			}
+			walker.id->dec.p = declaration;
 		}
 	}
 };
