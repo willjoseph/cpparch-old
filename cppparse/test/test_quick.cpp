@@ -267,7 +267,7 @@ namespace N9
 	{
 		class C
 		{
-			friend T N9::f(C); // a friend declared with a qualified declarator-id declares 'f' in specified namespace
+			friend C N9::f(C); // a friend declared with a qualified declarator-id declares 'f' in specified namespace
 			// and C is looked up first in the context of the enclosing class
 		};
 	}
