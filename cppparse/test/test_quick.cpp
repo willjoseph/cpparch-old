@@ -1,4 +1,28 @@
 
+#if 0
+namespace N85
+{
+	template<typename T>
+	struct A
+	{
+		typedef typename T::X X;
+	};
+
+	template<typename T>
+	struct B
+	{
+		typedef int I;
+	};
+
+	struct P
+	{
+		typedef int X;
+	};
+
+	B<A<P>::X>::I i; // X is incorrectly determined to be a dependent type
+}
+#endif
+
 namespace N84
 {
 	template<typename T>

@@ -132,8 +132,9 @@ struct Type
 	Declaration* declaration;
 	TemplateArguments arguments;
 	Qualifying qualifying;
+	Identifier* dependent;
 	mutable bool visited;
-	Type(Declaration* declaration) : declaration(declaration), visited(false)
+	Type(Declaration* declaration) : declaration(declaration), dependent(0), visited(false)
 	{
 	}
 	void swap(Type& other)
@@ -141,6 +142,7 @@ struct Type
 		std::swap(declaration, other.declaration);
 		std::swap(arguments, other.arguments);
 		std::swap(qualifying, other.qualifying);
+		std::swap(dependent, other.dependent);
 	}
 #if 0
 private:
@@ -329,7 +331,6 @@ Declaration gEnum(0, makeIdentifier("$enum"), 0, 0);
 Declaration gNamespace(0, makeIdentifier("$namespace"), 0, 0);
 
 Declaration gCtor(0, makeIdentifier("$ctor"), &gSpecial, 0);
-Declaration gTypename(0, makeIdentifier("$typename"), &gSpecial, 0);
 Declaration gEnumerator(0, makeIdentifier("$enumerator"), &gSpecial, 0);
 Declaration gUnknown(0, makeIdentifier("$unknown"), &gSpecial, 0);
 
@@ -646,7 +647,8 @@ bool isDependentInternal(const Type& type, const DependentContext& context)
 		return true;
 	}
 	const Type& original = getInstantiatedType(type);
-	if(original.declaration == &gTypename)
+	if(original.declaration == &gDependentType
+		|| original.declaration == &gDependentTemplate)
 	{
 		return true;
 	}
@@ -961,6 +963,116 @@ bool isAny(const Declaration& declaration)
 
 typedef bool (*LookupFilter)(const Declaration&);
 
+Declaration* findDeclaration(Scope::Declarations& declarations, const Identifier& id, LookupFilter filter = isAny)
+{
+	ProfileScope profile(gProfileIdentifier);
+
+	Scope::Declarations::iterator i = declarations.upper_bound(id.value);
+	
+	for(; i != declarations.begin()
+		&& (*--i).first == id.value;)
+	{
+		if(filter((*i).second))
+		{
+			return &(*i).second;
+		}
+	}
+	return 0;
+}
+
+Declaration* findDeclaration(Scope::Declarations& declarations, Types& bases, const Identifier& id, LookupFilter filter = isAny);
+
+Declaration* findDeclaration(Types& bases, const Identifier& id, LookupFilter filter = isAny)
+{
+	ProfileScope profile(gProfileIdentifier);
+	for(Types::iterator i = bases.begin(); i != bases.end(); ++i)
+	{
+		Scope* scope = getInstantiatedType(*i).declaration->enclosed;
+		if(scope != 0)
+		{
+			/* namespace.udir
+			A using-directive shall not appear in class scope, but may appear in namespace scope or in block scope.
+			*/
+			SEMANTIC_ASSERT(scope->usingDirectives.empty());
+			Declaration* result = findDeclaration(scope->declarations, scope->bases, id, filter);
+			if(result != 0)
+			{
+				return result;
+			}
+		}
+	}
+	return 0;
+}
+
+Declaration* findDeclaration(Scope::Scopes& scopes, const Identifier& id, LookupFilter filter = isAny)
+{
+	ProfileScope profile(gProfileIdentifier);
+	for(Scope::Scopes::iterator i = scopes.begin(); i != scopes.end(); ++i)
+	{
+		Scope* scope = *i;
+		SEMANTIC_ASSERT(scope->bases.empty());
+		{
+			Declaration* result = findDeclaration(scope->declarations, scope->bases, id, filter);
+			if(result != 0)
+			{
+				return result;
+			}
+		}
+		{
+			Declaration* result = findDeclaration(scope->usingDirectives, id, filter);
+			if(result != 0)
+			{
+				return result;
+			}
+		}
+	}
+	return 0;
+}
+
+Declaration* findDeclaration(Scope::Declarations& declarations, Types& bases, const Identifier& id, LookupFilter filter)
+{
+	{
+		Declaration* result = findDeclaration(declarations, id, filter);
+		if(result != 0)
+		{
+			return result;
+		}
+	}
+	{
+		Declaration* result = findDeclaration(bases, id, filter);
+		if(result != 0
+			&& result->templateParameter == INDEX_INVALID) // template-params of base-class are not visible outside the class
+		{
+			return result;
+		}
+	}
+	return 0;
+}
+
+Declaration* findDeclaration(Scope& scope, const Identifier& id, LookupFilter filter = isAny)
+{
+	Declaration* result = findDeclaration(scope.declarations, scope.bases, id, filter);
+	if(result != 0)
+	{
+		return result;
+	}
+	if(scope.parent != 0)
+	{
+		Declaration* result = findDeclaration(*scope.parent, id, filter);
+		if(result != 0)
+		{
+			return result;
+		}
+	}
+	/* basic.lookup.unqual
+	The declarations from the namespace nominated by a using-directive become visible in a namespace enclosing
+	the using-directive; see 7.3.4. For the purpose of the unqualified name lookup rules described in 3.4.1, the
+	declarations from the namespace nominated by the using-directive are considered members of that enclosing
+	namespace.
+	*/
+	return findDeclaration(scope.usingDirectives, id, filter);
+}
+
 
 struct WalkerContext
 {
@@ -1009,119 +1121,11 @@ struct WalkerBase
 	{
 	}
 
-	Declaration* findDeclaration(Scope::Declarations& declarations, const Identifier& id, LookupFilter filter = isAny)
-	{
-		ProfileScope profile(gProfileIdentifier);
-
-		Scope::Declarations::iterator i = declarations.upper_bound(id.value);
-		
-		for(; i != declarations.begin()
-			&& (*--i).first == id.value;)
-		{
-			if(filter((*i).second))
-			{
-				return &(*i).second;
-			}
-		}
-		return 0;
-	}
-
-	Declaration* findDeclaration(Types& bases, const Identifier& id, LookupFilter filter = isAny)
-	{
-		ProfileScope profile(gProfileIdentifier);
-		for(Types::iterator i = bases.begin(); i != bases.end(); ++i)
-		{
-			Scope* scope = getInstantiatedType(*i).declaration->enclosed;
-			if(scope != 0)
-			{
-				/* namespace.udir
-				A using-directive shall not appear in class scope, but may appear in namespace scope or in block scope.
-				*/
-				SEMANTIC_ASSERT(scope->usingDirectives.empty());
-				Declaration* result = findDeclaration(scope->declarations, scope->bases, id, filter);
-				if(result != 0)
-				{
-					return result;
-				}
-			}
-		}
-		return 0;
-	}
-
-	Declaration* findDeclaration(Scope::Scopes& scopes, const Identifier& id, LookupFilter filter = isAny)
-	{
-		ProfileScope profile(gProfileIdentifier);
-		for(Scope::Scopes::iterator i = scopes.begin(); i != scopes.end(); ++i)
-		{
-			Scope* scope = *i;
-			SEMANTIC_ASSERT(scope->bases.empty());
-			{
-				Declaration* result = findDeclaration(scope->declarations, scope->bases, id, filter);
-				if(result != 0)
-				{
-					return result;
-				}
-			}
-			{
-				Declaration* result = findDeclaration(scope->usingDirectives, id, filter);
-				if(result != 0)
-				{
-					return result;
-				}
-			}
-		}
-		return 0;
-	}
-
-	Declaration* findDeclaration(Scope::Declarations& declarations, Types& bases, const Identifier& id, LookupFilter filter = isAny)
-	{
-		{
-			Declaration* result = findDeclaration(declarations, id, filter);
-			if(result != 0)
-			{
-				return result;
-			}
-		}
-		{
-			Declaration* result = findDeclaration(bases, id, filter);
-			if(result != 0
-				&& result->templateParameter == INDEX_INVALID) // template-params of base-class are not visible outside the class
-			{
-				return result;
-			}
-		}
-		return 0;
-	}
-
-	Declaration* findDeclaration(Scope& scope, const Identifier& id, LookupFilter filter = isAny)
-	{
-		Declaration* result = findDeclaration(scope.declarations, scope.bases, id, filter);
-		if(result != 0)
-		{
-			return result;
-		}
-		if(scope.parent != 0)
-		{
-			Declaration* result = findDeclaration(*scope.parent, id, filter);
-			if(result != 0)
-			{
-				return result;
-			}
-		}
-		/* basic.lookup.unqual
-		The declarations from the namespace nominated by a using-directive become visible in a namespace enclosing
-		the using-directive; see 7.3.4. For the purpose of the unqualified name lookup rules described in 3.4.1, the
-		declarations from the namespace nominated by the using-directive are considered members of that enclosing
-		namespace.
-		*/
-		return findDeclaration(scope.usingDirectives, id, filter);
-	}
-
 	Declaration* findDeclaration(const Identifier& id, LookupFilter filter = isAny)
 	{
 		if(getQualifyingScope() != 0)
 		{
-			Declaration* result = findDeclaration(*getQualifyingScope(), id, filter);
+			Declaration* result = ::findDeclaration(*getQualifyingScope(), id, filter);
 			if(result != 0)
 			{
 				return result;
@@ -1132,14 +1136,14 @@ struct WalkerBase
 #if 1
 			if(templateParams != 0)
 			{
-				Declaration* result = findDeclaration(*templateParams, id, filter);
+				Declaration* result = ::findDeclaration(*templateParams, id, filter);
 				if(result != 0)
 				{
 					return result;
 				}
 			}
 #endif
-			Declaration* result = findDeclaration(*enclosing, id, filter);
+			Declaration* result = ::findDeclaration(*enclosing, id, filter);
 			if(result != 0)
 			{
 				return result;
@@ -1168,7 +1172,7 @@ struct WalkerBase
 			An elaborated-type-specifier (7.1.6.3) may be used to refer to a previously declared class-name or enum-name
 			even though the name has been hidden by a non-type declaration (3.3.10).
 			*/
-			Declaration* declaration = findDeclaration(parent->declarations, name);
+			Declaration* declaration = ::findDeclaration(parent->declarations, name);
 			if(declaration != 0)
 			{
 				try
@@ -2257,7 +2261,11 @@ struct TemplateIdWalker : public WalkerBase
 		}
 		else
 		{
-			symbol->value.dec.p = &gDependentTemplate;
+			Declaration* declaration = &gDependentTemplate;
+			type.declaration = declaration;
+			type.qualifying = qualifying;
+			type.dependent = &symbol->value;
+			symbol->value.dec.p = declaration;
 		}
 	}
 	void visit(cpp::template_argument_list* symbol)
@@ -2311,7 +2319,11 @@ struct TypeNameWalker : public WalkerBase
 		}
 		else
 		{
-			symbol->value.dec.p = &gDependentType;
+			Declaration* declaration = &gDependentType;
+			type.declaration = declaration;
+			type.qualifying = qualifying;
+			type.dependent = &symbol->value;
+			symbol->value.dec.p = declaration;
 		}
 	}
 	void visit(cpp::simple_template_id* symbol)
@@ -3220,8 +3232,9 @@ struct TypenameSpecifierWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
+	Type type;
 	TypenameSpecifierWalker(const WalkerBase& base)
-		: WalkerBase(base)
+		: WalkerBase(base), type(0)
 	{
 	}
 
@@ -3246,6 +3259,7 @@ struct TypenameSpecifierWalker : public WalkerBase
 	{
 		TypeNameWalker walker(*this, isAny, true);
 		TREEWALKER_WALK(walker, symbol);
+		type.swap(walker.type);
 	}
 };
 
@@ -3299,7 +3313,7 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 	{
 		TypenameSpecifierWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
-		type = &gTypename;
+		type.swap(walker.type);
 	}
 	void visit(cpp::class_specifier* symbol)
 	{
@@ -3944,7 +3958,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 				}
 				else
 				{
-					Declaration* declaration = findDeclaration(enclosing->declarations, member.name);
+					Declaration* declaration = ::findDeclaration(enclosing->declarations, member.name);
 					if(declaration != 0)
 					{
 						printPosition(member.name.position);
