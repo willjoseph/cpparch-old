@@ -132,9 +132,8 @@ struct Type
 	Declaration* declaration;
 	TemplateArguments arguments;
 	Qualifying qualifying;
-	Identifier* dependent;
 	mutable bool visited;
-	Type(Declaration* declaration) : declaration(declaration), dependent(0), visited(false)
+	Type(Declaration* declaration) : declaration(declaration), visited(false)
 	{
 	}
 	void swap(Type& other)
@@ -142,7 +141,6 @@ struct Type
 		std::swap(declaration, other.declaration);
 		std::swap(arguments, other.arguments);
 		std::swap(qualifying, other.qualifying);
-		std::swap(dependent, other.dependent);
 	}
 #if 0
 private:
@@ -594,6 +592,20 @@ bool isTemplateParameter(Declaration* declaration, const DependentContext& conte
 
 bool isDependent(const Type& type, const DependentContext& context);
 
+bool isDependent(const Qualifying& qualifying, const DependentContext& context)
+{
+	if(qualifying.empty())
+	{
+		return false;
+	}
+	const Type& instantiated = getInstantiatedType(qualifying.back());
+	if(isDependent(instantiated.qualifying, context))
+	{
+		return true;
+	}
+	return isDependent(instantiated, context);
+}
+
 bool isDependent(const Types& bases, const DependentContext& context)
 {
 	for(Types::const_iterator i = bases.begin(); i != bases.end(); ++i)
@@ -650,7 +662,10 @@ bool isDependentInternal(const Type& type, const DependentContext& context)
 	if(original.declaration == &gDependentType
 		|| original.declaration == &gDependentTemplate)
 	{
-		return true;
+		if(isDependent(original.qualifying, context))
+		{
+			return true;
+		}
 	}
 	if(isTemplateParameter(original.declaration, context))
 	{
@@ -1384,16 +1399,7 @@ struct WalkerBase
 
 	bool isDependent(const Qualifying& qualifying)
 	{
-		if(qualifying.empty())
-		{
-			return false;
-		}
-		const Type& instantiated = getInstantiatedType(qualifying.back());
-		if(isDependent(instantiated.qualifying))
-		{
-			return true;
-		}
-		return isDependent(instantiated);
+		return ::isDependent(qualifying, DependentContext(*enclosing, templateParams != 0 ? *templateParams : Scope(IDENTIFIER_NULL)));
 	}
 
 	void addDependent(Dependent& dependent, const DependencyCallback& callback)
@@ -2264,7 +2270,6 @@ struct TemplateIdWalker : public WalkerBase
 			Declaration* declaration = &gDependentTemplate;
 			type.declaration = declaration;
 			type.qualifying = qualifying;
-			type.dependent = &symbol->value;
 			symbol->value.dec.p = declaration;
 		}
 	}
@@ -2322,7 +2327,6 @@ struct TypeNameWalker : public WalkerBase
 			Declaration* declaration = &gDependentType;
 			type.declaration = declaration;
 			type.qualifying = qualifying;
-			type.dependent = &symbol->value;
 			symbol->value.dec.p = declaration;
 		}
 	}

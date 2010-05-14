@@ -1,5 +1,5 @@
 
-#if 0
+#if 1
 namespace N85
 {
 	template<typename T>
