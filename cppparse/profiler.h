@@ -5,7 +5,7 @@
 #include <iostream>
 #include <iomanip>
 
-#define PROFILE_ENABLED
+//#define PROFILE_ENABLED
 
 __int64 getCPUTimeElapsed();
 
@@ -75,6 +75,7 @@ inline void dumpProfile(ProfileEntry& entry)
 		<< std::setw(0) << "\n";
 }
 
+extern ProfileEntry gProfileIo;
 extern ProfileEntry gProfileWave;
 extern ProfileEntry gProfileLexer;
 extern ProfileEntry gProfileParser;

@@ -2,6 +2,23 @@
 
 - check that include-path search order is consistent with MSVC/GCC
 
+- test parser for completeness and compliance
+
+- build against stlport for performance?
+
+- allow source file + includes to be specified on commandline or config file
+
+- profile wave
+	- reading files
+	- searching include paths
+	- recognises pragma once and include-guards
+	
+- optimise parser allocations
+	- ensure allocator uses good block size: 128kb?
+	- use parse-tree allocator where possible
+	
+- remove disambiguation hacks
+	- init_declarator_disambiguate
 
 - profile:
 	- vector

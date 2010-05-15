@@ -1,5 +1,32 @@
 
 
+template<typename T>
+struct S
+{
+	S(const char*, int);
+};
+
+const int i = 0;
+const char* p = 0;
+
+void f()
+{
+	const S<int> node(p, i); // bug causes 'p' to be recognised when ',' is encountered - recognition should be deferred until ';'
+}
+
+#if 0
+class C
+{
+	// symbols may be deferred during attempt to parse 'void f(int i = j) {}'
+	// first tried as 'void f(int i = j);', fails on reaching '{'
+	void f(int i = j)
+	{
+	}
+
+	static const int j = 0;
+};
+#endif
+
 #if 0
 template<typename T>
 struct Blah

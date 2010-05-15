@@ -6,6 +6,7 @@
 
 ProfileScope* Profiler::scope = 0;
 
+ProfileEntry gProfileIo = ProfileEntry("io");
 ProfileEntry gProfileWave = ProfileEntry("wave");
 ProfileEntry gProfileLexer = ProfileEntry("lexer");
 ProfileEntry gProfileParser = ProfileEntry("parser");

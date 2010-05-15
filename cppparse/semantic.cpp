@@ -1107,7 +1107,7 @@ typedef std::list< DeferredParse<struct WalkerBase> > DeferredSymbols;
 typedef std::vector<struct DeferredSymbol> DeferredSymbols;
 #endif
 
-#if 0//def MINGLE
+#ifdef MINGLE
 #define TREEWALKER_NEW(T, args) (new(parser->lexer.allocator.allocate(sizeof(T))) T args)
 #else
 #define TREEWALKER_NEW(T, args) new T args
@@ -3645,6 +3645,19 @@ struct IsTemplateName
 	}
 };
 
+struct InitializerWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	InitializerWalker(const WalkerBase& base) : WalkerBase(base)
+	{
+	}
+	void visit(cpp::assignment_expression* symbol)
+	{
+		ExpressionWalker walker(*this);
+		TREEWALKER_WALK(walker, symbol);
+	}
+};
 
 struct SimpleDeclarationWalker : public WalkerBase
 {
@@ -3659,6 +3672,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 	Identifier* forward;
 #ifdef MINGLE
 	DeferredSymbols deferred;
+	DeferredSymbols deferred2;
 #endif
 	Dependent valueDependent;
 	size_t templateParameter;
@@ -3744,7 +3758,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 #ifdef MINGLE
 		if(WalkerBase::deferred != 0)
 		{
-			walker.deferred = &deferred;
+			walker.deferred = &deferred2;
 		}
 #endif
 		TREEWALKER_WALK(walker, symbol);
@@ -3860,6 +3874,18 @@ struct SimpleDeclarationWalker : public WalkerBase
 		ExpressionWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
 	}
+	// handle initializer in separate context to avoid ',' confusing recognition of declaration
+	void visit(cpp::initializer_clause* symbol)
+	{
+		InitializerWalker walker(*this);
+		TREEWALKER_WALK(walker, symbol);
+	}
+	// handle initializer in separate context to avoid ',' confusing recognition of declaration
+	void visit(cpp::initializer_parenthesis* symbol)
+	{
+		InitializerWalker walker(*this);
+		TREEWALKER_WALK(walker, symbol);
+	}
 	void visit(cpp::constant_expression* symbol)
 	{
 		ExpressionWalker walker(*this);
@@ -3913,6 +3939,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 	}
 #endif
 
+
 	void visit(cpp::simple_declaration_named* symbol)
 	{
 		declareEts(type, forward);
@@ -3922,11 +3949,27 @@ struct SimpleDeclarationWalker : public WalkerBase
 	{
 		declareEts(type, forward);
 		TREEWALKER_WALK(*this, symbol);
+#ifdef MINGLE
+		// symbols may be deferred during attempt to parse void f(int i = j) {}
+		// first parsed as member_declaration_named, fails on reaching '{'
+		if(WalkerBase::deferred != 0
+			&& !deferred2.empty())
+		{
+			deferred.splice(deferred.end(), deferred2);
+		}
+#endif
 	}
 	void visit(cpp::function_definition* symbol)
 	{
 		declareEts(type, forward);
 		TREEWALKER_WALK(*this, symbol);
+#ifdef MINGLE
+		if(WalkerBase::deferred != 0
+			&& !deferred2.empty())
+		{
+			deferred.splice(deferred.end(), deferred2);
+		}
+#endif
 	}
 	void visit(cpp::type_declaration_suffix* symbol)
 	{
@@ -4035,6 +4078,10 @@ struct TemplateParameterListWalker : public WalkerBase
 	TemplateParameterListWalker(const WalkerBase& base)
 		: WalkerBase(base)
 	{
+		// collect template-params into a new scope
+		Scope* scope = templateParams != 0 ? templateParams : TREEWALKER_NEW(Scope, (makeIdentifier("$template"), SCOPETYPE_TEMPLATE));
+		templateParams = 0;
+		pushScope(scope);
 	}
 	void visit(cpp::type_parameter_default* symbol)
 	{
@@ -4073,14 +4120,10 @@ struct TemplateDeclarationWalker : public WalkerBase
 	}
 	void visit(cpp::template_parameter_list* symbol)
 	{
-		// collect template-params into a new scope
-		Scope* scope = templateParams != 0 ? templateParams : TREEWALKER_NEW(Scope, (makeIdentifier("$template"), SCOPETYPE_TEMPLATE));
-		templateParams = 0;
-		pushScope(scope);
 		TemplateParameterListWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
-		enclosing = scope->parent;
-		templateParams = scope;
+		templateParams = walker.enclosing;
+		enclosing = walker.enclosing->parent;
 		params.swap(walker.params);
 	}
 	void visit(cpp::declaration* symbol)
@@ -4585,6 +4628,7 @@ cpp::declaration_seq* parseFile(ParserContext& lexer)
 	{
 		printError(parser);
 	}
+	dumpProfile(gProfileIo);
 	dumpProfile(gProfileWave);
 	dumpProfile(gProfileParser);
 	dumpProfile(gProfileAmbiguity);

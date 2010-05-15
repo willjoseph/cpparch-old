@@ -1,6 +1,7 @@
 
 #include "lexer.h"
 
+#include "profiler.h"
 
 #include <string.h> // strrchr
 
@@ -23,7 +24,22 @@ typedef boost::wave::cpplexer::lex_token<boost::wave::util::file_position_type> 
 //  parametrized with the token type.
 typedef boost::wave::cpplexer::lex_iterator<token_type> lex_iterator_type;
 
-typedef boost::wave::iteration_context_policies::load_file_to_string input_policy_type;
+struct LoadFile
+{
+    template <typename IterContextT>
+	struct inner : public boost::wave::iteration_context_policies::load_file_to_string::inner<IterContextT>
+	{
+            template <typename PositionT>
+            static void init_iterators(IterContextT &iter_ctx, 
+				PositionT const &act_pos, boost::wave::language_support language)
+            {
+				ProfileScope profile(gProfileIo);
+				boost::wave::iteration_context_policies::load_file_to_string::inner<IterContextT>::init_iterators(iter_ctx, act_pos, language);
+			}
+	};
+};
+
+typedef LoadFile input_policy_type;
 
 class Hooks : public boost::wave::context_policies::eat_whitespace<token_type>
 {

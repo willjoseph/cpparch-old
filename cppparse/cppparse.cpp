@@ -411,6 +411,7 @@ int main(int argc, char *argv[])
 		const Test tests[] = {
 			//makeTest("cpptree.cpp", ARRAY_RANGE(DEFINITIONS_CPPPARSE), ARRAY_RANGE(INCLUDES_CPPPARSE), verifyNull, parseFile),
 			makeTest("test/test_prepro.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), ARRAY_RANGE(INCLUDES_CPPPARSE), verifyNull, parseFile),
+#if 1
 			makeTest("test/test_quick.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyNull, parseFile),
 			makeTest("test/test_vector.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyNull, parseFile),
 			makeTest("test/test_iostream.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyNull, parseFile),
@@ -431,6 +432,7 @@ int main(int argc, char *argv[])
 			makeTest("test/test_ptr.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyPtr, parseFile),
 			makeTest("test/test_amb_decl_spec.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyAmbDeclSpec, parseFile),
 			makeTest("test/test_namespace.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyNamespace, parseFile),
+#endif
 		};
 		for(const Test* p = tests; p != tests + (sizeof(tests) / sizeof(*tests)); ++p)
 		{

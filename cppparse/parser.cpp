@@ -237,6 +237,7 @@ cpp::declaration_seq* parseFile(ParserContext& lexer)
 	{
 		printError(parser);
 	}
+	dumpProfile(gProfileIo);
 	dumpProfile(gProfileWave);
 	dumpProfile(gProfileParser);
 	dumpProfile(gProfileAmbiguity);
