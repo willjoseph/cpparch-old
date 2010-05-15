@@ -1,0 +1,61 @@
+
+- consider using-directives during name-lookup
+- choose class-template partial-specialization based on argument types
+- recognise namespace-alias-definition
+- recognise using-declaration
+- name-lookup for default template-arguments
+- defer detection of dependent expressions until template-parameter context is known
+- resolve actual type of qualified name via qualifying template arguments
+- optimise name-lookup using binary-search
+- profile to measure cost of name-lookup
+- name-lookup for conversion-function-id
+- detect value-dependent expressions
+- mingle parse-tree walker with parser, use name-lookup to disambiguate during parse
+- defer parse of member-declaration's function-body, default-arguments and mem-initialisers
+- defer object declaration until disambiguating token is found
+- defer class declaration until disambiguating token is found
+- generate most of parser from grammar
+- profile to measure cost of parsing ambiguous constructs
+- name-lookup for using-declaration
+- name-lookup for enumerator initializer
+- name-lookup for parameter initialiser and array-size
+- defer name-lookup for dependent unqualified function-call expression
+- detect type-dependent expressions
+- detect dependent-type names
+- defer name-lookup for dependent-names
+- defer name-lookup within nested-class member-declaration function-body
+- recognise enumerator declaration
+- pretty-print parse-tree in html with syntax highlighting and name-linking
+- consider names in base-classes during name-lookup
+- defer name-lookup within member-declaration function-body
+- modify grammar to handle ambiguity between function-declaration and init-declaration of variable
+- modify grammar to disallow function returning function, array of functions, and function returning array
+- resolve ambiguities in parse-tree using name-lookup
+- recognise member-template-parameter declaration
+- recognise template-specialization declaration
+- improved error-checking for one-definition-rule
+- custom iterative parse code for declaration-seq and statement-seq
+- recognise forward-declarations in class and local scope
+- recognise namespace declarations and continuations
+- consider template-parameter names during name-lookup
+- recognise template-parameter declaration
+- recognise friend declaration
+- reinstate left-recursion in expression grammar, use special parse
+- brute-force parse all possible interpretations of template-id/relational-expression ambiguity
+- recognise elaborated-type-specifier declaration
+- generate optional-symbol parsing from grammar
+- basic error-checking for one-definition-rule
+- parse all possible interpretations of an ambiguity
+- detect ambiguous constructs with multiple valid parses 
+- name-lookup for type-name
+- walk parse-tree and recognise scopes and declarations
+- implement pretty-printer for parse-tree
+- implement visitor interface for parse-tree
+- generate terminal-symbol parsing from grammar
+- factor out shared-prefix declarator in function-definition and member-declaration
+- implement circular-buffer for backtracking
+- factor out shared-prefix in member-declaration grammar
+- factor out left-recursion in expression grammar
+- implement custom allocator for parse-tree nodes
+- implement hand-coded parser using macros
+- define parse-tree data structure that reflects c++ grammar 
