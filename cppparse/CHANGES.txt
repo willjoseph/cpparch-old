@@ -1,0 +1,11 @@
+
+- nested-name-specifier should only qualify the preceded identifier: template-argument lookup should not be affected!
+- defer name-lookup for nested-class inline-member-definitions
+- defer name-lookup for template-param-dependent non-typename: template<typename T> void f() { T::f(); }
+	- name-lookup within template for 'dependent()' should find members/template-params first
+
+- implement syntax-checking for nested-name-specifier component of typename-specifier
+
+- name-lookup for using-declaration
+	- consider using-declaration during name-lookup
+- name-lookup for using-directive

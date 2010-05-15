@@ -288,6 +288,18 @@
 				</File>
 			</Filter>
 		</Filter>
+		<File
+			RelativePath=".\CHANGES.txt"
+			>
+		</File>
+		<File
+			RelativePath=".\README.txt"
+			>
+		</File>
+		<File
+			RelativePath=".\TODO.txt"
+			>
+		</File>
 	</Files>
 	<Globals>
 	</Globals>
