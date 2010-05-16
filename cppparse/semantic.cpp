@@ -60,7 +60,117 @@ struct DeclSpecifiers
 
 const DeclSpecifiers DECLSPEC_TYPEDEF = DeclSpecifiers(true, false, false, false);
 
+struct ListNodeBase
+{
+	ListNodeBase* next;
+};
+template<typename T>
+struct ListNode : ListNodeBase
+{
+	T value;
+};
+
+template<typename T>
+struct ListIterator
+{
+	typedef ListNode<T> Node;
+	const ListNodeBase* p;
+	ListIterator(const ListNodeBase* p) : p(p)
+	{
+	}
+
+	const T& operator*() const
+	{
+		return static_cast<const Node*>(p)->value;
+	}
+	const T* operator->() const
+	{
+		return &static_cast<const Node*>(p)->value;
+	}
+
+	ListIterator<T>& operator++()
+	{
+		p = p->next;
+		return *this;
+	}
+	ListIterator<T> operator++(int)
+	{
+		ListIterator<T> tmp = *this;
+		++*this;
+		return tmp;
+	}
+};
+
+template<typename T>
+inline bool operator==(const ListIterator<T>& left, const ListIterator<T>& right)
+{
+	return left.p == right.p;
+}
+template<typename T>
+inline bool operator!=(const ListIterator<T>& left, const ListIterator<T>& right)
+{
+	return left.p != right.p;
+}
+
+template<typename T>
+struct List
+{
+	typedef ListNode<T> Node;
+	ListNodeBase head;
+	ListNodeBase* tail;
+	List()
+	{
+		head.next = tail = &head;
+	}
+	List(const List& other)
+	{
+		if(other.empty())
+		{
+			new(this) List();
+		}
+		else
+		{
+			head = other.head;
+			tail = other.tail;
+			tail->next = &head;
+		}
+	}
+	List& operator=(const List& other)
+	{
+		this->~List();
+		new(this) List(other);
+		return *this;
+	}
+
+	typedef ListIterator<T> const_iterator;
+
+	const_iterator begin() const
+	{
+		return const_iterator(head.next);
+	}
+	const_iterator end() const
+	{
+		return const_iterator(&head);
+	}
+	bool empty() const
+	{
+		return head.next == &head;
+	}
+	
+	void append(Node* node)
+	{
+		node->next = &head;
+		tail->next = node;
+		tail = node;
+	}
+};
+
+#if 1
 typedef std::vector<struct TemplateArgument> TemplateArguments;
+#else
+typedef List<struct TemplateArgument> TemplateArguments;
+#endif
+
 typedef std::vector<struct Type> Types;
 
 template<typename T>
@@ -464,6 +574,45 @@ const Declaration* getBaseType(const Declaration& declaration)
 }
 #endif
 
+const Type& getTemplateArgument(const Type& type, size_t index)
+{
+#if 1
+	TemplateArguments::const_iterator a = type.arguments.begin();
+	Types::const_iterator p = type.declaration->templateParamDefaults.begin();
+	for(;; --index)
+	{
+		if(a != type.arguments.end())
+		{
+			if(index == 0)
+			{
+				SEMANTIC_ASSERT((*a).type.declaration != 0);
+				return (*a).type;
+			}
+			++a;
+		}
+		SEMANTIC_ASSERT(p != type.declaration->templateParamDefaults.end());
+		if(index == 0)
+		{
+			SEMANTIC_ASSERT((*p).declaration != 0);
+			return *p;
+		}
+		++p;
+	}
+#else
+	if(index < type.arguments.size())
+	{
+		SEMANTIC_ASSERT(type.arguments[index].type.declaration != 0);
+		return type.arguments[index].type;
+	}
+	else
+	{
+		SEMANTIC_ASSERT(index < type.declaration->templateParamDefaults.size()
+			&& type.declaration->templateParamDefaults[index].declaration != 0);
+		return type.declaration->templateParamDefaults[index];
+	}
+#endif
+}
+
 const Type& getInstantiatedType(const Type& type)
 {
 	if(type.declaration->specifiers.isTypedef
@@ -481,17 +630,7 @@ const Type& getInstantiatedType(const Type& type)
 				const Type& instantiated = getInstantiatedType(*i);
 				if(instantiated.declaration->enclosed == original.declaration->scope)
 				{
-					if(index < instantiated.arguments.size())
-					{
-						SEMANTIC_ASSERT(instantiated.arguments[index].type.declaration != 0);
-						return instantiated.arguments[index].type;
-					}
-					else
-					{
-						SEMANTIC_ASSERT(index < instantiated.declaration->templateParamDefaults.size()
-							&& instantiated.declaration->templateParamDefaults[index].declaration != 0);
-						return instantiated.declaration->templateParamDefaults[index];
-					}
+					return getTemplateArgument(instantiated, index);
 				}
 			}
 		}
@@ -867,6 +1006,29 @@ bool isEqual(const Type& l, const Type& r)
 
 bool isEqual(const Types& params, const TemplateArguments& left, const TemplateArguments& right)
 {
+#if 1
+	TemplateArguments::const_iterator l = left.begin();
+	TemplateArguments::const_iterator r = right.begin();
+	Types::const_iterator p = params.begin();
+	for(; p != params.end(); ++p)
+	{
+		if(!isEqual(
+			l != left.end() ? (*l).type : *p,
+			r != right.end() ? (*r).type : *p
+		))
+		{
+			return false;
+		}
+		if(l != left.end())
+		{
+			++l;
+		}
+		if(r != right.end())
+		{
+			++r;
+		}
+	}
+#else
 	for(size_t i = 0; i != params.size(); ++i)
 	{
 		if(!isEqual(
@@ -877,6 +1039,7 @@ bool isEqual(const Types& params, const TemplateArguments& left, const TemplateA
 			return false;
 		}
 	}
+#endif
 	return true;
 }
 
@@ -1402,6 +1565,14 @@ struct WalkerBase
 		return ::isDependent(qualifying, DependentContext(*enclosing, templateParams != 0 ? *templateParams : Scope(IDENTIFIER_NULL)));
 	}
 
+
+	template<typename T>
+	T& append(List<T>& list)
+	{
+		ListNode<T>* node = TREEWALKER_NEW(ListNode<T>, ());
+		list.append(node);
+		return node->value;
+	}
 	void addDependent(Dependent& dependent, const DependencyCallback& callback)
 	{
 		dependent.head = TREEWALKER_NEW(DependencyNode, (dependent.head, callback));
@@ -1672,7 +1843,7 @@ struct UncheckedTemplateIdWalker : public WalkerBase
 		// TODO: store args
 		TemplateArgumentListWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
-		arguments.swap(walker.arguments);
+		arguments = walker.arguments;
 	}
 };
 
@@ -2217,17 +2388,29 @@ struct TemplateArgumentListWalker : public WalkerBase
 	{
 		TypeIdWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
+#if 0
+		TemplateArgument& argument = append(arguments);
+		argument.type = walker.type;
+		argument.dependent = walker.valueDependent;
+#else
 		arguments.push_back(TemplateArgument());
 		arguments.back().type.swap(walker.type);
 		arguments.back().dependent = walker.valueDependent;
+#endif
 	}
 	void visit(cpp::assignment_expression* symbol)
 	{
 		ExpressionWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
+#if 0
+		TemplateArgument& argument = append(arguments);
+		argument.dependent = walker.typeDependent;
+		addDependent(argument.dependent, walker.valueDependent);
+#else
 		arguments.push_back(TemplateArgument()); // todo: evaluate constant-expression (unless it's dependent expression)
 		arguments.back().dependent = walker.typeDependent;
 		addDependent(arguments.back().dependent, walker.valueDependent);
+#endif
 	}
 };
 
@@ -2284,7 +2467,7 @@ struct TemplateIdWalker : public WalkerBase
 		{
 			type.declaration = findTemplateSpecialization(type.declaration, walker.arguments);
 		}
-		type.arguments.swap(walker.arguments);
+		type.arguments = walker.arguments;
 	}
 };
 
@@ -2394,8 +2577,8 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 			else
 			{
 				declaration = findTemplateSpecialization(declaration, walker.arguments);
-				type = declaration;
-				type.arguments.swap(walker.arguments);
+				type.declaration = declaration;
+				type.arguments = walker.arguments;
 			}
 		}
 	}
@@ -2787,7 +2970,7 @@ struct ClassHeadWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		// TODO: don't declare anything - this is a template (partial) specialisation
 		id = walker.id;
-		arguments.swap(walker.arguments);
+		arguments = walker.arguments;
 	}
 	void visit(cpp::terminal<boost::wave::T_COLON> symbol)
 	{
@@ -3016,7 +3199,7 @@ struct ClassSpecifierWalker : public WalkerBase
 		declaration = walker.declaration;
 		id = walker.id;
 		isUnion = walker.isUnion;
-		arguments.swap(walker.arguments);
+		arguments = walker.arguments;
 		enclosing = walker.enclosing;
 	}
 	void visit(cpp::terminal<boost::wave::T_LEFTBRACE> symbol)

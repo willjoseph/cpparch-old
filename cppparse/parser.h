@@ -476,6 +476,13 @@ struct SymbolAllocator
 	{
 		return new(allocator.allocate(sizeof(T))) T;
 	}
+	void deallocate(T* p)
+	{
+		p->~T();
+#ifdef _DEBUG
+		std::uninitialized_fill(static_cast<void*>(p), static_cast<void*>(p) + 1, 0xbebebebe);
+#endif
+	}
 };
 
 template<typename T>
@@ -739,11 +746,11 @@ inline ParseResult parseTerminal(Parser& parser, cpp::terminal_suffix<id>& resul
 #define PARSE_SELECT_TOKEN(parser, p, token, value_) if(TOKEN_EQUAL(parser, token)) { p = createSymbol(parser, p); p->id = value_; p->value.id = token; p->value.value = parser.get_value(); parser.increment(); return p; }
 #define PARSE_OPTIONAL(parser, p) (p) = parseSymbolOptional(parser, p)
 #define PARSE_REQUIRED(parser, p) if(((p) = parseSymbolRequired(parser, p)) == 0) { return 0; }
-#if 1
-#define PARSE_SELECT(parser, Type) result = parseSymbolChoice(parser, NullPtr<Type>::VALUE, result)
 #define PARSE_SELECT_UNAMBIGUOUS(parser, Type) if(cpp::symbol<Type> p = parseSymbolRequired(parser, NullPtr<Type>::VALUE)) { return p; }
+#ifdef MINGLE
+#define PARSE_SELECT PARSE_SELECT_UNAMBIGUOUS
 #else
-#define PARSE_SELECT(parser, Type) if(cpp::symbol<Type> p = parseSymbolRequired(parser, NullPtr<Type>::VALUE)) { return p; }
+#define PARSE_SELECT(parser, Type) result = parseSymbolChoice(parser, NullPtr<Type>::VALUE, result)
 #endif
 // Type must have members 'left' and 'right', and 'typeof(left)' must by substitutable for 'Type'
 #define PARSE_PREFIX(parser, Type) if(cpp::symbol<Type> p = parseSymbolRequired(parser, NullPtr<Type>::VALUE)) { if(p->right == 0) return p->left; return p; }

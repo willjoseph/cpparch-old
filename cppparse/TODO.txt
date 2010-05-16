@@ -16,6 +16,9 @@
 - optimise parser allocations
 	- ensure allocator uses good block size: 128kb?
 	- use parse-tree allocator where possible
+		- scopes
+		- declarations
+		- types
 	
 - remove disambiguation hacks
 	- init_declarator_disambiguate
