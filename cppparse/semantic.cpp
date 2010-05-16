@@ -1266,12 +1266,25 @@ struct WalkerContext
 
 typedef std::list< DeferredParse<struct WalkerBase> > DeferredSymbols;
 
-#if 0//def MINGLE
+#define DEFAULT_NEW(T, args) (new T args)
+#define DEFAULT_DELETE(p) (delete p)
+
+template<typename T>
+void lexerDelete(Lexer& lexer, T* p)
+{
+	if(p != 0)
+	{
+		p->~T();
+		lexer.allocator.deallocate(p, sizeof(T));
+	}
+}
+
+#if 0
 #define TREEWALKER_NEW(T, args) (new(parser->lexer.allocator.allocate(sizeof(T))) T args)
-#define TREEWALKER_DELETE(p) (parser->lexer.allocator.deallocate(p))
+#define TREEWALKER_DELETE(p) lexerDelete(parser->lexer, p)
 #else
-#define TREEWALKER_NEW(T, args) (new T args)
-#define TREEWALKER_DELETE(p) (delete p)
+#define TREEWALKER_NEW DEFAULT_NEW
+#define TREEWALKER_DELETE DEFAULT_DELETE
 #endif
 
 const IdentifierMismatch IDENTIFIERMISMATCH_NULL = IdentifierMismatch(IDENTIFIER_NULL, 0, 0);
@@ -1572,13 +1585,13 @@ struct WalkerBase
 	template<typename T>
 	T& append(List<T>& list)
 	{
-		ListNode<T>* node = TREEWALKER_NEW(ListNode<T>, ());
+		ListNode<T>* node = DEFAULT_NEW(ListNode<T>, ());
 		list.append(node);
 		return node->value;
 	}
 	void addDependent(Dependent& dependent, const DependencyCallback& callback)
 	{
-		dependent.head = TREEWALKER_NEW(DependencyNode, (dependent.head, callback));
+		dependent.head = DEFAULT_NEW(DependencyNode, (dependent.head, callback));
 	}
 	void addDependent(Dependent& dependent, Dependent& other)
 	{
@@ -1597,7 +1610,7 @@ struct WalkerBase
 	}
 	void addDependent(Dependent& dependent, const Type& type)
 	{
-		addDependent(dependent, makeDependencyCallback(TREEWALKER_NEW(Type, (type)), isDependentType));
+		addDependent(dependent, makeDependencyCallback(DEFAULT_NEW(Type, (type)), isDependentType));
 	}
 	void addDependent(Dependent& dependent, Scope* scope)
 	{
@@ -1760,6 +1773,33 @@ bool isForwardDeclaration(cpp::decl_specifier_seq* symbol)
 
 struct Walker
 {
+
+struct ScopeWalker : public WalkerBase
+{
+	Scope* scope;
+	ScopeWalker(const WalkerBase& base, const Identifier& name, ScopeType type, Scope* existing = 0)
+		: WalkerBase(base), scope(0)
+	{
+		if(existing != 0)
+		{
+			pushScope(existing);
+		}
+		else
+		{
+			scope = TREEWALKER_NEW(Scope, (name, type));
+			pushScope(scope);
+		}
+	}
+	~ScopeWalker()
+	{
+		TREEWALKER_DELETE(scope);
+	}
+	void commit()
+	{
+		scope = 0;
+	}
+};
+
 
 struct NamespaceNameWalker : public WalkerBase
 {
@@ -2727,13 +2767,22 @@ struct DeclaratorIdWalker : public WalkerBase
 	}
 };
 
-struct ParameterDeclarationClauseWalker : public WalkerBase
+struct ParameterDeclarationClauseWalker : public ScopeWalker
 {
 	TREEWALKER_DEFAULT;
 
 	ParameterDeclarationClauseWalker(const WalkerBase& base)
-		: WalkerBase(base)
+		: ScopeWalker(base, makeIdentifier("$declarator"), SCOPETYPE_PROTOTYPE)
 	{
+		if(templateParams != 0)
+		{
+			enclosing->declarations = templateParams->declarations;
+			for(Scope::Declarations::iterator i = enclosing->declarations.begin(); i != enclosing->declarations.end(); ++i)
+			{
+				(*i).second.scope = enclosing;
+			}
+		}
+		templateParams = 0;
 	}
 
 	void visit(cpp::parameter_declaration* symbol)
@@ -2820,21 +2869,9 @@ struct DeclaratorWalker : public WalkerBase
 	}
 	void visit(cpp::parameter_declaration_clause* symbol)
 	{
-		// hack to resolve issue: when mingled with parser, deferred parse causes constructor of ParameterDeclarationClauseWalker to be invoked twice
-		WalkerBase base(*this);
-		base.pushScope(TREEWALKER_NEW(Scope, (makeIdentifier("$declarator"))));
-		base.enclosing->type = SCOPETYPE_PROTOTYPE;
-		base.templateParams = 0;
-		if(templateParams != 0)
-		{
-			base.enclosing->declarations = templateParams->declarations;
-			for(Scope::Declarations::iterator i = base.enclosing->declarations.begin(); i != base.enclosing->declarations.end(); ++i)
-			{
-				(*i).second.scope = base.enclosing;
-			}
-		}
-		ParameterDeclarationClauseWalker walker(base);
+		ParameterDeclarationClauseWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
+		walker.commit();
 		paramScope = walker.enclosing; // store reference for later resumption
 	}
 	void visit(cpp::exception_specification* symbol)
@@ -3493,6 +3530,7 @@ struct TryBlockWalker : public WalkerBase
 	{
 		CompoundStatementWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
+		walker.commit();
 	}
 	void visit(cpp::handler_seq* symbol)
 	{
@@ -3529,16 +3567,19 @@ struct StatementWalker : public WalkerBase
 	{
 		ControlStatementWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
+		walker.commit();
 	}
 	void visit(cpp::iteration_statement* symbol)
 	{
 		ControlStatementWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
+		walker.commit();
 	}
 	void visit(cpp::compound_statement* symbol)
 	{
 		CompoundStatementWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
+		walker.commit();
 	}
 	void visit(cpp::expression_statement* symbol)
 	{
@@ -3562,14 +3603,13 @@ struct StatementWalker : public WalkerBase
 	}
 };
 
-struct ControlStatementWalker : public WalkerBase
+struct ControlStatementWalker : public ScopeWalker
 {
 	TREEWALKER_DEFAULT;
 
 	ControlStatementWalker(const WalkerBase& base)
-		: WalkerBase(base)
+		: ScopeWalker(base, makeIdentifier(base.enclosing->getUniqueName()), SCOPETYPE_LOCAL)
 	{
-		pushScope(TREEWALKER_NEW(Scope, (makeIdentifier(enclosing->getUniqueName()), SCOPETYPE_LOCAL)));
 	}
 	void visit(cpp::condition_init* symbol)
 	{
@@ -3594,14 +3634,13 @@ struct ControlStatementWalker : public WalkerBase
 	}
 };
 
-struct CompoundStatementWalker : public WalkerBase
+struct CompoundStatementWalker : public ScopeWalker
 {
 	TREEWALKER_DEFAULT;
 
 	CompoundStatementWalker(const WalkerBase& base)
-		: WalkerBase(base)
+		: ScopeWalker(base, makeIdentifier(base.enclosing->getUniqueName()), SCOPETYPE_LOCAL)
 	{
-		pushScope(TREEWALKER_NEW(Scope, (makeIdentifier(enclosing->getUniqueName()), SCOPETYPE_LOCAL))); // local scope
 	}
 
 	void visit(cpp::statement* symbol)
@@ -3611,14 +3650,13 @@ struct CompoundStatementWalker : public WalkerBase
 	}
 };
 
-struct HandlerWalker : public WalkerBase
+struct HandlerWalker : public ScopeWalker
 {
 	TREEWALKER_DEFAULT;
 
 	HandlerWalker(const WalkerBase& base)
-		: WalkerBase(base)
+		: ScopeWalker(base, makeIdentifier(base.enclosing->getUniqueName()), SCOPETYPE_LOCAL)
 	{
-		pushScope(TREEWALKER_NEW(Scope, (makeIdentifier(enclosing->getUniqueName()), SCOPETYPE_LOCAL)));
 	}
 	void visit(cpp::exception_declaration_default* symbol)
 	{
@@ -3640,11 +3678,13 @@ struct HandlerSeqWalker : public WalkerBase
 	{
 		HandlerWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
+		walker.commit();
 	}
 	void visit(cpp::compound_statement* symbol)
 	{
 		CompoundStatementWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
+		walker.commit();
 	}
 };
 
@@ -4021,12 +4061,17 @@ struct SimpleDeclarationWalker : public WalkerBase
 		if(WalkerBase::deferred != 0)
 		{
 			result = defer(deferred, walker, skipBraced, symbol);
+			if(result == 0)
+			{
+				return;
+			}
 		}
 		else
 #endif
 		{
 			TREEWALKER_WALK(walker, symbol);
 		}
+		walker.commit();
 	}
 	void visit(cpp::mem_initializer* symbol)
 	{
@@ -4157,6 +4202,7 @@ struct TypeParameterWalker : public WalkerBase
 	{
 		TemplateParameterListWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
+		walker.commit();
 		params.swap(walker.params);
 	}
 	void visit(cpp::id_expression* symbol)
@@ -4176,18 +4222,16 @@ struct TypeParameterWalker : public WalkerBase
 	}
 };
 
-struct TemplateParameterListWalker : public WalkerBase
+struct TemplateParameterListWalker : public ScopeWalker
 {
 	TREEWALKER_DEFAULT;
 
 	Types params;
 	TemplateParameterListWalker(const WalkerBase& base)
-		: WalkerBase(base)
+		: ScopeWalker(base, makeIdentifier("$template"), SCOPETYPE_TEMPLATE, base.templateParams)
 	{
 		// collect template-params into a new scope
-		Scope* scope = templateParams != 0 ? templateParams : TREEWALKER_NEW(Scope, (makeIdentifier("$template"), SCOPETYPE_TEMPLATE));
 		templateParams = 0;
-		pushScope(scope);
 	}
 	void visit(cpp::type_parameter_default* symbol)
 	{
@@ -4228,6 +4272,7 @@ struct TemplateDeclarationWalker : public WalkerBase
 	{
 		TemplateParameterListWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
+		walker.commit();
 		templateParams = walker.enclosing;
 		enclosing = walker.enclosing->parent;
 		params.swap(walker.params);
