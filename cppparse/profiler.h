@@ -5,7 +5,7 @@
 #include <iostream>
 #include <iomanip>
 
-//#define PROFILE_ENABLED
+#define PROFILE_ENABLED
 
 __int64 getCPUTimeElapsed();
 

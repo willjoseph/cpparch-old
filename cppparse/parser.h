@@ -119,7 +119,6 @@ void printSymbol(T* symbol, bool disambiguated = false)
 	walker.visit(symbol);
 }
 
-//#define AMBIGUITY_DEBUG
 
 
 inline bool isAlphabet(char c)
@@ -200,9 +199,11 @@ inline void printIndent(VisualiserNode* node)
 
 cpp::terminal_identifier& getDeclarationId(Declaration* declaration);
 
+
 struct Visualiser
 {
-	LinearAllocator allocator;
+	typedef LinearAllocator<false> Allocator;
+	Allocator allocator;
 	VisualiserNode* node;
 	Visualiser() : node(0)
 	{
@@ -224,7 +225,10 @@ struct Visualiser
 			{
 				allocator.backtrack(node->allocation);
 			}
-			node->allocation = size_t(-1);
+			else
+			{
+				node->allocation = size_t(-1);
+			}
 		}
 		node = parent;
 	}
@@ -241,8 +245,8 @@ struct Visualiser
 
 	void print(BacktrackBuffer& buffer)
 	{
-		LinearAllocator::Pages::iterator last = allocator.pages.begin() + allocator.position / sizeof(Page);
-		for(LinearAllocator::Pages::iterator i = allocator.pages.begin(); i != allocator.pages.end(); ++i)
+		Allocator::Pages::iterator last = allocator.pages.begin() + allocator.position / sizeof(Page);
+		for(Allocator::Pages::iterator i = allocator.pages.begin(); i != allocator.pages.end(); ++i)
 		{
 			size_t pageSize = i == last ? allocator.position % Page::SIZE : Page::SIZE;
 			VisualiserNode* first = reinterpret_cast<VisualiserNode*>((*i)->buffer);
@@ -295,37 +299,14 @@ struct Visualiser
 };
 
 
-struct TemplateIdAmbiguityContext
-{
-	size_t depth;
-	size_t solution;
-	size_t max;
-	TemplateIdAmbiguityContext() : depth(0), solution(0), max(0)
-	{
-	}
-	void nextDepth()
-	{
-		if(depth == 15) // limit to 2^16 permutations
-		{
-			throw ParseError();
-		}
-		++depth;
-		max = std::max(max, depth);
-	}
-	bool ignoreTemplateId() const
-	{
-		return (solution & (1 << depth)) != 0;
-	}
-};
+
 
 struct ParserState
 {
-	TemplateIdAmbiguityContext* ambiguity;
 	bool inTemplateArgumentList;
-	bool inGeneralAmbiguity; // for profiling!
 
 	ParserState()
-		: ambiguity(0), inTemplateArgumentList(false), inGeneralAmbiguity(false)
+		: inTemplateArgumentList(false)
 	{
 	}
 };
@@ -344,14 +325,13 @@ struct Parser : public ParserState
 	ParserContext& lexer;
 	size_t position;
 	size_t allocation;
-	size_t ambiguityDepth;
 
 	Parser(ParserContext& lexer)
-		: lexer(lexer), position(0), allocation(0), ambiguityDepth(0)
+		: lexer(lexer), position(0), allocation(0)
 	{
 	}
 	Parser(const Parser& other)
-		: ParserState(other), lexer(other.lexer), position(0), allocation(lexer.allocator.position), ambiguityDepth(0)
+		: ParserState(other), lexer(other.lexer), position(0), allocation(lexer.allocator.position)
 	{
 	}
 
@@ -381,15 +361,6 @@ struct Parser : public ParserState
 		{
 			lexer.allocator.backtrack(allocation);
 		}
-		if(ambiguity != 0
-			&& ambiguityDepth != 0)
-		{
-			ASSERT(ambiguityDepth <= ambiguity->depth);
-			ambiguity->depth -= ambiguityDepth;
-#ifdef AMBIGUITY_DEBUG
-			std::cout << "ambiguity backtrack: " << ambiguity->depth << "/" << ambiguityDepth << std::endl;
-#endif
-		}
 	}
 	void advance()
 	{
@@ -397,22 +368,6 @@ struct Parser : public ParserState
 		{
 			lexer.advance(position);
 		}
-		if(ambiguity != 0
-			&& ambiguityDepth != 0)
-		{
-			ambiguity->depth += ambiguityDepth;
-#ifdef AMBIGUITY_DEBUG
-			std::cout << "ambiguity advance: " << ambiguity->depth << "/" << ambiguityDepth << std::endl;
-#endif
-		}
-	}
-	void nextDepth()
-	{
-		ambiguity->nextDepth();
-		++ambiguityDepth;
-#ifdef AMBIGUITY_DEBUG
-		std::cout << "ambiguity next-depth: " << ambiguity->depth << "/" << ambiguityDepth << std::endl;
-#endif
 	}
 };
 
@@ -446,42 +401,69 @@ inline void parseToken(Parser& parser, boost::wave::token_id id)
 	parser.increment();
 };
 
-template<typename T>
-struct NullPtr
+
+#define NULLSYMBOL(T) cpp::symbol< T >(0)
+
+
+struct TrueSized
 {
-	static cpp::symbol<T> VALUE;
+	char m[1];
+};
+
+struct FalseSized
+{
+	char m[2];
+};
+
+template<typename T, typename Base>
+struct IsConvertible
+{
+	static TrueSized test(Base*);
+	static FalseSized test(...);
+
+	static const bool RESULT = sizeof(IsConvertible<T, Base>::test(NULLSYMBOL(T))) == sizeof(TrueSized);
 };
 
 template<typename T>
-cpp::symbol<T> NullPtr<T>::VALUE = cpp::symbol<T>(NULL);
+struct IsConcrete
+{
+	static const bool RESULT = !IsConvertible<T, cpp::choice<T> >::RESULT
+		&& !IsConvertible<T, cpp::terminal_choice>::RESULT;
+};
+
+template<typename T, bool isConcrete = IsConcrete<T>::RESULT >
+struct SymbolAllocator;
 
 template<typename T>
-struct SymbolAllocator
+struct SymbolAllocator<T, true>
 {
-	LinearAllocator& allocator;
-	SymbolAllocator(LinearAllocator& allocator)
-		: allocator(allocator)
+	LexerAllocator& allocator;
+	SymbolAllocator(LexerAllocator& allocator) : allocator(allocator)
 	{
 	}
-
-	T* allocate(cpp::terminal_choice*)
-	{
-		return NULL;
-	}
-	T* allocate(cpp::choice<T>*)
-	{
-		return NULL;
-	}
-	T* allocate(void*)
+	T* allocate()
 	{
 		return new(allocator.allocate(sizeof(T))) T;
 	}
 	void deallocate(T* p)
 	{
 		p->~T();
-#ifdef _DEBUG
-		std::uninitialized_fill(static_cast<void*>(p), static_cast<void*>(p) + 1, 0xbebebebe);
-#endif
+		allocator.deallocate(p, sizeof(T));
+	}
+};
+
+template<typename T>
+struct SymbolAllocator<T, false>
+{
+	SymbolAllocator(LexerAllocator& allocator)
+	{
+	}
+	T* allocate()
+	{
+		return 0;
+	}
+	void deallocate(T* p)
+	{
 	}
 };
 
@@ -489,6 +471,54 @@ template<typename T>
 T* createSymbol(Parser& parser, T*)
 {
 	return new(parser.lexer.allocator.allocate(sizeof(T))) T;
+}
+
+struct SymbolDelete
+{
+	LexerAllocator& allocator;
+	SymbolDelete(LexerAllocator& allocator) : allocator(allocator)
+	{
+	}
+
+	void visit(cpp::terminal_identifier symbol)
+	{
+	}
+	void visit(cpp::terminal_string symbol)
+	{
+	}
+	void visit(cpp::terminal_choice2 symbol)
+	{
+	}
+
+	template<LexTokenId id>
+	void visit(cpp::terminal<id> symbol)
+	{
+	}
+
+	template<typename T>
+	void visit(T* symbol)
+	{
+		symbol->accept(*this);
+		SymbolAllocator<T, !IsConvertible<T, cpp::choice<T> >::RESULT>(allocator).deallocate(symbol);
+	}
+
+	template<typename T>
+	void visit(cpp::symbol<T> symbol)
+	{
+		if(symbol.p != 0)
+		{
+			visit(symbol.p);
+		}
+	}
+};
+
+template<typename T>
+void deleteSymbol(T* symbol, LexerAllocator& allocator)
+{
+#ifdef _DEBUG
+	SymbolDelete walker(allocator);
+	walker.visit(cpp::symbol<T>(symbol));
+#endif
 }
 
 inline bool checkBacktrack(Parser& parser)
@@ -504,27 +534,27 @@ inline bool checkBacktrack(Parser& parser)
 template<typename ParserType, typename T>
 cpp::symbol<T> parseSymbolRequired(ParserType& parser, cpp::symbol<T> symbol, size_t best = 0)
 {
-	T* p = symbol.p;
+	PARSE_ASSERT(symbol.p == 0);
 	PARSE_ASSERT(!checkBacktrack(parser));
 	ParserType tmp(parser);
 	parser.lexer.push();
 	parser.lexer.visualiser.push(SYMBOL_NAME(T), parser.lexer.position);
-	p = SymbolAllocator<T>(parser.lexer.allocator).allocate(p);
+	T* p = SymbolAllocator<T>(parser.lexer.allocator).allocate();
 #if 0
-	p = parseSymbol(tmp, p);
+	T* result = parseSymbol(tmp, p);
 #else
-	p = tmp.parse(p);
+	T* result = tmp.parse(p);
 #endif
 	parser.lexer.pop();
-	if(p != 0
+	if(result != 0
 		&& tmp.position >= best)
 	{
-		parser.lexer.visualiser.pop(p);
+		parser.lexer.visualiser.pop(result);
 		parser.position += tmp.position;
-		parser.ambiguityDepth += tmp.ambiguityDepth;
-		return cpp::symbol<T>(p);
+		return cpp::symbol<T>(result);
 	}
 
+	deleteSymbol(p, parser.lexer.allocator);
 	parser.lexer.visualiser.pop(false);
 	tmp.backtrack(SYMBOL_NAME(T));
 	return cpp::symbol<T>(0);
@@ -536,74 +566,11 @@ cpp::symbol_optional<T> parseSymbolOptional(ParserType& parser, cpp::symbol_opti
 	return cpp::symbol_optional<T>(parseSymbolRequired(parser, symbol));
 }
 
-template<typename T>
-bool isAmbiguous(T* symbol)
-{
-	return false;
-}
 
 inline void breakpoint()
 {
 }
 
-struct False
-{
-};
-
-struct True
-{
-};
-
-template<typename T>
-T* resolveAmbiguity(LinearAllocator& allocator, T* first, T* second, const True&)
-{
-	typedef cpp::ambiguity<T> Result;
-	Result* result =  new(allocator.allocate(sizeof(Result))) Result;
-	result->first = first;
-	result->second = second;
-	return result;
-}
-
-template<typename T>
-T* resolveAmbiguity(LinearAllocator& allocator, T* first, T* second, const False&)
-{
-	breakpoint();
-	return first;
-}
-
-template<typename T>
-struct IsAmbiguous
-{
-	typedef False Result;
-};
-
-#ifdef MINGLE
-#define DECLARE_AMBIGUOUS(T)
-#else
-#define DECLARE_AMBIGUOUS(T) \
-	template<> \
-	struct IsAmbiguous<T> \
-	{ \
-		typedef True Result; \
-	}
-#endif
-
-DECLARE_AMBIGUOUS(cpp::template_argument);
-DECLARE_AMBIGUOUS(cpp::parameter_declaration);
-DECLARE_AMBIGUOUS(cpp::statement);
-DECLARE_AMBIGUOUS(cpp::for_init_statement);
-DECLARE_AMBIGUOUS(cpp::member_declaration);
-DECLARE_AMBIGUOUS(cpp::template_parameter);
-DECLARE_AMBIGUOUS(cpp::cast_expression);
-DECLARE_AMBIGUOUS(cpp::unary_expression);
-DECLARE_AMBIGUOUS(cpp::postfix_expression_prefix);
-DECLARE_AMBIGUOUS(cpp::nested_name);
-DECLARE_AMBIGUOUS(cpp::init_declarator);
-DECLARE_AMBIGUOUS(cpp::mem_initializer_id);
-
-DECLARE_AMBIGUOUS(cpp::expression);
-DECLARE_AMBIGUOUS(cpp::constant_expression);
-DECLARE_AMBIGUOUS(cpp::assignment_expression);
 
 #ifdef _DEBUG
 #define SYMBOLP_NAME(p) (typeid(*p).name() + 12)
@@ -623,73 +590,6 @@ inline T* pruneBinaryExpression(T* symbol)
 	return symbol->right == 0 ? symbol->left : symbol;
 }
 
-
-template<typename ParserType, typename T, typename OtherT>
-cpp::symbol<OtherT> parseSymbolChoice(ParserType& parser, cpp::symbol<T> symbol, OtherT* other)
-{
-	if(other != 0)
-	{
-		parser.inGeneralAmbiguity = true;
-	}
-	ProfileScope profile(parser.inGeneralAmbiguity ? gProfileAmbiguity : gProfileParser);
-	if(parser.position != 0)
-	{
-		if(!parser.lexer.canBacktrack(parser.position))
-		{
-			return cpp::symbol<OtherT>(other);
-		}
-		parser.backtrack(0 /*SYMBOL_NAME(T)*/, true);
-	}
-	size_t ambiguityDepth = parser.ambiguityDepth;
-	parser.ambiguityDepth = 0;
-	size_t position = parser.position;
-	parser.position = 0;
-	T* p = parseSymbolRequired(parser, NullPtr<T>::VALUE, position);
-	if(p != 0
-		&& position != 0
-		&& position == parser.position) // successfully parsed an alternative interpretation
-	{
-		OtherT* alt = pruneSymbol(p);
-		{
-#if 0
-			ProfileScope profile(gProfileDiagnose);
-			if(!isAmbiguous(other)) // debug: check that this is a known ambiguity
-			{
-				// if not, print diagnostic
-				printPosition(parser.get_position());
-				std::cout << std::endl;
-				std::cout << "  " << SYMBOL_NAME(OtherT) << ": ";
-				printSymbol(alt);
-				std::cout << std::endl;
-				std::cout << (!isAmbiguous(other) ? "  UNKNOWN: " : "  known: ");
-				std::cout << SYMBOLP_NAME(other) << std::endl;
-				std::cout << "    ";
-				printSymbol(other, true);
-				std::cout << std::endl;
-				std::cout << (!isAmbiguous(alt) ? "  UNKNOWN: " : "  known: ");
-				std::cout << SYMBOLP_NAME(alt) << std::endl;
-				std::cout << "    ";
-				printSymbol(alt, true);
-				std::cout << std::endl;
-				breakpoint();
-			}
-#endif
-		}
-#if 0
-		return cpp::symbol<OtherT>(other); // for now, ignore alternative interpretations
-#else
-		return cpp::symbol<OtherT>(resolveAmbiguity(parser.lexer.allocator, other, alt, typename IsAmbiguous<OtherT>::Result()));
-#endif
-	}
-	if(p == 0)
-	{
-		parser.ambiguityDepth = ambiguityDepth;
-		parser.position = position;
-		parser.advance();
-		return cpp::symbol<OtherT>(other);
-	}
-	return cpp::symbol<OtherT>(pruneSymbol(p));
-}
 
 template<LexTokenId id>
 inline LexTokenId getTokenId(cpp::terminal<id>)
@@ -746,121 +646,18 @@ inline ParseResult parseTerminal(Parser& parser, cpp::terminal_suffix<id>& resul
 #define PARSE_SELECT_TOKEN(parser, p, token, value_) if(TOKEN_EQUAL(parser, token)) { p = createSymbol(parser, p); p->id = value_; p->value.id = token; p->value.value = parser.get_value(); parser.increment(); return p; }
 #define PARSE_OPTIONAL(parser, p) (p) = parseSymbolOptional(parser, p)
 #define PARSE_REQUIRED(parser, p) if(((p) = parseSymbolRequired(parser, p)) == 0) { return 0; }
-#define PARSE_SELECT_UNAMBIGUOUS(parser, Type) if(cpp::symbol<Type> p = parseSymbolRequired(parser, NullPtr<Type>::VALUE)) { return p; }
-#ifdef MINGLE
-#define PARSE_SELECT PARSE_SELECT_UNAMBIGUOUS
-#else
-#define PARSE_SELECT(parser, Type) result = parseSymbolChoice(parser, NullPtr<Type>::VALUE, result)
-#endif
+#define PARSE_SELECT(parser, Type) if(cpp::symbol<Type> p = parseSymbolRequired(parser, NULLSYMBOL(Type))) { return p; }
+#define PARSE_SELECT_UNAMBIGUOUS PARSE_SELECT
+
 // Type must have members 'left' and 'right', and 'typeof(left)' must by substitutable for 'Type'
-#define PARSE_PREFIX(parser, Type) if(cpp::symbol<Type> p = parseSymbolRequired(parser, NullPtr<Type>::VALUE)) { if(p->right == 0) return p->left; return p; }
-
-
-inline bool peekForward(Parser& parser, LexTokenId id)
-{
-	parser.lexer.increment();
-	bool result = isToken(parser.lexer.get_id(), id);
-	parser.lexer.backtrack(1);
-	return result;
-}
-
-inline bool peekBackward(Parser& parser, LexTokenId id)
-{
-	parser.lexer.backtrack(1);
-	bool result = isToken(parser.lexer.get_id(), id);
-	parser.lexer.increment();
-	return result;
-}
-
-inline bool peekTemplateIdAmbiguity(Parser& parser)
-{
-	return isToken(parser.lexer.get_id(), boost::wave::T_IDENTIFIER)
-		&& peekForward(parser, boost::wave::T_LESS);
-}
-
-inline bool peekTemplateIdAmbiguityPrev(Parser& parser)
-{
-	return isToken(parser.lexer.get_id(), boost::wave::T_LESS)
-		&& peekBackward(parser, boost::wave::T_IDENTIFIER);
-}
-
-
-
-template<typename ParserType, typename T, typename OtherT>
-cpp::symbol<OtherT> parseSymbolAmbiguous(ParserType& parser, cpp::symbol<T> symbol, OtherT* result)
-{
-	static size_t gTemplateIdAmbiguityNest = 0;
-	TemplateIdAmbiguityContext context;
-	if(parser.ambiguity == 0)
-	{
-		parser.ambiguity = &context;
-#ifdef AMBIGUITY_DEBUG
-		std::cout << "ambiguity begin: " << SYMBOL_NAME(T) << std::endl;
-#endif
-		++gTemplateIdAmbiguityNest;
-	}
-	result = parseSymbolChoice(parser, symbol, result);
-	if(parser.ambiguity == &context)
-	{
-		--gTemplateIdAmbiguityNest;
-		// temp hack
-#ifdef AMBIGUITY_DEBUG
-		std::cout << "ambiguity end: " << SYMBOL_NAME(T) << std::endl;
-#endif
-		if(context.max != 0)
-		{
-			ProfileScope profile(gProfileTemplateId);
+#define PARSE_PREFIX(parser, Type) if(cpp::symbol<Type> p = parseSymbolRequired(parser, NULLSYMBOL(Type))) { if(p->right == 0) return p->left; return p; }
 
 #if 0
-			for(size_t i = 0; i != gTemplateIdAmbiguityNest; ++i)
-			{
-				std::cout << " ";
-			}
-			std::cout << "ambiguous expression " << SYMBOL_NAME(T) << ": depth=" << context.depth << ": ";
-			std::cout << std::endl;
-			printSymbol(result);
-			std::cout << std::endl;
-#endif
-
-			// debug
-			size_t depth = context.depth;
-			OtherT* original = result;
-
-			size_t width = 1 << context.max;
-			while(++context.solution != width)
-			{
-#ifdef AMBIGUITY_DEBUG
-				std::cout << "ambiguity solution: " << context.solution << std::endl;
-#endif
-				result = parseSymbolChoice(parser, symbol, result);
-				width = std::max(width, size_t(1 << context.depth)); // handle failure of initial parse, increase depth when a solution is found
-
-				// TEMP HACK
-				if(depth > 8)
-				{
-					// don't bother to brute-force check complex ambiguities for now.
-
-					break;
-				}
-			}
-		}
-		parser.ambiguity = 0;
-	}
-	return cpp::symbol<OtherT>(result);
-}
-
-#ifdef MINGLE
-#define PARSE_EXPRESSION PARSE_SELECT
-#define PARSE_EXPRESSION_SPECIAL PARSE_SELECT
-#else
-#define PARSE_EXPRESSION_SPECIAL(parser, Type) result = parseSymbolAmbiguous(parser, NullPtr<Type>::VALUE, result)
-
-#if 1
 #define PARSE_EXPRESSION PARSE_PREFIX
 #else
-#define PARSE_EXPRESSION PARSE_EXPRESSION_SPECIAL
+#define PARSE_EXPRESSION PARSE_SELECT
 #endif
-#endif
+
 
 
 template<typename ParserType, typename T, typename Base>
@@ -873,7 +670,7 @@ inline cpp::symbol<Base> parseExpression(ParserType& parser, cpp::symbol<T> symb
 		for(;;)
 		{
 			// parse suffix of expression-symbol
-			symbol = parseSymbolRequired(parser, symbol);
+			symbol = parseSymbolRequired(parser, NULLSYMBOL(T));
 			if(symbol == 0
 				|| symbol->right == 0)
 			{
@@ -886,7 +683,7 @@ inline cpp::symbol<Base> parseExpression(ParserType& parser, cpp::symbol<T> symb
 	return makeSymbol(result);
 }
 
-#define PARSE_EXPRESSION_LEFTASSOCIATIVE(parser, Type) result = parseExpression(parser, NullPtr<Type>::VALUE, result)
+#define PARSE_EXPRESSION_LEFTASSOCIATIVE(parser, Type) result = parseExpression(parser, NULLSYMBOL(Type), result)
 
 template<typename ParserType, typename T>
 inline cpp::symbol_optional<T> parseSequence(ParserType& parser, cpp::symbol_optional<T>)
@@ -905,7 +702,19 @@ inline cpp::symbol_optional<T> parseSequence(ParserType& parser, cpp::symbol_opt
 	return tmp.next;
 }
 
+#ifdef MINGLE
+#define PARSE_SEQUENCE PARSE_OPTIONAL
+#else
 #define PARSE_SEQUENCE(parser, p) p = parseSequence(parser, p)
+#endif
+
+struct True
+{
+};
+
+struct False
+{
+};
 
 
 struct ParseResultFail
@@ -1017,7 +826,7 @@ struct ParsingVisitor
 };
 
 template<typename ParserType, typename T>
-inline T* parseSymbol(ParserType& parser, T* result, const False&, const False&)
+inline T* parseSymbol(ParserType& parser, T* result, const False&)
 {
 	ParsingVisitor<ParserType> visitor(parser);
 	if(!result->parse(visitor))
@@ -1057,13 +866,13 @@ struct TypeListCount<TYPELIST1(cpp::ambiguity<T>)>
 };
 
 template<typename ParserType, typename T, size_t N>
-struct ChoiceParserN
+struct ChoiceParser
 {
 };
 
 #define DEFINE_CHOICEPARSER(N) \
 	template<typename ParserType, typename T> \
-	struct ChoiceParserN<ParserType, T, N> \
+	struct ChoiceParser<ParserType, T, N> \
 	{ \
 		static T* parseSymbol(ParserType& parser, T* result) \
 		{ \
@@ -1072,7 +881,7 @@ struct ChoiceParserN
 		} \
 	}
 
-#define CHOICEPARSER_OP(N) result = parseSymbolChoice(parser, NullPtr<typename TypeListNth<typename T::Choices, N>::Result>::VALUE, result)
+#define CHOICEPARSER_OP(N) if(result = parseSymbolRequired(parser, NULLSYMBOL(TYPELIST_NTH(typename T::Choices, N)))) return result
 DEFINE_CHOICEPARSER(1);
 DEFINE_CHOICEPARSER(2);
 DEFINE_CHOICEPARSER(3);
@@ -1092,120 +901,11 @@ DEFINE_CHOICEPARSER(16);
 DEFINE_CHOICEPARSER(17);
 #undef CHOICEPARSER_OP
 
-template<typename ParserType, typename T, size_t N>
-struct ChoiceParserUnambiguousN
-{
-};
-
-#define DEFINE_CHOICEPARSERUNAMBIGUOUS(N) \
-	template<typename ParserType, typename T> \
-	struct ChoiceParserUnambiguousN<ParserType, T, N> \
-	{ \
-		static T* parseSymbol(ParserType& parser, T* result) \
-		{ \
-			GENERIC_ITERATE##N(0, CHOICEPARSER_OP) \
-			return result; \
-		} \
-	}
-
-#define CHOICEPARSER_OP(N) if(result = parseSymbolRequired(parser, NullPtr<typename TypeListNth<typename T::Choices, N>::Result>::VALUE)) return result
-DEFINE_CHOICEPARSERUNAMBIGUOUS(1);
-DEFINE_CHOICEPARSERUNAMBIGUOUS(2);
-DEFINE_CHOICEPARSERUNAMBIGUOUS(3);
-DEFINE_CHOICEPARSERUNAMBIGUOUS(4);
-DEFINE_CHOICEPARSERUNAMBIGUOUS(5);
-DEFINE_CHOICEPARSERUNAMBIGUOUS(6);
-DEFINE_CHOICEPARSERUNAMBIGUOUS(7);
-DEFINE_CHOICEPARSERUNAMBIGUOUS(8);
-DEFINE_CHOICEPARSERUNAMBIGUOUS(9);
-DEFINE_CHOICEPARSERUNAMBIGUOUS(10);
-DEFINE_CHOICEPARSERUNAMBIGUOUS(11);
-DEFINE_CHOICEPARSERUNAMBIGUOUS(12);
-DEFINE_CHOICEPARSERUNAMBIGUOUS(13);
-DEFINE_CHOICEPARSERUNAMBIGUOUS(14);
-DEFINE_CHOICEPARSERUNAMBIGUOUS(15);
-DEFINE_CHOICEPARSERUNAMBIGUOUS(16);
-DEFINE_CHOICEPARSERUNAMBIGUOUS(17);
-#undef CHOICEPARSER_OP
-
-
-template<typename ParserType, typename T, typename Choices>
-struct ChoiceParser
-{
-	static T* parseSymbol(ParserType& parser, T* result)
-	{
-		result = parseSymbolChoice(parser, NullPtr<typename Choices::Item>::VALUE, result);
-		return ChoiceParser<ParserType, T, typename Choices::Next>::parseSymbol(parser, result);
-	}
-};
 
 template<typename ParserType, typename T>
-struct ChoiceParser<ParserType, T, TypeListEnd>
+inline T* parseSymbol(ParserType& parser, T* result, const True&)
 {
-	static T* parseSymbol(ParserType& parser, T* result)
-	{
-		return result;
-	}
-};
-
-template<typename ParserType, typename T>
-struct ChoiceParser<ParserType, T, TYPELIST1(cpp::ambiguity<T>)>
-{
-	static T* parseSymbol(ParserType& parser, T* result)
-	{
-		return result;
-	}
-};
-
-template<typename ParserType, typename T>
-inline T* parseSymbol(ParserType& parser, T* result, const True&, const True&)
-{
-#if 1
-	return ChoiceParserN<ParserType, T, TypeListCount<typename T::Choices>::RESULT>::parseSymbol(parser, result);
-#else
-	return ChoiceParser<ParserType, T, typename T::Choices>::parseSymbol(parser, result);
-#endif
-}
-
-template<typename ParserType, typename T, typename Choices>
-struct ChoiceParserUnambiguous
-{
-	static T* parseSymbol(ParserType& parser, T* result)
-	{
-#if 0
-		result = parseSymbolChoice(parser, NullPtr<typename Choices::Item>::VALUE, result);
-#else
-		if(result = parseSymbolRequired(parser, NullPtr<typename Choices::Item>::VALUE))
-		{
-#if 0
-			std::cout << "matched: " << SYMBOL_NAME(typename Choices::Item) << std::endl;
-			printSymbol(result);
-			std::cout << std::endl;
-#endif
-			return result;
-		}
-#endif
-		return ChoiceParserUnambiguous<ParserType, T, typename Choices::Next>::parseSymbol(parser, result);
-	}
-};
-
-template<typename ParserType, typename T>
-struct ChoiceParserUnambiguous<ParserType, T, TypeListEnd>
-{
-	static T* parseSymbol(ParserType& parser, T* result)
-	{
-		return result;
-	}
-};
-
-template<typename ParserType, typename T>
-inline T* parseSymbol(ParserType& parser, T* result, const True&, const False&)
-{
-#if 1
-	return ChoiceParserUnambiguousN<ParserType, T, TypeListCount<typename T::Choices>::RESULT>::parseSymbol(parser, result);
-#else
-	return ChoiceParserUnambiguous<ParserType, T, typename T::Choices>::parseSymbol(parser, result);
-#endif
+	return ChoiceParser<ParserType, T, TYPELIST_COUNT(typename T::Choices)>::parseSymbol(parser, result);
 }
 
 template<typename T>
@@ -1223,7 +923,7 @@ struct IsChoice<TypeListEnd>
 template<typename ParserType, typename T>
 inline T* parseSymbol(ParserType& parser, T* result)
 {
-	return parseSymbol(parser, result, typename IsChoice<typename T::Choices>::Result(), typename IsAmbiguous<T>::Result());
+	return parseSymbol(parser, result, typename IsChoice<typename T::Choices>::Result());
 }
 
 

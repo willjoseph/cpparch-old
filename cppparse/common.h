@@ -61,6 +61,8 @@ struct TypeListNth<Types, 0>
 	typedef typename Types::Item Result;
 };
 
+#define TYPELIST_NTH(Types, N) typename TypeListNth<Types, N>::Result
+
 template<typename Types>
 struct TypeListCount
 {
@@ -73,6 +75,7 @@ struct TypeListCount<TypeListEnd>
 	enum { RESULT = 0 };
 };
 
+#define TYPELIST_COUNT(Types) TypeListCount<Types>::RESULT
 
 #endif
 

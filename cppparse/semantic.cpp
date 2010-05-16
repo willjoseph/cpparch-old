@@ -1264,16 +1264,14 @@ struct WalkerContext
 	}
 };
 
-#ifdef MINGLE
 typedef std::list< DeferredParse<struct WalkerBase> > DeferredSymbols;
-#else
-typedef std::vector<struct DeferredSymbol> DeferredSymbols;
-#endif
 
-#ifdef MINGLE
+#if 0//def MINGLE
 #define TREEWALKER_NEW(T, args) (new(parser->lexer.allocator.allocate(sizeof(T))) T args)
+#define TREEWALKER_DELETE(p) (parser->lexer.allocator.deallocate(p))
 #else
-#define TREEWALKER_NEW(T, args) new T args
+#define TREEWALKER_NEW(T, args) (new T args)
+#define TREEWALKER_DELETE(p) (delete p)
 #endif
 
 const IdentifierMismatch IDENTIFIERMISMATCH_NULL = IdentifierMismatch(IDENTIFIER_NULL, 0, 0);
@@ -1478,9 +1476,14 @@ struct WalkerBase
 		qualifying = other;
 	}
 
-	void reportIdentifierMismatch(const Identifier& id, Declaration* declaration, const char* expected)
+	template<typename T>
+	void reportIdentifierMismatch(T* symbol, const Identifier& id, Declaration* declaration, const char* expected)
 	{
 #ifdef MINGLE
+		if(!IsConcrete<T>::RESULT)
+		{
+			deleteSymbol(symbol, parser->lexer.allocator);
+		}
 		result = 0;
 		gIdentifierMismatch = IdentifierMismatch(id, declaration, expected);
 #else
@@ -1755,47 +1758,6 @@ bool isForwardDeclaration(cpp::decl_specifier_seq* symbol)
 }
 
 
-#ifndef MINGLE
-
-template<typename Walker, typename T>
-struct DeferredSymbolThunk
-{
-	static void thunk(const WalkerBase& context, void* p)
-	{
-		Walker walker(context);
-		T* symbol = static_cast<T*>(p);
-		TREEWALKER_WALK(walker, symbol);
-	}
-};
-
-struct DeferredSymbol
-{
-	typedef void (*Func)(const WalkerBase&, void*);
-	WalkerBase context;
-	void* symbol;
-	Func func;
-
-	// hack!
-	DeferredSymbol& operator=(const DeferredSymbol& other)
-	{
-		if(&other != this)
-		{
-			this->~DeferredSymbol();
-			new(this) DeferredSymbol(other);
-		}
-		return *this;
-	}
-};
-
-template<typename Walker, typename T>
-DeferredSymbol makeDeferredSymbol(const Walker& context, T* symbol)
-{
-	DeferredSymbol result = { context, symbol, DeferredSymbol::Func(DeferredSymbolThunk<Walker, T>::thunk) };
-	return result;
-}
-
-#endif
-
 struct Walker
 {
 
@@ -1816,7 +1778,7 @@ struct NamespaceNameWalker : public WalkerBase
 		if(declaration == &gUndeclared
 			|| !isNamespaceName(*declaration))
 		{
-			reportIdentifierMismatch(symbol->value, declaration, "namespace-name");
+			return reportIdentifierMismatch(symbol, symbol->value, declaration, "namespace-name");
 		}
 		symbol->value.dec.p = declaration;
 	}
@@ -1881,7 +1843,7 @@ struct UnqualifiedIdWalker : public WalkerBase
 			if(declaration == &gUndeclared
 				|| !isTemplateName(*declaration))
 			{
-				reportIdentifierMismatch(*id, declaration, "template-name");
+				return reportIdentifierMismatch(symbol, *id, declaration, "template-name");
 			}
 			else
 			{
@@ -2092,7 +2054,7 @@ struct DependentPrimaryExpressionWalker : public WalkerBase
 				if(declaration == &gUndeclared
 					|| !isObject(*declaration))
 				{
-					reportIdentifierMismatch(*walker.id, declaration, "object-name");
+					return reportIdentifierMismatch(symbol, *walker.id, declaration, "object-name");
 				}
 				else
 				{
@@ -2151,7 +2113,7 @@ struct DependentPostfixExpressionWalker : public WalkerBase
 					if(declaration == &gUndeclared
 						|| !isObject(*declaration))
 					{
-						reportIdentifierMismatch(*id, declaration, "object-name");
+						return reportIdentifierMismatch(symbol, *id, declaration, "object-name");
 					}
 					else
 					{
@@ -2224,7 +2186,7 @@ struct ExpressionWalker : public WalkerBase
 			if(declaration == &gUndeclared
 				|| !isObject(*declaration))
 			{
-				reportIdentifierMismatch(*walker.id, declaration, "object-name");
+				return reportIdentifierMismatch(symbol, *walker.id, declaration, "object-name");
 			}
 			else
 			{
@@ -2434,7 +2396,7 @@ struct TemplateIdWalker : public WalkerBase
 			if(declaration == &gUndeclared
 				|| !isTemplateName(*declaration))
 			{
-				reportIdentifierMismatch(symbol->value, declaration, "template-name");
+				return reportIdentifierMismatch(symbol, symbol->value, declaration, "template-name");
 			}
 			else
 			{
@@ -2445,7 +2407,7 @@ struct TemplateIdWalker : public WalkerBase
 		}
 		else if(!isTypename)
 		{
-			reportIdentifierMismatch(symbol->value, &gUndeclared, "typename");
+			return reportIdentifierMismatch(symbol, symbol->value, &gUndeclared, "typename");
 			symbol->value.dec.p = &gUndeclared;
 		}
 		else
@@ -2491,7 +2453,7 @@ struct TypeNameWalker : public WalkerBase
 			if(declaration == &gUndeclared
 				|| !isTypeName(*declaration))
 			{
-				reportIdentifierMismatch(symbol->value, declaration, "type-name");
+				return reportIdentifierMismatch(symbol, symbol->value, declaration, "type-name");
 			}
 			else
 			{
@@ -2502,7 +2464,7 @@ struct TypeNameWalker : public WalkerBase
 		}
 		else if(!isTypename)
 		{
-			reportIdentifierMismatch(symbol->value, &gUndeclared, "typename");
+			return reportIdentifierMismatch(symbol, symbol->value, &gUndeclared, "typename");
 			symbol->value.dec.p = &gUndeclared;
 		}
 		else
@@ -2548,7 +2510,7 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 			Declaration* declaration = findDeclaration(symbol->value, isNestedName);
 			if(declaration == &gUndeclared)
 			{
-				reportIdentifierMismatch(symbol->value, declaration, "nested-name");
+				return reportIdentifierMismatch(symbol, symbol->value, declaration, "nested-name");
 			}
 			else
 			{
@@ -2572,7 +2534,7 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 			Declaration* declaration = findDeclaration(*walker.id, isNestedName);
 			if(declaration == &gUndeclared)
 			{
-				reportIdentifierMismatch(*walker.id, declaration, "nested-name");
+				return reportIdentifierMismatch(symbol, *walker.id, declaration, "nested-name");
 			}
 			else
 			{
@@ -2872,17 +2834,7 @@ struct DeclaratorWalker : public WalkerBase
 			}
 		}
 		ParameterDeclarationClauseWalker walker(base);
-#if 0//def MINGLE
-		if(WalkerBase::deferred != 0)
-		{
-			defer(*WalkerBase::deferred, walker, makeSkipParenthesised(DeclareEts(walker)), symbol);
-			result = symbol; // always succeeds!
-		}
-		else
-#endif
-		{
-			TREEWALKER_WALK(walker, symbol);
-		}
+		TREEWALKER_WALK(walker, symbol);
 		paramScope = walker.enclosing; // store reference for later resumption
 	}
 	void visit(cpp::exception_specification* symbol)
@@ -3023,7 +2975,7 @@ struct UsingDeclarationWalker : public WalkerBase
 			if(declaration == &gUndeclared
 				|| !(isObject(*declaration) || isTypeName(*declaration)))
 			{
-				reportIdentifierMismatch(*walker.id, declaration, "object-name or type-name");
+				return reportIdentifierMismatch(symbol, *walker.id, declaration, "object-name or type-name");
 			}
 			else
 			{
@@ -3114,7 +3066,7 @@ struct NamespaceAliasDefinitionWalker : public WalkerBase
 			Declaration* declaration = findDeclaration(symbol->value, isNamespace);
 			if(declaration == &gUndeclared)
 			{
-				reportIdentifierMismatch(symbol->value, declaration, "namespace-name");
+				return reportIdentifierMismatch(symbol, symbol->value, declaration, "namespace-name");
 			}
 			else
 			{
@@ -3182,14 +3134,7 @@ struct ClassSpecifierWalker : public WalkerBase
 	}
 	void walkDeferred()
 	{
-#ifdef MINGLE
 		parseDeferred(deferred, *parser);
-#else
-		for(DeferredSymbols::const_iterator i = deferred.begin(); i != deferred.end(); ++i)
-		{
-			(*i).func((*i).context, (*i).symbol);
-		}
-#endif
 	};
 
 	void visit(cpp::class_head* symbol)
@@ -3484,13 +3429,6 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 	}
 	void visit(cpp::elaborated_type_specifier* symbol)
 	{
-#if 0 //def MINGLE
-		if(isTemplateParameter)
-		{
-			result = 0;
-			return;
-		}
-#endif
 		ElaboratedTypeSpecifierWalker walker(*this);
 		TREEWALKER_WALK(walker, symbol);
 		forward = walker.id;
@@ -3758,7 +3696,7 @@ struct MemInitializerWalker : public WalkerBase
 		if(declaration == &gUndeclared
 			|| !isObject(*declaration))
 		{
-			reportIdentifierMismatch(symbol->value, declaration, "object-name");
+			return reportIdentifierMismatch(symbol, symbol->value, declaration, "object-name");
 		}
 		symbol->value.dec.p = declaration;
 	}
@@ -4048,7 +3986,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		else
 #endif
 		{
-			walkDeferable(*this, symbol);
+			TREEWALKER_WALK(*this, symbol);
 		}
 	}
 	// handle assignment-expression(s) in initializer
@@ -4076,21 +4014,6 @@ struct SimpleDeclarationWalker : public WalkerBase
 		SEMANTIC_ASSERT(declaration != 0);
 		addDependent(declaration->valueDependent, walker.valueDependent);
 	}
-	template<typename Walker, typename T>
-	void walkDeferable(Walker& walker, T* symbol)
-	{
-#ifndef MINGLE
-		// defer name-lookup for function-body, default-arguments and ctor-initializers
-		if(deferred != 0)
-		{
-			deferred->push_back(makeDeferredSymbol(walker, symbol));
-		}
-		else
-#endif
-		{
-			TREEWALKER_WALK(walker, symbol);
-		}
-	}
 	void visit(cpp::statement_seq* symbol)
 	{
 		CompoundStatementWalker walker(*this);
@@ -4102,18 +4025,18 @@ struct SimpleDeclarationWalker : public WalkerBase
 		else
 #endif
 		{
-			walkDeferable(walker, symbol);
+			TREEWALKER_WALK(walker, symbol);
 		}
 	}
 	void visit(cpp::mem_initializer* symbol)
 	{
 		MemInitializerWalker walker(*this);
-		walkDeferable(walker, symbol);
+		TREEWALKER_WALK(walker, symbol);
 	}
 	void visit(cpp::handler_seq* symbol)
 	{
 		HandlerSeqWalker walker(*this);
-		walkDeferable(walker, symbol);
+		TREEWALKER_WALK(walker, symbol);
 	}
 #ifdef MINGLE
 	void visit(cpp::mem_initializer_clause* symbol)
@@ -4246,7 +4169,7 @@ struct TypeParameterWalker : public WalkerBase
 			if(declaration == &gUndeclared
 				|| !isTemplateName(*declaration))
 			{
-				reportIdentifierMismatch(*walker.id, declaration, "template-name");
+				return reportIdentifierMismatch(symbol, *walker.id, declaration, "template-name");
 			}
 			walker.id->dec.p = declaration;
 		}

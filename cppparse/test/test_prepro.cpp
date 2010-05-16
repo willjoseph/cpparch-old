@@ -1,4 +1,11 @@
 
+template<typename T>
+void f()
+{
+	dependent1(T::dependent2());
+}
+
+extern void __cdecl operator delete(void *);
 
 template<typename T>
 struct S

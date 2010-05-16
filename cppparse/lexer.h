@@ -28,6 +28,8 @@ struct LexError
 	}
 };
 
+#define LEXER_ASSERT(condition) if(!(condition)) { throw LexError(); }
+
 LexContext& createContext(std::string& instring, const char* input);
 bool add_include_path(LexContext& context, const char* path);
 bool add_sysinclude_path(LexContext& context, const char* path);
@@ -86,6 +88,21 @@ struct Token
 	}
 };
 
+#define ALLOCATOR_FREECHAR char(0xba)
+
+struct IsAllocated
+{
+	bool operator()(char c) const
+	{
+		return c != ALLOCATOR_FREECHAR;
+	}
+};
+
+inline bool isAllocated(const char* first, const char* last)
+{
+	return std::find_if(first, last, IsAllocated()) != last;
+}
+
 struct Page
 {
 	enum { SIZE = 128 * 1024 };
@@ -94,11 +111,12 @@ struct Page
 	Page()
 	{
 #ifdef _DEBUG
-		std::uninitialized_fill(buffer, buffer + SIZE, 0xbabababa);
+		std::uninitialized_fill(buffer, buffer + SIZE, ALLOCATOR_FREECHAR);
 #endif
 	}
 };
 
+template<bool checked>
 struct LinearAllocator
 {
 	typedef std::vector<Page*> Pages;
@@ -136,7 +154,16 @@ struct LinearAllocator
 		Page* page = getPage(position / sizeof(Page));
 		void* p = page->buffer + position % sizeof(Page);
 		position += size;
+#ifdef _DEBUG
+		LEXER_ASSERT(!checked || !isAllocated(reinterpret_cast<char*>(p), reinterpret_cast<char*>(p) + size));
+#endif
 		return p;
+	}
+	void deallocate(void* p, size_t size)
+	{
+#ifdef _DEBUG
+		std::uninitialized_fill(reinterpret_cast<char*>(p), reinterpret_cast<char*>(p) + size, ALLOCATOR_FREECHAR);
+#endif
 	}
 	void backtrack(size_t original)
 	{
@@ -145,10 +172,12 @@ struct LinearAllocator
 		Pages::iterator last = pages.begin() + position / sizeof(Page);
 		for(Pages::iterator i = first; i != pages.end(); ++i)
 		{
-			std::uninitialized_fill(
-				(*i)->buffer + (i == first ? original % sizeof(Page) : 0),
-				(*i)->buffer + (i == last ? position % sizeof(Page) : sizeof(Page)),
-				0xfafafafa);
+			LEXER_ASSERT(!checked || 
+				!isAllocated(
+					(*i)->buffer + (i == first ? original % sizeof(Page) : 0),
+					(*i)->buffer + (i == last ? position % sizeof(Page) : sizeof(Page))
+				)
+			);
 			if(i == last)
 			{
 				break;
@@ -306,12 +335,13 @@ inline BacktrackBuffer::const_iterator advance(BacktrackBuffer& buffer, Backtrac
 
 typedef TokenPrinter<std::ofstream> FileTokenPrinter;
 
+typedef LinearAllocator<true> LexerAllocator;
 struct Lexer
 {
 	std::ofstream out;
 	FileTokenPrinter printer;
 
-	LinearAllocator allocator;
+	LexerAllocator allocator;
 
 	LexIterator& first;
 	LexIterator& last;
