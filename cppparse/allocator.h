@@ -2,6 +2,7 @@
 #ifndef INCLUDED_CPPPARSE_ALLOCATOR_H
 #define INCLUDED_CPPPARSE_ALLOCATOR_H
 
+#include "profiler.h"
 #include <memory>
 #include <algorithm>
 #include <vector>
@@ -190,7 +191,11 @@ struct LinearAllocator
 
 typedef LinearAllocator<true> CheckedLinearAllocator;
 
-
+inline CheckedLinearAllocator& NullAllocator()
+{
+	static CheckedLinearAllocator null;
+	return null;
+}
 
 template<class T>
 class LinearAllocatorWrapper
@@ -212,6 +217,10 @@ public:
 	{
 		typedef LinearAllocatorWrapper<OtherT> other;
 	};
+	LinearAllocatorWrapper() : instance(NullAllocator())
+	{
+		throw AllocatorError();
+	}
 	LinearAllocatorWrapper(CheckedLinearAllocator& instance) : instance(instance)
 	{
 	}

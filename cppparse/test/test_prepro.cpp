@@ -1,4 +1,81 @@
 
+namespace boost
+{
+	template <class Tag,class T>
+	class error_info;
+
+	typedef error_info<struct throw_function_,char const *> throw_function;
+
+    template <>
+    class
+    error_info<throw_function_,char const *>
+    {
+        public:
+        typedef char const * value_type;
+        value_type v_;
+        explicit error_info( value_type v ) : v_(v)
+		{
+        }
+	};
+
+	template<class E, class Tag, class T>
+	E const&operator<<(E const&, error_info<Tag, T>const&);
+
+	class exception
+	{
+		virtual~exception()throw()=0;
+		template<class E>
+		friend E const&operator<<(E const&x, throw_function const&y)
+		{
+			x.throw_function_=y.v_;
+			return x;
+		}
+	};
+}
+
+namespace detail
+{ 
+	template <class Model, void (Model::*)()>
+	struct wrap_constraints {};
+}
+
+template<class T>
+class Template1
+{
+	friend class Template1;
+	typedef Template1<int> Type;
+};
+
+#if 0
+namespace exception_detail
+{
+	template<class>
+	struct get_info;
+}
+
+class exception
+{
+    template<class>
+    friend struct exception_detail::get_info;
+};
+#endif
+
+int wmemcmp(const wchar_t *_S1, const wchar_t *_S2, int _N)
+{
+	 return (*_S1 < *_S2 ? -1 : +1);
+}
+
+template<typename T = int>
+class DummyTmpl
+{
+};
+
+
+template<template<typename X> class T = ::DummyTmpl>
+class TestTemplateTemplateParam
+{
+};
+
 namespace stdX
 {
 	template<class _Fn>
