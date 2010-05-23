@@ -1,4 +1,44 @@
 
+namespace stdX
+{
+	template<class _Fn>
+	class pointer_to_unary_function
+	{
+	};
+
+	inline void ptr_fun(int _Left)
+	{
+		(stdX::pointer_to_unary_function<int (*)(int)>(_Left));
+	}
+}
+
+
+namespace N66
+{
+	class C* f(union U* (*)(struct S*));
+
+	U* u;
+	S* s;
+	C* c;
+}
+
+namespace N15
+{
+	struct S
+	{
+		S(class D* a) : d((D*)(class C*)a)
+		{
+			C* c = (C*)0;
+		}
+		D* d;
+	};
+	D* d;
+}
+
+void f()
+{
+}
+
 template<typename T>
 void f()
 {
