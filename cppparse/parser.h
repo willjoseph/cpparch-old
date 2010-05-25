@@ -4,6 +4,7 @@
 
 #include "lexer.h"
 #include "cpptree.h"
+#include <typeinfo>
 
 struct ParseError
 {

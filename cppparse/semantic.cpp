@@ -234,7 +234,7 @@ public:
 #endif
 
 #if 1
-typedef std::vector<struct TemplateArgument, TreeAllocator<int> > TemplateArguments2;
+typedef std::vector<struct TemplateArgument, TreeAllocator<struct TemplateArgument> > TemplateArguments2;
 
 struct TemplateArguments : public TemplateArguments2
 {
@@ -353,6 +353,15 @@ public:
 	}
 };
 
+namespace std
+{
+	template<typename T, typename A>
+	void swap(Copied<T, A>& left, Copied<T, A>& right)
+	{
+		left.swap(right);
+	}
+}
+
 typedef Copied<Type, TreeAllocator<int> > Qualifying;
 
 struct Type
@@ -435,8 +444,17 @@ struct DependencyNode
 			isDependent.context = type.get();
 		}
 	}
-private:
-	DependencyNode& operator=(const DependencyNode&);
+	DependencyNode& operator=(const DependencyNode& other)
+	{
+		DependencyNode tmp(other);
+		tmp.swap(*this);
+		return *this;
+	}
+	void swap(DependencyNode& other)
+	{
+		std::swap(isDependent, other.isDependent);
+		std::swap(type, other.type);
+	}
 };
 
 typedef std::list<DependencyNode, TreeAllocator<int> > Dependent2;

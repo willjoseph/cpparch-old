@@ -24,28 +24,91 @@
 	- init_declarator_disambiguate
 
 - profile:
-	- vector
-		wave                   21737366
-		parser                 30846199
-		ambiguity                 50397
-		diagnose                      0
-		allocator              19302030
-		identifier              7748102
-	- iostream
-		wave                   48499593
-		parser                 63617130
-		ambiguity                106620
-		diagnose                      0
-		allocator              39960755
-		identifier             16882862
-	- windows
-		wave                  469218637
-		parser                141999356
-		ambiguity                111879
-		diagnose                      0
-		allocator              89381859
-		identifier             37617169
+- vector
+	wave                   21737366
+	parser                 30846199
+	ambiguity                 50397
+	diagnose                      0
+	allocator              19302030
+	identifier              7748102
+- iostream
+	wave                   48499593
+	parser                 63617130
+	ambiguity                106620
+	diagnose                      0
+	allocator              39960755
+	identifier             16882862
+- windows
+	wave                  469218637
+	parser                141999356
+	ambiguity                111879
+	diagnose                      0
+	allocator              89381859
+	identifier             37617169
 
+NEW/DELETE
+- vector		
+	io                       508691
+	wave                   41324007
+	parser                 82063803
+	ambiguity                     0
+	diagnose                      0
+	allocator              20110129
+	identifier              9453886
+- iostream
+	io                       884982
+	wave                   72270147
+	parser                146057297
+	ambiguity                     0
+	diagnose                      0
+	allocator              41178337
+	identifier             19643432
+	
+TREE
+- vector
+	io                       568027
+	wave                   15583271
+	parser                 40107449
+	ambiguity                     0
+	diagnose                      0
+	allocator              32477248
+	identifier              7014206
+- iostream
+	io                      1121058
+	wave                   38006128
+	parser                 83479098
+	ambiguity                     0
+	diagnose                      0
+	allocator              66734488
+	identifier             15814600
+	
+STLPORT+TREE
+- vector
+	io                       445430
+	wave                    6840977
+	parser                 30122501
+	ambiguity                     0
+	diagnose                      0
+	allocator              21647419
+	identifier              6718764
+- iostream
+	io                      1005437
+	wave                   16988790
+	parser                 63241322
+	ambiguity                     0
+	diagnose                      0
+	allocator              44870679
+	identifier             15404659
+- windows
+	io                      1873929
+	wave                  162443353
+	parser                141978326
+	ambiguity                     0
+	diagnose                      0
+	allocator              99781309
+	identifier             34715545
+	
+	
 - faster lexer
 	- optimise boost::wave?
 	- custom lexer/preprocessor?

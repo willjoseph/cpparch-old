@@ -234,8 +234,12 @@ public:
 	template<class OtherT>
 	LinearAllocatorWrapper<T>& operator=(const LinearAllocatorWrapper<OtherT>& other)
 	{
-		destroy(this);
-		construct(this, LinearAllocatorWrapper<T>(other));
+		if(this != &other)
+		{
+			this->~LinearAllocatorWrapper();
+			new(this) LinearAllocatorWrapper(other);
+		}
+		// do nothing!
 		return (*this);
 	}
 
