@@ -108,6 +108,41 @@ STLPORT+TREE
 	allocator              99781309
 	identifier             34715545
 	
+STLPORT+TREE+SWAP
+- vector
+	io                       317450
+	wave                    6584380
+	parser                 27955728
+	ambiguity                     0
+	diagnose                      0
+	allocator              20275536
+	identifier              6456379
+- iostream
+	io                       567670
+	wave                   15366589
+	parser                 58518065
+	ambiguity                     0
+	diagnose                      0
+	allocator              41955459
+	identifier             14694980
+	
+STLPORT+TREE+SWAP+NODTOR
+- vector
+	io                       220464
+	wave                    6355605
+	parser                 27956837
+	ambiguity                     0
+	diagnose                      0
+	allocator              20200340
+	identifier              6438978
+- iostream
+	io                       474440
+	wave                   15658861
+	parser                 59074170
+	ambiguity                     0
+	diagnose                      0
+	allocator              42071153
+	identifier             14853047
 	
 - faster lexer
 	- optimise boost::wave?
