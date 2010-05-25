@@ -234,7 +234,7 @@ public:
 #endif
 
 #if 1
-typedef std::vector<struct TemplateArgument, TreeAllocator<struct TemplateArgument> > TemplateArguments2;
+typedef std::list<struct TemplateArgument, TreeAllocator<struct TemplateArgument> > TemplateArguments2;
 
 struct TemplateArguments : public TemplateArguments2
 {
@@ -600,11 +600,11 @@ struct Scope : public ScopeCounter
 	Declarations declarations;
 	ScopeType type;
 	Types bases;
-	typedef std::vector<Scope*> Scopes;
+	typedef std::list<Scope*, TreeAllocator<int> > Scopes;
 	Scopes usingDirectives;
 
 	Scope(const TreeAllocator<int>& allocator, const Identifier& name, ScopeType type = SCOPETYPE_UNKNOWN)
-		: parent(0), name(name), enclosedScopeCount(0), declarations(IdentifierLess(), allocator), type(type), bases(allocator)
+		: parent(0), name(name), enclosedScopeCount(0), declarations(IdentifierLess(), allocator), type(type), bases(allocator), usingDirectives(allocator)
 	{
 	}
 
@@ -1680,9 +1680,10 @@ struct WalkerState
 
 	void setQualifyingGlobal()
 	{
-		setQualifying(Type(&context.globalDecl, context));
+		Type tmp(&context.globalDecl, context);
+		swapQualifying(tmp);
 	}
-	void setQualifying(const Type& type)
+	void swapQualifying(Type& type)
 	{
 #if 0 // allow incomplete types as qualifying, for nested-name-specifier in ptr-operator (defining member-function-ptr)
 		if(type.declaration->enclosed == 0)
@@ -1694,11 +1695,13 @@ struct WalkerState
 			throw SemanticError();
 		}
 #endif
-		qualifying = type;
+		Qualifying tmp(TYPE_NULL, context);
+		tmp.back().swap(type);
+		qualifying.swap(tmp);
 	}
-	void setQualifying(const Qualifying& other)
+	void swapQualifying(Qualifying& other)
 	{
-		qualifying = other;
+		qualifying.swap(other);
 	}
 
 	template<typename T>
@@ -1789,9 +1792,10 @@ struct WalkerState
 	{
 		addDependent(dependent, makeDependencyCallback(&declaration->type, isDependentType));
 	}
-	void addDependent(Dependent& dependent, const Type& type)
+	void addDependent(Dependent& dependent, Type& type)
 	{
-		TypeRef tmp(type, context);
+		TypeRef tmp(TYPE_NULL, context);
+		tmp.back().swap(type);
 		addDependent(dependent, makeDependencyCallback(tmp.get(), isDependentType));
 		dependent.back().type.swap(tmp);
 	}
@@ -2143,7 +2147,7 @@ struct UncheckedTemplateIdWalker : public WalkerBase
 		// TODO: store args
 		TemplateArgumentListWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		arguments = walker.arguments;
+		arguments.swap(walker.arguments);
 	}
 };
 
@@ -2239,7 +2243,7 @@ struct QualifiedIdWalker : public WalkerBase
 	{
 		NestedNameSpecifierWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		setQualifying(walker.qualifying);
+		swapQualifying(walker.qualifying);
 	}
 	void visit(cpp::terminal<boost::wave::T_TEMPLATE> symbol)
 	{
@@ -2298,7 +2302,7 @@ struct IdExpressionWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		declaration = walker.declaration;
 		id = walker.id;
-		setQualifying(walker.qualifying);
+		swapQualifying(walker.qualifying);
 	}
 	void visit(cpp::qualified_id_global* symbol)
 	{
@@ -2307,7 +2311,7 @@ struct IdExpressionWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		declaration = walker.declaration;
 		id = walker.id;
-		setQualifying(walker.qualifying);
+		swapQualifying(walker.qualifying);
 	}
 	void visit(cpp::unqualified_id* symbol)
 	{
@@ -2316,7 +2320,7 @@ struct IdExpressionWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		declaration = walker.declaration;
 		id = walker.id;
-		setQualifying(walker.qualifying);
+		swapQualifying(walker.qualifying);
 		isIdentifier = walker.isIdentifier;
 	}
 };
@@ -2705,7 +2709,7 @@ struct TemplateArgumentListWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 #if 0
 		TemplateArgument& argument = append(arguments);
-		argument.type = walker.type;
+		argument.type.swap(walker.type);
 		argument.dependent.splice(walker.valueDependent);
 #else
 		arguments.push_back(TemplateArgument(context));
@@ -2767,7 +2771,7 @@ struct TemplateIdWalker : public WalkerBase
 		{
 			Declaration* declaration = &gDependentTemplate;
 			type.declaration = declaration;
-			type.qualifying = qualifying;
+			type.qualifying.swap(qualifying);
 			symbol->value.dec.p = declaration;
 		}
 	}
@@ -2782,7 +2786,7 @@ struct TemplateIdWalker : public WalkerBase
 		{
 			type.declaration = findTemplateSpecialization(type.declaration, walker.arguments);
 		}
-		type.arguments = walker.arguments;
+		type.arguments.swap(walker.arguments);
 	}
 };
 
@@ -2811,7 +2815,7 @@ struct TypeNameWalker : public WalkerBase
 			else
 			{
 				type.declaration = declaration;
-				type.qualifying = qualifying;
+				type.qualifying.swap(qualifying);
 			}
 			symbol->value.dec.p = declaration;
 		}
@@ -2824,7 +2828,7 @@ struct TypeNameWalker : public WalkerBase
 		{
 			Declaration* declaration = &gDependentType;
 			type.declaration = declaration;
-			type.qualifying = qualifying;
+			type.qualifying.swap(qualifying);
 			symbol->value.dec.p = declaration;
 		}
 	}
@@ -2832,7 +2836,7 @@ struct TypeNameWalker : public WalkerBase
 	{
 		TemplateIdWalker walker(getState(), filter, isTypename);
 		TREEWALKER_WALK(walker, symbol);
-		type = walker.type;
+		type.swap(walker.type);
 	}
 };
 
@@ -2893,7 +2897,7 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 			{
 				declaration = findTemplateSpecialization(declaration, walker.arguments);
 				type.declaration = declaration;
-				type.arguments = walker.arguments;
+				type.arguments.swap(walker.arguments);
 			}
 		}
 		hit(walker);
@@ -2905,7 +2909,7 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 			if(type.declaration != 0)
 			{
 				type.qualifying.swap(qualifying);
-				qualifying = type;
+				swapQualifying(type);
 			}
 		}
 	}
@@ -2925,19 +2929,19 @@ struct NestedNameSpecifierWalker : public WalkerBase
 	{
 		NestedNameSpecifierWalker walker(getState(), allowDependent);
 		TREEWALKER_WALK(walker, symbol);
-		setQualifying(walker.qualifying);
+		swapQualifying(walker.qualifying);
 	}
 	void visit(cpp::nested_name_specifier_suffix_template* symbol)
 	{
 		NestedNameSpecifierSuffixWalker walker(getState(), allowDependent);
 		TREEWALKER_WALK(walker, symbol);
-		setQualifying(walker.qualifying);
+		swapQualifying(walker.qualifying);
 	}
 	void visit(cpp::nested_name_specifier_suffix_default* symbol)
 	{
 		NestedNameSpecifierSuffixWalker walker(getState(), allowDependent);
 		TREEWALKER_WALK(walker, symbol);
-		setQualifying(walker.qualifying);
+		swapQualifying(walker.qualifying);
 	}
 	void visit(cpp::namespace_name* symbol)
 	{
@@ -2962,7 +2966,7 @@ struct NestedNameSpecifierWalker : public WalkerBase
 			if(type.declaration != 0)
 			{
 				type.qualifying.swap(qualifying);
-				qualifying = type;
+				swapQualifying(type);
 			}
 		}
 	}
@@ -2983,14 +2987,14 @@ struct TypeSpecifierWalker : public WalkerBase
 	{
 		TypeSpecifierWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		type = walker.type;
+		type.swap(walker.type);
 		fundamental = walker.fundamental;
 	}
 	void visit(cpp::simple_type_specifier_template* symbol)
 	{
 		TypeSpecifierWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		type = walker.type;
+		type.swap(walker.type);
 		fundamental = walker.fundamental;
 	}
 	void visit(cpp::type_name* symbol)
@@ -2998,7 +3002,7 @@ struct TypeSpecifierWalker : public WalkerBase
 		TypeNameWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		SEMANTIC_ASSERT(walker.type.declaration != 0);
-		type = walker.type;
+		type.swap(walker.type);
 	}
 	void visit(cpp::terminal<boost::wave::T_COLON_COLON> symbol)
 	{
@@ -3011,14 +3015,14 @@ struct TypeSpecifierWalker : public WalkerBase
 	{
 		NestedNameSpecifierWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		setQualifying(walker.qualifying);
+		swapQualifying(walker.qualifying);
 	}
 	void visit(cpp::simple_template_id* symbol) 
 	{
 		TemplateIdWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		SEMANTIC_ASSERT(walker.type.declaration != 0);
-		type = walker.type;
+		type.swap(walker.type);
 	}
 	void visit(cpp::simple_type_specifier_builtin* symbol)
 	{
@@ -3093,7 +3097,7 @@ struct QualifiedDeclaratorIdWalker : public WalkerBase
 	{
 		NestedNameSpecifierWalker walker(getState(), true);
 		TREEWALKER_WALK(walker, symbol);
-		setQualifying(walker.qualifying);
+		swapQualifying(walker.qualifying);
 	}
 	void visit(cpp::unqualified_id* symbol)
 	{
@@ -3117,14 +3121,14 @@ struct DeclaratorIdWalker : public WalkerBase
 		QualifiedDeclaratorIdWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		id = walker.id;
-		setQualifying(walker.qualifying);
+		swapQualifying(walker.qualifying);
 	}
 	void visit(cpp::qualified_id_global* symbol)
 	{
 		QualifiedDeclaratorIdWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		id = walker.id;
-		setQualifying(walker.qualifying);
+		swapQualifying(walker.qualifying);
 	}
 	void visit(cpp::unqualified_id* symbol)
 	{
@@ -3187,7 +3191,7 @@ struct PtrOperatorWalker : public WalkerBase
 	{
 		NestedNameSpecifierWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		setQualifying(walker.qualifying);
+		swapQualifying(walker.qualifying);
 	}
 };
 
@@ -3279,7 +3283,7 @@ struct BaseSpecifierWalker : public WalkerBase
 	{
 		NestedNameSpecifierWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		setQualifying(walker.qualifying);
+		swapQualifying(walker.qualifying);
 	}
 	void visit(cpp::class_name* symbol)
 	{
@@ -3290,7 +3294,7 @@ struct BaseSpecifierWalker : public WalkerBase
 		*/
 		TypeNameWalker walker(getState(), isTypeName, true);
 		TREEWALKER_WALK(walker, symbol);
-		type = walker.type;
+		type.swap(walker.type);
 	}
 };
 
@@ -3337,7 +3341,7 @@ struct ClassHeadWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		// TODO: don't declare anything - this is a template (partial) specialisation
 		id = walker.id;
-		arguments = walker.arguments;
+		arguments.swap(walker.arguments);
 	}
 	void visit(cpp::terminal<boost::wave::T_COLON> symbol)
 	{
@@ -3377,7 +3381,7 @@ struct UsingDeclarationWalker : public WalkerBase
 	{
 		NestedNameSpecifierWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		setQualifying(walker.qualifying);
+		swapQualifying(walker.qualifying);
 	}
 	void visit(cpp::unqualified_id* symbol)
 	{
@@ -3431,7 +3435,7 @@ struct UsingDirectiveWalker : public WalkerBase
 	{
 		NestedNameSpecifierWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		setQualifying(walker.qualifying);
+		swapQualifying(walker.qualifying);
 	}
 	void visit(cpp::namespace_name* symbol)
 	{
@@ -3468,7 +3472,7 @@ struct NamespaceAliasDefinitionWalker : public WalkerBase
 	{
 		NestedNameSpecifierWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		setQualifying(walker.qualifying);
+		swapQualifying(walker.qualifying);
 	}
 	void visit(cpp::identifier* symbol)
 	{
@@ -3560,7 +3564,7 @@ struct ClassSpecifierWalker : public WalkerBase
 		declaration = walker.declaration;
 		id = walker.id;
 		isUnion = walker.isUnion;
-		arguments = walker.arguments;
+		arguments.swap(walker.arguments);
 		enclosing = walker.enclosing;
 	}
 	void visit(cpp::terminal<boost::wave::T_LEFTBRACE> symbol)
@@ -3703,7 +3707,7 @@ struct ElaboratedTypeSpecifierWalker : public WalkerBase
 	{
 		NestedNameSpecifierWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		setQualifying(walker.qualifying);
+		swapQualifying(walker.qualifying);
 	}
 	void visit(cpp::class_key* symbol)
 	{
@@ -3720,7 +3724,7 @@ struct ElaboratedTypeSpecifierWalker : public WalkerBase
 		SEMANTIC_ASSERT(key == &gClass);
 		TemplateIdWalker walker(getState(), isType);
 		TREEWALKER_WALK(walker, symbol);
-		type = walker.type;
+		type.swap(walker.type);
 	}
 	void visit(cpp::identifier* symbol)
 	{
@@ -3812,7 +3816,7 @@ struct TypenameSpecifierWalker : public WalkerBase
 	{
 		NestedNameSpecifierWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		setQualifying(walker.qualifying);
+		swapQualifying(walker.qualifying);
 	}
 	void visit(cpp::type_name* symbol)
 	{
@@ -3841,8 +3845,8 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 	{
 		TypeSpecifierWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		type = walker.type;
-		if(walker.type.declaration == 0)
+		type.swap(walker.type);
+		if(type.declaration == 0)
 		{
 			fundamental = combineFundamental(0, walker.fundamental);
 			type = getFundamentalType(fundamental);
@@ -3859,14 +3863,14 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 		ElaboratedTypeSpecifierWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		forward = walker.id;
-		type = walker.type;
+		type.swap(walker.type);
 	}
 	void visit(cpp::elaborated_type_specifier* symbol)
 	{
 		ElaboratedTypeSpecifierWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		forward = walker.id;
-		type = walker.type;
+		type.swap(walker.type);
 	}
 	void visit(cpp::typename_specifier* symbol)
 	{
@@ -4101,7 +4105,7 @@ struct QualifiedTypeNameWalker : public WalkerBase
 	{
 		NestedNameSpecifierWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		setQualifying(walker.qualifying);
+		swapQualifying(walker.qualifying);
 	}
 	void visit(cpp::class_name* symbol)
 	{
@@ -4176,7 +4180,7 @@ struct TypeIdWalker : public WalkerBase
 	{
 		DeclSpecifierSeqWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		type = walker.type;
+		type.swap(walker.type);
 		declareEts(type, walker.forward);
 	}
 	void visit(cpp::abstract_declarator* symbol)
@@ -4298,7 +4302,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 	{
 		DeclSpecifierSeqWalker walker(getState(), templateParameter != INDEX_INVALID);
 		TREEWALKER_WALK(walker, symbol);
-		type = walker.type;
+		type.swap(walker.type);
 		declaration = type.declaration; // if no declarator is specified later, this is probably a class-declaration
 		specifiers = walker.specifiers;
 		forward = walker.forward;
@@ -4308,7 +4312,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 	{
 		DeclSpecifierSeqWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		type = walker.type;
+		type.swap(walker.type);
 		declaration = type.declaration; // if no declarator is specified later, this is probably a class-declaration
 		forward = walker.forward;
 		isUnion = walker.isUnion;
