@@ -79,8 +79,11 @@ class TestTemplateTemplateParam
 namespace stdX
 {
 	template<class _Fn>
-	class pointer_to_unary_function
+	struct pointer_to_unary_function
 	{
+		pointer_to_unary_function(int)
+		{
+		}
 	};
 
 	inline void ptr_fun(int _Left)
@@ -124,18 +127,21 @@ void f()
 
 extern void __cdecl operator delete(void *);
 
-template<typename T>
-struct S
+namespace NNN
 {
-	S(const char*, int);
-};
+	template<typename T>
+	struct S
+	{
+		S(const char*, int);
+	};
 
-const int i = 0;
-const char* p = 0;
+	const int i = 0;
+	const char* p = 0;
 
-void f()
-{
-	const S<int> node(p, i); // bug causes 'p' to be recognised when ',' is encountered - recognition should be deferred until ';'
+	void f()
+	{
+		const S<int> node(p, i); // bug causes 'p' to be recognised when ',' is encountered - recognition should be deferred until ';'
+	}
 }
 
 #if 0

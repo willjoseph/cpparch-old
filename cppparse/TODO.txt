@@ -19,6 +19,15 @@
 		- scopes
 		- declarations
 		- types
+	- avoid allocations where possible
+		- don't allocate symbol until successful parse
+		- avoid copying 'qualifying' when creating WalkerState
+			- parsing nested-name-specifier
+			- copy-on-write?
+			- move to walker-base?
+			- ref instead of copy?
+			- avoid copying 'global-type'
+			- use list instead of 'copied'
 	
 - remove disambiguation hacks
 	- init_declarator_disambiguate
