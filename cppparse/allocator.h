@@ -110,7 +110,9 @@ inline bool isAllocated(const char* first, const char* last)
 
 struct Page
 {
-	enum { SIZE = 128 * 1024 };
+	enum { SHIFT = 17 };
+	enum { SIZE = 1 << SHIFT };
+	enum { MASK = SIZE - 1 };
 	char buffer[SIZE]; // debug padding
 
 	Page()
@@ -151,13 +153,13 @@ struct LinearAllocator
 	void* allocate(size_t size)
 	{
 		ProfileScope profile(gProfileAllocator);
-		size_t available = sizeof(Page) - position % sizeof(Page);
+		size_t available = sizeof(Page) - (position & Page::MASK);
 		if(size > available)
 		{
 			position += available;
 		}
-		Page* page = getPage(position / sizeof(Page));
-		void* p = page->buffer + position % sizeof(Page);
+		Page* page = getPage(position >> Page::SHIFT);
+		void* p = page->buffer + (position & Page::MASK);
 		position += size;
 #ifdef ALLOCATOR_DEBUG
 		ALLOCATOR_ASSERT(!checked || !isAllocated(reinterpret_cast<char*>(p), reinterpret_cast<char*>(p) + size));

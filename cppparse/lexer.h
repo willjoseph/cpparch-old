@@ -323,16 +323,6 @@ struct Lexer
 		}
 		position = ::advance(history, position, count);
 	}
-	void push()
-	{
-		//stacktrace.erase(stackpos, stacktrace.end());
-		//stacktrace.push_back(position - history.begin());
-		//stackpos = stacktrace.end();
-	}
-	void pop()
-	{
-		//*--stackpos = position - history.begin();
-	}
 
 	const char* makeIdentifier(const char* value)
 	{

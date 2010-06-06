@@ -538,7 +538,6 @@ cpp::symbol<T> parseSymbolRequired(ParserType& parser, cpp::symbol<T> symbol, si
 	PARSE_ASSERT(symbol.p == 0);
 	PARSE_ASSERT(!checkBacktrack(parser));
 	ParserType tmp(parser);
-	parser.lexer.push();
 	parser.lexer.visualiser.push(SYMBOL_NAME(T), parser.lexer.position);
 	T* p = SymbolAllocator<T>(parser.lexer.allocator).allocate();
 #if 0
@@ -546,7 +545,6 @@ cpp::symbol<T> parseSymbolRequired(ParserType& parser, cpp::symbol<T> symbol, si
 #else
 	T* result = tmp.parse(p);
 #endif
-	parser.lexer.pop();
 	if(result != 0
 		&& tmp.position >= best)
 	{
