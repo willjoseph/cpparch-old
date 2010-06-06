@@ -7,6 +7,10 @@
 #include <algorithm>
 #include <vector>
 
+#ifdef _DEBUG
+#define ALLOCATOR_DEBUG
+#endif
+
 extern size_t gAllocatorFootprint;
 
 template<class T>
@@ -111,7 +115,7 @@ struct Page
 
 	Page()
 	{
-#ifdef _DEBUG
+#ifdef ALLOCATOR_DEBUG
 		std::uninitialized_fill(buffer, buffer + SIZE, ALLOCATOR_FREECHAR);
 #endif
 	}
@@ -155,20 +159,20 @@ struct LinearAllocator
 		Page* page = getPage(position / sizeof(Page));
 		void* p = page->buffer + position % sizeof(Page);
 		position += size;
-#ifdef _DEBUG
+#ifdef ALLOCATOR_DEBUG
 		ALLOCATOR_ASSERT(!checked || !isAllocated(reinterpret_cast<char*>(p), reinterpret_cast<char*>(p) + size));
 #endif
 		return p;
 	}
 	void deallocate(void* p, size_t size)
 	{
-#ifdef _DEBUG
+#ifdef ALLOCATOR_DEBUG
 		std::uninitialized_fill(reinterpret_cast<char*>(p), reinterpret_cast<char*>(p) + size, ALLOCATOR_FREECHAR);
 #endif
 	}
 	void backtrack(size_t original)
 	{
-#ifdef _DEBUG
+#ifdef ALLOCATOR_DEBUG
 		Pages::iterator first = pages.begin() + original / sizeof(Page);
 		Pages::iterator last = pages.begin() + position / sizeof(Page);
 		for(Pages::iterator i = first; i != pages.end(); ++i)

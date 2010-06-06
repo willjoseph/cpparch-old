@@ -516,7 +516,7 @@ struct SymbolDelete
 template<typename T>
 void deleteSymbol(T* symbol, LexerAllocator& allocator)
 {
-#ifdef _DEBUG
+#ifdef ALLOCATOR_DEBUG
 	SymbolDelete walker(allocator);
 	walker.visit(cpp::symbol<T>(symbol));
 #endif

@@ -21,6 +21,7 @@
 		- types
 	- avoid allocations where possible
 		- don't allocate symbol until successful parse
+			- measure cost
 		- avoid copying 'qualifying' when creating WalkerState
 			- parsing nested-name-specifier
 			- copy-on-write?
@@ -28,6 +29,7 @@
 			- ref instead of copy?
 			- avoid copying 'global-type'
 			- use list instead of 'copied'
+		- don't track list of scopes/declarations unless debugging
 	
 - remove disambiguation hacks
 	- init_declarator_disambiguate

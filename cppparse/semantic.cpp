@@ -1500,7 +1500,6 @@ struct WalkerState
 
 	WalkerContext& context;
 	Scope* enclosing;
-	Qualifying qualifying;
 	const Type* qualifying_p;
 	Scope* templateParams;
 	Scope* templateEnclosing;
@@ -1508,7 +1507,7 @@ struct WalkerState
 	DeferredSymbols* deferred;
 
 	WalkerState(WalkerContext& context)
-		: context(context), enclosing(0), qualifying(context), qualifying_p(0), templateParams(0), templateEnclosing(0), ambiguity(0), deferred(0)
+		: context(context), enclosing(0), qualifying_p(0), templateParams(0), templateEnclosing(0), ambiguity(0), deferred(0)
 	{
 	}
 	const WalkerState& getState() const
@@ -1678,35 +1677,7 @@ struct WalkerState
 
 	void clearQualifying()
 	{
-		qualifying = Qualifying(context);
 		qualifying_p = 0;
-	}
-
-	void setQualifyingGlobal()
-	{
-		qualifying = Qualifying(context);
-		qualifying_p = &context.globalType;
-	}
-	void swapQualifying(Type& type)
-	{
-#if 0 // allow incomplete types as qualifying, for nested-name-specifier in ptr-operator (defining member-function-ptr)
-		if(type.declaration->enclosed == 0)
-		{
-			// TODO
-			//printPosition(symbol->id->value.position);
-			std::cout << "'" << getValue(type.declaration->name) << "' is incomplete, declared here:" << std::endl;
-			printPosition(type.declaration->name.position);
-			throw SemanticError();
-		}
-#endif
-		Qualifying tmp(TYPE_NULL, context);
-		tmp.back().swap(type);
-		swapQualifying(tmp);
-	}
-	void swapQualifying(Qualifying& other)
-	{
-		qualifying.swap(other);
-		qualifying_p = qualifying.get();
 	}
 
 	template<typename T>
@@ -1867,26 +1838,41 @@ struct WalkerBase : public WalkerState
 		}
 	};
 
+#ifdef ALLOCATOR_DEBUG
 	Scopes scopes; // under-construction scopes
+#endif
 	Declarations declarations; // declarations must be destroyed before scopes!
 
-
 	WalkerBase(WalkerContext& context)
-		: WalkerState(context), scopes(context), declarations(context)
+		: WalkerState(context),
+#ifdef ALLOCATOR_DEBUG
+		scopes(context),
+#endif
+		declarations(context)
 	{
 	}
 	WalkerBase(const WalkerState& state)
-		: WalkerState(state), scopes(context), declarations(context)
+		: WalkerState(state),
+#ifdef ALLOCATOR_DEBUG
+		scopes(context),
+#endif
+		declarations(context)
 	{
 	}
 	Scope* newScope(const Identifier& name, ScopeType type = SCOPETYPE_UNKNOWN)
 	{
+#ifdef ALLOCATOR_DEBUG
 		scopes.push_back(Scope(context, name, type));
 		return &scopes.back();
+#else
+		return allocatorNew(context, Scope(context, name, type));
+#endif
 	}
 	void hit(WalkerBase& other)
 	{
+#ifdef ALLOCATOR_DEBUG
 		scopes.splice(scopes.end(), other.scopes);
+#endif
 		declarations.splice(declarations.end(), other.declarations);
 	}
 
@@ -1923,31 +1909,81 @@ struct WalkerBase : public WalkerState
 	}
 };
 
+
 // saves and restores the state in walker-base
 struct ScopeGuard
 {
 	WalkerBase& base;
+#ifdef ALLOCATOR_DEBUG
 	WalkerBase::Scopes scopes;
+#endif
 	WalkerBase::Declarations declarations;
 	ScopeGuard(WalkerBase& base)
-		: base(base), scopes(base.context), declarations(base.context)
+		: base(base),
+#ifdef ALLOCATOR_DEBUG
+		scopes(base.context),
+#endif
+		declarations(base.context)
 	{
+#ifdef ALLOCATOR_DEBUG
 		scopes.swap(base.scopes);
+#endif
 		declarations.swap(base.declarations);
 	}
 	~ScopeGuard()
 	{
+#ifdef ALLOCATOR_DEBUG
 		scopes.swap(base.scopes);
+#endif
 		declarations.swap(base.declarations);
 	}
 	// if parse succeeds, append new state to previous state
 	void hit()
 	{
+#ifdef ALLOCATOR_DEBUG
 		scopes.splice(scopes.end(), base.scopes);
+#endif
 		declarations.splice(declarations.end(), base.declarations);
 	}
 };
 
+
+struct WalkerQualified : public WalkerBase
+{
+	Qualifying qualifying;
+	WalkerQualified(const WalkerState& state)
+		: WalkerBase(state), qualifying(context)
+	{
+	}
+
+	void setQualifyingGlobal()
+	{
+		SEMANTIC_ASSERT(qualifying.empty());
+		qualifying_p = &context.globalType;
+	}
+
+	void swapQualifying(Type& type)
+	{
+#if 0 // allow incomplete types as qualifying, for nested-name-specifier in ptr-operator (defining member-function-ptr)
+		if(type.declaration->enclosed == 0)
+		{
+			// TODO
+			//printPosition(symbol->id->value.position);
+			std::cout << "'" << getValue(type.declaration->name) << "' is incomplete, declared here:" << std::endl;
+			printPosition(type.declaration->name.position);
+			throw SemanticError();
+		}
+#endif
+		Qualifying tmp(TYPE_NULL, context);
+		tmp.back().swap(type);
+		swapQualifying(tmp);
+	}
+	void swapQualifying(Qualifying& other)
+	{
+		qualifying.swap(other);
+		qualifying_p = qualifying.get();
+	}
+};
 
 
 typedef bool (*IdentifierFunc)(const Declaration& declaration);
@@ -2225,7 +2261,7 @@ struct UnqualifiedIdWalker : public WalkerBase
 	}
 };
 
-struct QualifiedIdWalker : public WalkerBase
+struct QualifiedIdWalker : public WalkerQualified
 {
 	TREEWALKER_DEFAULT;
 
@@ -2233,9 +2269,8 @@ struct QualifiedIdWalker : public WalkerBase
 	Identifier* id;
 	bool isTemplate;
 	QualifiedIdWalker(const WalkerState& state)
-		: WalkerBase(state), declaration(0), id(0), isTemplate(false)
+		: WalkerQualified(state), declaration(0), id(0), isTemplate(false)
 	{
-		SEMANTIC_ASSERT(qualifying.empty());
 	}
 
 	void visit(cpp::terminal<boost::wave::T_COLON_COLON> symbol)
@@ -2274,7 +2309,7 @@ struct QualifiedIdWalker : public WalkerBase
 	}
 };
 
-struct IdExpressionWalker : public WalkerBase
+struct IdExpressionWalker : public WalkerQualified
 {
 	TREEWALKER_DEFAULT;
 
@@ -2290,7 +2325,7 @@ struct IdExpressionWalker : public WalkerBase
 	bool isIdentifier;
 	bool isTemplate;
 	IdExpressionWalker(const WalkerState& state)
-		: WalkerBase(state), declaration(0), id(0), isIdentifier(false), isTemplate(false)
+		: WalkerQualified(state), declaration(0), id(0), isIdentifier(false), isTemplate(false)
 	{
 	}
 	// HACK: for postfix-expression-member 
@@ -2326,7 +2361,6 @@ struct IdExpressionWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		declaration = walker.declaration;
 		id = walker.id;
-		SEMANTIC_ASSERT(walker.qualifying.empty());
 		isIdentifier = walker.isIdentifier;
 	}
 };
@@ -2926,13 +2960,13 @@ struct NestedNameSpecifierPrefixWalker : public WalkerBase
 	}
 };
 
-struct NestedNameSpecifierWalker : public WalkerBase
+struct NestedNameSpecifierWalker : public WalkerQualified
 {
 	TREEWALKER_DEFAULT;
 
 	bool allowDependent;
 	NestedNameSpecifierWalker(const WalkerState& state, bool allowDependent = false)
-		: WalkerBase(state), allowDependent(allowDependent)
+		: WalkerQualified(state), allowDependent(allowDependent)
 	{
 	}
 	void visit(cpp::nested_name_specifier_prefix* symbol)
@@ -2966,16 +3000,15 @@ struct NestedNameSpecifierWalker : public WalkerBase
 	}
 };
 
-struct TypeSpecifierWalker : public WalkerBase
+struct TypeSpecifierWalker : public WalkerQualified
 {
 	TREEWALKER_DEFAULT;
 
 	Type type;
 	unsigned fundamental;
 	TypeSpecifierWalker(const WalkerState& state)
-		: WalkerBase(state), type(0, context), fundamental(0)
+		: WalkerQualified(state), type(0, context), fundamental(0)
 	{
-		SEMANTIC_ASSERT(qualifying.empty());
 	}
 
 	void visit(cpp::simple_type_specifier_name* symbol)
@@ -3074,15 +3107,14 @@ struct UnqualifiedDeclaratorIdWalker : public WalkerBase
 	}
 };
 
-struct QualifiedDeclaratorIdWalker : public WalkerBase
+struct QualifiedDeclaratorIdWalker : public WalkerQualified
 {
 	TREEWALKER_DEFAULT;
 
 	Identifier* id;
 	QualifiedDeclaratorIdWalker(const WalkerState& state)
-		: WalkerBase(state), id(&gAnonymousId)
+		: WalkerQualified(state), id(&gAnonymousId)
 	{
-		SEMANTIC_ASSERT(qualifying.empty());
 	}
 	void visit(cpp::terminal<boost::wave::T_COLON_COLON> symbol)
 	{
@@ -3105,13 +3137,13 @@ struct QualifiedDeclaratorIdWalker : public WalkerBase
 	}
 };
 
-struct DeclaratorIdWalker : public WalkerBase
+struct DeclaratorIdWalker : public WalkerQualified
 {
 	TREEWALKER_DEFAULT;
 
 	Identifier* id;
 	DeclaratorIdWalker(const WalkerState& state)
-		: WalkerBase(state), id(&gAnonymousId)
+		: WalkerQualified(state), id(&gAnonymousId)
 	{
 	}
 	void visit(cpp::qualified_id_default* symbol)
@@ -3177,14 +3209,13 @@ struct ExceptionSpecificationWalker : public WalkerBase
 	}
 };
 
-struct PtrOperatorWalker : public WalkerBase
+struct PtrOperatorWalker : public WalkerQualified
 {
 	TREEWALKER_DEFAULT;
 
 	PtrOperatorWalker(const WalkerState& state)
-		: WalkerBase(state)
+		: WalkerQualified(state)
 	{
-		SEMANTIC_ASSERT(qualifying.empty());
 	}
 	void visit(cpp::nested_name_specifier* symbol)
 	{
@@ -3268,15 +3299,14 @@ struct DeclaratorWalker : public WalkerBase
 	}
 };
 
-struct BaseSpecifierWalker : public WalkerBase
+struct BaseSpecifierWalker : public WalkerQualified
 {
 	TREEWALKER_DEFAULT;
 
 	Type type;
 	BaseSpecifierWalker(const WalkerState& state)
-		: WalkerBase(state), type(0, context)
+		: WalkerQualified(state), type(0, context)
 	{
-		SEMANTIC_ASSERT(qualifying.empty());
 	}
 
 	void visit(cpp::nested_name_specifier* symbol)
@@ -3310,7 +3340,6 @@ struct ClassHeadWalker : public WalkerBase
 	ClassHeadWalker(const WalkerState& state)
 		: WalkerBase(state), declaration(0), id(0), arguments(context), isUnion(false)
 	{
-		SEMANTIC_ASSERT(qualifying.empty());
 	}
 
 	void visit(cpp::class_key* symbol)
@@ -3363,15 +3392,14 @@ struct ClassHeadWalker : public WalkerBase
 	}
 };
 
-struct UsingDeclarationWalker : public WalkerBase
+struct UsingDeclarationWalker : public WalkerQualified
 {
 	TREEWALKER_DEFAULT;
 
 	bool isTypename;
 	UsingDeclarationWalker(const WalkerState& state)
-		: WalkerBase(state), isTypename(false)
+		: WalkerQualified(state), isTypename(false)
 	{
-		SEMANTIC_ASSERT(qualifying.empty());
 	}
 	void visit(cpp::terminal<boost::wave::T_COLON_COLON> symbol)
 	{
@@ -3419,14 +3447,13 @@ struct UsingDeclarationWalker : public WalkerBase
 	}
 };
 
-struct UsingDirectiveWalker : public WalkerBase
+struct UsingDirectiveWalker : public WalkerQualified
 {
 	TREEWALKER_DEFAULT;
 
 	UsingDirectiveWalker(const WalkerState& state)
-		: WalkerBase(state)
+		: WalkerQualified(state)
 	{
-		SEMANTIC_ASSERT(qualifying.empty());
 	}
 	void visit(cpp::terminal<boost::wave::T_COLON_COLON> symbol)
 	{
@@ -3456,15 +3483,14 @@ struct UsingDirectiveWalker : public WalkerBase
 	}
 };
 
-struct NamespaceAliasDefinitionWalker : public WalkerBase
+struct NamespaceAliasDefinitionWalker : public WalkerQualified
 {
 	TREEWALKER_DEFAULT;
 
 	Identifier* id;
 	NamespaceAliasDefinitionWalker(const WalkerState& state)
-		: WalkerBase(state), id(0)
+		: WalkerQualified(state), id(0)
 	{
-		SEMANTIC_ASSERT(qualifying.empty());
 	}
 	void visit(cpp::terminal<boost::wave::T_COLON_COLON> symbol)
 	{
@@ -3670,7 +3696,7 @@ struct EnumSpecifierWalker : public WalkerBase
 	}
 };
 
-struct ElaboratedTypeSpecifierWalker : public WalkerBase
+struct ElaboratedTypeSpecifierWalker : public WalkerQualified
 {
 	TREEWALKER_DEFAULT;
 
@@ -3678,9 +3704,8 @@ struct ElaboratedTypeSpecifierWalker : public WalkerBase
 	Type type;
 	Identifier* id;
 	ElaboratedTypeSpecifierWalker(const WalkerState& state)
-		: WalkerBase(state), key(0), type(0, context), id(0)
+		: WalkerQualified(state), key(0), type(0, context), id(0)
 	{
-		SEMANTIC_ASSERT(qualifying.empty());
 	}
 	void visit(cpp::terminal<boost::wave::T_COLON_COLON> symbol)
 	{
@@ -3798,15 +3823,14 @@ struct ElaboratedTypeSpecifierWalker : public WalkerBase
 	}
 };
 
-struct TypenameSpecifierWalker : public WalkerBase
+struct TypenameSpecifierWalker : public WalkerQualified
 {
 	TREEWALKER_DEFAULT;
 
 	Type type;
 	TypenameSpecifierWalker(const WalkerState& state)
-		: WalkerBase(state), type(0, context)
+		: WalkerQualified(state), type(0, context)
 	{
-		SEMANTIC_ASSERT(qualifying.empty());
 	}
 
 	void visit(cpp::terminal<boost::wave::T_COLON_COLON> symbol)
@@ -4095,12 +4119,12 @@ struct HandlerSeqWalker : public WalkerBase
 	}
 };
 
-struct QualifiedTypeNameWalker : public WalkerBase
+struct QualifiedTypeNameWalker : public WalkerQualified
 {
 	TREEWALKER_DEFAULT;
 
 	QualifiedTypeNameWalker(const WalkerState& state)
-		: WalkerBase(state)
+		: WalkerQualified(state)
 	{
 	}
 	void visit(cpp::terminal<boost::wave::T_COLON_COLON> symbol)
