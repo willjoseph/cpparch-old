@@ -357,11 +357,11 @@ struct Parser : public ParserState
 
 	void backtrack(const char* symbol, bool preserveAllocation = false)
 	{
-		lexer.backtrack(position, symbol);
 		if(!preserveAllocation)
 		{
 			lexer.allocator.backtrack(allocation);
 		}
+		lexer.backtrack(position, symbol);
 	}
 	void advance()
 	{
@@ -380,6 +380,10 @@ inline void printError(Parser& parser)
 	}
 	printPosition(parser.lexer, lexer.history[parser.lexer.stacktrace.back()].position);
 #endif
+	if(parser.lexer.error == 0)
+	{
+		return;
+	}
 	printPosition(parser.lexer.getErrorPosition());
 	std::cout << "syntax error: '" << parser.lexer.getErrorValue() << "'" << std::endl;
 #if 1 // TODO!
@@ -394,7 +398,12 @@ inline void printSequence(Parser& parser)
 }
 
 #define PARSE_ERROR() throw ParseError()
+#ifdef _DEBUG
 #define PARSE_ASSERT(condition) if(!(condition)) { PARSE_ERROR(); }
+#else
+#define PARSE_ASSERT(condition)
+#endif
+
 
 inline void parseToken(Parser& parser, boost::wave::token_id id)
 {
@@ -538,7 +547,9 @@ cpp::symbol<T> parseSymbolRequired(ParserType& parser, cpp::symbol<T> symbol, si
 	PARSE_ASSERT(symbol.p == 0);
 	PARSE_ASSERT(!checkBacktrack(parser));
 	ParserType tmp(parser);
+#ifdef _DEBUG
 	parser.lexer.visualiser.push(SYMBOL_NAME(T), parser.lexer.position);
+#endif
 	T* p = SymbolAllocator<T>(parser.lexer.allocator).allocate();
 #if 0
 	T* result = parseSymbol(tmp, p);
@@ -548,13 +559,17 @@ cpp::symbol<T> parseSymbolRequired(ParserType& parser, cpp::symbol<T> symbol, si
 	if(result != 0
 		&& tmp.position >= best)
 	{
+#ifdef _DEBUG
 		parser.lexer.visualiser.pop(result);
+#endif
 		parser.position += tmp.position;
 		return cpp::symbol<T>(result);
 	}
 
 	deleteSymbol(p, parser.lexer.allocator);
+#ifdef _DEBUG
 	parser.lexer.visualiser.pop(false);
+#endif
 	tmp.backtrack(SYMBOL_NAME(T));
 	return cpp::symbol<T>(0);
 }

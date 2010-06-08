@@ -194,6 +194,44 @@ bool operator==(const LexIterator& l, const LexIterator& r)
 	return makeBase(l) == makeBase(r);
 }
 
+Token* Lexer::read(Token* first, Token* last)
+{
+	try
+	{
+		ProfileScope profile(gProfileWave);
+		for(; this->first != this->last; ++makeBase(this->first))
+		{
+			const token_type& token = *makeBase(this->first);
+			if(!isWhiteSpace(token))
+			{
+				if(first == last)
+				{
+					break;
+				}
+#ifdef _DEBUG
+				{
+					ProfileScope profile(gProfileDiagnose);
+					printer.printToken(token, token.get_value().c_str());
+				}
+#endif
+				*first++ = Token(token, makeIdentifier(token.get_value().c_str()), makeFilePosition(token.get_position()));
+			}
+		}
+	}
+	catch (boost::wave::cpp_exception const& e) {
+		// some preprocessing error
+		std::cerr 
+			<< e.file_name() << "(" << e.line_no() << "): "
+			<< e.description() << std::endl;
+		if(!boost::wave::is_recoverable(e))
+		{
+			throw LexError();
+		}
+		return read(first, last);
+	}
+	return first;
+}
+
 void increment(LexIterator& i)
 {
 	try {

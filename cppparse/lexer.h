@@ -46,12 +46,13 @@ inline bool operator!=(const LexIterator& l, const LexIterator& r)
 {
 	return !(l == r);
 }
+#if 0
 void increment(LexIterator& i);
 const LexToken& dereference(const LexIterator& i);
 const char* get_value(const LexToken& token);
 LexTokenId get_id(const LexToken& token);
 const LexFilePosition& get_position(const LexToken& token);
-
+#endif
 
 #include <vector>
 #include <set>
@@ -122,6 +123,23 @@ public:
 		delete[] tokens;
 	}
 
+	Token* begin()
+	{
+		return tokens;
+	}
+	const Token* begin() const
+	{
+		return tokens;
+	}
+	Token* end()
+	{
+		return tokens + m_size;
+	}
+	const Token* end() const
+	{
+		return tokens + m_size;
+	}
+
 	void resize(size_t count)
 	{
 		this->~TokenBuffer();
@@ -154,12 +172,12 @@ struct BacktrackBuffer : public TokenBuffer
 	iterator next(iterator i)
 	{
 		++i;
-		return i == tokens + m_size ? tokens : i;
+		return i == TokenBuffer::end() ? TokenBuffer::begin() : i;
 	}
 	const_iterator next(const_iterator i) const
 	{
 		++i;
-		return i == tokens + m_size ? tokens : i;
+		return i == TokenBuffer::end() ? TokenBuffer::begin() : i;
 	}
 
 	size_t distance(const_iterator i, const_iterator other) const
@@ -236,6 +254,7 @@ inline BacktrackBuffer::const_iterator advance(BacktrackBuffer& buffer, Backtrac
 
 typedef TokenPrinter<std::ofstream> FileTokenPrinter;
 
+
 typedef LinearAllocator<true> LexerAllocator;
 struct Lexer
 {
@@ -275,10 +294,7 @@ struct Lexer
 		stackpos(stacktrace.end()),
 		maxBacktrack(false)
 	{
-		if(isWhiteSpace(get_id()))
-		{
-			increment();
-		}
+		refill();
 	}
 	~Lexer()
 	{
@@ -306,6 +322,7 @@ struct Lexer
 				error = position;
 			}
 			position = ::backtrack(history, position, count);
+#ifdef _DEBUG
 			if(count > stats.count
 				&& symbol != 0)
 			{
@@ -313,6 +330,7 @@ struct Lexer
 				stats.symbol = symbol;
 				stats.position = (*position).position;
 			};
+#endif
 		}
 	}
 	void advance(size_t count)
@@ -347,58 +365,44 @@ struct Lexer
 
 	LexTokenId get_id()
 	{
-		return position != history.end() ? (*position).id : ::get_id(dereference(first));
+		return (*position).id;
 	}
 	const char* get_value()
 	{
-		return position != history.end() ? (*position).value : makeIdentifier(::get_value(dereference(first)));
+		return (*position).value;
 	}
 	FilePosition get_position()
 	{
-		return position != history.end() ? (*position).position : makeFilePosition(::get_position(dereference(first)));
+		return (*position).position;
 	}
 	const char* getErrorValue()
 	{
-		return error != history.end() ? (*error).value : ::get_value(dereference(first));
+		return (*error).value;
 	}
 	FilePosition getErrorPosition()
 	{
-		return error != history.end() ? (*error).position : makeFilePosition(::get_position(dereference(first)));
+		return (*error).position;
+	}
+
+	Token* read(Token* first, Token* last);
+	void refill()
+	{
+		if(position == history.end())
+		{
+			const size_t COUNT = 4;
+			Token* end = history.TokenBuffer::end();
+			history.position = read(history.position, std::min(end, history.position + COUNT));
+			if(history.position == end)
+			{
+				history.position = history.TokenBuffer::begin();
+			}
+		}
 	}
 
 	void increment()
 	{
-		if(position != history.end())
-		{
-			position = ::next(history, position);
-		}
-		else
-		{
-#ifdef _DEBUG
-			{
-				ProfileScope profile(gProfileDiagnose);
-				printer.printToken(get_id(), get_value());
-			}
-#endif
-			history.push_back(Token(get_id(), get_value(), get_position()));
-			position = history.end();
-			for(;;)
-			{
-				if(first == last)
-				{
-					throw LexError();
-				}
-				{
-					ProfileScope profile(gProfileWave);
-					::increment(first);
-				}
-				if(!isWhiteSpace(get_id())
-					|| first == last)
-				{
-					break;
-				}
-			}
-		}
+		position = ::next(history, position);
+		refill();
 	}
 };
 

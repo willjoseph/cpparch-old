@@ -30,6 +30,7 @@
 			- avoid copying 'global-type'
 			- use list instead of 'copied'
 		- don't track list of scopes/declarations unless debugging
+	- buffer tokens from lexer
 	
 - remove disambiguation hacks
 	- init_declarator_disambiguate

@@ -5,7 +5,7 @@
 #include <iostream>
 #include <iomanip>
 
-#define PROFILE_ENABLED
+//#define PROFILE_ENABLED
 
 __int64 getCPUTimeElapsed();
 
@@ -38,34 +38,41 @@ struct Profiler
 };
 
 
+#ifdef PROFILE_ENABLED
+
 struct ProfileScope
 {
 	ProfileScope* parent;
 	ProfileEntry& entry;
-#ifdef PROFILE_ENABLED
 	Timer timer;
-#endif
 	ProfileScope(ProfileEntry& entry)
 		: parent(Profiler::scope), entry(entry)
 	{
 		Profiler::scope = this;
-#ifdef PROFILE_ENABLED
 		timer.start();
-#endif
 	}
 	~ProfileScope()
 	{
 		Profiler::scope = parent;
-#ifdef PROFILE_ENABLED
 		__int64 elapsed = timer.elapsed();
 		entry.elapsed += elapsed;
 		if(Profiler::scope != 0)
 		{
 			Profiler::scope->entry.elapsedChild += elapsed;
 		}
-#endif
 	}
 };
+
+#else
+
+struct ProfileScope
+{
+	ProfileScope(ProfileEntry& entry)
+	{
+	}
+};
+
+#endif
 
 inline void dumpProfile(ProfileEntry& entry)
 {
