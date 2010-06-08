@@ -202,7 +202,7 @@ Token* Lexer::read(Token* first, Token* last)
 		for(; this->first != this->last; ++makeBase(this->first))
 		{
 			const token_type& token = *makeBase(this->first);
-			if(!isWhiteSpace(token))
+			if(!isWhiteSpace(token)) // note: not passing EOF through, as Wave appears to generate EOF tokens mid-stream
 			{
 				if(first == last)
 				{
@@ -216,6 +216,12 @@ Token* Lexer::read(Token* first, Token* last)
 #endif
 				*first++ = Token(token, makeIdentifier(token.get_value().c_str()), makeFilePosition(token.get_position()));
 			}
+		}
+		// if reached end of token stream, append EOF
+		if(this->first == this->last
+			&& first != last)
+		{
+			*first++ = Token(boost::wave::T_EOF, "", FilePosition());
 		}
 	}
 	catch (boost::wave::cpp_exception const& e) {

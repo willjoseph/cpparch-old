@@ -380,10 +380,6 @@ inline void printError(Parser& parser)
 	}
 	printPosition(parser.lexer, lexer.history[parser.lexer.stacktrace.back()].position);
 #endif
-	if(parser.lexer.error == 0)
-	{
-		return;
-	}
 	printPosition(parser.lexer.getErrorPosition());
 	std::cout << "syntax error: '" << parser.lexer.getErrorValue() << "'" << std::endl;
 #if 1 // TODO!

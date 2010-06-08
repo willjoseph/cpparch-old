@@ -360,7 +360,7 @@ struct Lexer
 
 	bool finished() const
 	{
-		return position == history.end() && first == last;
+		return isEOF((*position).id) && first == last;
 	}
 
 	LexTokenId get_id()
@@ -389,7 +389,7 @@ struct Lexer
 	{
 		if(position == history.end())
 		{
-			const size_t COUNT = 4;
+			const size_t COUNT = BACKTRACK_MAX >> 1;
 			Token* end = history.TokenBuffer::end();
 			history.position = read(history.position, std::min(end, history.position + COUNT));
 			if(history.position == end)

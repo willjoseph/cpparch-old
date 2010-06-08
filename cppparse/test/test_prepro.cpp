@@ -1,4 +1,8 @@
 
+int x;
+int y;
+
+#if 0
 namespace boost
 {
 	template <class Tag,class T>
@@ -143,6 +147,8 @@ namespace NNN
 		const S<int> node(p, i); // bug causes 'p' to be recognised when ',' is encountered - recognition should be deferred until ';'
 	}
 }
+
+#endif
 
 #if 0
 class C
