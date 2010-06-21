@@ -5,7 +5,7 @@
 #include <iostream>
 #include <iomanip>
 
-//#define PROFILE_ENABLED
+#define PROFILE_ENABLED
 
 __int64 getCPUTimeElapsed();
 
@@ -86,8 +86,8 @@ extern ProfileEntry gProfileIo;
 extern ProfileEntry gProfileWave;
 extern ProfileEntry gProfileLexer;
 extern ProfileEntry gProfileParser;
+extern ProfileEntry gProfileLookup;
 extern ProfileEntry gProfileDiagnose;
-extern ProfileEntry gProfileAmbiguity;
 extern ProfileEntry gProfileAllocator;
 extern ProfileEntry gProfileIdentifier;
 extern ProfileEntry gProfileTemplateId;

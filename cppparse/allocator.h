@@ -146,13 +146,13 @@ struct LinearAllocator
 	{
 		if(index == pages.size())
 		{
+			ProfileScope profile(gProfileAllocator);
 			pages.push_back(new Page);
 		}
 		return pages[index];
 	}
 	void* allocate(size_t size)
 	{
-		ProfileScope profile(gProfileAllocator);
 		size_t available = sizeof(Page) - (position & Page::MASK);
 		if(size > available)
 		{

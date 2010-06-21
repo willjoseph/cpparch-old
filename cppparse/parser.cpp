@@ -240,7 +240,7 @@ cpp::declaration_seq* parseFile(ParserContext& lexer)
 	dumpProfile(gProfileIo);
 	dumpProfile(gProfileWave);
 	dumpProfile(gProfileParser);
-	dumpProfile(gProfileAmbiguity);
+	dumpProfile(gProfileLookup);
 	dumpProfile(gProfileDiagnose);
 	dumpProfile(gProfileAllocator);
 	dumpProfile(gProfileIdentifier);

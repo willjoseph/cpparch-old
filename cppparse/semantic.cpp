@@ -596,7 +596,32 @@ struct Scope : public ScopeCounter
 	Identifier name;
 	size_t enclosedScopeCount; // number of scopes directly enclosed by this scope
 	typedef std::less<const char*> IdentifierLess;
-	typedef std::multimap<const char*, Declaration, IdentifierLess, TreeAllocator<int> > Declarations;
+	typedef std::multimap<const char*, Declaration, IdentifierLess, TreeAllocator<int> > DeclarationMap;
+	struct Declarations : DeclarationMap
+	{
+		struct CacheEntry
+		{
+			const char* id;
+			DeclarationMap::iterator value;
+		};
+		CacheEntry recent;
+
+		Declarations(const IdentifierLess& predicate, const TreeAllocator<int>& allocator)
+			: DeclarationMap(predicate, allocator)
+		{
+		}
+
+		iterator insert(const value_type& value)
+		{
+			recent.id = 0;
+			return DeclarationMap::insert(value);
+		}
+		void erase(const char* key)
+		{
+			recent.id = 0;
+			DeclarationMap::erase(key);
+		}
+	};
 	Declarations declarations;
 	ScopeType type;
 	Types bases;
@@ -1009,7 +1034,6 @@ bool isDependent(const TemplateArguments& arguments, const DependentContext& con
 
 bool isDependentInternal(const Type& type, const DependentContext& context)
 {
-	ProfileScope profile(gProfileIdentifier);
 	if(isValueDependent(type, context))
 	{
 		return true;
@@ -1340,6 +1364,16 @@ void printScope(const Scope& scope)
 	}
 }
 
+void printName(const Scope& scope)
+{
+	if(scope.parent != 0)
+	{
+		printName(*scope.parent);
+		std::cout << "::";
+		std::cout << getValue(scope.name);
+	}
+}
+
 void printIdentifierMismatch(const IdentifierMismatch& e)
 {
 	printPosition(e.id.position);
@@ -1360,10 +1394,17 @@ typedef bool (*LookupFilter)(const Declaration&);
 
 Declaration* findDeclaration(Scope::Declarations& declarations, const Identifier& id, LookupFilter filter = isAny)
 {
-	ProfileScope profile(gProfileIdentifier);
-
-	Scope::Declarations::iterator i = declarations.upper_bound(id.value);
+	Scope::Declarations::iterator i =
+#if 0 // disabled due to bug
+		declarations.recent.id == id.value
+		? declarations.recent.value
+		: 
+#endif
+	declarations.upper_bound(id.value);
 	
+	declarations.recent.id = id.value;
+	declarations.recent.value = i;
+
 	for(; i != declarations.begin()
 		&& (*--i).first == id.value;)
 	{
@@ -1379,7 +1420,6 @@ Declaration* findDeclaration(Scope::Declarations& declarations, Types& bases, co
 
 Declaration* findDeclaration(Types& bases, const Identifier& id, LookupFilter filter = isAny)
 {
-	ProfileScope profile(gProfileIdentifier);
 	for(Types::iterator i = bases.begin(); i != bases.end(); ++i)
 	{
 		Scope* scope = getInstantiatedType(*i).declaration->enclosed;
@@ -1401,20 +1441,26 @@ Declaration* findDeclaration(Types& bases, const Identifier& id, LookupFilter fi
 
 Declaration* findDeclaration(Scope::Scopes& scopes, const Identifier& id, LookupFilter filter = isAny)
 {
-	ProfileScope profile(gProfileIdentifier);
 	for(Scope::Scopes::iterator i = scopes.begin(); i != scopes.end(); ++i)
 	{
-		Scope* scope = *i;
-		SEMANTIC_ASSERT(scope->bases.empty());
+		Scope& scope = *(*i);
+		SEMANTIC_ASSERT(scope.bases.empty());
+
+#ifdef LOOKUP_DEBUG
+		std::cout << "searching '";
+		printName(scope);
+		std::cout << "'" << std::endl;
+#endif
+
 		{
-			Declaration* result = findDeclaration(scope->declarations, scope->bases, id, filter);
+			Declaration* result = findDeclaration(scope.declarations, scope.bases, id, filter);
 			if(result != 0)
 			{
 				return result;
 			}
 		}
 		{
-			Declaration* result = findDeclaration(scope->usingDirectives, id, filter);
+			Declaration* result = findDeclaration(scope.usingDirectives, id, filter);
 			if(result != 0)
 			{
 				return result;
@@ -1446,6 +1492,12 @@ Declaration* findDeclaration(Scope::Declarations& declarations, Types& bases, co
 
 Declaration* findDeclaration(Scope& scope, const Identifier& id, LookupFilter filter = isAny)
 {
+#ifdef LOOKUP_DEBUG
+	std::cout << "searching '";
+	printName(scope);
+	std::cout << "'" << std::endl;
+#endif
+
 	Declaration* result = findDeclaration(scope.declarations, scope.bases, id, filter);
 	if(result != 0)
 	{
@@ -1487,6 +1539,8 @@ struct WalkerContext : public TreeAllocator<int>
 typedef std::list< DeferredParse<struct WalkerState> > DeferredSymbols;
 
 
+typedef bool (*IdentifierFunc)(const Declaration& declaration);
+const char* getIdentifierType(IdentifierFunc func);
 
 const IdentifierMismatch IDENTIFIERMISMATCH_NULL = IdentifierMismatch(IDENTIFIER_NULL, 0, 0);
 IdentifierMismatch gIdentifierMismatch = IDENTIFIERMISMATCH_NULL;
@@ -1517,11 +1571,18 @@ struct WalkerState
 
 	Declaration* findDeclaration(const Identifier& id, LookupFilter filter = isAny)
 	{
+		ProfileScope profile(gProfileLookup);
+#ifdef LOOKUP_DEBUG
+		std::cout << "lookup: " << getValue(id) << " (" << getIdentifierType(filter) << ")" << std::endl;
+#endif
 		if(getQualifyingScope() != 0)
 		{
 			Declaration* result = ::findDeclaration(*getQualifyingScope(), id, filter);
 			if(result != 0)
 			{
+#ifdef LOOKUP_DEBUG
+				std::cout << "HIT: qualified" << std::endl;
+#endif
 				return result;
 			}
 		}
@@ -1533,6 +1594,9 @@ struct WalkerState
 				Declaration* result = ::findDeclaration(*templateParams, id, filter);
 				if(result != 0)
 				{
+#ifdef LOOKUP_DEBUG
+					std::cout << "HIT: templateParams" << std::endl;
+#endif
 					return result;
 				}
 			}
@@ -1540,9 +1604,15 @@ struct WalkerState
 			Declaration* result = ::findDeclaration(*enclosing, id, filter);
 			if(result != 0)
 			{
+#ifdef LOOKUP_DEBUG
+				std::cout << "HIT: unqualified" << std::endl;
+#endif
 				return result;
 			}
 		}
+#ifdef LOOKUP_DEBUG
+		std::cout << "FAIL" << std::endl;
+#endif
 		return &gUndeclared;
 	}
 
@@ -1986,7 +2056,6 @@ struct WalkerQualified : public WalkerBase
 };
 
 
-typedef bool (*IdentifierFunc)(const Declaration& declaration);
 
 bool isTypeName(const Declaration& declaration)
 {
@@ -2023,6 +2092,10 @@ const char* getIdentifierType(IdentifierFunc func)
 	if(func == isTemplateName)
 	{
 		return "template-name";
+	}
+	if(func == isNestedName)
+	{
+		return "nested-name";
 	}
 	return "<unknown>";
 }
@@ -5235,7 +5308,7 @@ cpp::declaration_seq* parseFile(ParserContext& lexer)
 	dumpProfile(gProfileIo);
 	dumpProfile(gProfileWave);
 	dumpProfile(gProfileParser);
-	dumpProfile(gProfileAmbiguity);
+	dumpProfile(gProfileLookup);
 	dumpProfile(gProfileDiagnose);
 	dumpProfile(gProfileAllocator);
 	dumpProfile(gProfileIdentifier);

@@ -30,7 +30,15 @@
 			- avoid copying 'global-type'
 			- use list instead of 'copied'
 		- don't track list of scopes/declarations unless debugging
-	- buffer tokens from lexer
+		
+- buffer tokens from lexer
+	- huge speed improvement
+	
+- optimise name-lookup
+	- hashtable?
+	- single global id table, id:scopes?
+		- how to sort scopes?
+	- trace name-lookup pattern
 	
 - remove disambiguation hacks
 	- init_declarator_disambiguate
@@ -155,7 +163,27 @@ STLPORT+TREE+SWAP+NODTOR
 	diagnose                      0
 	allocator              42071153
 	identifier             14853047
+
+BUFFERED LEXER
+- iostream
+	io                       626678
+	wave                   14295285
+	parser                 10937817
+	lookup                 11108735
+	diagnose                      0
+	allocator                 90220
+	identifier              2245122
 	
+NO LOOKUP PROFILE
+- iostream
+	io                       690777
+	wave                   16251974
+	parser                  3415241
+	lookup                  1579450
+	diagnose                      0
+	allocator                 89982
+	identifier              2356020
+		
 - faster lexer
 	- optimise boost::wave?
 	- custom lexer/preprocessor?
