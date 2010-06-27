@@ -4603,7 +4603,14 @@ struct SimpleDeclarationWalker : public WalkerBase
 #ifdef MINGLE
 	void visit(cpp::mem_initializer_clause* symbol)
 	{
-		result = defer(*WalkerState::deferred, *this, skipMemInitializerClause, symbol);
+		if(WalkerState::deferred != 0)
+		{
+			result = defer(*WalkerState::deferred, *this, skipMemInitializerClause, symbol);
+		}
+		else // in case of an out-of-line constructor-definition
+		{
+			TREEWALKER_WALK(*this, symbol);
+		}
 	}
 #endif
 
