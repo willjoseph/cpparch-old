@@ -1536,7 +1536,7 @@ struct WalkerContext : public TreeAllocator<int>
 	}
 };
 
-typedef std::list< DeferredParse<struct WalkerState> > DeferredSymbols;
+typedef std::list< DeferredParse<struct WalkerBase, struct WalkerState> > DeferredSymbols;
 
 
 typedef bool (*IdentifierFunc)(const Declaration& declaration);
@@ -1550,7 +1550,7 @@ struct WalkerState
 	: public ContextBase
 #endif
 {
-	typedef WalkerState Base;
+	typedef WalkerState State;
 
 	WalkerContext& context;
 	Scope* enclosing;
@@ -1854,12 +1854,17 @@ struct WalkerState
 
 struct WalkerBase : public WalkerState
 {
+	typedef WalkerBase Base;
+
 #if 1
 	typedef std::list<Scope, TreeAllocator<int> > Scopes;
 #else
 	typedef List<Scope, TreeAllocator<int> > Scopes;
 #endif
 
+	// Contains all elaborated-type-specifiers declared during the current parse.
+	// If these declarations have been added to a scope that has already been committed,
+	// when the parse fails, these declarations must be removed from their containing scope.
 	struct Declarations
 	{
 		typedef std::list<Declaration*, TreeAllocator<int> > List;
@@ -1905,6 +1910,10 @@ struct WalkerBase : public WalkerState
 		void swap(Declarations& other)
 		{
 			declarations.swap(other.declarations);
+		}
+		void erase(iterator first, iterator last)
+		{
+			declarations.erase(first, last);
 		}
 	};
 
@@ -1979,8 +1988,40 @@ struct WalkerBase : public WalkerState
 	}
 };
 
-
 // saves and restores the state in walker-base
+#if 0 // TODO: this optimisation is broken: fix it!
+struct ScopeGuard
+{
+	WalkerBase& base;
+#ifdef ALLOCATOR_DEBUG
+	WalkerBase::Scopes::iterator scopes;
+#endif
+	WalkerBase::Declarations::iterator declarations;
+	ScopeGuard(WalkerBase& base)
+		: base(base),
+#ifdef ALLOCATOR_DEBUG
+		scopes(base.scopes.end()),
+#endif
+		declarations(base.declarations.end())
+	{
+	}
+	~ScopeGuard()
+	{
+#ifdef ALLOCATOR_DEBUG
+		base.scopes.erase(scopes, base.scopes.end());
+#endif
+		base.declarations.erase(declarations, base.declarations.end());
+	}
+	// if parse succeeds, append new state to previous state
+	void hit()
+	{
+#ifdef ALLOCATOR_DEBUG
+		scopes = base.scopes.end();
+#endif
+		declarations = base.declarations.end();
+	}
+};
+#else
 struct ScopeGuard
 {
 	WalkerBase& base;
@@ -2016,7 +2057,7 @@ struct ScopeGuard
 		declarations.splice(declarations.end(), base.declarations);
 	}
 };
-
+#endif
 
 struct WalkerQualified : public WalkerBase
 {
@@ -2348,10 +2389,7 @@ struct QualifiedIdWalker : public WalkerQualified
 
 	void visit(cpp::terminal<boost::wave::T_COLON_COLON> symbol)
 	{
-		if(symbol.value != 0)
-		{
-			setQualifyingGlobal();
-		}
+		setQualifyingGlobal();
 	}
 	void visit(cpp::nested_name_specifier* symbol)
 	{
@@ -2361,10 +2399,7 @@ struct QualifiedIdWalker : public WalkerQualified
 	}
 	void visit(cpp::terminal<boost::wave::T_TEMPLATE> symbol)
 	{
-		if(symbol.value != 0)
-		{
-			isTemplate = true;
-		}
+		isTemplate = true;
 	}
 	void visit(cpp::unqualified_id* symbol)
 	{
@@ -2404,10 +2439,7 @@ struct IdExpressionWalker : public WalkerQualified
 	// HACK: for postfix-expression-member 
 	void visit(cpp::terminal<boost::wave::T_TEMPLATE> symbol)
 	{
-		if(symbol.value != 0)
-		{
-			isTemplate = true;
-		}
+		isTemplate = true;
 	}
 	void visit(cpp::qualified_id_default* symbol)
 	{
@@ -2954,10 +2986,7 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 	}
 	void visit(cpp::terminal<boost::wave::T_TEMPLATE> symbol)
 	{
-		if(symbol.value != 0)
-		{
-			isTemplate = true;
-		}
+		isTemplate = true;
 	}
 	void visit(cpp::identifier* symbol)
 	{
@@ -3108,10 +3137,7 @@ struct TypeSpecifierWalker : public WalkerQualified
 	}
 	void visit(cpp::terminal<boost::wave::T_COLON_COLON> symbol)
 	{
-		if(symbol.value != 0)
-		{
-			setQualifyingGlobal();
-		}
+		setQualifyingGlobal();
 	}
 	void visit(cpp::nested_name_specifier* symbol)
 	{
@@ -3191,10 +3217,7 @@ struct QualifiedDeclaratorIdWalker : public WalkerQualified
 	}
 	void visit(cpp::terminal<boost::wave::T_COLON_COLON> symbol)
 	{
-		if(symbol.value != 0)
-		{
-			setQualifyingGlobal();
-		}
+		setQualifyingGlobal();
 	}
 	void visit(cpp::nested_name_specifier* symbol)
 	{
@@ -3476,10 +3499,7 @@ struct UsingDeclarationWalker : public WalkerQualified
 	}
 	void visit(cpp::terminal<boost::wave::T_COLON_COLON> symbol)
 	{
-		if(symbol.value != 0)
-		{
-			setQualifyingGlobal();
-		}
+		setQualifyingGlobal();
 	}
 	void visit(cpp::nested_name_specifier* symbol)
 	{
@@ -3530,10 +3550,7 @@ struct UsingDirectiveWalker : public WalkerQualified
 	}
 	void visit(cpp::terminal<boost::wave::T_COLON_COLON> symbol)
 	{
-		if(symbol.value != 0)
-		{
-			setQualifyingGlobal();
-		}
+		setQualifyingGlobal();
 	}
 	void visit(cpp::nested_name_specifier* symbol)
 	{
@@ -3567,10 +3584,7 @@ struct NamespaceAliasDefinitionWalker : public WalkerQualified
 	}
 	void visit(cpp::terminal<boost::wave::T_COLON_COLON> symbol)
 	{
-		if(symbol.value != 0)
-		{
-			setQualifyingGlobal();
-		}
+		setQualifyingGlobal();
 	}
 	void visit(cpp::nested_name_specifier* symbol)
 	{
@@ -3656,10 +3670,6 @@ struct ClassSpecifierWalker : public WalkerBase
 		: WalkerBase(state), declaration(0), id(0), arguments(context), isUnion(false)
 	{
 	}
-	void walkDeferred()
-	{
-		parseDeferred(deferred, *parser);
-	};
 
 	void visit(cpp::class_head* symbol)
 	{
@@ -3694,11 +3704,15 @@ struct ClassSpecifierWalker : public WalkerBase
 	void visit(cpp::member_declaration* symbol)
 	{
 		MemberDeclarationWalker walker(getState());
-		if(walker.deferred == 0)
+		if(WalkerState::deferred == 0)
 		{
 			walker.deferred = &deferred;
 		}
 		TREEWALKER_WALK(walker, symbol);
+	}
+	void visit(cpp::terminal<boost::wave::T_RIGHTBRACE> symbol)
+	{
+		parseDeferred(deferred, *this);
 	}
 };
 
@@ -3782,10 +3796,7 @@ struct ElaboratedTypeSpecifierWalker : public WalkerQualified
 	}
 	void visit(cpp::terminal<boost::wave::T_COLON_COLON> symbol)
 	{
-		if(symbol.value != 0)
-		{
-			setQualifyingGlobal();
-		}
+		setQualifyingGlobal();
 	}
 	void visit(cpp::elaborated_type_specifier_default* symbol)
 	{
@@ -3908,10 +3919,7 @@ struct TypenameSpecifierWalker : public WalkerQualified
 
 	void visit(cpp::terminal<boost::wave::T_COLON_COLON> symbol)
 	{
-		if(symbol.value != 0)
-		{
-			setQualifyingGlobal();
-		}
+		setQualifyingGlobal();
 	}
 	void visit(cpp::terminal<boost::wave::T_TEMPLATE> symbol)
 	{
@@ -3989,7 +3997,6 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 		ClassSpecifierWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		type = walker.declaration;
-		walker.walkDeferred();
 		isUnion = walker.isUnion;
 	}
 	void visit(cpp::enum_specifier* symbol)
@@ -4113,6 +4120,9 @@ struct ControlStatementWalker : public WalkerBase
 	ControlStatementWalker(const WalkerState& state)
 		: WalkerBase(state)
 	{
+	}
+	void visit(cpp::terminal<boost::wave::T_LEFTPAREN> symbol)
+	{
 		pushScope(newScope(makeIdentifier(enclosing->getUniqueName()), SCOPETYPE_LOCAL));
 	}
 	void visit(cpp::condition_init* symbol)
@@ -4145,9 +4155,12 @@ struct CompoundStatementWalker : public WalkerBase
 	CompoundStatementWalker(const WalkerState& state)
 		: WalkerBase(state)
 	{
-		pushScope(newScope(makeIdentifier(enclosing->getUniqueName()), SCOPETYPE_LOCAL));
 	}
 
+	void visit(cpp::terminal<boost::wave::T_LEFTBRACE> symbol)
+	{
+		pushScope(newScope(makeIdentifier(enclosing->getUniqueName()), SCOPETYPE_LOCAL));
+	}
 	void visit(cpp::statement* symbol)
 	{
 		StatementWalker walker(getState());
@@ -4162,6 +4175,9 @@ struct HandlerWalker : public WalkerBase
 	HandlerWalker(const WalkerState& state)
 		: WalkerBase(state)
 	{
+	}
+	void visit(cpp::terminal<boost::wave::T_CATCH> symbol)
+	{
 		pushScope(newScope(makeIdentifier(enclosing->getUniqueName()), SCOPETYPE_LOCAL));
 	}
 	void visit(cpp::exception_declaration_default* symbol)
@@ -4169,6 +4185,11 @@ struct HandlerWalker : public WalkerBase
 		SimpleDeclarationWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		walker.commit();
+	}
+	void visit(cpp::compound_statement* symbol)
+	{
+		CompoundStatementWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
 	}
 };
 
@@ -4185,11 +4206,6 @@ struct HandlerSeqWalker : public WalkerBase
 		HandlerWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 	}
-	void visit(cpp::compound_statement* symbol)
-	{
-		CompoundStatementWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
-	}
 };
 
 struct QualifiedTypeNameWalker : public WalkerQualified
@@ -4202,10 +4218,7 @@ struct QualifiedTypeNameWalker : public WalkerQualified
 	}
 	void visit(cpp::terminal<boost::wave::T_COLON_COLON> symbol)
 	{
-		if(symbol.value != 0)
-		{
-			setQualifyingGlobal();
-		}
+		setQualifyingGlobal();
 	}
 	void visit(cpp::nested_name_specifier* symbol)
 	{
@@ -4486,52 +4499,34 @@ struct SimpleDeclarationWalker : public WalkerBase
 	}
 	void visit(cpp::terminal<boost::wave::T_ASSIGN> symbol)
 	{
-		if(symbol.value != 0)
-		{
-			commit();
-		}
+		commit();
 	}
 	void visit(cpp::terminal<boost::wave::T_TRY> symbol)
 	{
-		if(symbol.value != 0)
-		{
-			commit();
-		}
+		commit();
 	}
 	void visit(cpp::terminal<boost::wave::T_LEFTBRACE> symbol)
 	{
-		if(symbol.value != 0)
-		{
-			commit();
-		}
+		commit();
 	}
 	void visit(cpp::terminal<boost::wave::T_COMMA> symbol)
 	{
-		if(symbol.value != 0)
-		{
-			commit();
-		}
+		commit();
 	}
 	void visit(cpp::terminal<boost::wave::T_SEMICOLON> symbol)
 	{
-		if(symbol.value != 0)
-		{
-			commit();
-		}
+		commit();
 	}
 	void visit(cpp::terminal<boost::wave::T_COLON> symbol)
 	{
-		if(symbol.value != 0)
-		{
-			commit();
-		}
+		commit();
 	}
 
 	// handle assignment-expression(s) in initializer
 	void visit(cpp::default_parameter* symbol)
 	{
 #ifdef MINGLE
-		// todo: this fails if default-argument contains a template-name that is declared later in the class.
+		// todo: we cannot skip a default-argument if it contains a template-name that is declared later in the class.
 		// Comeau fails in this case too..
 		if(WalkerState::deferred != 0
 			&& templateParameter == INDEX_INVALID) // don't defer parse of default for non-type template-argument
@@ -4569,13 +4564,15 @@ struct SimpleDeclarationWalker : public WalkerBase
 		SEMANTIC_ASSERT(declaration != 0);
 		declaration->valueDependent.splice(walker.valueDependent);
 	}
-	void visit(cpp::statement_seq* symbol)
+
+	void visit(cpp::statement_seq_wrapper* symbol)
 	{
-		CompoundStatementWalker walker(getState());
+		ScopeGuard guard(*this);
+		pushScope(newScope(makeIdentifier(enclosing->getUniqueName()), SCOPETYPE_LOCAL));
 #ifdef MINGLE
 		if(WalkerState::deferred != 0)
 		{
-			result = defer(deferred, walker, skipBraced, symbol);
+			result = defer(*WalkerState::deferred, *this, skipBraced, symbol);
 			if(result == 0)
 			{
 				return;
@@ -4584,8 +4581,14 @@ struct SimpleDeclarationWalker : public WalkerBase
 		else
 #endif
 		{
-			TREEWALKER_WALK(walker, symbol);
+			TREEWALKER_WALK(*this, symbol);
 		}
+		guard.hit();
+	}
+	void visit(cpp::statement* symbol)
+	{
+		StatementWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
 	}
 	void visit(cpp::mem_initializer* symbol)
 	{
@@ -4600,7 +4603,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 #ifdef MINGLE
 	void visit(cpp::mem_initializer_clause* symbol)
 	{
-		result = defer(deferred, *this, skipMemInitializerClause, symbol);
+		result = defer(*WalkerState::deferred, *this, skipMemInitializerClause, symbol);
 	}
 #endif
 
@@ -4904,18 +4907,15 @@ struct NamespaceWalker : public WalkerBase
 	}
 	void visit(cpp::terminal<boost::wave::T_LEFTBRACE> symbol)
 	{
-		if(symbol.value != 0)
+		if(id != 0)
 		{
-			if(id != 0)
+			declaration = pointOfDeclaration(context, enclosing, *id, TYPE_NAMESPACE, 0);
+			id->dec.p = declaration;
+			if(declaration->enclosed == 0)
 			{
-				declaration = pointOfDeclaration(context, enclosing, *id, TYPE_NAMESPACE, 0);
-				id->dec.p = declaration;
-				if(declaration->enclosed == 0)
-				{
-					declaration->enclosed = newScope(*id, SCOPETYPE_NAMESPACE);
-				}
-				pushScope(declaration->enclosed);
+				declaration->enclosed = newScope(*id, SCOPETYPE_NAMESPACE);
 			}
+			pushScope(declaration->enclosed);
 		}
 	}
 	void visit(cpp::declaration* symbol)
@@ -5243,10 +5243,10 @@ void printSymbol(cpp::declaration_seq* p, const char* path)
 		WalkerContext context;
 		Walker::NamespaceWalker walker(context);
 		walker.visit(makeSymbol(p));
+#endif
 
 		SymbolPrinter printer(path);
 		printer.visit(makeSymbol(p));
-#endif
 	}
 	catch(SemanticError&)
 	{
@@ -5261,10 +5261,10 @@ void printSymbol(cpp::statement_seq* p, const char* path)
 		WalkerContext context;
 		Walker::NamespaceWalker walker(context);
 		walker.visit(makeSymbol(p));
+#endif
 
 		SymbolPrinter printer(path);
 		printer.visit(makeSymbol(p));
-#endif
 	}
 	catch(SemanticError&)
 	{
@@ -5285,8 +5285,8 @@ TreeAllocator<int> getAllocator(ParserContext& lexer)
 #ifdef MINGLE
 cpp::declaration_seq* parseFile(ParserContext& lexer)
 {
-	WalkerContext context(getAllocator(lexer));
-	Walker::NamespaceWalker walker(context);
+	WalkerContext& context = *new WalkerContext(getAllocator(lexer));
+	Walker::NamespaceWalker& walker = *new Walker::NamespaceWalker(context);
 	ParserGeneric<Walker::NamespaceWalker> parser(lexer, walker);
 
 	cpp::symbol_optional<cpp::declaration_seq> result(NULL);
@@ -5313,13 +5313,14 @@ cpp::declaration_seq* parseFile(ParserContext& lexer)
 	dumpProfile(gProfileAllocator);
 	dumpProfile(gProfileIdentifier);
 	dumpProfile(gProfileTemplateId);
+
 	return result;
 }
 
 cpp::statement_seq* parseFunction(ParserContext& lexer)
 {
-	WalkerContext context(getAllocator(lexer));
-	Walker::CompoundStatementWalker walker(context);
+	WalkerContext& context = *new WalkerContext(getAllocator(lexer));
+	Walker::CompoundStatementWalker& walker = *new Walker::CompoundStatementWalker(context);
 	ParserGeneric<Walker::CompoundStatementWalker> parser(lexer, walker);
 
 	cpp::symbol_optional<cpp::statement_seq> result(NULL);

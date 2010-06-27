@@ -41,13 +41,58 @@ struct LoadFile
 
 typedef LoadFile input_policy_type;
 
+struct LexNames
+{
+	typedef std::set<std::string, std::less<std::string>, DebugAllocator<std::string> > Identifiers;
+	Identifiers identifiers;
+	Identifiers filenames;
+
+	const char* makeIdentifier(const char* value)
+	{
+		ProfileScope profile(gProfileIdentifier);
+		return (*identifiers.insert(value).first).c_str();
+	}
+	const char* makeFilename(const char* value)
+	{
+		ProfileScope profile(gProfileIdentifier);
+		return (*filenames.insert(value).first).c_str();
+	}
+	FilePosition makeFilePosition(const LexFilePosition& position)
+	{
+		FilePosition result = {
+			makeFilename(position.get_file().c_str()),
+			position.get_line(),
+			position.get_column()
+		};
+		return result;
+	}
+};
+
+const char* findFilename(const char* path)
+{
+	const char* result = strrchr(path, '/');
+	if(result == 0)
+	{
+		result = path;
+	}
+	else
+	{
+		++result;
+	}
+	return result;
+}
+
 class Hooks : public boost::wave::context_policies::eat_whitespace<token_type>
 {
 public:
+	LexNames& names;
 	std::string includes[1024];
 	size_t depth;
 
-	Hooks() : depth(1)
+	size_t macroDepth;
+	FilePosition macroPosition;
+
+	Hooks(LexNames& names) : names(names), depth(1), macroDepth(0)
 	{
 		includes[0] = "$outer";
 	}
@@ -57,24 +102,54 @@ public:
 		std::string const &relname, std::string const& absname,
 		bool is_system_include)
 	{
-		const char* path = strrchr(relname.c_str(), '/');
-		if(path == 0)
-		{
-			path = relname.c_str();
-		}
-		else
-		{
-			++path;
-		}
-		includes[depth] = path;
-		std::cout << includes[depth - 1] << "  included: " << includes[depth] << std::endl;
+		includes[depth] = relname.c_str();
+		std::cout << findFilename(includes[depth - 1].c_str()) << "  included: " << findFilename(includes[depth].c_str()) << std::endl;
 		++depth;
 	}
 	template <typename ContextT>
 	void returning_from_include_file(ContextT const &ctx)
 	{
 		--depth;
-		std::cout << includes[depth - 1] << "  returned: " << includes[depth] << std::endl;
+		std::cout << findFilename(includes[depth - 1].c_str()) << "  returned: " << findFilename(includes[depth].c_str()) << std::endl;
+	}
+
+	template<typename ContextT, typename TokenT>
+	void expanding_macro(ContextT& ctx,const TokenT& macrocall)
+	{
+		if(++macroDepth == 1)
+		{
+			macroPosition = names.makeFilePosition(macrocall.get_position());
+		}
+	}
+    template <typename ContextT, typename TokenT, typename ContainerT, typename IteratorT>
+    bool 
+    expanding_function_like_macro(ContextT& ctx,
+        TokenT const& macrodef, std::vector<TokenT> const& formal_args, 
+        ContainerT const& definition,
+        TokenT const& macrocall, std::vector<ContainerT> const& arguments,
+        IteratorT const& seqstart, IteratorT const& seqend) 
+    {
+		expanding_macro(ctx, macrocall);
+		return false;
+	}
+    template <typename ContextT, typename TokenT, typename ContainerT>
+    bool 
+    expanding_object_like_macro(ContextT const& ctx, TokenT const& macro, 
+        ContainerT const& definition, TokenT const& macrocall)
+    {
+		expanding_macro(ctx, macrocall);
+		return false;
+	}
+    template <typename ContextT, typename ContainerT>
+    void rescanned_macro(ContextT const &ctx, ContainerT const &result)
+	{
+		LEXER_ASSERT(macroDepth != 0);
+		--macroDepth;
+	}
+
+	const char* getSourcePath() const
+	{
+		return includes[depth - 1].c_str();
 	}
 };
 
@@ -92,10 +167,10 @@ context_type;
 //  The preprocessing of the input stream is done on the fly behind the 
 //  scenes during iteration over the context_type::iterator_type stream.
 
-struct LexContext : public context_type
+struct LexContext : public context_type, public LexNames
 {
 	LexContext(std::string& instring, const char* input)
-		: context_type(instring.begin(), instring.end(), input)
+		: context_type(instring.begin(), instring.end(), input, *this)
 	{
 		set_language(boost::wave::language_support(
 			boost::wave::support_normal
@@ -214,7 +289,10 @@ Token* Lexer::read(Token* first, Token* last)
 					printer.printToken(token, token.get_value().c_str());
 				}
 #endif
-				*first++ = Token(token, makeIdentifier(token.get_value().c_str()), makeFilePosition(token.get_position()));
+				FilePosition position = context.get_hooks().macroDepth == 0
+					? context.makeFilePosition(token.get_position())
+					: context.get_hooks().macroPosition;
+				*first++ = Token(token, context.makeIdentifier(token.get_value().c_str()), position);
 			}
 		}
 		// if reached end of token stream, append EOF

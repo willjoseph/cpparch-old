@@ -1742,6 +1742,13 @@ namespace cpp
 		FOREACH2(item, next);
 	};
 
+	// HACK: allows statement_seq parse to be deferred
+	struct statement_seq_wrapper
+	{
+		symbol<statement_seq> wrapped;
+		FOREACH1(wrapped);
+	};
+
 	struct function_body : public choice<function_body>
 	{
 		VISITABLE_BASE(TYPELIST1(
@@ -1754,7 +1761,7 @@ namespace cpp
 		VISITABLE_DERIVED(statement);
 		VISITABLE_DERIVED(function_body);
 		terminal<boost::wave::T_LEFTBRACE> lb;
-		symbol_optional<statement_seq> body;
+		symbol_optional<statement_seq_wrapper> body;
 		terminal<boost::wave::T_RIGHTBRACE> rb;
 		FOREACH3(lb, body, rb);
 	};

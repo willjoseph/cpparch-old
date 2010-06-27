@@ -771,7 +771,9 @@ struct ParserGeneric : public ParserOpaque
 	template<typename T> \
 	void visit(T* symbol) \
 	{ \
+		ScopeGuard guard(*this); \
 		SYMBOL_WALK(*this, symbol); \
+		guard.hit(); \
 	} \
 	template<LexTokenId id> \
 	void visit(cpp::terminal<id> symbol) \
@@ -1115,38 +1117,43 @@ inline void skipMemInitializerClause(Parser& parser)
 
 
 
-template<typename ContextType, typename T>
+template<typename Walker, typename T>
 struct DeferredParseThunk
 {
-	static void* thunk(const typename ContextType::Base& base, void* p)
+	static void* thunk(typename Walker::Base& base, const typename Walker::State& state, void* p)
 	{
-		ContextType walker(base);
+		Walker walker(state);
 		T* symbol = static_cast<T*>(p);
-		return parseSymbol(walker.getParser(walker), symbol);
+		void* result = parseSymbol(walker.getParser(walker), symbol);
+		if(result != 0)
+		{
+			base.hit(walker);
+		}
+		return result;
 	}
 };
 
-template<typename ContextType>
+template<typename Base, typename ContextType>
 struct DeferredParseBase
 {
-	typedef void* (*Func)(ContextType&, void*);
-	ContextType context;
+	typedef void* (*Func)(Base&, const ContextType&, void*);
+	typename ContextType context;
 	void* symbol;
 	Func func;
 };
 
-template<typename ContextType>
-struct DeferredParse : public DeferredParseBase<ContextType>
+template<typename Base, typename ContextType>
+struct DeferredParse : public DeferredParseBase<Base, ContextType>
 {
 	BacktrackBuffer buffer;
 
 	// hack!
-	DeferredParse(const DeferredParseBase<ContextType>& base)
-		: buffer(), DeferredParseBase<ContextType>(base)
+	DeferredParse(const DeferredParseBase<Base, ContextType>& base)
+		: buffer(), DeferredParseBase<Base, ContextType>(base)
 	{
 	}
 	DeferredParse(const DeferredParse& other)
-		: buffer(), DeferredParseBase<ContextType>(other)
+		: buffer(), DeferredParseBase<Base, ContextType>(other)
 	{
 	}
 	DeferredParse& operator=(const DeferredParse& other)
@@ -1175,15 +1182,16 @@ struct ContextBase
 
 
 template<typename Walker, typename T>
-inline DeferredParse<typename Walker::Base> makeDeferredParse(const Walker& context, T* symbol)
+inline DeferredParse<typename Walker::Base, typename Walker::State> makeDeferredParse(const Walker& context, T* symbol)
 {
-	DeferredParseBase<typename Walker::Base> result = { context, symbol, DeferredParse<typename Walker::Base>::Func(DeferredParseThunk<Walker, T>::thunk) };
+	DeferredParseBase<typename Walker::Base, typename Walker::State> result = { context, symbol, DeferredParseThunk<Walker, T>::thunk };
 	return result;
 }
 
-template<typename ListType>
-inline void parseDeferred(ListType& deferred, ParserOpaque& parser)
+template<typename ListType, typename Walker>
+inline void parseDeferred(ListType& deferred, Walker& walker)
 {
+	ParserOpaque& parser = *walker.parser;
 	const Token* position = parser.lexer.position;
 	for(ListType::iterator i = deferred.begin(); i != deferred.end(); ++i)
 	{
@@ -1193,7 +1201,7 @@ inline void parseDeferred(ListType& deferred, ParserOpaque& parser)
 		parser.lexer.position = parser.lexer.error = parser.lexer.history.tokens;
 		item.context.parser = &parser;
 
-		void* result = item.func(item.context, item.symbol);
+		void* result = item.func(walker, item.context, item.symbol);
 
 		if(result == 0
 			|| parser.lexer.position != parser.lexer.history.end() - 1)

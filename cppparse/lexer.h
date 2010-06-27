@@ -258,6 +258,7 @@ typedef TokenPrinter<std::ofstream> FileTokenPrinter;
 typedef LinearAllocator<true> LexerAllocator;
 struct Lexer
 {
+	LexContext& context;
 	std::ofstream out;
 	FileTokenPrinter printer;
 
@@ -272,10 +273,6 @@ struct Lexer
 	Tokens::const_iterator position;
 	Tokens::const_iterator error;
 
-	typedef std::set<std::string, std::less<std::string>, DebugAllocator<std::string> > Identifiers;
-	Identifiers identifiers;
-	Identifiers filenames;
-
 	typedef std::vector<size_t> Positions;
 	Positions stacktrace;
 	Positions::iterator stackpos;
@@ -284,7 +281,8 @@ struct Lexer
 	bool maxBacktrack;
 
 	Lexer(LexContext& context, const char* path)
-		: out(path),
+		: context(context),
+		out(path),
 		printer(out),
 		first(createBegin(context)),
 		last(createEnd(context)),
@@ -340,22 +338,6 @@ struct Lexer
 			return;
 		}
 		position = ::advance(history, position, count);
-	}
-
-	const char* makeIdentifier(const char* value)
-	{
-		ProfileScope profile(gProfileIdentifier);
-		return (*identifiers.insert(value).first).c_str();
-	}
-	FilePosition makeFilePosition(const LexFilePosition& position)
-	{
-		ProfileScope profile(gProfileIdentifier);
-		FilePosition result = {
-			(*filenames.insert(position.get_file().c_str()).first).c_str(),
-			position.get_line(),
-			position.get_column()
-		};
-		return result;
 	}
 
 	bool finished() const

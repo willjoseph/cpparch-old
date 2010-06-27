@@ -26,7 +26,7 @@ struct ScopedSkip
 				*buffer.position++ = *first++;
 			}
 			FilePosition nullPos = { "$null.cpp", 0, 0 };
-			*buffer.position++ = Token(boost::wave::T_EOF, "", nullPos);
+			*buffer.position++ = Token(boost::wave::T_EOF, "", nullPos, "");
 
 			parser.position -= count;
 			parser.lexer.backtrack(count);
@@ -47,10 +47,11 @@ struct ScopedSkip
 	}
 };
 
-typedef std::list< DeferredParse<struct ContextDefer> > DeferredParseList;
+typedef std::list< DeferredParse<struct ContextDefer, struct ContextDefer> > DeferredParseList;
 
 struct ContextDefer : public ContextBase
 {
+	typedef ContextDefer State;
 	typedef ContextDefer Base;
 
 	DeferredParseList* deferred;
@@ -59,11 +60,24 @@ struct ContextDefer : public ContextBase
 		: deferred(0)
 	{
 	}
-};
 
+	void hit(Base& other)
+	{
+	}
+};
 
 struct ContextTest
 {
+	struct ScopeGuard
+	{
+		ScopeGuard(ContextDefer& base)
+		{
+		}
+		void hit()
+		{
+		}
+	};
+
 	struct DefaultContext : public ContextDefer
 	{
 		PARSERCONTEXT_DEFAULT;
@@ -75,7 +89,7 @@ struct ContextTest
 		{
 			ClassSpecifierContext walker(*this);
 			SYMBOL_WALK(walker, symbol);
-			parseDeferred(walker.deferred, *parser);
+			parseDeferred(walker.deferred, *this);
 		}
 	};
 	struct ClassSpecifierContext : public ContextDefer
@@ -185,6 +199,16 @@ struct ContextTest
 
 struct ContextN
 {
+	struct ScopeGuard
+	{
+		ScopeGuard(ContextBase& base)
+		{
+		}
+		void hit()
+		{
+		}
+	};
+
 	struct Context1 : public ContextBase
 	{
 		PARSERCONTEXT_DEFAULT;

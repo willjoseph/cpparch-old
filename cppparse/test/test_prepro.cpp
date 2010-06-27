@@ -1,6 +1,53 @@
 
-int x;
-int y;
+template<class _Traits>
+char* copy_s(int _Count)
+{
+}
+
+template<typename _Traits>
+class basic_string
+{
+	void append()
+	{
+		copy_s<_Traits>(_Myptr() + 0);
+	}
+	char* _Myptr() const
+	{
+		return 0;
+	}
+};
+
+
+class C
+{
+	void f()
+	{
+		int i;
+	}
+};
+
+
+struct S
+{
+	S(class D*) : d((D*)(class C*)0)
+	{
+	}
+	D* d;
+};
+
+void f()
+{
+	try
+	{
+	}
+	catch(...)
+	{
+		int i = 0;
+	}
+}
+
+
+
 
 #if 0
 namespace boost
