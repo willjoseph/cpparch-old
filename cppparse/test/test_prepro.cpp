@@ -1,4 +1,53 @@
 
+#if 0
+namespace N33
+{
+	template<typename T>
+	struct Fwd;
+	template<typename T>
+	struct Tmpl
+	{
+		//static const int i = Fwd<Tmpl>::value;
+	};
+}
+
+
+namespace boost
+{
+	template<bool x>
+	struct STATIC_ASSERTION_FAILURE;
+	template<>
+	struct STATIC_ASSERTION_FAILURE<true>
+	{
+		enum
+		{
+			value=1
+		};
+	};
+	template<int x>
+	struct static_assert_test
+	{
+	};
+}
+namespace boost
+{
+	namespace tuples
+	{
+		template<class T>
+		struct length;
+		template<class HT, class TT>
+		struct cons
+		{
+			cons&operator=(const cons&)
+			{
+				//typedef::boost::static_assert_test<sizeof(::boost::STATIC_ASSERTION_FAILURE<(bool)(length<cons>::value==2)>)>boost_static_assert_typedef___COUNTER__;
+				return*this;
+			}
+		};
+	}
+}
+#endif
+
 template<class _Traits>
 char* copy_s(int _Count)
 {

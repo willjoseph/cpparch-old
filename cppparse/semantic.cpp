@@ -265,26 +265,6 @@ private:
 	}
 };
 
-template<typename T, typename A>
-inline T* allocatorNew(const A& a, const T& value)
-{
-	typename A::template rebind<T>::other tmp(a);
-	T* p = tmp.allocate(1);
-	tmp.construct(p, value);
-	return p;
-}
-
-template<typename T, typename A>
-void allocatorDelete(const A& a, T* p)
-{
-	if(p != 0)
-	{
-		typename A::template rebind<T>::other tmp(a);
-		tmp.destroy(p);
-		tmp.deallocate(p, 1);
-	}
-}
-
 
 template<typename T, typename A>
 class Copied : private A
@@ -1690,16 +1670,6 @@ struct WalkerState
 #endif
 	}
 
-	Declaration* declareObject(Scope* parent, Identifier* id, const Type& type, Scope* enclosed, DeclSpecifiers specifiers, size_t templateParameter, const Dependent& valueDependent)
-	{
-		Declaration* declaration = pointOfDeclaration(context, parent, *id, type, enclosed, specifiers, enclosing == templateEnclosing, TEMPLATEARGUMENTS_NULL, templateParameter, valueDependent); // 3.3.1.1
-		if(id != &gAnonymousId)
-		{
-			id->dec.p = declaration;
-		}
-		return declaration;
-	}
-
 	Scope* findScope(Scope* scope, Scope* other)
 	{
 		if(scope == 0)
@@ -1960,11 +1930,23 @@ struct WalkerBase : public WalkerState
 		Scope* enclosed = templateParams != 0 ? templateParams : newScope(makeIdentifier("$class"));
 		enclosed->type = SCOPETYPE_CLASS; // convert template-param-scope to class-scope if present
 		Declaration* declaration = pointOfDeclaration(context, enclosing, id == 0 ? makeIdentifier(enclosing->getUniqueName()) : *id, TYPE_CLASS, enclosed, DeclSpecifiers(), enclosing == templateEnclosing, arguments);
+		declarations.push_back(declaration);
 		if(id != 0)
 		{
 			id->dec.p = declaration;
 		}
 		enclosed->name = declaration->name;
+		return declaration;
+	}
+
+	Declaration* declareObject(Scope* parent, Identifier* id, const Type& type, Scope* enclosed, DeclSpecifiers specifiers, size_t templateParameter, const Dependent& valueDependent)
+	{
+		Declaration* declaration = pointOfDeclaration(context, parent, *id, type, enclosed, specifiers, enclosing == templateEnclosing, TEMPLATEARGUMENTS_NULL, templateParameter, valueDependent); // 3.3.1.1
+		declarations.push_back(declaration);
+		if(id != &gAnonymousId)
+		{
+			id->dec.p = declaration;
+		}
 		return declaration;
 	}
 
@@ -1980,10 +1962,9 @@ struct WalkerBase : public WalkerState
 			smallest non-class, non-function-prototype scope that contains the declaration.
 			*/
 			Declaration* declaration = pointOfDeclaration(context, getEtsScope(), *forward, TYPE_CLASS, 0, DeclSpecifiers(), enclosing == templateEnclosing);
+			declarations.push_back(declaration);
 			forward->dec.p = declaration;
 			type = declaration;
-
-			declarations.push_back(declaration);
 		}
 	}
 };
@@ -3610,6 +3591,7 @@ struct NamespaceAliasDefinitionWalker : public WalkerQualified
 			{
 				// TODO: check for conflicts with earlier declarations
 				declaration = pointOfDeclaration(context, enclosing, *id, TYPE_NAMESPACE, declaration->enclosed);
+				declarations.push_back(declaration);
 			}
 			id->dec.p = declaration;
 		}
@@ -3734,6 +3716,7 @@ struct EnumeratorDefinitionWalker : public WalkerBase
 		*/
 		// TODO: give enumerators a type
 		declaration = pointOfDeclaration(context, enclosing, symbol->value, TYPE_ENUMERATOR, 0, DeclSpecifiers());
+		declarations.push_back(declaration);
 		symbol->value.dec.p = declaration;
 	}
 	void visit(cpp::constant_expression* symbol)
@@ -3777,6 +3760,7 @@ struct EnumSpecifierWalker : public WalkerBase
 		{
 			// unnamed enum
 			declaration = pointOfDeclaration(context, enclosing, makeIdentifier(enclosing->getUniqueName()), TYPE_ENUM, 0);
+			declarations.push_back(declaration);
 		}
 		EnumeratorDefinitionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
@@ -4494,6 +4478,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		if(walker.id != 0)
 		{
 			declaration = pointOfDeclaration(context, enclosing, *walker.id, type, 0, specifiers); // 3.3.1.1
+			declarations.push_back(declaration);
 			walker.id->dec.p = declaration;
 		}
 	}
@@ -4657,6 +4642,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		if(forward != 0)
 		{
 			declaration = pointOfDeclaration(context, enclosing, *forward, TYPE_CLASS, 0, DeclSpecifiers(), enclosing == templateEnclosing);
+			declarations.push_back(declaration);
 			forward->dec.p = declaration;
 			type = declaration;
 		}
@@ -4717,6 +4703,7 @@ struct TypeParameterWalker : public WalkerBase
 	{
 		TREEWALKER_LEAF(symbol);
 		Declaration* declaration = pointOfDeclaration(context, enclosing, symbol->value, TYPE_PARAM, 0, DECLSPEC_TYPEDEF, !params.empty(), TEMPLATEARGUMENTS_NULL, templateParameter);
+		declarations.push_back(declaration);
 		symbol->value.dec.p = declaration;
 		declaration->templateParamDefaults.swap(params);
 	}
@@ -4917,6 +4904,7 @@ struct NamespaceWalker : public WalkerBase
 		if(id != 0)
 		{
 			declaration = pointOfDeclaration(context, enclosing, *id, TYPE_NAMESPACE, 0);
+			declarations.push_back(declaration);
 			id->dec.p = declaration;
 			if(declaration->enclosed == 0)
 			{

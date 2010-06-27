@@ -42,6 +42,12 @@
 	
 - remove disambiguation hacks
 	- init_declarator_disambiguate
+	
+- handle errors
+	- if member-initializer parse fails, member declaration is already committed
+		- need to commit at point of declaration: failure to parse member-initializer is fatal
+		- detect that this is a fatal error and don't clean up symbols?
+		- for now, track all declarations and clean up if parse fails..
 
 - profile:
 - vector

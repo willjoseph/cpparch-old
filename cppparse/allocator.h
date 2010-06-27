@@ -92,7 +92,6 @@ struct AllocatorError
 
 #define ALLOCATOR_ASSERT(condition) if(!(condition)) { throw AllocatorError(); }
 
-
 #define ALLOCATOR_FREECHAR char(0xba)
 
 struct IsAllocated
@@ -105,7 +104,14 @@ struct IsAllocated
 
 inline bool isAllocated(const char* first, const char* last)
 {
-	return std::find_if(first, last, IsAllocated()) != last;
+	const char* p = std::find_if(first, last, IsAllocated());
+	if(p != last)
+	{
+		std::cout << "allocation at: " << static_cast<const void*>(p) << ": ";
+		std::cout.write(p, 4);
+		std::cout << std::endl;
+	}
+	return p != last;
 }
 
 struct Page
@@ -129,6 +135,8 @@ struct LinearAllocator
 	typedef std::vector<Page*> Pages;
 	Pages pages;
 	size_t position;
+	static void* debugAddress;
+	static char debugValue[4];
 	LinearAllocator()
 		: position(0)
 	{
@@ -194,6 +202,13 @@ struct LinearAllocator
 		position = original;
 	}	
 };
+
+
+template<bool checked>
+void* LinearAllocator<checked>::debugAddress;
+
+template<bool checked>
+char LinearAllocator<checked>::debugValue[4];
 
 typedef LinearAllocator<true> CheckedLinearAllocator;
 
@@ -298,6 +313,49 @@ inline bool operator!=(const LinearAllocatorWrapper<T>&, const LinearAllocatorWr
 	return false;
 }
 
+template<typename T>
+inline void checkAllocation(LinearAllocatorWrapper<T>& a, T* p)
+{
+	if(CheckedLinearAllocator::debugAddress == p)
+	{
+		std::cout << "debug allocation!" << std::endl;
+	}
+	if(CheckedLinearAllocator::debugAddress >= p && CheckedLinearAllocator::debugAddress < p + 1)
+	{
+		if(memcmp(CheckedLinearAllocator::debugAddress, CheckedLinearAllocator::debugValue, 1) == 0)
+		{
+			std::cout << "debug allocation!" << std::endl;
+		}
+	}
+}
+
+template<typename A, typename T>
+inline void checkAllocation(A& a, T* p)
+{
+	// by default, do nothing
+}
+
+
+template<typename T, typename A>
+inline T* allocatorNew(const A& a, const T& value)
+{
+	typename A::template rebind<T>::other tmp(a);
+	T* p = tmp.allocate(1);
+	tmp.construct(p, value);
+	checkAllocation(tmp, p);
+	return p;
+}
+
+template<typename T, typename A>
+void allocatorDelete(const A& a, T* p)
+{
+	if(p != 0)
+	{
+		typename A::template rebind<T>::other tmp(a);
+		tmp.destroy(p);
+		tmp.deallocate(p, 1);
+	}
+}
 
 #endif
 
