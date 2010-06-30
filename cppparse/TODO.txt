@@ -45,9 +45,14 @@
 	
 - handle errors
 	- if member-initializer parse fails, member declaration is already committed
+		- committed declaration cannot be deallocated (unless forward-declaration), causes allocator check failure
 		- need to commit at point of declaration: failure to parse member-initializer is fatal
 		- detect that this is a fatal error and don't clean up symbols?
 		- for now, track all declarations and clean up if parse fails..
+			- doubles parse time, optimise!
+			
+- bug: 
+c:\dev\boost_1_41_0\boost\wave\cpp_iteration_context.hpp(73)
 
 - profile:
 - vector

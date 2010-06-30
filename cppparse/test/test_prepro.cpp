@@ -1,5 +1,5 @@
 
-#if 0
+#if 1
 namespace N33
 {
 	template<typename T>
@@ -7,8 +7,22 @@ namespace N33
 	template<typename T>
 	struct Tmpl
 	{
-		//static const int i = Fwd<Tmpl>::value;
+		static const int i = Fwd<Tmpl>::value; // if type is the current instantation, it is dependent on the template parameters
 	};
+}
+namespace N34
+{
+	template<typename T>
+	struct Fwd
+	{
+		static const int value = 0;
+	};
+	template<typename T>
+	struct Tmpl
+	{
+		typedef Fwd<Tmpl> Type;
+	};
+	static const int i = Tmpl<int>::Type::value; // 'Type' is not a dependent-type
 }
 
 
@@ -47,6 +61,10 @@ namespace boost
 	}
 }
 #endif
+
+void f(int _Count)
+{
+}
 
 template<class _Traits>
 char* copy_s(int _Count)

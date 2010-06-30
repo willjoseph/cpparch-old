@@ -344,14 +344,16 @@ namespace std
 
 typedef Copied<Type, TreeAllocator<int> > Qualifying;
 
+
 struct Type
 {
 	Declaration* declaration;
 	TemplateArguments arguments;
 	Qualifying qualifying;
+	bool isImplicitTemplateId; // true if template-argument-clause has not been specified
 	mutable bool visited;
 	Type(Declaration* declaration, const TreeAllocator<int>& allocator)
-		: declaration(declaration), arguments(allocator), qualifying(allocator), visited(false)
+		: declaration(declaration), arguments(allocator), qualifying(allocator), isImplicitTemplateId(false), visited(false)
 	{
 	}
 	void swap(Type& other)
@@ -359,6 +361,7 @@ struct Type
 		std::swap(declaration, other.declaration);
 		std::swap(arguments, other.arguments);
 		std::swap(qualifying, other.qualifying);
+		std::swap(isImplicitTemplateId, other.isImplicitTemplateId);
 	}
 	Type& operator=(Declaration* declaration)
 	{
@@ -486,6 +489,8 @@ const size_t INDEX_INVALID = size_t(-1);
 
 #define TEMPLATEARGUMENTS_NULL TemplateArguments(TREEALLOCATOR_NULL)
 
+typedef std::list<struct Declaration*, TreeAllocator<int> > DeclarationList;
+
 struct Declaration
 {
 	Scope* scope;
@@ -496,6 +501,7 @@ struct Declaration
 	Dependent valueDependent;
 	DeclSpecifiers specifiers;
 	size_t templateParameter;
+	DeclarationList templateParams;
 	Types templateParamDefaults;
 	TemplateArguments arguments;
 	bool isTemplate;
@@ -519,6 +525,7 @@ struct Declaration
 		valueDependent(valueDependent),
 		specifiers(specifiers),
 		templateParameter(templateParameter),
+		templateParams(allocator),
 		templateParamDefaults(allocator),
 		arguments(arguments),
 		isTemplate(isTemplate)
@@ -1031,9 +1038,28 @@ bool isDependentInternal(const Type& type, const DependentContext& context)
 	{
 		return true;
 	}
-	if(isDependent(original.arguments, context))
+	if(original.isImplicitTemplateId)
 	{
-		return true;
+		if(original.declaration->templateParams.empty())
+		{
+			// we haven't finished parsing the class-declaration.
+			// we can assume 'original' refers to the current-instantation.
+			return true;
+		}
+		for(DeclarationList::const_iterator i = original.declaration->templateParams.begin(); i != original.declaration->templateParams.end(); ++i)
+		{
+			if(isDependent(Type(*i, TREEALLOCATOR_NULL), context))
+			{
+				return true;
+			}
+		}
+	}
+	else
+	{
+		if(isDependent(original.arguments, context))
+		{
+			return true;
+		}
 	}
 	Scope* enclosed = original.declaration->enclosed;
 	if(enclosed != 0)
@@ -2921,6 +2947,7 @@ struct TypeNameWalker : public WalkerBase
 		: WalkerBase(state), type(0, context), filter(filter), isTypename(isTypename)
 	{
 	}
+
 	void visit(cpp::identifier* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
@@ -2933,8 +2960,9 @@ struct TypeNameWalker : public WalkerBase
 				return reportIdentifierMismatch(symbol, symbol->value, declaration, "type-name");
 			}
 			type.declaration = declaration;
+			type.isImplicitTemplateId = declaration->isTemplate;
 			symbol->value.dec.p = declaration;
-		}
+ 		}
 		else if(!isTypename)
 		{
 			return reportIdentifierMismatch(symbol, symbol->value, &gUndeclared, "typename");
@@ -4167,8 +4195,9 @@ struct HandlerWalker : public WalkerBase
 	void visit(cpp::exception_declaration_default* symbol)
 	{
 		SimpleDeclarationWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
+		TREEWALKER_WALK_NOHIT(walker, symbol);
 		walker.commit();
+		hit(walker);
 	}
 	void visit(cpp::compound_statement* symbol)
 	{
@@ -4391,15 +4420,17 @@ struct SimpleDeclarationWalker : public WalkerBase
 	void visit(cpp::parameter_declaration_default* symbol)
 	{
 		SimpleDeclarationWalker walker(getState(), isParameter, templateParameter);
-		TREEWALKER_WALK(walker, symbol);
+		TREEWALKER_WALK_NOHIT(walker, symbol);
 		walker.commit();
+		hit(walker);
 	}
 	// when parsing parameter-declaration, ensure that state of walker does not persist after failing parameter-declaration-abstract
 	void visit(cpp::parameter_declaration_abstract* symbol)
 	{
 		SimpleDeclarationWalker walker(getState(), isParameter, templateParameter);
-		TREEWALKER_WALK(walker, symbol);
+		TREEWALKER_WALK_NOHIT(walker, symbol);
 		walker.commit();
+		hit(walker);
 	}
 	void visit(cpp::decl_specifier_seq* symbol)
 	{
@@ -4692,33 +4723,35 @@ struct TypeParameterWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Type param; // the default argument for this param
-	Types params; // the default arguments for this param's template-params (if template-template-param)
+	Declaration* declaration;
+	Type argument; // the default argument for this param
+	DeclarationList params;
+	Types arguments; // the default arguments for this param's template-params (if template-template-param)
 	size_t templateParameter;
 	TypeParameterWalker(const WalkerState& state, size_t templateParameter)
-		: WalkerBase(state), param(0, context), templateParameter(templateParameter), params(context)
+		: WalkerBase(state), declaration(0), argument(0, context), params(context), arguments(context), templateParameter(templateParameter)
 	{
 	}
 	void visit(cpp::identifier* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		Declaration* declaration = pointOfDeclaration(context, enclosing, symbol->value, TYPE_PARAM, 0, DECLSPEC_TYPEDEF, !params.empty(), TEMPLATEARGUMENTS_NULL, templateParameter);
+		declaration = pointOfDeclaration(context, enclosing, symbol->value, TYPE_PARAM, 0, DECLSPEC_TYPEDEF, !arguments.empty(), TEMPLATEARGUMENTS_NULL, templateParameter);
 		declarations.push_back(declaration);
 		symbol->value.dec.p = declaration;
-		declaration->templateParamDefaults.swap(params);
+		declaration->templateParamDefaults.swap(arguments);
 	}
 	void visit(cpp::type_id* symbol)
 	{
-		SEMANTIC_ASSERT(params.empty());
+		SEMANTIC_ASSERT(arguments.empty());
 		TypeIdWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		param.swap(walker.type);
+		argument.swap(walker.type);
 	}
 	void visit(cpp::template_parameter_list* symbol)
 	{
 		TemplateParameterListWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		params.swap(walker.params);
+		arguments.swap(walker.arguments);
 	}
 	void visit(cpp::id_expression* symbol)
 	{
@@ -4742,9 +4775,10 @@ struct TemplateParameterListWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Types params;
+	DeclarationList params;
+	Types arguments;
 	TemplateParameterListWalker(const WalkerState& state)
-		: WalkerBase(state), params(context)
+		: WalkerBase(state), params(context), arguments(context)
 	{
 		// collect template-params into a new scope
 		Scope* scope = templateParams != 0 ? templateParams : newScope(makeIdentifier("$template"), SCOPETYPE_TEMPLATE);
@@ -4755,22 +4789,24 @@ struct TemplateParameterListWalker : public WalkerBase
 	{
 		TypeParameterWalker walker(getState(), params.size());
 		TREEWALKER_WALK(walker, symbol);
-		params.push_back(Type(0, context));
-		params.back().swap(walker.param);
+		params.push_back(walker.declaration);
+		arguments.push_back(Type(0, context));
+		arguments.back().swap(walker.argument);
 	}
 	void visit(cpp::type_parameter_template* symbol)
 	{
 		TypeParameterWalker walker(getState(), params.size());
 		TREEWALKER_WALK(walker, symbol);
-		params.push_back(Type(0, context));
-		params.back().swap(walker.param);
+		params.push_back(walker.declaration);
+		arguments.push_back(Type(0, context));
+		arguments.back().swap(walker.argument);
 	}
 	void visit(cpp::parameter_declaration* symbol)
 	{
 		SimpleDeclarationWalker walker(getState(), false, params.size());
 		TREEWALKER_WALK(walker, symbol);
-		// push a dummy param so that we have the same number of template-params as template-arguments
-		params.push_back(Type(0, context)); // TODO: default value for non-type template-param
+		params.push_back(walker.declaration);
+		arguments.push_back(Type(0, context)); // TODO: default value for non-type template-param
 	}
 };
 
@@ -4779,9 +4815,10 @@ struct TemplateDeclarationWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	Declaration* declaration;
-	Types params;
+	DeclarationList params;
+	Types arguments;
 	TemplateDeclarationWalker(const WalkerState& state)
-		: WalkerBase(state), declaration(0), params(context)
+		: WalkerBase(state), declaration(0), params(context), arguments(context)
 	{
 		templateEnclosing = enclosing;
 	}
@@ -4792,13 +4829,15 @@ struct TemplateDeclarationWalker : public WalkerBase
 		templateParams = walker.enclosing;
 		enclosing = walker.enclosing->parent;
 		params.swap(walker.params);
+		arguments.swap(walker.arguments);
 	}
 	void visit(cpp::declaration* symbol)
 	{
 		DeclarationWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		declaration = walker.declaration;
-		declaration->templateParamDefaults.swap(params);
+		declaration->templateParams.swap(params);
+		declaration->templateParamDefaults.swap(arguments);
 		SEMANTIC_ASSERT(declaration != 0);
 	}
 	void visit(cpp::member_declaration* symbol)
@@ -4806,7 +4845,8 @@ struct TemplateDeclarationWalker : public WalkerBase
 		MemberDeclarationWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		declaration = walker.declaration;
-		declaration->templateParamDefaults.swap(params);
+		declaration->templateParams.swap(params);
+		declaration->templateParamDefaults.swap(arguments);
 		SEMANTIC_ASSERT(declaration != 0);
 	}
 };
