@@ -1,4 +1,17 @@
 
+namespace N2
+{
+	namespace N
+	{
+		int i;
+	}
+	void f()
+	{
+		using N::i;
+
+		int j = i;
+	}
+}
 namespace N
 {
 	struct S;

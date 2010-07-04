@@ -4140,6 +4140,11 @@ struct StatementWalker : public WalkerBase
 		TREEWALKER_LEAF(symbol);
 		// TODO
 	}
+	void visit(cpp::using_declaration* symbol)
+	{
+		UsingDeclarationWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+	}
 	void visit(cpp::using_directive* symbol)
 	{
 		UsingDirectiveWalker walker(getState());
