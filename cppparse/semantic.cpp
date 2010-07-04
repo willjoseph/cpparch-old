@@ -1670,6 +1670,18 @@ struct WalkerState
 					printPosition(declaration->name.position);
 					throw SemanticError();
 				}
+
+				if(isClass(other)
+					&& isClass(*declaration)
+					&& isIncomplete(*declaration)) // if this class-declaration was previously forward-declared
+				{
+					// quick hack - complete all previous forward-declarations, in case they are referenced by typedefs
+					for(Declaration* p = declaration; p != 0; p = p->overloaded)
+					{
+						p->enclosed = other.enclosed;
+					}
+				}
+
 				if(!isNamespace(other)
 					&& !isType(other)
 					&& isFunction(other))
@@ -1956,7 +1968,9 @@ struct WalkerBase : public WalkerState
 		Scope* enclosed = templateParams != 0 ? templateParams : newScope(makeIdentifier("$class"));
 		enclosed->type = SCOPETYPE_CLASS; // convert template-param-scope to class-scope if present
 		Declaration* declaration = pointOfDeclaration(context, enclosing, id == 0 ? makeIdentifier(enclosing->getUniqueName()) : *id, TYPE_CLASS, enclosed, DeclSpecifiers(), enclosing == templateEnclosing, arguments);
+#ifdef ALLOCATOR_DEBUG
 		declarations.push_back(declaration);
+#endif
 		if(id != 0)
 		{
 			id->dec.p = declaration;
@@ -1968,7 +1982,9 @@ struct WalkerBase : public WalkerState
 	Declaration* declareObject(Scope* parent, Identifier* id, const Type& type, Scope* enclosed, DeclSpecifiers specifiers, size_t templateParameter, const Dependent& valueDependent)
 	{
 		Declaration* declaration = pointOfDeclaration(context, parent, *id, type, enclosed, specifiers, enclosing == templateEnclosing, TEMPLATEARGUMENTS_NULL, templateParameter, valueDependent); // 3.3.1.1
+#ifdef ALLOCATOR_DEBUG
 		declarations.push_back(declaration);
+#endif
 		if(id != &gAnonymousId)
 		{
 			id->dec.p = declaration;
@@ -3619,7 +3635,9 @@ struct NamespaceAliasDefinitionWalker : public WalkerQualified
 			{
 				// TODO: check for conflicts with earlier declarations
 				declaration = pointOfDeclaration(context, enclosing, *id, TYPE_NAMESPACE, declaration->enclosed);
+#ifdef ALLOCATOR_DEBUG
 				declarations.push_back(declaration);
+#endif
 			}
 			id->dec.p = declaration;
 		}
@@ -3744,7 +3762,9 @@ struct EnumeratorDefinitionWalker : public WalkerBase
 		*/
 		// TODO: give enumerators a type
 		declaration = pointOfDeclaration(context, enclosing, symbol->value, TYPE_ENUMERATOR, 0, DeclSpecifiers());
+#ifdef ALLOCATOR_DEBUG
 		declarations.push_back(declaration);
+#endif
 		symbol->value.dec.p = declaration;
 	}
 	void visit(cpp::constant_expression* symbol)
@@ -3788,7 +3808,9 @@ struct EnumSpecifierWalker : public WalkerBase
 		{
 			// unnamed enum
 			declaration = pointOfDeclaration(context, enclosing, makeIdentifier(enclosing->getUniqueName()), TYPE_ENUM, 0);
+#ifdef ALLOCATOR_DEBUG
 			declarations.push_back(declaration);
+#endif
 		}
 		EnumeratorDefinitionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
@@ -4509,7 +4531,9 @@ struct SimpleDeclarationWalker : public WalkerBase
 		if(walker.id != 0)
 		{
 			declaration = pointOfDeclaration(context, enclosing, *walker.id, type, 0, specifiers); // 3.3.1.1
+#ifdef ALLOCATOR_DEBUG
 			declarations.push_back(declaration);
+#endif
 			walker.id->dec.p = declaration;
 		}
 	}
@@ -4673,7 +4697,9 @@ struct SimpleDeclarationWalker : public WalkerBase
 		if(forward != 0)
 		{
 			declaration = pointOfDeclaration(context, enclosing, *forward, TYPE_CLASS, 0, DeclSpecifiers(), enclosing == templateEnclosing);
+#ifdef ALLOCATOR_DEBUG
 			declarations.push_back(declaration);
+#endif
 			forward->dec.p = declaration;
 			type = declaration;
 		}
@@ -4736,7 +4762,9 @@ struct TypeParameterWalker : public WalkerBase
 	{
 		TREEWALKER_LEAF(symbol);
 		declaration = pointOfDeclaration(context, enclosing, symbol->value, TYPE_PARAM, 0, DECLSPEC_TYPEDEF, !arguments.empty(), TEMPLATEARGUMENTS_NULL, templateParameter);
+#ifdef ALLOCATOR_DEBUG
 		declarations.push_back(declaration);
+#endif
 		symbol->value.dec.p = declaration;
 		declaration->templateParamDefaults.swap(arguments);
 	}
@@ -4944,7 +4972,9 @@ struct NamespaceWalker : public WalkerBase
 		if(id != 0)
 		{
 			declaration = pointOfDeclaration(context, enclosing, *id, TYPE_NAMESPACE, 0);
+#ifdef ALLOCATOR_DEBUG
 			declarations.push_back(declaration);
+#endif
 			id->dec.p = declaration;
 			if(declaration->enclosed == 0)
 			{

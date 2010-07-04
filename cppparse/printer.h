@@ -9,7 +9,7 @@ inline bool isSeparated(LexTokenId id)
 {
 	return IS_CATEGORY(id, boost::wave::KeywordTokenType)
 		|| IS_CATEGORY(id, boost::wave::IdentifierTokenType)
-		|| IS_CATEGORY(id, boost::wave::LiteralTokenType)
+		|| (CATEGORY_FROM_TOKEN(id) & boost::wave::LiteralTokenType) != 0
 		|| id == boost::wave::T_PP_NUMBER; // TODO: should wave ever emit one of these? should be T_INTLIT?
 }
 
@@ -107,8 +107,12 @@ struct TokenPrinter
 			&& isSeparated(id))
 			|| prev == boost::wave::T_COMMA
 			|| prev == boost::wave::T_COLON
+			|| prev == boost::wave::T_RETURN
+			|| prev == boost::wave::T_TYPEDEF
 			|| (prev == boost::wave::T_GREATER
 				&& id == boost::wave::T_GREATER) // '>>'
+			|| (prev == boost::wave::T_AND
+				&& id == boost::wave::T_ASSIGN) // '&='
 			|| (prev == boost::wave::T_STAR
 				&& id == boost::wave::T_ASSIGN) // '*='
 			|| (prev == boost::wave::T_LESS

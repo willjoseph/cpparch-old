@@ -1,4 +1,123 @@
 
+namespace N42
+{
+	template<typename T>
+	struct Blah
+	{
+		typedef typename T::template X<T::value> Type;
+	};
+}
+
+namespace N41
+{
+	class C
+	{
+		// symbols may be deferred during attempt to parse 'void f(int i = j) {}'
+		// first tried as 'void f(int i = j);', fails on reaching '{'
+		void f(int i = j)
+		{
+		}
+
+		static const int j = 0;
+	};
+}
+
+namespace N40
+{ 
+	template<class T, void (T::*)()>
+	struct S
+	{
+	};
+}
+
+namespace N39
+{
+	namespace N
+	{
+		template<class>
+		struct S;
+	}
+
+	class C
+	{
+		template<class>
+		friend struct N::S;
+	};
+}
+
+namespace N38
+{
+	template<typename T>
+	struct S
+	{
+		S(const char*, int);
+	};
+
+	const int i = 0;
+	const char* p = 0;
+
+	void f()
+	{
+		const S<int> node(p, i); // bug causes 'p' to be recognised when ',' is encountered - recognition should be deferred until ';'
+	}
+}
+
+namespace N37
+{
+	template<typename T>
+	struct S
+	{
+		S(int)
+		{
+		}
+	};
+
+	inline void f(int i)
+	{
+		(S<int (*)(int)>(i));
+	}
+}
+
+namespace N36
+{
+	template<typename T = int>
+	class DummyTmpl
+	{
+	};
+
+
+	template<template<typename X> class T = N36::DummyTmpl>
+	class TestTemplateTemplateParam
+	{
+	};
+}
+
+namespace N35
+{
+	template<typename T>
+	struct Fwd;
+	template<typename T>
+	struct Tmpl
+	{
+		static const int i = Fwd<Tmpl>::value; // if type is the current instantation, it is dependent on the template parameters
+	};
+}
+
+namespace N34
+{
+	template<typename T>
+	struct Fwd
+	{
+		static const int value = 0;
+	};
+	template<typename T>
+	struct Tmpl
+	{
+		typedef Fwd<Tmpl> Type;
+	};
+	static const int i = Tmpl<int>::Type::value; // 'Type' is not a dependent-type
+}
+
 #if 1
 namespace N85
 {
