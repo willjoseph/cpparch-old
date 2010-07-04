@@ -2,8 +2,6 @@
 #ifndef INCLUDED_CPPPARSE_CPPTREE_H
 #define INCLUDED_CPPPARSE_CPPTREE_H
 
-#include <string>
-
 #include "visitor.h"
 
 #include <boost/wave/token_ids.hpp>

@@ -1,5 +1,8 @@
 
 
+- macro dependencies
+	- associate macro definitions/uses with source files
+
 - check that include-path search order is consistent with MSVC/GCC
 
 - test parser for completeness and compliance
@@ -34,7 +37,7 @@
 - buffer tokens from lexer
 	- huge speed improvement
 	
-- optimise name-lookup
+- optimise name-lookup?
 	- hashtable?
 	- single global id table, id:scopes?
 		- how to sort scopes?
@@ -50,9 +53,12 @@
 		- detect that this is a fatal error and don't clean up symbols?
 		- for now, track all declarations and clean up if parse fails..
 			- doubles parse time, optimise!
+			- don't track declarations (except forward-decl) unless ALLOCATOR_DEBUG
 			
-- bug: 
-c:\dev\boost_1_41_0\boost\wave\cpp_iteration_context.hpp(73)
+- clean up test code
+			
+- bug: random crash parsing cppparse.cpp?
+- bug: infinite loop in cpptree.h?
 
 - profile:
 - vector

@@ -147,6 +147,18 @@ public:
 		--macroDepth;
 	}
 
+    template <
+        typename ContextT, typename TokenT, typename ParametersT, 
+        typename DefinitionT
+    >
+    void
+    defined_macro(ContextT const& ctx, TokenT const& macro_name, 
+        bool is_functionlike, ParametersT const& parameters, 
+        DefinitionT const& definition, bool is_predefined)
+    {
+		std::cout << "defined macro: " << macro_name.get_value().c_str() << std::endl;
+	}
+
 	const char* getSourcePath() const
 	{
 		return includes[depth - 1].c_str();
@@ -277,8 +289,12 @@ Token* Lexer::read(Token* first, Token* last)
 		for(; this->first != this->last; ++makeBase(this->first))
 		{
 			const token_type& token = *makeBase(this->first);
-			if(!isWhiteSpace(token)) // note: not passing EOF through, as Wave appears to generate EOF tokens mid-stream
+			if(!isWhiteSpace(token))
 			{
+				if(isEOF(token))
+				{
+					continue; // note: not passing EOF through, as Wave appears to generate EOF tokens mid-stream
+				}
 				if(first == last)
 				{
 					break;

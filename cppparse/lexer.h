@@ -69,8 +69,7 @@ inline bool isEOF(LexTokenId token)
 inline bool isWhiteSpace(LexTokenId token)
 {
 	return IS_CATEGORY(token, boost::wave::WhiteSpaceTokenType)
-		|| IS_CATEGORY(token, boost::wave::EOLTokenType)
-		|| isEOF(token);
+		|| IS_CATEGORY(token, boost::wave::EOLTokenType);
 }
 
 struct Token

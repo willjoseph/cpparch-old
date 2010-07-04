@@ -1,4 +1,33 @@
 
+
+namespace N44
+{
+	namespace N
+	{
+		int i;
+	}
+	void f()
+	{
+		using N::i;
+
+		int j = i; // using-declaration in function-body
+	}
+}
+
+namespace N43
+{
+	struct S;
+
+	typedef S T;
+
+	struct S
+	{
+		static const int i = 0;
+	};
+	// TODO: causes crash?
+	//int i = N::T::i; // typedef 'T' declared for incomplete type 'S'
+}
+
 namespace N42
 {
 	template<typename T>
