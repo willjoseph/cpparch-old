@@ -65,6 +65,28 @@ namespace cpp
 		}
 	};
 
+	template<typename T>
+	struct symbol_sequence : public symbol<T>
+	{
+		symbol_sequence()
+		{
+		}
+		explicit symbol_sequence(T* p) : symbol<T>(p)
+		{
+		}
+	};
+
+	template<typename T>
+	struct symbol_next : public symbol<T>
+	{
+		symbol_next()
+		{
+		}
+		explicit symbol_next(T* p) : symbol<T>(p)
+		{
+		}
+	};
+
 #define SYMBOLFWD(T) struct T
 
 	template<typename T>
@@ -97,6 +119,7 @@ namespace cpp
 	{
 		const char* value;
 		FilePosition position;
+		const char* source;
 		decoration dec;
 	};
 
@@ -1736,14 +1759,14 @@ namespace cpp
 	struct statement_seq
 	{
 		symbol<statement> item;
-		symbol_optional<statement_seq> next;
+		symbol_next<statement_seq> next;
 		FOREACH2(item, next);
 	};
 
 	// HACK: allows statement_seq parse to be deferred
 	struct statement_seq_wrapper
 	{
-		symbol<statement_seq> wrapped;
+		symbol_sequence<statement_seq> wrapped;
 		FOREACH1(wrapped);
 	};
 
@@ -1814,6 +1837,8 @@ namespace cpp
 
 	struct declaration : public choice<declaration>, public linkage_specification_suffix
 	{
+		IncludeEvents events;
+		const char* source;
 		VISITABLE_DERIVED(linkage_specification_suffix);
 		VISITABLE_BASE(TYPELIST8(
 			SYMBOLFWD(linkage_specification),
@@ -2733,7 +2758,7 @@ namespace cpp
 	struct declaration_seq
 	{
 		symbol<declaration> item;
-		symbol_optional<declaration_seq> next;
+		symbol_next<declaration_seq> next;
 		FOREACH2(item, next);
 	};
 
@@ -2786,7 +2811,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(linkage_specification_suffix);
 		terminal<boost::wave::T_LEFTBRACE> lb;
-		symbol_optional<declaration_seq> decl;
+		symbol_sequence<declaration_seq> decl;
 		terminal<boost::wave::T_RIGHTBRACE> rb;
 		FOREACH3(lb, decl, rb);
 	};
@@ -2808,7 +2833,7 @@ namespace cpp
 		terminal<boost::wave::T_NAMESPACE> key;
 		symbol_optional<identifier> id;
 		terminal<boost::wave::T_LEFTBRACE> lb;
-		symbol_optional<namespace_body> body;
+		symbol_sequence<namespace_body> body;
 		terminal<boost::wave::T_RIGHTBRACE> rb;
 		FOREACH5(key, id, lb, body, rb);
 	};

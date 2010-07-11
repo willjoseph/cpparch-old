@@ -12,6 +12,7 @@ inline cpp::identifier* parseSymbol(ParserType& parser, cpp::identifier* result)
 	{
 		result->value.value = parser.get_value();
 		result->value.position = parser.get_position();
+		result->value.source = parser.get_source();
 		parser.increment();
 		return result;
 	}
@@ -2321,6 +2322,7 @@ inline cpp::declaration* parseSymbol(Parser& parser, cpp::declaration* result)
 inline cpp::declaration_seq* parseSymbol(Parser& parser, cpp::declaration_seq* result)
 {
 	PARSE_REQUIRED(parser, result->item);
+	// don't parse 'next'
 	return result;
 }
 

@@ -5,6 +5,7 @@
 #include "cpptree.h"
 #include "printer.h"
 #include "profiler.h"
+#include "util.h"
 
 #include "parser/symbols.h"
 
@@ -4086,6 +4087,31 @@ struct TryBlockWalker : public WalkerBase
 	}
 };
 
+struct LabeledStatementWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	LabeledStatementWalker(const WalkerState& state)
+		: WalkerBase(state)
+	{
+	}
+	void visit(cpp::identifier* symbol)
+	{
+		TREEWALKER_LEAF(symbol);
+		// TODO: goto label
+	}
+	void visit(cpp::constant_expression* symbol)
+	{
+		ExpressionWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+	}
+	void visit(cpp::statement* symbol)
+	{
+		StatementWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+	}
+};
+
 struct StatementWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
@@ -4139,6 +4165,11 @@ struct StatementWalker : public WalkerBase
 	{
 		TREEWALKER_LEAF(symbol);
 		// TODO
+	}
+	void visit(cpp::labeled_statement* symbol)
+	{
+		LabeledStatementWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
 	}
 	void visit(cpp::using_declaration* symbol)
 	{
@@ -4867,7 +4898,11 @@ struct TemplateDeclarationWalker : public WalkerBase
 	void visit(cpp::declaration* symbol)
 	{
 		DeclarationWalker walker(getState());
+		IncludeEvents events = parser->get_events();
+		const char* source = parser->get_source();
 		TREEWALKER_WALK(walker, symbol);
+		symbol->events = events;
+		symbol->source = source;
 		declaration = walker.declaration;
 		declaration->templateParams.swap(params);
 		declaration->templateParamDefaults.swap(arguments);
@@ -4991,7 +5026,11 @@ struct NamespaceWalker : public WalkerBase
 	void visit(cpp::declaration* symbol)
 	{
 		DeclarationWalker walker(getState());
+		IncludeEvents events = parser->get_events();
+		const char* source = parser->get_source();
 		TREEWALKER_WALK(walker, symbol);
+		symbol->events = events;
+		symbol->source = source;
 	}
 };
 
@@ -5166,13 +5205,29 @@ struct SymbolPrinter : PrintingWalker
 {
 	std::ofstream out;
 	FileTokenPrinter printer;
+	const char* root;
 
-	SymbolPrinter(const char* path)
+	SymbolPrinter(const char* root)
 		: PrintingWalker(printer),
-		out(path),
-		printer(out)
+		printer(out),
+		root(root)
 	{
-		printer.out << "<html>\n"
+	}
+	~SymbolPrinter()
+	{
+		while(!includes.empty())
+		{
+			pop();
+		}
+		SEMANTIC_ASSERT(!out.is_open());
+	}
+
+	void open(const char* path)
+	{
+		SEMANTIC_ASSERT(!out.is_open());
+		out.open(path);
+
+		out << "<html>\n"
 			"<head>\n"
 			"<link rel='stylesheet' type='text/css' href='identifier.css'/>\n"
 			"</style>\n"
@@ -5180,11 +5235,25 @@ struct SymbolPrinter : PrintingWalker
 			"<body>\n"
 			"<pre style='color:#000000;background:#ffffff;'>\n";
 	}
-	~SymbolPrinter()
+	void close()
 	{
-		printer.out << "</pre>\n"
+		SEMANTIC_ASSERT(out.is_open());
+
+		out << "</pre>\n"
 			"</body>\n"
 			"</html>\n";
+
+		out.close();
+	}
+	void suspend()
+	{
+		SEMANTIC_ASSERT(out.is_open());
+		out.close();
+	}
+	void resume(const char* path)
+	{
+		SEMANTIC_ASSERT(!out.is_open());
+		out.open(path, std::ios::app);
 	}
 
 	void visit(cpp::terminal_identifier symbol)
@@ -5194,7 +5263,23 @@ struct SymbolPrinter : PrintingWalker
 
 	void visit(cpp::terminal_string symbol)
 	{
+#if 1
+		printer.formatToken(boost::wave::T_STRINGLIT);
+		for(const char* p = symbol.value; *p != '\0'; ++p)
+		{
+			char c = *p;
+			switch(c)
+			{
+			case '"': printer.out << "&quot;"; break;
+			case '&': printer.out << "&amp;"; break;
+			case '<': printer.out << "&lt;"; break;
+			case '>': printer.out << "&gt;"; break;
+			default: printer.out << c; break;
+			}
+		}
+#else
 		printer.printToken(boost::wave::T_STRINGLIT, symbol.value);
+#endif
 	}
 
 	void visit(cpp::terminal_choice2 symbol)
@@ -5231,6 +5316,90 @@ struct SymbolPrinter : PrintingWalker
 	{
 		SEMANTIC_ASSERT(symbol->second == 0);
 		visit(symbol->first);
+	}
+
+	struct Includes
+	{
+		Includes()
+			: depth(0)
+		{
+		}
+		const char* stack[1024];
+		size_t depth;
+		bool empty() const
+		{
+			return depth == 0;
+		}
+		const char* top() const
+		{
+			return stack[depth - 1];
+		}
+		void set(const char* s)
+		{
+			stack[depth - 1] = strcpy(new char[strlen(s) + 1], s);
+		}
+		void push()
+		{
+			stack[depth++] = 0;
+		}
+		void pop()
+		{
+			delete top();
+			stack[--depth] = 0;
+		}
+	};
+
+	Includes includes;
+
+	void push()
+	{
+		if(!includes.empty()
+			&& includes.top() != 0)
+		{
+			suspend();
+		}
+		includes.push();
+	}
+
+	void pop()
+	{
+		if(includes.top() != 0)
+		{
+			close();
+		}
+		includes.pop();
+		if(!includes.empty()
+			&& includes.top() != 0)
+		{
+			resume(includes.top());
+		}
+	}
+
+	struct OutPath : public Concatenate
+	{
+		OutPath(const char* root, const char* path)
+			: Concatenate(makeRange(root), makeRange(findFilenameSafe(path)), makeRange(".html"))
+		{
+		}
+	};
+
+	void visit(cpp::declaration* symbol)
+	{
+		for(unsigned short i = 0; i != symbol->events.pop; ++i)
+		{
+			pop();
+		}
+		for(unsigned short i = 0; i != symbol->events.push; ++i)
+		{
+			push();
+		}
+		if(includes.top() == 0)
+		{
+			includes.set(OutPath(root, symbol->source).c_str());
+			open(includes.top());
+		}
+
+		symbol->accept(*this);
 	}
 #if 0
 	void visit(cpp::declaration* symbol)
@@ -5271,7 +5440,12 @@ struct SymbolPrinter : PrintingWalker
 		}
 		else
 		{
-			printer.out << "<a href='#";
+			printer.out << "<a href='";
+			if(symbol->value.dec.p != 0)
+			{
+				printer.out << OutPath(root, symbol->value.dec.p->name.source).c_str() + 4; // HACK!
+			}
+			printer.out << "#";
 			printName(symbol->value.dec.p);
 			printer.out << "'>";
 		}
@@ -5359,7 +5533,7 @@ cpp::declaration_seq* parseFile(ParserContext& lexer)
 	Walker::NamespaceWalker& walker = *new Walker::NamespaceWalker(context);
 	ParserGeneric<Walker::NamespaceWalker> parser(lexer, walker);
 
-	cpp::symbol_optional<cpp::declaration_seq> result(NULL);
+	cpp::symbol_sequence<cpp::declaration_seq> result(NULL);
 	try
 	{
 		ProfileScope profile(gProfileParser);
@@ -5393,7 +5567,7 @@ cpp::statement_seq* parseFunction(ParserContext& lexer)
 	Walker::CompoundStatementWalker& walker = *new Walker::CompoundStatementWalker(context);
 	ParserGeneric<Walker::CompoundStatementWalker> parser(lexer, walker);
 
-	cpp::symbol_optional<cpp::statement_seq> result(NULL);
+	cpp::symbol_sequence<cpp::statement_seq> result(NULL);
 	try
 	{
 		ProfileScope profile(gProfileParser);

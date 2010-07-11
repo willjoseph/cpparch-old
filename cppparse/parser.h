@@ -348,6 +348,14 @@ struct Parser : public ParserState
 	{
 		return lexer.get_position();
 	}
+	IncludeEvents get_events()
+	{
+		return lexer.get_events();
+	}
+	const char* get_source()
+	{
+		return lexer.get_source();
+	}
 
 	void increment()
 	{
@@ -696,23 +704,23 @@ inline cpp::symbol<Base> parseExpression(ParserType& parser, cpp::symbol<T> symb
 #define PARSE_EXPRESSION_LEFTASSOCIATIVE(parser, Type) result = parseExpression(parser, NULLSYMBOL(Type), result)
 
 template<typename ParserType, typename T>
-inline cpp::symbol_optional<T> parseSequence(ParserType& parser, cpp::symbol_optional<T>)
+inline cpp::symbol_sequence<T> parseSequence(ParserType& parser, cpp::symbol_sequence<T>)
 {
 	T tmp;
-	cpp::symbol_optional<T> p(&tmp);
+	cpp::symbol_next<T> p(&tmp);
 	for(;;)
 	{
-		p->next = parseSymbolOptional(parser, p->next);
+		p->next = cpp::symbol_next<T>(parseSymbolRequired(parser, p->next));
 		if(p->next == 0)
 		{
 			break;
 		}
 		p = p->next;
 	}
-	return tmp.next;
+	return cpp::symbol_sequence<T>(tmp.next);
 }
 
-#ifdef MINGLE
+#if 0//def MINGLE
 #define PARSE_SEQUENCE PARSE_OPTIONAL
 #else
 #define PARSE_SEQUENCE(parser, p) p = parseSequence(parser, p)
@@ -798,6 +806,17 @@ struct ParsingVisitor
 	{
 		s = cpp::symbol_optional<T>(parseSymbolRequired(parser, s));
 		return true;
+	}
+	template<typename T>
+	bool visit(cpp::symbol_sequence<T>& s)
+	{
+		s = parseSequence(parser, s);
+		return true;
+	}
+	template<typename T>
+	bool visit(cpp::symbol_next<T>& s)
+	{
+		return true; // this is handled by parseSequence
 	}
 	template<LexTokenId ID>
 	bool visit(cpp::terminal<ID>& t)
@@ -1231,7 +1250,7 @@ inline T* defer(ListType& deferred, ContextType& walker, Func skipFunc, T* symbo
 		buffer.resize(count + 2); // adding 1 for EOF and 1 to allow use as circular buffer
 		for(const Token* p = first; p != parser.lexer.position; p = ::next(parser.lexer.history, p))
 		{
-			*buffer.position++ = *first++;
+			*buffer.position++ = *p;
 		}
 		FilePosition nullPos = { "$null.cpp", 0, 0 };
 		*buffer.position++ = Token(boost::wave::T_EOF, "", nullPos);

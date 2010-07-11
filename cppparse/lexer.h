@@ -77,13 +77,15 @@ struct Token
 	LexTokenId id;
 	const char* value;
 	FilePosition position;
+	const char* source;
+	IncludeEvents events;
 
 	Token()
 		: id(boost::wave::T_UNKNOWN)
 	{
 	}
-	Token(LexTokenId id, const char* value, const FilePosition& position)
-		: id(id), value(value), position(position)
+	Token(LexTokenId id, const char* value, const FilePosition& position, const char* source = "<unknown>", IncludeEvents events = IncludeEvents())
+		: id(id), value(value), position(position), events(events), source(source)
 	{
 	}
 };
@@ -291,6 +293,10 @@ struct Lexer
 		stackpos(stacktrace.end()),
 		maxBacktrack(false)
 	{
+#ifdef _DEBUG
+		depth = 0;
+		includes[depth++] = "<root>";
+#endif
 		refill();
 	}
 	~Lexer()
@@ -356,6 +362,14 @@ struct Lexer
 	{
 		return (*position).position;
 	}
+	IncludeEvents get_events()
+	{
+		return (*position).events;
+	}
+	const char* get_source()
+	{
+		return (*position).source;
+	}
 	const char* getErrorValue()
 	{
 		return (*error).value;
@@ -365,12 +379,19 @@ struct Lexer
 		return (*error).position;
 	}
 
+#ifdef _DEBUG
+	const char* includes[1024];
+	size_t depth;
+
+	void debugEvents(IncludeEvents events, const char* source);
+#endif
+
 	Token* read(Token* first, Token* last);
 	void refill()
 	{
 		if(position == history.end())
 		{
-			const size_t COUNT = BACKTRACK_MAX >> 1;
+			const size_t COUNT = 1024;//BACKTRACK_MAX >> 1;
 			Token* end = history.TokenBuffer::end();
 			history.position = read(history.position, std::min(end, history.position + COUNT));
 			if(history.position == end)
@@ -378,6 +399,9 @@ struct Lexer
 				history.position = history.TokenBuffer::begin();
 			}
 		}
+#ifdef _DEBUG
+		debugEvents((*position).events, (*position).source);
+#endif
 	}
 
 	void increment()

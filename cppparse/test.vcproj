@@ -156,6 +156,10 @@
 				Name="test"
 				>
 				<File
+					RelativePath=".\test\test_include.cpp"
+					>
+				</File>
+				<File
 					RelativePath=".\test\test_lexer.cpp"
 					>
 				</File>

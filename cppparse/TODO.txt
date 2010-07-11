@@ -1,7 +1,40 @@
 
+- fix or remove macroPosition
+
+- use found-include-directive hook to build include-graph
+	- doesn't give full path, need to add resolved_include_file
+	
+- detect mid-declaration-includes
+
+- output one html per #include
+	- why?
+		- not required for dependency-tracking?
+		- easier to browse html source
+		- recognises repeat-includes
+		- recognises mid-declaration-includes
+	- tag all declarations with the source file?
+	- need to track include push/pop
+	- emit extra tokens?
+		- modify grammar? include-declaration: include declaration-seq eof
+		- swallow in lexer?
+	- tag first and last token in file?
+		- fails if no tokens after #include
+	- build include-graph with parent-links, make file-position point at node?
+	- append sequence of push/pop commands 'between' tokens?
+		- +a = +1
+		- -a = -1
+		- +a, -a = nothing
+		- -a, +a, -a = -1
+		- -a, +a = -1, +1
+		- -a, +b = -1, +1
+		- +a, -a, -b = -1
+		- +a, -a, +b = +1
+		- +a, +b, -b = +1
+
 
 - macro dependencies
-	- associate macro definitions/uses with source files
+	- associate macro definitions with source files
+	- for each macro expansion, add definition to list of dependencies
 
 - check that include-path search order is consistent with MSVC/GCC
 

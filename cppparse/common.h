@@ -16,6 +16,16 @@ inline bool operator==(const FilePosition& left, const FilePosition& right)
 		&& left.column == right.column;
 }
 
+struct IncludeEvents
+{
+	unsigned short push;
+	unsigned short pop;
+	IncludeEvents()
+		: push(0), pop(0)
+	{
+	}
+};
+
 
 #define ARRAY_COUNT(array) (sizeof(array) / sizeof(*array))
 #define ARRAY_END(array) ((array) + ARRAY_COUNT(array))

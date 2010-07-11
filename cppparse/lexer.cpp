@@ -3,7 +3,7 @@
 
 #include "profiler.h"
 
-#include <string.h> // strrchr
+#include "util.h"
 
 ///////////////////////////////////////////////////////////////////////////////
 //  Include Wave itself
@@ -68,58 +68,125 @@ struct LexNames
 	}
 };
 
-const char* findFilename(const char* path)
+typedef std::set<struct IncludeDependencyNode*> IncludeDependencyNodes;
+
+struct IncludeDependencyNode : public IncludeDependencyNodes
 {
-	const char* result = strrchr(path, '/');
-	if(result == 0)
+	const char* name;
+	IncludeDependencyNode(const char* name)
+		: name(name)
 	{
-		result = path;
 	}
-	else
-	{
-		++result;
-	}
-	return result;
+};
+
+inline bool operator<(const IncludeDependencyNode& left, const IncludeDependencyNode& right)
+{
+	return left.name < right.name;
 }
+
+struct IncludeDependencyGraph : public std::set<IncludeDependencyNode>
+{
+	IncludeDependencyNode& get(const char* name)
+	{
+		iterator i = insert(name).first;
+		return const_cast<IncludeDependencyNode&>(*i);
+	}
+};
 
 class Hooks : public boost::wave::context_policies::eat_whitespace<token_type>
 {
 public:
 	LexNames& names;
-	std::string includes[1024];
+	const char* includes[1024];
 	size_t depth;
 
 	size_t macroDepth;
 	FilePosition macroPosition;
 
-	Hooks(LexNames& names) : names(names), depth(1), macroDepth(0)
+	IncludeDependencyGraph dependencies;
+	IncludeDependencyGraph includeGraph;
+
+	IncludeEvents events;
+
+	Hooks(LexNames& names)
+		: names(names), depth(1), macroDepth(0)
 	{
 		includes[0] = "$outer";
 	}
 
+    template <typename ContextT>
+    bool 
+    found_include_directive(ContextT const& ctx, std::string const& filename, 
+        bool include_next) 
+    {
+        return false;    // ok to include this file
+    }
+
+	template <typename ContextT>
+	void resolved_include_file(ContextT const &ctx, 
+		std::string const &relname, std::string const& absname,
+		bool is_system_include)
+	{
+		IncludeDependencyNode& d = includeGraph.get(names.makeFilename(relname.c_str()));
+		//d.macro = names.makeIdentifier(macrodef.get_value().c_str());
+		includeGraph.get(getSourcePath()).insert(&d);
+	}
 	template <typename ContextT>
 	void opened_include_file(ContextT const &ctx, 
 		std::string const &relname, std::string const& absname,
 		bool is_system_include)
 	{
-		includes[depth] = relname.c_str();
-		std::cout << findFilename(includes[depth - 1].c_str()) << "  included: " << findFilename(includes[depth].c_str()) << std::endl;
+		includes[depth] = names.makeFilename(relname.c_str());
+		//LEXER_ASSERT(std::find(includes, includes + depth, includes[depth]) == includes + depth); // cyclic includes! 
+		std::cout << "lexer: " << findFilename(includes[depth - 1]) << "  included: " << findFilename(includes[depth]) << std::endl;
 		++depth;
+		++events.push;
 	}
 	template <typename ContextT>
 	void returning_from_include_file(ContextT const &ctx)
 	{
+#if 0
+		{
+			IncludeDependencyNode& d = includeGraph.get(getSourcePath());
+			for(IncludeDependencyNode::iterator i = d.begin(); i != d.end(); ++i)
+			{
+				std::cout << "    " << (*i)->name << std::endl;
+			}
+		}
+#endif
+#if 0
+		{
+			IncludeDependencyNode& d = dependencies.get(getSourcePath());
+			for(IncludeDependencyNode::iterator i = d.begin(); i != d.end(); ++i)
+			{
+				std::cout << "    " << (*i)->name << std::endl;
+			}
+		}
+#endif
+
 		--depth;
-		std::cout << findFilename(includes[depth - 1].c_str()) << "  returned: " << findFilename(includes[depth].c_str()) << std::endl;
+		std::cout << "lexer: " << findFilename(includes[depth - 1]) << "  returned: " << findFilename(includes[depth]) << std::endl;
+		if(events.push != 0)
+		{
+			--events.push;
+		}
+		else
+		{
+			++events.pop;
+		}
 	}
 
 	template<typename ContextT, typename TokenT>
-	void expanding_macro(ContextT& ctx,const TokenT& macrocall)
+	void expanding_macro(ContextT& ctx, const TokenT& macrodef, const TokenT& macrocall)
 	{
 		if(++macroDepth == 1)
 		{
 			macroPosition = names.makeFilePosition(macrocall.get_position());
 		}
+		const char* defPath = names.makeFilename(macrodef.get_position().get_file().c_str());
+		IncludeDependencyNode& d = dependencies.get(defPath);
+		//d.macro = names.makeIdentifier(macrodef.get_value().c_str());
+		dependencies.get(getSourcePath()).insert(&d);
 	}
     template <typename ContextT, typename TokenT, typename ContainerT, typename IteratorT>
     bool 
@@ -129,15 +196,15 @@ public:
         TokenT const& macrocall, std::vector<ContainerT> const& arguments,
         IteratorT const& seqstart, IteratorT const& seqend) 
     {
-		expanding_macro(ctx, macrocall);
+		expanding_macro(ctx, macrodef, macrocall);
 		return false;
 	}
     template <typename ContextT, typename TokenT, typename ContainerT>
     bool 
-    expanding_object_like_macro(ContextT const& ctx, TokenT const& macro, 
+    expanding_object_like_macro(ContextT const& ctx, TokenT const& macrodef, 
         ContainerT const& definition, TokenT const& macrocall)
     {
-		expanding_macro(ctx, macrocall);
+		expanding_macro(ctx, macrodef, macrocall);
 		return false;
 	}
     template <typename ContextT, typename ContainerT>
@@ -156,12 +223,12 @@ public:
         bool is_functionlike, ParametersT const& parameters, 
         DefinitionT const& definition, bool is_predefined)
     {
-		std::cout << "defined macro: " << macro_name.get_value().c_str() << std::endl;
+		//std::cout << "defined macro: " << macro_name.get_value().c_str() << std::endl;
 	}
 
 	const char* getSourcePath() const
 	{
-		return includes[depth - 1].c_str();
+		return includes[depth - 1];
 	}
 };
 
@@ -281,6 +348,26 @@ bool operator==(const LexIterator& l, const LexIterator& r)
 	return makeBase(l) == makeBase(r);
 }
 
+#ifdef _DEBUG
+void Lexer::debugEvents(IncludeEvents events, const char* source)
+{
+	for(unsigned short i = 0; i != events.pop; ++i)
+	{
+		--depth;
+		includes[depth] = 0;
+	}
+	for(unsigned short i = 0; i != events.push; ++i)
+	{
+		includes[depth++] = 0;
+	}
+	if(includes[depth - 1] == 0)
+	{
+		includes[depth - 1] = source;
+		std::cout << "parser: " << findFilenameSafe(includes[depth - 1]) << std::endl;
+	}
+}
+#endif
+
 Token* Lexer::read(Token* first, Token* last)
 {
 	try
@@ -308,14 +395,20 @@ Token* Lexer::read(Token* first, Token* last)
 				FilePosition position = context.get_hooks().macroDepth == 0
 					? context.makeFilePosition(token.get_position())
 					: context.get_hooks().macroPosition;
-				*first++ = Token(token, context.makeIdentifier(token.get_value().c_str()), position);
+				*first++ = Token(token, context.makeIdentifier(token.get_value().c_str()), position, context.get_hooks().getSourcePath(), context.get_hooks().events);
+
+				//debugEvents(context.get_hooks().events, context.get_hooks().getSourcePath());
+
+				context.get_hooks().events = IncludeEvents();
 			}
 		}
 		// if reached end of token stream, append EOF
 		if(this->first == this->last
 			&& first != last)
 		{
-			*first++ = Token(boost::wave::T_EOF, "", FilePosition());
+			*first++ = Token(boost::wave::T_EOF, "", FilePosition(), context.get_hooks().getSourcePath(), context.get_hooks().events);
+
+			//debugEvents(context.get_hooks().events, context.get_hooks().getSourcePath());
 		}
 	}
 	catch (boost::wave::cpp_exception const& e) {

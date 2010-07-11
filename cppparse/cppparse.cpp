@@ -1,6 +1,7 @@
 
 #include "parser.h"
 #include "semantic.h"
+#include "util.h"
 
 #include <iostream>
 #include <fstream>
@@ -55,55 +56,6 @@ Test makeTest(const char* input, const CharConstPointerRange& definitions, const
 	Test result = { input, definitions, includes, VerifyFunc(verify), ParseFunc(parse) };
 	return result;
 }
-
-struct StringRange
-{
-	const char* first;
-	const char* last;
-	StringRange(const char* first, const char* last)
-		: first(first), last(last)
-	{
-	}
-};
-
-StringRange makeRange(const char* s)
-{
-	return StringRange(s, s + strlen(s));
-}
-
-size_t getLength(const StringRange& range)
-{
-	return range.last - range.first;
-}
-
-struct Concatenate
-{
-	typedef std::vector<char> Buffer;
-	Buffer buffer;
-	Concatenate(const StringRange& left, const StringRange& right)
-	{
-		buffer.reserve(getLength(left) + getLength(right) + 1);
-		append(left);
-		append(right);
-		buffer.push_back('\0');
-	}
-	Concatenate(const StringRange& left, const StringRange& mid, const StringRange& right)
-	{
-		buffer.reserve(getLength(left) + getLength(mid) + getLength(right) + 1);
-		append(left);
-		append(mid);
-		append(right);
-		buffer.push_back('\0');
-	}
-	void append(const StringRange& range)
-	{
-		buffer.insert(buffer.end(), range.first, range.last);
-	}
-	const char* c_str() const
-	{
-		return &(*buffer.begin());
-	}
-};
 
 int runTest(const Test& test)
 {
@@ -191,7 +143,7 @@ int runTest(const Test& test)
 #if 1
 		StringRange root(test.input, strrchr(test.input, '.'));
 		ParserContext lexer(context, Concatenate(root, makeRange(".prepro.cpp")).c_str());
-		int result = test.verify(test.parse(lexer), Concatenate(root, makeRange(".html")).c_str());
+		int result = test.verify(test.parse(lexer), "out\\");
 		if(lexer.stats.count != 0)
 		{
 			printPosition(lexer.stats.position);
@@ -411,6 +363,7 @@ int main(int argc, char *argv[])
 		const Test tests[] = {
 			//makeTest("cpptree.cpp", ARRAY_RANGE(DEFINITIONS_CPPPARSE), ARRAY_RANGE(INCLUDES_CPPPARSE), verifyNull, parseFile),
 			makeTest("test/test_prepro.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), ARRAY_RANGE(INCLUDES_CPPPARSE), verifyNull, parseFile),
+			makeTest("test/test_include.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), ARRAY_RANGE(INCLUDES_CPPPARSE), verifyNull, parseFile),
 #if 1
 			makeTest("test/test_quick.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyNull, parseFile),
 			makeTest("test/test_vector.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyNull, parseFile),
