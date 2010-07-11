@@ -200,6 +200,9 @@ inline void printIndent(VisualiserNode* node)
 
 cpp::terminal_identifier& getDeclarationId(Declaration* declaration);
 
+#ifdef _DEBUG
+//#define PARSER_DEBUG
+#endif
 
 struct Visualiser
 {
@@ -551,7 +554,7 @@ cpp::symbol<T> parseSymbolRequired(ParserType& parser, cpp::symbol<T> symbol, si
 	PARSE_ASSERT(symbol.p == 0);
 	PARSE_ASSERT(!checkBacktrack(parser));
 	ParserType tmp(parser);
-#ifdef _DEBUG
+#ifdef PARSER_DEBUG
 	parser.lexer.visualiser.push(SYMBOL_NAME(T), parser.lexer.position);
 #endif
 	T* p = SymbolAllocator<T>(parser.lexer.allocator).allocate();
@@ -563,7 +566,7 @@ cpp::symbol<T> parseSymbolRequired(ParserType& parser, cpp::symbol<T> symbol, si
 	if(result != 0
 		&& tmp.position >= best)
 	{
-#ifdef _DEBUG
+#ifdef PARSER_DEBUG
 		parser.lexer.visualiser.pop(result);
 #endif
 		parser.position += tmp.position;
@@ -571,7 +574,7 @@ cpp::symbol<T> parseSymbolRequired(ParserType& parser, cpp::symbol<T> symbol, si
 	}
 
 	deleteSymbol(p, parser.lexer.allocator);
-#ifdef _DEBUG
+#ifdef PARSER_DEBUG
 	parser.lexer.visualiser.pop(false);
 #endif
 	tmp.backtrack(SYMBOL_NAME(T));

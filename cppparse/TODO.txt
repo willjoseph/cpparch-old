@@ -1,4 +1,12 @@
 
+			
+- bug: crash parsing cppparse.cpp
+	- does not occur if this is the first file to be parsed
+- slow parsing of cpptree.h
+	- caused by pathological case: nested template-ids
+		- isDependent is slow?
+		- each iteration is parsed first as nested-name-specifier
+
 - fix or remove macroPosition
 
 - use found-include-directive hook to build include-graph
@@ -89,9 +97,6 @@
 			- don't track declarations (except forward-decl) unless ALLOCATOR_DEBUG
 			
 - clean up test code
-			
-- bug: random crash parsing cppparse.cpp?
-- bug: infinite loop in cpptree.h?
 
 - profile:
 - vector
