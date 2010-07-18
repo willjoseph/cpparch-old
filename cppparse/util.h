@@ -9,7 +9,7 @@
 
 inline const char* findFilename(const char* path)
 {
-	const char* result = strrchr(path, '/');
+	const char* result = strrchr(path, '\\');
 	if(result == 0)
 	{
 		result = path;
@@ -29,6 +29,22 @@ inline const char* findFilenameSafe(const char* path)
 	}
 	return "<unknown>";
 }
+
+inline const char* findExtension(const char* path)
+{
+	const char* result = strrchr(path, '.');
+	return result == 0 ? path + strlen(path) : result;
+}
+
+inline bool string_equal_nocase(const char* string, const char* other)
+{
+#ifdef WIN32
+	return _stricmp(string, other) == 0;
+#else
+	return strcasecmp(string, other) == 0;
+#endif
+}
+
 
 
 

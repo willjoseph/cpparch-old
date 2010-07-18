@@ -1,4 +1,23 @@
 
+- detect order-dependent includes
+	- e.g. header1.h depends on header2.h but does not (in)directly include it
+		- confused by multiple declarations in different headers: e.g. getwchar in stdio.h and wchar.h
+			- prefer (in)directly included source when determining location of declaration
+		- confused by #ifndef NULL #define NULL 0 #endif
+			- recognise ifndef-define pattern as redeclaration?
+- detect cyclic includes
+- detect unused includes
+
+- list symbols depended on by each module
+	- use consistent path-separator/root in filenames
+		- how does wave derive the absolute root from the relative include-path?
+	~ exclude predefined symbols
+		~ pass contents of predefined_msvc.h directly to lexer, rather than via #include
+	- including macro definitions
+	- support overloaded-operators
+	- ignore namespace names
+	- perform type-dependent name-lookup for template instantiations
+	- handle multiple identical typedef/forward-declaration in different modules
 			
 - bug: crash parsing cppparse.cpp
 	- does not occur if this is the first file to be parsed
@@ -6,11 +25,41 @@
 	- caused by pathological case: nested template-ids
 		- isDependent is slow?
 		- each iteration is parsed first as nested-name-specifier
+		
+- optimise parsing of cpptree?
+	- profile parse, find out exactly what's taking so long
+	- factor out shared-prefix between nested-name-specifier and type-name?
+		- check that this is actually the cause of the slow parse?
+		- problem with basic.lookup.qual: During the lookup for a name preceding the :: scope resolution operator, object, function, and enumerator names are ignored.
+		- occurs: base_specifier, mem_initializer_id_base, typename_specifier, simple_type_specifier_name/template
+			simple-type-specifier:
+				[::] [nested-name-specifier] type-name
+				[::] nested-name-specifier template simple-template-id
+			nested-namespace-specifier:
+				namespace-name :: [nested-namespace-specifier-seq]
+			nested-namespace-specifier-seq:
+				nested-namespace-specifier [nested-namespace-specifier-seq]
+			qualified-type-name:
+				[nested-namespace-specifier-seq] type-name [qualified-type-name-suffix]
+			qualified-type-name-suffix:
+				:: type-name [qualified-type-name-suffix]
+	- use LR parse instead?
+		- how much do context actions rely on the assumption that parsing is top-down?
+	- cache the type-name parsed from the beginning of a nested-name-specifier?
+		- when nested-name-specifier parse fails at '::', defer backtrack and store type-name
+			- need to re-lookup type-name to check that it is not hidden by a non-type-name
+			- make '::' optional in nested-name-specifier when specifying a type-name?
+			
 
 - fix or remove macroPosition
 
 - use found-include-directive hook to build include-graph
 	- doesn't give full path, need to add resolved_include_file
+	- how to uniquely identify a source file?
+		- absolute path
+	- opened_include_file gives relname/absname
+		- always the same?
+		- always use forward-slash?
 	
 - detect mid-declaration-includes
 

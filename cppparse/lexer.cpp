@@ -55,7 +55,15 @@ struct LexNames
 	const char* makeFilename(const char* value)
 	{
 		ProfileScope profile(gProfileIdentifier);
-		return (*filenames.insert(value).first).c_str();
+		std::string tmp(value);
+		for(std::string::iterator i = tmp.begin(); i != tmp.end(); ++i)
+		{
+			if(*i == '/')
+			{
+				*i = '\\';
+			}
+		}
+		return (*filenames.insert(tmp).first).c_str();
 	}
 	FilePosition makeFilePosition(const LexFilePosition& position)
 	{
@@ -65,31 +73,6 @@ struct LexNames
 			position.get_column()
 		};
 		return result;
-	}
-};
-
-typedef std::set<struct IncludeDependencyNode*> IncludeDependencyNodes;
-
-struct IncludeDependencyNode : public IncludeDependencyNodes
-{
-	const char* name;
-	IncludeDependencyNode(const char* name)
-		: name(name)
-	{
-	}
-};
-
-inline bool operator<(const IncludeDependencyNode& left, const IncludeDependencyNode& right)
-{
-	return left.name < right.name;
-}
-
-struct IncludeDependencyGraph : public std::set<IncludeDependencyNode>
-{
-	IncludeDependencyNode& get(const char* name)
-	{
-		iterator i = insert(name).first;
-		return const_cast<IncludeDependencyNode&>(*i);
 	}
 };
 
@@ -187,6 +170,11 @@ public:
 		IncludeDependencyNode& d = dependencies.get(defPath);
 		//d.macro = names.makeIdentifier(macrodef.get_value().c_str());
 		dependencies.get(getSourcePath()).insert(&d);
+
+		if(defPath != getSourcePath())
+		{
+			includeGraph.macros[getSourcePath()].insert(MacroDeclaration(defPath, names.makeIdentifier(macrodef.get_value().c_str())));
+		}
 	}
     template <typename ContextT, typename TokenT, typename ContainerT, typename IteratorT>
     bool 
@@ -346,6 +334,11 @@ void release(LexIterator& i)
 bool operator==(const LexIterator& l, const LexIterator& r)
 {
 	return makeBase(l) == makeBase(r);
+}
+
+const IncludeDependencyGraph& Lexer::getIncludeGraph() const
+{
+	return context.get_hooks().includeGraph;
 }
 
 #ifdef _DEBUG

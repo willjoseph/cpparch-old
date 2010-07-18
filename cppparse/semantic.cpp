@@ -4898,10 +4898,8 @@ struct TemplateDeclarationWalker : public WalkerBase
 	void visit(cpp::declaration* symbol)
 	{
 		DeclarationWalker walker(getState());
-		IncludeEvents events = parser->get_events();
 		const char* source = parser->get_source();
 		TREEWALKER_WALK(walker, symbol);
-		symbol->events = events;
 		symbol->source = source;
 		declaration = walker.declaration;
 		declaration->templateParams.swap(params);
@@ -4927,6 +4925,12 @@ struct DeclarationWalker : public WalkerBase
 	DeclarationWalker(const WalkerState& state)
 		: WalkerBase(state), declaration(0)
 	{
+	}
+	void visit(cpp::linkage_specification* symbol)
+	{
+		NamespaceWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+		declaration = walker.declaration;
 	}
 	void visit(cpp::namespace_definition* symbol)
 	{
@@ -5201,17 +5205,52 @@ bool isPrimary(const Identifier& id)
 	return id.dec.p != 0 && id.position == id.dec.p->name.position;
 }
 
+typedef std::pair<const char*, Declaration*> ModuleDeclaration; // first=source, second=declaration
+
+typedef std::set<ModuleDeclaration> DeclarationSet;
+
+typedef std::map<const char*, DeclarationSet> ModuleDependencyMap; // key=source
+
+// recursively merges all source files in the \p graph into \p includes
+void mergeIncludes(IncludeDependencyNodes& includes, const IncludeDependencyNode& graph)
+{
+	if(graph.empty())
+	{
+		return;
+	}
+	IncludeDependencyNodes tmp;
+
+	std::set_union(
+		includes.begin(), includes.end(),
+		graph.begin(), graph.end(),
+		std::inserter(tmp, tmp.begin())
+	);
+
+	for(IncludeDependencyNode::const_iterator i = graph.begin(); i != graph.end(); ++i)
+	{
+		mergeIncludes(tmp, *(*i));
+	}
+
+	includes.swap(tmp);
+}
+
 struct SymbolPrinter : PrintingWalker
 {
 	std::ofstream out;
 	FileTokenPrinter printer;
 	const char* root;
+	const IncludeDependencyGraph& includeGraph;
+	ModuleDependencyMap moduleDependencies;
 
-	SymbolPrinter(const char* root)
+	SymbolPrinter(const PrintSymbolArgs& args)
 		: PrintingWalker(printer),
 		printer(out),
-		root(root)
+		root(args.path),
+		includeGraph(args.includeGraph)
 	{
+		includes.push();
+		includes.set("$outer");
+		open(includes.top());
 	}
 	~SymbolPrinter()
 	{
@@ -5225,7 +5264,7 @@ struct SymbolPrinter : PrintingWalker
 	void open(const char* path)
 	{
 		SEMANTIC_ASSERT(!out.is_open());
-		out.open(path);
+		out.open(OutPath(root, path).c_str());
 
 		out << "<html>\n"
 			"<head>\n"
@@ -5253,7 +5292,7 @@ struct SymbolPrinter : PrintingWalker
 	void resume(const char* path)
 	{
 		SEMANTIC_ASSERT(!out.is_open());
-		out.open(path, std::ios::app);
+		out.open(OutPath(root, path).c_str(), std::ios::app);
 	}
 
 	void visit(cpp::terminal_identifier symbol)
@@ -5336,7 +5375,7 @@ struct SymbolPrinter : PrintingWalker
 		}
 		void set(const char* s)
 		{
-			stack[depth - 1] = strcpy(new char[strlen(s) + 1], s);
+			stack[depth - 1] = s;
 		}
 		void push()
 		{
@@ -5344,7 +5383,6 @@ struct SymbolPrinter : PrintingWalker
 		}
 		void pop()
 		{
-			delete top();
 			stack[--depth] = 0;
 		}
 	};
@@ -5353,12 +5391,32 @@ struct SymbolPrinter : PrintingWalker
 
 	void push()
 	{
-		if(!includes.empty()
-			&& includes.top() != 0)
+		if(includes.top() != 0)
 		{
 			suspend();
 		}
 		includes.push();
+	}
+
+	bool isIncluded(const IncludeDependencyNodes& included, const char* source)
+	{
+		IncludeDependencyGraph::Includes::const_iterator i = includeGraph.includes.find(source);
+
+		return i != includeGraph.includes.end() // should be impossible?
+			&& included.find(&(*i)) != included.end();
+	}
+
+	bool isIncluded(const IncludeDependencyNodes& included, Declaration* declaration)
+	{
+		for(; declaration != 0; declaration = declaration->overloaded)
+		{
+			if(*declaration->name.source == '$' // '$outer'
+				|| isIncluded(included, declaration->name.source))
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 
 	void pop()
@@ -5366,10 +5424,80 @@ struct SymbolPrinter : PrintingWalker
 		if(includes.top() != 0)
 		{
 			close();
+
+			out.open(Concatenate(makeRange(root), makeRange(findFilenameSafe(includes.top())), makeRange(".d")).c_str());
+
+			bool warnings = false;
+
+			bool isHeader = !string_equal_nocase(findExtension(includes.top()), ".inl");
+
+			IncludeDependencyNodes included;
+			{
+				IncludeDependencyGraph::Includes::const_iterator i = includeGraph.includes.find(includes.top());
+				if(i != includeGraph.includes.end())
+				{
+					mergeIncludes(included, *i);
+#if 0
+					for(IncludeDependencyNodes::const_iterator i = included.begin(); i != included.end(); ++i)
+					{
+						printer.out << (*i)->name << std::endl;
+					}
+#endif
+				}
+			}
+			{
+				ModuleDependencyMap::const_iterator i = moduleDependencies.find(includes.top());
+				if(i != moduleDependencies.end())
+				{
+					const DeclarationSet& d = (*i).second;
+					for(DeclarationSet::const_iterator i = d.begin(); i != d.end(); ++i)
+					{
+						const ModuleDeclaration& declaration = *i;
+
+						printer.out << (declaration.first != 0 ? declaration.first : "<unknown>") << ": ";
+						printName(declaration.second);
+						printer.out << std::endl;
+
+						if(declaration.first != 0
+							&& declaration.second != 0
+							&& isHeader
+							&& !isIncluded(included, declaration.second))
+						{
+							printer.out << "WARNING: depending on file that was not (in)directly included: " << declaration.first << std::endl;
+							warnings = true;
+						}
+					}
+				}
+			}
+			{
+				MacroDependencyMap::const_iterator i = includeGraph.macros.find(includes.top());
+				if(i != includeGraph.macros.end())
+				{
+					const MacroDeclarationSet& d = (*i).second;
+					for(MacroDeclarationSet::const_iterator i = d.begin(); i != d.end(); ++i)
+					{
+						const MacroDeclaration& declaration = *i;
+						printer.out << declaration.first << ": " << declaration.second << std::endl;
+
+						if(*declaration.first != '<' // <command line>
+							&& isHeader
+							&& !isIncluded(included, declaration.first))
+						{
+							printer.out << "WARNING: depending on file that was not (in)directly included: " << declaration.first << std::endl;
+							warnings = true;
+						}
+					}
+				}
+			}
+			out.close();
+
+			if(warnings)
+			{
+				std::cout << "warnings found: " << includes.top() << std::endl;
+			}
 		}
 		includes.pop();
-		if(!includes.empty()
-			&& includes.top() != 0)
+		if(includes.top() != 0)
 		{
 			resume(includes.top());
 		}
@@ -5395,8 +5523,21 @@ struct SymbolPrinter : PrintingWalker
 		}
 		if(includes.top() == 0)
 		{
-			includes.set(OutPath(root, symbol->source).c_str());
+			includes.set(symbol->source);
 			open(includes.top());
+
+			{
+				IncludeDependencyGraph::Includes::const_iterator i = includeGraph.includes.find(symbol->source);
+				if(i != includeGraph.includes.end())
+				{
+					const IncludeDependencyNode& d = *i;
+					for(IncludeDependencyNode::const_iterator i = d.begin(); i != d.end(); ++i)
+					{
+						printer.out << "<a href='" << OutPath("", (*i)->name).c_str() << "'>" << (*i)->name << "</a>" << std::endl;
+					}
+				}
+			}
+
 		}
 
 		symbol->accept(*this);
@@ -5443,11 +5584,19 @@ struct SymbolPrinter : PrintingWalker
 			printer.out << "<a href='";
 			if(symbol->value.dec.p != 0)
 			{
-				printer.out << OutPath(root, symbol->value.dec.p->name.source).c_str() + 4; // HACK!
+				printer.out << OutPath(root, symbol->value.dec.p->name.source).c_str() + 4; // HACK! Remove 'out/' from path
 			}
 			printer.out << "#";
 			printName(symbol->value.dec.p);
 			printer.out << "'>";
+
+			if(symbol->value.dec.p != 0
+				&& !isNamespace(*symbol->value.dec.p)
+				&& symbol->value.dec.p->name.source != 0 // refers to a symbol declared in a module
+				&& symbol->value.source != symbol->value.dec.p->name.source) // refers to a symbol not declared in the current module
+			{
+				moduleDependencies[symbol->value.source].insert(ModuleDeclaration(symbol->value.dec.p->name.source, symbol->value.dec.p));
+			}
 		}
 		printer.out << "<" << type << ">";
 		printer.out << getValue(symbol->value);
@@ -5479,7 +5628,7 @@ struct SymbolPrinter : PrintingWalker
 
 
 
-void printSymbol(cpp::declaration_seq* p, const char* path)
+void printSymbol(cpp::declaration_seq* p, const PrintSymbolArgs& args)
 {
 	try
 	{
@@ -5489,7 +5638,7 @@ void printSymbol(cpp::declaration_seq* p, const char* path)
 		walker.visit(makeSymbol(p));
 #endif
 
-		SymbolPrinter printer(path);
+		SymbolPrinter printer(args);
 		printer.visit(makeSymbol(p));
 	}
 	catch(SemanticError&)
@@ -5497,7 +5646,7 @@ void printSymbol(cpp::declaration_seq* p, const char* path)
 	}
 }
 
-void printSymbol(cpp::statement_seq* p, const char* path)
+void printSymbol(cpp::statement_seq* p, const PrintSymbolArgs& args)
 {
 	try
 	{
@@ -5507,7 +5656,7 @@ void printSymbol(cpp::statement_seq* p, const char* path)
 		walker.visit(makeSymbol(p));
 #endif
 
-		SymbolPrinter printer(path);
+		SymbolPrinter printer(args);
 		printer.visit(makeSymbol(p));
 	}
 	catch(SemanticError&)

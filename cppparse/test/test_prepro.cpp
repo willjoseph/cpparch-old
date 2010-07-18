@@ -1,4 +1,9 @@
 
+#include <malloc.h>
+
+#if 0
+#include <stdio.h>
+#endif
 
 #if 0
 #include <boost/wave.hpp>

@@ -56,9 +56,46 @@ const LexFilePosition& get_position(const LexToken& token);
 
 #include <vector>
 #include <set>
+#include <map>
 #include <iostream>
 #include <string.h> // strlen
 #include <algorithm> // std::min
+
+
+typedef std::set<const struct IncludeDependencyNode*> IncludeDependencyNodes;
+
+struct IncludeDependencyNode : public IncludeDependencyNodes
+{
+	const char* name;
+	IncludeDependencyNode(const char* name)
+		: name(name)
+	{
+	}
+};
+
+inline bool operator<(const IncludeDependencyNode& left, const IncludeDependencyNode& right)
+{
+	return left.name < right.name;
+}
+
+typedef std::pair<const char*, const char*> MacroDeclaration; // first=source, second=name
+typedef std::set<MacroDeclaration> MacroDeclarationSet;
+typedef std::map<const char*, MacroDeclarationSet> MacroDependencyMap; // key=source
+
+struct IncludeDependencyGraph
+{
+	typedef std::set<IncludeDependencyNode> Includes;
+	Includes includes;
+
+	MacroDependencyMap macros;
+
+	IncludeDependencyNode& get(const char* name)
+	{
+		Includes::iterator i = includes.insert(name).first;
+		return const_cast<IncludeDependencyNode&>(*i);
+	}
+};
+
 
 
 inline bool isEOF(LexTokenId token)
@@ -409,6 +446,8 @@ struct Lexer
 		position = ::next(history, position);
 		refill();
 	}
+
+	const IncludeDependencyGraph& getIncludeGraph() const;
 };
 
 inline void printPosition(const LexFilePosition& position)

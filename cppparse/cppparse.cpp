@@ -28,7 +28,7 @@ ArrayRange<T> makeRange(const T* first, const T* last)
 
 
 
-typedef int (*VerifyFunc)(void* output, const char* path);
+typedef int (*VerifyFunc)(void* output, const PrintSymbolArgs& args);
 
 typedef void* (*ParseFunc)(ParserContext& lexer);
 
@@ -51,7 +51,7 @@ struct Test
 };
 
 template<typename Result>
-Test makeTest(const char* input, const CharConstPointerRange& definitions, const CharConstPointerRange& includes, int (*verify)(Result*, const char*), Result* (*parse)(ParserContext&))
+Test makeTest(const char* input, const CharConstPointerRange& definitions, const CharConstPointerRange& includes, int (*verify)(Result*, const PrintSymbolArgs&), Result* (*parse)(ParserContext&))
 {
 	Test result = { input, definitions, includes, VerifyFunc(verify), ParseFunc(parse) };
 	return result;
@@ -64,8 +64,23 @@ int runTest(const Test& test)
 		//  The following preprocesses the given input file.
 		//  Open and read in the specified input file.
 		std::string instring;
+
 #if 1
-		instring = Concatenate(makeRange("#include \"test/predefined_msvc.h\"\n" " #include \""), makeRange(test.input), makeRange("\"\n")).c_str();
+		const char* predefined = "$predefined_msvc.h";
+		std::ifstream instream(predefined);
+
+		if (!instream.is_open()) {
+			std::cerr << "Could not open input file: " << predefined << std::endl;
+			return -2;
+		}
+		std::cout << "reading input file: " << predefined << std::endl;
+		instream.unsetf(std::ios::skipws);
+		instring = std::string(std::istreambuf_iterator<char>(instream.rdbuf()),
+			std::istreambuf_iterator<char>());
+
+		instring += Concatenate(makeRange("\n #include \""), makeRange(test.input), makeRange("\"\n")).c_str();
+#elif 1
+		instring = Concatenate(makeRange("#include \"$predefined_msvc.h\"\n" " #include \""), makeRange(test.input), makeRange("\"\n")).c_str();
 #else
 		std::ifstream instream(test.input);
 
@@ -143,7 +158,8 @@ int runTest(const Test& test)
 #if 1
 		StringRange root(test.input, strrchr(test.input, '.'));
 		ParserContext lexer(context, Concatenate(root, makeRange(".prepro.cpp")).c_str());
-		int result = test.verify(test.parse(lexer), "out\\");
+		PrintSymbolArgs args = { "out\\", lexer.getIncludeGraph() };
+		int result = test.verify(test.parse(lexer), args);
 		if(lexer.stats.count != 0)
 		{
 			printPosition(lexer.stats.position);
@@ -210,9 +226,9 @@ inline void verifyIdentifier(cpp::symbol<T> p, const char* value)
 	PARSE_ASSERT(strcmp(VERIFY_CAST(cpp::identifier, p)->value.value, value) == 0);
 }
 
-int verifyFunctionDefinition(cpp::declaration_seq* result, const char* path)
+int verifyFunctionDefinition(cpp::declaration_seq* result, const PrintSymbolArgs& args)
 {
-	printSymbol(result, path);
+	printSymbol(result, args);
 #if 0
 	cpp::function_definition* func = VERIFY_CAST(cpp::function_definition, verifyNotNull(result)->item);
 	PARSE_ASSERT(VERIFY_CAST(cpp::simple_type_specifier_builtin, verifyNotNull(func->spec)->type)->value == cpp::simple_type_specifier_builtin::VOID);
@@ -222,18 +238,18 @@ int verifyFunctionDefinition(cpp::declaration_seq* result, const char* path)
 	return 0;
 }
 
-int verifyNamespace(cpp::declaration_seq* result, const char* path)
+int verifyNamespace(cpp::declaration_seq* result, const PrintSymbolArgs& args)
 {
-	printSymbol(result, path);
+	printSymbol(result, args);
 	cpp::namespace_definition* def = VERIFY_CAST(cpp::namespace_definition, verifyNotNull(result)->item);
 	//PARSE_ASSERT(def->id->value != "");
 	PARSE_ASSERT(def->body == 0);
 	return 0;
 }
 
-int verifyPtr(cpp::declaration_seq* result, const char* path)
+int verifyPtr(cpp::declaration_seq* result, const PrintSymbolArgs& args)
 {
-	printSymbol(result, path);
+	printSymbol(result, args);
 	cpp::simple_declaration* decl = VERIFY_CAST(cpp::simple_declaration, verifyNotNull(result)->item);
 	PARSE_ASSERT(decl->spec != 0);
 	PARSE_ASSERT(decl->spec->type != 0);
@@ -253,23 +269,23 @@ int verifyPtr(cpp::declaration_seq* result, const char* path)
 	return 0;
 }
 
-int verifyNull(cpp::declaration_seq* result, const char* path)
+int verifyNull(cpp::declaration_seq* result, const PrintSymbolArgs& args)
 {
-	printSymbol(result, path);
+	printSymbol(result, args);
 	return 0;
 }
 
-int verifyAmbFuncCast(cpp::statement_seq* result, const char* path)
+int verifyAmbFuncCast(cpp::statement_seq* result, const PrintSymbolArgs& args)
 {
-	printSymbol(result, path);
+	printSymbol(result, args);
 	// TODO: ambiguity: int(x); // function-style-cast or simple-declaration?
 	//cpp::postfix_expression_construct* result = VERIFY_CAST(cpp::postfix_expression_construct, verifyNotNull(result)->item);
 	return 0;
 }
 
-int verifyAmbOnesComp(cpp::statement_seq* result, const char* path)
+int verifyAmbOnesComp(cpp::statement_seq* result, const PrintSymbolArgs& args)
 {
-	printSymbol(result, path);
+	printSymbol(result, args);
 	cpp::expression_statement* stmt = VERIFY_CAST(cpp::expression_statement, verifyNotNull(result)->item);
 	cpp::unary_expression_op* expr = VERIFY_CAST(cpp::unary_expression_op, stmt->expr);
 	PARSE_ASSERT(expr->op->id == cpp::unary_operator::COMPL);
@@ -279,9 +295,9 @@ int verifyAmbOnesComp(cpp::statement_seq* result, const char* path)
 	return 0;
 }
 
-int verifyAmbDeclSpec(cpp::declaration_seq* result, const char* path)
+int verifyAmbDeclSpec(cpp::declaration_seq* result, const PrintSymbolArgs& args)
 {
-	printSymbol(result, path);
+	printSymbol(result, args);
 	cpp::simple_declaration* decl = VERIFY_CAST(cpp::simple_declaration, verifyNotNull(result)->item);
 	cpp::simple_type_specifier_name* spec = VERIFY_CAST(cpp::simple_type_specifier_name, verifyNotNull(decl->spec)->type);
 	PARSE_ASSERT(spec->context);
@@ -293,17 +309,17 @@ int verifyAmbDeclSpec(cpp::declaration_seq* result, const char* path)
 	return 0;
 }
 
-int verifyAmbCastExpr(cpp::statement_seq* result, const char* path)
+int verifyAmbCastExpr(cpp::statement_seq* result, const PrintSymbolArgs& args)
 {
-	printSymbol(result, path);
+	printSymbol(result, args);
 	// TODO: ambiguity: (Type)(x); // c-style-cast or function-declaration?
 	//cpp::simple_declaration* decln = VERIFY_CAST(cpp::simple_declaration, verifyNotNull(result)->item);
 	return 0;
 }
 
-int verifyAmbConstructor(cpp::declaration_seq* result, const char* path)
+int verifyAmbConstructor(cpp::declaration_seq* result, const PrintSymbolArgs& args)
 {
-	printSymbol(result, path);
+	printSymbol(result, args);
 	cpp::simple_declaration* decln = VERIFY_CAST(cpp::simple_declaration, verifyNotNull(result)->item);
 	cpp::class_specifier* spec = VERIFY_CAST(cpp::class_specifier, verifyNotNull(decln->spec)->type);
 	cpp::member_specification_list* members = VERIFY_CAST(cpp::member_specification_list, verifyNotNull(spec->members));
@@ -314,9 +330,9 @@ int verifyAmbConstructor(cpp::declaration_seq* result, const char* path)
 	return 0;
 }
 
-int verifyIf(cpp::statement_seq* result, const char* path)
+int verifyIf(cpp::statement_seq* result, const PrintSymbolArgs& args)
 {
-	printSymbol(result, path);
+	printSymbol(result, args);
 	cpp::selection_statement_if* stmt = VERIFY_CAST(cpp::selection_statement_if, verifyNotNull(result)->item);
 	{
 		cpp::condition_init* cond = VERIFY_CAST(cpp::condition_init, stmt->cond);
@@ -328,9 +344,9 @@ int verifyIf(cpp::statement_seq* result, const char* path)
 	return 0;
 }
 
-int verifyFor(cpp::statement_seq* result, const char* path)
+int verifyFor(cpp::statement_seq* result, const PrintSymbolArgs& args)
 {
-	printSymbol(result, path);
+	printSymbol(result, args);
 	cpp::iteration_statement_for* stmt = VERIFY_CAST(cpp::iteration_statement_for, verifyNotNull(result)->item);
 	{
 		cpp::simple_declaration* decl = VERIFY_CAST(cpp::simple_declaration, stmt->init);
@@ -363,8 +379,8 @@ int main(int argc, char *argv[])
 		const Test tests[] = {
 			//makeTest("cppparse.cpp", ARRAY_RANGE(DEFINITIONS_CPPPARSE), ARRAY_RANGE(INCLUDES_CPPPARSE), verifyNull, parseFile),
 			//makeTest("cpptree.cpp", ARRAY_RANGE(DEFINITIONS_CPPPARSE), ARRAY_RANGE(INCLUDES_CPPPARSE), verifyNull, parseFile),
-			makeTest("test/test_prepro.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), ARRAY_RANGE(INCLUDES_CPPPARSE), verifyNull, parseFile),
 			makeTest("test/test_include.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), ARRAY_RANGE(INCLUDES_CPPPARSE), verifyNull, parseFile),
+			makeTest("test/test_prepro.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), ARRAY_RANGE(INCLUDES_CPPPARSE), verifyNull, parseFile),
 #if 1
 			makeTest("test/test_quick.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyNull, parseFile),
 			makeTest("test/test_vector.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyNull, parseFile),

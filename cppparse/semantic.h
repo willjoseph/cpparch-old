@@ -8,8 +8,16 @@ namespace cpp
 	struct statement_seq;
 };
 
-void printSymbol(cpp::declaration_seq* p, const char* path);
-void printSymbol(cpp::statement_seq* p, const char* path);
+struct IncludeDependencyGraph;
+
+struct PrintSymbolArgs
+{
+	const char* path;
+	const IncludeDependencyGraph& includeGraph;
+};
+
+void printSymbol(cpp::declaration_seq* p, const PrintSymbolArgs& args);
+void printSymbol(cpp::statement_seq* p, const PrintSymbolArgs& args);
 
 
 #endif
