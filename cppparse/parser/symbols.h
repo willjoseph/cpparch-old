@@ -18,21 +18,32 @@ inline cpp::identifier* parseSymbol(ParserType& parser, cpp::identifier* result)
 	}
 	return NULL;
 }
-#if 0
-inline cpp::declaration_seq* parseSymbol(Parser& parser, cpp::declaration_seq* result);
-#endif
 
-#if 0
-inline cpp::namespace_definition* parseSymbol(Parser& parser, cpp::namespace_definition* result)
+
+template<typename ParserType>
+inline cpp::string_literal* parseSymbol(ParserType& parser, cpp::string_literal* result)
 {
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_OPTIONAL(parser, result->id);
-	PARSE_TERMINAL(parser, result->lb);
-	PARSE_SEQUENCE(parser, result->body);
-	PARSE_TERMINAL(parser, result->rb);
+	if(TOKEN_EQUAL(parser, boost::wave::T_STRINGLIT))
+	{
+		result->value.value = parser.get_value();
+		parser.increment();
+		PARSE_OPTIONAL(parser, result->next);
+		return result;
+	}
+	return NULL;
+}
+
+template<typename ParserType>
+inline cpp::numeric_literal* parseSymbol(ParserType& parser, cpp::numeric_literal* result)
+{
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_PP_NUMBER, cpp::numeric_literal::INTEGER);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_INTLIT, cpp::numeric_literal::INTEGER);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_CHARLIT, cpp::numeric_literal::CHARACTER);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_FLOATLIT, cpp::numeric_literal::FLOATING);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_TRUE, cpp::numeric_literal::BOOLEAN);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_FALSE, cpp::numeric_literal::BOOLEAN);
 	return result;
 }
-#endif
 
 template<typename ParserType>
 inline cpp::cv_qualifier* parseSymbol(ParserType& parser, cpp::cv_qualifier* result)
@@ -94,456 +105,6 @@ inline cpp::decl_specifier_default* parseSymbol(ParserType& parser, cpp::decl_sp
 }
 
 
-#if 0
-inline cpp::class_name* parseSymbol(Parser& parser, cpp::class_name* result)
-{
-	PARSE_SELECT(parser, cpp::simple_template_id); // TODO: ambiguity: shared prefix 'identifier'
-	PARSE_SELECT(parser, cpp::identifier);
-	return result;
-}
-
-inline cpp::namespace_name* parseSymbol(Parser& parser, cpp::namespace_name* result)
-{
-	PARSE_SELECT(parser, cpp::identifier);
-	return result;
-}
-
-inline cpp::nested_name* parseSymbol(Parser& parser, cpp::nested_name* result)
-{
-	PARSE_SELECT(parser, cpp::class_name);
-	PARSE_SELECT(parser, cpp::namespace_name);
-	return result;
-}
-
-inline cpp::type_name* parseSymbol(Parser& parser, cpp::type_name* result)
-{
-	PARSE_SELECT(parser, cpp::class_name); // NOTE: not distinguishing between class/enum/typedef names
-	return result;
-}
-
-inline cpp::template_argument* parseSymbol(Parser& parser, cpp::template_argument* result)
-{
-	PARSE_SELECT(parser, cpp::type_id); // TODO: ambiguity: 'type-id' and 'primary-expression' may both be 'identifier'. Prefer type-id to handle 'T(*)()'.
-	PARSE_SELECT(parser, cpp::assignment_expression);
-	return result;
-}
-#endif
-
-template<typename ParserType>
-inline cpp::template_argument_list* parseSymbol(ParserType& parser, cpp::template_argument_list* result)
-{
-	parser.inTemplateArgumentList = true;
-	PARSE_REQUIRED(parser, result->item);
-	PARSE_TERMINAL(parser, result->comma);
-	PARSE_REQUIRED(parser, result->next);
-	return result;
-}
-
-template<typename ParserType>
-inline cpp::template_argument_clause_disambiguate* parseSymbol(ParserType& parser, cpp::template_argument_clause_disambiguate* result)
-{
-	PARSE_SELECT(parser, cpp::template_argument_clause);
-	return result;
-}
-
-template<typename ParserType>
-inline cpp::simple_template_id* parseSymbol(ParserType& parser, cpp::simple_template_id* result)
-{
-	PARSE_REQUIRED(parser, result->id);
-	PARSE_REQUIRED(parser, result->args);
-	return result;
-}
-
-#if 0
-inline cpp::nested_name_specifier_prefix* parseSymbol(Parser& parser, cpp::nested_name_specifier_prefix* result)
-{
-	PARSE_REQUIRED(parser, result->id);
-	PARSE_TERMINAL(parser, result->scope);
-	return result;
-}
-
-inline cpp::nested_name_specifier_suffix_default* parseSymbol(Parser& parser, cpp::nested_name_specifier_suffix_default* result)
-{
-	PARSE_REQUIRED(parser, result->id);
-	PARSE_TERMINAL(parser, result->scope);
-	return result;
-}
-
-inline cpp::nested_name_specifier_suffix_template* parseSymbol(Parser& parser, cpp::nested_name_specifier_suffix_template* result)
-{
-	PARSE_TERMINAL(parser, result->isTemplate);
-	PARSE_REQUIRED(parser, result->id);
-	PARSE_TERMINAL(parser, result->scope);
-	return result;
-}
-
-inline cpp::nested_name_specifier_suffix* parseSymbol(Parser& parser, cpp::nested_name_specifier_suffix* result)
-{
-	PARSE_SELECT(parser, cpp::nested_name_specifier_suffix_template);
-	PARSE_SELECT(parser, cpp::nested_name_specifier_suffix_default);
-	return result;
-}
-
-inline cpp::nested_name_specifier_suffix_seq* parseSymbol(Parser& parser, cpp::nested_name_specifier_suffix_seq* result)
-{
-	PARSE_REQUIRED(parser, result->item);
-	PARSE_OPTIONAL(parser, result->next);
-	return result;
-}
-
-inline cpp::nested_name_specifier* parseSymbol(Parser& parser, cpp::nested_name_specifier* result)
-{
-	PARSE_REQUIRED(parser, result->prefix);
-	PARSE_OPTIONAL(parser, result->suffix);  // TODO: shared-prefix ambiguity between nested-name-specifier and 'identifier'
-	return result;
-}
-
-inline cpp::simple_type_specifier_name* parseSymbol(Parser& parser, cpp::simple_type_specifier_name* result)
-{
-	PARSE_TERMINAL(parser, result->isGlobal);
-	PARSE_OPTIONAL(parser, result->context);
-	PARSE_REQUIRED(parser, result->id);
-	return result;
-}
-
-inline cpp::simple_type_specifier_template* parseSymbol(Parser& parser, cpp::simple_type_specifier_template* result)
-{
-	PARSE_TERMINAL(parser, result->isGlobal);
-	PARSE_REQUIRED(parser, result->context);
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_REQUIRED(parser, result->id);
-	return result;
-}
-
-inline cpp::simple_type_specifier* parseSymbol(Parser& parser, cpp::simple_type_specifier* result)
-{
-	PARSE_SELECT(parser, cpp::simple_type_specifier_builtin);
-	PARSE_SELECT(parser, cpp::simple_type_specifier_template);
-	PARSE_SELECT(parser, cpp::simple_type_specifier_name);
-	return result;
-}
-#endif
-
-#if 0
-inline cpp::using_declaration* parseSymbol(Parser& parser, cpp::using_declaration* result);
-inline cpp::parameter_declaration* parseSymbol(Parser& parser, cpp::parameter_declaration* result);
-#endif
-
-template<typename ParserType>
-inline cpp::type_parameter_key* parseSymbol(ParserType& parser, cpp::type_parameter_key* result)
-{
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_CLASS, cpp::type_parameter_key::CLASS);
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_TYPENAME, cpp::type_parameter_key::TYPENAME);
-	return result;
-}
-
-#if 0
-inline cpp::type_parameter_default* parseSymbol(Parser& parser, cpp::type_parameter_default* result)
-{
-	PARSE_REQUIRED(parser, result->key);
-	PARSE_OPTIONAL(parser, result->id);
-	PARSE_TERMINAL(parser, result->assign);
-	PARSE_REQUIRED(parser, result->init);
-	return result;
-}
-
-inline cpp::type_parameter_template* parseSymbol(Parser& parser, cpp::type_parameter_template* result)
-{
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_TERMINAL(parser, result->lt);
-	PARSE_REQUIRED(parser, result->params);
-	PARSE_TERMINAL(parser, result->gt);
-	PARSE_TERMINAL(parser, result->key2);
-	PARSE_OPTIONAL(parser, result->id);
-	PARSE_TERMINAL(parser, result->assign);
-	PARSE_REQUIRED(parser, result->init);
-	return result;
-}
-
-inline cpp::type_parameter* parseSymbol(Parser& parser, cpp::type_parameter* result)
-{
-	PARSE_SELECT(parser, cpp::type_parameter_default);
-	PARSE_SELECT(parser, cpp::type_parameter_template);
-	return result;
-}
-
-inline cpp::template_parameter* parseSymbol(Parser& parser, cpp::template_parameter* result)
-{
-	PARSE_SELECT(parser, cpp::type_parameter); // TODO: ambiguity 'class C' could be elaborated-type-specifier or type-parameter
-	PARSE_SELECT(parser, cpp::parameter_declaration);
-	return result;
-}
-
-inline cpp::template_parameter_list* parseSymbol(Parser& parser, cpp::template_parameter_list* result)
-{
-	PARSE_REQUIRED(parser, result->item);
-	PARSE_TERMINAL(parser, result->comma);
-	PARSE_REQUIRED(parser, result->next);
-	return result;
-}
-
-inline cpp::template_declaration_prefix* parseSymbol(Parser& parser, cpp::template_declaration_prefix* result)
-{
-	PARSE_TERMINAL(parser, result->isExport);
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_TERMINAL(parser, result->lt);
-	PARSE_REQUIRED(parser, result->params);
-	PARSE_TERMINAL(parser, result->gt);
-	return result;
-}
-
-inline cpp::template_declaration* parseSymbol(Parser& parser, cpp::template_declaration* result)
-{
-	PARSE_REQUIRED(parser, result->prefix);
-	PARSE_REQUIRED(parser, result->decl);
-	return result;
-}
-
-inline cpp::member_template_declaration* parseSymbol(Parser& parser, cpp::member_template_declaration* result)
-{
-	PARSE_REQUIRED(parser, result->prefix);
-	PARSE_REQUIRED(parser, result->decl);
-	return result;
-}
-
-inline cpp::constant_expression* parseSymbol(Parser& parser, cpp::constant_expression* result)
-{
-	PARSE_SELECT(parser, cpp::conditional_expression);
-	return result;
-}
-
-inline cpp::pure_specifier* parseSymbol(Parser& parser, cpp::pure_specifier* result)
-{
-	PARSE_TERMINAL(parser, result->assign);
-	PARSE_TERMINAL(parser, result->zero); // TODO: check value is zero
-	return result;
-}
-
-inline cpp::constant_initializer* parseSymbol(Parser& parser, cpp::constant_initializer* result)
-{
-	PARSE_TERMINAL(parser, result->assign);
-	PARSE_REQUIRED(parser, result->expr);
-	return result;
-}
-
-inline cpp::member_initializer* parseSymbol(Parser& parser, cpp::member_initializer* result)
-{
-	PARSE_SELECT(parser, cpp::constant_initializer); // TODO: ambiguity here!
-	PARSE_SELECT(parser, cpp::pure_specifier);
-	return result;
-}
-
-inline cpp::member_declarator_bitfield* parseSymbol(Parser& parser, cpp::member_declarator_bitfield* result)
-{
-	PARSE_OPTIONAL(parser, result->id);
-	PARSE_TERMINAL(parser, result->colon);
-	PARSE_REQUIRED(parser, result->width);
-	return result;
-}
-
-inline cpp::declarator* parseSymbol(Parser& parser, cpp::declarator* result);
-inline cpp::decl_specifier_seq* parseSymbol(Parser& parser, cpp::decl_specifier_seq* result);
-
-inline cpp::member_declarator_default* parseSymbol(Parser& parser, cpp::member_declarator_default* result)
-{
-	PARSE_REQUIRED(parser, result->decl);
-	PARSE_OPTIONAL(parser, result->init);
-	return result;
-}
-
-inline cpp::member_declarator* parseSymbol(Parser& parser, cpp::member_declarator* result)
-{
-	PARSE_SELECT(parser, cpp::member_declarator_bitfield); // TODO: shared prefix ambiguity: 'identifier'
-	PARSE_SELECT(parser, cpp::member_declarator_default);
-	return result;
-}
-#endif
-
-template<typename ParserType>
-inline cpp::member_declaration_bitfield* parseSymbol(ParserType& parser, cpp::member_declaration_bitfield* result)
-{
-	PARSE_REQUIRED(parser, result->item);
-	PARSE_TERMINAL(parser, result->comma);
-	if(result->comma.value != 0)
-	{
-		PARSE_REQUIRED(parser, result->next);
-	}
-	PARSE_TERMINAL(parser, result->semicolon);
-	return result;
-}
-
-#if 0
-inline cpp::member_declaration_named* parseSymbol(Parser& parser, cpp::member_declaration_named* result)
-{
-	PARSE_REQUIRED(parser, result->decl);
-	PARSE_TERMINAL(parser, result->semicolon);
-	return result;
-}
-
-inline cpp::member_declaration_suffix* parseSymbol(Parser& parser, cpp::member_declaration_suffix* result)
-{
-	PARSE_SELECT(parser, cpp::member_declaration_bitfield);
-	PARSE_SELECT(parser, cpp::member_declaration_named);
-	PARSE_SELECT(parser, cpp::type_declaration_suffix);
-	PARSE_SELECT(parser, cpp::function_definition);
-	return result;
-}
-
-inline cpp::member_declarator_list* parseSymbol(Parser& parser, cpp::member_declarator_list* result)
-{
-	PARSE_REQUIRED(parser, result->item);
-	PARSE_TERMINAL(parser, result->comma);
-	PARSE_REQUIRED(parser, result->next);
-	return result;
-}
-
-inline cpp::member_declaration_default* parseSymbol(Parser& parser, cpp::member_declaration_default* result)
-{
-	PARSE_REQUIRED(parser, result->spec);
-	PARSE_REQUIRED(parser, result->suffix);
-	return result;
-}
-
-inline cpp::member_declaration_nested* parseSymbol(Parser& parser, cpp::member_declaration_nested* result)
-{
-	PARSE_TERMINAL(parser, result->isGlobal);
-	PARSE_REQUIRED(parser, result->context);
-	PARSE_TERMINAL(parser, result->isTemplate);
-	PARSE_REQUIRED(parser, result->id);
-	PARSE_TERMINAL(parser, result->semicolon);
-	return result;
-}
-
-inline cpp::function_specifier_seq* parseSymbol(Parser& parser, cpp::function_specifier_seq* result)
-{
-	PARSE_REQUIRED(parser, result->item);
-	PARSE_OPTIONAL(parser, result->next);
-	return result;
-}
-
-inline cpp::mem_initializer_id_base* parseSymbol(Parser& parser, cpp::mem_initializer_id_base* result)
-{
-	PARSE_TERMINAL(parser, result->isGlobal);
-	PARSE_OPTIONAL(parser, result->context);
-	PARSE_REQUIRED(parser, result->type);
-	return result;
-}
-
-inline cpp::mem_initializer_id* parseSymbol(Parser& parser, cpp::mem_initializer_id* result)
-{
-	PARSE_SELECT(parser, cpp::mem_initializer_id_base);
-	PARSE_SELECT(parser, cpp::identifier);
-	return result;
-}
-
-inline cpp::mem_initializer* parseSymbol(Parser& parser, cpp::mem_initializer* result)
-{
-	PARSE_REQUIRED(parser, result->id);
-	PARSE_TERMINAL(parser, result->lp);
-	PARSE_OPTIONAL(parser, result->args);
-	PARSE_TERMINAL(parser, result->rp);
-	return result;
-}
-
-inline cpp::mem_initializer_list* parseSymbol(Parser& parser, cpp::mem_initializer_list* result)
-{
-	PARSE_REQUIRED(parser, result->item);
-	PARSE_TERMINAL(parser, result->comma);
-	PARSE_REQUIRED(parser, result->next);
-	return result;
-}
-
-inline cpp::ctor_initializer* parseSymbol(Parser& parser, cpp::ctor_initializer* result)
-{
-	PARSE_TERMINAL(parser, result->colon);
-	PARSE_REQUIRED(parser, result->list);
-	return result;
-}
-#endif
-
-#if 0
-inline cpp::compound_statement* parseSymbol(Parser& parser, cpp::compound_statement* result);
-#endif
-
-#if 0
-inline cpp::function_body* parseSymbol(Parser& parser, cpp::function_body* result)
-{
-	PARSE_SELECT(parser, cpp::compound_statement);
-	return result;
-}
-
-inline cpp::exception_declarator* parseSymbol(Parser& parser, cpp::exception_declarator* result)
-{
-	PARSE_SELECT(parser, cpp::declarator);
-	PARSE_SELECT(parser, cpp::abstract_declarator);
-	return result;
-}
-
-inline cpp::exception_declaration_default* parseSymbol(Parser& parser, cpp::exception_declaration_default* result)
-{
-	PARSE_REQUIRED(parser, result->type);
-	PARSE_REQUIRED(parser, result->decl);
-	return result;
-}
-
-inline cpp::exception_declaration_all* parseSymbol(Parser& parser, cpp::exception_declaration_all* result)
-{
-	PARSE_TERMINAL(parser, result->key);
-	return result;
-}
-
-inline cpp::exception_declaration* parseSymbol(Parser& parser, cpp::exception_declaration* result)
-{
-	PARSE_SELECT(parser, cpp::exception_declaration_all);
-	PARSE_SELECT(parser, cpp::exception_declaration_default);
-	return result;
-}
-
-inline cpp::handler_seq* parseSymbol(Parser& parser, cpp::handler_seq* result)
-{
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_TERMINAL(parser, result->lp);
-	PARSE_REQUIRED(parser, result->decl);
-	PARSE_TERMINAL(parser, result->rp);
-	PARSE_REQUIRED(parser, result->body);
-	PARSE_OPTIONAL(parser, result->next);
-	return result;
-}
-
-inline cpp::constructor_definition* parseSymbol(Parser& parser, cpp::constructor_definition* result)
-{
-	PARSE_OPTIONAL(parser, result->spec);
-	PARSE_REQUIRED(parser, result->suffix);
-	return result;
-}
-
-inline cpp::member_declaration_implicit* parseSymbol(Parser& parser, cpp::member_declaration_implicit* result)
-{
-	PARSE_OPTIONAL(parser, result->spec);
-	PARSE_REQUIRED(parser, result->suffix);
-	return result;
-}
-
-inline cpp::member_declaration* parseSymbol(Parser& parser, cpp::member_declaration* result)
-{
-	PARSE_SELECT(parser, cpp::using_declaration);
-	PARSE_SELECT(parser, cpp::member_template_declaration);
-	PARSE_SELECT(parser, cpp::member_declaration_implicit); // TODO: ambiguity:  this matches a constructor: "Class(Type);"
-	PARSE_SELECT(parser, cpp::member_declaration_default); // .. this matches a member: "Type(member);"
-	PARSE_SELECT(parser, cpp::member_declaration_nested);
-	return result;
-}
-
-inline cpp::member_specification* parseSymbol(Parser& parser, cpp::member_specification* result);
-
-inline cpp::member_specification_list* parseSymbol(Parser& parser, cpp::member_specification_list* result)
-{
-	PARSE_REQUIRED(parser, result->item);
-	PARSE_OPTIONAL(parser, result->next);
-	return result;
-}
-#endif
-
 template<typename ParserType>
 inline cpp::access_specifier* parseSymbol(ParserType& parser, cpp::access_specifier* result)
 {
@@ -552,23 +113,6 @@ inline cpp::access_specifier* parseSymbol(ParserType& parser, cpp::access_specif
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_PUBLIC, cpp::access_specifier::PUBLIC);
 	return result;
 }
-
-#if 0
-inline cpp::member_specification_access* parseSymbol(Parser& parser, cpp::member_specification_access* result)
-{
-	PARSE_REQUIRED(parser, result->access);
-	PARSE_TERMINAL(parser, result->colon);
-	PARSE_OPTIONAL(parser, result->next);
-	return result;
-}
-
-inline cpp::member_specification* parseSymbol(Parser& parser, cpp::member_specification* result)
-{
-	PARSE_SELECT(parser, cpp::member_specification_access);
-	PARSE_SELECT(parser, cpp::member_specification_list);
-	return result;
-}
-#endif
 
 template<typename ParserType>
 inline cpp::class_key* parseSymbol(ParserType& parser, cpp::class_key* result)
@@ -579,223 +123,6 @@ inline cpp::class_key* parseSymbol(ParserType& parser, cpp::class_key* result)
 	return result;
 }
 
-#if 0
-inline cpp::base_specifier_access_virtual* parseSymbol(Parser& parser, cpp::base_specifier_access_virtual* result)
-{
-	PARSE_REQUIRED(parser, result->access);
-	PARSE_TERMINAL(parser, result->isVirtual);
-	return result;
-}
-
-inline cpp::base_specifier_virtual_access* parseSymbol(Parser& parser, cpp::base_specifier_virtual_access* result)
-{
-	PARSE_TERMINAL(parser, result->isVirtual);
-	PARSE_OPTIONAL(parser, result->access);
-	return result;
-}
-
-inline cpp::base_specifier_prefix* parseSymbol(Parser& parser, cpp::base_specifier_prefix* result)
-{
-	PARSE_SELECT(parser, cpp::base_specifier_access_virtual);
-	PARSE_SELECT(parser, cpp::base_specifier_virtual_access);
-	return result;
-}
-
-inline cpp::base_specifier* parseSymbol(Parser& parser, cpp::base_specifier* result)
-{
-	PARSE_OPTIONAL(parser, result->prefix);
-	PARSE_TERMINAL(parser, result->isGlobal);
-	PARSE_OPTIONAL(parser, result->context);
-	PARSE_TERMINAL(parser, result->isTemplate);
-	PARSE_REQUIRED(parser, result->id);
-	return result;
-}
-
-inline cpp::base_specifier_list* parseSymbol(Parser& parser, cpp::base_specifier_list* result)
-{
-	PARSE_REQUIRED(parser, result->item);
-	PARSE_TERMINAL(parser, result->comma);
-	PARSE_REQUIRED(parser, result->next);
-	return result;
-}
-
-inline cpp::base_clause* parseSymbol(Parser& parser, cpp::base_clause* result)
-{
-	PARSE_TERMINAL(parser, result->colon);
-	PARSE_REQUIRED(parser, result->list);
-	return result;
-}
-
-inline cpp::class_head_unnamed* parseSymbol(Parser& parser, cpp::class_head_unnamed* result)
-{
-	PARSE_REQUIRED(parser, result->key);
-	PARSE_OPTIONAL(parser, result->base);
-	return result;
-}
-
-inline cpp::class_head_default* parseSymbol(Parser& parser, cpp::class_head_default* result)
-{
-	PARSE_REQUIRED(parser, result->key);
-	PARSE_OPTIONAL(parser, result->context);
-	PARSE_REQUIRED(parser, result->id);
-	PARSE_OPTIONAL(parser, result->base);
-	return result;
-}
-
-inline cpp::class_head* parseSymbol(Parser& parser, cpp::class_head* result)
-{
-	PARSE_SELECT(parser, cpp::class_head_default); // TODO: shared prefix ambiguity: both start with 'class-key'
-	PARSE_SELECT(parser, cpp::class_head_unnamed);
-	return result;
-}
-
-inline cpp::class_specifier* parseSymbol(Parser& parser, cpp::class_specifier* result)
-{
-	PARSE_REQUIRED(parser, result->head);
-	PARSE_TERMINAL(parser, result->lb);
-	PARSE_OPTIONAL(parser, result->members);
-	PARSE_TERMINAL(parser, result->rb);
-	return result;
-}
-
-inline cpp::enumerator_definition* parseSymbol(Parser& parser, cpp::enumerator_definition* result)
-{
-	PARSE_REQUIRED(parser, result->id);
-	PARSE_TERMINAL(parser, result->assign);
-	PARSE_REQUIRED(parser, result->init);
-	return result;
-}
-
-inline cpp::enumerator_list* parseSymbol(Parser& parser, cpp::enumerator_list* result)
-{
-	PARSE_REQUIRED(parser, result->item);
-	PARSE_TERMINAL(parser, result->comma);
-	PARSE_OPTIONAL(parser, result->next); // optional because trailing-comma is allowed
-	return result;
-}
-
-inline cpp::enum_specifier* parseSymbol(Parser& parser, cpp::enum_specifier* result)
-{
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_OPTIONAL(parser, result->id);
-	PARSE_TERMINAL(parser, result->lb);
-	PARSE_OPTIONAL(parser, result->values);
-	PARSE_TERMINAL(parser, result->rb);
-	return result;
-}
-
-inline cpp::enum_key* parseSymbol(Parser& parser, cpp::enum_key* result)
-{
-	PARSE_TERMINAL(parser, result->key);
-	return result;
-}
-
-inline cpp::elaborated_type_specifier_key* parseSymbol(Parser& parser, cpp::elaborated_type_specifier_key* result)
-{
-	PARSE_SELECT(parser, cpp::class_key);
-	PARSE_SELECT(parser, cpp::enum_key);
-	return result;
-}
-
-inline cpp::elaborated_type_specifier_default* parseSymbol(Parser& parser, cpp::elaborated_type_specifier_default* result)
-{
-	PARSE_REQUIRED(parser, result->key);
-	PARSE_TERMINAL(parser, result->isGlobal);
-	PARSE_OPTIONAL(parser, result->context);
-	PARSE_REQUIRED(parser, result->id);
-	return result;
-}
-
-inline cpp::elaborated_type_specifier_template* parseSymbol(Parser& parser, cpp::elaborated_type_specifier_template* result)
-{
-	PARSE_REQUIRED(parser, result->key);
-	PARSE_TERMINAL(parser, result->isGlobal);
-	PARSE_OPTIONAL(parser, result->context);
-	PARSE_TERMINAL(parser, result->isTemplate);
-	PARSE_REQUIRED(parser, result->id);
-	return result;
-}
-
-inline cpp::elaborated_type_specifier* parseSymbol(Parser& parser, cpp::elaborated_type_specifier* result)
-{
-	PARSE_SELECT(parser, cpp::elaborated_type_specifier_template); // TODO: shared-prefix ambiguity: match 'simple-template-id' before 'identifier'
-	PARSE_SELECT(parser, cpp::elaborated_type_specifier_default);
-	return result;
-}
-
-inline cpp::typename_specifier* parseSymbol(Parser& parser, cpp::typename_specifier* result)
-{
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_TERMINAL(parser, result->isGlobal);
-	PARSE_OPTIONAL(parser, result->context); // TODO: check standard to see if this should be optional or required
-	PARSE_TERMINAL(parser, result->isTemplate);
-	PARSE_REQUIRED(parser, result->id);
-	return result;
-}
-
-inline cpp::type_specifier_noncv* parseSymbol(Parser& parser, cpp::type_specifier_noncv* result)
-{
-	PARSE_SELECT(parser, cpp::typename_specifier);
-	PARSE_SELECT(parser, cpp::simple_type_specifier);
-	PARSE_SELECT(parser, cpp::class_specifier);
-	PARSE_SELECT(parser, cpp::enum_specifier);
-	PARSE_SELECT(parser, cpp::elaborated_type_specifier);
-	return result;
-}
-
-inline cpp::type_specifier* parseSymbol(Parser& parser, cpp::type_specifier* result)
-{
-	PARSE_SELECT(parser, cpp::type_specifier_noncv);
-	PARSE_SELECT(parser, cpp::cv_qualifier);
-	return result;
-}
-
-inline cpp::decl_specifier_nontype* parseSymbol(Parser& parser, cpp::decl_specifier_nontype* result)
-{
-	PARSE_SELECT(parser, cpp::storage_class_specifier);
-	PARSE_SELECT(parser, cpp::decl_specifier_default);
-	PARSE_SELECT(parser, cpp::function_specifier);
-	PARSE_SELECT(parser, cpp::cv_qualifier);
-	return result;
-}
-
-inline cpp::decl_specifier_prefix_seq* parseSymbol(Parser& parser, cpp::decl_specifier_prefix_seq* result)
-{
-	PARSE_REQUIRED(parser, result->item);
-	PARSE_OPTIONAL(parser, result->next);
-	return result;
-}
-
-inline cpp::decl_specifier_suffix* parseSymbol(Parser& parser, cpp::decl_specifier_suffix* result)
-{
-	PARSE_SELECT(parser, cpp::decl_specifier_nontype);
-	PARSE_SELECT(parser, cpp::simple_type_specifier_builtin);
-	return result;
-}
-
-inline cpp::decl_specifier_suffix_seq* parseSymbol(Parser& parser, cpp::decl_specifier_suffix_seq* result)
-{
-	PARSE_REQUIRED(parser, result->item);
-	PARSE_OPTIONAL(parser, result->next);
-	return result;
-}
-
-inline cpp::decl_specifier_seq* parseSymbol(Parser& parser, cpp::decl_specifier_seq* result)
-{
-	PARSE_OPTIONAL(parser, result->prefix);
-	PARSE_REQUIRED(parser, result->type);
-	PARSE_OPTIONAL(parser, result->suffix);
-	return result;
-}
-
-inline cpp::cv_qualifier_seq* parseSymbol(Parser& parser, cpp::cv_qualifier_seq* result)
-{
-	PARSE_REQUIRED(parser, result->item);
-	PARSE_OPTIONAL(parser, result->next);
-	return result;
-}
-#endif
-
 template<typename ParserType>
 inline cpp::ptr_operator_key* parseSymbol(ParserType& parser, cpp::ptr_operator_key* result)
 {
@@ -804,34 +131,13 @@ inline cpp::ptr_operator_key* parseSymbol(ParserType& parser, cpp::ptr_operator_
 	return result;
 }
 
-#if 0
-inline cpp::ptr_operator* parseSymbol(Parser& parser, cpp::ptr_operator* result)
+template<typename ParserType>
+inline cpp::type_parameter_key* parseSymbol(ParserType& parser, cpp::type_parameter_key* result)
 {
-	PARSE_TERMINAL(parser, result->isGlobal);
-	PARSE_OPTIONAL(parser, result->context);
-	PARSE_REQUIRED(parser, result->key); // TODO: disallow '&' following 'nested-name-specifier'
-	PARSE_OPTIONAL(parser, result->qual);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_CLASS, cpp::type_parameter_key::CLASS);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_TYPENAME, cpp::type_parameter_key::TYPENAME);
 	return result;
 }
-
-inline cpp::declarator_suffix_array* parseSymbol(Parser& parser, cpp::declarator_suffix_array* result)
-{
-	PARSE_TERMINAL(parser, result->ls);
-	PARSE_OPTIONAL(parser, result->size);
-	PARSE_TERMINAL(parser, result->rs);
-	PARSE_OPTIONAL(parser, result->next);
-	return result;
-}
-
-inline cpp::declarator* parseSymbol(Parser& parser, cpp::declarator* result);
-
-inline cpp::throw_expression* parseSymbol(Parser& parser, cpp::throw_expression* result)
-{
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_OPTIONAL(parser, result->expr);
-	return result;
-}
-#endif
 
 template<typename ParserType>
 inline cpp::logical_operator* parseSymbol(ParserType& parser, cpp::logical_operator* result)
@@ -865,57 +171,167 @@ inline cpp::unary_operator* parseSymbol(ParserType& parser, cpp::unary_operator*
 	return result;
 }
 
-#if 0
-inline cpp::cast_expression* parseSymbol(Parser& parser, cpp::cast_expression* result);
 
-inline cpp::unary_expression_op* parseSymbol(Parser& parser, cpp::unary_expression_op* result)
-{
-	PARSE_REQUIRED(parser, result->op);
-	PARSE_REQUIRED(parser, result->expr);
-	return result;
-}
-#endif
 template<typename ParserType>
-inline cpp::numeric_literal* parseSymbol(ParserType& parser, cpp::numeric_literal* result)
+inline cpp::member_operator* parseSymbol(ParserType& parser, cpp::member_operator* result)
 {
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_PP_NUMBER, cpp::numeric_literal::INTEGER);
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_INTLIT, cpp::numeric_literal::INTEGER);
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_CHARLIT, cpp::numeric_literal::CHARACTER);
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_FLOATLIT, cpp::numeric_literal::FLOATING);
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_TRUE, cpp::numeric_literal::BOOLEAN);
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_FALSE, cpp::numeric_literal::BOOLEAN);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_DOT, cpp::member_operator::DOT);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_ARROW, cpp::member_operator::ARROW);
 	return result;
 }
 
 template<typename ParserType>
-inline cpp::string_literal* parseSymbol(ParserType& parser, cpp::string_literal* result)
+inline cpp::postfix_operator* parseSymbol(ParserType& parser, cpp::postfix_operator* result)
 {
-	if(TOKEN_EQUAL(parser, boost::wave::T_STRINGLIT))
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_PLUSPLUS, cpp::postfix_operator::PLUSPLUS);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_MINUSMINUS, cpp::postfix_operator::MINUSMINUS);
+	return result;
+}
+
+template<typename ParserType>
+inline cpp::cast_operator* parseSymbol(ParserType& parser, cpp::cast_operator* result)
+{
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_DYNAMICCAST, cpp::cast_operator::DYNAMIC);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_STATICCAST, cpp::cast_operator::STATIC);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_REINTERPRETCAST, cpp::cast_operator::REINTERPRET);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_CONSTCAST, cpp::cast_operator::CONST);
+	return result;
+}
+
+
+template<typename ParserType>
+inline cpp::pm_operator* parseSymbol(ParserType& parser, cpp::pm_operator* result)
+{
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_DOTSTAR, cpp::pm_operator::DOTSTAR);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_ARROWSTAR, cpp::pm_operator::ARROWSTAR);
+	return result;
+}
+
+template<typename ParserType>
+inline cpp::multiplicative_operator* parseSymbol(ParserType& parser, cpp::multiplicative_operator* result)
+{
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_STAR, cpp::multiplicative_operator::STAR);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_DIVIDE, cpp::multiplicative_operator::DIVIDE);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_PERCENT, cpp::multiplicative_operator::PERCENT);
+	return result;
+}
+
+
+template<typename ParserType>
+inline cpp::shift_operator* parseSymbol(ParserType& parser, cpp::shift_operator* result)
+{
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_SHIFTLEFT, cpp::shift_operator::SHIFTLEFT);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_SHIFTRIGHT, cpp::shift_operator::SHIFTRIGHT);
+	return result;
+}
+
+template<typename ParserType>
+inline cpp::relational_operator* parseSymbol(ParserType& parser, cpp::relational_operator* result)
+{
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_LESS, cpp::relational_operator::LESS);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_GREATER, cpp::relational_operator::GREATER);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_LESSEQUAL, cpp::relational_operator::LESSEQUAL);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_GREATEREQUAL, cpp::relational_operator::GREATEREQUAL);
+	return result;
+}
+
+template<typename ParserType>
+inline cpp::equality_operator* parseSymbol(ParserType& parser, cpp::equality_operator* result)
+{
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_EQUAL, cpp::equality_operator::EQUAL);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_NOTEQUAL, cpp::equality_operator::NOTEQUAL);
+	return result;
+}
+
+template<typename ParserType>
+inline cpp::assignment_operator* parseSymbol(ParserType& parser, cpp::assignment_operator* result)
+{
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_ASSIGN, cpp::assignment_operator::ASSIGN);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_STARASSIGN, cpp::assignment_operator::STAR);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_DIVIDEASSIGN, cpp::assignment_operator::DIVIDE);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_PERCENTASSIGN, cpp::assignment_operator::PERCENT);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_PLUSASSIGN, cpp::assignment_operator::PLUS);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_MINUSASSIGN, cpp::assignment_operator::MINUS);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_SHIFTRIGHTASSIGN, cpp::assignment_operator::SHIFTRIGHT);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_SHIFTLEFTASSIGN, cpp::assignment_operator::SHIFTLEFT);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_ANDASSIGN, cpp::assignment_operator::AND);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_XORASSIGN, cpp::assignment_operator::XOR);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_ORASSIGN, cpp::assignment_operator::OR);
+	return result;
+}
+
+
+template<typename ParserType>
+inline cpp::jump_statement_key* parseSymbol(ParserType& parser, cpp::jump_statement_key* result)
+{
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_BREAK, cpp::jump_statement_key::BREAK);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_CONTINUE, cpp::jump_statement_key::CONTINUE);
+	return result;
+}
+
+template<typename ParserType>
+inline cpp::overloadable_operator* parseSymbol(ParserType& parser, cpp::overloadable_operator* result)
+{
+	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::assignment_operator);
+	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::member_operator);
+	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::postfix_operator);
+	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::unary_operator);
+	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::pm_operator);
+	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::multiplicative_operator);
+	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::additive_operator);
+	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::shift_operator);
+	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::relational_operator);
+	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::equality_operator);
+	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::new_operator);
+	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::delete_operator);
+	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::comma_operator);
+	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::function_operator);
+	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::array_operator);
+	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::bitwise_operator);
+	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::logical_operator);
+	return result;
+};
+
+template<typename ParserType>
+inline cpp::template_argument_list* parseSymbol(ParserType& parser, cpp::template_argument_list* result)
+{
+	parser.inTemplateArgumentList = true;
+	PARSE_REQUIRED(parser, result->item);
+	PARSE_TERMINAL(parser, result->comma);
+	PARSE_REQUIRED(parser, result->next);
+	return result;
+}
+
+template<typename ParserType>
+inline cpp::template_argument_clause_disambiguate* parseSymbol(ParserType& parser, cpp::template_argument_clause_disambiguate* result)
+{
+	PARSE_SELECT(parser, cpp::template_argument_clause);
+	return result;
+}
+
+template<typename ParserType>
+inline cpp::simple_template_id* parseSymbol(ParserType& parser, cpp::simple_template_id* result)
+{
+	PARSE_REQUIRED(parser, result->id);
+	PARSE_REQUIRED(parser, result->args);
+	return result;
+}
+
+
+template<typename ParserType>
+inline cpp::member_declaration_bitfield* parseSymbol(ParserType& parser, cpp::member_declaration_bitfield* result)
+{
+	PARSE_REQUIRED(parser, result->item);
+	PARSE_TERMINAL(parser, result->comma);
+	if(result->comma.value != 0)
 	{
-		result->value.value = parser.get_value();
-		parser.increment();
-		PARSE_OPTIONAL(parser, result->next);
-		return result;
+		PARSE_REQUIRED(parser, result->next);
 	}
-	return NULL;
-}
-
-#if 0
-inline cpp::literal* parseSymbol(Parser& parser, cpp::literal* result)
-{
-	PARSE_SELECT(parser, cpp::numeric_literal);
-	PARSE_SELECT(parser, cpp::string_literal);
+	PARSE_TERMINAL(parser, result->semicolon);
 	return result;
 }
 
-inline cpp::primary_expression_builtin* parseSymbol(Parser& parser, cpp::primary_expression_builtin* result)
-{
-	PARSE_TERMINAL(parser, result->key);
-	return result;
-}
 
-inline cpp::assignment_expression* parseSymbol(Parser& parser, cpp::assignment_expression* result);
-#endif
 inline cpp::expression* pruneSymbol(cpp::expression_list* symbol)
 {
 	if(symbol->right == 0)
@@ -925,15 +341,6 @@ inline cpp::expression* pruneSymbol(cpp::expression_list* symbol)
 	return symbol;
 }
 
-#if 0
-inline cpp::expression_list* parseSymbol(Parser& parser, cpp::expression_list* result)
-{
-	PARSE_REQUIRED(parser, result->left);
-	PARSE_TERMINAL(parser, result->comma);
-	PARSE_REQUIRED(parser, result->right);
-	return result;
-}
-#endif
 
 template<typename ParserType>
 inline cpp::expression* parseSymbol(ParserType& parser, cpp::expression* result)
@@ -951,159 +358,6 @@ inline cpp::primary_expression_parenthesis* parseSymbol(ParserType& parser, cpp:
 	PARSE_TERMINAL(parser, result->rp);
 	return result;
 }
-
-#if 0
-inline cpp::id_expression* parseSymbol(Parser& parser, cpp::id_expression* result);
-
-inline cpp::primary_expression* parseSymbol(Parser& parser, cpp::primary_expression* result)
-{
-	PARSE_SELECT(parser, cpp::literal);
-	PARSE_SELECT(parser, cpp::primary_expression_builtin);
-	PARSE_SELECT(parser, cpp::primary_expression_parenthesis);
-	PARSE_SELECT(parser, cpp::id_expression);
-	return result;
-}
-
-inline cpp::postfix_expression_index* parseSymbol(Parser& parser, cpp::postfix_expression_index* result)
-{
-	PARSE_TERMINAL(parser, result->ls);
-	PARSE_REQUIRED(parser, result->index);
-	PARSE_TERMINAL(parser, result->rs);
-	return result;
-}
-
-inline cpp::postfix_expression_call* parseSymbol(Parser& parser, cpp::postfix_expression_call* result)
-{
-	PARSE_TERMINAL(parser, result->lp);
-	PARSE_OPTIONAL(parser, result->args);
-	PARSE_TERMINAL(parser, result->rp);
-	return result;
-}
-#endif
-
-template<typename ParserType>
-inline cpp::member_operator* parseSymbol(ParserType& parser, cpp::member_operator* result)
-{
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_DOT, cpp::member_operator::DOT);
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_ARROW, cpp::member_operator::ARROW);
-	return result;
-}
-
-#if 0
-inline cpp::postfix_expression_member* parseSymbol(Parser& parser, cpp::postfix_expression_member* result)
-{
-	PARSE_REQUIRED(parser, result->op);
-	PARSE_TERMINAL(parser, result->isTemplate);
-	PARSE_REQUIRED(parser, result->id);
-	return result;
-}
-
-inline cpp::postfix_expression_destructor* parseSymbol(Parser& parser, cpp::postfix_expression_destructor* result)
-{
-	PARSE_TERMINAL(parser, result->isGlobal);
-	PARSE_OPTIONAL(parser, result->context);
-	PARSE_TERMINAL(parser, result->compl);
-	PARSE_REQUIRED(parser, result->type);
-	return result;
-}
-#endif
-
-template<typename ParserType>
-inline cpp::postfix_operator* parseSymbol(ParserType& parser, cpp::postfix_operator* result)
-{
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_PLUSPLUS, cpp::postfix_operator::PLUSPLUS);
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_MINUSMINUS, cpp::postfix_operator::MINUSMINUS);
-	return result;
-}
-
-#if 0
-inline cpp::postfix_expression_construct* parseSymbol(Parser& parser, cpp::postfix_expression_construct* result)
-{
-	PARSE_REQUIRED(parser, result->type);
-	PARSE_TERMINAL(parser, result->lp);
-	PARSE_OPTIONAL(parser, result->args);
-	PARSE_TERMINAL(parser, result->rp);
-	return result;
-}
-#endif
-
-template<typename ParserType>
-inline cpp::cast_operator* parseSymbol(ParserType& parser, cpp::cast_operator* result)
-{
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_DYNAMICCAST, cpp::cast_operator::DYNAMIC);
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_STATICCAST, cpp::cast_operator::STATIC);
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_REINTERPRETCAST, cpp::cast_operator::REINTERPRET);
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_CONSTCAST, cpp::cast_operator::CONST);
-	return result;
-}
-
-#if 0
-inline cpp::postfix_expression_cast* parseSymbol(Parser& parser, cpp::postfix_expression_cast* result)
-{
-	PARSE_REQUIRED(parser, result->op);
-	PARSE_TERMINAL(parser, result->lt);
-	PARSE_REQUIRED(parser, result->type);
-	PARSE_TERMINAL(parser, result->gt);
-	PARSE_TERMINAL(parser, result->lp);
-	PARSE_REQUIRED(parser, result->expr);
-	PARSE_TERMINAL(parser, result->rp);
-	return result;
-}
-
-inline cpp::postfix_expression_typeid* parseSymbol(Parser& parser, cpp::postfix_expression_typeid* result)
-{
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_TERMINAL(parser, result->lp);
-	PARSE_REQUIRED(parser, result->expr);
-	PARSE_TERMINAL(parser, result->rp);
-	return result;
-}
-
-inline cpp::postfix_expression_typeidtype* parseSymbol(Parser& parser, cpp::postfix_expression_typeidtype* result)
-{
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_TERMINAL(parser, result->lp);
-	PARSE_REQUIRED(parser, result->type);
-	PARSE_TERMINAL(parser, result->rp);
-	return result;
-}
-
-inline cpp::postfix_expression_suffix* parseSymbol(Parser& parser, cpp::postfix_expression_suffix* result)
-{
-	PARSE_SELECT(parser, cpp::postfix_expression_index);
-	PARSE_SELECT(parser, cpp::postfix_expression_call);
-	PARSE_SELECT(parser, cpp::postfix_expression_member);
-	PARSE_SELECT(parser, cpp::postfix_expression_destructor);
-	PARSE_SELECT(parser, cpp::postfix_operator);
-	return result;
-}
-
-inline cpp::postfix_expression_disambiguate* parseSymbol(Parser& parser, cpp::postfix_expression_disambiguate* result)
-{
-	PARSE_REQUIRED(parser, result->left);
-	PARSE_REQUIRED(parser, result->right);
-	return result;
-}
-
-inline cpp::postfix_expression_prefix* parseSymbol(Parser& parser, cpp::postfix_expression_prefix* result)
-{
-	PARSE_SELECT(parser, cpp::primary_expression);
-	// HACK: resolve ambiguity: a(x): could be function-style-cast or function-call
-	PARSE_SELECT(parser, cpp::postfix_expression_disambiguate);
-	PARSE_SELECT(parser, cpp::postfix_expression_construct);
-	PARSE_SELECT(parser, cpp::postfix_expression_cast);
-	PARSE_SELECT(parser, cpp::postfix_expression_typeid);
-	PARSE_SELECT(parser, cpp::postfix_expression_typeidtype);
-	return result;
-}
-
-inline cpp::postfix_expression_suffix_seq* parseSymbol(Parser& parser, cpp::postfix_expression_suffix_seq* result)
-{
-	PARSE_REQUIRED(parser, result->item);
-	PARSE_OPTIONAL(parser, result->next);
-	return result;
-}
-#endif
 
 inline cpp::postfix_expression* pruneSymbol(cpp::postfix_expression_default* symbol)
 {
@@ -1129,165 +383,6 @@ inline cpp::postfix_expression* parseSymbol(ParserType& parser, cpp::postfix_exp
 	return result;
 }
 
-#if 0
-inline cpp::unary_expression_sizeoftype* parseSymbol(Parser& parser, cpp::unary_expression_sizeoftype* result)
-{
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_TERMINAL(parser, result->lp);
-	PARSE_REQUIRED(parser, result->type);
-	PARSE_TERMINAL(parser, result->rp);
-	return result;
-}
-
-inline cpp::unary_expression_sizeof* parseSymbol(Parser& parser, cpp::unary_expression_sizeof* result)
-{
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_REQUIRED(parser, result->expr);
-	return result;
-}
-
-inline cpp::new_declarator_suffix* parseSymbol(Parser& parser, cpp::new_declarator_suffix* result)
-{
-	PARSE_TERMINAL(parser, result->ls);
-	PARSE_REQUIRED(parser, result->expr);
-	PARSE_TERMINAL(parser, result->rs);
-	PARSE_OPTIONAL(parser, result->next);
-	return result;
-}
-
-inline cpp::direct_new_declarator* parseSymbol(Parser& parser, cpp::direct_new_declarator* result)
-{
-	PARSE_TERMINAL(parser, result->ls);
-	PARSE_REQUIRED(parser, result->expr);
-	PARSE_TERMINAL(parser, result->rs);
-	PARSE_OPTIONAL(parser, result->suffix);
-	return result;
-}
-
-inline cpp::new_declarator_ptr* parseSymbol(Parser& parser, cpp::new_declarator_ptr* result)
-{
-	PARSE_REQUIRED(parser, result->op);
-	PARSE_OPTIONAL(parser, result->decl);
-	return result;
-}
-
-inline cpp::new_declarator* parseSymbol(Parser& parser, cpp::new_declarator* result)
-{
-	PARSE_SELECT(parser, cpp::direct_new_declarator);
-	PARSE_SELECT(parser, cpp::new_declarator_ptr);
-	return result;
-}
-
-inline cpp::new_type_default* parseSymbol(Parser& parser, cpp::new_type_default* result)
-{
-	PARSE_REQUIRED(parser, result->spec);
-	PARSE_OPTIONAL(parser, result->decl);
-	return result;
-}
-
-inline cpp::new_type_parenthesis* parseSymbol(Parser& parser, cpp::new_type_parenthesis* result)
-{
-	PARSE_TERMINAL(parser, result->lp);
-	PARSE_REQUIRED(parser, result->id);
-	PARSE_TERMINAL(parser, result->rp);
-	return result;
-}
-
-inline cpp::new_type* parseSymbol(Parser& parser, cpp::new_type* result)
-{
-	PARSE_SELECT(parser, cpp::new_type_parenthesis);
-	PARSE_SELECT(parser, cpp::new_type_default);
-	return result;
-}
-
-inline cpp::new_initializer* parseSymbol(Parser& parser, cpp::new_initializer* result)
-{
-	PARSE_TERMINAL(parser, result->lp);
-	PARSE_REQUIRED(parser, result->expr);
-	PARSE_TERMINAL(parser, result->rp);
-	return result;
-}
-
-inline cpp::new_expression_placement* parseSymbol(Parser& parser, cpp::new_expression_placement* result)
-{
-	PARSE_TERMINAL(parser, result->isGlobal);
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_TERMINAL(parser, result->lp);
-	PARSE_REQUIRED(parser, result->place);
-	PARSE_TERMINAL(parser, result->rp);
-	PARSE_REQUIRED(parser, result->type);
-	PARSE_OPTIONAL(parser, result->init);
-	return result;
-}
-
-inline cpp::new_expression_default* parseSymbol(Parser& parser, cpp::new_expression_default* result)
-{
-	PARSE_TERMINAL(parser, result->isGlobal);
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_REQUIRED(parser, result->type);
-	PARSE_OPTIONAL(parser, result->init);
-	return result;
-}
-
-inline cpp::new_expression* parseSymbol(Parser& parser, cpp::new_expression* result)
-{
-	PARSE_SELECT(parser, cpp::new_expression_placement); // TODO: ambiguity: 'new-placement' vs parenthesised 'type-id'
-	PARSE_SELECT(parser, cpp::new_expression_default);
-	return result;
-}
-
-inline cpp::delete_expression* parseSymbol(Parser& parser, cpp::delete_expression* result)
-{
-	PARSE_TERMINAL(parser, result->isGlobal);
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_OPTIONAL(parser, result->op);
-	PARSE_REQUIRED(parser, result->expr);
-	return result;
-}
-
-inline cpp::unary_expression* parseSymbol(Parser& parser, cpp::unary_expression* result)
-{
-	PARSE_SELECT(parser, cpp::postfix_expression);
-	PARSE_SELECT(parser, cpp::unary_expression_sizeoftype);
-	PARSE_SELECT(parser, cpp::unary_expression_sizeof);
-	PARSE_SELECT(parser, cpp::unary_expression_op);
-	PARSE_SELECT(parser, cpp::new_expression);
-	PARSE_SELECT(parser, cpp::delete_expression);
-	return result;
-}
-
-inline cpp::type_id* parseSymbol(Parser& parser, cpp::type_id* result)
-{
-	PARSE_REQUIRED(parser, result->spec);
-	PARSE_OPTIONAL(parser, result->decl);
-	return result;
-}
-
-inline cpp::cast_expression_default* parseSymbol(Parser& parser, cpp::cast_expression_default* result)
-{
-	PARSE_TERMINAL(parser, result->lp);
-	PARSE_REQUIRED(parser, result->id);
-	PARSE_TERMINAL(parser, result->rp);
-	PARSE_REQUIRED(parser, result->expr);
-	return result;
-}
-
-inline cpp::cast_expression* parseSymbol(Parser& parser, cpp::cast_expression* result)
-{
-	PARSE_SELECT(parser, cpp::cast_expression_default); // ambiguity: '(A)(X)' could be cast-expression '(A)X' or function-call 'A(X)'
-	PARSE_SELECT(parser, cpp::unary_expression);
-	return result;
-}
-#endif
-
-template<typename ParserType>
-inline cpp::pm_operator* parseSymbol(ParserType& parser, cpp::pm_operator* result)
-{
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_DOTSTAR, cpp::pm_operator::DOTSTAR);
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_ARROWSTAR, cpp::pm_operator::ARROWSTAR);
-	return result;
-}
-
 inline cpp::pm_expression* pruneSymbol(cpp::pm_expression_default* symbol)
 {
 	if(symbol->right == 0)
@@ -1310,15 +405,6 @@ template<typename ParserType>
 inline cpp::pm_expression* parseSymbol(ParserType& parser, cpp::pm_expression* result)
 {
 	PARSE_EXPRESSION_LEFTASSOCIATIVE(parser, cpp::pm_expression_default);
-	return result;
-}
-
-template<typename ParserType>
-inline cpp::multiplicative_operator* parseSymbol(ParserType& parser, cpp::multiplicative_operator* result)
-{
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_STAR, cpp::multiplicative_operator::STAR);
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_DIVIDE, cpp::multiplicative_operator::DIVIDE);
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_PERCENT, cpp::multiplicative_operator::PERCENT);
 	return result;
 }
 
@@ -1378,14 +464,6 @@ inline cpp::additive_expression* parseSymbol(ParserType& parser, cpp::additive_e
 	return result;
 }
 
-template<typename ParserType>
-inline cpp::shift_operator* parseSymbol(ParserType& parser, cpp::shift_operator* result)
-{
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_SHIFTLEFT, cpp::shift_operator::SHIFTLEFT);
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_SHIFTRIGHT, cpp::shift_operator::SHIFTRIGHT);
-	return result;
-}
-
 inline cpp::shift_expression* pruneSymbol(cpp::shift_expression_default* symbol)
 {
 	if(symbol->right == 0)
@@ -1407,16 +485,6 @@ template<typename ParserType>
 inline cpp::shift_expression* parseSymbol(ParserType& parser, cpp::shift_expression* result)
 {
 	PARSE_EXPRESSION_LEFTASSOCIATIVE(parser, cpp::shift_expression_default);
-	return result;
-}
-
-template<typename ParserType>
-inline cpp::relational_operator* parseSymbol(ParserType& parser, cpp::relational_operator* result)
-{
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_LESS, cpp::relational_operator::LESS);
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_GREATER, cpp::relational_operator::GREATER);
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_LESSEQUAL, cpp::relational_operator::LESSEQUAL);
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_GREATEREQUAL, cpp::relational_operator::GREATEREQUAL);
 	return result;
 }
 
@@ -1447,14 +515,6 @@ template<typename ParserType>
 inline cpp::relational_expression* parseSymbol(ParserType& parser, cpp::relational_expression* result)
 {
 	PARSE_EXPRESSION_LEFTASSOCIATIVE(parser, cpp::relational_expression_default);
-	return result;
-}
-
-template<typename ParserType>
-inline cpp::equality_operator* parseSymbol(ParserType& parser, cpp::equality_operator* result)
-{
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_EQUAL, cpp::equality_operator::EQUAL);
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_NOTEQUAL, cpp::equality_operator::NOTEQUAL);
 	return result;
 }
 
@@ -1602,58 +662,6 @@ inline cpp::logical_or_expression* parseSymbol(ParserType& parser, cpp::logical_
 	return result;
 }
 
-#if 0
-inline cpp::conditional_expression_rhs* parseSymbol(Parser& parser, cpp::conditional_expression_rhs* result)
-{
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_REQUIRED(parser, result->mid);
-	PARSE_TERMINAL(parser, result->colon);
-	PARSE_REQUIRED(parser, result->right);
-	return result;
-}
-#endif
-
-template<typename ParserType>
-inline cpp::assignment_operator* parseSymbol(ParserType& parser, cpp::assignment_operator* result)
-{
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_ASSIGN, cpp::assignment_operator::ASSIGN);
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_STARASSIGN, cpp::assignment_operator::STAR);
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_DIVIDEASSIGN, cpp::assignment_operator::DIVIDE);
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_PERCENTASSIGN, cpp::assignment_operator::PERCENT);
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_PLUSASSIGN, cpp::assignment_operator::PLUS);
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_MINUSASSIGN, cpp::assignment_operator::MINUS);
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_SHIFTRIGHTASSIGN, cpp::assignment_operator::SHIFTRIGHT);
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_SHIFTLEFTASSIGN, cpp::assignment_operator::SHIFTLEFT);
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_ANDASSIGN, cpp::assignment_operator::AND);
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_XORASSIGN, cpp::assignment_operator::XOR);
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_ORASSIGN, cpp::assignment_operator::OR);
-	return result;
-}
-
-#if 0
-inline cpp::assignment_expression* parseSymbol(Parser& parser, cpp::assignment_expression* result);
-
-inline cpp::assignment_expression_rhs* parseSymbol(Parser& parser, cpp::assignment_expression_rhs* result)
-{
-	PARSE_REQUIRED(parser, result->op);
-	PARSE_REQUIRED(parser, result->right);
-	return result;
-}
-
-inline cpp::logical_or_expression_suffix* parseSymbol(Parser& parser, cpp::logical_or_expression_suffix* result)
-{
-	PARSE_SELECT(parser, cpp::conditional_expression_rhs);
-	PARSE_SELECT(parser, cpp::assignment_expression_rhs);
-	return result;
-}
-
-inline cpp::logical_or_expression_precedent* parseSymbol(Parser& parser, cpp::logical_or_expression_precedent* result)
-{
-	PARSE_REQUIRED(parser, result->left);
-	PARSE_OPTIONAL(parser, result->right);
-	return result;
-}
-#endif
 
 inline cpp::conditional_expression* pruneSymbol(cpp::conditional_expression_default* symbol)
 {
@@ -1697,64 +705,6 @@ inline cpp::assignment_expression* parseSymbol(ParserType& parser, cpp::assignme
 	return result;
 }
 
-#if 0
-inline cpp::parameter_declaration_default* parseSymbol(Parser& parser, cpp::parameter_declaration_default* result)
-{
-	PARSE_REQUIRED(parser, result->spec);
-	PARSE_REQUIRED(parser, result->decl);
-	PARSE_TERMINAL(parser, result->assign);
-	PARSE_REQUIRED(parser, result->init);
-	return result;
-}
-
-inline cpp::abstract_declarator* parseSymbol(Parser& parser, cpp::abstract_declarator* result);
-
-inline cpp::abstract_declarator_ptr* parseSymbol(Parser& parser, cpp::abstract_declarator_ptr* result)
-{
-	PARSE_REQUIRED(parser, result->op);
-	PARSE_OPTIONAL(parser, result->decl);
-	return result;
-}
-
-inline cpp::abstract_declarator_parenthesis* parseSymbol(Parser& parser, cpp::abstract_declarator_parenthesis* result)
-{
-	PARSE_TERMINAL(parser, result->lp);
-	PARSE_REQUIRED(parser, result->decl);
-	PARSE_TERMINAL(parser, result->rp);
-	return result;
-}
-
-inline cpp::direct_abstract_declarator* parseSymbol(Parser& parser, cpp::direct_abstract_declarator* result)
-{
-	PARSE_OPTIONAL(parser, result->prefix);
-	PARSE_REQUIRED(parser, result->suffix);
-	return result;
-}
-
-inline cpp::abstract_declarator* parseSymbol(Parser& parser, cpp::abstract_declarator* result)
-{
-	PARSE_SELECT(parser, cpp::abstract_declarator_ptr);
-	PARSE_SELECT(parser, cpp::direct_abstract_declarator);
-	return result;
-}
-
-inline cpp::parameter_declaration_abstract* parseSymbol(Parser& parser, cpp::parameter_declaration_abstract* result)
-{
-	PARSE_REQUIRED(parser, result->spec);
-	PARSE_OPTIONAL(parser, result->decl);
-	PARSE_TERMINAL(parser, result->assign);
-	PARSE_REQUIRED(parser, result->init);
-	return result;
-}
-
-inline cpp::parameter_declaration* parseSymbol(Parser& parser, cpp::parameter_declaration* result)
-{
-	PARSE_SELECT(parser, cpp::parameter_declaration_default); // TODO: ambiguity: 'C::A(X)' could be 'C::A X' or 'C::A(*)(X)'
-	PARSE_SELECT(parser, cpp::parameter_declaration_abstract);
-	return result;
-}
-#endif
-
 template<typename ParserType>
 inline cpp::parameter_declaration_list* parseSymbol(ParserType& parser, cpp::parameter_declaration_list* result)
 {
@@ -1766,795 +716,6 @@ inline cpp::parameter_declaration_list* parseSymbol(ParserType& parser, cpp::par
 	}
 	return result;
 }
-
-#if 0
-inline cpp::parameter_declaration_clause* parseSymbol(Parser& parser, cpp::parameter_declaration_clause* result)
-{
-	PARSE_OPTIONAL(parser, result->list);
-	PARSE_TERMINAL(parser, result->isEllipsis);
-	return result;
-}
-
-inline cpp::exception_type_all* parseSymbol(Parser& parser, cpp::exception_type_all* result)
-{
-	PARSE_TERMINAL(parser, result->key);
-	return result;
-}
-
-inline cpp::type_id_list* parseSymbol(Parser& parser, cpp::type_id_list* result)
-{
-	PARSE_REQUIRED(parser, result->item);
-	PARSE_TERMINAL(parser, result->comma);
-	PARSE_REQUIRED(parser, result->next);
-	return result;
-}
-
-inline cpp::exception_type_list* parseSymbol(Parser& parser, cpp::exception_type_list* result)
-{
-	PARSE_SELECT(parser, cpp::exception_type_all);
-	PARSE_SELECT(parser, cpp::type_id_list);
-	return result;
-}
-
-inline cpp::exception_specification* parseSymbol(Parser& parser, cpp::exception_specification* result)
-{
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_TERMINAL(parser, result->lp);
-	PARSE_OPTIONAL(parser, result->types);
-	PARSE_TERMINAL(parser, result->rp);
-	return result;
-}
-
-inline cpp::declarator_suffix_function* parseSymbol(Parser& parser, cpp::declarator_suffix_function* result)
-{
-	PARSE_TERMINAL(parser, result->lp);
-	PARSE_OPTIONAL(parser, result->params);
-	PARSE_TERMINAL(parser, result->rp);
-	PARSE_OPTIONAL(parser, result->qual);
-	PARSE_OPTIONAL(parser, result->except);
-	return result;
-}
-
-inline cpp::declarator_suffix* parseSymbol(Parser& parser, cpp::declarator_suffix* result)
-{
-	PARSE_SELECT(parser, cpp::declarator_suffix_array);
-	PARSE_SELECT(parser, cpp::declarator_suffix_function);
-	return result;
-}
-
-inline cpp::direct_declarator_parenthesis* parseSymbol(Parser& parser, cpp::direct_declarator_parenthesis* result)
-{
-	PARSE_TERMINAL(parser, result->lp);
-	PARSE_REQUIRED(parser, result->decl);
-	PARSE_TERMINAL(parser, result->rp);
-	return result;
-}
-
-inline cpp::comma_operator* parseSymbol(Parser& parser, cpp::comma_operator* result)
-{
-	PARSE_TERMINAL(parser, result->key);
-	return result;
-};
-
-inline cpp::function_operator* parseSymbol(Parser& parser, cpp::function_operator* result)
-{
-	PARSE_TERMINAL(parser, result->lp);
-	PARSE_TERMINAL(parser, result->rp);
-	return result;
-};
-
-inline cpp::array_operator* parseSymbol(Parser& parser, cpp::array_operator* result)
-{
-	PARSE_TERMINAL(parser, result->ls);
-	PARSE_TERMINAL(parser, result->rs);
-	return result;
-};
-
-inline cpp::new_operator* parseSymbol(Parser& parser, cpp::new_operator* result)
-{
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_OPTIONAL(parser, result->array);
-	return result;
-};
-
-inline cpp::delete_operator* parseSymbol(Parser& parser, cpp::delete_operator* result)
-{
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_OPTIONAL(parser, result->array);
-	return result;
-};
-#endif
-template<typename ParserType>
-inline cpp::overloadable_operator* parseSymbol(ParserType& parser, cpp::overloadable_operator* result)
-{
-	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::assignment_operator);
-	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::member_operator);
-	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::postfix_operator);
-	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::unary_operator);
-	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::pm_operator);
-	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::multiplicative_operator);
-	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::additive_operator);
-	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::shift_operator);
-	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::relational_operator);
-	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::equality_operator);
-	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::new_operator);
-	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::delete_operator);
-	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::comma_operator);
-	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::function_operator);
-	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::array_operator);
-	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::bitwise_operator);
-	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::logical_operator);
-	return result;
-};
-#if 0
-inline cpp::operator_function_id_suffix* parseSymbol(Parser& parser, cpp::operator_function_id_suffix* result)
-{
-	PARSE_TERMINAL(parser, result->lt);
-	PARSE_OPTIONAL(parser, result->args);
-	PARSE_TERMINAL(parser, result->gt);
-	return result;
-}
-
-inline cpp::operator_function_id* parseSymbol(Parser& parser, cpp::operator_function_id* result)
-{
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_REQUIRED(parser, result->op);
-	return result;
-}
-
-inline cpp::conversion_declarator* parseSymbol(Parser& parser, cpp::conversion_declarator* result)
-{
-	PARSE_REQUIRED(parser, result->op);
-	PARSE_OPTIONAL(parser, result->decl);
-	return result;
-}
-
-inline cpp::conversion_function_id* parseSymbol(Parser& parser, cpp::conversion_function_id* result)
-{
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_REQUIRED(parser, result->spec);
-	PARSE_OPTIONAL(parser, result->decl);
-	return result;
-}
-
-inline cpp::template_id_operator_function* parseSymbol(Parser& parser, cpp::template_id_operator_function* result)
-{
-	PARSE_REQUIRED(parser, result->id);
-	PARSE_TERMINAL(parser, result->lt);
-	PARSE_OPTIONAL(parser, result->args);
-	PARSE_TERMINAL(parser, result->gt);
-	return result;
-}
-
-inline cpp::template_id* parseSymbol(Parser& parser, cpp::template_id* result)
-{
-	PARSE_SELECT(parser, cpp::simple_template_id);
-	PARSE_SELECT(parser, cpp::template_id_operator_function);
-	return result;
-}
-
-inline cpp::destructor_id* parseSymbol(Parser& parser, cpp::destructor_id* result)
-{
-	PARSE_TERMINAL(parser, result->compl);
-	PARSE_REQUIRED(parser, result->name);
-	return result;
-}
-
-inline cpp::unqualified_id* parseSymbol(Parser& parser, cpp::unqualified_id* result)
-{
-	PARSE_SELECT(parser, cpp::template_id); // todo: shared-prefix ambiguity: 'template-id' vs 'identifier'
-	PARSE_SELECT(parser, cpp::identifier);
-	PARSE_SELECT(parser, cpp::operator_function_id);
-	PARSE_SELECT(parser, cpp::conversion_function_id);
-	PARSE_SELECT(parser, cpp::destructor_id);
-	return result;
-}
-
-inline cpp::qualified_id_default* parseSymbol(Parser& parser, cpp::qualified_id_default* result)
-{
-	PARSE_TERMINAL(parser, result->isGlobal);
-	PARSE_REQUIRED(parser, result->context);
-	PARSE_TERMINAL(parser, result->isTemplate);
-	PARSE_REQUIRED(parser, result->id);
-	return result;
-}
-
-inline cpp::qualified_id_suffix* parseSymbol(Parser& parser, cpp::qualified_id_suffix* result)
-{
-	PARSE_SELECT(parser, cpp::template_id); // todo: shared-prefix ambiguity: 'template-id' vs 'identifier'
-	PARSE_SELECT(parser, cpp::identifier);
-	PARSE_SELECT(parser, cpp::operator_function_id);
-	return result;
-}
-
-inline cpp::qualified_id_global* parseSymbol(Parser& parser, cpp::qualified_id_global* result)
-{
-	PARSE_TERMINAL(parser, result->isGlobal);
-	PARSE_REQUIRED(parser, result->id);
-	return result;
-}
-
-inline cpp::qualified_id* parseSymbol(Parser& parser, cpp::qualified_id* result)
-{
-	PARSE_SELECT(parser, cpp::qualified_id_default);
-	PARSE_SELECT(parser, cpp::qualified_id_global);
-	return result;
-}
-
-inline cpp::id_expression* parseSymbol(Parser& parser, cpp::id_expression* result)
-{
-	PARSE_SELECT(parser, cpp::qualified_id); // TODO: shared prefix ambiguity: 'identifier' vs 'nested-name-specifier'
-	PARSE_SELECT(parser, cpp::unqualified_id);
-	return result;
-}
-
-inline cpp::declarator_id* parseSymbol(Parser& parser, cpp::declarator_id* result)
-{
-	PARSE_SELECT(parser, cpp::id_expression);
-	return result;
-}
-
-inline cpp::direct_declarator_prefix* parseSymbol(Parser& parser, cpp::direct_declarator_prefix* result)
-{
-	PARSE_SELECT(parser, cpp::direct_declarator_parenthesis);
-	PARSE_SELECT(parser, cpp::declarator_id);
-	return result;
-}
-
-inline cpp::direct_declarator* parseSymbol(Parser& parser, cpp::direct_declarator* result)
-{
-	PARSE_REQUIRED(parser, result->prefix);
-	PARSE_OPTIONAL(parser, result->suffix);
-	return result;
-}
-
-inline cpp::declarator_ptr_disambiguate* parseSymbol(Parser& parser, cpp::declarator_ptr_disambiguate* result)
-{
-	PARSE_REQUIRED(parser, result->op);
-	PARSE_REQUIRED(parser, result->decl);
-	return result;
-}
-
-inline cpp::declarator_disambiguate* parseSymbol(Parser& parser, cpp::declarator_disambiguate* result)
-{
-	PARSE_SELECT(parser, cpp::direct_declarator_prefix);
-	PARSE_SELECT(parser, cpp::declarator_ptr_disambiguate);
-	return result;
-}
-
-inline cpp::declarator_ptr* parseSymbol(Parser& parser, cpp::declarator_ptr* result)
-{
-	PARSE_REQUIRED(parser, result->op);
-	PARSE_REQUIRED(parser, result->decl);
-	return result;
-}
-
-inline cpp::declarator* parseSymbol(Parser& parser, cpp::declarator* result)
-{
-	PARSE_SELECT(parser, cpp::declarator_ptr);
-	PARSE_SELECT(parser, cpp::direct_declarator);
-	return result;
-}
-#endif
-
-#if 0
-inline cpp::function_definition_suffix_default* parseSymbol(Parser& parser, cpp::function_definition_suffix_default* result)
-{
-	PARSE_OPTIONAL(parser, result->init);
-	PARSE_REQUIRED(parser, result->body);
-	return result;
-}
-
-inline cpp::function_try_block* parseSymbol(Parser& parser, cpp::function_try_block* result)
-{
-	PARSE_TERMINAL(parser, result->isTry);
-	PARSE_OPTIONAL(parser, result->init);
-	PARSE_REQUIRED(parser, result->body);
-	PARSE_REQUIRED(parser, result->handlers);
-	return result;
-}
-#endif
-
-#if 0
-inline cpp::function_definition_suffix* parseSymbol(Parser& parser, cpp::function_definition_suffix* result)
-{
-	PARSE_SELECT(parser, cpp::function_try_block);
-	PARSE_SELECT(parser, cpp::function_definition_suffix_default);
-	return result;
-}
-
-inline cpp::function_definition* parseSymbol(Parser& parser, cpp::function_definition* result)
-{
-	PARSE_REQUIRED(parser, result->decl);
-	PARSE_REQUIRED(parser, result->suffix);
-	return result;
-}
-
-inline cpp::linkage_specification_compound* parseSymbol(Parser& parser, cpp::linkage_specification_compound* result)
-{
-	PARSE_TERMINAL(parser, result->lb);
-	PARSE_SEQUENCE(parser, result->decl);
-	PARSE_TERMINAL(parser, result->rb);
-	return result;
-}
-
-inline cpp::linkage_specification_suffix* parseSymbol(Parser& parser, cpp::linkage_specification_suffix* result)
-{
-	PARSE_SELECT(parser, cpp::linkage_specification_compound);
-	PARSE_SELECT(parser, cpp::declaration);
-	return result;
-}
-
-inline cpp::linkage_specification* parseSymbol(Parser& parser, cpp::linkage_specification* result)
-{
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_REQUIRED(parser, result->str);
-	PARSE_REQUIRED(parser, result->suffix);
-	return result;
-}
-
-inline cpp::explicit_instantiation* parseSymbol(Parser& parser, cpp::explicit_instantiation* result)
-{
-	PARSE_TERMINAL(parser, result->isExtern);
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_REQUIRED(parser, result->decl);
-	return result;
-}
-
-inline cpp::explicit_specialization* parseSymbol(Parser& parser, cpp::explicit_specialization* result)
-{
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_TERMINAL(parser, result->lt);
-	PARSE_TERMINAL(parser, result->gt);
-	PARSE_REQUIRED(parser, result->decl);
-	return result;
-}
-
-
-inline cpp::initializer_clause* parseSymbol(Parser& parser, cpp::initializer_clause* result);
-
-inline cpp::initializer_list* parseSymbol(Parser& parser, cpp::initializer_list* result)
-{
-	PARSE_REQUIRED(parser, result->item);
-	PARSE_TERMINAL(parser, result->comma);
-	PARSE_OPTIONAL(parser, result->next); // optional because trailing comma is allowed
-	return result;
-}
-
-inline cpp::initializer_clause_list* parseSymbol(Parser& parser, cpp::initializer_clause_list* result)
-{
-	PARSE_TERMINAL(parser, result->lb);
-	PARSE_REQUIRED(parser, result->list);
-	PARSE_TERMINAL(parser, result->rb);
-	return result;
-}
-
-inline cpp::initializer_clause_empty* parseSymbol(Parser& parser, cpp::initializer_clause_empty* result)
-{
-	PARSE_TERMINAL(parser, result->lb);
-	PARSE_TERMINAL(parser, result->rb);
-	return result;
-}
-
-inline cpp::initializer_clause* parseSymbol(Parser& parser, cpp::initializer_clause* result)
-{
-	PARSE_SELECT(parser, cpp::initializer_clause_empty);
-	PARSE_SELECT(parser, cpp::initializer_clause_list);
-	PARSE_SELECT(parser, cpp::assignment_expression);
-	return result;
-}
-
-inline cpp::initializer_default* parseSymbol(Parser& parser, cpp::initializer_default* result)
-{
-	PARSE_TERMINAL(parser, result->assign);
-	PARSE_REQUIRED(parser, result->clause);
-	return result;
-}
-
-inline cpp::initializer_parenthesis* parseSymbol(Parser& parser, cpp::initializer_parenthesis* result)
-{
-	PARSE_TERMINAL(parser, result->lp);
-	PARSE_REQUIRED(parser, result->list);
-	PARSE_TERMINAL(parser, result->rp);
-	return result;
-}
-
-inline cpp::initializer* parseSymbol(Parser& parser, cpp::initializer* result)
-{
-	PARSE_SELECT(parser, cpp::initializer_default);
-	PARSE_SELECT(parser, cpp::initializer_parenthesis);
-	return result;
-}
-
-inline cpp::init_declarator_default* parseSymbol(Parser& parser, cpp::init_declarator_default* result)
-{
-	PARSE_REQUIRED(parser, result->decl);
-	PARSE_OPTIONAL(parser, result->init);
-	return result;
-}
-
-inline cpp::init_declarator_disambiguate* parseSymbol(Parser& parser, cpp::init_declarator_disambiguate* result)
-{
-	PARSE_REQUIRED(parser, result->decl);
-	PARSE_REQUIRED(parser, result->init);
-	return result;
-}
-
-inline cpp::init_declarator* parseSymbol(Parser& parser, cpp::init_declarator* result)
-{
-	PARSE_SELECT(parser, cpp::init_declarator_default);
-	PARSE_SELECT(parser, cpp::init_declarator_disambiguate);
-	return result;
-}
-
-inline cpp::init_declarator_list* parseSymbol(Parser& parser, cpp::init_declarator_list* result)
-{
-	PARSE_REQUIRED(parser, result->item);
-	PARSE_TERMINAL(parser, result->comma);
-	PARSE_REQUIRED(parser, result->next);
-	return result;
-}
-
-inline cpp::simple_declaration_named* parseSymbol(Parser& parser, cpp::simple_declaration_named* result)
-{
-	PARSE_REQUIRED(parser, result->decl);
-	PARSE_TERMINAL(parser, result->semicolon);
-	return result;
-}
-
-inline cpp::simple_declaration_suffix* parseSymbol(Parser& parser, cpp::simple_declaration_suffix* result)
-{
-	PARSE_SELECT(parser, cpp::type_declaration_suffix);
-	PARSE_SELECT(parser, cpp::simple_declaration_named);
-	return result;
-}
-
-inline cpp::simple_declaration* parseSymbol(Parser& parser, cpp::simple_declaration* result)
-{
-	PARSE_REQUIRED(parser, result->spec);
-	PARSE_REQUIRED(parser, result->suffix);
-	return result;
-}
-
-inline cpp::asm_definition* parseSymbol(Parser& parser, cpp::asm_definition* result)
-{
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_TERMINAL(parser, result->lp);
-	PARSE_REQUIRED(parser, result->str);
-	PARSE_TERMINAL(parser, result->rp);
-	PARSE_TERMINAL(parser, result->semicolon);
-	return result;
-}
-
-inline cpp::namespace_alias_definition* parseSymbol(Parser& parser, cpp::namespace_alias_definition* result)
-{
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_REQUIRED(parser, result->alias);
-	PARSE_TERMINAL(parser, result->assign);
-	PARSE_TERMINAL(parser, result->isGlobal);
-	PARSE_OPTIONAL(parser, result->context);
-	PARSE_REQUIRED(parser, result->id);
-	PARSE_TERMINAL(parser, result->semicolon);
-	return result;
-}
-
-inline cpp::using_declaration_global* parseSymbol(Parser& parser, cpp::using_declaration_global* result)
-{
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_TERMINAL(parser, result->scope);
-	PARSE_REQUIRED(parser, result->id);
-	PARSE_TERMINAL(parser, result->semicolon);
-	return result;
-}
-
-inline cpp::using_declaration_nested* parseSymbol(Parser& parser, cpp::using_declaration_nested* result)
-{
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_TERMINAL(parser, result->isTypename);
-	PARSE_TERMINAL(parser, result->isGlobal);
-	PARSE_REQUIRED(parser, result->context);
-	PARSE_REQUIRED(parser, result->id);
-	PARSE_TERMINAL(parser, result->semicolon);
-	return result;
-}
-
-inline cpp::using_declaration* parseSymbol(Parser& parser, cpp::using_declaration* result)
-{
-	PARSE_SELECT(parser, cpp::using_declaration_global);
-	PARSE_SELECT(parser, cpp::using_declaration_nested);
-	return result;
-}
-
-inline cpp::using_directive* parseSymbol(Parser& parser, cpp::using_directive* result)
-{
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_TERMINAL(parser, result->key2);
-	PARSE_TERMINAL(parser, result->isGlobal);
-	PARSE_OPTIONAL(parser, result->context);
-	PARSE_REQUIRED(parser, result->id);
-	PARSE_TERMINAL(parser, result->semicolon);
-	return result;
-}
-
-inline cpp::block_declaration* parseSymbol(Parser& parser, cpp::block_declaration* result)
-{
-	PARSE_SELECT(parser, cpp::asm_definition);
-	PARSE_SELECT(parser, cpp::namespace_alias_definition);
-	PARSE_SELECT(parser, cpp::using_declaration);
-	PARSE_SELECT(parser, cpp::using_directive);
-	return result;
-}
-
-inline cpp::type_declaration_suffix* parseSymbol(Parser& parser, cpp::type_declaration_suffix* result)
-{
-	PARSE_TERMINAL(parser, result->semicolon);
-	return result;
-}
-
-inline cpp::general_declaration_suffix* parseSymbol(Parser& parser, cpp::general_declaration_suffix* result)
-{
-	PARSE_SELECT(parser, cpp::type_declaration_suffix);
-	PARSE_SELECT(parser, cpp::simple_declaration_named);
-	PARSE_SELECT(parser, cpp::function_definition);
-	return result;
-}
-
-inline cpp::general_declaration* parseSymbol(Parser& parser, cpp::general_declaration* result)
-{
-	PARSE_OPTIONAL(parser, result->spec);
-	PARSE_REQUIRED(parser, result->suffix);
-	return result;
-}
-
-inline cpp::declaration* parseSymbol(Parser& parser, cpp::declaration* result)
-{
-	PARSE_SELECT(parser, cpp::linkage_specification);
-	PARSE_SELECT(parser, cpp::explicit_instantiation);
-	PARSE_SELECT(parser, cpp::template_declaration);
-	PARSE_SELECT(parser, cpp::explicit_specialization);
-	PARSE_SELECT(parser, cpp::namespace_definition);
-	PARSE_SELECT(parser, cpp::general_declaration);
-	PARSE_SELECT(parser, cpp::constructor_definition);
-	PARSE_SELECT(parser, cpp::block_declaration);
-	return result;
-}
-
-inline cpp::declaration_seq* parseSymbol(Parser& parser, cpp::declaration_seq* result)
-{
-	PARSE_REQUIRED(parser, result->item);
-	// don't parse 'next'
-	return result;
-}
-
-inline cpp::statement_seq* parseSymbol(Parser& parser, cpp::statement_seq* result);
-
-inline cpp::compound_statement* parseSymbol(Parser& parser, cpp::compound_statement* result)
-{
-	PARSE_TERMINAL(parser, result->lb);
-	PARSE_SEQUENCE(parser, result->body);
-	PARSE_TERMINAL(parser, result->rb);
-	return result;
-}
-
-inline cpp::declaration_statement* parseSymbol(Parser& parser, cpp::declaration_statement* result)
-{
-	PARSE_SELECT(parser, cpp::simple_declaration);
-	PARSE_SELECT(parser, cpp::block_declaration);
-	return result;
-}
-
-inline cpp::labeled_statement_id* parseSymbol(Parser& parser, cpp::labeled_statement_id* result)
-{
-	PARSE_REQUIRED(parser, result->label);
-	PARSE_TERMINAL(parser, result->colon);
-	PARSE_REQUIRED(parser, result->body);
-	return result;
-}
-
-inline cpp::labeled_statement_case* parseSymbol(Parser& parser, cpp::labeled_statement_case* result)
-{
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_REQUIRED(parser, result->label);
-	PARSE_TERMINAL(parser, result->colon);
-	PARSE_REQUIRED(parser, result->body);
-	return result;
-}
-
-inline cpp::labeled_statement_default* parseSymbol(Parser& parser, cpp::labeled_statement_default* result)
-{
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_TERMINAL(parser, result->colon);
-	PARSE_REQUIRED(parser, result->body);
-	return result;
-}
-
-inline cpp::labeled_statement* parseSymbol(Parser& parser, cpp::labeled_statement* result)
-{
-	PARSE_SELECT(parser, cpp::labeled_statement_id);
-	PARSE_SELECT(parser, cpp::labeled_statement_case);
-	PARSE_SELECT(parser, cpp::labeled_statement_default);
-	return result;
-}
-
-inline cpp::type_specifier_prefix_seq* parseSymbol(Parser& parser, cpp::type_specifier_prefix_seq* result)
-{
-	PARSE_REQUIRED(parser, result->item);
-	PARSE_OPTIONAL(parser, result->next);
-	return result;
-}
-
-inline cpp::type_specifier_suffix* parseSymbol(Parser& parser, cpp::type_specifier_suffix* result)
-{
-	PARSE_SELECT(parser, cpp::cv_qualifier);
-	PARSE_SELECT(parser, cpp::simple_type_specifier_builtin);
-	return result;
-}
-
-inline cpp::type_specifier_suffix_seq* parseSymbol(Parser& parser, cpp::type_specifier_suffix_seq* result)
-{
-	PARSE_REQUIRED(parser, result->item);
-	PARSE_OPTIONAL(parser, result->next);
-	return result;
-}
-
-inline cpp::type_specifier_seq* parseSymbol(Parser& parser, cpp::type_specifier_seq* result)
-{
-	PARSE_OPTIONAL(parser, result->prefix);
-	PARSE_REQUIRED(parser, result->type);
-	PARSE_OPTIONAL(parser, result->suffix);
-	return result;
-}
-
-
-inline cpp::condition_init* parseSymbol(Parser& parser, cpp::condition_init* result)
-{
-	PARSE_REQUIRED(parser, result->type);
-	PARSE_REQUIRED(parser, result->decl);
-	PARSE_TERMINAL(parser, result->assign);
-	PARSE_REQUIRED(parser, result->init);
-	return result;
-}
-
-inline cpp::condition* parseSymbol(Parser& parser, cpp::condition* result)
-{
-	PARSE_SELECT(parser, cpp::condition_init); // ambiguity: 'Type x = y': match init statement first, because expression resolves to 'primary-expression'
-	PARSE_SELECT(parser, cpp::expression);
-	return result;
-}
-
-inline cpp::selection_statement_if* parseSymbol(Parser& parser, cpp::selection_statement_if* result)
-{
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_TERMINAL(parser, result->lp);
-	PARSE_REQUIRED(parser, result->cond);
-	PARSE_TERMINAL(parser, result->rp);
-	PARSE_REQUIRED(parser, result->body);
-	PARSE_TERMINAL(parser, result->key2);
-	PARSE_REQUIRED(parser, result->fail);
-	return result;
-}
-
-inline cpp::selection_statement_switch* parseSymbol(Parser& parser, cpp::selection_statement_switch* result)
-{
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_TERMINAL(parser, result->lp);
-	PARSE_REQUIRED(parser, result->cond);
-	PARSE_TERMINAL(parser, result->rp);
-	PARSE_REQUIRED(parser, result->body);
-	return result;
-}
-
-inline cpp::selection_statement* parseSymbol(Parser& parser, cpp::selection_statement* result)
-{
-	PARSE_SELECT(parser, cpp::selection_statement_if);
-	PARSE_SELECT(parser, cpp::selection_statement_switch);
-	return result;
-}
-
-inline cpp::for_init_statement* parseSymbol(Parser& parser, cpp::for_init_statement* result)
-{
-	PARSE_SELECT(parser, cpp::simple_declaration);
-	PARSE_SELECT(parser, cpp::expression_statement);
-	return result;
-}
-
-inline cpp::iteration_statement_for* parseSymbol(Parser& parser, cpp::iteration_statement_for* result)
-{
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_TERMINAL(parser, result->lp);
-	PARSE_REQUIRED(parser, result->init);
-	PARSE_OPTIONAL(parser, result->cond);
-	PARSE_TERMINAL(parser, result->semicolon);
-	PARSE_OPTIONAL(parser, result->incr);
-	PARSE_TERMINAL(parser, result->rp);
-	PARSE_REQUIRED(parser, result->body);
-	return result;
-}
-
-inline cpp::iteration_statement_while* parseSymbol(Parser& parser, cpp::iteration_statement_while* result)
-{
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_TERMINAL(parser, result->lp);
-	PARSE_REQUIRED(parser, result->cond);
-	PARSE_TERMINAL(parser, result->rp);
-	PARSE_REQUIRED(parser, result->body);
-	return result;
-}
-
-inline cpp::iteration_statement_dowhile* parseSymbol(Parser& parser, cpp::iteration_statement_dowhile* result)
-{
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_REQUIRED(parser, result->body);
-	PARSE_TERMINAL(parser, result->key2);
-	PARSE_TERMINAL(parser, result->lp);
-	PARSE_REQUIRED(parser, result->cond);
-	PARSE_TERMINAL(parser, result->rp);
-	PARSE_TERMINAL(parser, result->semicolon);
-	return result;
-}
-
-inline cpp::iteration_statement* parseSymbol(Parser& parser, cpp::iteration_statement* result)
-{
-	PARSE_SELECT(parser, cpp::iteration_statement_for);
-	PARSE_SELECT(parser, cpp::iteration_statement_while);
-	PARSE_SELECT(parser, cpp::iteration_statement_dowhile);
-	return result;
-}
-#endif
-template<typename ParserType>
-inline cpp::jump_statement_key* parseSymbol(ParserType& parser, cpp::jump_statement_key* result)
-{
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_BREAK, cpp::jump_statement_key::BREAK);
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_CONTINUE, cpp::jump_statement_key::CONTINUE);
-	return result;
-}
-#if 0
-inline cpp::jump_statement_simple* parseSymbol(Parser& parser, cpp::jump_statement_simple* result)
-{
-	PARSE_REQUIRED(parser, result->key);
-	PARSE_TERMINAL(parser, result->semicolon);
-	return result;
-}
-
-inline cpp::jump_statement_return* parseSymbol(Parser& parser, cpp::jump_statement_return* result)
-{
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_OPTIONAL(parser, result->expr);
-	PARSE_TERMINAL(parser, result->semicolon);
-	return result;
-}
-
-inline cpp::jump_statement_goto* parseSymbol(Parser& parser, cpp::jump_statement_goto* result)
-{
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_REQUIRED(parser, result->id);
-	PARSE_TERMINAL(parser, result->semicolon);
-	return result;
-}
-
-inline cpp::jump_statement* parseSymbol(Parser& parser, cpp::jump_statement* result)
-{
-	PARSE_SELECT(parser, cpp::jump_statement_simple);
-	PARSE_SELECT(parser, cpp::jump_statement_return);
-	PARSE_SELECT(parser, cpp::jump_statement_goto);
-	return result;
-}
-
-inline cpp::try_block* parseSymbol(Parser& parser, cpp::try_block* result)
-{
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_REQUIRED(parser, result->body);
-	PARSE_REQUIRED(parser, result->handlers);
-	return result;
-}
-
-inline cpp::expression_statement* parseSymbol(Parser& parser, cpp::expression_statement* result)
-{
-	PARSE_OPTIONAL(parser, result->expr);
-	PARSE_TERMINAL(parser, result->semicolon);
-	return result;
-}
-#endif
 
 template<typename ParserType>
 inline cpp::msext_asm_terminal* parseSymbol(ParserType& parser, cpp::msext_asm_terminal* result)
@@ -2569,18 +730,6 @@ inline cpp::msext_asm_terminal* parseSymbol(ParserType& parser, cpp::msext_asm_t
 	}
 	return NULL;
 }
-
-#if 0
-inline cpp::msext_asm_element* parseSymbol(Parser& parser, cpp::msext_asm_element* result);
-
-inline cpp::msext_asm_element_list* parseSymbol(Parser& parser, cpp::msext_asm_element_list* result)
-{
-	PARSE_REQUIRED(parser, result->item);
-	PARSE_OPTIONAL(parser, result->next);
-	PARSE_TERMINAL(parser, result->semicolon);
-	return result;
-}
-#endif
 
 template<typename ParserType>
 inline cpp::msext_asm_element_list_inline* parseSymbol(ParserType& parser, cpp::msext_asm_element_list_inline* result)
@@ -2599,56 +748,6 @@ inline cpp::msext_asm_element_list_inline* parseSymbol(ParserType& parser, cpp::
 	return result;
 }
 
-#if 0
-inline cpp::msext_asm_statement* parseSymbol(Parser& parser, cpp::msext_asm_statement* result)
-{
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_REQUIRED(parser, result->list);
-	PARSE_TERMINAL(parser, result->semicolon);
-	return result;
-}
-
-inline cpp::msext_asm_statement_braced* parseSymbol(Parser& parser, cpp::msext_asm_statement_braced* result)
-{
-	PARSE_TERMINAL(parser, result->key);
-	PARSE_TERMINAL(parser, result->lb);
-	PARSE_REQUIRED(parser, result->list);
-	PARSE_TERMINAL(parser, result->rb);
-	PARSE_TERMINAL(parser, result->semicolon);
-	return result;
-}
-
-inline cpp::msext_asm_element* parseSymbol(Parser& parser, cpp::msext_asm_element* result)
-{
-	PARSE_SELECT(parser, cpp::msext_asm_statement_braced); // TODO: shared-prefix ambiguity: braced and unbraced start with '__asm'
-	PARSE_SELECT(parser, cpp::msext_asm_statement);
-	PARSE_SELECT(parser, cpp::msext_asm_terminal); // will eat anything!
-	return result;
-}
-
-inline cpp::statement* parseSymbol(Parser& parser, cpp::statement* result)
-{
-	PARSE_SELECT(parser, cpp::msext_asm_statement_braced); // TODO: shared-prefix ambiguity: braced and unbraced start with '__asm'
-	PARSE_SELECT(parser, cpp::msext_asm_statement);
-	PARSE_SELECT(parser, cpp::compound_statement);
-	PARSE_SELECT(parser, cpp::declaration_statement);
-	PARSE_SELECT(parser, cpp::labeled_statement);
-	PARSE_SELECT(parser, cpp::expression_statement);
-	PARSE_SELECT(parser, cpp::selection_statement);
-	PARSE_SELECT(parser, cpp::iteration_statement);
-	PARSE_SELECT(parser, cpp::jump_statement);
-	PARSE_SELECT(parser, cpp::try_block);
-	return result;
-}
-
-
-template<typename ParserType>
-inline cpp::statement_seq* parseSymbol(ParserType& parser, cpp::statement_seq* result)
-{
-	PARSE_REQUIRED(parser, result->item);
-	return result;
-}
-#endif
 
 
 #endif

@@ -20,6 +20,12 @@
 		- ParserContext is lexer?
 	- TREEWALKER macros
 	
+- generate remaining handwritten parseSymbol functions
+	- PARSE_SELECT_TOKEN
+	- PARSE_EXPRESSION_LEFTASSOCIATIVE
+	- inTemplateArgumentList
+	- overloadable_operator
+	
 - replace std::list with custom List class
 
 - ensure output files are unique
