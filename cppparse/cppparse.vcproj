@@ -271,6 +271,14 @@
 				>
 			</File>
 			<File
+				RelativePath=".\report.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\report.h"
+				>
+			</File>
+			<File
 				RelativePath=".\semantic.cpp"
 				>
 			</File>

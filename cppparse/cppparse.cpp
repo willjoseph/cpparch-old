@@ -1,6 +1,7 @@
 
 #include "parser.h"
 #include "semantic.h"
+#include "report.h"
 #include "util.h"
 
 #include <iostream>
