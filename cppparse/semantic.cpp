@@ -143,9 +143,7 @@ typedef bool (*IdentifierFunc)(const Declaration& declaration);
 const char* getIdentifierType(IdentifierFunc func);
 
 struct WalkerState
-#ifdef MINGLE
 	: public ContextBase
-#endif
 {
 	typedef WalkerState State;
 
@@ -352,22 +350,13 @@ struct WalkerState
 	template<typename T>
 	void reportIdentifierMismatch(T* symbol, const Identifier& id, Declaration* declaration, const char* expected)
 	{
-#ifdef MINGLE
-		if(!IsConcrete<T>::RESULT)
+		if(!IsConcrete<T>::RESULT) // if the grammar-symbol is abstract
 		{
+			// the symbol was allocated by the parser and must be deallocated
 			deleteSymbol(symbol, parser->lexer.allocator);
 		}
 		result = 0;
 		gIdentifierMismatch = IdentifierMismatch(id, declaration, expected);
-#else
-		if(ambiguity != 0)
-		{
-			throw IdentifierMismatch(id, declaration, expected);
-		}
-		printIdentifierMismatch(IdentifierMismatch(id, declaration, expected));
-		printScope();
-		throw SemanticError();
-#endif
 	}
 
 	Scope* getEtsScope()
@@ -806,51 +795,11 @@ inline T* walkAmbiguity(Walker& walker, cpp::ambiguity<T>* symbol)
 	throw first;
 }
 
-#ifdef MINGLE
 #define TREEWALKER_WALK(walker, symbol) SYMBOL_WALK(walker, symbol); hit(walker)
 #define TREEWALKER_WALK_NOHIT(walker, symbol) SYMBOL_WALK(walker, symbol)
 #define TREEWALKER_LEAF(symbol) SYMBOL_WALK(*this, symbol)
 #define TREEWALKER_DEFAULT PARSERCONTEXT_DEFAULT
-#else
-#define TREEWALKER_WALK(walker, symbol) symbol->accept(walker)
-#define TREEWALKER_LEAF(symbol) 
-#define TREEWALKER_DEFAULT \
-	void visit(cpp::terminal_identifier symbol) \
-	{ \
-	} \
-	void visit(cpp::terminal_string symbol) \
-	{ \
-	} \
-	void visit(cpp::terminal_choice2 symbol) \
-	{ \
-	} \
-	template<LexTokenId id> \
-	void visit(cpp::terminal<id> symbol) \
-	{ \
-	} \
-	template<typename T> \
-	void visit(T* symbol) \
-	{ \
-		TREEWALKER_WALK(*this, symbol); \
-	} \
-	template<typename T> \
-	void visit(cpp::symbol<T> symbol) \
-	{ \
-		if(symbol.p != 0) \
-		{ \
-			visit(symbol.p); \
-		} \
-	} \
-	template<typename T> \
-	void visit(cpp::ambiguity<T>* symbol) \
-	{ \
-		if(walkAmbiguity(*this, symbol) != symbol->first) \
-		{ \
-			std::swap(symbol->first, symbol->second); \
-		} \
-		symbol->second = 0; \
-	}
-#endif
+
 
 bool isUnqualified(cpp::elaborated_type_specifier_default* symbol)
 {
@@ -3009,10 +2958,10 @@ struct SimpleDeclarationWalker : public WalkerBase
 	Scope* enclosed;
 	DeclSpecifiers specifiers;
 	Identifier* forward;
-#ifdef MINGLE
+
 	DeferredSymbols deferred;
 	DeferredSymbols deferred2;
-#endif
+
 	Dependent valueDependent;
 	size_t templateParameter;
 	bool isParameter;
@@ -3100,12 +3049,11 @@ struct SimpleDeclarationWalker : public WalkerBase
 		isUnion = walker.isUnion;
 	}
 
-#ifdef MINGLE
+	// not required for mingled parse 
 	void visit(cpp::init_declarator_disambiguate* symbol)
 	{
 		result = 0;
 	}
-#endif
 
 	template<typename T>
 	void walkDeclarator(T* symbol)
@@ -3115,12 +3063,15 @@ struct SimpleDeclarationWalker : public WalkerBase
 		{
 			walker.declareEts(type, forward);
 		}
-#ifdef MINGLE
+
 		if(WalkerState::deferred != 0)
 		{
+			// while parsing simple-declaration-named declarator which contains deferred default-argument expression,
+			// on finding '{', we rewind and try parsing function-definition.
+			// In this situation, 'deferred2' contains the reference to the deferred expression.
 			walker.deferred = &deferred2;
 		}
-#endif
+
 		TREEWALKER_WALK(walker, symbol);
 		parent = walker.enclosing;
 		id = walker.id;
@@ -3191,7 +3142,6 @@ struct SimpleDeclarationWalker : public WalkerBase
 	// handle assignment-expression(s) in initializer
 	void visit(cpp::default_parameter* symbol)
 	{
-#ifdef MINGLE
 		// todo: we cannot skip a default-argument if it contains a template-name that is declared later in the class.
 		// Comeau fails in this case too..
 		if(WalkerState::deferred != 0
@@ -3200,7 +3150,6 @@ struct SimpleDeclarationWalker : public WalkerBase
 			result = defer(*WalkerState::deferred, *this, makeSkipDefaultArgument(IsTemplateName(*this)), symbol);
 		}
 		else
-#endif
 		{
 			TREEWALKER_WALK(*this, symbol);
 		}
@@ -3233,9 +3182,8 @@ struct SimpleDeclarationWalker : public WalkerBase
 
 	void visit(cpp::statement_seq_wrapper* symbol)
 	{
-		ScopeGuard guard(*this);
+		ScopeGuard guard(*this); // ensure that symbol-table modifications within the scope of 'guard' are undone on parse fail
 		pushScope(newScope(makeIdentifier(enclosing->getUniqueName()), SCOPETYPE_LOCAL));
-#ifdef MINGLE
 		if(WalkerState::deferred != 0)
 		{
 			result = defer(*WalkerState::deferred, *this, skipBraced, symbol);
@@ -3245,7 +3193,6 @@ struct SimpleDeclarationWalker : public WalkerBase
 			}
 		}
 		else
-#endif
 		{
 			TREEWALKER_WALK(*this, symbol);
 		}
@@ -3266,7 +3213,6 @@ struct SimpleDeclarationWalker : public WalkerBase
 		HandlerSeqWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 	}
-#ifdef MINGLE
 	void visit(cpp::mem_initializer_clause* symbol)
 	{
 		if(WalkerState::deferred != 0)
@@ -3278,7 +3224,6 @@ struct SimpleDeclarationWalker : public WalkerBase
 			TREEWALKER_WALK(*this, symbol);
 		}
 	}
-#endif
 
 	void visit(cpp::simple_declaration_named* symbol)
 	{
@@ -3293,7 +3238,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		declareEts(type, forward);
 		TREEWALKER_WALK(*this, symbol);
 		guard.hit();
-#ifdef MINGLE
+
 		// symbols may be deferred during attempt to parse void f(int i = j) {}
 		// first parsed as member_declaration_named, fails on reaching '{'
 		if(WalkerState::deferred != 0
@@ -3301,7 +3246,6 @@ struct SimpleDeclarationWalker : public WalkerBase
 		{
 			deferred.splice(deferred.end(), deferred2);
 		}
-#endif
 	}
 	void visit(cpp::function_definition* symbol)
 	{
@@ -3309,13 +3253,12 @@ struct SimpleDeclarationWalker : public WalkerBase
 		declareEts(type, forward);
 		TREEWALKER_WALK(*this, symbol);
 		guard.hit();
-#ifdef MINGLE
+
 		if(WalkerState::deferred != 0
 			&& !deferred2.empty())
 		{
 			deferred.splice(deferred.end(), deferred2);
 		}
-#endif
 	}
 	void visit(cpp::type_declaration_suffix* symbol)
 	{
@@ -4194,12 +4137,6 @@ void printSymbol(cpp::declaration_seq* p, const PrintSymbolArgs& args)
 {
 	try
 	{
-#ifndef MINGLE
-		WalkerContext context;
-		Walker::NamespaceWalker walker(context);
-		walker.visit(makeSymbol(p));
-#endif
-
 		SymbolPrinter printer(args);
 		printer.visit(makeSymbol(p));
 	}
@@ -4212,12 +4149,6 @@ void printSymbol(cpp::statement_seq* p, const PrintSymbolArgs& args)
 {
 	try
 	{
-#ifndef MINGLE
-		WalkerContext context;
-		Walker::NamespaceWalker walker(context);
-		walker.visit(makeSymbol(p));
-#endif
-
 		SymbolPrinter printer(args);
 		printer.visit(makeSymbol(p));
 	}
@@ -4237,7 +4168,7 @@ TreeAllocator<int> getAllocator(ParserContext& lexer)
 #endif
 }
 
-#ifdef MINGLE
+
 cpp::declaration_seq* parseFile(ParserContext& lexer)
 {
 	WalkerContext& context = *new WalkerContext(getAllocator(lexer));
@@ -4293,5 +4224,5 @@ cpp::statement_seq* parseFunction(ParserContext& lexer)
 	}
 	return result;
 }
-#endif
+
 

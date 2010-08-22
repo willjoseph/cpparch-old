@@ -22,7 +22,6 @@ struct GeneralError
 
 #define ASSERT(condition) if(!(condition)) { throw GeneralError(); }
 
-#define MINGLE
 
 struct SymbolDebug
 {
@@ -723,11 +722,8 @@ inline cpp::symbol_sequence<T> parseSequence(ParserType& parser, cpp::symbol_seq
 	return cpp::symbol_sequence<T>(tmp.next);
 }
 
-#if 0//def MINGLE
-#define PARSE_SEQUENCE PARSE_OPTIONAL
-#else
 #define PARSE_SEQUENCE(parser, p) p = parseSequence(parser, p)
-#endif
+
 
 struct True
 {
@@ -1264,11 +1260,6 @@ inline T* defer(ListType& deferred, ContextType& walker, Func skipFunc, T* symbo
 	}
 	return 0;
 }
-
-
-cpp::declaration_seq* parseFile(ParserContext& lexer);
-cpp::statement_seq* parseFunction(ParserContext& lexer);
-
 
 #endif
 

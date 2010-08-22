@@ -19,6 +19,10 @@ struct PrintSymbolArgs
 void printSymbol(cpp::declaration_seq* p, const PrintSymbolArgs& args);
 void printSymbol(cpp::statement_seq* p, const PrintSymbolArgs& args);
 
+struct ParserContext;
+cpp::declaration_seq* parseFile(ParserContext& lexer);
+cpp::statement_seq* parseFunction(ParserContext& lexer);
+
 
 #endif
 
