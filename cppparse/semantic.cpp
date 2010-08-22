@@ -93,8 +93,10 @@ private:
 typedef List<struct TemplateArgument> TemplateArguments;
 #endif
 
+
 typedef std::list<struct Type, TreeAllocator<int> > Types2;
 
+/// A list of Type objects.
 struct Types : public Types2
 {
 	Types(const TreeAllocator<int>& allocator)

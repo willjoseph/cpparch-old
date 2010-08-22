@@ -14,12 +14,6 @@ typedef void* (*ParseFunc)(ParserContext& lexer);
 
 typedef const char* CharConstPointer;
 typedef ArrayRange<CharConstPointer> CharConstPointerRange;
-const CharConstPointer DEFINITIONS_DEBUG[] = {
-	"WIN32",
-	"_DEBUG"
-};
-
-const CharConstPointerRange CHARCONSTPOINTERRANGE_EMPTY = CharConstPointerRange(0, 0);
 
 struct Test
 {
@@ -40,12 +34,10 @@ Test makeTest(const char* input, const CharConstPointerRange& definitions, const
 int runTest(const Test& test)
 {
 	try {
-		//[quick_start_main
-		//  The following preprocesses the given input file.
-		//  Open and read in the specified input file.
+
 		std::string instring;
 
-#if 1
+#if 1 // read predefined stuff into a buffer, append #include "<source>"
 		const char* predefined = "$predefined_msvc.h";
 		std::ifstream instream(predefined);
 
@@ -59,27 +51,11 @@ int runTest(const Test& test)
 			std::istreambuf_iterator<char>());
 
 		instring += Concatenate(makeRange("\n #include \""), makeRange(test.input), makeRange("\"\n")).c_str();
-#elif 1
+#else // #include predefined stuff before #include "<source>"
 		instring = Concatenate(makeRange("#include \"$predefined_msvc.h\"\n" " #include \""), makeRange(test.input), makeRange("\"\n")).c_str();
-#else
-		std::ifstream instream(test.input);
-
-		if (!instream.is_open()) {
-			std::cerr << "Could not open input file: " << test.input << std::endl;
-			return -2;
-		}
-		std::cout << "reading input file: " << test.input << std::endl;
-		instream.unsetf(std::ios::skipws);
-		instring = std::string(std::istreambuf_iterator<char>(instream.rdbuf()),
-			std::istreambuf_iterator<char>());
 #endif
 
 		LexContext& context = createContext(instring, "$outer.cpp");
-		add_sysinclude_path(context, "C:\\Program Files (x86)\\Microsoft Visual Studio 8\\VC\\include");
-		add_sysinclude_path(context, "C:\\Program Files (x86)\\Microsoft Visual Studio 8\\VC\\PlatformSDK\\include");
-		add_sysinclude_path(context, "C:\\Program Files\\Microsoft Visual Studio 8\\VC\\include");
-		add_sysinclude_path(context, "C:\\Program Files\\Microsoft Visual Studio 8\\VC\\PlatformSDK\\include");
-		add_sysinclude_path(context, "C:\\Program Files\\Microsoft Platform SDK for Windows Server 2003 R2\\include");
 		add_macro_definition(context, "__fastcall=", true);
 		add_macro_definition(context, "__thiscall=", true);
 		add_macro_definition(context, "__clrcall=", true);
@@ -135,7 +111,7 @@ int runTest(const Test& test)
 			add_include_path(context, *p);
 			add_sysinclude_path(context, *p);
 		}
-#if 1
+#if 1 // full parse
 		StringRange root(test.input, strrchr(test.input, '.'));
 		ParserContext lexer(context, Concatenate(root, makeRange(".prepro.cpp")).c_str());
 		PrintSymbolArgs args = { "out\\", lexer.getIncludeGraph() };
@@ -145,7 +121,7 @@ int runTest(const Test& test)
 			printPosition(lexer.stats.position);
 			std::cout << "backtrack: " << lexer.stats.symbol << ": " << lexer.stats.count << std::endl;
 		}
-#else
+#else // just print all the preprocessed tokens
 		LexIterator& first = createBegin(context);
 		LexIterator& last = createEnd(context);
 
@@ -153,10 +129,9 @@ int runTest(const Test& test)
 		//  [first, last)
 		while (first != last) {
 			const LexToken& token = dereference(first);
-			//std::cout << get_value(token);
+			std::cout << get_value(token);
 			increment(first);
 		}
-		//]
 #endif
 		release(context);
 	}
@@ -186,160 +161,12 @@ int runTest(const Test& test)
 	return 0;
 }
 
-template<typename T>
-inline T* verifyNotNull(T* p)
-{
-	PARSE_ASSERT(p != 0);
-	return p;
-}
-template<typename T>
-inline T* verifyNotNull(cpp::symbol<T> symbol)
-{
-	PARSE_ASSERT(symbol.p != 0);
-	return symbol.p;
-}
-#define VERIFY_CAST(Type, p) verifyNotNull(dynamic_cast<Type*>(verifyNotNull(p)))
-
-template<typename T>
-inline void verifyIdentifier(cpp::symbol<T> p, const char* value)
-{
-	PARSE_ASSERT(strcmp(VERIFY_CAST(cpp::identifier, p)->value.value, value) == 0);
-}
-
-int verifyFunctionDefinition(cpp::declaration_seq* result, const PrintSymbolArgs& args)
-{
-	printSymbol(result, args);
-#if 0
-	cpp::function_definition* func = VERIFY_CAST(cpp::function_definition, verifyNotNull(result)->item);
-	PARSE_ASSERT(VERIFY_CAST(cpp::simple_type_specifier_builtin, verifyNotNull(func->spec)->type)->value == cpp::simple_type_specifier_builtin::VOID);
-	verifyIdentifier(VERIFY_CAST(cpp::direct_declarator, func->decl)->prefix, "function");
-	cpp::compound_statement* body = VERIFY_CAST(cpp::compound_statement, func->suffix->body);
-#endif
-	return 0;
-}
-
-int verifyNamespace(cpp::declaration_seq* result, const PrintSymbolArgs& args)
-{
-	printSymbol(result, args);
-	cpp::namespace_definition* def = VERIFY_CAST(cpp::namespace_definition, verifyNotNull(result)->item);
-	//PARSE_ASSERT(def->id->value != "");
-	PARSE_ASSERT(def->body == 0);
-	return 0;
-}
-
-int verifyPtr(cpp::declaration_seq* result, const PrintSymbolArgs& args)
-{
-	printSymbol(result, args);
-	cpp::simple_declaration* decl = VERIFY_CAST(cpp::simple_declaration, verifyNotNull(result)->item);
-	PARSE_ASSERT(decl->spec != 0);
-	PARSE_ASSERT(decl->spec->type != 0);
-	cpp::simple_type_specifier_builtin* spec = VERIFY_CAST(cpp::simple_type_specifier_builtin, decl->spec->type);
-	PARSE_ASSERT(spec->id == cpp::simple_type_specifier_builtin::VOID);
-#if 0
-	PARSE_ASSERT(decl->decl != 0);
-	cpp::declarator_ptr* declr = VERIFY_CAST(cpp::declarator_ptr, decl->decl);
-	PARSE_ASSERT(declr->op != 0);
-	PARSE_ASSERT(declr->decl != 0);
-	cpp::direct_declarator* dir = VERIFY_CAST(cpp::direct_declarator, declr->decl);
-	PARSE_ASSERT(dir->prefix != 0);
-	cpp::identifier* id = VERIFY_CAST(cpp::identifier, dir->prefix);
-	PARSE_ASSERT(dir->suffix == 0);
-	PARSE_ASSERT(decl->suffix->init == 0);
-#endif
-	return 0;
-}
-
-int verifyNull(cpp::declaration_seq* result, const PrintSymbolArgs& args)
+int printFile(cpp::declaration_seq* result, const PrintSymbolArgs& args)
 {
 	printSymbol(result, args);
 	return 0;
 }
 
-int verifyAmbFuncCast(cpp::statement_seq* result, const PrintSymbolArgs& args)
-{
-	printSymbol(result, args);
-	// TODO: ambiguity: int(x); // function-style-cast or simple-declaration?
-	//cpp::postfix_expression_construct* result = VERIFY_CAST(cpp::postfix_expression_construct, verifyNotNull(result)->item);
-	return 0;
-}
-
-int verifyAmbOnesComp(cpp::statement_seq* result, const PrintSymbolArgs& args)
-{
-	printSymbol(result, args);
-	cpp::expression_statement* stmt = VERIFY_CAST(cpp::expression_statement, verifyNotNull(result)->item);
-	cpp::unary_expression_op* expr = VERIFY_CAST(cpp::unary_expression_op, stmt->expr);
-	PARSE_ASSERT(expr->op->id == cpp::unary_operator::COMPL);
-	cpp::postfix_expression_default* post = VERIFY_CAST(cpp::postfix_expression_default, expr->expr);
-	verifyIdentifier(post->left, "x");
-	cpp::postfix_expression_call* call = VERIFY_CAST(cpp::postfix_expression_call, verifyNotNull(post->right)->item);
-	return 0;
-}
-
-int verifyAmbDeclSpec(cpp::declaration_seq* result, const PrintSymbolArgs& args)
-{
-	printSymbol(result, args);
-	cpp::simple_declaration* decl = VERIFY_CAST(cpp::simple_declaration, verifyNotNull(result)->item);
-	cpp::simple_type_specifier_name* spec = VERIFY_CAST(cpp::simple_type_specifier_name, verifyNotNull(decl->spec)->type);
-	PARSE_ASSERT(spec->context);
-#if 0
-	verifyIdentifier(verifyNotNull(spec->context->prefix)->id, "Class");
-	verifyIdentifier(verifyNotNull(spec->context->suffix)->id, "Scope");
-#endif
-	verifyIdentifier(spec->id, "p");
-	return 0;
-}
-
-int verifyAmbCastExpr(cpp::statement_seq* result, const PrintSymbolArgs& args)
-{
-	printSymbol(result, args);
-	// TODO: ambiguity: (Type)(x); // c-style-cast or function-declaration?
-	//cpp::simple_declaration* decln = VERIFY_CAST(cpp::simple_declaration, verifyNotNull(result)->item);
-	return 0;
-}
-
-int verifyAmbConstructor(cpp::declaration_seq* result, const PrintSymbolArgs& args)
-{
-	printSymbol(result, args);
-	cpp::simple_declaration* decln = VERIFY_CAST(cpp::simple_declaration, verifyNotNull(result)->item);
-	cpp::class_specifier* spec = VERIFY_CAST(cpp::class_specifier, verifyNotNull(decln->spec)->type);
-	cpp::member_specification_list* members = VERIFY_CAST(cpp::member_specification_list, verifyNotNull(spec->members));
-#if 0
-	cpp::member_declaration_implicit* member = VERIFY_CAST(cpp::member_declaration_implicit, verifyNotNull(members->item));
-	verifyIdentifier(VERIFY_CAST(cpp::direct_declarator, member->decl)->prefix, "A");
-#endif
-	return 0;
-}
-
-int verifyIf(cpp::statement_seq* result, const PrintSymbolArgs& args)
-{
-	printSymbol(result, args);
-	cpp::selection_statement_if* stmt = VERIFY_CAST(cpp::selection_statement_if, verifyNotNull(result)->item);
-	{
-		cpp::condition_init* cond = VERIFY_CAST(cpp::condition_init, stmt->cond);
-		verifyIdentifier(VERIFY_CAST(cpp::simple_type_specifier_name, cond->type->type)->id, "Type");
-		verifyIdentifier(VERIFY_CAST(cpp::direct_declarator, cond->decl)->prefix, "x");
-		verifyIdentifier(VERIFY_CAST(cpp::postfix_expression_default, cond->init)->left, "y");
-	}
-	cpp::compound_statement* body = VERIFY_CAST(cpp::compound_statement, stmt->body);
-	return 0;
-}
-
-int verifyFor(cpp::statement_seq* result, const PrintSymbolArgs& args)
-{
-	printSymbol(result, args);
-	cpp::iteration_statement_for* stmt = VERIFY_CAST(cpp::iteration_statement_for, verifyNotNull(result)->item);
-	{
-		cpp::simple_declaration* decl = VERIFY_CAST(cpp::simple_declaration, stmt->init);
-		verifyIdentifier(VERIFY_CAST(cpp::simple_type_specifier_name, decl->spec->type)->id, "Type");
-#if 0
-		verifyIdentifier(VERIFY_CAST(cpp::direct_declarator, decl->decl)->prefix, "x");
-		cpp::initializer_default* init = VERIFY_CAST(cpp::initializer_default, decl->suffix->init);
-		verifyIdentifier(VERIFY_CAST(cpp::postfix_expression_default, init->clause)->left, "y");
-#endif
-	}
-	cpp::compound_statement* body = VERIFY_CAST(cpp::compound_statement, stmt->body);
-	return 0;
-}
 
 typedef std::list<std::string> StringList;
 
@@ -374,71 +201,24 @@ inline StringList& GetValues(CompilerOptions& options, CompilerOptionType type)
 
 int main(int argc, char *argv[])
 {
-	if(argc == 1)
-	{
-		const CharConstPointer DEFINITIONS_CPPPARSE[] = {
-			"WIN32",
-			"_DEBUG",
-			"_CONSOLE",
-			"_CRT_SECURE_NO_DEPRECATE",
-			"CRT_SECURE_NO_WARNINGS",
-			"_SCL_SECURE_NO_WARNINGS",
-		};
-		const CharConstPointer INCLUDES_CPPPARSE[] = {
-			"../../boost_1_41_0",
-		};
-		const Test tests[] = {
-			//makeTest("cppparse.cpp", ARRAY_RANGE(DEFINITIONS_CPPPARSE), ARRAY_RANGE(INCLUDES_CPPPARSE), verifyNull, parseFile),
-			//makeTest("cpptree.cpp", ARRAY_RANGE(DEFINITIONS_CPPPARSE), ARRAY_RANGE(INCLUDES_CPPPARSE), verifyNull, parseFile),
-			makeTest("test/test_include.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), ARRAY_RANGE(INCLUDES_CPPPARSE), verifyNull, parseFile),
-			makeTest("test/test_prepro.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), ARRAY_RANGE(INCLUDES_CPPPARSE), verifyNull, parseFile),
-#if 1
-			makeTest("test/test_quick.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyNull, parseFile),
-			makeTest("test/test_vector.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyNull, parseFile),
-			makeTest("test/test_iostream.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyNull, parseFile),
-			makeTest("test/test_windows.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyNull, parseFile),
-			makeTest("test/test_map.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyNull, parseFile),
-			makeTest("lexer.cpp", ARRAY_RANGE(DEFINITIONS_CPPPARSE), ARRAY_RANGE(INCLUDES_CPPPARSE), verifyNull, parseFile),
-			makeTest("cppparse.cpp", ARRAY_RANGE(DEFINITIONS_CPPPARSE), ARRAY_RANGE(INCLUDES_CPPPARSE), verifyNull, parseFile),
-			makeTest("parser.cpp", ARRAY_RANGE(DEFINITIONS_CPPPARSE), ARRAY_RANGE(INCLUDES_CPPPARSE), verifyNull, parseFile),
-			makeTest("semantic.cpp", ARRAY_RANGE(DEFINITIONS_CPPPARSE), ARRAY_RANGE(INCLUDES_CPPPARSE), verifyNull, parseFile),
-			makeTest("test/test_error.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyNull, parseFile),
-			makeTest("test/test_amb_constructor.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyAmbConstructor, parseFile),
-			makeTest("test/test_amb_func_cast.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyAmbFuncCast, parseFunction),
-			makeTest("test/test_amb_ones_comp.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyAmbOnesComp, parseFunction),
-			makeTest("test/test_for.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyFor, parseFunction),
-			makeTest("test/test_if.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyIf, parseFunction),
-			makeTest("test/test_function_definition.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyFunctionDefinition, parseFile),
-			makeTest("test/test_amb_cast_expr.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyAmbCastExpr, parseFunction),
-			makeTest("test/test_ptr.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyPtr, parseFile),
-			makeTest("test/test_amb_decl_spec.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyAmbDeclSpec, parseFile),
-			makeTest("test/test_namespace.cpp", ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyNamespace, parseFile),
-#endif
-		};
-		for(const Test* p = tests; p != tests + (sizeof(tests) / sizeof(*tests)); ++p)
-		{
-			int result = runTest(*p);
-			if(result != 0)
-			{
-				return result;
-			}
-		}
-		return 0;
-	}
-
 	if (2 != argc) {
-		std::cerr << "Usage: cppparse infile" << std::endl;
+		std::cerr << "Usage: cppparse <command-file>" << std::endl;
 		return -1;
 	}
 
 	const char* input = argv[1];
 
+	std::string compiler;
+	CompilerOptions options;
 	{
 		std::ifstream in(input);
-		if(in.is_open())
+		if(!in.is_open())
 		{
-			std::string compiler;
-			CompilerOptions options;
+			std::cerr << "failed to open command-file: " << input << std::endl;
+			return -1;
+		}
+		else
+		{
 
 			char line[1024];
 			while(in.getline(line, ARRAY_COUNT(line)), in.good())
@@ -491,33 +271,30 @@ int main(int argc, char *argv[])
 				std::cerr << "line too long in command file: " << input << std::endl;
 				return -1;
 			}
-
-			CharConstPointer definitions[1024];
-			CharConstPointer* definition = definitions;
-			for(StringList::const_iterator i = options.definitions.begin(); i != options.definitions.end(); ++i)
-			{
-				*definition++ = (*i).c_str();
-			}
-			
-			CharConstPointer includes[1024];
-			CharConstPointer* include = includes;
-			for(StringList::const_iterator i = options.includes.begin(); i != options.includes.end(); ++i)
-			{
-				*include++ = (*i).c_str();
-			}
-
-			for(StringList::const_iterator i = options.sources.begin(); i != options.sources.end(); ++i)
-			{
-				int result = runTest(makeTest((*i).c_str(), makeRange(definitions, definition), makeRange(includes, include), verifyNull, parseFile));
-				if(result != 0)
-				{
-					return result;
-				}
-			}
-			return 0;
 		}
 	}
 
-	std::cerr << "failed to open command file: " << input << std::endl;
-	return -1;
+	CharConstPointer definitions[1024];
+	CharConstPointer* definition = definitions;
+	for(StringList::const_iterator i = options.definitions.begin(); i != options.definitions.end(); ++i)
+	{
+		*definition++ = (*i).c_str();
+	}
+	
+	CharConstPointer includes[1024];
+	CharConstPointer* include = includes;
+	for(StringList::const_iterator i = options.includes.begin(); i != options.includes.end(); ++i)
+	{
+		*include++ = (*i).c_str();
+	}
+
+	for(StringList::const_iterator i = options.sources.begin(); i != options.sources.end(); ++i)
+	{
+		int result = runTest(makeTest((*i).c_str(), makeRange(definitions, definition), makeRange(includes, include), printFile, parseFile));
+		if(result != 0)
+		{
+			return result;
+		}
+	}
+	return 0;
 }

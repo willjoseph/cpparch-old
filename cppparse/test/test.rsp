@@ -1,0 +1,17 @@
+
+C:\Program Files\Microsoft Visual Studio 8\VC\BIN\cl.exe
+/D WIN32
+/D _DEBUG
+.\test\test_include.cpp
+.\test\test_prepro.cpp
+.\test\test_quick.cpp
+.\test\test_vector.cpp
+.\test\test_vector.cpp
+.\test\test_iostream.cpp
+.\test\test_windows.cpp
+.\test\test_map.cpp
+/I C:\Program Files\Microsoft Visual Studio 8\VC\INCLUDE
+/I C:\Program Files\Microsoft Visual Studio 8\VC\PlatformSDK\INCLUDE
+/I C:\Program Files\Microsoft Platform SDK for Windows Server 2003 R2\Include
+/I C:\Program Files (x86)\Microsoft Visual Studio 8\VC\include
+/I C:\Program Files (x86)\Microsoft Visual Studio 8\VC\PlatformSDK\include

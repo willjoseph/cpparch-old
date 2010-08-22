@@ -1,0 +1,20 @@
+
+C:\Program Files\Microsoft Visual Studio 8\VC\BIN\cl.exe
+/I ..\..\boost_1_41_0
+/D WIN32
+/D _DEBUG
+/D _CONSOLE
+/D _CRT_SECURE_NO_DEPRECATE
+/D CRT_SECURE_NO_WARNINGS
+/D _SCL_SECURE_NO_WARNINGS
+/D _UNICODE
+/D UNICODE
+.\lexer.cpp
+.\cppparse.cpp
+.\parser.cpp
+.\semantic.cpp
+/I C:\Program Files\Microsoft Visual Studio 8\VC\INCLUDE
+/I C:\Program Files\Microsoft Visual Studio 8\VC\PlatformSDK\INCLUDE
+/I C:\Program Files\Microsoft Platform SDK for Windows Server 2003 R2\Include
+/I C:\Program Files (x86)\Microsoft Visual Studio 8\VC\include
+/I C:\Program Files (x86)\Microsoft Visual Studio 8\VC\PlatformSDK\include
