@@ -6,6 +6,7 @@
 #include "printer.h"
 #include "profiler.h"
 #include "util.h"
+#include "list.h"
 
 #include "parser/symbols.h"
 
@@ -62,167 +63,7 @@ struct DeclSpecifiers
 
 const DeclSpecifiers DECLSPEC_TYPEDEF = DeclSpecifiers(true, false, false, false);
 
-struct ListNodeBase
-{
-	ListNodeBase* next;
-};
-template<typename T>
-struct ListNode : ListNodeBase
-{
-	T value;
-	ListNode(const T& value)
-		: value(value)
-	{
-	}
-};
 
-template<typename T>
-struct ListIterator
-{
-	typedef ListNode<T> Node;
-	const ListNodeBase* p;
-	ListIterator(const ListNodeBase* p) : p(p)
-	{
-	}
-
-	const T& operator*() const
-	{
-		return static_cast<const Node*>(p)->value;
-	}
-	const T* operator->() const
-	{
-		return &static_cast<const Node*>(p)->value;
-	}
-
-	ListIterator<T>& operator++()
-	{
-		p = p->next;
-		return *this;
-	}
-	ListIterator<T> operator++(int)
-	{
-		ListIterator<T> tmp = *this;
-		++*this;
-		return tmp;
-	}
-};
-
-template<typename T>
-inline bool operator==(const ListIterator<T>& left, const ListIterator<T>& right)
-{
-	return left.p == right.p;
-}
-template<typename T>
-inline bool operator!=(const ListIterator<T>& left, const ListIterator<T>& right)
-{
-	return left.p != right.p;
-}
-
-template<typename T, typename A>
-struct List : private A
-{
-	typedef ListNode<T> Node;
-	ListNodeBase head;
-	ListNodeBase* tail;
-	typedef typename A::template rebind<Node>::other Allocator;
-
-	List()
-	{
-		init_raw();
-	}
-	List(const A& allocator) :  A(allocator)
-	{
-		init_raw();
-	}
-	~List()
-	{
-		for(ListNodeBase* p = head.next; p != &head; )
-		{
-			ListNodeBase* next = p->next;
-			allocatorDelete(*this, static_cast<Node*>(p));
-			p = next;
-		}
-	}
-	void init_raw()
-	{
-		head.next = tail = &head;
-	}
-	void copy_raw(const List& other)
-	{
-		if(other.empty())
-		{
-			new(this) List();
-		}
-		else
-		{
-			head = other.head;
-			tail = other.tail;
-			tail->next = &head;
-		}
-	}
-private:
-	List(const List& other);
-	List& operator=(const List& other);
-public:
-
-	typedef ListIterator<T> const_iterator;
-
-	const_iterator begin() const
-	{
-		return const_iterator(head.next);
-	}
-	const_iterator end() const
-	{
-		return const_iterator(&head);
-	}
-	bool empty() const
-	{
-		return head.next == &head;
-	}
-	T& back()
-	{
-		return static_cast<Node*>(tail)->value;
-	}
-	
-	void push_back(const T& value)
-	{
-		Node* node = allocatorNew(*this, value);
-		node->next = &head;
-		tail->next = node;
-		tail = node;
-	}
-	void splice(const_iterator position, List& other)
-	{
-		// always splice at end for now
-		if(!other.empty())
-		{
-			tail->next = other.head.next;
-			tail = other.tail;
-			tail->next = &head;
-		}
-	}
-	void swap(List& other)
-	{
-		std::swap(head, other.head);
-		std::swap(tail, other.tail);
-		if(head.next != &other.head)
-		{
-			tail->next = &head;
-		}
-		else
-		{
-			init_raw();
-		}
-		if(other.head.next != &head)
-		{
-			other.tail->next = &other.head;
-		}
-		else
-		{
-			other.init_raw();
-		}
-	}
-};
 
 #define TREEALLOCATOR_LINEAR
 
@@ -5248,8 +5089,7 @@ struct SymbolPrinter : PrintingWalker
 		root(args.path),
 		includeGraph(args.includeGraph)
 	{
-		includes.push();
-		includes.set("$outer");
+		includes.push("$outer");
 		open(includes.top());
 	}
 	~SymbolPrinter()
@@ -5357,35 +5197,7 @@ struct SymbolPrinter : PrintingWalker
 		visit(symbol->first);
 	}
 
-	struct Includes
-	{
-		Includes()
-			: depth(0)
-		{
-		}
-		const char* stack[1024];
-		size_t depth;
-		bool empty() const
-		{
-			return depth == 0;
-		}
-		const char* top() const
-		{
-			return stack[depth - 1];
-		}
-		void set(const char* s)
-		{
-			stack[depth - 1] = s;
-		}
-		void push()
-		{
-			stack[depth++] = 0;
-		}
-		void pop()
-		{
-			stack[--depth] = 0;
-		}
-	};
+	typedef StringStack Includes;
 
 	Includes includes;
 
@@ -5395,7 +5207,7 @@ struct SymbolPrinter : PrintingWalker
 		{
 			suspend();
 		}
-		includes.push();
+		includes.push(0);
 	}
 
 	bool isIncluded(const IncludeDependencyNodes& included, const char* source)
@@ -5481,7 +5293,8 @@ struct SymbolPrinter : PrintingWalker
 
 						if(*declaration.first != '<' // <command line>
 							&& isHeader
-							&& !isIncluded(included, declaration.first))
+							&& !string_equal(declaration.second, "NULL")// TEMP HACK
+							&& !isIncluded(included, declaration.first)) 
 						{
 							printer.out << "WARNING: depending on file that was not (in)directly included: " << declaration.first << std::endl;
 							warnings = true;
@@ -5523,7 +5336,7 @@ struct SymbolPrinter : PrintingWalker
 		}
 		if(includes.top() == 0)
 		{
-			includes.set(symbol->source);
+			includes.top() = symbol->source;
 			open(includes.top());
 
 			{

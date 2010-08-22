@@ -5,4 +5,6 @@ extern const int USED = 0;
 
 void used();
 
+#define X()
+
 #endif

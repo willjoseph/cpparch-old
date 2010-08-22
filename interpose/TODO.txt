@@ -1,0 +1,10 @@
+
+- library for reading/writing unicode files
+	- library for interpreting BOM?
+	- microsoft implementation if wide iostreams appears broken, STLPort better?
+		- e.g. line-ending translation does not work.
+	- use boost utf-8 codecvt facet to convert to utf-8?
+	
+- check for buffer overflow when building paths
+
+- 

@@ -76,6 +76,7 @@ struct LexNames
 	}
 };
 
+
 class Hooks : public boost::wave::context_policies::eat_whitespace<token_type>
 {
 public:
@@ -91,16 +92,90 @@ public:
 
 	IncludeEvents events;
 
+	StringStack ifdef;
+
 	Hooks(LexNames& names)
 		: names(names), depth(1), macroDepth(0)
 	{
 		includes[0] = "$outer";
 	}
 
-    template <typename ContextT>
-    bool 
-    found_include_directive(ContextT const& ctx, std::string const& filename, 
-        bool include_next) 
+    // new signature
+	template <typename ContextT, typename TokenT>
+    bool found_directive(ContextT const& ctx, TokenT const& directive)
+    {
+		if(directive == boost::wave::T_PP_ENDIF)
+		{
+			//std::cout << "#endif" << std::endl;
+			ifdef.pop();
+		}
+		else if(directive == boost::wave::T_PP_ELSE)
+		{
+			//std::cout << "#else" << std::endl;
+			ifdef.top() = 0;
+		}
+		return false; // process this directive
+	}
+
+    template <typename ContextT, typename TokenT, typename ContainerT>
+    bool evaluated_conditional_expression(ContextT const& ctx, 
+        TokenT const& directive, ContainerT const& expression, 
+        bool expression_value)
+    {
+		if(directive == boost::wave::T_PP_IFDEF) // this block only processed if next token is name of a defined macro
+		{
+#if 0
+			std::cout << "#ifdef:";
+			for(ContainerT::const_iterator i = expression.begin(); i != expression.end(); ++i)
+			{
+				std::cout << " " << (*i).get_value();
+			}
+			std::cout << std::endl;
+#endif
+
+			ifdef.push(names.makeIdentifier(expression.front().get_value().c_str()));
+		}
+		else if(directive == boost::wave::T_PP_IFNDEF)
+		{
+			//std::cout << "#ifndef" << std::endl;
+			ifdef.push(0);
+		}
+		else if(directive == boost::wave::T_PP_IF)
+		{
+			//std::cout << "#if" << std::endl;
+			const char* name = 0;
+#if 0
+			std::cout << "#if:";
+			for(ContainerT::const_iterator i = expression.begin(); i != expression.end(); ++i)
+			{
+				std::cout << " " << (*i).get_value();
+			}
+			std::cout << std::endl;
+#endif
+			{
+				ContainerT::const_iterator i = expression.begin();
+				if(string_equal((*i).get_value().c_str(), "defined"))
+				{
+					++i;
+					if(*i == boost::wave::T_LEFTPAREN)
+					{
+						++i;
+					}
+					name = names.makeIdentifier((*i).get_value().c_str());
+				}
+			}
+			ifdef.push(name);
+		}
+		else if(directive == boost::wave::T_PP_ELIF)
+		{
+			//std::cout << "#elif" << std::endl;
+			ifdef.top() = 0;
+		}
+		return false;         // ok to continue, do not re-evaluate expression
+	}
+
+	template <typename ContextT>
+    bool found_include_directive(ContextT const& ctx, std::string const& filename, bool include_next) 
     {
         return false;    // ok to include this file
     }
@@ -159,6 +234,18 @@ public:
 		}
 	}
 
+	bool isConditional(const char* name)
+	{
+		for(StringStack::const_iterator i = ifdef.begin(); i != ifdef.end(); ++i)
+		{
+			if(*i == name)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
 	template<typename ContextT, typename TokenT>
 	void expanding_macro(ContextT& ctx, const TokenT& macrodef, const TokenT& macrocall)
 	{
@@ -171,9 +258,18 @@ public:
 		//d.macro = names.makeIdentifier(macrodef.get_value().c_str());
 		dependencies.get(getSourcePath()).insert(&d);
 
-		if(defPath != getSourcePath())
+		if(defPath != getSourcePath()) // if the macro being called is within a different file
 		{
-			includeGraph.macros[getSourcePath()].insert(MacroDeclaration(defPath, names.makeIdentifier(macrodef.get_value().c_str())));
+			const char* name = names.makeIdentifier(macrodef.get_value().c_str());
+			if(isConditional(name)) // if the call to macro X is within an '#ifdef X' block
+			{
+				// the file containing the declaration of the called macro is implicitly included by the current file
+				// TODO: perform this when 'ifdef X' is encountered, if X was defined in another file
+				IncludeDependencyNode& d = includeGraph.get(defPath);
+				includeGraph.get(getSourcePath()).insert(&d);
+			}
+			// the current file depends on the file containing the declaration of the called macro
+			includeGraph.macros[getSourcePath()].insert(MacroDeclaration(defPath, name));
 		}
 	}
     template <typename ContextT, typename TokenT, typename ContainerT, typename IteratorT>

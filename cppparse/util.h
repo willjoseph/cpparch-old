@@ -36,6 +36,11 @@ inline const char* findExtension(const char* path)
 	return result == 0 ? path + strlen(path) : result;
 }
 
+inline bool string_equal(const char* string, const char* other)
+{
+	return strcmp(string, other) == 0;
+}
+
 inline bool string_equal_nocase(const char* string, const char* other)
 {
 #ifdef WIN32
@@ -45,6 +50,17 @@ inline bool string_equal_nocase(const char* string, const char* other)
 #endif
 }
 
+inline bool string_equal_prefix(const char* left, const char* right)
+{
+	for(; *left != '\0' && *right != '\0'; ++left, ++right)
+	{
+		if(*left != *right)
+		{
+			return false;
+		}
+	}
+	return true;
+}
 
 
 
@@ -98,6 +114,51 @@ struct Concatenate
 		return &(*buffer.begin());
 	}
 };
+
+
+struct StringStack
+{
+	StringStack()
+		: depth(0)
+	{
+	}
+	typedef const char* value_type;
+	typedef value_type* iterator;
+	typedef const value_type* const_iterator;
+
+	value_type stack[1024];
+	size_t depth;
+
+	bool empty() const
+	{
+		return depth == 0;
+	}
+	value_type& top()
+	{
+		return stack[depth - 1];
+	}
+	const value_type& top() const
+	{
+		return stack[depth - 1];
+	}
+	void push(value_type v)
+	{
+		stack[depth++] = v;
+	}
+	void pop()
+	{
+		--depth;
+	}
+	const_iterator begin() const
+	{
+		return stack;
+	}
+	const_iterator end() const
+	{
+		return stack + depth;
+	}
+};
+
 
 #endif
 

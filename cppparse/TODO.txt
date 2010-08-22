@@ -1,10 +1,31 @@
 
+- parser is hard to work with - refactor?
+	- remove dead code
+	- move List into separate file
+	- replace Copied with a list?
+	
+- replace std::list with custom List class
+
+- ensure output files are unique
+	- one output subdir per .cpp
+	- create subdirs relative to include-path
+		- how to determine which include-path a source file is rooted in?
+		- include-path '.' may override other include-paths?
+			- put output files sourced from include-paths into $include subdir
+		- use '$..' to indicate looking outside an include-path
+	- compare output files generated from same source?
+- warn on escaping from include-path using '..'
+- add exclusions for warning messages
 - detect order-dependent includes
 	- e.g. header1.h depends on header2.h but does not (in)directly include it
 		- confused by multiple declarations in different headers: e.g. getwchar in stdio.h and wchar.h
 			- prefer (in)directly included source when determining location of declaration
 		- confused by #ifndef NULL #define NULL 0 #endif
 			- recognise ifndef-define pattern as redeclaration?
+			- tag all declarations within #ifndef X #define X #endif
+				- determine all tagged declarations to be present within any file containing #ifndef X
+		- confused by #ifdef X X() #endif
+			- ignore dependency on X when wrapped in #ifdef X
 - detect cyclic includes
 - detect unused includes
 

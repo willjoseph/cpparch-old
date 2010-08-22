@@ -7,26 +7,6 @@
 #include <fstream>
 #include <string>
 
-template<typename T>
-struct ArrayRange
-{
-	const T* first;
-	const T* last;
-	ArrayRange(const T* first, const T* last)
-		: first(first), last(last)
-	{
-	}
-};
-
-template<typename T>
-ArrayRange<T> makeRange(const T* first, const T* last)
-{
-	return ArrayRange<T>(first, last);
-}
-
-#define ARRAY_RANGE(array) makeRange(array, ARRAY_END(array))
-
-
 
 typedef int (*VerifyFunc)(void* output, const PrintSymbolArgs& args);
 
@@ -361,6 +341,37 @@ int verifyFor(cpp::statement_seq* result, const PrintSymbolArgs& args)
 	return 0;
 }
 
+typedef std::list<std::string> StringList;
+
+struct CompilerOptions
+{
+	StringList definitions;
+	StringList includes;
+	StringList sources;
+};
+
+enum CompilerOptionType
+{
+	COMPILEROPTION_DEFINITION,
+	COMPILEROPTION_INCLUDE,
+	COMPILEROPTION_SOURCE,
+	COMPILEROPTIONCOUNT
+};
+
+inline StringList& GetValues(CompilerOptions& options, CompilerOptionType type)
+{
+	switch(type)
+	{
+	case COMPILEROPTION_DEFINITION: return options.definitions;
+	case COMPILEROPTION_INCLUDE: return options.includes;
+	case COMPILEROPTION_SOURCE: return options.sources;
+	default:break;
+	}
+	StringList* p = 0;
+	return *p;
+}
+
+
 int main(int argc, char *argv[])
 {
 	if(argc == 1)
@@ -422,5 +433,91 @@ int main(int argc, char *argv[])
 
 	const char* input = argv[1];
 
-	return runTest(makeTest(input, ARRAY_RANGE(DEFINITIONS_DEBUG), CHARCONSTPOINTERRANGE_EMPTY, verifyNull, parseFile));
+	{
+		std::ifstream in(input);
+		if(in.is_open())
+		{
+			std::string compiler;
+			CompilerOptions options;
+
+			char line[1024];
+			while(in.getline(line, ARRAY_COUNT(line)), in.good())
+			{
+				if(compiler.empty())
+				{
+					compiler = line;
+				}
+				else
+				{
+					CompilerOptionType type = COMPILEROPTION_SOURCE; // line contains name of source file if it is not an option
+					const char* value = line;
+					if(*line == '/')
+					{
+						// this line is an option
+						const char* option = line + 1;
+						if(string_equal_prefix(option, "I"))
+						{
+							type = COMPILEROPTION_INCLUDE;
+							value = option + 2;
+						}
+						else if(string_equal_prefix(option, "D"))
+						{
+							type = COMPILEROPTION_DEFINITION;
+							value = option + 2;
+						}
+						else if(string_equal_prefix(option, "Tp")
+							|| string_equal_prefix(option, "Tc"))
+						{
+							type = COMPILEROPTION_SOURCE;
+							value = option + 3;
+						}
+						else
+						{
+							type = COMPILEROPTIONCOUNT;
+						}
+					}
+
+					if(type != COMPILEROPTIONCOUNT)
+					{
+						GetValues(options, type).push_back(value);
+					}
+				}
+			}
+			if(in.fail()
+				&& !in.bad()
+				&& !in.eof()) // line contains eof
+			{
+				// buffer too small
+				std::cerr << "line too long in command file: " << input << std::endl;
+				return -1;
+			}
+
+			CharConstPointer definitions[1024];
+			CharConstPointer* definition = definitions;
+			for(StringList::const_iterator i = options.definitions.begin(); i != options.definitions.end(); ++i)
+			{
+				*definition++ = (*i).c_str();
+			}
+			
+			CharConstPointer includes[1024];
+			CharConstPointer* include = includes;
+			for(StringList::const_iterator i = options.includes.begin(); i != options.includes.end(); ++i)
+			{
+				*include++ = (*i).c_str();
+			}
+
+			for(StringList::const_iterator i = options.sources.begin(); i != options.sources.end(); ++i)
+			{
+				int result = runTest(makeTest((*i).c_str(), makeRange(definitions, definition), makeRange(includes, include), verifyNull, parseFile));
+				if(result != 0)
+				{
+					return result;
+				}
+			}
+			return 0;
+		}
+	}
+
+	std::cerr << "failed to open command file: " << input << std::endl;
+	return -1;
 }

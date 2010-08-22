@@ -30,6 +30,27 @@ struct IncludeEvents
 #define ARRAY_COUNT(array) (sizeof(array) / sizeof(*array))
 #define ARRAY_END(array) ((array) + ARRAY_COUNT(array))
 
+template<typename T>
+struct ArrayRange
+{
+	const T* first;
+	const T* last;
+	ArrayRange(const T* first, const T* last)
+		: first(first), last(last)
+	{
+	}
+};
+
+template<typename T>
+ArrayRange<T> makeRange(const T* first, const T* last)
+{
+	return ArrayRange<T>(first, last);
+}
+
+#define ARRAY_RANGE(array) makeRange(array, ARRAY_END(array))
+
+
+
 struct TypeListEnd
 {
 };
