@@ -739,56 +739,6 @@ const char* getIdentifierType(IdentifierFunc func)
 }
 
 
-template<typename Walker, typename T>
-inline T* walkAmbiguity(Walker& walker, cpp::ambiguity<T>* symbol)
-{
-	semanticBreak();
-	bool ambiguousDeclaration = false;
-	Walker tmp(walker);
-	IdentifierMismatch first;
-	IdentifierMismatch second;
-	try
-	{
-		walker.ambiguity = &ambiguousDeclaration;
-		symbol->first->accept(walker);
-		walker.ambiguity = 0;
-		return symbol->first;
-	}
-	catch(IdentifierMismatch& e)
-	{
-		SEMANTIC_ASSERT(!ambiguousDeclaration);
-		walker.~Walker();
-		new(&walker) Walker(tmp);
-		first = e;
-	}
-
-	try
-	{
-		walker.ambiguity = &ambiguousDeclaration;
-		symbol->second->accept(walker);
-		walker.ambiguity = 0;
-		return symbol->second;
-	}
-	catch(IdentifierMismatch& e)
-	{
-		SEMANTIC_ASSERT(!ambiguousDeclaration);
-		walker.~Walker();
-		new(&walker) Walker(tmp);
-		second = e;
-	}
-	if(walker.ambiguity == 0)
-	{
-		std::cout << "first:" << std::endl;
-		printIdentifierMismatch(first);
-		walker.printScope();
-		std::cout << "second:" << std::endl;
-		printIdentifierMismatch(second);
-		walker.printScope();
-		throw SemanticError();
-	}
-	throw first;
-}
-
 #define TREEWALKER_WALK(walker, symbol) SYMBOL_WALK(walker, symbol); hit(walker)
 #define TREEWALKER_WALK_NOHIT(walker, symbol) SYMBOL_WALK(walker, symbol)
 #define TREEWALKER_LEAF(symbol) SYMBOL_WALK(*this, symbol)
@@ -3043,12 +2993,6 @@ struct SimpleDeclarationWalker : public WalkerBase
 		isUnion = walker.isUnion;
 	}
 
-	// not required for mingled parse 
-	void visit(cpp::init_declarator_disambiguate* symbol)
-	{
-		result = 0;
-	}
-
 	template<typename T>
 	void walkDeclarator(T* symbol)
 	{
@@ -3079,10 +3023,6 @@ struct SimpleDeclarationWalker : public WalkerBase
 		valueDependent.splice(walker.valueDependent);
 	}
 	void visit(cpp::declarator* symbol)
-	{
-		walkDeclarator(symbol);
-	}
-	void visit(cpp::declarator_disambiguate* symbol)
 	{
 		walkDeclarator(symbol);
 	}

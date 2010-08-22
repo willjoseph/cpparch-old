@@ -174,17 +174,8 @@ namespace cpp
 		));
 	};
 
-	struct declarator_disambiguate : public choice<declarator_disambiguate>
+	struct direct_declarator_prefix : public choice<direct_declarator_prefix>
 	{
-		VISITABLE_BASE(TYPELIST2(
-			SYMBOLFWD(direct_declarator_prefix),
-			SYMBOLFWD(declarator_ptr_disambiguate)
-		));
-	};
-
-	struct direct_declarator_prefix : public choice<direct_declarator_prefix>, public declarator_disambiguate
-	{
-		VISITABLE_DERIVED(declarator_disambiguate);
 		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(direct_declarator_parenthesis),
 			SYMBOLFWD(declarator_id)
@@ -1731,14 +1722,6 @@ namespace cpp
 		FOREACH2(op, decl);
 	};
 
-	struct declarator_ptr_disambiguate : public declarator_disambiguate
-	{
-		VISITABLE_DERIVED(declarator_disambiguate);
-		symbol<ptr_operator> op;
-		symbol<declarator_disambiguate> decl;
-		FOREACH2(op, decl);
-	};
-
 	struct statement : public choice<statement>
 	{
 		VISITABLE_BASE(TYPELIST11(
@@ -2514,28 +2497,10 @@ namespace cpp
 		));
 	};
 
-	struct init_declarator : public choice<init_declarator>
+	struct init_declarator
 	{
-		VISITABLE_BASE(TYPELIST3(
-			SYMBOLFWD(init_declarator_default),
-			SYMBOLFWD(init_declarator_disambiguate),
-			ambiguity<init_declarator>
-		));
-	};
-
-	struct init_declarator_default : public init_declarator
-	{
-		VISITABLE_DERIVED(init_declarator);
 		symbol<declarator> decl;
 		symbol_optional<initializer> init;
-		FOREACH2(decl, init);
-	};
-
-	struct init_declarator_disambiguate : public init_declarator
-	{
-		VISITABLE_DERIVED(init_declarator);
-		symbol<declarator_disambiguate> decl;
-		symbol<initializer_parenthesis> init;
 		FOREACH2(decl, init);
 	};
 

@@ -5,6 +5,9 @@
 
 - mergeIncludes crashes in lexer.cpp
 	- doesn't handle cyclic includes?
+	
+- StringStack::push crashes in windows.h
+	- leaking?
 
 - improve error messages
 	- e.g. detect when 'typename' keyword is missing
