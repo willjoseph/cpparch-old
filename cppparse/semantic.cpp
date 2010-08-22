@@ -427,32 +427,7 @@ struct Scope : public ScopeCounter
 	Identifier name;
 	size_t enclosedScopeCount; // number of scopes directly enclosed by this scope
 	typedef std::less<const char*> IdentifierLess;
-	typedef std::multimap<const char*, Declaration, IdentifierLess, TreeAllocator<int> > DeclarationMap;
-	struct Declarations : DeclarationMap
-	{
-		struct CacheEntry
-		{
-			const char* id;
-			DeclarationMap::iterator value;
-		};
-		CacheEntry recent;
-
-		Declarations(const IdentifierLess& predicate, const TreeAllocator<int>& allocator)
-			: DeclarationMap(predicate, allocator)
-		{
-		}
-
-		iterator insert(const value_type& value)
-		{
-			recent.id = 0;
-			return DeclarationMap::insert(value);
-		}
-		void erase(const char* key)
-		{
-			recent.id = 0;
-			DeclarationMap::erase(key);
-		}
-	};
+	typedef std::multimap<const char*, Declaration, IdentifierLess, TreeAllocator<int> > Declarations;
 	Declarations declarations;
 	ScopeType type;
 	Types bases;
@@ -1244,17 +1219,8 @@ typedef bool (*LookupFilter)(const Declaration&);
 
 Declaration* findDeclaration(Scope::Declarations& declarations, const Identifier& id, LookupFilter filter = isAny)
 {
-	Scope::Declarations::iterator i =
-#if 0 // disabled due to bug
-		declarations.recent.id == id.value
-		? declarations.recent.value
-		: 
-#endif
-	declarations.upper_bound(id.value);
+	Scope::Declarations::iterator i = declarations.upper_bound(id.value);
 	
-	declarations.recent.id = id.value;
-	declarations.recent.value = i;
-
 	for(; i != declarations.begin()
 		&& (*--i).first == id.value;)
 	{

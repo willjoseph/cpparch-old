@@ -1,7 +1,12 @@
 
++ clean up main()
+
+- improve error messages
+	- e.g. detect when 'typename' keyword is missing
+
 - parser is hard to work with - refactor?
 	- remove dead code
-	- move List into separate file
+	+ move List into separate file
 	- replace Copied with a list?
 	
 - replace std::list with custom List class

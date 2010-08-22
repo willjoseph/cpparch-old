@@ -153,7 +153,7 @@ public:
 			std::cout << std::endl;
 #endif
 			{
-				ContainerT::const_iterator i = expression.begin();
+				typename ContainerT::const_iterator i = expression.begin();
 				if(string_equal((*i).get_value().c_str(), "defined"))
 				{
 					++i;
