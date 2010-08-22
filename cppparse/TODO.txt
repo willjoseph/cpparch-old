@@ -1,6 +1,8 @@
 
 + clean up main()
 
+- clean up error handling - multiple assert exception types?
+
 - improve error messages
 	- e.g. detect when 'typename' keyword is missing
 
