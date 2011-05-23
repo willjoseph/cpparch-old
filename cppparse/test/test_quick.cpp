@@ -1,4 +1,12 @@
 
+namespace N111
+{
+	struct S* f(void)
+	{
+		return (struct S*)
+			(int*) f();
+	}
+}
 
 namespace N44
 {

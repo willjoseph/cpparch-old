@@ -566,7 +566,7 @@ struct WalkerBase : public WalkerState
 		return declaration;
 	}
 
-	void declareEts(Type& type, Identifier* forward)
+	bool declareEts(Type& type, Identifier* forward)
 	{
 		if(isClassKey(*type.declaration))
 		{
@@ -581,7 +581,9 @@ struct WalkerBase : public WalkerState
 			declarations.push_back(declaration);
 			forward->dec.p = declaration;
 			type = declaration;
+			return true;
 		}
+		return false;
 	}
 };
 
@@ -3159,17 +3161,37 @@ struct SimpleDeclarationWalker : public WalkerBase
 		}
 	}
 
+	struct DeclareEtsGuard : public ScopeGuard
+	{
+		Type* p;
+		DeclareEtsGuard(SimpleDeclarationWalker& walker)
+			: ScopeGuard(walker)
+		{
+			p = walker.declareEts(walker.type, walker.forward) ? &walker.type : 0;
+		}
+		~DeclareEtsGuard()
+		{
+			if(p != 0)
+			{
+				*p = &gClass;
+			}
+		}
+		void hit()
+		{
+			ScopeGuard::hit();
+			p = 0;
+		}
+	};
+
 	void visit(cpp::simple_declaration_named* symbol)
 	{
-		ScopeGuard guard(*this);
-		declareEts(type, forward);
+		DeclareEtsGuard guard(*this); // the point of declaration for the ETS in the decl-specifier-seq is just before the declarator
 		TREEWALKER_WALK(*this, symbol);
 		guard.hit();
 	}
 	void visit(cpp::member_declaration_named* symbol)
 	{
-		ScopeGuard guard(*this);
-		declareEts(type, forward);
+		DeclareEtsGuard guard(*this);
 		TREEWALKER_WALK(*this, symbol);
 		guard.hit();
 
@@ -3183,8 +3205,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 	}
 	void visit(cpp::function_definition* symbol)
 	{
-		ScopeGuard guard(*this);
-		declareEts(type, forward);
+		DeclareEtsGuard guard(*this);
 		TREEWALKER_WALK(*this, symbol);
 		guard.hit();
 

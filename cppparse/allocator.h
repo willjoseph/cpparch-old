@@ -8,7 +8,7 @@
 #include <vector>
 
 #ifdef _DEBUG
-#define ALLOCATOR_DEBUG
+#define ALLOCATOR_DEBUG // causes unallocated memory to be marked and checked
 #endif
 
 extern size_t gAllocatorFootprint;

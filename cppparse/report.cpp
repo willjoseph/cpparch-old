@@ -190,18 +190,17 @@ void mergeIncludes(IncludeDependencyNodes& includes, const IncludeDependencyNode
 	}
 	IncludeDependencyNodes tmp;
 
-	std::set_union(
-		includes.begin(), includes.end(),
+	std::set_difference(
 		graph.begin(), graph.end(),
+		includes.begin(), includes.end(),
 		std::inserter(tmp, tmp.begin())
 	);
 
-	for(IncludeDependencyNode::const_iterator i = graph.begin(); i != graph.end(); ++i)
+	for(IncludeDependencyNode::const_iterator i = tmp.begin(); i != tmp.end(); ++i)
 	{
-		mergeIncludes(tmp, *(*i));
+		includes.insert(*i);
+		mergeIncludes(includes, *(*i));
 	}
-
-	includes.swap(tmp);
 }
 
 struct SymbolPrinter : PrintingWalker
@@ -332,6 +331,7 @@ struct SymbolPrinter : PrintingWalker
 
 	void push()
 	{
+		REPORT_ASSERT(!includes.empty());
 		if(includes.top() != 0)
 		{
 			suspend();
@@ -362,6 +362,7 @@ struct SymbolPrinter : PrintingWalker
 
 	void pop()
 	{
+		REPORT_ASSERT(!includes.empty());
 		if(includes.top() != 0)
 		{
 			close();
@@ -439,7 +440,8 @@ struct SymbolPrinter : PrintingWalker
 			}
 		}
 		includes.pop();
-		if(includes.top() != 0)
+		if(!includes.empty()
+			&& includes.top() != 0)
 		{
 			resume(includes.top());
 		}

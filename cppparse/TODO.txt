@@ -1,16 +1,23 @@
 
 + clean up main()
 
++ fixed mergeIncludes crash in lexer.cpp: failed to handle cyclic includes
++ fixed crash in dependency analysis: declareEts not rolled back completely after parse fail - 'type' was left modified
+	
 - clean up error handling - multiple assert exception types?
 
-- mergeIncludes crashes in lexer.cpp
-	- doesn't handle cyclic includes?
-	
-- StringStack::push crashes in windows.h
-	- leaking?
 
 - improve error messages
 	- e.g. detect when 'typename' keyword is missing
+	
+- explain template_argument_clause_disambiguate
+	- disambiguates: < CONSTANT_EXPRESSION < 0 >
+	- how?
+	- only required when template-id appears in an expression
+	
+- explain postfix_expression_disambiguate
+	- disambiguates nested function-call expression from postfix_expression_construct
+	- e.g. T()()
 
 - parser is hard to work with - refactor?
 	- remove dead code
@@ -47,6 +54,7 @@
 			- prefer (in)directly included source when determining location of declaration
 		- confused by #ifndef NULL #define NULL 0 #endif
 			- recognise ifndef-define pattern as redeclaration?
+				- heuristic is bad
 			- tag all declarations within #ifndef X #define X #endif
 				- determine all tagged declarations to be present within any file containing #ifndef X
 		- confused by #ifdef X X() #endif
@@ -435,3 +443,8 @@ or a nested class within a local class of a function that is a member of N, befo
 in namespace N or in one of N ’s enclosing namespaces.
 
 
+
+
+Windows SDK 1.7 changes:
+
+C:\Program Files\Microsoft SDKs\Windows\v7.1\Include\objbase.h(239) - comment this line, IUnknown is not declared

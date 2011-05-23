@@ -1,4 +1,6 @@
 
+#include "include/cycle.h"
+
 #if defined X
 X()
 #endif

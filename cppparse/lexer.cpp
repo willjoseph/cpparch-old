@@ -104,6 +104,7 @@ public:
 	template <typename ContextT, typename TokenT>
     bool found_directive(ContextT const& ctx, TokenT const& directive)
     {
+#if 0
 		if(directive == boost::wave::T_PP_ENDIF)
 		{
 			//std::cout << "#endif" << std::endl;
@@ -114,6 +115,7 @@ public:
 			//std::cout << "#else" << std::endl;
 			ifdef.top() = 0;
 		}
+#endif
 		return false; // process this directive
 	}
 
@@ -122,6 +124,7 @@ public:
         TokenT const& directive, ContainerT const& expression, 
         bool expression_value)
     {
+#if 0
 		if(directive == boost::wave::T_PP_IFDEF) // this block only processed if next token is name of a defined macro
 		{
 #if 0
@@ -171,6 +174,7 @@ public:
 			//std::cout << "#elif" << std::endl;
 			ifdef.top() = 0;
 		}
+#endif
 		return false;         // ok to continue, do not re-evaluate expression
 	}
 
@@ -261,6 +265,7 @@ public:
 		if(defPath != getSourcePath()) // if the macro being called is within a different file
 		{
 			const char* name = names.makeIdentifier(macrodef.get_value().c_str());
+#if 0
 			if(isConditional(name)) // if the call to macro X is within an '#ifdef X' block
 			{
 				// the file containing the declaration of the called macro is implicitly included by the current file
@@ -268,6 +273,7 @@ public:
 				IncludeDependencyNode& d = includeGraph.get(defPath);
 				includeGraph.get(getSourcePath()).insert(&d);
 			}
+#endif
 			// the current file depends on the file containing the declaration of the called macro
 			includeGraph.macros[getSourcePath()].insert(MacroDeclaration(defPath, name));
 		}
