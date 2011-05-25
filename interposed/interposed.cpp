@@ -1,13 +1,13 @@
 //////////////////////////////////////////////////////////////////////////////
 //
-//  Detours Test Program (traceapi.cpp of traceapi.dll)
+//  Detours Test Program (interposed.cpp of interposed.dll)
 //
 //  Microsoft Research Detours Package, Version 2.1.
 //
 //  Copyright (c) Microsoft Corporation.  All rights reserved.
 //
 #define _WIN32_WINNT        0x0400
-#if 0
+#ifndef WIN32
 #define WIN32
 #endif
 #define NT
@@ -261,7 +261,7 @@ BOOL __stdcall Mine_CreateProcessA(LPCSTR a0,
     __try {
 #if 1
 		char detoured[1024];
-		GetModuleFileNameA(Detoured(), detoured, 1024);
+		GetModuleFileNameA(DetourGetDetouredMarker(), detoured, 1024);
 
 		char dll[1024];
 		GetModuleFileNameA(s_hInst, dll, 1024);
@@ -300,7 +300,7 @@ BOOL __stdcall Mine_CreateProcessW(LPCWSTR a0,
     __try {
 #if 1
 		char detoured[1024];
-		GetModuleFileNameA(Detoured(), detoured, 1024);
+		GetModuleFileNameA(DetourGetDetouredMarker(), detoured, 1024);
 
 		char dll[1024];
 		GetModuleFileNameA(s_hInst, dll, 1024);
@@ -444,7 +444,7 @@ LONG AttachDetours(VOID)
         PVOID *ppbFailedPointer = NULL;
         LONG error = DetourTransactionCommitEx(&ppbFailedPointer);
 
-        printf("traceapi.dll: Attach transaction failed to commit. Error %d (%p/%p)",
+        printf("interposed.dll: Attach transaction failed to commit. Error %d (%p/%p)",
                error, ppbFailedPointer, *ppbFailedPointer);
         return error;
     }
@@ -466,7 +466,7 @@ LONG DetachDetours(VOID)
         PVOID *ppbFailedPointer = NULL;
         LONG error = DetourTransactionCommitEx(&ppbFailedPointer);
 
-        printf("traceapi.dll: Detach transaction failed to commit. Error %d (%p/%p)",
+        printf("interposed.dll: Detach transaction failed to commit. Error %d (%p/%p)",
                error, ppbFailedPointer, *ppbFailedPointer);
         return error;
     }
@@ -757,9 +757,12 @@ BOOL ProcessAttach(HMODULE hDll)
     GetModuleFileNameW(hDll, s_wzDllPath, ARRAYOF(s_wzDllPath));
     GetModuleFileNameW(NULL, wzExeName, ARRAYOF(wzExeName));
 
-    SyelogOpen("traceapi", SYELOG_FACILITY_APPLICATION);
+    SyelogOpen("interposed", SYELOG_FACILITY_APPLICATION);
 #if 0
     ProcessEnumerate();
+#endif
+#if 0
+	Syelog(SYELOG_SEVERITY_INFORMATION, "ProcessAttach: %ls:%ls\n", wzExeName, s_wzDllPath);
 #endif
 
 	if(GetEnvironmentVariableA("INTERPOSE_OUT", gOutputPath, sizeof(gOutputPath)) != 0)
@@ -786,6 +789,10 @@ BOOL ProcessDetach(HMODULE hDll)
     ThreadDetach(hDll);
     s_bLog = FALSE;
 
+#if 1
+	printf("interposed.dll: Terminating.\n");
+#endif
+
     LONG error = DetachDetours();
     if (error != NO_ERROR) {
         Syelog(SYELOG_SEVERITY_FATAL, "### Error detaching detours: %d\n", error);
@@ -811,9 +818,9 @@ BOOL APIENTRY DllMain(HINSTANCE hModule, DWORD dwReason, PVOID lpReserved)
 
     switch (dwReason) {
       case DLL_PROCESS_ATTACH:
-        OutputDebugString(L"traceapi.dll: DllMain DLL_PROCESS_ATTACH\n");
+        OutputDebugString(L"interposed.dll: DllMain DLL_PROCESS_ATTACH\n");
 #if 1
-        printf("traceapi.dll: Starting.\n");
+        printf("interposed.dll: Starting.\n");
 #endif
         fflush(stdout);
         Sleep(50);
@@ -822,13 +829,13 @@ BOOL APIENTRY DllMain(HINSTANCE hModule, DWORD dwReason, PVOID lpReserved)
         return ProcessAttach(hModule);
       case DLL_PROCESS_DETACH:
         ret = ProcessDetach(hModule);
-        OutputDebugString(L"traceapi.dll: DllMain DLL_PROCESS_DETACH\n");
+        OutputDebugString(L"interposed.dll: DllMain DLL_PROCESS_DETACH\n");
         return ret;
       case DLL_THREAD_ATTACH:
-        OutputDebugString(L"traceapi.dll: DllMain DLL_THREAD_ATTACH\n");
+        OutputDebugString(L"interposed.dll: DllMain DLL_THREAD_ATTACH\n");
         return ThreadAttach(hModule);
       case DLL_THREAD_DETACH:
-        OutputDebugString(L"traceapi.dll: DllMain DLL_THREAD_DETACH\n");
+        OutputDebugString(L"interposed.dll: DllMain DLL_THREAD_DETACH\n");
         return ThreadDetach(hModule);
     }
     return TRUE;

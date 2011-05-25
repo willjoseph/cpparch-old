@@ -40,7 +40,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="..\..\boost_1_43_0;&quot;C:\Program Files\Microsoft Research\Detours Express 2.1\src&quot;;&quot;C:\Program Files\Microsoft Research\Detours Express 2.1\samples\include&quot;"
+				AdditionalIncludeDirectories="..\..\boost_1_43_0;&quot;..\..\detours-2.1\src&quot;;&quot;..\..\detours-2.1\samples\include&quot;"
 				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE;_CRT_SECURE_NO_DEPRECATE;_SCL_SECURE_NO_DEPRECATE"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
@@ -62,10 +62,10 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="detours.lib detoured.lib syelog.lib"
+				AdditionalDependencies="detours.lib syelog.lib"
 				OutputFile="$(ProjectDir)\..\bin\debug\$(ProjectName).exe"
 				LinkIncremental="2"
-				AdditionalLibraryDirectories="&quot;C:\Program Files\Microsoft Research\Detours Express 2.1\lib&quot;;&quot;C:\Program Files\Microsoft Research\Detours Express 2.1\samples\lib&quot;"
+				AdditionalLibraryDirectories="&quot;..\..\detours-2.1\lib&quot;;&quot;..\..\detours-2.1\samples\lib&quot;"
 				GenerateDebugInformation="true"
 				SubSystem="1"
 				TargetMachine="1"
