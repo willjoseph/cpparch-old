@@ -189,7 +189,7 @@ public:
 		std::string const &relname, std::string const& absname,
 		bool is_system_include)
 	{
-		IncludeDependencyNode& d = includeGraph.get(names.makeFilename(relname.c_str()));
+		IncludeDependencyNode& d = includeGraph.get(names.makeFilename(absname.c_str()));
 		//d.macro = names.makeIdentifier(macrodef.get_value().c_str());
 		includeGraph.get(getSourcePath()).insert(&d);
 	}
@@ -198,7 +198,7 @@ public:
 		std::string const &relname, std::string const& absname,
 		bool is_system_include)
 	{
-		includes[depth] = names.makeFilename(relname.c_str());
+		includes[depth] = names.makeFilename(absname.c_str());
 		//LEXER_ASSERT(std::find(includes, includes + depth, includes[depth]) == includes + depth); // cyclic includes! 
 		std::cout << "lexer: " << findFilename(includes[depth - 1]) << "  included: " << findFilename(includes[depth]) << std::endl;
 		++depth;

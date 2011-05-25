@@ -4,6 +4,7 @@
 + fixed mergeIncludes crash in lexer.cpp: failed to handle cyclic includes
 + fixed crash in dependency analysis: declareEts not rolled back completely after parse fail - 'type' was left modified
 + fixed crash parsing cppparse.cpp, caused by friend-declaration shortcut
++ fixed false-positive order-dependent includes warnings
 
 - implement friend declaration?
 	- has no effect
@@ -29,6 +30,7 @@ not consider any scopes outside the innermost enclosing namespace.
 	- caused by pathological case: nested template-ids
 		- isDependent is slow?
 		- each iteration is parsed first as nested-name-specifier
+			- cache successful parse of template-id component
 		
 - make gUniqueNames a member of Scope?
 
