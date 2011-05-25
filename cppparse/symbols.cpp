@@ -10,7 +10,6 @@ size_t gScopeCount = 0;
 
 // special-case
 Declaration gUndeclared(TREEALLOCATOR_NULL, 0, makeIdentifier("$undeclared"), TYPE_NULL, 0);
-Declaration gFriend(TREEALLOCATOR_NULL, 0, makeIdentifier("$friend"), TYPE_NULL, 0);
 
 // meta types
 Declaration gSpecial(TREEALLOCATOR_NULL, 0, makeIdentifier("$special"), TYPE_NULL, 0);

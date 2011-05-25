@@ -370,9 +370,10 @@ struct Scope : public ScopeCounter
 	Types bases;
 	typedef std::list<Scope*, TreeAllocator<int> > Scopes;
 	Scopes usingDirectives;
+	Declarations friendDeclarations;
 
 	Scope(const TreeAllocator<int>& allocator, const Identifier& name, ScopeType type = SCOPETYPE_UNKNOWN)
-		: parent(0), name(name), enclosedScopeCount(0), declarations(IdentifierLess(), allocator), type(type), bases(allocator), usingDirectives(allocator)
+		: parent(0), name(name), enclosedScopeCount(0), declarations(IdentifierLess(), allocator), type(type), bases(allocator), usingDirectives(allocator), friendDeclarations(IdentifierLess(), allocator)
 	{
 	}
 
@@ -400,7 +401,6 @@ inline bool enclosesEts(ScopeType type)
 
 // special-case
 extern Declaration gUndeclared;
-extern Declaration gFriend;
 
 
 // meta types

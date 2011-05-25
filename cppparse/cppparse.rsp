@@ -13,8 +13,5 @@ C:\Program Files\Microsoft Visual Studio 8\VC\BIN\cl.exe
 .\cppparse.cpp
 .\parser.cpp
 .\semantic.cpp
-/I C:\Program Files\Microsoft Visual Studio 8\VC\INCLUDE
-/I C:\Program Files\Microsoft Visual Studio 8\VC\PlatformSDK\INCLUDE
-/I C:\Program Files\Microsoft Platform SDK for Windows Server 2003 R2\Include
-/I C:\Program Files (x86)\Microsoft Visual Studio 8\VC\include
-/I C:\Program Files (x86)\Microsoft Visual Studio 8\VC\PlatformSDK\include
+/I .\msvc-8.0\INCLUDE
+/I C:\Program Files\Microsoft SDKs\Windows\v7.1\Include

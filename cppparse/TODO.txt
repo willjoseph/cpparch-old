@@ -3,7 +3,35 @@
 
 + fixed mergeIncludes crash in lexer.cpp: failed to handle cyclic includes
 + fixed crash in dependency analysis: declareEts not rolled back completely after parse fail - 'type' was left modified
-	
++ fixed crash parsing cppparse.cpp, caused by friend-declaration shortcut
+
+- implement friend declaration?
+	- has no effect
+		- name-lookup:
+			- unqualified: innermost enclosing namespace only
+			- qualified (or template-id): 
+			- if not found by name lookup (first declaration) is a  member of innermost enclosing namespace, but cannot be found by name-lookup
+			- A function can be defined in a friend declaration of a class if and only if the class is a non-local class (9.8),
+				the function name is unqualified, and the function has namespace scope.
+			- A friend function defined in a class is in the (lexical) scope of the
+				class in which it is defined. A friend function defined outside the class is not (3.4.1).
+			- 7.3.1.2-3: If a friend declaration in a nonlocal
+class first declares a class or function the friend class or function is a member of the innermost enclosing
+namespace. The name of the friend is not found by unqualified lookup (3.4.1) or by qualified lookup (3.4.3)
+until a matching declaration is provided in that namespace scope (either before or after the class definition
+granting friendship). If a friend function is called, its name may be found by the name lookup that considers
+functions from namespaces and classes associated with the types of the function arguments (3.4.2). If the
+name in a friend declaration is neither qualified nor a template-id and the declaration is a function or
+an elaborated-type-specifier, the lookup to determine whether the entity has been previously declared shall
+not consider any scopes outside the innermost enclosing namespace.
+
+- slow parsing of cpptree.h
+	- caused by pathological case: nested template-ids
+		- isDependent is slow?
+		- each iteration is parsed first as nested-name-specifier
+		
+- make gUniqueNames a member of Scope?
+
 - clean up error handling - multiple assert exception types?
 
 
@@ -36,7 +64,8 @@
 	- inTemplateArgumentList
 	- overloadable_operator
 	
-- replace std::list with custom List class
+- replace std::list with custom List class?
+	- or just use custom tree-allocator?
 
 - ensure output files are unique
 	- one output subdir per .cpp
@@ -73,12 +102,6 @@
 	- perform type-dependent name-lookup for template instantiations
 	- handle multiple identical typedef/forward-declaration in different modules
 			
-- bug: crash parsing cppparse.cpp
-	- does not occur if this is the first file to be parsed
-- slow parsing of cpptree.h
-	- caused by pathological case: nested template-ids
-		- isDependent is slow?
-		- each iteration is parsed first as nested-name-specifier
 		
 - optimise parsing of cpptree?
 	- profile parse, find out exactly what's taking so long

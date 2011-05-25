@@ -222,15 +222,14 @@ struct WalkerState
 			*ambiguity = true;
 		}
 
-		if(specifiers.isFriend)
-		{
-			// TODO
-			return &gFriend;
-		}
-		
 		Declaration other(allocator, parent, name, type, enclosed, specifiers, isTemplate, arguments, templateParameter, valueDependent);
 		if(name.value != 0) // unnamed class/struct/union/enum
 		{
+			if(specifiers.isFriend)
+			{
+				return &(*parent->friendDeclarations.insert(Scope::Declarations::value_type(name.value, other))).second;
+			}
+
 			/* 3.4.4-1
 			An elaborated-type-specifier (7.1.6.3) may be used to refer to a previously declared class-name or enum-name
 			even though the name has been hidden by a non-type declaration (3.3.10).
@@ -3541,6 +3540,8 @@ TreeAllocator<int> getAllocator(ParserContext& lexer)
 
 cpp::declaration_seq* parseFile(ParserContext& lexer)
 {
+	gUniqueNames.clear();
+
 	WalkerContext& context = *new WalkerContext(getAllocator(lexer));
 	Walker::NamespaceWalker& walker = *new Walker::NamespaceWalker(context);
 	ParserGeneric<Walker::NamespaceWalker> parser(lexer, walker);
