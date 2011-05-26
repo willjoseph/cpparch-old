@@ -3,11 +3,12 @@ C:\Program Files\Microsoft Visual Studio 8\VC\BIN\cl.exe
 /D WIN32
 /D _DEBUG
 .\test\test_quick.cpp
+.\test\test_include.cpp
 .\test\test_windows.cpp
 .\test\test_prepro.cpp
-.\test\test_include.cpp
 .\test\test_vector.cpp
 .\test\test_iostream.cpp
 .\test\test_map.cpp
 /I .\msvc-8.0\INCLUDE
-/I C:\Program Files\Microsoft SDKs\Windows\v7.1\Include
+/I C:\Program Files\Microsoft Visual Studio 8\VC\PlatformSDK\Include
+/I C:\Program Files (x86)\Microsoft Visual Studio 8\VC\PlatformSDK\Include

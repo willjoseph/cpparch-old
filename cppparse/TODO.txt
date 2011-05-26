@@ -6,6 +6,11 @@
 + fixed crash parsing cppparse.cpp, caused by friend-declaration shortcut
 + fixed false-positive order-dependent includes warnings
 
+- support '>>' in nested template-argument-list
+- implement 'auto' from C++0x
+
+- document boost::wave modification: resolved_include_file
+
 - implement friend declaration?
 	- has no effect
 		- name-lookup:
