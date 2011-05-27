@@ -62,7 +62,7 @@ not consider any scopes outside the innermost enclosing namespace.
 			- need to re-lookup type-name to check that it is not hidden by a non-type-name
 			- make '::' optional in nested-name-specifier when specifying a type-name?
 	- cache a successfully parsed template-argument-clause
-		- only for the duration of parsing elaborated-type-specifier
+		- only for the duration of parsing simple-type-specifier
 		
 - make gUniqueNames a member of Scope?
 
