@@ -1544,6 +1544,22 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 	}
 };
 
+struct ScopeDepth
+{
+	unsigned& depth;
+	ScopeDepth(unsigned& depth)
+		: depth(depth)
+	{
+		++depth;
+	}
+	~ScopeDepth()
+	{
+		--depth;
+	}
+};
+
+// basic.lookup.qual
+// During the lookup for a name preceding the :: scope resolution operator, object, function, and enumerator names are ignored.
 struct NestedNameSpecifierPrefixWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
@@ -1562,8 +1578,13 @@ struct NestedNameSpecifierPrefixWalker : public WalkerBase
 	}
 	void visit(cpp::type_name* symbol)
 	{
+		static unsigned gNNDepth = 0;
+		ScopeDepth depth(gNNDepth);
 		TypeNameWalker walker(getState(), isNestedName, true);
 		TREEWALKER_WALK(walker, symbol);
+		std::cout << "nested_name_specifier_prefix: type-name: " << gNNDepth << std::endl;
+		printSymbol(symbol);
+		std::cout << std::endl;
 		if(allowDependent
 			|| !isDependent(qualifying_p))
 		{

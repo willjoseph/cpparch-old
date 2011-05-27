@@ -139,6 +139,8 @@ not consider any scopes outside the innermost enclosing namespace.
 
 - use found-include-directive hook to build include-graph
 	- doesn't give full path, need to add resolved_include_file
+		- or use opened_include_file and compile without BOOST_WAVE_SUPPORT_PRAGMA_ONCE
+		- or derive from context and call find_include_file
 	- how to uniquely identify a source file?
 		- absolute path
 	- opened_include_file gives relname/absname

@@ -2,6 +2,7 @@
 C:\Program Files\Microsoft Visual Studio 8\VC\BIN\cl.exe
 /D WIN32
 /D _DEBUG
+.\test\test_typelist.cpp
 .\test\test_quick.cpp
 .\test\test_include.cpp
 .\test\test_windows.cpp

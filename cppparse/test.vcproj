@@ -173,6 +173,10 @@
 					RelativePath=".\test\test_prepro.cpp"
 					>
 				</File>
+				<File
+					RelativePath=".\test\test_typelist.cpp"
+					>
+				</File>
 			</Filter>
 		</Filter>
 	</Files>
