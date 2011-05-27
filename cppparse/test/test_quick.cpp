@@ -1,4 +1,20 @@
 
+namespace N113
+{
+	template<typename T>
+	class Base
+	{
+	};
+
+	class Derived : Base
+	{
+		typedef int T;
+		void f(T t)
+		{
+		}
+	};
+}
+
 namespace N112
 {
 	// Assume f and g have not yet been defined.

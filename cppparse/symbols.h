@@ -1036,25 +1036,73 @@ inline bool isAny(const Declaration& declaration)
 
 typedef bool (*LookupFilter)(const Declaration&);
 
-inline Declaration* findDeclaration(Scope::Declarations& declarations, const Identifier& id, LookupFilter filter = isAny)
+struct LookupResult
+{
+	Declaration* filtered; // the declaration found by the name-lookup, using the filter
+	Declaration* original; // the declaration found without using the filter
+
+	LookupResult()
+		: filtered(0), original(0)
+	{
+	}
+	operator Declaration*() const
+	{
+		return filtered;
+	}
+
+	// Combines the result of a subsequent lookup, returns true if lookup succeeded
+	bool append(const LookupResult& other)
+	{
+		filtered = other.filtered;
+
+#if 0 // experimental, not currently used
+		// only if we didn't already find a declaration
+		if(original == 0)
+		{
+			// store the first instance of the declaration
+			original = other.original;
+		}
+#endif
+
+		return filtered != 0;
+	}
+};
+
+
+inline LookupResult findDeclaration(Scope::Declarations& declarations, const Identifier& id, LookupFilter filter = isAny, bool isBase = false)
 {
 	Scope::Declarations::iterator i = declarations.upper_bound(id.value);
+
+	LookupResult result;
 	
 	for(; i != declarations.begin()
 		&& (*--i).first == id.value;)
 	{
-		if(filter((*i).second))
+		if(!isBase
+			|| (*i).second.templateParameter == INDEX_INVALID) // template-params of base-class are not visible outside the class
 		{
-			return &(*i).second;
+#if 0 // experimental, not currently used
+			if(result.original == 0)
+			{
+				result.original = &(*i).second;
+			}
+#endif
+			if(filter((*i).second))
+			{
+				result.filtered = &(*i).second;
+				break;
+			}
 		}
 	}
-	return 0;
+
+	return result;
 }
 
-inline Declaration* findDeclaration(Scope::Declarations& declarations, Types& bases, const Identifier& id, LookupFilter filter = isAny);
+inline LookupResult findDeclaration(Scope::Declarations& declarations, Types& bases, const Identifier& id, LookupFilter filter = isAny, bool isBase = false);
 
-inline Declaration* findDeclaration(Types& bases, const Identifier& id, LookupFilter filter = isAny)
+inline LookupResult findDeclaration(Types& bases, const Identifier& id, LookupFilter filter = isAny)
 {
+	LookupResult result;
 	for(Types::iterator i = bases.begin(); i != bases.end(); ++i)
 	{
 		Scope* scope = getInstantiatedType(*i).declaration->enclosed;
@@ -1064,18 +1112,18 @@ inline Declaration* findDeclaration(Types& bases, const Identifier& id, LookupFi
 			A using-directive shall not appear in class scope, but may appear in namespace scope or in block scope.
 			*/
 			SYMBOLS_ASSERT(scope->usingDirectives.empty());
-			Declaration* result = findDeclaration(scope->declarations, scope->bases, id, filter);
-			if(result != 0)
+			if(result.append(findDeclaration(scope->declarations, scope->bases, id, filter, true)))
 			{
 				return result;
 			}
 		}
 	}
-	return 0;
+	return result;
 }
 
-inline Declaration* findDeclaration(Scope::Scopes& scopes, const Identifier& id, LookupFilter filter = isAny)
+inline LookupResult findDeclaration(Scope::Scopes& scopes, const Identifier& id, LookupFilter filter = isAny)
 {
+	LookupResult result;
 	for(Scope::Scopes::iterator i = scopes.begin(); i != scopes.end(); ++i)
 	{
 		Scope& scope = *(*i);
@@ -1087,45 +1135,33 @@ inline Declaration* findDeclaration(Scope::Scopes& scopes, const Identifier& id,
 		std::cout << "'" << std::endl;
 #endif
 
+		if(result.append(findDeclaration(scope.declarations, scope.bases, id, filter)))
 		{
-			Declaration* result = findDeclaration(scope.declarations, scope.bases, id, filter);
-			if(result != 0)
-			{
-				return result;
-			}
+			return result;
 		}
+		if(result.append(findDeclaration(scope.usingDirectives, id, filter)))
 		{
-			Declaration* result = findDeclaration(scope.usingDirectives, id, filter);
-			if(result != 0)
-			{
-				return result;
-			}
+			return result;
 		}
 	}
-	return 0;
+	return result;
 }
 
-inline Declaration* findDeclaration(Scope::Declarations& declarations, Types& bases, const Identifier& id, LookupFilter filter)
+inline LookupResult findDeclaration(Scope::Declarations& declarations, Types& bases, const Identifier& id, LookupFilter filter, bool isBase)
 {
+	LookupResult result;
+	if(result.append(findDeclaration(declarations, id, filter, isBase)))
 	{
-		Declaration* result = findDeclaration(declarations, id, filter);
-		if(result != 0)
-		{
-			return result;
-		}
+		return result;
 	}
+	if(result.append(findDeclaration(bases, id, filter)))
 	{
-		Declaration* result = findDeclaration(bases, id, filter);
-		if(result != 0
-			&& result->templateParameter == INDEX_INVALID) // template-params of base-class are not visible outside the class
-		{
-			return result;
-		}
+		return result;
 	}
-	return 0;
+	return result;
 }
 
-inline Declaration* findDeclaration(Scope& scope, const Identifier& id, LookupFilter filter = isAny)
+inline LookupResult findDeclaration(Scope& scope, const Identifier& id, LookupFilter filter = isAny)
 {
 #ifdef LOOKUP_DEBUG
 	std::cout << "searching '";
@@ -1133,15 +1169,14 @@ inline Declaration* findDeclaration(Scope& scope, const Identifier& id, LookupFi
 	std::cout << "'" << std::endl;
 #endif
 
-	Declaration* result = findDeclaration(scope.declarations, scope.bases, id, filter);
-	if(result != 0)
+	LookupResult result;
+	if(result.append(findDeclaration(scope.declarations, scope.bases, id, filter)))
 	{
 		return result;
 	}
 	if(scope.parent != 0)
 	{
-		Declaration* result = findDeclaration(*scope.parent, id, filter);
-		if(result != 0)
+		if(result.append(findDeclaration(*scope.parent, id, filter)))
 		{
 			return result;
 		}
@@ -1152,7 +1187,8 @@ inline Declaration* findDeclaration(Scope& scope, const Identifier& id, LookupFi
 	declarations from the namespace nominated by the using-directive are considered members of that enclosing
 	namespace.
 	*/
-	return findDeclaration(scope.usingDirectives, id, filter);
+	result.append(findDeclaration(scope.usingDirectives, id, filter));
+	return result;
 }
 
 

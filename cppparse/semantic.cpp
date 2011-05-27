@@ -158,16 +158,16 @@ struct WalkerState
 		return *this;
 	}
 
-	Declaration* findDeclaration(const Identifier& id, LookupFilter filter = isAny)
+	LookupResult findDeclaration(const Identifier& id, LookupFilter filter = isAny)
 	{
 		ProfileScope profile(gProfileLookup);
 #ifdef LOOKUP_DEBUG
 		std::cout << "lookup: " << getValue(id) << " (" << getIdentifierType(filter) << ")" << std::endl;
 #endif
+		LookupResult result;
 		if(getQualifyingScope() != 0)
 		{
-			Declaration* result = ::findDeclaration(*getQualifyingScope(), id, filter);
-			if(result != 0)
+			if(result.append(::findDeclaration(*getQualifyingScope(), id, filter)))
 			{
 #ifdef LOOKUP_DEBUG
 				std::cout << "HIT: qualified" << std::endl;
@@ -180,8 +180,7 @@ struct WalkerState
 #if 1
 			if(templateParams != 0)
 			{
-				Declaration* result = ::findDeclaration(*templateParams, id, filter);
-				if(result != 0)
+				if(result.append(::findDeclaration(*templateParams, id, filter)))
 				{
 #ifdef LOOKUP_DEBUG
 					std::cout << "HIT: templateParams" << std::endl;
@@ -190,8 +189,7 @@ struct WalkerState
 				}
 			}
 #endif
-			Declaration* result = ::findDeclaration(*enclosing, id, filter);
-			if(result != 0)
+			if(result.append(::findDeclaration(*enclosing, id, filter)))
 			{
 #ifdef LOOKUP_DEBUG
 				std::cout << "HIT: unqualified" << std::endl;
@@ -202,7 +200,8 @@ struct WalkerState
 #ifdef LOOKUP_DEBUG
 		std::cout << "FAIL" << std::endl;
 #endif
-		return &gUndeclared;
+		result.filtered = &gUndeclared;
+		return result;
 	}
 
 	Declaration* pointOfDeclaration(
@@ -1392,7 +1391,7 @@ struct TemplateIdWalker : public WalkerBase
 
 	Type type;
 	LookupFilter filter;
-	bool isTypename;
+	bool isTypename; // true if a type is expected in this context; e.g. following 'typename', preceding '::'
 	TemplateIdWalker(const WalkerState& state, LookupFilter filter = isAny, bool isTypename = false)
 		: WalkerBase(state), type(0, context), filter(filter), isTypename(isTypename)
 	{
@@ -1413,6 +1412,7 @@ struct TemplateIdWalker : public WalkerBase
 		}
 		else if(!isTypename)
 		{
+			// dependent type, are you missing a 'typename' keyword?
 			return reportIdentifierMismatch(symbol, symbol->value, &gUndeclared, "typename");
 		}
 		else
@@ -1429,7 +1429,7 @@ struct TemplateIdWalker : public WalkerBase
 		TemplateArgumentListWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 
-		if(type.declaration != 0)
+		if(type.declaration != 0) // TODO: in what context can the type be null?
 		{
 			type.declaration = findTemplateSpecialization(type.declaration, walker.arguments);
 		}
@@ -1443,7 +1443,7 @@ struct TypeNameWalker : public WalkerBase
 
 	Type type;
 	LookupFilter filter;
-	bool isTypename;
+	bool isTypename; // true if a type is expected in this context; e.g. following 'typename', preceding '::'
 	TypeNameWalker(const WalkerState& state, LookupFilter filter = isAny, bool isTypename = false)
 		: WalkerBase(state), type(0, context), filter(filter), isTypename(isTypename)
 	{
@@ -1466,6 +1466,7 @@ struct TypeNameWalker : public WalkerBase
  		}
 		else if(!isTypename)
 		{
+			// dependent type, are you missing a 'typename' keyword?
 			return reportIdentifierMismatch(symbol, symbol->value, &gUndeclared, "typename");
 		}
 		else
