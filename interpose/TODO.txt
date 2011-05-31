@@ -7,4 +7,18 @@
 	
 - check for buffer overflow when building paths
 
-- 
+- run parser with arguments/environment used to invoke compiler
+	- capture environment at point of invoking compiler
+		- CL/_CL_/INCLUDE
+		- does MSBuild already capture INCLUDE?
+	- could filesystem change since compiler invocation?
+		- generated source files?
+			- unlikely that they would be modified/deleted
+	- rewrite include paths to substitute modified stl headers
+		- $(VCInstallDir)include -> msvc-8.0/include
+		
+- unicode support: paths/directories
+	- UTF-8 code page 65001?
+		- rumour: WriteFile supports only two-byte characters
+	- use wide-char win32 calls
+		

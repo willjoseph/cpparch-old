@@ -7,7 +7,8 @@
 #include <algorithm>
 
 
-#include <direct.h>
+#include <direct.h> // _mkdir, _rmdir
+#include <io.h> // _access
 
 inline bool dir_create(const char* path)
 {
@@ -17,6 +18,11 @@ inline bool dir_create(const char* path)
 inline bool dir_remove(const char* path)
 {
 	return _rmdir(path) == 0;
+}
+
+inline bool file_exists(const char* path)
+{
+	return _access(path, 0) == 0;
 }
 
 #include <io.h>
