@@ -33,7 +33,7 @@ template<typename T>
 struct ListNode : ListNodeBase
 {
 	T value;
-	ListNode(const T& value)
+	explicit ListNode(const T& value)
 		: value(value)
 	{
 	}
@@ -134,16 +134,17 @@ struct List : private A
 	List(const List& other)
 		: A(other)
 	{
-		init_raw();
-		for(const_iterator i = other.begin(); i != other.end(); ++i)
+		tail = &head;
+		for(ListNodeBase* p = other.head.next; p != &other.head; p = p->next)
 		{
-			push_back(*i);
+			tail->next = allocatorNew(getAllocator(), Node(static_cast<Node*>(p)->value));
+			tail = tail->next;
 		}
+		tail->next = &head;
 	}
-	List& operator=(const List& other)
+	List& operator=(List other)
 	{
-		List tmp(other);
-		tmp.swap(*this);
+		other.swap(*this);
 		return *this;
 	}
 

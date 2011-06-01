@@ -492,17 +492,17 @@ struct WalkerState
 
 	bool isDependent(const Type& type)
 	{
-		return ::isDependent(type, DependentContext(*enclosing, templateParams != 0 ? *templateParams : Scope(getAllocator(), IDENTIFIER_NULL)));
+		return ::isDependent(type, DependentContext(*enclosing, templateParams != 0 ? *templateParams : SCOPE_NULL));
 	}
 
 	bool isDependent(const Types& bases)
 	{
-		return ::isDependent(bases, DependentContext(*enclosing, templateParams != 0 ? *templateParams : Scope(getAllocator(), IDENTIFIER_NULL)));
+		return ::isDependent(bases, DependentContext(*enclosing, templateParams != 0 ? *templateParams : SCOPE_NULL));
 	}
 
 	bool isDependent(const Type* qualifying)
 	{
-		return ::isDependent(qualifying, DependentContext(*enclosing, templateParams != 0 ? *templateParams : Scope(getAllocator(), IDENTIFIER_NULL)));
+		return ::isDependent(qualifying, DependentContext(*enclosing, templateParams != 0 ? *templateParams : SCOPE_NULL));
 	}
 
 

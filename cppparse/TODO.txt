@@ -45,6 +45,8 @@ not consider any scopes outside the innermost enclosing namespace.
 		- allocate within visit()?
 			- if parseSymbol succeeds
 	- when deferring parse, we store a persistent reference to symbol
+	
+- avoid constructing complex *_NULL constants on the fly
 		
 - optimise parsing of cpptree?
 	- profile parse, find out exactly what's taking so long
@@ -85,6 +87,7 @@ not consider any scopes outside the innermost enclosing namespace.
 					- defer deletion until next allocation, defer next allocation until successful parse
 						- does anything cause allocation before cache hit?
 							- empty lists allocate a node
+							- isDependent causes construction of empty Scope, empty multimap allocates a node
 						- on successful parse, replace cache with symbol
 						- perform cache lookup for each subsequent parse attempt, using rtti
 						- on cache hit, return cached parse-tree, indicate that result is cached

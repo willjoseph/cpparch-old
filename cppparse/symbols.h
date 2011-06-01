@@ -410,6 +410,8 @@ struct Scope : public ScopeCounter
 	}
 };
 
+const Scope SCOPE_NULL = Scope(TREEALLOCATOR_NULL, IDENTIFIER_NULL);
+
 inline bool enclosesEts(ScopeType type)
 {
 	return type == SCOPETYPE_NAMESPACE
