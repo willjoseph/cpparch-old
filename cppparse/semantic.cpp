@@ -953,10 +953,7 @@ struct UnqualifiedIdWalker : public WalkerBase
 			{
 				return reportIdentifierMismatch(symbol, *id, declaration, "template-name");
 			}
-			else
-			{
-				declaration = findTemplateSpecialization(declaration, walker.arguments);
-			}
+			declaration = findTemplateSpecialization(declaration, walker.arguments);
 		}
 		hit(walker);
 	}
@@ -1164,10 +1161,7 @@ struct DependentPrimaryExpressionWalker : public WalkerBase
 				{
 					return reportIdentifierMismatch(symbol, *walker.id, declaration, "object-name");
 				}
-				else
-				{
-					addDependentType(typeDependent, declaration);
-				}
+				addDependentType(typeDependent, declaration);
 				walker.id->dec.p = declaration;
 			}
 			else if(walker.id != 0)
@@ -1224,10 +1218,7 @@ struct DependentPostfixExpressionWalker : public WalkerBase
 					{
 						return reportIdentifierMismatch(symbol, *id, declaration, "object-name");
 					}
-					else
-					{
-						addDependentType(typeDependent, declaration);
-					}
+					addDependentType(typeDependent, declaration);
 					id->dec.p = declaration;
 				}
 			}
@@ -1298,12 +1289,9 @@ struct ExpressionWalker : public WalkerBase
 			{
 				return reportIdentifierMismatch(symbol, *walker.id, declaration, "object-name");
 			}
-			else
-			{
-				addDependentType(typeDependent, declaration);
-				addDependentType(valueDependent, declaration);
-				addDependentName(valueDependent, declaration);
-			}
+			addDependentType(typeDependent, declaration);
+			addDependentType(valueDependent, declaration);
+			addDependentName(valueDependent, declaration);
 			walker.id->dec.p = declaration;
 		}
 		else
@@ -1677,10 +1665,7 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 			{
 				return reportIdentifierMismatch(symbol, symbol->value, declaration, "nested-name");
 			}
-			else
-			{
-				type = declaration;
-			}
+			type = declaration;
 			symbol->value.dec.p = declaration;
 		}
 		else
@@ -1701,12 +1686,9 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 			{
 				return reportIdentifierMismatch(symbol, *walker.id, declaration, "nested-name");
 			}
-			else
-			{
-				declaration = findTemplateSpecialization(declaration, walker.arguments);
-				type.declaration = declaration;
-				type.arguments.swap(walker.arguments);
-			}
+			declaration = findTemplateSpecialization(declaration, walker.arguments);
+			type.declaration = declaration;
+			type.arguments.swap(walker.arguments);
 		}
 		hit(walker);
 	}
@@ -2223,11 +2205,9 @@ struct UsingDeclarationWalker : public WalkerQualified
 			{
 				return reportIdentifierMismatch(symbol, *walker.id, declaration, "object-name or type-name");
 			}
-			else
-			{
-				// TODO: check for conflicts with earlier declarations
-				enclosing->declarations.insert(Scope::Declarations::value_type(declaration->getName().value, *declaration));
-			}
+
+			// TODO: check for conflicts with earlier declarations
+			enclosing->declarations.insert(Scope::Declarations::value_type(declaration->getName().value, *declaration));
 			walker.id->dec.p = declaration;
 		}
 		else
@@ -2309,14 +2289,12 @@ struct NamespaceAliasDefinitionWalker : public WalkerQualified
 			{
 				return reportIdentifierMismatch(symbol, symbol->value, declaration, "namespace-name");
 			}
-			else
-			{
-				// TODO: check for conflicts with earlier declarations
-				declaration = pointOfDeclaration(context, enclosing, *id, TYPE_NAMESPACE, declaration->enclosed);
+
+			// TODO: check for conflicts with earlier declarations
+			declaration = pointOfDeclaration(context, enclosing, *id, TYPE_NAMESPACE, declaration->enclosed);
 #ifdef ALLOCATOR_DEBUG
-				declarations.push_back(declaration);
+			declarations.push_back(declaration);
 #endif
-			}
 			id->dec.p = declaration;
 		}
 	}
