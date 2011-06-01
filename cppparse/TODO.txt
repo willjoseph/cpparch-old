@@ -84,6 +84,7 @@ not consider any scopes outside the innermost enclosing namespace.
 					- copying seems wasteful, when original could be left in-place.
 					- defer deletion until next allocation, defer next allocation until successful parse
 						- does anything cause allocation before cache hit?
+							- empty lists allocate a node
 						- on successful parse, replace cache with symbol
 						- perform cache lookup for each subsequent parse attempt, using rtti
 						- on cache hit, return cached parse-tree, indicate that result is cached
