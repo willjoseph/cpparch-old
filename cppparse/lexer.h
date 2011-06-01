@@ -293,14 +293,11 @@ inline BacktrackBuffer::const_iterator advance(BacktrackBuffer& buffer, Backtrac
 typedef TokenPrinter<std::ofstream> FileTokenPrinter;
 
 
-typedef LinearAllocator<true> LexerAllocator;
 struct Lexer
 {
 	LexContext& context;
 	std::ofstream out;
 	FileTokenPrinter printer;
-
-	LexerAllocator allocator;
 
 	LexIterator& first;
 	LexIterator& last;

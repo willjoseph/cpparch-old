@@ -314,9 +314,24 @@ struct ParserState
 	}
 };
 
+struct SymbolStack
+{
+	LinearAllocator<false> allocator;
+
+	void push()
+	{
+	}
+	void pop()
+	{
+	}
+};
+
+typedef LinearAllocator<true> LexerAllocator;
+
 struct ParserContext : Lexer
 {
 	Visualiser visualiser;
+	LexerAllocator allocator;
 	ParserContext(LexContext& context, const char* path)
 		: Lexer(context, path)
 	{
@@ -561,8 +576,7 @@ struct SymbolHolder<T, true>
 	}
 	void miss()
 	{
-		SymbolDelete walker(allocator);
-		//value.accept(walker);
+		// TODO
 	}
 };
 
@@ -592,7 +606,7 @@ struct SymbolHolder<T, true>
 	void miss()
 	{
 		SymbolDelete walker(allocator);
-		//value.accept(walker);
+		value.accept(walker);
 	}
 };
 
@@ -661,7 +675,7 @@ cpp::symbol<T> parseSymbolRequired(ParserType& parser, cpp::symbol<T> symbol)
 #ifdef PARSER_DEBUG
 	parser.context.visualiser.pop(false);
 #endif
-	tmp.backtrack(SYMBOL_NAME(T), true);
+	tmp.backtrack(SYMBOL_NAME(T));
 	return cpp::symbol<T>(0);
 }
 

@@ -447,6 +447,10 @@ struct WalkerState
 			// the symbol was allocated by the parser and must be deallocated
 			deleteSymbol(symbol, parser->context.allocator);
 		}
+		else
+		{
+			SymbolAllocator<T>(parser->context.allocator).deallocate(symbol);
+		}
 		result = 0;
 		gIdentifierMismatch = IdentifierMismatch(id, declaration, expected);
 	}
