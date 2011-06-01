@@ -542,7 +542,7 @@ void deleteSymbol(T* symbol, LexerAllocator& allocator)
 template<typename T, bool isConcrete = IsConcrete<T>::RESULT >
 struct SymbolHolder;
 
-#if 1
+#if 0 // old behaviour: allocate up-front
 template<typename T>
 struct SymbolHolder<T, true>
 {
@@ -571,7 +571,7 @@ T* parseHit(T* p, LexerAllocator& allocator)
 {
 	return p;
 }
-#else
+#else // new behaviour: allocate on hit
 template<typename T>
 struct SymbolHolder<T, true>
 {
@@ -1332,7 +1332,8 @@ inline T* defer(ListType& deferred, ContextType& walker, Func skipFunc, T* symbo
 	size_t count = ::distance(parser.lexer.history, first, parser.lexer.position);
 	if(count != 0)
 	{
-		deferred.push_back(makeDeferredParse(walker, symbol));
+		T* result = parseHit(symbol, parser.lexer.allocator);
+		deferred.push_back(makeDeferredParse(walker, result));
 
 		BacktrackBuffer buffer;
 		buffer.resize(count + 2); // adding 1 for EOF and 1 to allow use as circular buffer
@@ -1345,7 +1346,7 @@ inline T* defer(ListType& deferred, ContextType& walker, Func skipFunc, T* symbo
 
 		deferred.back().buffer.swap(buffer);
 
-		return symbol;
+		return result;
 	}
 	return 0;
 }

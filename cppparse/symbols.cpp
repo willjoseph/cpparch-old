@@ -7,48 +7,77 @@ size_t gScopeCount = 0;
 
 
 
-
 // special-case
-Declaration gUndeclared(TREEALLOCATOR_NULL, 0, makeIdentifier("$undeclared"), TYPE_NULL, 0);
+Identifier gUndeclaredId = makeIdentifier("$undeclared");
+Declaration gUndeclared(TREEALLOCATOR_NULL, 0, gUndeclaredId, TYPE_NULL, 0);
 
 // meta types
-Declaration gSpecial(TREEALLOCATOR_NULL, 0, makeIdentifier("$special"), TYPE_NULL, 0);
-Declaration gClass(TREEALLOCATOR_NULL, 0, makeIdentifier("$class"), TYPE_NULL, 0);
-Declaration gEnum(TREEALLOCATOR_NULL, 0, makeIdentifier("$enum"), TYPE_NULL, 0);
+Identifier gSpecialId = makeIdentifier("$special");
+Declaration gSpecial(TREEALLOCATOR_NULL, 0, gSpecialId, TYPE_NULL, 0);
+Identifier gClassId = makeIdentifier("$class");
+Declaration gClass(TREEALLOCATOR_NULL, 0, gClassId, TYPE_NULL, 0);
+Identifier gEnumId = makeIdentifier("$enum");
+Declaration gEnum(TREEALLOCATOR_NULL, 0, gEnumId, TYPE_NULL, 0);
 
 // types
-Declaration gNamespace(TREEALLOCATOR_NULL, 0, makeIdentifier("$namespace"), TYPE_NULL, 0);
+Identifier gNamespaceId = makeIdentifier("$namespace");
+Declaration gNamespace(TREEALLOCATOR_NULL, 0, gNamespaceId, TYPE_NULL, 0);
 
-Declaration gCtor(TREEALLOCATOR_NULL, 0, makeIdentifier("$ctor"), TYPE_SPECIAL, 0);
-Declaration gEnumerator(TREEALLOCATOR_NULL, 0, makeIdentifier("$enumerator"), TYPE_SPECIAL, 0);
-Declaration gUnknown(TREEALLOCATOR_NULL, 0, makeIdentifier("$unknown"), TYPE_SPECIAL, 0);
+Identifier gCtorId = makeIdentifier("$ctor");
+Declaration gCtor(TREEALLOCATOR_NULL, 0, gCtorId, TYPE_SPECIAL, 0);
+Identifier gEnumeratorId = makeIdentifier("$enumerator");
+Declaration gEnumerator(TREEALLOCATOR_NULL, 0, gEnumeratorId, TYPE_SPECIAL, 0);
+Identifier gUnknownId = makeIdentifier("$unknown");
+Declaration gUnknown(TREEALLOCATOR_NULL, 0, gUnknownId, TYPE_SPECIAL, 0);
 
 // fundamental types
-Declaration gChar(TREEALLOCATOR_NULL, 0, makeIdentifier("$char"), TYPE_SPECIAL, 0);
-Declaration gSignedChar(TREEALLOCATOR_NULL, 0, makeIdentifier("$signed-char"), TYPE_SPECIAL, 0);
-Declaration gUnsignedChar(TREEALLOCATOR_NULL, 0, makeIdentifier("$unsigned-char"), TYPE_SPECIAL, 0);
-Declaration gSignedShortInt(TREEALLOCATOR_NULL, 0, makeIdentifier("$signed-short-int"), TYPE_SPECIAL, 0);
-Declaration gUnsignedShortInt(TREEALLOCATOR_NULL, 0, makeIdentifier("$unsigned-short-int"), TYPE_SPECIAL, 0);
-Declaration gSignedInt(TREEALLOCATOR_NULL, 0, makeIdentifier("$signed-int"), TYPE_SPECIAL, 0);
-Declaration gUnsignedInt(TREEALLOCATOR_NULL, 0, makeIdentifier("$unsigned-int"), TYPE_SPECIAL, 0);
-Declaration gSignedLongInt(TREEALLOCATOR_NULL, 0, makeIdentifier("$signed-long-int"), TYPE_SPECIAL, 0);
-Declaration gUnsignedLongInt(TREEALLOCATOR_NULL, 0, makeIdentifier("$unsigned-long-int"), TYPE_SPECIAL, 0);
-Declaration gSignedLongLongInt(TREEALLOCATOR_NULL, 0, makeIdentifier("$signed-long-long-int"), TYPE_SPECIAL, 0);
-Declaration gUnsignedLongLongInt(TREEALLOCATOR_NULL, 0, makeIdentifier("$unsigned-long-long-int"), TYPE_SPECIAL, 0);
-Declaration gWCharT(TREEALLOCATOR_NULL, 0, makeIdentifier("$wchar_t"), TYPE_SPECIAL, 0);
-Declaration gBool(TREEALLOCATOR_NULL, 0, makeIdentifier("$bool"), TYPE_SPECIAL, 0);
-Declaration gFloat(TREEALLOCATOR_NULL, 0, makeIdentifier("$float"), TYPE_SPECIAL, 0);
-Declaration gDouble(TREEALLOCATOR_NULL, 0, makeIdentifier("$double"), TYPE_SPECIAL, 0);
-Declaration gLongDouble(TREEALLOCATOR_NULL, 0, makeIdentifier("$long-double"), TYPE_SPECIAL, 0);
-Declaration gVoid(TREEALLOCATOR_NULL, 0, makeIdentifier("$void"), TYPE_SPECIAL, 0);
+Identifier gCharId = makeIdentifier("$char");
+Declaration gChar(TREEALLOCATOR_NULL, 0, gCharId, TYPE_SPECIAL, 0);
+Identifier gSignedCharId = makeIdentifier("$signed-char");
+Declaration gSignedChar(TREEALLOCATOR_NULL, 0, gSignedCharId, TYPE_SPECIAL, 0);
+Identifier gUnsignedCharId = makeIdentifier("$unsigned-char");
+Declaration gUnsignedChar(TREEALLOCATOR_NULL, 0, gUnsignedCharId, TYPE_SPECIAL, 0);
+Identifier gSignedShortIntId = makeIdentifier("$signed-short-int");
+Declaration gSignedShortInt(TREEALLOCATOR_NULL, 0, gSignedShortIntId, TYPE_SPECIAL, 0);
+Identifier gUnsignedShortIntId = makeIdentifier("$unsigned-short-int");
+Declaration gUnsignedShortInt(TREEALLOCATOR_NULL, 0, gUnsignedShortIntId, TYPE_SPECIAL, 0);
+Identifier gSignedIntId = makeIdentifier("$signed-int");
+Declaration gSignedInt(TREEALLOCATOR_NULL, 0, gSignedIntId, TYPE_SPECIAL, 0);
+Identifier gUnsignedIntId = makeIdentifier("$unsigned-int");
+Declaration gUnsignedInt(TREEALLOCATOR_NULL, 0, gUnsignedIntId, TYPE_SPECIAL, 0);
+Identifier gSignedLongIntId = makeIdentifier("$signed-long-int");
+Declaration gSignedLongInt(TREEALLOCATOR_NULL, 0, gSignedLongIntId, TYPE_SPECIAL, 0);
+Identifier gUnsignedLongIntId = makeIdentifier("$unsigned-long-int");
+Declaration gUnsignedLongInt(TREEALLOCATOR_NULL, 0, gUnsignedLongIntId, TYPE_SPECIAL, 0);
+Identifier gSignedLongLongIntId = makeIdentifier("$signed-long-long-int");
+Declaration gSignedLongLongInt(TREEALLOCATOR_NULL, 0, gSignedLongLongIntId, TYPE_SPECIAL, 0);
+Identifier gUnsignedLongLongIntId = makeIdentifier("$unsigned-long-long-int");
+Declaration gUnsignedLongLongInt(TREEALLOCATOR_NULL, 0, gUnsignedLongLongIntId, TYPE_SPECIAL, 0);
+Identifier gWCharId = makeIdentifier("$wchar_t");
+Declaration gWCharT(TREEALLOCATOR_NULL, 0, gWCharId, TYPE_SPECIAL, 0);
+Identifier gBoolId = makeIdentifier("$bool");
+Declaration gBool(TREEALLOCATOR_NULL, 0, gBoolId, TYPE_SPECIAL, 0);
+Identifier gFloatId = makeIdentifier("$float");
+Declaration gFloat(TREEALLOCATOR_NULL, 0, gFloatId, TYPE_SPECIAL, 0);
+Identifier gDoubleId = makeIdentifier("$double");
+Declaration gDouble(TREEALLOCATOR_NULL, 0, gDoubleId, TYPE_SPECIAL, 0);
+Identifier gLongDoubleId = makeIdentifier("$long-double");
+Declaration gLongDouble(TREEALLOCATOR_NULL, 0, gLongDoubleId, TYPE_SPECIAL, 0);
+Identifier gVoidId = makeIdentifier("$void");
+Declaration gVoid(TREEALLOCATOR_NULL, 0, gVoidId, TYPE_SPECIAL, 0);
 
 // template placeholders
-Declaration gDependentType(TREEALLOCATOR_NULL, 0, makeIdentifier("$type"), TYPE_SPECIAL, 0);
-Declaration gDependentObject(TREEALLOCATOR_NULL, 0, makeIdentifier("$object"), TYPE_UNKNOWN, 0);
-Declaration gDependentTemplate(TREEALLOCATOR_NULL, 0, makeIdentifier("$template"), TYPE_SPECIAL, 0, DeclSpecifiers(), true);
-Declaration gDependentNested(TREEALLOCATOR_NULL, 0, makeIdentifier("$nested"), TYPE_SPECIAL, 0);
+Identifier gDependentTypeId = makeIdentifier("$type");
+Declaration gDependentType(TREEALLOCATOR_NULL, 0, gDependentTypeId, TYPE_SPECIAL, 0);
+Identifier gDependentObjectId = makeIdentifier("$object");
+Declaration gDependentObject(TREEALLOCATOR_NULL, 0, gDependentObjectId, TYPE_UNKNOWN, 0);
+Identifier gDependentTemplateId = makeIdentifier("$template");
+Declaration gDependentTemplate(TREEALLOCATOR_NULL, 0, gDependentTemplateId, TYPE_SPECIAL, 0, DeclSpecifiers(), true);
+Identifier gDependentNestedId = makeIdentifier("$nested");
+Declaration gDependentNested(TREEALLOCATOR_NULL, 0, gDependentNestedId, TYPE_SPECIAL, 0);
 
-Declaration gParam(TREEALLOCATOR_NULL, 0, makeIdentifier("$param"), TYPE_CLASS, 0);
+Identifier gParamId = makeIdentifier("$param");
+Declaration gParam(TREEALLOCATOR_NULL, 0, gParamId, TYPE_CLASS, 0);
 
 // objects
 Identifier gOperatorFunctionId = makeIdentifier("operator <op>");
