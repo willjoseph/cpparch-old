@@ -648,11 +648,7 @@ cpp::symbol<T> parseSymbolRequired(ParserType& parser, cpp::symbol<T> symbol)
 #else
 	T* result = tmp.parse(holder.get());
 #endif
-	if(result != 0
-#if 0 // not required?
-		&& tmp.position != 0
-#endif
-		)
+	if(result != 0)
 	{
 #ifdef PARSER_DEBUG
 		parser.context.visualiser.pop(result);
