@@ -314,19 +314,73 @@ struct ParserState
 	}
 };
 
-struct SymbolStack
-{
-	LinearAllocator<false> allocator;
+typedef LinearAllocator<true> LexerAllocator;
 
-	void push()
+#define NULLSYMBOL(T) cpp::symbol< T >(0)
+
+
+struct TrueSized
+{
+	char m[1];
+};
+
+struct FalseSized
+{
+	char m[2];
+};
+
+template<typename T, typename Base>
+struct IsConvertible
+{
+	static TrueSized test(Base*);
+	static FalseSized test(...);
+
+	static const bool RESULT = sizeof(IsConvertible<T, Base>::test(NULLSYMBOL(T))) == sizeof(TrueSized);
+};
+
+template<typename T>
+struct IsConcrete
+{
+	static const bool RESULT = !IsConvertible<T, cpp::choice<T> >::RESULT
+		&& !IsConvertible<T, cpp::terminal_choice>::RESULT; // this is true within specialised parseSymbol containing PARSE_SELECT_TOKEN
+};
+
+template<typename T, bool isConcrete = IsConcrete<T>::RESULT >
+struct SymbolAllocator;
+
+template<typename T>
+struct SymbolAllocator<T, true>
+{
+	LexerAllocator& allocator;
+	SymbolAllocator(LexerAllocator& allocator)
+		: allocator(allocator)
 	{
 	}
-	void pop()
+	T* allocate()
 	{
+		return new(allocator.allocate(sizeof(T))) T;
+	}
+	void deallocate(T* p)
+	{
+		p->~T();
+		allocator.deallocate(p, sizeof(T));
 	}
 };
 
-typedef LinearAllocator<true> LexerAllocator;
+template<typename T>
+struct SymbolAllocator<T, false>
+{
+	SymbolAllocator(LexerAllocator& allocator)
+	{
+	}
+	T* allocate()
+	{
+		return 0;
+	}
+	void deallocate(T* p)
+	{
+	}
+};
 
 struct ParserContext : Lexer
 {
@@ -433,71 +487,6 @@ inline void parseToken(Parser& parser, boost::wave::token_id id)
 };
 
 
-#define NULLSYMBOL(T) cpp::symbol< T >(0)
-
-
-struct TrueSized
-{
-	char m[1];
-};
-
-struct FalseSized
-{
-	char m[2];
-};
-
-template<typename T, typename Base>
-struct IsConvertible
-{
-	static TrueSized test(Base*);
-	static FalseSized test(...);
-
-	static const bool RESULT = sizeof(IsConvertible<T, Base>::test(NULLSYMBOL(T))) == sizeof(TrueSized);
-};
-
-template<typename T>
-struct IsConcrete
-{
-	static const bool RESULT = !IsConvertible<T, cpp::choice<T> >::RESULT
-		&& !IsConvertible<T, cpp::terminal_choice>::RESULT; // this is true within specialised parseSymbol containing PARSE_SELECT_TOKEN
-};
-
-template<typename T, bool isConcrete = IsConcrete<T>::RESULT >
-struct SymbolAllocator;
-
-template<typename T>
-struct SymbolAllocator<T, true>
-{
-	LexerAllocator& allocator;
-	SymbolAllocator(LexerAllocator& allocator)
-		: allocator(allocator)
-	{
-	}
-	T* allocate()
-	{
-		return new(allocator.allocate(sizeof(T))) T;
-	}
-	void deallocate(T* p)
-	{
-		p->~T();
-		allocator.deallocate(p, sizeof(T));
-	}
-};
-
-template<typename T>
-struct SymbolAllocator<T, false>
-{
-	SymbolAllocator(LexerAllocator& allocator)
-	{
-	}
-	T* allocate()
-	{
-		return 0;
-	}
-	void deallocate(T* p)
-	{
-	}
-};
 
 template<typename T>
 T* createSymbol(Parser& parser, T*)
@@ -557,35 +546,6 @@ void deleteSymbol(T* symbol, LexerAllocator& allocator)
 template<typename T, bool isConcrete = IsConcrete<T>::RESULT >
 struct SymbolHolder;
 
-#if 0 // old behaviour: allocate up-front
-template<typename T>
-struct SymbolHolder<T, true>
-{
-	LexerAllocator& allocator;
-	SymbolHolder(LexerAllocator& allocator)
-		: allocator(allocator)
-	{
-	}
-	T* get()
-	{
-		return new(allocator.allocate(sizeof(T))) T;
-	}
-	static T* hit(T* result, LexerAllocator& allocator)
-	{
-		return result;
-	}
-	void miss()
-	{
-		// TODO
-	}
-};
-
-template<typename T>
-T* parseHit(T* p, LexerAllocator& allocator)
-{
-	return p;
-}
-#else // new behaviour: allocate on hit
 template<typename T>
 struct SymbolHolder<T, true>
 {
@@ -615,7 +575,6 @@ T* parseHit(T* p, LexerAllocator& allocator)
 {
 	return SymbolHolder<T>::hit(p, allocator);
 }
-#endif
 
 template<typename T>
 struct SymbolHolder<T, false>
@@ -859,9 +818,9 @@ struct ParserGeneric : public ParserOpaque
 	}
 	WalkerType& getWalker()
 	{
-		WalkerType& context = *static_cast<WalkerType*>(ParserOpaque::walker);
-		context.parser = this;
-		return context;
+		WalkerType& walker = *static_cast<WalkerType*>(ParserOpaque::walker);
+		walker.parser = this;
+		return walker;
 	}
 	template<typename T>
 	T* parse(T* symbol)
@@ -872,7 +831,9 @@ struct ParserGeneric : public ParserOpaque
 	}
 };
 
-#define SYMBOL_WALK(walker, symbol) if((result = symbol = parseSymbol(getParser(walker), symbol)) != 0) result = symbol = parseHit(symbol, context.instance); else return
+#define SYMBOL_WALK_NOHIT(walker, symbol) if((result = symbol = parseSymbol(getParser(walker), symbol)) == 0) return
+#define SYMBOL_HIT(symbol) result = symbol = parseHit(symbol, context.instance)
+#define SYMBOL_WALK(walker, symbol) SYMBOL_WALK_NOHIT(walker, symbol); SYMBOL_HIT(symbol)
 #define PARSERCONTEXT_DEFAULT \
 	template<typename T> \
 	void visit(T* symbol) \

@@ -45,6 +45,12 @@ not consider any scopes outside the innermost enclosing namespace.
 		- allocate within visit()?
 			- if parseSymbol succeeds
 	- when deferring parse, we store a persistent reference to symbol
+
+- cleanup
+	- remove 'else' after 'return reportIdentifierMismatch'
+	
+- refactor mingled stuff
+	- combine WalkerContext and ParserContext?
 	
 - avoid constructing complex *_NULL constants on the fly
 		

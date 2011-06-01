@@ -449,6 +449,7 @@ struct WalkerState
 		}
 		else
 		{
+			// the parser will deallocate the children of the symbol
 			SymbolAllocator<T>(parser->context.allocator).deallocate(symbol);
 		}
 		result = 0;
@@ -841,8 +842,9 @@ const char* getIdentifierType(IdentifierFunc func)
 }
 
 
-#define TREEWALKER_WALK(walker, symbol) SYMBOL_WALK(walker, symbol); hit(walker)
+#define TREEWALKER_HIT(walker) hit(walker)
 #define TREEWALKER_WALK_NOHIT(walker, symbol) SYMBOL_WALK(walker, symbol)
+#define TREEWALKER_WALK(walker, symbol) TREEWALKER_WALK_NOHIT(walker, symbol); TREEWALKER_HIT(walker)
 #define TREEWALKER_LEAF(symbol) SYMBOL_WALK(*this, symbol)
 #define TREEWALKER_DEFAULT PARSERCONTEXT_DEFAULT
 
