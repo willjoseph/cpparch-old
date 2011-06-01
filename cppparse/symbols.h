@@ -6,6 +6,7 @@
 #include "cpptree.h"
 #include "copied.h"
 #include "allocator.h"
+#include "list.h"
 
 #include <list>
 #include <map>
@@ -52,7 +53,7 @@ const DeclSpecifiers DECLSPEC_TYPEDEF = DeclSpecifiers(true, false, false, false
 // type
 
 #if 1
-typedef std::list<struct TemplateArgument, TreeAllocator<struct TemplateArgument> > TemplateArguments2;
+typedef List<struct TemplateArgument, TreeAllocator<struct TemplateArgument> > TemplateArguments2;
 
 struct TemplateArguments : public TemplateArguments2
 {
@@ -71,7 +72,7 @@ typedef List<struct TemplateArgument> TemplateArguments;
 #endif
 
 
-typedef std::list<struct Type, TreeAllocator<int> > Types2;
+typedef List<struct Type, TreeAllocator<int> > Types2;
 
 /// A list of Type objects.
 struct Types : public Types2
@@ -194,7 +195,7 @@ struct DependencyNode
 	}
 };
 
-typedef std::list<DependencyNode, TreeAllocator<int> > Dependent2;
+typedef List<DependencyNode, TreeAllocator<int> > Dependent2;
 
 struct Dependent : public Dependent2
 {
@@ -268,7 +269,7 @@ inline const char* getValue(const Identifier& id)
 // declaration
 
 const size_t INDEX_INVALID = size_t(-1);
-typedef std::list<class Declaration*, TreeAllocator<int> > DeclarationList;
+typedef List<class Declaration*, TreeAllocator<int> > DeclarationList;
 
 class Declaration
 {
@@ -384,7 +385,7 @@ struct Scope : public ScopeCounter
 	Declarations declarations;
 	ScopeType type;
 	Types bases;
-	typedef std::list<Scope*, TreeAllocator<int> > Scopes;
+	typedef List<Scope*, TreeAllocator<int> > Scopes;
 	Scopes usingDirectives;
 	Declarations friendDeclarations;
 

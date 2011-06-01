@@ -3,7 +3,6 @@
 #include "semantic.h"
 
 #include "profiler.h"
-#include "list.h"
 #include "symbols.h"
 
 #include "parser/symbols.h"
@@ -537,18 +536,14 @@ struct WalkerBase : public WalkerState
 {
 	typedef WalkerBase Base;
 
-#if 1
-	typedef std::list<Scope, TreeAllocator<int> > Scopes;
-#else
 	typedef List<Scope, TreeAllocator<int> > Scopes;
-#endif
 
 	// Contains all elaborated-type-specifiers declared during the current parse.
 	// If these declarations have been added to a scope that has already been committed,
 	// when the parse fails, these declarations must be removed from their containing scope.
 	struct Declarations
 	{
-		typedef std::list<Declaration*, TreeAllocator<int> > List;
+		typedef List<Declaration*, TreeAllocator<int> > List;
 
 		List declarations;
 
@@ -592,10 +587,12 @@ struct WalkerBase : public WalkerState
 		{
 			declarations.swap(other.declarations);
 		}
+#if 0
 		void erase(iterator first, iterator last)
 		{
 			declarations.erase(first, last);
 		}
+#endif
 	};
 
 #ifdef ALLOCATOR_DEBUG
@@ -3517,8 +3514,9 @@ struct TemplateParameterListWalker : public WalkerBase
 
 	DeclarationList params;
 	Types arguments;
+	size_t count;
 	TemplateParameterListWalker(const WalkerState& state)
-		: WalkerBase(state), params(context), arguments(context)
+		: WalkerBase(state), params(context), arguments(context), count(0)
 	{
 		// collect template-params into a new scope
 		Scope* scope = templateParams != 0 ? templateParams : newScope(makeIdentifier("$template"), SCOPETYPE_TEMPLATE);
@@ -3527,26 +3525,29 @@ struct TemplateParameterListWalker : public WalkerBase
 	}
 	void visit(cpp::type_parameter_default* symbol)
 	{
-		TypeParameterWalker walker(getState(), params.size());
+		TypeParameterWalker walker(getState(), count);
 		TREEWALKER_WALK(walker, symbol);
 		params.push_back(walker.declaration);
 		arguments.push_back(Type(0, context));
 		arguments.back().swap(walker.argument);
+		++count;
 	}
 	void visit(cpp::type_parameter_template* symbol)
 	{
-		TypeParameterWalker walker(getState(), params.size());
+		TypeParameterWalker walker(getState(), count);
 		TREEWALKER_WALK(walker, symbol);
 		params.push_back(walker.declaration);
 		arguments.push_back(Type(0, context));
 		arguments.back().swap(walker.argument);
+		++count;
 	}
 	void visit(cpp::parameter_declaration* symbol)
 	{
-		SimpleDeclarationWalker walker(getState(), false, params.size());
+		SimpleDeclarationWalker walker(getState(), false, count);
 		TREEWALKER_WALK(walker, symbol);
 		params.push_back(walker.declaration);
 		arguments.push_back(Type(0, context)); // TODO: default value for non-type template-param
+		++count;
 	}
 };
 

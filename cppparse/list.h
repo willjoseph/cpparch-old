@@ -2,6 +2,29 @@
 #ifndef INCLUDED_CPPPARSE_LIST_H
 #define INCLUDED_CPPPARSE_LIST_H
 
+#include <iterator>
+
+template<typename T>
+struct TypeTraits
+{
+	typedef T Value;
+};
+
+template<typename T>
+struct TypeTraits<const T>
+{
+	typedef T Value;
+};
+
+struct ListError
+{
+	ListError()
+	{
+	}
+};
+
+#define LIST_ASSERT(condition) if(!(condition)) { throw ListError(); }
+
 struct ListNodeBase
 {
 	ListNodeBase* next;
@@ -19,19 +42,34 @@ struct ListNode : ListNodeBase
 template<typename T>
 struct ListIterator
 {
-	typedef ListNode<T> Node;
-	const ListNodeBase* p;
-	ListIterator(const ListNodeBase* p) : p(p)
+	typedef std::forward_iterator_tag iterator_category;
+	typedef typename TypeTraits<T>::Value value_type;
+	typedef ptrdiff_t difference_type;
+	typedef T* pointer;
+	typedef T& reference;
+
+	typedef ListNode<value_type> Node;
+	ListNodeBase* p;
+	ListIterator(ListNodeBase* p)
+		: p(p)
+	{
+	}
+	ListIterator(const ListNodeBase* p)
+		: p(const_cast<ListNodeBase*>(p))
+	{
+	}
+	ListIterator(const ListIterator<value_type>& other) // allow initialisation from a non-const iterator
+		: p(other.p)
 	{
 	}
 
-	const T& operator*() const
+	reference operator*() const
 	{
-		return static_cast<const Node*>(p)->value;
+		return static_cast<Node*>(p)->value;
 	}
-	const T* operator->() const
+	pointer operator->() const
 	{
-		return &static_cast<const Node*>(p)->value;
+		return &static_cast<Node*>(p)->value;
 	}
 
 	ListIterator<T>& operator++()
@@ -47,15 +85,15 @@ struct ListIterator
 	}
 };
 
-template<typename T>
-inline bool operator==(const ListIterator<T>& left, const ListIterator<T>& right)
+template<typename T, typename Other>
+inline bool operator==(ListIterator<T> left, ListIterator<Other> right)
 {
-	return left.p == right.p;
+	return &(*left) == &(*right);
 }
-template<typename T>
-inline bool operator!=(const ListIterator<T>& left, const ListIterator<T>& right)
+template<typename T, typename Other>
+inline bool operator!=(ListIterator<T> left, ListIterator<Other> right)
 {
-	return left.p != right.p;
+	return &(*left) != &(*right);
 }
 
 template<typename T, typename A>
@@ -65,6 +103,11 @@ struct List : private A
 	ListNodeBase head;
 	ListNodeBase* tail;
 	typedef typename A::template rebind<Node>::other Allocator;
+
+	A& getAllocator()
+	{
+		return *this;
+	}
 
 	List()
 	{
@@ -79,7 +122,7 @@ struct List : private A
 		for(ListNodeBase* p = head.next; p != &head; )
 		{
 			ListNodeBase* next = p->next;
-			allocatorDelete(*this, static_cast<Node*>(p));
+			allocatorDelete(getAllocator(), static_cast<Node*>(p));
 			p = next;
 		}
 	}
@@ -87,29 +130,37 @@ struct List : private A
 	{
 		head.next = tail = &head;
 	}
-	void copy_raw(const List& other)
+
+	List(const List& other)
+		: A(other)
 	{
-		if(other.empty())
+		init_raw();
+		for(const_iterator i = other.begin(); i != other.end(); ++i)
 		{
-			new(this) List();
-		}
-		else
-		{
-			head = other.head;
-			tail = other.tail;
-			tail->next = &head;
+			push_back(*i);
 		}
 	}
-private:
-	List(const List& other);
-	List& operator=(const List& other);
-public:
+	List& operator=(const List& other)
+	{
+		List tmp(other);
+		tmp.swap(*this);
+		return *this;
+	}
 
-	typedef ListIterator<T> const_iterator;
+	typedef ListIterator<T> iterator;
+	typedef ListIterator<const T> const_iterator;
 
+	iterator begin()
+	{
+		return iterator(head.next);
+	}
 	const_iterator begin() const
 	{
 		return const_iterator(head.next);
+	}
+	iterator end()
+	{
+		return iterator(&head);
 	}
 	const_iterator end() const
 	{
@@ -126,19 +177,21 @@ public:
 	
 	void push_back(const T& value)
 	{
-		Node* node = allocatorNew(*this, value);
+		Node* node = allocatorNew(getAllocator(), Node(value));
 		node->next = &head;
 		tail->next = node;
 		tail = node;
 	}
-	void splice(const_iterator position, List& other)
+	void splice(iterator position, List& other)
 	{
+		LIST_ASSERT(position == end());
 		// always splice at end for now
 		if(!other.empty())
 		{
 			tail->next = other.head.next;
 			tail = other.tail;
 			tail->next = &head;
+			other.init_raw();
 		}
 	}
 	void swap(List& other)
