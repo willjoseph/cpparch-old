@@ -9,6 +9,8 @@
 - support '>>' in nested template-argument-list
 - implement 'auto' from C++0x
 
+- check that correct std::swap() is called for Copied
+
 - document boost::wave modification: resolved_include_file
 
 - implement friend declaration?
@@ -36,7 +38,13 @@ not consider any scopes outside the innermost enclosing namespace.
 		- isDependent is slow?
 		- each iteration is parsed first as nested-name-specifier
 			- cache successful parse of template-id component
-						
+		
+- in parseSymbolRequired, why not defer allocation of symbol until successful parse?
+	- requires stack-allocation and copying of parse-tree node
+	- when parsing identifier, we store a persistent reference to symbol
+		- allocate within visit()?
+			- if parseSymbol succeeds
+	- when deferring parse, we store a persistent reference to symbol
 		
 - optimise parsing of cpptree?
 	- profile parse, find out exactly what's taking so long
@@ -63,6 +71,23 @@ not consider any scopes outside the innermost enclosing namespace.
 			- make '::' optional in nested-name-specifier when specifying a type-name?
 	- cache a successfully parsed template-argument-clause
 		- only for the duration of parsing simple-type-specifier
+		- cache forward-declarations within template-argument-clause
+			- problem: declaration added to enclosing scope, address taken
+				- store declaration by reference
+				- should declaration be added to enclosing scope?
+					- name not visible in enclosing namespace scope (Comeau, msvc)
+			- avoid deallocation/destruction of cached parse-tree
+				- when nested-name-specifier parse fails at '::', preserve parse-tree allocation and do not destroy template-argument-clause
+				- relocate parse-tree: generate relocateSymbol()?
+					- relocates from one allocator to another
+						- for each node, visit children, create copy, delete original, replace original ref with copy
+					- copying seems wasteful, when original could be left in-place.
+					- defer deletion until next allocation, defer next allocation until successful parse
+						- does anything cause allocation before cache hit?
+						- on successful parse, replace cache with symbol
+						- perform cache lookup for each subsequent parse attempt, using rtti
+						- on cache hit, return cached parse-tree, indicate that result is cached
+			- avoid deallocation of cached symbol table
 		
 - make gUniqueNames a member of Scope?
 

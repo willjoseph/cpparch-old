@@ -8,7 +8,7 @@
 
 typedef boost::wave::token_id LexTokenId;
 
-struct Declaration;
+class Declaration;
 
 namespace cpp
 {

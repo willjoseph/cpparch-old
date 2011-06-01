@@ -1,4 +1,15 @@
 
+
+template<typename T>
+struct S
+{
+};
+
+typedef S<struct X> Type;
+
+//Type::X x;
+
+
 struct TypeListEnd
 {
 };
@@ -10,6 +21,9 @@ struct TypeList
 	typedef NextType Next;
 };
 
+typedef TypeList<int, TypeListEnd> Test1;
+
+#if 0
 // pathological case for parser
 typedef TypeList<int,
 	TypeList<int,
@@ -31,4 +45,5 @@ typedef TypeList<int,
 	>
 	>
 	>
-> Test;
+> Test2;
+#endif

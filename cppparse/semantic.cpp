@@ -30,7 +30,7 @@ void printDeclarations(const Scope::Declarations& declarations)
 	std::cout << "{ ";
 	for(Scope::Declarations::const_iterator i = declarations.begin(); i != declarations.end();)
 	{
-		std::cout << getValue((*i).second.name);
+		std::cout << getValue((*i).second.getName());
 		if(++i != declarations.end())
 		{
 			std::cout << ", ";
@@ -44,7 +44,7 @@ void printBases(const Types& bases)
 	std::cout << "{ ";
 	for(Types::const_iterator i = bases.begin(); i != bases.end();)
 	{
-		std::cout << getValue((*i).declaration->name) << ": ";
+		std::cout << getValue((*i).declaration->getName()) << ": ";
 		Scope* scope = (*i).declaration->enclosed;
 		if(scope != 0)
 		{
@@ -108,7 +108,7 @@ void printIdentifierMismatch(const IdentifierMismatch& e)
 	std::cout << "'" << getValue(e.id) << "' expected " << e.expected << ", " << (e.declaration == &gUndeclared ? "was undeclared" : "was declared here:") << std::endl;
 	if(e.declaration != &gUndeclared)
 	{
-		printPosition(e.declaration->name.position);
+		printPosition(e.declaration->getName().position);
 		std::cout << std::endl;
 	}
 }
@@ -132,6 +132,106 @@ struct WalkerContext : public TreeAllocator<int>
 
 typedef std::list< DeferredParse<struct WalkerBase, struct WalkerState> > DeferredSymbols;
 
+class OpaqueCopied
+{
+	void* p;
+	void (*release)(void*);
+
+	template<typename T>
+	struct ReleaseGeneric
+	{
+		static void apply(void* p)
+		{
+			delete static_cast<T*>(p);
+		}
+	};
+
+	static void releaseNull(void* p)
+	{
+	}
+
+public:
+	OpaqueCopied()
+		: p(0), release(releaseNull)
+	{
+	}
+	OpaqueCopied(const OpaqueCopied& other)
+		: p(0), release(releaseNull)
+	{
+		SEMANTIC_ASSERT(other.p == NULL);
+	}
+	OpaqueCopied& operator=(const OpaqueCopied& other)
+	{
+		SEMANTIC_ASSERT(p == NULL);
+		SEMANTIC_ASSERT(other.p == NULL);
+	}
+	template<typename T>
+	OpaqueCopied(const T& value)
+		: p(new T(value)), release(ReleaseGeneric<T>::apply)
+	{
+	}
+	~OpaqueCopied()
+	{
+		release(p);
+	}
+	template<typename T>
+	void get(T*& result)
+	{
+		// TODO
+		//SEMANTIC_ASSERT(release == ReleaseGeneric<T>::apply);
+		result = static_cast<T*>(p);
+	}
+};
+
+
+struct CachedSymbols
+{
+	TreeAllocator<int> allocator;
+	typedef Lexer::Tokens::const_iterator Key;
+	typedef OpaqueCopied Entry;
+	typedef std::map<Key, OpaqueCopied> Entries;
+	Entries entries;
+	size_t hits;
+
+	static const size_t NONE = size_t(-1);
+
+	CachedSymbols(const TreeAllocator<int>& allocator)
+		: hits(0), allocator(allocator)
+	{
+	}
+	~CachedSymbols()
+	{
+		if(hits > 0)
+		{
+			//std::cout << "total hits: " << hits << std::endl;
+		}
+	}
+
+	template<typename T>
+	void find(Key key, const T*& p)
+	{
+		Entries::iterator result = entries.find(key);
+		if(result != entries.end())
+		{
+			++hits;
+			(*result).second.get(p);
+		}
+		else
+		{
+			p = 0;
+		}
+	}
+	template<typename T>
+	T& insert(Key key, const T& value)
+	{
+		Entries::iterator result = entries.insert(Entries::value_type(key, Entry())).first;
+		(*result).second.~Entry();
+		new (&(*result).second) Entry(value);
+		T* p;
+		(*result).second.get(p);
+		return *p;
+	}
+};
 
 typedef bool (*IdentifierFunc)(const Declaration& declaration);
 const char* getIdentifierType(IdentifierFunc func);
@@ -148,9 +248,10 @@ struct WalkerState
 	Scope* templateEnclosing;
 	bool* ambiguity;
 	DeferredSymbols* deferred;
+	CachedSymbols* cached;
 
 	WalkerState(WalkerContext& context)
-		: context(context), enclosing(0), qualifying_p(0), templateParams(0), templateEnclosing(0), ambiguity(0), deferred(0)
+		: context(context), enclosing(0), qualifying_p(0), templateParams(0), templateEnclosing(0), ambiguity(0), deferred(0), cached(0)
 	{
 	}
 	const WalkerState& getState() const
@@ -207,7 +308,7 @@ struct WalkerState
 	Declaration* pointOfDeclaration(
 		const TreeAllocator<int>& allocator,
 		Scope* parent,
-		const Identifier& name,
+		Identifier& name,
 		const Type& type,
 		Scope* enclosed,
 		DeclSpecifiers specifiers = DeclSpecifiers(),
@@ -248,7 +349,7 @@ struct WalkerState
 				{
 					printPosition(name.position);
 					std::cout << "'" << name.value << "': " << e.description << std::endl;
-					printPosition(declaration->name.position);
+					printPosition(declaration->getName().position);
 					throw SemanticError();
 				}
 
@@ -277,7 +378,7 @@ struct WalkerState
 			}
 		}
 
-		return &(*parent->declarations.insert(Scope::Declarations::value_type(name.value, other))).second;
+		return parent->insert(other);
 	}
 
 	TreeAllocator<int> getAllocator()
@@ -473,9 +574,9 @@ struct WalkerBase : public WalkerState
 		{
 			for(Declarations::iterator i = declarations.begin(); i != declarations.end(); ++i)
 			{
-				SEMANTIC_ASSERT(&(*(*i)->scope->declarations.find((*i)->name.value)).second == (*i));
+				SEMANTIC_ASSERT(&(*(*i)->scope->declarations.find((*i)->getName().value)).second == (*i));
 
-				(*i)->scope->declarations.erase((*i)->name.value);
+				(*i)->scope->declarations.erase((*i)->getName().value);
 			}
 		}
 
@@ -539,7 +640,7 @@ struct WalkerBase : public WalkerState
 	{
 		Scope* enclosed = templateParams != 0 ? templateParams : newScope(makeIdentifier("$class"));
 		enclosed->type = SCOPETYPE_CLASS; // convert template-param-scope to class-scope if present
-		Declaration* declaration = pointOfDeclaration(context, enclosing, id == 0 ? makeIdentifier(enclosing->getUniqueName()) : *id, TYPE_CLASS, enclosed, DeclSpecifiers(), enclosing == templateEnclosing, arguments);
+		Declaration* declaration = pointOfDeclaration(context, enclosing, id == 0 ? enclosing->getUniqueName() : *id, TYPE_CLASS, enclosed, DeclSpecifiers(), enclosing == templateEnclosing, arguments);
 #ifdef ALLOCATOR_DEBUG
 		declarations.push_back(declaration);
 #endif
@@ -547,7 +648,7 @@ struct WalkerBase : public WalkerState
 		{
 			id->dec.p = declaration;
 		}
-		enclosed->name = declaration->name;
+		enclosed->name = declaration->getName();
 		return declaration;
 	}
 
@@ -678,7 +779,7 @@ struct WalkerQualified : public WalkerBase
 			// TODO
 			//printPosition(symbol->id->value.position);
 			std::cout << "'" << getValue(type.declaration->name) << "' is incomplete, declared here:" << std::endl;
-			printPosition(type.declaration->name.position);
+			printPosition(type.declaration->getName().position);
 			throw SemanticError();
 		}
 #endif
@@ -1354,6 +1455,7 @@ struct TemplateArgumentListWalker : public WalkerBase
 	TemplateArgumentListWalker(const WalkerState& state)
 		: WalkerBase(state), arguments(context)
 	{
+		WalkerState::cached = 0; // stop caching template-argument-clause
 	}
 	void visit(cpp::type_id* symbol)
 	{
@@ -1382,6 +1484,21 @@ struct TemplateArgumentListWalker : public WalkerBase
 		arguments.back().dependent = walker.typeDependent;
 		arguments.back().dependent.splice(walker.valueDependent);
 #endif
+	}
+};
+
+typedef std::list<Declaration> DeclarationCache;
+
+struct TemplateArgumentListCache
+{
+	cpp::template_argument_clause* symbol;
+	TemplateArguments arguments;
+	DeclarationCache declarations;
+	size_t count;
+
+	explicit TemplateArgumentListCache(cpp::template_argument_clause* symbol, const TemplateArguments& arguments, const DeclarationCache& declarations, size_t count)
+		: symbol(symbol), arguments(arguments), declarations(declarations), count(count)
+	{
 	}
 };
 
@@ -1426,8 +1543,55 @@ struct TemplateIdWalker : public WalkerBase
 	{
 		clearQualifying();
 
+		Lexer::Tokens::const_iterator before = parser->lexer.position;
+		const TemplateArgumentListCache* p = 0;
+		if(WalkerState::cached != 0) // if we are within a simple-type-specifier
+		{
+			// this symbol may have already been parsed successfully
+			WalkerState::cached->find(before, p);
+		}
+
 		TemplateArgumentListWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
+
+		if(p != 0)
+		{
+			// use cached symbol
+			*symbol = *p->symbol;
+			walker.arguments = p->arguments;
+			for(DeclarationCache::const_iterator i = p->declarations.begin(); i != p->declarations.end(); ++i)
+			{
+				Declaration* declaration = (*i).scope->insert(*i); // re-declare forward-declaration
+				declaration->getName().dec.p = declaration; // fix-up decoration
+			}
+			parser->position = p->count;
+			parser->advance();
+			result = symbol;
+			hit(walker);
+		}
+		else
+		{
+			TREEWALKER_WALK_NOHIT(walker, symbol);
+
+#if 0 // disable for testing
+			// after successfully parsing template-argument-clause
+			if(WalkerState::cached != 0) // if we are within a simple-type-specifier
+			{
+
+				// store this symbol
+				TemplateArgumentListCache& entry = WalkerState::cached->insert(before,
+					TemplateArgumentListCache(symbol, TemplateArguments(cached->allocator), DeclarationCache(), parser->position)
+				);
+				entry.arguments = walker.arguments;
+				for(WalkerBase::Declarations::iterator i = walker.declarations.begin(); i != walker.declarations.end(); ++i)
+				{
+					entry.declarations.push_back(*(*i)); // copy declaration into cache
+				}
+			}
+#endif
+
+			hit(walker);
+		}
+
 
 		if(type.declaration != 0) // TODO: in what context can the type be null?
 		{
@@ -1583,9 +1747,11 @@ struct NestedNameSpecifierPrefixWalker : public WalkerBase
 		ScopeDepth depth(gNNDepth);
 		TypeNameWalker walker(getState(), isNestedName, true);
 		TREEWALKER_WALK(walker, symbol);
+#if 0
 		std::cout << "nested_name_specifier_prefix: type-name: " << gNNDepth << std::endl;
 		printSymbol(symbol);
 		std::cout << std::endl;
+#endif
 		if(allowDependent
 			|| !isDependent(qualifying_p))
 		{
@@ -1640,9 +1806,11 @@ struct TypeSpecifierWalker : public WalkerQualified
 
 	Type type;
 	unsigned fundamental;
+	CachedSymbols cached;
 	TypeSpecifierWalker(const WalkerState& state)
-		: WalkerQualified(state), type(0, context), fundamental(0)
+		: WalkerQualified(state), type(0, context), fundamental(0), cached(context)
 	{
+		WalkerState::cached = &cached;
 	}
 
 	void visit(cpp::simple_type_specifier_name* symbol)
@@ -2055,7 +2223,7 @@ struct UsingDeclarationWalker : public WalkerQualified
 			else
 			{
 				// TODO: check for conflicts with earlier declarations
-				enclosing->declarations.insert(Scope::Declarations::value_type(declaration->name.value, *declaration));
+				enclosing->declarations.insert(Scope::Declarations::value_type(declaration->getName().value, *declaration));
 			}
 			walker.id->dec.p = declaration;
 		}
@@ -2314,7 +2482,7 @@ struct EnumSpecifierWalker : public WalkerBase
 		if(declaration == 0)
 		{
 			// unnamed enum
-			declaration = pointOfDeclaration(context, enclosing, makeIdentifier(enclosing->getUniqueName()), TYPE_ENUM, 0);
+			declaration = pointOfDeclaration(context, enclosing, enclosing->getUniqueName(), TYPE_ENUM, 0);
 #ifdef ALLOCATOR_DEBUG
 			declarations.push_back(declaration);
 #endif
@@ -2411,7 +2579,7 @@ struct ElaboratedTypeSpecifierWalker : public WalkerQualified
 			{
 				printPosition(symbol->value.position);
 				std::cout << "'" << symbol->value.value << "': elaborated-type-specifier refers to a typedef" << std::endl;
-				printPosition(declaration->name.position);
+				printPosition(declaration->getName().position);
 				throw SemanticError();
 			}
 #endif
@@ -2423,7 +2591,7 @@ struct ElaboratedTypeSpecifierWalker : public WalkerQualified
 			{
 				printPosition(symbol->value.position);
 				std::cout << "'" << symbol->value.value << "': elaborated-type-specifier key does not match declaration" << std::endl;
-				printPosition(declaration->name.position);
+				printPosition(declaration->getName().position);
 				throw SemanticError();
 			}
 			type = declaration;
@@ -2699,7 +2867,7 @@ struct ControlStatementWalker : public WalkerBase
 	}
 	void visit(cpp::terminal<boost::wave::T_LEFTPAREN> symbol)
 	{
-		pushScope(newScope(makeIdentifier(enclosing->getUniqueName()), SCOPETYPE_LOCAL));
+		pushScope(newScope(enclosing->getUniqueName(), SCOPETYPE_LOCAL));
 	}
 	void visit(cpp::condition_init* symbol)
 	{
@@ -2735,7 +2903,7 @@ struct CompoundStatementWalker : public WalkerBase
 
 	void visit(cpp::terminal<boost::wave::T_LEFTBRACE> symbol)
 	{
-		pushScope(newScope(makeIdentifier(enclosing->getUniqueName()), SCOPETYPE_LOCAL));
+		pushScope(newScope(enclosing->getUniqueName(), SCOPETYPE_LOCAL));
 	}
 	void visit(cpp::statement* symbol)
 	{
@@ -2754,7 +2922,7 @@ struct HandlerWalker : public WalkerBase
 	}
 	void visit(cpp::terminal<boost::wave::T_CATCH> symbol)
 	{
-		pushScope(newScope(makeIdentifier(enclosing->getUniqueName()), SCOPETYPE_LOCAL));
+		pushScope(newScope(enclosing->getUniqueName(), SCOPETYPE_LOCAL));
 	}
 	void visit(cpp::exception_declaration_default* symbol)
 	{
@@ -2964,7 +3132,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 
 			if(enclosed != 0)
 			{
-				enclosed->name = declaration->name;
+				enclosed->name = declaration->getName();
 				enclosing = enclosed; // 3.3.2.1 parameter scope
 			}
 			templateParams = 0;
@@ -3140,7 +3308,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 	void visit(cpp::statement_seq_wrapper* symbol)
 	{
 		ScopeGuard guard(*this); // ensure that symbol-table modifications within the scope of 'guard' are undone on parse fail
-		pushScope(newScope(makeIdentifier(enclosing->getUniqueName()), SCOPETYPE_LOCAL));
+		pushScope(newScope(enclosing->getUniqueName(), SCOPETYPE_LOCAL));
 		if(WalkerState::deferred != 0)
 		{
 			result = defer(*WalkerState::deferred, *this, skipBraced, symbol);
@@ -3264,21 +3432,20 @@ struct SimpleDeclarationWalker : public WalkerBase
 				Declaration& member = (*i).second;
 				if(isAnonymous(member))
 				{
-					const Identifier& name = makeIdentifier(enclosing->getUniqueName());
-					member.name = name;
+					member.setName(enclosing->getUniqueName());
 					if(member.enclosed != 0)
 					{
-						member.enclosed->name = name;
+						member.enclosed->name = member.getName();
 					}
 				}
 				else
 				{
-					Declaration* declaration = ::findDeclaration(enclosing->declarations, member.name);
+					Declaration* declaration = ::findDeclaration(enclosing->declarations, member.getName());
 					if(declaration != 0)
 					{
-						printPosition(member.name.position);
-						std::cout << "'" << member.name.value << "': anonymous union member already declared" << std::endl;
-						printPosition(declaration->name.position);
+						printPosition(member.getName().position);
+						std::cout << "'" << member.getName().value << "': anonymous union member already declared" << std::endl;
+						printPosition(declaration->getName().position);
 						throw SemanticError();
 					}
 				}

@@ -1468,7 +1468,7 @@ typedef error_info<struct throw_line_,int> throw_line;
 
 template <>
 class
-	error_info<throw_function_,char const *>
+	error_info<throw_function_,char const *> // throw_function_ was forward-declared within template-argument-clause
 {
 public:
 	typedef char const * value_type;

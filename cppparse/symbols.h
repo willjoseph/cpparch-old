@@ -64,6 +64,7 @@ private:
 	TemplateArguments()
 	{
 	}
+	//TemplateArguments& operator=(const TemplateArguments&);
 };
 #else
 typedef List<struct TemplateArgument> TemplateArguments;
@@ -88,7 +89,7 @@ private:
 typedef Copied<Type, TreeAllocator<int> > Qualifying;
 
 
-struct Declaration;
+class Declaration;
 
 struct Type
 {
@@ -104,7 +105,7 @@ struct Type
 	void swap(Type& other)
 	{
 		std::swap(declaration, other.declaration);
-		std::swap(arguments, other.arguments);
+		arguments.swap(other.arguments);
 		std::swap(qualifying, other.qualifying);
 		std::swap(isImplicitTemplateId, other.isImplicitTemplateId);
 	}
@@ -267,12 +268,13 @@ inline const char* getValue(const Identifier& id)
 // declaration
 
 const size_t INDEX_INVALID = size_t(-1);
-typedef std::list<struct Declaration*, TreeAllocator<int> > DeclarationList;
+typedef std::list<class Declaration*, TreeAllocator<int> > DeclarationList;
 
-struct Declaration
+class Declaration
 {
+	Identifier* name;
+public:
 	Scope* scope;
-	Identifier name;
 	Type type;
 	Scope* enclosed;
 	Declaration* overloaded;
@@ -287,7 +289,7 @@ struct Declaration
 	Declaration(
 		const TreeAllocator<int>& allocator,
 		Scope* scope,
-		Identifier name,
+		Identifier& name,
 		const Type& type,
 		Scope* enclosed,
 		DeclSpecifiers specifiers = DeclSpecifiers(),
@@ -296,7 +298,7 @@ struct Declaration
 		size_t templateParameter = INDEX_INVALID,
 		const Dependent& valueDependent = DEPENDENT_NULL
 	) : scope(scope),
-		name(name),
+		name(&name),
 		type(type),
 		enclosed(enclosed),
 		overloaded(0),
@@ -309,22 +311,36 @@ struct Declaration
 		isTemplate(isTemplate)
 	{
 	}
+
+	Identifier& getName()
+	{
+		return *name;
+	}
+	const Identifier& getName() const
+	{
+		return *name;
+	}
+	void setName(Identifier& other)
+	{
+		name = &other;
+	}
 };
 
 inline cpp::terminal_identifier& getDeclarationId(Declaration* declaration)
 {
-	return declaration->name;
+	return declaration->getName();
 }
 
 // ----------------------------------------------------------------------------
 // scope
 
-struct UniqueName
+struct UniqueName : public Identifier
 {
 	char buffer[10];
 	UniqueName(size_t index)
 	{
 		sprintf(buffer, "$%x", index);
+		Identifier::value = buffer;
 	}
 };
 typedef std::vector<UniqueName*> UniqueNames;
@@ -377,13 +393,19 @@ struct Scope : public ScopeCounter
 	{
 	}
 
-	const char* getUniqueName()
+	Identifier& getUniqueName()
 	{
 		if(enclosedScopeCount == gUniqueNames.size())
 		{
 			gUniqueNames.push_back(new UniqueName(enclosedScopeCount));
 		}
-		return gUniqueNames[enclosedScopeCount++]->buffer;
+		return *gUniqueNames[enclosedScopeCount++];
+	}
+
+	Declaration* insert(const Declaration& other)
+	{
+		Scope::Declarations::iterator result = declarations.insert(Scope::Declarations::value_type(other.getName().value, other));
+		return &(*result).second;
 	}
 };
 
@@ -840,7 +862,7 @@ inline const char* getDeclarationType(const Declaration& declaration)
 
 inline bool isAnonymous(const Declaration& declaration)
 {
-	return *declaration.name.value == '$';
+	return *declaration.getName().value == '$';
 }
 
 struct DeclarationError

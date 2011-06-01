@@ -3,6 +3,7 @@
 
 #include "parser/symbols.h"
 
+#if 0
 
 template<void skipFunc(Parser&)>
 struct ScopedSkip
@@ -237,3 +238,6 @@ struct ContextN
 		}
 	};
 };
+
+
+#endif

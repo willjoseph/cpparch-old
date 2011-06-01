@@ -120,7 +120,7 @@ struct PrintingWalker
 		else
 		{
 			printName(name->scope);
-			printer.out << getValue(name->name);
+			printer.out << getValue(name->getName());
 		}
 	}
 
@@ -172,7 +172,7 @@ const char* escapeTerminal(cpp::terminal_choice2 symbol)
 bool isPrimary(const Identifier& id)
 {
 	// TODO: optimise
-	return id.dec.p != 0 && id.position == id.dec.p->name.position;
+	return id.dec.p != 0 && id.position == id.dec.p->getName().position;
 }
 
 typedef std::pair<const char*, Declaration*> ModuleDeclaration; // first=source, second=declaration
@@ -351,8 +351,8 @@ struct SymbolPrinter : PrintingWalker
 	{
 		for(; declaration != 0; declaration = declaration->overloaded)
 		{
-			if(*declaration->name.source == '$' // '$outer'
-				|| isIncluded(included, declaration->name.source))
+			if(*declaration->getName().source == '$' // '$outer'
+				|| isIncluded(included, declaration->getName().source))
 			{
 				return true;
 			}
@@ -528,7 +528,7 @@ struct SymbolPrinter : PrintingWalker
 			printer.out << "<a href='";
 			if(symbol->value.dec.p != 0)
 			{
-				printer.out << OutPath(root, symbol->value.dec.p->name.source).c_str() + 4; // HACK! Remove 'out/' from path
+				printer.out << OutPath(root, symbol->value.dec.p->getName().source).c_str() + 4; // HACK! Remove 'out/' from path
 			}
 			printer.out << "#";
 			printName(symbol->value.dec.p);
@@ -536,10 +536,10 @@ struct SymbolPrinter : PrintingWalker
 
 			if(symbol->value.dec.p != 0
 				&& !isNamespace(*symbol->value.dec.p)
-				&& symbol->value.dec.p->name.source != 0 // refers to a symbol declared in a module
-				&& symbol->value.source != symbol->value.dec.p->name.source) // refers to a symbol not declared in the current module
+				&& symbol->value.dec.p->getName().source != 0 // refers to a symbol declared in a module
+				&& symbol->value.source != symbol->value.dec.p->getName().source) // refers to a symbol not declared in the current module
 			{
-				moduleDependencies[symbol->value.source].insert(ModuleDeclaration(symbol->value.dec.p->name.source, symbol->value.dec.p));
+				moduleDependencies[symbol->value.source].insert(ModuleDeclaration(symbol->value.dec.p->getName().source, symbol->value.dec.p));
 			}
 		}
 		printer.out << "<" << type << ">";

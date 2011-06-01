@@ -444,7 +444,7 @@ template<typename T>
 struct IsConcrete
 {
 	static const bool RESULT = !IsConvertible<T, cpp::choice<T> >::RESULT
-		&& !IsConvertible<T, cpp::terminal_choice>::RESULT;
+		&& !IsConvertible<T, cpp::terminal_choice>::RESULT; // this is true within specialised parseSymbol containing PARSE_SELECT_TOKEN
 };
 
 template<typename T, bool isConcrete = IsConcrete<T>::RESULT >
@@ -454,7 +454,8 @@ template<typename T>
 struct SymbolAllocator<T, true>
 {
 	LexerAllocator& allocator;
-	SymbolAllocator(LexerAllocator& allocator) : allocator(allocator)
+	SymbolAllocator(LexerAllocator& allocator)
+		: allocator(allocator)
 	{
 	}
 	T* allocate()
@@ -515,6 +516,7 @@ struct SymbolDelete
 	void visit(T* symbol)
 	{
 		symbol->accept(*this);
+		// delete only if T is concrete, or a terminal_choice
 		SymbolAllocator<T, !IsConvertible<T, cpp::choice<T> >::RESULT>(allocator).deallocate(symbol);
 	}
 
@@ -537,6 +539,90 @@ void deleteSymbol(T* symbol, LexerAllocator& allocator)
 #endif
 }
 
+template<typename T, bool isConcrete = IsConcrete<T>::RESULT >
+struct SymbolHolder;
+
+#if 1
+template<typename T>
+struct SymbolHolder<T, true>
+{
+	LexerAllocator& allocator;
+	SymbolHolder(LexerAllocator& allocator)
+		: allocator(allocator)
+	{
+	}
+	T* get()
+	{
+		return new(allocator.allocate(sizeof(T))) T;
+	}
+	static T* hit(T* result, LexerAllocator& allocator)
+	{
+		return result;
+	}
+	void miss()
+	{
+		SymbolDelete walker(allocator);
+		//value.accept(walker);
+	}
+};
+
+template<typename T>
+T* parseHit(T* p, LexerAllocator& allocator)
+{
+	return p;
+}
+#else
+template<typename T>
+struct SymbolHolder<T, true>
+{
+	LexerAllocator& allocator;
+	SymbolHolder(LexerAllocator& allocator)
+		: allocator(allocator)
+	{
+	}
+	T value;
+	T* get()
+	{
+		return &value;
+	}
+	static T* hit(T* result, LexerAllocator& allocator)
+	{
+		return new(allocator.allocate(sizeof(T))) T(*result);
+	}
+	void miss()
+	{
+		SymbolDelete walker(allocator);
+		//value.accept(walker);
+	}
+};
+
+template<typename T>
+T* parseHit(T* p, LexerAllocator& allocator)
+{
+	return SymbolHolder<T>::hit(p, allocator);
+}
+#endif
+
+template<typename T>
+struct SymbolHolder<T, false>
+{
+	SymbolHolder(LexerAllocator& allocator)
+	{
+	}
+	T* get()
+	{
+		return 0;
+	}
+	static T* hit(T* p, LexerAllocator& allocator)
+	{
+		return p;
+	}
+	void miss()
+	{
+	}
+};
+
+
 inline bool checkBacktrack(Parser& parser)
 {
 	if(parser.lexer.maxBacktrack)
@@ -548,7 +634,7 @@ inline bool checkBacktrack(Parser& parser)
 };
 
 template<typename ParserType, typename T>
-cpp::symbol<T> parseSymbolRequired(ParserType& parser, cpp::symbol<T> symbol, size_t best = 0)
+cpp::symbol<T> parseSymbolRequired(ParserType& parser, cpp::symbol<T> symbol)
 {
 	PARSE_ASSERT(symbol.p == 0);
 	PARSE_ASSERT(!checkBacktrack(parser));
@@ -556,14 +642,17 @@ cpp::symbol<T> parseSymbolRequired(ParserType& parser, cpp::symbol<T> symbol, si
 #ifdef PARSER_DEBUG
 	parser.lexer.visualiser.push(SYMBOL_NAME(T), parser.lexer.position);
 #endif
-	T* p = SymbolAllocator<T>(parser.lexer.allocator).allocate();
+	SymbolHolder<T> holder(parser.lexer.allocator);
 #if 0
-	T* result = parseSymbol(tmp, p);
+	T* result = parseSymbol(tmp, holder.get());
 #else
-	T* result = tmp.parse(p);
+	T* result = tmp.parse(holder.get());
 #endif
 	if(result != 0
-		&& tmp.position >= best)
+#if 0 // not required?
+		&& tmp.position != 0
+#endif
+		)
 	{
 #ifdef PARSER_DEBUG
 		parser.lexer.visualiser.pop(result);
@@ -572,11 +661,11 @@ cpp::symbol<T> parseSymbolRequired(ParserType& parser, cpp::symbol<T> symbol, si
 		return cpp::symbol<T>(result);
 	}
 
-	deleteSymbol(p, parser.lexer.allocator);
+	holder.miss();
 #ifdef PARSER_DEBUG
 	parser.lexer.visualiser.pop(false);
 #endif
-	tmp.backtrack(SYMBOL_NAME(T));
+	tmp.backtrack(SYMBOL_NAME(T), true);
 	return cpp::symbol<T>(0);
 }
 
@@ -773,7 +862,7 @@ struct ParserGeneric : public ParserOpaque
 	}
 };
 
-#define SYMBOL_WALK(walker, symbol) if((result = symbol = parseSymbol(getParser(walker), symbol)) == 0) return
+#define SYMBOL_WALK(walker, symbol) if((result = symbol = parseSymbol(getParser(walker), symbol)) != 0) result = symbol = parseHit(symbol, context.instance); else return
 #define PARSERCONTEXT_DEFAULT \
 	template<typename T> \
 	void visit(T* symbol) \

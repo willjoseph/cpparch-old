@@ -749,7 +749,6 @@ inline cpp::msext_asm_element_list_inline* parseSymbol(ParserType& parser, cpp::
 }
 
 
-
 #endif
 
 
