@@ -383,7 +383,7 @@ struct WalkerState
 	TreeAllocator<int> getAllocator()
 	{
 #ifdef TREEALLOCATOR_LINEAR
-		return parser->lexer.allocator;
+		return parser->context.allocator;
 #else
 		return DebugAllocator<int>();
 #endif
@@ -445,7 +445,7 @@ struct WalkerState
 		if(!IsConcrete<T>::RESULT) // if the grammar-symbol is abstract
 		{
 			// the symbol was allocated by the parser and must be deallocated
-			deleteSymbol(symbol, parser->lexer.allocator);
+			deleteSymbol(symbol, parser->context.allocator);
 		}
 		result = 0;
 		gIdentifierMismatch = IdentifierMismatch(id, declaration, expected);
@@ -1540,7 +1540,7 @@ struct TemplateIdWalker : public WalkerBase
 	{
 		clearQualifying();
 
-		Lexer::Tokens::const_iterator before = parser->lexer.position;
+		Lexer::Tokens::const_iterator before = parser->context.position;
 		const TemplateArgumentListCache* p = 0;
 		if(WalkerState::cached != 0) // if we are within a simple-type-specifier
 		{
@@ -3718,23 +3718,23 @@ struct NamespaceWalker : public WalkerBase
 };
 
 
-TreeAllocator<int> getAllocator(ParserContext& lexer)
+TreeAllocator<int> getAllocator(ParserContext& context)
 {
 #ifdef TREEALLOCATOR_LINEAR
-	return lexer.allocator;
+	return context.allocator;
 #else
 	return DebugAllocator<int>();
 #endif
 }
 
 
-cpp::declaration_seq* parseFile(ParserContext& lexer)
+cpp::declaration_seq* parseFile(ParserContext& context)
 {
 	gUniqueNames.clear();
 
-	WalkerContext& context = *new WalkerContext(getAllocator(lexer));
-	Walker::NamespaceWalker& walker = *new Walker::NamespaceWalker(context);
-	ParserGeneric<Walker::NamespaceWalker> parser(lexer, walker);
+	WalkerContext& globals = *new WalkerContext(getAllocator(context));
+	Walker::NamespaceWalker& walker = *new Walker::NamespaceWalker(globals);
+	ParserGeneric<Walker::NamespaceWalker> parser(context, walker);
 
 	cpp::symbol_sequence<cpp::declaration_seq> result(NULL);
 	try
@@ -3748,7 +3748,7 @@ cpp::declaration_seq* parseFile(ParserContext& lexer)
 	catch(SemanticError&)
 	{
 	}
-	if(!lexer.finished())
+	if(!context.finished())
 	{
 		printError(parser);
 	}
@@ -3764,11 +3764,11 @@ cpp::declaration_seq* parseFile(ParserContext& lexer)
 	return result;
 }
 
-cpp::statement_seq* parseFunction(ParserContext& lexer)
+cpp::statement_seq* parseFunction(ParserContext& context)
 {
-	WalkerContext& context = *new WalkerContext(getAllocator(lexer));
-	Walker::CompoundStatementWalker& walker = *new Walker::CompoundStatementWalker(context);
-	ParserGeneric<Walker::CompoundStatementWalker> parser(lexer, walker);
+	WalkerContext& globals = *new WalkerContext(getAllocator(context));
+	Walker::CompoundStatementWalker& walker = *new Walker::CompoundStatementWalker(globals);
+	ParserGeneric<Walker::CompoundStatementWalker> parser(context, walker);
 
 	cpp::symbol_sequence<cpp::statement_seq> result(NULL);
 	try
@@ -3779,7 +3779,7 @@ cpp::statement_seq* parseFunction(ParserContext& lexer)
 	catch(ParseError&)
 	{
 	}
-	if(!lexer.finished())
+	if(!context.finished())
 	{
 		printError(parser);
 	}

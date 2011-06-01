@@ -325,59 +325,59 @@ struct ParserContext : Lexer
 
 struct Parser : public ParserState
 {
-	ParserContext& lexer;
+	ParserContext& context;
 	size_t position;
 	size_t allocation;
 
-	Parser(ParserContext& lexer)
-		: lexer(lexer), position(0), allocation(0)
+	Parser(ParserContext& context)
+		: context(context), position(0), allocation(0)
 	{
 	}
 	Parser(const Parser& other)
-		: ParserState(other), lexer(other.lexer), position(0), allocation(lexer.allocator.position)
+		: ParserState(other), context(other.context), position(0), allocation(context.allocator.position)
 	{
 	}
 
 	LexTokenId get_id()
 	{
-		return lexer.get_id();
+		return context.get_id();
 	}
 	const char* get_value()
 	{
-		return lexer.get_value();
+		return context.get_value();
 	}
 	FilePosition get_position()
 	{
-		return lexer.get_position();
+		return context.get_position();
 	}
 	IncludeEvents get_events()
 	{
-		return lexer.get_events();
+		return context.get_events();
 	}
 	const char* get_source()
 	{
-		return lexer.get_source();
+		return context.get_source();
 	}
 
 	void increment()
 	{
 		++position;
-		lexer.increment();
+		context.increment();
 	}
 
 	void backtrack(const char* symbol, bool preserveAllocation = false)
 	{
 		if(!preserveAllocation)
 		{
-			lexer.allocator.backtrack(allocation);
+			context.allocator.backtrack(allocation);
 		}
-		lexer.backtrack(position, symbol);
+		context.backtrack(position, symbol);
 	}
 	void advance()
 	{
 		if(position != 0)
 		{
-			lexer.advance(position);
+			context.advance(position);
 		}
 	}
 };
@@ -385,22 +385,22 @@ struct Parser : public ParserState
 inline void printError(Parser& parser)
 {
 #if 0
-	for(Lexer::Positions::const_iterator i = parser.lexer.backtrace.begin(); i != parser.lexer.backtrace.end(); ++i)
+	for(Lexer::Positions::const_iterator i = parser.context.backtrace.begin(); i != parser.context.backtrace.end(); ++i)
 	{
 	}
-	printPosition(parser.lexer, lexer.history[parser.lexer.stacktrace.back()].position);
+	printPosition(parser.context, context.history[parser.context.stacktrace.back()].position);
 #endif
-	printPosition(parser.lexer.getErrorPosition());
-	std::cout << "syntax error: '" << parser.lexer.getErrorValue() << "'" << std::endl;
+	printPosition(parser.context.getErrorPosition());
+	std::cout << "syntax error: '" << parser.context.getErrorValue() << "'" << std::endl;
 #if 1 // TODO!
-	parser.lexer.visualiser.print(parser.lexer.history);
+	parser.context.visualiser.print(parser.context.history);
 #endif
-	printSequence(parser.lexer); // rejected tokens
+	printSequence(parser.context); // rejected tokens
 }
 
 inline void printSequence(Parser& parser)
 {
-	printSequence(parser.lexer, parser.position);
+	printSequence(parser.context, parser.position);
 }
 
 #define PARSE_ERROR() throw ParseError()
@@ -487,7 +487,7 @@ struct SymbolAllocator<T, false>
 template<typename T>
 T* createSymbol(Parser& parser, T*)
 {
-	return new(parser.lexer.allocator.allocate(sizeof(T))) T;
+	return new(parser.context.allocator.allocate(sizeof(T))) T;
 }
 
 struct SymbolDelete
@@ -625,7 +625,7 @@ struct SymbolHolder<T, false>
 
 inline bool checkBacktrack(Parser& parser)
 {
-	if(parser.lexer.maxBacktrack)
+	if(parser.context.maxBacktrack)
 	{
 		printError(parser);
 		return true;
@@ -640,9 +640,9 @@ cpp::symbol<T> parseSymbolRequired(ParserType& parser, cpp::symbol<T> symbol)
 	PARSE_ASSERT(!checkBacktrack(parser));
 	ParserType tmp(parser);
 #ifdef PARSER_DEBUG
-	parser.lexer.visualiser.push(SYMBOL_NAME(T), parser.lexer.position);
+	parser.context.visualiser.push(SYMBOL_NAME(T), parser.context.position);
 #endif
-	SymbolHolder<T> holder(parser.lexer.allocator);
+	SymbolHolder<T> holder(parser.context.allocator);
 #if 0
 	T* result = parseSymbol(tmp, holder.get());
 #else
@@ -655,7 +655,7 @@ cpp::symbol<T> parseSymbolRequired(ParserType& parser, cpp::symbol<T> symbol)
 		)
 	{
 #ifdef PARSER_DEBUG
-		parser.lexer.visualiser.pop(result);
+		parser.context.visualiser.pop(result);
 #endif
 		parser.position += tmp.position;
 		return cpp::symbol<T>(result);
@@ -663,7 +663,7 @@ cpp::symbol<T> parseSymbolRequired(ParserType& parser, cpp::symbol<T> symbol)
 
 	holder.miss();
 #ifdef PARSER_DEBUG
-	parser.lexer.visualiser.pop(false);
+	parser.context.visualiser.pop(false);
 #endif
 	tmp.backtrack(SYMBOL_NAME(T), true);
 	return cpp::symbol<T>(0);
@@ -833,32 +833,32 @@ struct ParseResultSkip
 
 struct ParserOpaque : public Parser
 {
-	void* context;
-	ParserOpaque(ParserContext& lexer, void* context)
-		: Parser(lexer), context(context)
+	void* walker;
+	ParserOpaque(ParserContext& context, void* walker)
+		: Parser(context), walker(walker)
 	{
 	}
 };
 
-template<typename Context>
+template<typename WalkerType>
 struct ParserGeneric : public ParserOpaque
 {
-	ParserGeneric(ParserContext& lexer, Context& context)
-		: ParserOpaque(lexer, &context)
+	ParserGeneric(ParserContext& context, WalkerType& walker)
+		: ParserOpaque(context, &walker)
 	{
 	}
-	Context& makeContext()
+	WalkerType& getWalker()
 	{
-		Context& context = *static_cast<Context*>(ParserOpaque::context);
+		WalkerType& context = *static_cast<WalkerType*>(ParserOpaque::walker);
 		context.parser = this;
 		return context;
 	}
 	template<typename T>
 	T* parse(T* symbol)
 	{
-		Context& context = makeContext();
-		context.visit(symbol);
-		return static_cast<T*>(context.result);
+		WalkerType& walker = getWalker();
+		walker.visit(symbol);
+		return static_cast<T*>(walker.result);
 	}
 };
 
@@ -913,7 +913,7 @@ struct ParsingVisitor
 #if 1
 		if(t.value != 0)
 		{
-			parser.makeContext().visit(t);
+			parser.getWalker().visit(t);
 		}
 #endif
 		return result;
@@ -925,7 +925,7 @@ struct ParsingVisitor
 #if 1
 		if(t.value != 0)
 		{
-			parser.makeContext().visit(t);
+			parser.getWalker().visit(t);
 		}
 #endif
 		return true;
@@ -937,7 +937,7 @@ struct ParsingVisitor
 #if 1
 		if(t.value != 0)
 		{
-			parser.makeContext().visit(t);
+			parser.getWalker().visit(t);
 		}
 #endif
 		return !skip;
@@ -952,7 +952,7 @@ inline T* parseSymbol(ParserType& parser, T* result, const False&)
 	{
 #if 0
 		std::cout << "rejected: '" << SYMBOL_NAME(T) << "'" << std::endl;
-		printSequence(parser.lexer); // rejected tokens
+		printSequence(parser.context); // rejected tokens
 #endif
 		return visitor.skip ? result : 0;
 	}
@@ -1279,19 +1279,19 @@ struct ContextBase
 	ParserOpaque* parser;
 	void* result;
 
-	template<typename ContextType>
-	ParserGeneric<ContextType>& getParser(ContextType& context)
+	template<typename WalkerType>
+	ParserGeneric<WalkerType>& getParser(WalkerType& walker)
 	{
-		parser->context = &context;
-		return *static_cast<ParserGeneric<ContextType>*>(parser);
+		parser->walker = &walker;
+		return *static_cast<ParserGeneric<WalkerType>*>(parser);
 	}
 };
 
 
 template<typename Walker, typename T>
-inline DeferredParse<typename Walker::Base, typename Walker::State> makeDeferredParse(const Walker& context, T* symbol)
+inline DeferredParse<typename Walker::Base, typename Walker::State> makeDeferredParse(const Walker& walker, T* symbol)
 {
-	DeferredParseBase<typename Walker::Base, typename Walker::State> result = { context, symbol, DeferredParseThunk<Walker, T>::thunk };
+	DeferredParseBase<typename Walker::Base, typename Walker::State> result = { walker, symbol, DeferredParseThunk<Walker, T>::thunk };
 	return result;
 }
 
@@ -1299,45 +1299,45 @@ template<typename ListType, typename Walker>
 inline void parseDeferred(ListType& deferred, Walker& walker)
 {
 	ParserOpaque& parser = *walker.parser;
-	const Token* position = parser.lexer.position;
+	const Token* position = parser.context.position;
 	for(ListType::iterator i = deferred.begin(); i != deferred.end(); ++i)
 	{
 		typename ListType::value_type& item = (*i);
 
-		parser.lexer.history.swap(item.buffer);
-		parser.lexer.position = parser.lexer.error = parser.lexer.history.tokens;
+		parser.context.history.swap(item.buffer);
+		parser.context.position = parser.context.error = parser.context.history.tokens;
 		item.context.parser = &parser;
 
 		void* result = item.func(walker, item.context, item.symbol);
 
 		if(result == 0
-			|| parser.lexer.position != parser.lexer.history.end() - 1)
+			|| parser.context.position != parser.context.history.end() - 1)
 		{
 			printError(parser);
 		}
 
-		parser.lexer.history.swap(item.buffer);
+		parser.context.history.swap(item.buffer);
 	}
-	parser.lexer.position = parser.lexer.error = position;
+	parser.context.position = parser.context.error = position;
 }
 
 template<typename ListType, typename ContextType, typename T, typename Func>
 inline T* defer(ListType& deferred, ContextType& walker, Func skipFunc, T* symbol)
 {
 	Parser& parser = *walker.parser;
-	const Token* first = parser.lexer.position;
+	const Token* first = parser.context.position;
 
 	skipFunc(parser);
 
-	size_t count = ::distance(parser.lexer.history, first, parser.lexer.position);
+	size_t count = ::distance(parser.context.history, first, parser.context.position);
 	if(count != 0)
 	{
-		T* result = parseHit(symbol, parser.lexer.allocator);
+		T* result = parseHit(symbol, parser.context.allocator);
 		deferred.push_back(makeDeferredParse(walker, result));
 
 		BacktrackBuffer buffer;
 		buffer.resize(count + 2); // adding 1 for EOF and 1 to allow use as circular buffer
-		for(const Token* p = first; p != parser.lexer.position; p = ::next(parser.lexer.history, p))
+		for(const Token* p = first; p != parser.context.position; p = ::next(parser.context.history, p))
 		{
 			*buffer.position++ = *p;
 		}

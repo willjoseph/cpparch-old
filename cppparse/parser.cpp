@@ -14,15 +14,15 @@ struct ScopedSkip
 	ScopedSkip(Parser& parser)
 		: parser(parser), position(0)
 	{
-		const Token* first = parser.lexer.position;
+		const Token* first = parser.context.position;
 		skipFunc(parser);
-		size_t count = ::distance(parser.lexer.history, first, parser.lexer.position);
+		size_t count = ::distance(parser.context.history, first, parser.context.position);
 		if(count != 0)
 		{
 			printPosition(first->position);
 			std::cout << "skipped: " << count << std::endl;
 			buffer.resize(count + 2); // adding 1 for EOF and 1 to allow use as circular buffer
-			for(const Token* p = first; p != parser.lexer.position; p = ::next(parser.lexer.history, p))
+			for(const Token* p = first; p != parser.context.position; p = ::next(parser.context.history, p))
 			{
 				*buffer.position++ = *first++;
 			}
@@ -30,20 +30,20 @@ struct ScopedSkip
 			*buffer.position++ = Token(boost::wave::T_EOF, "", nullPos, "");
 
 			parser.position -= count;
-			parser.lexer.backtrack(count);
-			position = parser.lexer.position;
-			parser.lexer.history.swap(buffer);
-			parser.lexer.position = parser.lexer.history.tokens;
+			parser.context.backtrack(count);
+			position = parser.context.position;
+			parser.context.history.swap(buffer);
+			parser.context.position = parser.context.history.tokens;
 		}
 	}
 	~ScopedSkip()
 	{
 		if(position != 0)
 		{
-			size_t count = (parser.lexer.position - parser.lexer.history.tokens);
-			parser.lexer.history.swap(buffer);
-			parser.lexer.position = position;
-			parser.lexer.advance(count);
+			size_t count = (parser.context.position - parser.context.history.tokens);
+			parser.context.history.swap(buffer);
+			parser.context.position = position;
+			parser.context.advance(count);
 		}
 	}
 };

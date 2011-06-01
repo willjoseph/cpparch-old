@@ -11,7 +11,7 @@
 
 typedef int (*VerifyFunc)(void* output, const PrintSymbolArgs& args);
 
-typedef void* (*ParseFunc)(ParserContext& lexer);
+typedef void* (*ParseFunc)(ParserContext& context);
 
 typedef const char* CharConstPointer;
 typedef ArrayRange<CharConstPointer> CharConstPointerRange;
@@ -56,75 +56,75 @@ int runTest(const Test& test)
 		instring = Concatenate(makeRange("#include \"$predefined_msvc.h\"\n" " #include \""), makeRange(test.input), makeRange("\"\n")).c_str();
 #endif
 
-		LexContext& context = createContext(instring, "$outer.cpp");
-		add_macro_definition(context, "__fastcall=", true);
-		add_macro_definition(context, "__thiscall=", true);
-		add_macro_definition(context, "__clrcall=", true);
-		add_macro_definition(context, "__stdcall=", true);
-		add_macro_definition(context, "__cdecl=", true);
-		add_macro_definition(context, "__pragma(arg)=", true);
-		add_macro_definition(context, "__inline=", true);
-		add_macro_definition(context, "__forceinline=", true);
-		add_macro_definition(context, "__w64=", true);
-		add_macro_definition(context, "__ptr64=", true);
-		add_macro_definition(context, "__ptr32=", true);
-		add_macro_definition(context, "_WCHAR_T_DEFINED=1", true);
-		add_macro_definition(context, "_NATIVE_WCHAR_T_DEFINED=1", true);
-		add_macro_definition(context, "__wchar_t=wchar_t", true);
-		add_macro_definition(context, "__declspec(modifiers)=", true);
-		add_macro_definition(context, "__uuidof(type)=GUID()", true);
-		add_macro_definition(context, "__alignof(type)=4", true);
+		LexContext& lexer = createContext(instring, "$outer.cpp");
+		add_macro_definition(lexer, "__fastcall=", true);
+		add_macro_definition(lexer, "__thiscall=", true);
+		add_macro_definition(lexer, "__clrcall=", true);
+		add_macro_definition(lexer, "__stdcall=", true);
+		add_macro_definition(lexer, "__cdecl=", true);
+		add_macro_definition(lexer, "__pragma(arg)=", true);
+		add_macro_definition(lexer, "__inline=", true);
+		add_macro_definition(lexer, "__forceinline=", true);
+		add_macro_definition(lexer, "__w64=", true);
+		add_macro_definition(lexer, "__ptr64=", true);
+		add_macro_definition(lexer, "__ptr32=", true);
+		add_macro_definition(lexer, "_WCHAR_T_DEFINED=1", true);
+		add_macro_definition(lexer, "_NATIVE_WCHAR_T_DEFINED=1", true);
+		add_macro_definition(lexer, "__wchar_t=wchar_t", true);
+		add_macro_definition(lexer, "__declspec(modifiers)=", true);
+		add_macro_definition(lexer, "__uuidof(type)=GUID()", true);
+		add_macro_definition(lexer, "__alignof(type)=4", true);
 
-		add_macro_definition(context, "__has_nothrow_constructor(type)=0", true);
-		add_macro_definition(context, "__has_nothrow_copy(type)=0", true);
-		add_macro_definition(context, "__has_trivial_assign(type)=0", true);
-		add_macro_definition(context, "__has_trivial_constructor(type)=0", true);
-		add_macro_definition(context, "__has_trivial_copy(type)=0", true);
-		add_macro_definition(context, "__has_trivial_destructor(type)=0", true);
-		add_macro_definition(context, "__has_virtual_destructor(type)=0", true);
-		add_macro_definition(context, "__is_abstract(type)=0", true);
-		add_macro_definition(context, "__is_base_of(base, derived)=0", true);
-		add_macro_definition(context, "__is_class(type)=0", true);
-		add_macro_definition(context, "__is_convertible_to(type)=0", true);
-		add_macro_definition(context, "__is_empty(type)=0", true);
-		add_macro_definition(context, "__is_enum(type)=0", true);
-		add_macro_definition(context, "__is_pod(type)=0", true);
-		add_macro_definition(context, "__is_polymorphic(type)=0", true);
-		add_macro_definition(context, "__is_union(type)=0", true);
+		add_macro_definition(lexer, "__has_nothrow_constructor(type)=0", true);
+		add_macro_definition(lexer, "__has_nothrow_copy(type)=0", true);
+		add_macro_definition(lexer, "__has_trivial_assign(type)=0", true);
+		add_macro_definition(lexer, "__has_trivial_constructor(type)=0", true);
+		add_macro_definition(lexer, "__has_trivial_copy(type)=0", true);
+		add_macro_definition(lexer, "__has_trivial_destructor(type)=0", true);
+		add_macro_definition(lexer, "__has_virtual_destructor(type)=0", true);
+		add_macro_definition(lexer, "__is_abstract(type)=0", true);
+		add_macro_definition(lexer, "__is_base_of(base, derived)=0", true);
+		add_macro_definition(lexer, "__is_class(type)=0", true);
+		add_macro_definition(lexer, "__is_convertible_to(type)=0", true);
+		add_macro_definition(lexer, "__is_empty(type)=0", true);
+		add_macro_definition(lexer, "__is_enum(type)=0", true);
+		add_macro_definition(lexer, "__is_pod(type)=0", true);
+		add_macro_definition(lexer, "__is_polymorphic(type)=0", true);
+		add_macro_definition(lexer, "__is_union(type)=0", true);
 
 		// optional: _DEBUG, _DLL, /Ze=_MSC_EXTENSIONS, /MT=_MT
-		add_macro_definition(context, "_WIN32", true);
-		add_macro_definition(context, "__FUNCTION__=\"<function-sig>\"", true);
-		add_macro_definition(context, "_INTEGRAL_MAX_BITS=64", true); // long long
-		add_macro_definition(context, "_M_IX86=600", true); // /GB: Blend
-		add_macro_definition(context, "_MSC_VER=1400", true); // Visual C++ 8
-		add_macro_definition(context, "_MSC_FULL_VER=140050727", true); // Visual C++ 8
+		add_macro_definition(lexer, "_WIN32", true);
+		add_macro_definition(lexer, "__FUNCTION__=\"<function-sig>\"", true);
+		add_macro_definition(lexer, "_INTEGRAL_MAX_BITS=64", true); // long long
+		add_macro_definition(lexer, "_M_IX86=600", true); // /GB: Blend
+		add_macro_definition(lexer, "_MSC_VER=1400", true); // Visual C++ 8
+		add_macro_definition(lexer, "_MSC_FULL_VER=140050727", true); // Visual C++ 8
 
-		add_macro_definition(context, "_CPPP_TEST", true);
+		add_macro_definition(lexer, "_CPPP_TEST", true);
 
 
 		for(const CharConstPointer* p = test.definitions.first; p != test.definitions.last; ++p)
 		{
-			add_macro_definition(context, *p, true);
+			add_macro_definition(lexer, *p, true);
 		}
 		for(const CharConstPointer* p = test.includes.first; p != test.includes.last; ++p)
 		{
-			add_include_path(context, *p);
-			add_sysinclude_path(context, *p);
+			add_include_path(lexer, *p);
+			add_sysinclude_path(lexer, *p);
 		}
 #if 1 // full parse
 		StringRange root(test.input, strrchr(test.input, '.'));
-		ParserContext lexer(context, Concatenate(root, makeRange(".prepro.cpp")).c_str());
-		PrintSymbolArgs args = { "out\\", lexer.getIncludeGraph() };
-		int result = test.verify(test.parse(lexer), args);
-		if(lexer.stats.count != 0)
+		ParserContext context(lexer, Concatenate(root, makeRange(".prepro.cpp")).c_str());
+		PrintSymbolArgs args = { "out\\", context.getIncludeGraph() };
+		int result = test.verify(test.parse(context), args);
+		if(context.stats.count != 0)
 		{
-			printPosition(lexer.stats.position);
-			std::cout << "backtrack: " << lexer.stats.symbol << ": " << lexer.stats.count << std::endl;
+			printPosition(context.stats.position);
+			std::cout << "backtrack: " << context.stats.symbol << ": " << context.stats.count << std::endl;
 		}
 #else // just print all the preprocessed tokens
-		LexIterator& first = createBegin(context);
-		LexIterator& last = createEnd(context);
+		LexIterator& first = createBegin(lexer);
+		LexIterator& last = createEnd(lexer);
 
 		//  The input stream is preprocessed for you while iterating over the range
 		//  [first, last)
@@ -134,7 +134,7 @@ int runTest(const Test& test)
 			increment(first);
 		}
 #endif
-		release(context);
+		release(lexer);
 	}
 	catch(LexError&)
 	{
