@@ -51,6 +51,10 @@ not consider any scopes outside the innermost enclosing namespace.
 	
 - refactor mingled stuff
 	- combine WalkerContext and ParserContext?
+	- WALK macros
+	
+- ScopeGuard appears in every default visit()?
+	- where is is actually required?
 	
 - avoid constructing complex *_NULL constants on the fly
 		

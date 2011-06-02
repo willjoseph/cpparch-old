@@ -186,6 +186,7 @@ struct List : private A
 	void splice(iterator position, List& other)
 	{
 		LIST_ASSERT(position == end());
+		LIST_ASSERT(&other != this);
 		// always splice at end for now
 		if(!other.empty())
 		{

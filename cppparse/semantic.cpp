@@ -444,13 +444,8 @@ struct WalkerState
 	{
 		if(!IsConcrete<T>::RESULT) // if the grammar-symbol is abstract
 		{
-			// the symbol was allocated by the parser and must be deallocated
+			// the underlying concrete symbol was allocated, but the parser does not hold a reference to it and cannot deallocate it
 			deleteSymbol(symbol, parser->context.allocator);
-		}
-		else
-		{
-			// the parser will deallocate the children of the symbol
-			SymbolAllocator<T>(parser->context.allocator).deallocate(symbol);
 		}
 		result = 0;
 		gIdentifierMismatch = IdentifierMismatch(id, declaration, expected);
@@ -842,10 +837,14 @@ const char* getIdentifierType(IdentifierFunc func)
 }
 
 
-#define TREEWALKER_HIT(walker) hit(walker)
-#define TREEWALKER_WALK_NOHIT(walker, symbol) SYMBOL_WALK(walker, symbol)
-#define TREEWALKER_WALK(walker, symbol) TREEWALKER_WALK_NOHIT(walker, symbol); TREEWALKER_HIT(walker)
-#define TREEWALKER_LEAF(symbol) SYMBOL_WALK(*this, symbol)
+#define TREEWALKER_WALK_TRY(walker, symbol) SYMBOL_WALK_TRY(walker, symbol)
+#define TREEWALKER_WALK_HIT(walker, symbol) SYMBOL_WALK_HIT(symbol); hit(walker)
+#define TREEWALKER_WALK(walker, symbol) TREEWALKER_WALK_TRY(walker, symbol); TREEWALKER_WALK_HIT(walker, symbol)
+
+#define TREEWALKER_LEAF_TRY(symbol) SYMBOL_WALK_TRY(*this, symbol)
+#define TREEWALKER_LEAF_HIT(symbol) SYMBOL_WALK_HIT(symbol)
+#define TREEWALKER_LEAF(symbol) TREEWALKER_LEAF_TRY(symbol); TREEWALKER_LEAF_HIT(symbol)
+
 #define TREEWALKER_DEFAULT PARSERCONTEXT_DEFAULT
 
 
@@ -881,13 +880,14 @@ struct NamespaceNameWalker : public WalkerBase
 	}
 	void visit(cpp::identifier* symbol)
 	{
-		TREEWALKER_LEAF(symbol);
+		TREEWALKER_LEAF_TRY(symbol);
 		declaration = findDeclaration(symbol->value, filter);
 		if(declaration == &gUndeclared
 			|| !isNamespaceName(*declaration))
 		{
 			return reportIdentifierMismatch(symbol, symbol->value, declaration, "namespace-name");
 		}
+		TREEWALKER_LEAF_HIT(symbol);
 		symbol->value.dec.p = declaration;
 	}
 };
@@ -942,7 +942,7 @@ struct UnqualifiedIdWalker : public WalkerBase
 	void visit(cpp::simple_template_id* symbol)
 	{
 		UncheckedTemplateIdWalker walker(getState());
-		TREEWALKER_WALK_NOHIT(walker, symbol);
+		TREEWALKER_WALK_TRY(walker, symbol);
 		id = walker.id;
 		if(!isTemplate
 			&& !isDependent(qualifying_p))
@@ -955,7 +955,7 @@ struct UnqualifiedIdWalker : public WalkerBase
 			}
 			declaration = findTemplateSpecialization(declaration, walker.arguments);
 		}
-		hit(walker);
+		TREEWALKER_WALK_HIT(walker, symbol);
 	}
 	void visit(cpp::template_id_operator_function* symbol)
 	{
@@ -978,7 +978,7 @@ struct UnqualifiedIdWalker : public WalkerBase
 	void visit(cpp::destructor_id* symbol)
 	{
 		// TODO: can destructor-id be dependent?
-		TREEWALKER_WALK(*this, symbol);
+		TREEWALKER_LEAF(symbol);
 		id = &symbol->name->value;
 	}
 };
@@ -1143,7 +1143,7 @@ struct DependentPrimaryExpressionWalker : public WalkerBase
 		— a nested-name-specifier or a qualified-id that names a member of an unknown specialization.
 		*/
 		IdExpressionWalker walker(getState());
-		TREEWALKER_WALK_NOHIT(walker, symbol);
+		TREEWALKER_WALK_TRY(walker, symbol);
 		declaration = walker.declaration;
 		if(walker.isIdentifier // expression is 'identifier'
 			&& (declaration == &gUndeclared // identifier was not previously declared
@@ -1173,7 +1173,7 @@ struct DependentPrimaryExpressionWalker : public WalkerBase
 				}
 			}
 		}
-		hit(walker);
+		TREEWALKER_WALK_HIT(walker, symbol);
 	}
 	void visit(cpp::primary_expression_parenthesis* symbol)
 	{
@@ -1205,7 +1205,7 @@ struct DependentPostfixExpressionWalker : public WalkerBase
 	void visit(cpp::postfix_expression_call* symbol)
 	{
 		ExpressionWalker walker(getState());
-		TREEWALKER_WALK_NOHIT(walker, symbol);
+		TREEWALKER_WALK_TRY(walker, symbol);
 		typeDependent.splice(walker.typeDependent);
 		if(id != 0)
 		{
@@ -1227,7 +1227,7 @@ struct DependentPostfixExpressionWalker : public WalkerBase
 				id->dec.p = &gDependentObject;
 			}
 		}
-		hit(walker);
+		TREEWALKER_WALK_HIT(walker, symbol);
 	}
 };
 
@@ -1280,7 +1280,7 @@ struct ExpressionWalker : public WalkerBase
 	void visit(cpp::id_expression* symbol)
 	{
 		IdExpressionWalker walker(getState());
-		TREEWALKER_WALK_NOHIT(walker, symbol);
+		TREEWALKER_WALK_TRY(walker, symbol);
 		Declaration* declaration = walker.declaration;
 		if(declaration != 0)
 		{
@@ -1305,7 +1305,7 @@ struct ExpressionWalker : public WalkerBase
 				addDependent(typeDependent, walker.qualifying.back());
 			}
 		}
-		hit(walker);
+		TREEWALKER_WALK_HIT(walker, symbol);
 	}
 	/* 14.6.2.2-1
 	... an expression is type-dependent if any subexpression is type-dependent.
@@ -1506,29 +1506,25 @@ struct TemplateIdWalker : public WalkerBase
 	}
 	void visit(cpp::identifier* symbol)
 	{
-		TREEWALKER_LEAF(symbol);
+		TREEWALKER_LEAF_TRY(symbol);
+		Declaration* declaration = &gDependentTemplate;
 		if(!isDependent(qualifying_p))
 		{
-			Declaration* declaration = findDeclaration(symbol->value, filter);
+			declaration = findDeclaration(symbol->value, filter);
 			if(declaration == &gUndeclared
 				|| !isTemplateName(*declaration))
 			{
 				return reportIdentifierMismatch(symbol, symbol->value, declaration, "template-name");
 			}
-			type.declaration = declaration;
-			symbol->value.dec.p = declaration;
 		}
 		else if(!isTypename)
 		{
 			// dependent type, are you missing a 'typename' keyword?
 			return reportIdentifierMismatch(symbol, symbol->value, &gUndeclared, "typename");
 		}
-		else
-		{
-			Declaration* declaration = &gDependentTemplate;
-			type.declaration = declaration;
-			symbol->value.dec.p = declaration;
-		}
+		type.declaration = declaration;
+		TREEWALKER_LEAF_HIT(symbol);
+		symbol->value.dec.p = declaration;
 	}
 	void visit(cpp::template_argument_clause* symbol)
 	{
@@ -1561,7 +1557,7 @@ struct TemplateIdWalker : public WalkerBase
 		}
 		else
 		{
-			TREEWALKER_WALK_NOHIT(walker, symbol);
+			TREEWALKER_WALK_TRY(walker, symbol);
 
 #if 0 // disable for testing
 			// after successfully parsing template-argument-clause
@@ -1580,7 +1576,7 @@ struct TemplateIdWalker : public WalkerBase
 			}
 #endif
 
-			hit(walker);
+			TREEWALKER_WALK_HIT(walker, symbol);
 		}
 
 
@@ -1606,30 +1602,26 @@ struct TypeNameWalker : public WalkerBase
 
 	void visit(cpp::identifier* symbol)
 	{
-		TREEWALKER_LEAF(symbol);
+		TREEWALKER_LEAF_TRY(symbol);
+		Declaration* declaration = &gDependentType;
 		if(!isDependent(qualifying_p))
 		{
-			Declaration* declaration = findDeclaration(symbol->value, filter);
+			declaration = findDeclaration(symbol->value, filter);
 			if(declaration == &gUndeclared
 				|| !isTypeName(*declaration))
 			{
 				return reportIdentifierMismatch(symbol, symbol->value, declaration, "type-name");
 			}
-			type.declaration = declaration;
 			type.isImplicitTemplateId = declaration->isTemplate;
-			symbol->value.dec.p = declaration;
  		}
 		else if(!isTypename)
 		{
 			// dependent type, are you missing a 'typename' keyword?
 			return reportIdentifierMismatch(symbol, symbol->value, &gUndeclared, "typename");
 		}
-		else
-		{
-			Declaration* declaration = &gDependentType;
-			type.declaration = declaration;
-			symbol->value.dec.p = declaration;
-		}
+		type.declaration = declaration;
+		TREEWALKER_LEAF_HIT(symbol);
+		symbol->value.dec.p = declaration;
 	}
 	void visit(cpp::simple_template_id* symbol)
 	{
@@ -1656,27 +1648,25 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 	}
 	void visit(cpp::identifier* symbol)
 	{
-		TREEWALKER_LEAF(symbol);
+		TREEWALKER_LEAF_TRY(symbol);
+		Declaration* declaration = &gDependentNested;
 		if(allowDependent
 			|| !isDependent(qualifying_p))
 		{
-			Declaration* declaration = findDeclaration(symbol->value, isNestedName);
+			declaration = findDeclaration(symbol->value, isNestedName);
 			if(declaration == &gUndeclared)
 			{
 				return reportIdentifierMismatch(symbol, symbol->value, declaration, "nested-name");
 			}
 			type = declaration;
-			symbol->value.dec.p = declaration;
 		}
-		else
-		{
-			symbol->value.dec.p = &gDependentNested;
-		}
+		TREEWALKER_LEAF_HIT(symbol);
+		symbol->value.dec.p = declaration;
 	}
 	void visit(cpp::simple_template_id* symbol)
 	{
 		UncheckedTemplateIdWalker walker(getState());
-		TREEWALKER_WALK_NOHIT(walker, symbol);
+		TREEWALKER_WALK_TRY(walker, symbol);
 		if(!isTemplate
 			&& (allowDependent
 				|| !isDependent(qualifying_p)))
@@ -1690,7 +1680,7 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 			type.declaration = declaration;
 			type.arguments.swap(walker.arguments);
 		}
-		hit(walker);
+		TREEWALKER_WALK_HIT(walker, symbol);
 	}
 };
 
@@ -2125,7 +2115,7 @@ struct ClassHeadWalker : public WalkerBase
 
 	void visit(cpp::class_key* symbol)
 	{
-		TREEWALKER_WALK(*this, symbol);
+		TREEWALKER_LEAF(symbol);
 		isUnion = symbol->id == cpp::class_key::UNION;
 	}
 	void visit(cpp::identifier* symbol)
@@ -2195,7 +2185,7 @@ struct UsingDeclarationWalker : public WalkerQualified
 	void visit(cpp::unqualified_id* symbol)
 	{
 		UnqualifiedIdWalker walker(getState());
-		TREEWALKER_WALK_NOHIT(walker, symbol);
+		TREEWALKER_WALK_TRY(walker, symbol);
 		if(!isTypename
 			&& !isDependent(qualifying_p))
 		{
@@ -2215,7 +2205,7 @@ struct UsingDeclarationWalker : public WalkerQualified
 			// TODO: introduce typename into enclosing namespace
 			walker.id->dec.p = &gDependentType;
 		}
-		hit(walker);
+		TREEWALKER_WALK_HIT(walker, symbol);
 	}
 	void visit(cpp::terminal<boost::wave::T_TYPENAME> symbol)
 	{
@@ -2277,12 +2267,13 @@ struct NamespaceAliasDefinitionWalker : public WalkerQualified
 	}
 	void visit(cpp::identifier* symbol)
 	{
-		TREEWALKER_LEAF(symbol);
-		if(id == 0)
+		TREEWALKER_LEAF_TRY(symbol);
+		if(id == 0) // first identifier
 		{
+			TREEWALKER_LEAF_HIT(symbol);
 			id = &symbol->value;
 		}
-		else
+		else // second identifier
 		{
 			Declaration* declaration = findDeclaration(symbol->value, isNamespace);
 			if(declaration == &gUndeclared)
@@ -2296,6 +2287,7 @@ struct NamespaceAliasDefinitionWalker : public WalkerQualified
 			declarations.push_back(declaration);
 #endif
 			id->dec.p = declaration;
+			TREEWALKER_LEAF_HIT(symbol);
 		}
 	}
 };
@@ -2908,9 +2900,9 @@ struct HandlerWalker : public WalkerBase
 	void visit(cpp::exception_declaration_default* symbol)
 	{
 		SimpleDeclarationWalker walker(getState());
-		TREEWALKER_WALK_NOHIT(walker, symbol);
+		TREEWALKER_WALK_TRY(walker, symbol);
 		walker.commit();
-		hit(walker);
+		TREEWALKER_WALK_HIT(walker, symbol);
 	}
 	void visit(cpp::compound_statement* symbol)
 	{
@@ -2974,13 +2966,14 @@ struct MemInitializerWalker : public WalkerBase
 	}
 	void visit(cpp::identifier* symbol)
 	{
-		TREEWALKER_LEAF(symbol);
+		TREEWALKER_LEAF_TRY(symbol);
 		Declaration* declaration = findDeclaration(symbol->value);
 		if(declaration == &gUndeclared
 			|| !isObject(*declaration))
 		{
 			return reportIdentifierMismatch(symbol, symbol->value, declaration, "object-name");
 		}
+		TREEWALKER_LEAF_HIT(symbol);
 		symbol->value.dec.p = declaration;
 	}
 	void visit(cpp::expression_list* symbol)
@@ -3133,17 +3126,17 @@ struct SimpleDeclarationWalker : public WalkerBase
 	void visit(cpp::parameter_declaration_default* symbol)
 	{
 		SimpleDeclarationWalker walker(getState(), isParameter, templateParameter);
-		TREEWALKER_WALK_NOHIT(walker, symbol);
+		TREEWALKER_WALK_TRY(walker, symbol);
 		walker.commit();
-		hit(walker);
+		TREEWALKER_WALK_HIT(walker, symbol);
 	}
 	// when parsing parameter-declaration, ensure that state of walker does not persist after failing parameter-declaration-abstract
 	void visit(cpp::parameter_declaration_abstract* symbol)
 	{
 		SimpleDeclarationWalker walker(getState(), isParameter, templateParameter);
-		TREEWALKER_WALK_NOHIT(walker, symbol);
+		TREEWALKER_WALK_TRY(walker, symbol);
 		walker.commit();
-		hit(walker);
+		TREEWALKER_WALK_HIT(walker, symbol);
 	}
 	void visit(cpp::decl_specifier_seq* symbol)
 	{
@@ -3257,7 +3250,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		}
 		else
 		{
-			TREEWALKER_WALK(*this, symbol);
+			TREEWALKER_LEAF(symbol);
 		}
 	}
 	// handle assignment-expression(s) in initializer
@@ -3300,7 +3293,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		}
 		else
 		{
-			TREEWALKER_WALK(*this, symbol);
+			TREEWALKER_LEAF(symbol);
 		}
 		guard.hit();
 	}
@@ -3327,7 +3320,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		}
 		else // in case of an out-of-line constructor-definition
 		{
-			TREEWALKER_WALK(*this, symbol);
+			TREEWALKER_LEAF(symbol);
 		}
 	}
 
@@ -3356,13 +3349,13 @@ struct SimpleDeclarationWalker : public WalkerBase
 	void visit(cpp::simple_declaration_named* symbol)
 	{
 		DeclareEtsGuard guard(*this); // the point of declaration for the ETS in the decl-specifier-seq is just before the declarator
-		TREEWALKER_WALK(*this, symbol);
+		TREEWALKER_LEAF(symbol);
 		guard.hit();
 	}
 	void visit(cpp::member_declaration_named* symbol)
 	{
 		DeclareEtsGuard guard(*this);
-		TREEWALKER_WALK(*this, symbol);
+		TREEWALKER_LEAF(symbol);
 		guard.hit();
 
 		// symbols may be deferred during attempt to parse void f(int i = j) {}
@@ -3376,7 +3369,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 	void visit(cpp::function_definition* symbol)
 	{
 		DeclareEtsGuard guard(*this);
-		TREEWALKER_WALK(*this, symbol);
+		TREEWALKER_LEAF(symbol);
 		guard.hit();
 
 		if(WalkerState::deferred != 0
@@ -3477,7 +3470,7 @@ struct TypeParameterWalker : public WalkerBase
 	void visit(cpp::id_expression* symbol)
 	{
 		IdExpressionWalker walker(getState());
-		TREEWALKER_WALK_NOHIT(walker, symbol);
+		TREEWALKER_WALK_TRY(walker, symbol);
 		Declaration* declaration = walker.declaration;
 		if(declaration != 0)
 		{
@@ -3488,7 +3481,7 @@ struct TypeParameterWalker : public WalkerBase
 			}
 			walker.id->dec.p = declaration;
 		}
-		hit(walker);
+		TREEWALKER_WALK_HIT(walker, symbol);
 	}
 };
 
