@@ -245,12 +245,11 @@ struct WalkerState
 	const Type* qualifying_p;
 	Scope* templateParams;
 	Scope* templateEnclosing;
-	bool* ambiguity;
 	DeferredSymbols* deferred;
 	CachedSymbols* cached;
 
 	WalkerState(WalkerContext& context)
-		: context(context), enclosing(0), qualifying_p(0), templateParams(0), templateEnclosing(0), ambiguity(0), deferred(0), cached(0)
+		: context(context), enclosing(0), qualifying_p(0), templateParams(0), templateEnclosing(0), deferred(0), cached(0)
 	{
 	}
 	const WalkerState& getState() const
@@ -316,10 +315,7 @@ struct WalkerState
 		size_t templateParameter = INDEX_INVALID,
 		const Dependent& valueDependent = DEPENDENT_NULL)
 	{
-		if(ambiguity != 0)
-		{
-			*ambiguity = true;
-		}
+		SEMANTIC_ASSERT(parent != 0);
 
 		Declaration other(allocator, parent, name, type, enclosed, specifiers, isTemplate, arguments, templateParameter, valueDependent);
 		if(name.value != 0) // unnamed class/struct/union/enum
@@ -445,7 +441,7 @@ struct WalkerState
 		if(!IsConcrete<T>::RESULT) // if the grammar-symbol is abstract
 		{
 			// the underlying concrete symbol was allocated, but the parser does not hold a reference to it and cannot deallocate it
-			deleteSymbol(symbol, parser->context.allocator);
+			deleteSymbol(symbol, parser->context);
 		}
 		result = 0;
 		gIdentifierMismatch = IdentifierMismatch(id, declaration, expected);
@@ -838,11 +834,11 @@ const char* getIdentifierType(IdentifierFunc func)
 
 
 #define TREEWALKER_WALK_TRY(walker, symbol) SYMBOL_WALK_TRY(walker, symbol)
-#define TREEWALKER_WALK_HIT(walker, symbol) SYMBOL_WALK_HIT(symbol); hit(walker)
+#define TREEWALKER_WALK_HIT(walker, symbol) SYMBOL_WALK_HIT(walker, symbol); hit(walker)
 #define TREEWALKER_WALK(walker, symbol) TREEWALKER_WALK_TRY(walker, symbol); TREEWALKER_WALK_HIT(walker, symbol)
 
 #define TREEWALKER_LEAF_TRY(symbol) SYMBOL_WALK_TRY(*this, symbol)
-#define TREEWALKER_LEAF_HIT(symbol) SYMBOL_WALK_HIT(symbol)
+#define TREEWALKER_LEAF_HIT(symbol) SYMBOL_WALK_HIT(*this, symbol)
 #define TREEWALKER_LEAF(symbol) TREEWALKER_LEAF_TRY(symbol); TREEWALKER_LEAF_HIT(symbol)
 
 #define TREEWALKER_DEFAULT PARSERCONTEXT_DEFAULT
@@ -1151,6 +1147,7 @@ struct DependentPrimaryExpressionWalker : public WalkerBase
 		{
 			// defer name-lookup: this identifier may be a dependent-name.
 			id = walker.id;
+			TREEWALKER_WALK_HIT(walker, symbol);
 		}
 		else
 		{
@@ -1161,11 +1158,13 @@ struct DependentPrimaryExpressionWalker : public WalkerBase
 				{
 					return reportIdentifierMismatch(symbol, *walker.id, declaration, "object-name");
 				}
-				addDependentType(typeDependent, declaration);
+				TREEWALKER_WALK_HIT(walker, symbol);
 				walker.id->dec.p = declaration;
+				addDependentType(typeDependent, declaration);
 			}
 			else if(walker.id != 0)
 			{
+				TREEWALKER_WALK_HIT(walker, symbol);
 				walker.id->dec.p = &gDependentObject;
 				if(!walker.qualifying.empty())
 				{
@@ -1173,7 +1172,6 @@ struct DependentPrimaryExpressionWalker : public WalkerBase
 				}
 			}
 		}
-		TREEWALKER_WALK_HIT(walker, symbol);
 	}
 	void visit(cpp::primary_expression_parenthesis* symbol)
 	{
@@ -3090,6 +3088,8 @@ struct SimpleDeclarationWalker : public WalkerBase
 	{
 	}
 
+	// commit the declaration to the enclosing scope.
+	// invoked when no further ambiguities remain.
 	void commit()
 	{
 		if(id != 0)
@@ -3104,10 +3104,10 @@ struct SimpleDeclarationWalker : public WalkerBase
 
 			enclosing = parent;
 
-			if(enclosed != 0)
+			if(enclosed != 0) // if the declaration has a parameter-declaration-clause
 			{
 				enclosed->name = declaration->getName();
-				enclosing = enclosed; // 3.3.2.1 parameter scope
+				enclosing = enclosed; // subsequent declarations are contained by the parameter-scope - see 3.3.2-1: parameter scope
 			}
 			templateParams = 0;
 
@@ -3176,7 +3176,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		}
 
 		TREEWALKER_WALK(walker, symbol);
-		parent = walker.enclosing;
+		parent = walker.enclosing; // if the id-expression in the declarator is a qualified-id, this is the qualifying scope
 		id = walker.id;
 		enclosed = walker.paramScope;
 		/* temp.dep.constexpr

@@ -135,10 +135,11 @@ struct LinearAllocator
 	typedef std::vector<Page*> Pages;
 	Pages pages;
 	size_t position;
+	bool pendingBacktrack;
 	static void* debugAddress;
 	static char debugValue[4];
 	LinearAllocator()
-		: position(0)
+		: position(0), pendingBacktrack(false)
 	{
 	}
 	~LinearAllocator()
@@ -161,6 +162,9 @@ struct LinearAllocator
 	}
 	void* allocate(size_t size)
 	{
+#if 0//def ALLOCATOR_DEBUG
+		ALLOCATOR_ASSERT(!pendingBacktrack);
+#endif
 		size_t available = sizeof(Page) - (position & Page::MASK);
 		if(size > available)
 		{
