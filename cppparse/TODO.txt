@@ -100,8 +100,8 @@ not consider any scopes outside the innermost enclosing namespace.
 							- isDependent causes construction of empty Scope, empty multimap allocates a node
 							- ParameterDeclarationClauseWalker creates a new scope
 								- create scope on stack? Scope::Declarations multimap allocates a node
-								- implement scope-swap
-									- Scope::parent pointer fixup required?
+								- implement scope-swap?
+									- Scope::parent/Declaration::scope pointer fixup required?
 						- on successful parse, replace cache with symbol
 						- perform cache lookup for each subsequent parse attempt, using rtti
 						- on cache hit, return cached parse-tree, indicate that result is cached
