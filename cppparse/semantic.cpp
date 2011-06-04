@@ -872,22 +872,45 @@ struct Walker
 {
 
 
+struct IsHiddenNamespaceName
+{
+	Declaration* hidingType; // valid if the declaration is hidden by a type name
+
+	IsHiddenNamespaceName()
+		: hidingType(0)
+	{
+	}
+
+	bool operator()(const Declaration& declaration)
+	{
+		if(isNamespaceName(declaration))
+		{
+			return true;
+		}
+		if(hidingType == 0
+			&& isTypeName(declaration))
+		{
+			hidingType = const_cast<Declaration*>(&declaration); // TODO: fix const
+		}
+		return false;
+	}
+};
+
 struct NamespaceNameWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
 	Declaration* declaration;
-	LookupFilter filter;
-	NamespaceNameWalker(const WalkerState& state, LookupFilter filter = IsAny())
-		: WalkerBase(state), declaration(0), filter(filter)
+	IsHiddenNamespaceName filter;
+	NamespaceNameWalker(const WalkerState& state)
+		: WalkerBase(state), declaration(0)
 	{
 	}
 	void visit(cpp::identifier* symbol)
 	{
 		TREEWALKER_LEAF_TRY(symbol);
-		declaration = findDeclaration(symbol->value, filter);
-		if(declaration == &gUndeclared
-			|| !isNamespaceName(*declaration))
+		declaration = findDeclaration(symbol->value, makeLookupFilter(filter));
+		if(declaration == &gUndeclared)
 		{
 			return reportIdentifierMismatch(symbol, symbol->value, declaration, "namespace-name");
 		}
@@ -1748,8 +1771,13 @@ struct NestedNameSpecifierPrefixWalker : public WalkerBase
 	}
 	void visit(cpp::namespace_name* symbol)
 	{
-		NamespaceNameWalker walker(getState(), IsNestedName());
-		TREEWALKER_WALK(walker, symbol);
+		NamespaceNameWalker walker(getState());
+		TREEWALKER_WALK_TRY(walker, symbol);
+		if(walker.filter.hidingType != 0)
+		{
+			return reportIdentifierMismatch(symbol, walker.filter.hidingType->getName(), walker.filter.hidingType, "namespace-name");
+		}
+		TREEWALKER_WALK_HIT(walker, symbol);
 		type = walker.declaration;
 	}
 	void visit(cpp::type_name* symbol)
@@ -2283,7 +2311,7 @@ struct UsingDirectiveWalker : public WalkerQualified
 		When looking up a namespace-name in a using-directive or namespace-alias-definition, only namespace
 		names are considered.
 		*/
-		NamespaceNameWalker walker(getState(), IsNamespaceName());
+		NamespaceNameWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		if(!findScope(enclosing, walker.declaration->enclosed))
 		{

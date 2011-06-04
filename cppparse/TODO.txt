@@ -65,6 +65,11 @@ not consider any scopes outside the innermost enclosing namespace.
 		- type-name lookup hidden by constructor
 		
 - remove LookupResult
+
+- generalised solution for re-using failed parse-tree
+	- requires that re-parsing a symbol in-place behaves the same way
+		- make type-name parse behave the same way inside or outside a nested-name-specifier-prefix
+			- defer rejection of type names hidden by non-type/namespace names
 		
 - optimise parsing of cpptree?
 	- profile parse, find out exactly what's taking so long
