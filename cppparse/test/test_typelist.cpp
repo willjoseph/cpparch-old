@@ -24,6 +24,10 @@ struct TypeList
 typedef TypeList<int, TypeListEnd> Test1;
 
 #if 0
+typedef TypeList<int(int a), TypeListEnd> Test3;
+#endif
+
+#if 0
 // pathological case for parser
 typedef TypeList<int,
 	TypeList<int,

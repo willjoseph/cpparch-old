@@ -135,11 +135,11 @@ struct LinearAllocator
 	typedef std::vector<Page*> Pages;
 	Pages pages;
 	size_t position;
-	bool pendingBacktrack;
+	size_t pendingBacktrack;
 	static void* debugAddress;
 	static char debugValue[4];
 	LinearAllocator()
-		: position(0), pendingBacktrack(false)
+		: position(0), pendingBacktrack(0)
 	{
 	}
 	~LinearAllocator()
@@ -162,9 +162,7 @@ struct LinearAllocator
 	}
 	void* allocate(size_t size)
 	{
-#if 0//def ALLOCATOR_DEBUG
-		ALLOCATOR_ASSERT(!pendingBacktrack);
-#endif
+		checkAllocation();
 		size_t available = sizeof(Page) - (position & Page::MASK);
 		if(size > available)
 		{
@@ -186,15 +184,31 @@ struct LinearAllocator
 	}
 	void backtrack(size_t original)
 	{
+		ALLOCATOR_ASSERT(original <= position);
 #ifdef ALLOCATOR_DEBUG
-		Pages::iterator first = pages.begin() + original / sizeof(Page);
-		Pages::iterator last = pages.begin() + position / sizeof(Page);
+		if(pendingBacktrack == 0)
+		{
+			pendingBacktrack = position;
+		}
+#endif	
+		position = original;
+	}
+	void checkAllocation()
+	{
+#ifdef ALLOCATOR_DEBUG
+		if(pendingBacktrack == 0)
+		{
+			return;
+		}
+
+		Pages::iterator first = pages.begin() + position / sizeof(Page);
+		Pages::iterator last = pages.begin() + pendingBacktrack / sizeof(Page);
 		for(Pages::iterator i = first; i != pages.end(); ++i)
 		{
 			ALLOCATOR_ASSERT(!checked || 
 				!isAllocated(
-					(*i)->buffer + (i == first ? original % sizeof(Page) : 0),
-					(*i)->buffer + (i == last ? position % sizeof(Page) : sizeof(Page))
+					(*i)->buffer + (i == first ? position % sizeof(Page) : 0),
+					(*i)->buffer + (i == last ? pendingBacktrack % sizeof(Page) : sizeof(Page))
 				)
 			);
 			if(i == last)
@@ -202,8 +216,9 @@ struct LinearAllocator
 				break;
 			}
 		}
+
+		pendingBacktrack = 0;
 #endif
-		position = original;
 	}	
 };
 

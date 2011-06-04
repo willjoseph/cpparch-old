@@ -85,9 +85,10 @@ not consider any scopes outside the innermost enclosing namespace.
 		- only for the duration of parsing simple-type-specifier
 		- cache forward-declarations within template-argument-clause
 			- problem: declaration added to enclosing scope, address taken
-				- store declaration by reference
+				- store declaration by reference?
 				- should declaration be added to enclosing scope?
 					- name not visible in enclosing namespace scope (Comeau, msvc)
+			- problem: declaration of function-type contains parameter-scope
 			- avoid deallocation/destruction of cached parse-tree
 				- when nested-name-specifier parse fails at '::', preserve parse-tree allocation and do not destroy template-argument-clause
 				- relocate parse-tree: generate relocateSymbol()?

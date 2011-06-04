@@ -1550,14 +1550,14 @@ struct TemplateIdWalker : public WalkerBase
 			}
 			parser->position = p->count;
 			parser->advance();
-			result = symbol;
-			hit(walker);
+			TREEWALKER_WALK_HIT(walker, symbol);
 		}
 		else
 		{
 			TREEWALKER_WALK_TRY(walker, symbol);
+			SYMBOL_WALK_HIT(walker, symbol); 
 
-#if 0 // disable for testing
+#if 0 // work in progress. Fails when template-argument-list contains a function-type declaration with named arguments. The parameter scope is not preserved.
 			// after successfully parsing template-argument-clause
 			if(WalkerState::cached != 0) // if we are within a simple-type-specifier
 			{
@@ -1574,7 +1574,7 @@ struct TemplateIdWalker : public WalkerBase
 			}
 #endif
 
-			TREEWALKER_WALK_HIT(walker, symbol);
+			hit(walker);
 		}
 
 

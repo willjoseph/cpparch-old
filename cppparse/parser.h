@@ -328,7 +328,6 @@ struct ParserContext : Lexer
 	void backtrack(size_t count, const char* symbol = 0)
 	{
 		Lexer::backtrack(count, symbol);
-		allocator.pendingBacktrack = true;
 	}
 };
 
@@ -497,7 +496,6 @@ struct SymbolAllocator<T, false>
 template<typename T>
 T* createSymbol(Parser& parser, T*)
 {
-	parser.context.allocator.pendingBacktrack = false;
 	return new(parser.context.allocator.allocate(sizeof(T))) T;
 }
 
@@ -599,7 +597,6 @@ struct SymbolHolder<T, false>
 template<typename ParserType, typename T>
 T* parseHit(ParserType& parser, T* p)
 {
-	parser.context.allocator.pendingBacktrack = false;
 	return SymbolHolder<T>::hit(p, parser.context);
 }
 
