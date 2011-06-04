@@ -57,6 +57,14 @@ not consider any scopes outside the innermost enclosing namespace.
 	- where is is actually required?
 	
 - avoid constructing complex *_NULL constants on the fly
+
+- test-cases
+	- document existing tests
+	- ensure there are tests for:
+		- nested-name-specifier-prefix: name lookup ignores object/function/enumerator names
+		- type-name lookup hidden by constructor
+		
+- remove LookupResult
 		
 - optimise parsing of cpptree?
 	- profile parse, find out exactly what's taking so long

@@ -1053,21 +1053,64 @@ inline Declaration* findTemplateSpecialization(Declaration* declaration, const T
 
 
 
+
+struct LookupFilter
+{
+	typedef bool (*Function)(void* context, const Declaration& declaration);
+	Function function;
+	void* context;
+
+	bool operator()(const Declaration& declaration)
+	{
+		return function(context, declaration);
+	}
+};
+
 inline bool isAny(const Declaration& declaration)
 {
 	// always ignore constructors during name-lookup
 	return declaration.type.declaration != &gCtor;
 }
 
-typedef bool (*LookupFilter)(const Declaration&);
+template<bool filter(const Declaration& declaration)>
+struct LookupFilterDefault : LookupFilter
+{
+	LookupFilterDefault()
+	{
+		LookupFilter::function = apply;
+		LookupFilter::context = 0;
+	}
+	static bool apply(void*, const Declaration& declaration)
+	{
+		return filter(declaration);
+	}
+};
+
+typedef LookupFilterDefault<isAny> IsAny;
+
+template<typename T>
+struct LookupFilterThunk
+{
+	static bool apply(void* context, const Declaration& declaration)
+	{
+		return (*static_cast<T*>(context))(declaration);
+	}
+};
+
+template<typename T>
+LookupFilter makeLookupFilter(T& filter)
+{
+	LookupFilter result = { LookupFilterThunk<T>::apply, &filter };
+	return result;
+}
+
 
 struct LookupResult
 {
 	Declaration* filtered; // the declaration found by the name-lookup, using the filter
-	Declaration* original; // the declaration found without using the filter
 
 	LookupResult()
-		: filtered(0), original(0)
+		: filtered(0)
 	{
 	}
 	operator Declaration*() const
@@ -1079,22 +1122,12 @@ struct LookupResult
 	bool append(const LookupResult& other)
 	{
 		filtered = other.filtered;
-
-#if 0 // experimental, not currently used
-		// only if we didn't already find a declaration
-		if(original == 0)
-		{
-			// store the first instance of the declaration
-			original = other.original;
-		}
-#endif
-
 		return filtered != 0;
 	}
 };
 
 
-inline LookupResult findDeclaration(Scope::Declarations& declarations, const Identifier& id, LookupFilter filter = isAny, bool isBase = false)
+inline LookupResult findDeclaration(Scope::Declarations& declarations, const Identifier& id, LookupFilter filter = IsAny(), bool isBase = false)
 {
 	Scope::Declarations::iterator i = declarations.upper_bound(id.value);
 
@@ -1106,12 +1139,6 @@ inline LookupResult findDeclaration(Scope::Declarations& declarations, const Ide
 		if(!isBase
 			|| (*i).second.templateParameter == INDEX_INVALID) // template-params of base-class are not visible outside the class
 		{
-#if 0 // experimental, not currently used
-			if(result.original == 0)
-			{
-				result.original = &(*i).second;
-			}
-#endif
 			if(filter((*i).second))
 			{
 				result.filtered = &(*i).second;
@@ -1123,9 +1150,9 @@ inline LookupResult findDeclaration(Scope::Declarations& declarations, const Ide
 	return result;
 }
 
-inline LookupResult findDeclaration(Scope::Declarations& declarations, Types& bases, const Identifier& id, LookupFilter filter = isAny, bool isBase = false);
+inline LookupResult findDeclaration(Scope::Declarations& declarations, Types& bases, const Identifier& id, LookupFilter filter = IsAny(), bool isBase = false);
 
-inline LookupResult findDeclaration(Types& bases, const Identifier& id, LookupFilter filter = isAny)
+inline LookupResult findDeclaration(Types& bases, const Identifier& id, LookupFilter filter = IsAny())
 {
 	LookupResult result;
 	for(Types::iterator i = bases.begin(); i != bases.end(); ++i)
@@ -1146,7 +1173,7 @@ inline LookupResult findDeclaration(Types& bases, const Identifier& id, LookupFi
 	return result;
 }
 
-inline LookupResult findDeclaration(Scope::Scopes& scopes, const Identifier& id, LookupFilter filter = isAny)
+inline LookupResult findDeclaration(Scope::Scopes& scopes, const Identifier& id, LookupFilter filter = IsAny())
 {
 	LookupResult result;
 	for(Scope::Scopes::iterator i = scopes.begin(); i != scopes.end(); ++i)
@@ -1186,7 +1213,7 @@ inline LookupResult findDeclaration(Scope::Declarations& declarations, Types& ba
 	return result;
 }
 
-inline LookupResult findDeclaration(Scope& scope, const Identifier& id, LookupFilter filter = isAny)
+inline LookupResult findDeclaration(Scope& scope, const Identifier& id, LookupFilter filter = IsAny())
 {
 #ifdef LOOKUP_DEBUG
 	std::cout << "searching '";

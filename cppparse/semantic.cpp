@@ -257,7 +257,7 @@ struct WalkerState
 		return *this;
 	}
 
-	LookupResult findDeclaration(const Identifier& id, LookupFilter filter = isAny)
+	LookupResult findDeclaration(const Identifier& id, LookupFilter filter = IsAny())
 	{
 		ProfileScope profile(gProfileLookup);
 #ifdef LOOKUP_DEBUG
@@ -794,10 +794,15 @@ bool isTypeName(const Declaration& declaration)
 	return isType(declaration);
 }
 
+typedef LookupFilterDefault<isTypeName> IsTypeName;
+
 bool isNamespaceName(const Declaration& declaration)
 {
 	return isNamespace(declaration);
 }
+
+typedef LookupFilterDefault<isNamespaceName> IsNamespaceName;
+
 
 bool isTemplateName(const Declaration& declaration)
 {
@@ -810,6 +815,9 @@ bool isNestedName(const Declaration& declaration)
 	return isTypeName(declaration)
 		|| isNamespaceName(declaration);
 }
+
+typedef LookupFilterDefault<isNestedName> IsNestedName;
+
 
 const char* getIdentifierType(IdentifierFunc func)
 {
@@ -870,7 +878,7 @@ struct NamespaceNameWalker : public WalkerBase
 
 	Declaration* declaration;
 	LookupFilter filter;
-	NamespaceNameWalker(const WalkerState& state, LookupFilter filter = isAny)
+	NamespaceNameWalker(const WalkerState& state, LookupFilter filter = IsAny())
 		: WalkerBase(state), declaration(0), filter(filter)
 	{
 	}
@@ -1476,6 +1484,37 @@ struct TemplateArgumentListWalker : public WalkerBase
 	}
 };
 
+struct IsHiddenTypeName
+{
+	Declaration* nonType; // valid if the declaration is hidden by a non-type name
+	Declaration* hidingNamespace; // valid if the declaration is hidden by a namespace name
+
+	IsHiddenTypeName()
+		: nonType(0), hidingNamespace(0)
+	{
+	}
+
+	bool operator()(const Declaration& declaration)
+	{
+		if(isTypeName(declaration))
+		{
+			return true;
+		}
+		if(nonType == 0
+			&& isAny(declaration))
+		{
+			nonType = const_cast<Declaration*>(&declaration); // TODO: fix const
+		}
+		if(hidingNamespace == 0
+			&& isNamespaceName(declaration))
+		{
+			hidingNamespace = const_cast<Declaration*>(&declaration); // TODO: fix const
+		}
+		return false;
+	}
+};
+
+
 typedef std::list<Declaration> DeclarationCache;
 
 struct TemplateArgumentListCache
@@ -1496,10 +1535,10 @@ struct TemplateIdWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	Type type;
-	LookupFilter filter;
+	IsHiddenTypeName filter;
 	bool isTypename; // true if a type is expected in this context; e.g. following 'typename', preceding '::'
-	TemplateIdWalker(const WalkerState& state, LookupFilter filter = isAny, bool isTypename = false)
-		: WalkerBase(state), type(0, context), filter(filter), isTypename(isTypename)
+	TemplateIdWalker(const WalkerState& state, bool isTypename = false)
+		: WalkerBase(state), type(0, context), isTypename(isTypename)
 	{
 	}
 	void visit(cpp::identifier* symbol)
@@ -1508,9 +1547,8 @@ struct TemplateIdWalker : public WalkerBase
 		Declaration* declaration = &gDependentTemplate;
 		if(!isDependent(qualifying_p))
 		{
-			declaration = findDeclaration(symbol->value, filter);
-			if(declaration == &gUndeclared
-				|| !isTemplateName(*declaration))
+			declaration = findDeclaration(symbol->value, makeLookupFilter(filter));
+			if(declaration == &gUndeclared)
 			{
 				return reportIdentifierMismatch(symbol, symbol->value, declaration, "template-name");
 			}
@@ -1591,10 +1629,10 @@ struct TypeNameWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	Type type;
-	LookupFilter filter;
+	IsHiddenTypeName filter;
 	bool isTypename; // true if a type is expected in this context; e.g. following 'typename', preceding '::'
-	TypeNameWalker(const WalkerState& state, LookupFilter filter = isAny, bool isTypename = false)
-		: WalkerBase(state), type(0, context), filter(filter), isTypename(isTypename)
+	TypeNameWalker(const WalkerState& state, bool isTypename = false)
+		: WalkerBase(state), type(0, context), isTypename(isTypename)
 	{
 	}
 
@@ -1604,9 +1642,8 @@ struct TypeNameWalker : public WalkerBase
 		Declaration* declaration = &gDependentType;
 		if(!isDependent(qualifying_p))
 		{
-			declaration = findDeclaration(symbol->value, filter);
-			if(declaration == &gUndeclared
-				|| !isTypeName(*declaration))
+			declaration = findDeclaration(symbol->value, makeLookupFilter(filter));
+			if(declaration == &gUndeclared)
 			{
 				return reportIdentifierMismatch(symbol, symbol->value, declaration, "type-name");
 			}
@@ -1623,9 +1660,10 @@ struct TypeNameWalker : public WalkerBase
 	}
 	void visit(cpp::simple_template_id* symbol)
 	{
-		TemplateIdWalker walker(getState(), filter, isTypename);
+		TemplateIdWalker walker(getState(), isTypename);
 		TREEWALKER_WALK(walker, symbol);
 		type.swap(walker.type);
+		filter = walker.filter;
 	}
 };
 
@@ -1651,7 +1689,7 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 		if(allowDependent
 			|| !isDependent(qualifying_p))
 		{
-			declaration = findDeclaration(symbol->value, isNestedName);
+			declaration = findDeclaration(symbol->value, IsNestedName());
 			if(declaration == &gUndeclared)
 			{
 				return reportIdentifierMismatch(symbol, symbol->value, declaration, "nested-name");
@@ -1669,7 +1707,7 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 			&& (allowDependent
 				|| !isDependent(qualifying_p)))
 		{
-			Declaration* declaration = findDeclaration(*walker.id, isNestedName);
+			Declaration* declaration = findDeclaration(*walker.id, IsNestedName());
 			if(declaration == &gUndeclared)
 			{
 				return reportIdentifierMismatch(symbol, *walker.id, declaration, "nested-name");
@@ -1710,7 +1748,7 @@ struct NestedNameSpecifierPrefixWalker : public WalkerBase
 	}
 	void visit(cpp::namespace_name* symbol)
 	{
-		NamespaceNameWalker walker(getState(), isNestedName);
+		NamespaceNameWalker walker(getState(), IsNestedName());
 		TREEWALKER_WALK(walker, symbol);
 		type = walker.declaration;
 	}
@@ -1718,8 +1756,13 @@ struct NestedNameSpecifierPrefixWalker : public WalkerBase
 	{
 		static unsigned gNNDepth = 0;
 		ScopeDepth depth(gNNDepth);
-		TypeNameWalker walker(getState(), isNestedName, true);
-		TREEWALKER_WALK(walker, symbol);
+		TypeNameWalker walker(getState(), true);
+		TREEWALKER_WALK_TRY(walker, symbol);
+		if(walker.filter.hidingNamespace != 0)
+		{
+			return reportIdentifierMismatch(symbol, walker.filter.hidingNamespace->getName(), walker.filter.hidingNamespace, "type-name");
+		}
+		TREEWALKER_WALK_HIT(walker, symbol);
 #if 0
 		std::cout << "nested_name_specifier_prefix: type-name: " << gNNDepth << std::endl;
 		printSymbol(symbol);
@@ -1793,17 +1836,22 @@ struct TypeSpecifierWalker : public WalkerQualified
 		type.swap(walker.type);
 		fundamental = walker.fundamental;
 	}
-	void visit(cpp::simple_type_specifier_template* symbol)
+	void visit(cpp::simple_type_specifier_template* symbol) // X::template Y<Z>
 	{
 		TypeSpecifierWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		type.swap(walker.type);
 		fundamental = walker.fundamental;
 	}
-	void visit(cpp::type_name* symbol)
+	void visit(cpp::type_name* symbol) // simple_type_specifier_name
 	{
 		TypeNameWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
+		TREEWALKER_WALK_TRY(walker, symbol);
+		if(walker.filter.nonType != 0)
+		{
+			return reportIdentifierMismatch(symbol, walker.filter.nonType->getName(), walker.filter.nonType, "type-name");
+		}
+		TREEWALKER_WALK_HIT(walker, symbol);
 		SEMANTIC_ASSERT(walker.type.declaration != 0);
 		type.swap(walker.type);
 		type.qualifying.swap(qualifying);
@@ -1812,13 +1860,13 @@ struct TypeSpecifierWalker : public WalkerQualified
 	{
 		setQualifyingGlobal();
 	}
-	void visit(cpp::nested_name_specifier* symbol)
+	void visit(cpp::nested_name_specifier* symbol) // simple_type_specifier_name | simple_type_specifier_template
 	{
 		NestedNameSpecifierWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		swapQualifying(walker.qualifying);
 	}
-	void visit(cpp::simple_template_id* symbol) 
+	void visit(cpp::simple_template_id* symbol) // simple_type_specifier_template
 	{
 		TemplateIdWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
@@ -2091,7 +2139,7 @@ struct BaseSpecifierWalker : public WalkerQualified
 		called a direct base class for the class being defined. During the lookup for a base class name, non-type
 		names are ignored (3.3.10)
 		*/
-		TypeNameWalker walker(getState(), isTypeName, true);
+		TypeNameWalker walker(getState(), true);
 		TREEWALKER_WALK(walker, symbol);
 		type.swap(walker.type);
 		type.qualifying.swap(qualifying);
@@ -2235,7 +2283,7 @@ struct UsingDirectiveWalker : public WalkerQualified
 		When looking up a namespace-name in a using-directive or namespace-alias-definition, only namespace
 		names are considered.
 		*/
-		NamespaceNameWalker walker(getState(), isNamespaceName);
+		NamespaceNameWalker walker(getState(), IsNamespaceName());
 		TREEWALKER_WALK(walker, symbol);
 		if(!findScope(enclosing, walker.declaration->enclosed))
 		{
@@ -2273,7 +2321,7 @@ struct NamespaceAliasDefinitionWalker : public WalkerQualified
 		}
 		else // second identifier
 		{
-			Declaration* declaration = findDeclaration(symbol->value, isNamespace);
+			Declaration* declaration = findDeclaration(symbol->value, IsNamespaceName());
 			if(declaration == &gUndeclared)
 			{
 				return reportIdentifierMismatch(symbol, symbol->value, declaration, "namespace-name");
@@ -2498,7 +2546,7 @@ struct ElaboratedTypeSpecifierWalker : public WalkerQualified
 		type.swap(walker.type);
 		id = walker.id;
 	}
-	void visit(cpp::nested_name_specifier* symbol)
+	void visit(cpp::nested_name_specifier* symbol) // elaborated_type_specifier_default | elaborated_type_specifier_template
 	{
 		NestedNameSpecifierWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
@@ -2514,10 +2562,10 @@ struct ElaboratedTypeSpecifierWalker : public WalkerQualified
 		TREEWALKER_LEAF(symbol);
 		key = &gEnum;
 	}
-	void visit(cpp::simple_template_id* symbol)
+	void visit(cpp::simple_template_id* symbol) // elaborated_type_specifier_default | elaborated_type_specifier_template
 	{
 		SEMANTIC_ASSERT(key == &gClass);
-		TemplateIdWalker walker(getState(), isType);
+		TemplateIdWalker walker(getState()); // 3.4.4-2: ignore any non-type names that have been declared
 		TREEWALKER_WALK(walker, symbol);
 		type.swap(walker.type);
 		type.qualifying.swap(qualifying);
@@ -2534,7 +2582,7 @@ struct ElaboratedTypeSpecifierWalker : public WalkerQualified
 		the elaborated-type-specifier is a declaration that introduces the class-name as described in 3.3.1.
 		*/
 		id = &symbol->value;
-		Declaration* declaration = findDeclaration(symbol->value, isType);
+		Declaration* declaration = findDeclaration(symbol->value, IsTypeName());
 		if(declaration != &gUndeclared
 			&& !isTypedef(*declaration))
 		{
@@ -2613,8 +2661,13 @@ struct TypenameSpecifierWalker : public WalkerQualified
 	}
 	void visit(cpp::type_name* symbol)
 	{
-		TypeNameWalker walker(getState(), isAny, true);
-		TREEWALKER_WALK(walker, symbol);
+		TypeNameWalker walker(getState(), true);
+		TREEWALKER_WALK_TRY(walker, symbol);
+		if(walker.filter.nonType != 0)
+		{
+			return reportIdentifierMismatch(symbol, walker.filter.nonType->getName(), walker.filter.nonType, "type-name");
+		}
+		TREEWALKER_WALK_HIT(walker, symbol);
 		type.swap(walker.type);
 		type.qualifying.swap(qualifying);
 	}
@@ -2944,8 +2997,13 @@ struct QualifiedTypeNameWalker : public WalkerQualified
 	}
 	void visit(cpp::class_name* symbol)
 	{
-		TypeNameWalker walker(getState(), isAny, true);
-		TREEWALKER_WALK(walker, symbol);
+		TypeNameWalker walker(getState(), true);
+		TREEWALKER_WALK_TRY(walker, symbol);
+		if(walker.filter.nonType != 0)
+		{
+			return reportIdentifierMismatch(symbol, walker.filter.nonType->getName(), walker.filter.nonType, "type-name");
+		}
+		TREEWALKER_WALK_HIT(walker, symbol);
 	}
 };
 
