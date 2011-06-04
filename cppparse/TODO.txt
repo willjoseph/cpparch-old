@@ -66,10 +66,29 @@ not consider any scopes outside the innermost enclosing namespace.
 		
 - remove LookupResult
 
+- fix leak of global WalkerContext in parseFile
+
+- use custom list class for DeferredSymbols?
+
 - generalised solution for re-using failed parse-tree
 	- requires that re-parsing a symbol in-place behaves the same way
 		- make type-name parse behave the same way inside or outside a nested-name-specifier-prefix
 			- defer rejection of type names hidden by non-type/namespace names
+	- pattern of swapping walker result values means only outermost walker is value
+		- make walker results a weak-reference, except for outermost walker?
+			- replace Type::swap with non-copying assign?
+				- same for template-arguments/params
+			- splice dependents without removing from inner list?
+			- store types in template-argument-list by reference?
+			- DeferredSymbols?
+		- avoid calling inner walker destructors?
+			- walker destructors should only be called when debugging allocator?
+				- do walkers own global-allocator allocations?
+					- only OpaqueCopied
+				- do walker destructors have side effects?
+					- WalkerBase::declarations removes non-committed declarations on fail
+					- DeferredSymbols
+		- allocate walker on temporary stack: lifetime of walker extends until next allocation after parse fail
 		
 - optimise parsing of cpptree?
 	- profile parse, find out exactly what's taking so long

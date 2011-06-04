@@ -1743,20 +1743,6 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 	}
 };
 
-struct ScopeDepth
-{
-	unsigned& depth;
-	ScopeDepth(unsigned& depth)
-		: depth(depth)
-	{
-		++depth;
-	}
-	~ScopeDepth()
-	{
-		--depth;
-	}
-};
-
 // basic.lookup.qual
 // During the lookup for a name preceding the :: scope resolution operator, object, function, and enumerator names are ignored.
 struct NestedNameSpecifierPrefixWalker : public WalkerBase
@@ -1782,8 +1768,6 @@ struct NestedNameSpecifierPrefixWalker : public WalkerBase
 	}
 	void visit(cpp::type_name* symbol)
 	{
-		static unsigned gNNDepth = 0;
-		ScopeDepth depth(gNNDepth);
 		TypeNameWalker walker(getState(), true);
 		TREEWALKER_WALK_TRY(walker, symbol);
 		if(walker.filter.hidingNamespace != 0)
@@ -1791,11 +1775,6 @@ struct NestedNameSpecifierPrefixWalker : public WalkerBase
 			return reportIdentifierMismatch(symbol, walker.filter.hidingNamespace->getName(), walker.filter.hidingNamespace, "type-name");
 		}
 		TREEWALKER_WALK_HIT(walker, symbol);
-#if 0
-		std::cout << "nested_name_specifier_prefix: type-name: " << gNNDepth << std::endl;
-		printSymbol(symbol);
-		std::cout << std::endl;
-#endif
 		if(allowDependent
 			|| !isDependent(qualifying_p))
 		{
@@ -3523,11 +3502,10 @@ struct TypeParameterWalker : public WalkerBase
 
 	Declaration* declaration;
 	Type argument; // the default argument for this param
-	DeclarationList params;
 	Types arguments; // the default arguments for this param's template-params (if template-template-param)
 	size_t templateParameter;
 	TypeParameterWalker(const WalkerState& state, size_t templateParameter)
-		: WalkerBase(state), declaration(0), argument(0, context), params(context), arguments(context), templateParameter(templateParameter)
+		: WalkerBase(state), declaration(0), argument(0, context), arguments(context), templateParameter(templateParameter)
 	{
 	}
 	void visit(cpp::identifier* symbol)
