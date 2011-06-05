@@ -6,7 +6,9 @@
 template<typename T, typename A>
 class Copied : private A
 {
+public: // TODO: fix!
 	T* p;
+private:
 
 	A& getAllocator()
 	{

@@ -185,7 +185,6 @@ public:
 
 struct CachedSymbols
 {
-	TreeAllocator<int> allocator;
 	typedef Lexer::Tokens::const_iterator Key;
 	typedef OpaqueCopied Entry;
 	typedef std::map<Key, OpaqueCopied> Entries;
@@ -194,8 +193,8 @@ struct CachedSymbols
 
 	static const size_t NONE = size_t(-1);
 
-	CachedSymbols(const TreeAllocator<int>& allocator)
-		: hits(0), allocator(allocator)
+	CachedSymbols()
+		: hits(0)
 	{
 	}
 	~CachedSymbols()
@@ -557,10 +556,13 @@ struct WalkerBase : public WalkerState
 			: declarations(allocator)
 		{
 		}
+
+#if 0
 	private:
 		Declarations(const Declarations&);
 		Declarations operator=(const Declarations&);
 	public:
+#endif
 		~Declarations()
 		{
 			for(Declarations::iterator i = declarations.begin(); i != declarations.end(); ++i)
@@ -570,7 +572,10 @@ struct WalkerBase : public WalkerState
 				(*i)->scope->declarations.erase((*i)->getName().value);
 			}
 		}
-
+		bool empty() const
+		{
+			return declarations.empty();
+		}
 		void push_back(Declaration* declaration)
 		{
 			declarations.push_back(declaration);
@@ -1537,31 +1542,15 @@ struct IsHiddenTypeName
 	}
 };
 
-
-typedef std::list<Declaration> DeclarationCache;
-
-struct TemplateArgumentListCache
-{
-	cpp::template_argument_clause* symbol;
-	TemplateArguments arguments;
-	DeclarationCache declarations;
-	size_t count;
-
-	explicit TemplateArgumentListCache(cpp::template_argument_clause* symbol, const TemplateArguments& arguments, const DeclarationCache& declarations, size_t count)
-		: symbol(symbol), arguments(arguments), declarations(declarations), count(count)
-	{
-	}
-};
-
 struct TemplateIdWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Type type;
+	CopiedType type;
 	IsHiddenTypeName filter;
 	bool isTypename; // true if a type is expected in this context; e.g. following 'typename', preceding '::'
 	TemplateIdWalker(const WalkerState& state, bool isTypename = false)
-		: WalkerBase(state), type(0, context), isTypename(isTypename)
+		: WalkerBase(state), type(context), isTypename(isTypename)
 	{
 	}
 	void visit(cpp::identifier* symbol)
@@ -1581,69 +1570,62 @@ struct TemplateIdWalker : public WalkerBase
 			// dependent type, are you missing a 'typename' keyword?
 			return reportIdentifierMismatch(symbol, symbol->value, &gUndeclared, "typename");
 		}
-		type.declaration = declaration;
 		TREEWALKER_LEAF_HIT(symbol);
+		type = Type(declaration, context);
 		symbol->value.dec.p = declaration;
 	}
 	void visit(cpp::template_argument_clause* symbol)
 	{
 		clearQualifying();
-
-		Lexer::Tokens::const_iterator before = parser->context.position;
-		const TemplateArgumentListCache* p = 0;
-		if(WalkerState::cached != 0) // if we are within a simple-type-specifier
-		{
-			// this symbol may have already been parsed successfully
-			WalkerState::cached->find(before, p);
-		}
-
 		TemplateArgumentListWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+		type.get()->declaration = findTemplateSpecialization(type.get()->declaration, walker.arguments);
+		type.get()->arguments.swap(walker.arguments);
+	}
+};
 
-		if(p != 0)
+template<typename ListType>
+struct ListCache
+{
+	ListNodeBase* first;
+	ListNodeBase* tail;
+
+	void set(const ListType& list)
+	{
+		if(!list.empty())
 		{
-			// use cached symbol
-			*symbol = *p->symbol;
-			walker.arguments = p->arguments;
-			for(DeclarationCache::const_iterator i = p->declarations.begin(); i != p->declarations.end(); ++i)
-			{
-				Declaration* declaration = (*i).scope->insert(*i); // re-declare forward-declaration
-				declaration->getName().dec.p = declaration; // fix-up decoration
-			}
-			parser->position = p->count;
-			parser->advance();
-			TREEWALKER_WALK_HIT(walker, symbol);
+			first = list.head.next;
+			tail = list.tail;
 		}
 		else
 		{
-			TREEWALKER_WALK_TRY(walker, symbol);
-			SYMBOL_WALK_HIT(walker, symbol); 
-
-#if 0 // work in progress. Fails when template-argument-list contains a function-type declaration with named arguments. The parameter scope is not preserved.
-			// after successfully parsing template-argument-clause
-			if(WalkerState::cached != 0) // if we are within a simple-type-specifier
-			{
-
-				// store this symbol
-				TemplateArgumentListCache& entry = WalkerState::cached->insert(before,
-					TemplateArgumentListCache(symbol, TemplateArguments(cached->allocator), DeclarationCache(), parser->position)
-				);
-				entry.arguments = walker.arguments;
-				for(WalkerBase::Declarations::iterator i = walker.declarations.begin(); i != walker.declarations.end(); ++i)
-				{
-					entry.declarations.push_back(*(*i)); // copy declaration into cache
-				}
-			}
-#endif
-
-			hit(walker);
+			first = tail = 0;
 		}
-
-
-		if(type.declaration != 0) // TODO: in what context can the type be null?
+	}
+	void get(ListType& list) const
+	{
+		SEMANTIC_ASSERT(list.empty());
+		if(first != 0)
 		{
-			type.declaration = findTemplateSpecialization(type.declaration, walker.arguments);
+			list.head.next = first;
+			list.tail = tail;
+			tail->next = &list.head;
 		}
-		type.arguments.swap(walker.arguments);
+	}
+};
+
+struct SimpleTemplateIdCache
+{
+	cpp::simple_template_id* symbol;
+	Type* type;
+	IsHiddenTypeName filter;
+	ListCache<WalkerBase::Declarations::List> declarations;
+	ListCache<WalkerBase::Scopes> scopes;
+	size_t count;
+
+	explicit SimpleTemplateIdCache(cpp::simple_template_id* symbol, size_t count)
+		: symbol(symbol), count(count)
+	{
 	}
 };
 
@@ -1651,11 +1633,11 @@ struct TypeNameWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Type type;
+	CopiedType type;
 	IsHiddenTypeName filter;
 	bool isTypename; // true if a type is expected in this context; e.g. following 'typename', preceding '::'
 	TypeNameWalker(const WalkerState& state, bool isTypename = false)
-		: WalkerBase(state), type(0, context), isTypename(isTypename)
+		: WalkerBase(state), type(context), isTypename(isTypename)
 	{
 	}
 
@@ -1670,21 +1652,70 @@ struct TypeNameWalker : public WalkerBase
 			{
 				return reportIdentifierMismatch(symbol, symbol->value, declaration, "type-name");
 			}
-			type.isImplicitTemplateId = declaration->isTemplate;
  		}
 		else if(!isTypename)
 		{
 			// dependent type, are you missing a 'typename' keyword?
 			return reportIdentifierMismatch(symbol, symbol->value, &gUndeclared, "typename");
 		}
-		type.declaration = declaration;
 		TREEWALKER_LEAF_HIT(symbol);
+		type = Type(declaration, context);
+		type.get()->isImplicitTemplateId = declaration->isTemplate;
 		symbol->value.dec.p = declaration;
 	}
 	void visit(cpp::simple_template_id* symbol)
 	{
 		TemplateIdWalker walker(getState(), isTypename);
-		TREEWALKER_WALK(walker, symbol);
+
+		Lexer::Tokens::const_iterator before = parser->context.position;
+		const SimpleTemplateIdCache* p = 0;
+		if(WalkerState::cached != 0) // if we are within a simple-type-specifier
+		{
+			// this symbol may have already been parsed successfully
+			WalkerState::cached->find(before, p);
+		}
+
+		if(p != 0)
+		{
+			// use cached symbol
+			result = symbol = p->symbol;
+			walker.type.p = p->type;
+			walker.filter = p->filter;
+			p->declarations.get(walker.declarations.declarations);
+			p->scopes.get(walker.scopes);
+
+			parser->context.deferredDestroy.clear();
+			parser->context.allocator.position = parser->context.allocator.pendingBacktrack;
+			parser->context.allocator.pendingBacktrack = 0;
+			parser->position = p->count;
+			parser->advance();
+			hit(walker);
+		}
+		else
+		{
+			TREEWALKER_WALK_TRY(walker, symbol);
+			SYMBOL_WALK_HIT(walker, symbol); 
+
+#if 1 // work in progress.
+			// After successfully parsing template-argument-clause:
+			if(WalkerState::cached != 0) // if we are within a simple-type-specifier
+			{
+				// store this symbol
+				SimpleTemplateIdCache& entry = WalkerState::cached->insert(before, SimpleTemplateIdCache(symbol, parser->position));
+				entry.type = walker.type.get();
+				entry.filter = walker.filter;
+				entry.declarations.set(walker.declarations.declarations);
+				entry.scopes.set(walker.scopes);
+			}
+#endif
+
+			hit(walker);
+		}
+
+
+
+
+
 		type.swap(walker.type);
 		filter = walker.filter;
 	}
@@ -1749,12 +1780,37 @@ struct NestedNameSpecifierPrefixWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Type type;
+	CopiedType type;
 	bool allowDependent;
 	NestedNameSpecifierPrefixWalker(const WalkerState& state, bool allowDependent = false)
-		: WalkerBase(state), type(0, context), allowDependent(allowDependent)
+		: WalkerBase(state), type(context), allowDependent(allowDependent)
 	{
 	}
+	~NestedNameSpecifierPrefixWalker()
+	{
+		// preserve result of successful parse
+		if(!type.empty())
+		{
+			parser->context.deferDelete(makeDeleteCallback(type.get()));
+			type.p = 0;
+		}
+
+		// declarations must be destroyed before scopes!
+		if(!declarations.empty())
+		{
+			WalkerBase::Declarations* p = new WalkerBase::Declarations(context);
+			p->swap(declarations);
+			parser->context.deferDelete(makeDeleteCallback2(p));
+		}
+
+		if(!scopes.empty())
+		{
+			WalkerBase::Scopes* p = new WalkerBase::Scopes(context);
+			p->swap(scopes);
+			parser->context.deferDelete(makeDeleteCallback2(p));
+		}
+	}
+
 	void visit(cpp::namespace_name* symbol)
 	{
 		NamespaceNameWalker walker(getState());
@@ -1764,7 +1820,7 @@ struct NestedNameSpecifierPrefixWalker : public WalkerBase
 			return reportIdentifierMismatch(symbol, walker.filter.hidingType->getName(), walker.filter.hidingType, "namespace-name");
 		}
 		TREEWALKER_WALK_HIT(walker, symbol);
-		type = walker.declaration;
+		type = Type(walker.declaration, context);
 	}
 	void visit(cpp::type_name* symbol)
 	{
@@ -1796,7 +1852,7 @@ struct NestedNameSpecifierWalker : public WalkerQualified
 	{
 		NestedNameSpecifierPrefixWalker walker(getState(), allowDependent);
 		TREEWALKER_WALK(walker, symbol);
-		if(walker.type.declaration != 0)
+		if(walker.type.get() != 0)
 		{
 			swapQualifying(walker.type);
 		}
@@ -1831,11 +1887,10 @@ struct TypeSpecifierWalker : public WalkerQualified
 	unsigned fundamental;
 	CachedSymbols cached;
 	TypeSpecifierWalker(const WalkerState& state)
-		: WalkerQualified(state), type(0, context), fundamental(0), cached(context)
+		: WalkerQualified(state), type(0, context), fundamental(0)
 	{
 		WalkerState::cached = &cached;
 	}
-
 	void visit(cpp::simple_type_specifier_name* symbol)
 	{
 		TypeSpecifierWalker walker(getState());
@@ -1859,8 +1914,8 @@ struct TypeSpecifierWalker : public WalkerQualified
 			return reportIdentifierMismatch(symbol, walker.filter.nonType->getName(), walker.filter.nonType, "type-name");
 		}
 		TREEWALKER_WALK_HIT(walker, symbol);
-		SEMANTIC_ASSERT(walker.type.declaration != 0);
-		type.swap(walker.type);
+		SEMANTIC_ASSERT(!walker.type.empty());
+		type.swap(*walker.type.get());
 		type.qualifying.swap(qualifying);
 	}
 	void visit(cpp::terminal<boost::wave::T_COLON_COLON> symbol)
@@ -1877,8 +1932,8 @@ struct TypeSpecifierWalker : public WalkerQualified
 	{
 		TemplateIdWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		SEMANTIC_ASSERT(walker.type.declaration != 0);
-		type.swap(walker.type);
+		SEMANTIC_ASSERT(!walker.type.empty());
+		type.swap(*walker.type.get());
 		type.qualifying.swap(qualifying);
 	}
 	void visit(cpp::simple_type_specifier_builtin* symbol)
@@ -2148,7 +2203,7 @@ struct BaseSpecifierWalker : public WalkerQualified
 		*/
 		TypeNameWalker walker(getState(), true);
 		TREEWALKER_WALK(walker, symbol);
-		type.swap(walker.type);
+		type.swap(*walker.type.get());
 		type.qualifying.swap(qualifying);
 	}
 };
@@ -2574,7 +2629,7 @@ struct ElaboratedTypeSpecifierWalker : public WalkerQualified
 		SEMANTIC_ASSERT(key == &gClass);
 		TemplateIdWalker walker(getState()); // 3.4.4-2: ignore any non-type names that have been declared
 		TREEWALKER_WALK(walker, symbol);
-		type.swap(walker.type);
+		type.swap(*walker.type.get());
 		type.qualifying.swap(qualifying);
 	}
 	void visit(cpp::identifier* symbol)
@@ -2675,7 +2730,7 @@ struct TypenameSpecifierWalker : public WalkerQualified
 			return reportIdentifierMismatch(symbol, walker.filter.nonType->getName(), walker.filter.nonType, "type-name");
 		}
 		TREEWALKER_WALK_HIT(walker, symbol);
-		type.swap(walker.type);
+		type.swap(*walker.type.get());
 		type.qualifying.swap(qualifying);
 	}
 };

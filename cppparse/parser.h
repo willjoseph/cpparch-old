@@ -6,6 +6,8 @@
 #include "cpptree.h"
 #include <typeinfo>
 
+#include <list>
+
 struct ParseError
 {
 	ParseError()
@@ -314,20 +316,82 @@ struct ParserState
 	}
 };
 
+struct DestroyCallback
+{
+	typedef void (*Thunk)(void* data, struct ParserContext& context);
+	Thunk thunk;
+	void* data;
+
+	void operator()(struct ParserContext& context) const
+	{
+		thunk(data, context);
+	}
+};
+
+typedef std::list<DestroyCallback> DeferredDestroy;
+
+template<typename T>
+struct DeleteObjectThunk
+{
+	static void thunk(void* data, ParserContext& context)
+	{
+		allocatorDelete(TreeAllocator<int>(context.allocator), static_cast<T*>(data));
+	}
+};
+
+template<typename T>
+DestroyCallback makeDeleteCallback(T* p)
+{
+	DestroyCallback result = { DeleteObjectThunk<T>::thunk, p };
+	return result;
+}
+
+
+template<typename T>
+struct DeleteObjectThunk2
+{
+	static void thunk(void* data, ParserContext& context)
+	{
+		delete static_cast<T*>(data);
+	}
+};
+
+template<typename T>
+DestroyCallback makeDeleteCallback2(T* p)
+{
+	DestroyCallback result = { DeleteObjectThunk2<T>::thunk, p };
+	return result;
+}
+
+
 typedef LinearAllocator<true> LexerAllocator;
 
 struct ParserContext : Lexer
 {
 	Visualiser visualiser;
 	LexerAllocator allocator;
+	DeferredDestroy deferredDestroy;
 	ParserContext(LexContext& context, const char* path)
 		: Lexer(context, path)
 	{
+		allocator.onBacktrack = makeCallback(Member0<ParserContext, &ParserContext::deleteDeferred>(*this));
 	}
 
 	void backtrack(size_t count, const char* symbol = 0)
 	{
 		Lexer::backtrack(count, symbol);
+	}
+	void deferDelete(const DestroyCallback& callback)
+	{
+		deferredDestroy.push_back(callback);
+	}
+	void deleteDeferred()
+	{
+		for(DeferredDestroy::iterator i = deferredDestroy.begin(); i != deferredDestroy.end(); ++i)
+		{
+			(*i)(*this);
+		}
+		deferredDestroy.clear();
 	}
 };
 
@@ -548,6 +612,54 @@ void deleteSymbol(T* symbol, ParserContext& context)
 #endif
 }
 
+template<typename T>
+struct DestroySymbolThunk
+{
+	static void thunk(void* data, ParserContext& context)
+	{
+		deleteSymbol(static_cast<T*>(data), context);
+	}
+};
+
+template<typename T>
+DestroyCallback makeDestroyCallback(cpp::symbol<T> symbol)
+{
+	DestroyCallback result = { DestroySymbolThunk<T>::thunk, symbol.p };
+	return result;
+}
+
+struct SymbolDeferredDestroy
+{
+	ParserContext& context;
+	SymbolDeferredDestroy(ParserContext& context) : context(context)
+	{
+	}
+
+	void visit(cpp::terminal_identifier symbol)
+	{
+	}
+	void visit(cpp::terminal_string symbol)
+	{
+	}
+	void visit(cpp::terminal_choice2 symbol)
+	{
+	}
+
+	template<LexTokenId id>
+	void visit(cpp::terminal<id> symbol)
+	{
+	}
+
+	template<typename T>
+	void visit(cpp::symbol<T> symbol)
+	{
+		if(symbol.p != 0)
+		{
+			context.deferDelete(makeDestroyCallback(symbol));
+		}
+	}
+};
+
 template<typename T, bool isConcrete = IsConcrete<T>::RESULT >
 struct SymbolHolder;
 
@@ -570,7 +682,11 @@ struct SymbolHolder<T, true>
 	}
 	void miss()
 	{
+#if 1
+		SymbolDeferredDestroy walker(context);
+#else
 		SymbolDelete walker(context);
+#endif
 		value.accept(walker);
 	}
 };

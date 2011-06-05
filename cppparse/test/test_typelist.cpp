@@ -5,9 +5,10 @@ struct S
 {
 };
 
-typedef S<struct X> Type;
+typedef S<int(int a)> Type1;
+typedef S<struct X> Type2;
 
-//Type::X x;
+//X x;
 
 
 struct TypeListEnd
@@ -23,11 +24,7 @@ struct TypeList
 
 typedef TypeList<int, TypeListEnd> Test1;
 
-#if 0
-typedef TypeList<int(int a), TypeListEnd> Test3;
-#endif
-
-#if 0
+#if 1
 // pathological case for parser
 typedef TypeList<int,
 	TypeList<int,

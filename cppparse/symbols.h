@@ -87,7 +87,8 @@ private:
 	}
 };
 
-typedef Copied<Type, TreeAllocator<int> > Qualifying;
+typedef Copied<Type, TreeAllocator<int> > CopiedType;
+typedef CopiedType Qualifying;
 
 
 class Declaration;

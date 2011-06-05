@@ -129,6 +129,48 @@ struct Page
 	}
 };
 
+struct Callback
+{
+	typedef void (*Function)(void* data);
+	Function function;
+	void* data;
+	Callback()
+		: function(defaultThunk)
+	{
+	}
+	Callback(Function function, void* data)
+		: function(function), data(data)
+	{
+	}
+	void operator()() const
+	{
+		function(data);
+	}
+	static void defaultThunk(void*)
+	{
+	}
+};
+
+template<typename Object, void (Object::*member)()>
+struct Member0
+{
+	void* object;
+	Member0(Object& object)
+		: object(&object)
+	{
+	}
+	static void thunk(void* object)
+	{
+		((*static_cast<Object*>(object)).*member)();
+	}
+};
+
+template<typename Caller>
+Callback makeCallback(Caller caller)
+{
+	return Callback(Caller::thunk, caller.object);
+}
+
 template<bool checked>
 struct LinearAllocator
 {
@@ -136,8 +178,14 @@ struct LinearAllocator
 	Pages pages;
 	size_t position;
 	size_t pendingBacktrack;
+	Callback onBacktrack; 
+
+
 	static void* debugAddress;
 	static char debugValue[4];
+	static size_t debugAllocationId;
+	static size_t allocationId;
+
 	LinearAllocator()
 		: position(0), pendingBacktrack(0)
 	{
@@ -162,7 +210,7 @@ struct LinearAllocator
 	}
 	void* allocate(size_t size)
 	{
-		checkAllocation();
+		deferredBacktrack();
 		size_t available = sizeof(Page) - (position & Page::MASK);
 		if(size > available)
 		{
@@ -193,13 +241,15 @@ struct LinearAllocator
 #endif	
 		position = original;
 	}
-	void checkAllocation()
+	void deferredBacktrack()
 	{
 #ifdef ALLOCATOR_DEBUG
 		if(pendingBacktrack == 0)
 		{
 			return;
 		}
+
+		onBacktrack();
 
 		Pages::iterator first = pages.begin() + position / sizeof(Page);
 		Pages::iterator last = pages.begin() + pendingBacktrack / sizeof(Page);
@@ -228,6 +278,12 @@ void* LinearAllocator<checked>::debugAddress;
 
 template<bool checked>
 char LinearAllocator<checked>::debugValue[4];
+
+template<bool checked>
+size_t LinearAllocator<checked>::allocationId = 0;
+
+template<bool checked>
+size_t LinearAllocator<checked>::debugAllocationId = 0xffffffff;
 
 typedef LinearAllocator<true> CheckedLinearAllocator;
 
@@ -335,6 +391,10 @@ inline bool operator!=(const LinearAllocatorWrapper<T>&, const LinearAllocatorWr
 template<typename T>
 inline void checkAllocation(LinearAllocatorWrapper<T>& a, T* p)
 {
+	if(CheckedLinearAllocator::allocationId++ == CheckedLinearAllocator::debugAllocationId)
+	{
+		std::cout << "debug allocation!" << std::endl;
+	}
 	if(CheckedLinearAllocator::debugAddress == p)
 	{
 		std::cout << "debug allocation!" << std::endl;

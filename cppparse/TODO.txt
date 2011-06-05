@@ -88,7 +88,16 @@ not consider any scopes outside the innermost enclosing namespace.
 				- do walker destructors have side effects?
 					- WalkerBase::declarations removes non-committed declarations on fail
 					- DeferredSymbols
-		- allocate walker on temporary stack: lifetime of walker extends until next allocation after parse fail
+		- defer deletion of symbol-table data
+	- handle ETS declaration side-effects of failed parse tree
+		- defer modification of enclosing scope until..?
+			- completion of statement?
+		- when does ETS declaration modify enclosing scope?
+			- decl-specifier-seq or parameter-declaration-clause in namespace scope -> containing namespace
+			- else, smallest non-class non-function-prototype scope that contains the declaration
+		
+	- handle scope creation side-effects of failed parse tree
+		- preserve allocated scopes
 		
 - optimise parsing of cpptree?
 	- profile parse, find out exactly what's taking so long
