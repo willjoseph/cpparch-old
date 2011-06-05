@@ -233,17 +233,14 @@ struct LinearAllocator
 	void backtrack(size_t original)
 	{
 		ALLOCATOR_ASSERT(original <= position);
-#ifdef ALLOCATOR_DEBUG
 		if(pendingBacktrack == 0)
 		{
 			pendingBacktrack = position;
 		}
-#endif	
 		position = original;
 	}
 	void deferredBacktrack()
 	{
-#ifdef ALLOCATOR_DEBUG
 		if(pendingBacktrack == 0)
 		{
 			return;
@@ -251,6 +248,7 @@ struct LinearAllocator
 
 		onBacktrack();
 
+#ifdef ALLOCATOR_DEBUG
 		Pages::iterator first = pages.begin() + position / sizeof(Page);
 		Pages::iterator last = pages.begin() + pendingBacktrack / sizeof(Page);
 		for(Pages::iterator i = first; i != pages.end(); ++i)
@@ -266,9 +264,9 @@ struct LinearAllocator
 				break;
 			}
 		}
+#endif
 
 		pendingBacktrack = 0;
-#endif
 	}	
 };
 

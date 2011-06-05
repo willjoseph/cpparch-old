@@ -5,7 +5,7 @@
 #include "profiler.h"
 #include "symbols.h"
 
-#include "parser/symbols.h"
+#include "parser_symbols.h"
 
 #include <iostream>
 
@@ -487,16 +487,22 @@ struct WalkerState
 
 	bool isDependent(const Type& type)
 	{
+		//std::cout << "isDependent(Type)" << std::endl;
 		return ::isDependent(type, DependentContext(*enclosing, templateParams != 0 ? *templateParams : SCOPE_NULL));
 	}
 
 	bool isDependent(const Types& bases)
 	{
+		//std::cout << "isDependent(Types)" << std::endl;
 		return ::isDependent(bases, DependentContext(*enclosing, templateParams != 0 ? *templateParams : SCOPE_NULL));
 	}
 
 	bool isDependent(const Type* qualifying)
 	{
+		if(qualifying != 0)
+		{
+			//std::cout << "isDependent(Type*)" << std::endl;
+		}
 		return ::isDependent(qualifying, DependentContext(*enclosing, templateParams != 0 ? *templateParams : SCOPE_NULL));
 	}
 
@@ -1700,7 +1706,7 @@ struct TypeNameWalker : public WalkerBase
 			TREEWALKER_WALK_TRY(walker, symbol);
 			SYMBOL_WALK_HIT(walker, symbol); 
 
-#if 0 // work in progress.
+#if 1 // work in progress.
 			// After successfully parsing template-argument-clause:
 			if(WalkerState::cached != 0) // if we are within a simple-type-specifier
 			{
@@ -3616,7 +3622,7 @@ struct TemplateParameterListWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	DeclarationList params;
+	Types params;
 	Types arguments;
 	size_t count;
 	TemplateParameterListWalker(const WalkerState& state)
@@ -3631,7 +3637,7 @@ struct TemplateParameterListWalker : public WalkerBase
 	{
 		TypeParameterWalker walker(getState(), count);
 		TREEWALKER_WALK(walker, symbol);
-		params.push_back(walker.declaration);
+		params.push_back(Type(walker.declaration, context));
 		arguments.push_back(Type(0, context));
 		arguments.back().swap(walker.argument);
 		++count;
@@ -3640,7 +3646,7 @@ struct TemplateParameterListWalker : public WalkerBase
 	{
 		TypeParameterWalker walker(getState(), count);
 		TREEWALKER_WALK(walker, symbol);
-		params.push_back(walker.declaration);
+		params.push_back(Type(walker.declaration, context));
 		arguments.push_back(Type(0, context));
 		arguments.back().swap(walker.argument);
 		++count;
@@ -3649,7 +3655,7 @@ struct TemplateParameterListWalker : public WalkerBase
 	{
 		SimpleDeclarationWalker walker(getState(), false, count);
 		TREEWALKER_WALK(walker, symbol);
-		params.push_back(walker.declaration);
+		params.push_back(Type(walker.declaration, context));
 		arguments.push_back(Type(0, context)); // TODO: default value for non-type template-param
 		++count;
 	}
@@ -3660,7 +3666,7 @@ struct TemplateDeclarationWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	Declaration* declaration;
-	DeclarationList params;
+	Types params;
 	Types arguments;
 	TemplateDeclarationWalker(const WalkerState& state)
 		: WalkerBase(state), declaration(0), params(context), arguments(context)

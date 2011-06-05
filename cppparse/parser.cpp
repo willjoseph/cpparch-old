@@ -1,7 +1,7 @@
 
 #include "parser.h"
 
-#include "parser/symbols.h"
+#include "parser_symbols.h"
 
 #if 0
 

@@ -2,7 +2,7 @@
 #ifndef INCLUDED_CPPPARSE_PARSER_SYMBOLS_H
 #define INCLUDED_CPPPARSE_PARSER_SYMBOLS_H
 
-#include "../parser.h"
+#include "parser.h"
 
 
 template<typename ParserType>

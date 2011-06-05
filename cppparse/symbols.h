@@ -10,6 +10,7 @@
 
 #include <list>
 #include <map>
+#include <set>
 
 
 #define SYMBOLS_ASSERT ALLOCATOR_ASSERT
@@ -165,7 +166,7 @@ DependencyCallback makeDependencyCallback(T* declaration, bool (*isDependent)(T*
 	return result;
 }
 
-typedef Copied<Type, TreeAllocator<int> > TypeRef;
+typedef CopiedType TypeRef;
 
 struct DependencyNode
 {
@@ -283,7 +284,7 @@ public:
 	Dependent valueDependent;
 	DeclSpecifiers specifiers;
 	size_t templateParameter;
-	DeclarationList templateParams;
+	Types templateParams;
 	Types templateParamDefaults;
 	TemplateArguments arguments;
 	bool isTemplate;
@@ -670,16 +671,15 @@ inline const Type& getTemplateArgument(const Type& type, size_t index)
 
 inline const Type& getInstantiatedType(const Type& type)
 {
-	if(type.declaration->specifiers.isTypedef
-		&& type.declaration->templateParameter == INDEX_INVALID)
+	if(type.declaration->specifiers.isTypedef // if this is a typedef..
+		&& type.declaration->templateParameter == INDEX_INVALID) // .. and not a template-parameter
 	{
 		const Type& original = getInstantiatedType(type.declaration->type);
 
 		size_t index = original.declaration->templateParameter;
-		if(index != INDEX_INVALID)
+		if(index != INDEX_INVALID) // if the original type is a template-parameter.
 		{
-			// original type is a template-parameter
-			// find template-specialisation in list of qualifiers
+			// Find the template-specialisation it belongs to:
 			for(const Type* i = type.qualifying.get(); i != 0; i = (*i).qualifying.get())
 			{
 				const Type& instantiated = getInstantiatedType(*i);
@@ -803,9 +803,9 @@ inline bool isDependentInternal(const Type& type, const DependentContext& contex
 			// we can assume 'original' refers to the current-instantation.
 			return true;
 		}
-		for(DeclarationList::const_iterator i = original.declaration->templateParams.begin(); i != original.declaration->templateParams.end(); ++i)
+		for(Types::const_iterator i = original.declaration->templateParams.begin(); i != original.declaration->templateParams.end(); ++i)
 		{
-			if(isDependent(Type(*i, TREEALLOCATOR_NULL), context))
+			if(isDependent(*i, context))
 			{
 				return true;
 			}
@@ -821,15 +821,132 @@ inline bool isDependentInternal(const Type& type, const DependentContext& contex
 	Scope* enclosed = original.declaration->enclosed;
 	if(enclosed != 0)
 	{
-		return isDependent(enclosed->bases, context);
+		bool result = isDependent(enclosed->bases, context);
+		if(!result)
+		{
+			//std::cout << "not dependent: " << &type << " " << getValue(type.declaration->getName()) << std::endl;
+		}
+		return result;
+	}
+	//std::cout << "not dependent: " << &type << " " << getValue(type.declaration->getName()) << std::endl;
+	return false;
+}
+
+typedef std::set<const Type*> TypeSet;
+
+inline void findTypes(const Type& type, TypeSet& result);
+
+inline void findTypes(const Type* qualifying, TypeSet& result)
+{
+	if(qualifying == 0)
+	{
+		return;
+	}
+	const Type& instantiated = getInstantiatedType(*qualifying);
+	findTypes(instantiated.qualifying.get(), result);
+	findTypes(instantiated, result);
+}
+
+inline void findTypes(const Types& bases, TypeSet& result)
+{
+	for(Types::const_iterator i = bases.begin(); i != bases.end(); ++i)
+	{
+		findTypes(*i, result);
+	}
+}
+
+inline void findTypes(const TemplateArguments& arguments, TypeSet& result)
+{
+	for(TemplateArguments::const_iterator i = arguments.begin(); i != arguments.end(); ++i)
+	{
+		if((*i).type.declaration != 0)
+		{
+			findTypes((*i).type, result);
+		}
+	}
+}
+
+inline void findTypes(const Type& type, TypeSet& result)
+{
+	if(!result.insert(&type).second)
+	{
+		return;
+	}
+
+	const Type& original = getInstantiatedType(type);
+	if(original.declaration == &gDependentType
+		|| original.declaration == &gDependentTemplate)
+	{
+		findTypes(original.qualifying.get(), result);
+	}
+	if(original.isImplicitTemplateId)
+	{
+		for(Types::const_iterator i = original.declaration->templateParams.begin(); i != original.declaration->templateParams.end(); ++i)
+		{
+			findTypes(*i, result);
+		}
+	}
+	else
+	{
+		findTypes(original.arguments, result);
+	}
+	Scope* enclosed = original.declaration->enclosed;
+	if(enclosed != 0)
+	{
+		findTypes(enclosed->bases, result);
+	}
+}
+
+inline bool isDependentNonRecursive(const Type& type, const DependentContext& context)
+{
+	if(isValueDependent(type, context))
+	{
+		return true;
+	}
+	const Type& original = getInstantiatedType(type);
+	if(isTemplateParameter(original.declaration, context))
+	{
+		return true;
+	}
+	if(original.isImplicitTemplateId)
+	{
+		if(original.declaration->templateParams.empty())
+		{
+			// we haven't finished parsing the class-declaration.
+			// we can assume 'original' refers to the current-instantation.
+			return true;
+		}
 	}
 	return false;
 }
+
+inline bool isDependentFast(const Type& type, const DependentContext& context)
+{
+	TypeSet types;
+	findTypes(type, types);
+	for(TypeSet::const_iterator i = types.begin(); i != types.end(); ++i)
+	{
+		if(isDependentNonRecursive(*(*i), context))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+
 
 inline bool isDependent(const Type& type, const DependentContext& context)
 {
 	type.visited = true;
 	bool result = isDependentInternal(type, context);
+#if 0
+	bool resultFast = isDependentFast(type, context);
+	if(result != resultFast)
+	{
+		__debugbreak();
+	}
+#endif
 	type.visited = false;
 	return result;
 }

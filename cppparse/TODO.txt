@@ -35,10 +35,13 @@ not consider any scopes outside the innermost enclosing namespace.
 
 - slow parsing of cpptree.h
 	- caused by pathological case: nested template-ids
-		- isDependent is slow?
+		- isDependent is pathologically slow for nested template-ids
+			- will always return false when invoked outside a template declaration
+			- must examine all template-arguments and their bases
+				- a type is dependent if it is a template-parameter visible in an enclosing scope or template-declaration
 		- each iteration is parsed first as nested-name-specifier
 			- cache successful parse of template-id component
-		
+	
 - in parseSymbolRequired, why not defer allocation of symbol until successful parse?
 	- requires stack-allocation and copying of parse-tree node
 	- when parsing identifier, we store a persistent reference to symbol
@@ -70,11 +73,16 @@ not consider any scopes outside the innermost enclosing namespace.
 
 - use custom list class for DeferredSymbols?
 
+- bug: without ALLOCATOR_DEBUG: stomped global-scope declarations
+	- occurs only when deferring delete of declarations
+	- stomped entry contains ets-declaration in failed parse-tree
+	- onBacktrack not called when ALLOCATER_DEBUG enabled
+
 - generalised solution for re-using failed parse-tree
 	- requires that re-parsing a symbol in-place behaves the same way
 		- make type-name parse behave the same way inside or outside a nested-name-specifier-prefix
 			- defer rejection of type names hidden by non-type/namespace names
-	- pattern of swapping walker result values means only outermost walker is value
+	- pattern of swapping walker result values means only outermost walker is valid
 		- make walker results a weak-reference, except for outermost walker?
 			- replace Type::swap with non-copying assign?
 				- same for template-arguments/params
