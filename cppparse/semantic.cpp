@@ -1620,7 +1620,9 @@ struct SimpleTemplateIdCache
 	Type* type;
 	IsHiddenTypeName filter;
 	ListCache<WalkerBase::Declarations::List> declarations;
+#ifdef ALLOCATOR_DEBUG
 	ListCache<WalkerBase::Scopes> scopes;
+#endif
 	size_t count;
 
 	explicit SimpleTemplateIdCache(cpp::simple_template_id* symbol, size_t count)
@@ -1682,7 +1684,9 @@ struct TypeNameWalker : public WalkerBase
 			walker.type.p = p->type;
 			walker.filter = p->filter;
 			p->declarations.get(walker.declarations.declarations);
+#ifdef ALLOCATOR_DEBUG
 			p->scopes.get(walker.scopes);
+#endif
 
 			parser->context.deferredDestroy.clear();
 			parser->context.allocator.position = parser->context.allocator.pendingBacktrack;
@@ -1696,7 +1700,7 @@ struct TypeNameWalker : public WalkerBase
 			TREEWALKER_WALK_TRY(walker, symbol);
 			SYMBOL_WALK_HIT(walker, symbol); 
 
-#if 1 // work in progress.
+#if 0 // work in progress.
 			// After successfully parsing template-argument-clause:
 			if(WalkerState::cached != 0) // if we are within a simple-type-specifier
 			{
@@ -1705,7 +1709,9 @@ struct TypeNameWalker : public WalkerBase
 				entry.type = walker.type.get();
 				entry.filter = walker.filter;
 				entry.declarations.set(walker.declarations.declarations);
+#ifdef ALLOCATOR_DEBUG
 				entry.scopes.set(walker.scopes);
+#endif
 			}
 #endif
 
@@ -1803,12 +1809,14 @@ struct NestedNameSpecifierPrefixWalker : public WalkerBase
 			parser->context.deferDelete(makeDeleteCallback2(p));
 		}
 
+#ifdef ALLOCATOR_DEBUG
 		if(!scopes.empty())
 		{
 			WalkerBase::Scopes* p = new WalkerBase::Scopes(context);
 			p->swap(scopes);
 			parser->context.deferDelete(makeDeleteCallback2(p));
 		}
+#endif
 	}
 
 	void visit(cpp::namespace_name* symbol)
