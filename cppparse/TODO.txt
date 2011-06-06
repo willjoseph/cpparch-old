@@ -52,6 +52,8 @@ not consider any scopes outside the innermost enclosing namespace.
 	
 - avoid constructing complex *_NULL constants on the fly
 
+- avoid copying Type in addDependency/DependencyNode
+
 - test-cases
 	- document existing tests
 	- ensure there are tests for:
@@ -169,6 +171,11 @@ not consider any scopes outside the innermost enclosing namespace.
 						- perform cache lookup for each subsequent parse attempt, using rtti
 						- on cache hit, return cached parse-tree, indicate that result is cached
 			- avoid deallocation of cached symbol table
+			- manage parse-tree allocations
+				- need to preserve parse-tree, until next successful parse causes partial unwind
+				- added complication: need to remove ETS allocations from enclosing scope
+				- list of successfully parsed symbols?
+					- with point of allocation?
 		
 - make gUniqueNames a member of Scope?
 
