@@ -33,15 +33,6 @@ name in a friend declaration is neither qualified nor a template-id and the decl
 an elaborated-type-specifier, the lookup to determine whether the entity has been previously declared shall
 not consider any scopes outside the innermost enclosing namespace.
 
-- slow parsing of cpptree.h
-	- caused by pathological case: nested template-ids
-		- isDependent is pathologically slow for nested template-ids
-			- will always return false when invoked outside a template declaration
-			- must examine all template-arguments and their bases
-				- a type is dependent if it is a template-parameter visible in an enclosing scope or template-declaration
-		- each iteration is parsed first as nested-name-specifier
-			- cache successful parse of template-id component
-	
 - in parseSymbolRequired, why not defer allocation of symbol until successful parse?
 	- requires stack-allocation and copying of parse-tree node
 	- when parsing identifier, we store a persistent reference to symbol
@@ -70,6 +61,10 @@ not consider any scopes outside the innermost enclosing namespace.
 - remove LookupResult
 
 - fix leak of global WalkerContext in parseFile
+
+- check that template-arguments are 'evaluated in the context in which the entire postfix-expression occurs'
+
+- test that the simple-template-id in simple-type-specifier-template is looked up correctly
 
 - use custom list class for DeferredSymbols?
 
@@ -107,8 +102,25 @@ not consider any scopes outside the innermost enclosing namespace.
 	- handle scope creation side-effects of failed parse tree
 		- preserve allocated scopes
 		
-- optimise parsing of cpptree?
+- slow parsing of cpptree.h
 	- profile parse, find out exactly what's taking so long
+	- caused by pathological case: nested template-ids
+		- isDependent is pathologically slow for nested template-ids
+			- will always return false when invoked outside a template declaration
+			- must examine all template-arguments and their bases
+				- a type is dependent if it is a template-parameter visible in an enclosing scope or template-declaration
+		- each iteration is parsed first as nested-name-specifier
+			- cache successful parse of template-id component
+	- shared-prefix: simple-type-specifier:
+		- nested-name-specifier -> type-name -> simple-template-id
+		- type-name -> simple-template-id
+	- shared-prefix: id-expression:
+		- qualified-id -> nested-name-specifier -> type-name -> simple-template-id
+		- unqualified-id -> template-id -> simple-template-id
+	- shared-prefix: template-argument:
+		- type-id -> simple-type-specifier -> simple-template-id
+		- postfix-expression -> postfix-expression-construct -> simple-type-specifier -> simple-template-id
+		- id-expression -> simple-template-id
 	- factor out shared-prefix between nested-name-specifier and type-name?
 		- check that this is actually the cause of the slow parse?
 		- problem with basic.lookup.qual: During the lookup for a name preceding the :: scope resolution operator, object, function, and enumerator names are ignored.
@@ -164,6 +176,7 @@ not consider any scopes outside the innermost enclosing namespace.
 
 - improve error messages
 	- e.g. detect when 'typename' keyword is missing
+	- on reportIdentifierMismatch, show the location of the mismatching identifier
 	
 - explain template_argument_clause_disambiguate
 	- disambiguates: < CONSTANT_EXPRESSION < 0 >

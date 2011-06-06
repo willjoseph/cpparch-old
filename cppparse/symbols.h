@@ -917,6 +917,16 @@ inline bool isDependentNonRecursive(const Type& type, const DependentContext& co
 			return true;
 		}
 	}
+	else
+	{
+		for(TemplateArguments::const_iterator i = original.arguments.begin(); i != original.arguments.end(); ++i)
+		{
+			if(evaluateDependent((*i).dependent, context)) // array-size or constant-initializer
+			{
+				return true;
+			}
+		}
+	}	
 	return false;
 }
 
@@ -941,8 +951,8 @@ inline bool isDependent(const Type& type, const DependentContext& context)
 	type.visited = true;
 	bool result = isDependentInternal(type, context);
 #if 0
-	bool resultFast = isDependentFast(type, context);
-	if(result != resultFast)
+	bool alternative = isDependentFast(type, context);
+	if(result != alternative)
 	{
 		__debugbreak();
 	}

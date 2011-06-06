@@ -76,7 +76,7 @@ struct ProfileScope
 
 inline void dumpProfile(ProfileEntry& entry)
 {
-	std::cout << std::setw(10) << std::left << entry.name
+	std::cout << std::setw(12) << std::left << entry.name
 		<< std::setw(0) << " "
 		<< std::right << std::setw(20) << (entry.elapsed - entry.elapsedChild)
 		<< std::setw(0) << "\n";

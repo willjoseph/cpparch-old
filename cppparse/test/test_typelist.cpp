@@ -36,7 +36,25 @@ typedef TypeList<int,
 	TypeList<int,
 	TypeList<int,
 	TypeList<int,
+	TypeList<int,
+	TypeList<int,
+	TypeList<int,
+	TypeList<int,
+	TypeList<int,
+	TypeList<int,
+	TypeList<int,
+	TypeList<int,
+	TypeList<int,
 	TypeList<int, TypeListEnd>
+	>
+	>
+	>
+	>
+	>
+	>
+	>
+	>
+	>
 	>
 	>
 	>

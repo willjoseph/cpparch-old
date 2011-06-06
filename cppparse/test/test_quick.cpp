@@ -1,4 +1,14 @@
 
+
+namespace N42
+{
+	template<typename T>
+	struct Blah
+	{
+		typedef typename T::template X<T::value> Type;
+	};
+}
+
 namespace N113
 {
 	template<typename T>
@@ -76,14 +86,6 @@ namespace N43
 	//int i = N::T::i; // typedef 'T' declared for incomplete type 'S'
 }
 
-namespace N42
-{
-	template<typename T>
-	struct Blah
-	{
-		typedef typename T::template X<T::value> Type;
-	};
-}
 
 namespace N41
 {
