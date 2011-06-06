@@ -184,7 +184,6 @@ struct LinearAllocator
 	static void* debugAddress;
 	static char debugValue[4];
 	static size_t debugAllocationId;
-	static size_t allocationId;
 
 	LinearAllocator()
 		: position(0), pendingBacktrack(0)
@@ -210,6 +209,12 @@ struct LinearAllocator
 	}
 	void* allocate(size_t size)
 	{
+#ifdef ALLOCATOR_DEBUG
+		if(position == debugAllocationId)
+		{
+			std::cout << "debug allocation!" << std::endl;
+		}
+#endif
 		deferredBacktrack();
 		size_t available = sizeof(Page) - (position & Page::MASK);
 		if(size > available)
@@ -276,9 +281,6 @@ void* LinearAllocator<checked>::debugAddress;
 
 template<bool checked>
 char LinearAllocator<checked>::debugValue[4];
-
-template<bool checked>
-size_t LinearAllocator<checked>::allocationId = 0;
 
 template<bool checked>
 size_t LinearAllocator<checked>::debugAllocationId = 0xffffffff;
@@ -389,10 +391,6 @@ inline bool operator!=(const LinearAllocatorWrapper<T>&, const LinearAllocatorWr
 template<typename T>
 inline void checkAllocation(LinearAllocatorWrapper<T>& a, T* p)
 {
-	if(CheckedLinearAllocator::allocationId++ == CheckedLinearAllocator::debugAllocationId)
-	{
-		std::cout << "debug allocation!" << std::endl;
-	}
 	if(CheckedLinearAllocator::debugAddress == p)
 	{
 		std::cout << "debug allocation!" << std::endl;

@@ -1591,8 +1591,8 @@ struct ListCache
 struct SimpleTemplateIdCache
 {
 	cpp::simple_template_id* symbol;
-	Type* type;
-	IsHiddenTypeName filter;
+	Identifier* id;
+	ListCache<TemplateArguments> arguments;
 	ListCache<WalkerBase::Declarations::List> declarations;
 #ifdef ALLOCATOR_DEBUG
 	ListCache<WalkerBase::Scopes> scopes;
@@ -1651,15 +1651,15 @@ struct TypeNameWalker : public WalkerBase
 			WalkerState::cached->find(before, p);
 		}
 
+		TemplateIdWalker walker(getState());
 		if(p != 0)
 		{
 			// use cached symbol
-			result = symbol = p->symbol;
-			type.p = p->type;
-			filter = p->filter;
-			p->declarations.get(declarations.declarations);
+			walker.id = p->id;
+			p->arguments.get(walker.arguments);
+			p->declarations.get(walker.declarations.declarations);
 #ifdef ALLOCATOR_DEBUG
-			p->scopes.get(scopes);
+			p->scopes.get(walker.scopes);
 #endif
 
 			parser->context.deferredDestroy.clear();
@@ -1670,43 +1670,52 @@ struct TypeNameWalker : public WalkerBase
 		}
 		else
 		{
-			TemplateIdWalker walker(getState());
 			TREEWALKER_WALK_TRY(walker, symbol);
-			Declaration* declaration = lookupType(*walker.id, makeLookupFilter(filter));
-			if(declaration == &gUndeclared)
-			{
-				return reportIdentifierMismatch(symbol, *walker.id, &gUndeclared, "type-name");
-			}
-			if(declaration == &gDependentType
-				&& !isTypename)
-			{
-				// dependent type, are you missing a 'typename' keyword?
-				return reportIdentifierMismatch(symbol, *walker.id, &gUndeclared, "typename");
-			}
-			TREEWALKER_WALK_HIT(walker, symbol);
-			walker.id->dec.p = declaration;
-			type = Type(0, context);
-			type.get()->declaration = findTemplateSpecialization(declaration, walker.arguments);
-			type.get()->arguments.swap(walker.arguments);
 		}
 
-#if 1 // work in progress.
-		if(p == 0)
+		Declaration* declaration = lookupType(*walker.id, makeLookupFilter(filter));
+		if(declaration == &gUndeclared)
 		{
+			SEMANTIC_ASSERT(p == 0);
+			return reportIdentifierMismatch(symbol, *walker.id, &gUndeclared, "type-name");
+		}
+		if(declaration == &gDependentType
+			&& !isTypename)
+		{
+			SEMANTIC_ASSERT(p == 0);
+			// dependent type, are you missing a 'typename' keyword?
+			return reportIdentifierMismatch(symbol, *walker.id, &gUndeclared, "typename");
+		}
+
+		if(p != 0)
+		{
+			result = symbol = p->symbol;
+			hit(walker);
+		}
+		else
+		{
+			SYMBOL_WALK_HIT(walker, symbol);
+#if 1 // work in progress.
 			// After successfully parsing template-argument-clause:
 			if(WalkerState::cached != 0) // if we are within a simple-type-specifier
 			{
 				// store this symbol
 				SimpleTemplateIdCache& entry = WalkerState::cached->insert(before, SimpleTemplateIdCache(symbol, parser->position));
-				entry.type = type.get();
-				entry.filter = filter;
-				entry.declarations.set(declarations.declarations);
+				entry.id = walker.id;
+				entry.arguments.set(walker.arguments);
+				entry.declarations.set(walker.declarations.declarations);
 #ifdef ALLOCATOR_DEBUG
-				entry.scopes.set(scopes);
+				entry.scopes.set(walker.scopes);
 #endif
 			}
-		}
 #endif
+			hit(walker); // must occur after storing scopes/declarations in cache
+		}
+
+		walker.id->dec.p = declaration;
+		type = Type(0, context);
+		type.get()->declaration = findTemplateSpecialization(declaration, walker.arguments);
+		type.get()->arguments.swap(walker.arguments);
 	}
 };
 
@@ -1778,10 +1787,12 @@ struct NestedNameSpecifierPrefixWalker : public WalkerBase
 	~NestedNameSpecifierPrefixWalker()
 	{
 		// preserve result of successful parse
-		if(!type.empty())
+		if(!type.empty()
+			&& !type.get()->arguments.empty())
 		{
-			parser->context.deferDelete(makeDeleteCallback(type.get()));
-			type.p = 0;
+			TemplateArguments* p = new TemplateArguments(context);
+			p->swap(type.get()->arguments);
+			parser->context.deferDelete(makeDeleteCallback2(p));
 		}
 
 		// declarations must be destroyed before scopes!

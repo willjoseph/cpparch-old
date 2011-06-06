@@ -65,6 +65,7 @@ not consider any scopes outside the innermost enclosing namespace.
 - check that template-arguments are 'evaluated in the context in which the entire postfix-expression occurs'
 
 - test that the simple-template-id in simple-type-specifier-template is looked up correctly
+- test that template-arguments in a nested-name-specifier-suffix-template are considered when deciding that the NNS is dependent
 
 - use custom list class for DeferredSymbols?
 

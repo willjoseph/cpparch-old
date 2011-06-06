@@ -3,8 +3,8 @@ C:\Program Files\Microsoft Visual Studio 8\VC\BIN\cl.exe
 /I ..\..\boost_1_41_0
 /D WIN32
 /D _DEBUG
-.\test\test_quick.cpp
 .\test\test_typelist.cpp
+.\test\test_quick.cpp
 .\test\test_prepro.cpp
 .\test\test_include.cpp
 .\test\test_windows.cpp
