@@ -1609,11 +1609,11 @@ struct TypeNameWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	CopiedType type;
+	Type type;
 	IsHiddenTypeName filter;
 	bool isTypename; // true if a type is expected in this context; e.g. following 'typename', preceding '::'
 	TypeNameWalker(const WalkerState& state, bool isTypename = false)
-		: WalkerBase(state), type(context), isTypename(isTypename)
+		: WalkerBase(state), type(0, context), isTypename(isTypename)
 	{
 	}
 
@@ -1635,8 +1635,8 @@ struct TypeNameWalker : public WalkerBase
 			return reportIdentifierMismatch(symbol, symbol->value, &gUndeclared, "typename");
 		}
 		TREEWALKER_LEAF_HIT(symbol);
-		type = Type(declaration, context);
-		type.get()->isImplicitTemplateId = declaration->isTemplate;
+		type.declaration = declaration;
+		type.isImplicitTemplateId = declaration->isTemplate;
 		symbol->value.dec.p = declaration;
 	}
 	void visit(cpp::simple_template_id* symbol)
@@ -1713,9 +1713,8 @@ struct TypeNameWalker : public WalkerBase
 		}
 
 		walker.id->dec.p = declaration;
-		type = Type(0, context);
-		type.get()->declaration = findTemplateSpecialization(declaration, walker.arguments);
-		type.get()->arguments.swap(walker.arguments);
+		type.declaration = findTemplateSpecialization(declaration, walker.arguments);
+		type.arguments.swap(walker.arguments);
 	}
 };
 
@@ -1778,20 +1777,19 @@ struct NestedNameSpecifierPrefixWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	CopiedType type;
+	Type type;
 	bool allowDependent;
 	NestedNameSpecifierPrefixWalker(const WalkerState& state, bool allowDependent = false)
-		: WalkerBase(state), type(context), allowDependent(allowDependent)
+		: WalkerBase(state), type(0, context), allowDependent(allowDependent)
 	{
 	}
 	~NestedNameSpecifierPrefixWalker()
 	{
 		// preserve result of successful parse
-		if(!type.empty()
-			&& !type.get()->arguments.empty())
+		if(!type.arguments.empty())
 		{
 			TemplateArguments* p = new TemplateArguments(context);
-			p->swap(type.get()->arguments);
+			p->swap(type.arguments);
 			parser->context.deferDelete(makeDeleteCallback2(p));
 		}
 
@@ -1822,7 +1820,7 @@ struct NestedNameSpecifierPrefixWalker : public WalkerBase
 			return reportIdentifierMismatch(symbol, walker.filter.hidingType->getName(), walker.filter.hidingType, "namespace-name");
 		}
 		TREEWALKER_WALK_HIT(walker, symbol);
-		type = Type(walker.declaration, context);
+		type.declaration = walker.declaration;
 	}
 	void visit(cpp::type_name* symbol)
 	{
@@ -1854,7 +1852,7 @@ struct NestedNameSpecifierWalker : public WalkerQualified
 	{
 		NestedNameSpecifierPrefixWalker walker(getState(), allowDependent);
 		TREEWALKER_WALK(walker, symbol);
-		if(walker.type.get() != 0)
+		if(walker.type.declaration != 0)
 		{
 			swapQualifying(walker.type);
 		}
@@ -1916,8 +1914,8 @@ struct TypeSpecifierWalker : public WalkerQualified
 			return reportIdentifierMismatch(symbol, walker.filter.nonType->getName(), walker.filter.nonType, "type-name");
 		}
 		TREEWALKER_WALK_HIT(walker, symbol);
-		SEMANTIC_ASSERT(!walker.type.empty());
-		type.swap(*walker.type.get());
+		SEMANTIC_ASSERT(walker.type.declaration != 0);
+		type.swap(walker.type);
 		type.qualifying.swap(qualifying);
 	}
 	void visit(cpp::terminal<boost::wave::T_COLON_COLON> symbol)
@@ -2222,7 +2220,7 @@ struct BaseSpecifierWalker : public WalkerQualified
 		*/
 		TypeNameWalker walker(getState(), true);
 		TREEWALKER_WALK(walker, symbol);
-		type.swap(*walker.type.get());
+		type.swap(walker.type);
 		type.qualifying.swap(qualifying);
 	}
 };
@@ -2763,7 +2761,7 @@ struct TypenameSpecifierWalker : public WalkerQualified
 			return reportIdentifierMismatch(symbol, walker.filter.nonType->getName(), walker.filter.nonType, "type-name");
 		}
 		TREEWALKER_WALK_HIT(walker, symbol);
-		type.swap(*walker.type.get());
+		type.swap(walker.type);
 		type.qualifying.swap(qualifying);
 	}
 };
