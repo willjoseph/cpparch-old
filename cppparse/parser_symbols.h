@@ -309,6 +309,7 @@ inline cpp::template_argument_clause_disambiguate* parseSymbol(ParserType& parse
 	return result;
 }
 
+#if 0
 template<typename ParserType>
 inline cpp::simple_template_id* parseSymbol(ParserType& parser, cpp::simple_template_id* result)
 {
@@ -316,7 +317,7 @@ inline cpp::simple_template_id* parseSymbol(ParserType& parser, cpp::simple_temp
 	PARSE_REQUIRED(parser, result->args);
 	return result;
 }
-
+#endif
 
 template<typename ParserType>
 inline cpp::member_declaration_bitfield* parseSymbol(ParserType& parser, cpp::member_declaration_bitfield* result)

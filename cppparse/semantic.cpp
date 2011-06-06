@@ -980,6 +980,54 @@ struct TemplateArgumentListWalker : public WalkerBase
 	}
 };
 
+template<typename ListType>
+struct ListCache
+{
+	ListNodeBase* first;
+	ListNodeBase* tail;
+
+	void set(const ListType& list)
+	{
+		if(!list.empty())
+		{
+			first = list.head.next;
+			tail = list.tail;
+		}
+		else
+		{
+			first = tail = 0;
+		}
+	}
+	void get(ListType& list) const
+	{
+		SEMANTIC_ASSERT(list.empty());
+		if(first != 0)
+		{
+			list.head.next = first;
+			list.tail = tail;
+			tail->next = &list.head;
+		}
+	}
+};
+
+struct SimpleTemplateIdCache
+{
+	cpp::simple_template_id* symbol;
+	Identifier* id;
+	ListCache<TemplateArguments> arguments;
+	ListCache<WalkerBase::Declarations::List> declarations;
+#ifdef ALLOCATOR_DEBUG
+	ListCache<WalkerBase::Scopes> scopes;
+#endif
+	size_t count;
+	size_t allocation;
+
+	explicit SimpleTemplateIdCache(cpp::simple_template_id* symbol, size_t count, size_t allocation)
+		: symbol(symbol), count(count), allocation(allocation)
+	{
+	}
+};
+
 struct TemplateIdWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
@@ -1001,6 +1049,55 @@ struct TemplateIdWalker : public WalkerBase
 		TemplateArgumentListWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		arguments.swap(walker.arguments);
+	}
+
+	const SimpleTemplateIdCache* cacheLookup(Lexer::Tokens::const_iterator before)
+	{
+		const SimpleTemplateIdCache* p = 0;
+		if(WalkerState::cached != 0) // if we are within a simple-type-specifier
+		{
+			// this symbol may have already been parsed successfully
+			WalkerState::cached->find(before, p);
+		}
+
+		if(p != 0)
+		{
+			// use cached symbol
+			id = p->id;
+			p->arguments.get(arguments);
+			p->declarations.get(declarations.declarations);
+#ifdef ALLOCATOR_DEBUG
+			p->scopes.get(scopes);
+#endif
+
+			parser->context.deferredDestroy.clear(); // TODO: cancel destruction of allocations that came before p->allocation
+			parser->context.allocator.position = p->allocation;
+			if(parser->context.allocator.positionHwm == p->allocation)
+			{
+				parser->context.allocator.positionHwm = 0;
+			}
+			parser->position = p->count;
+			parser->advance();
+		}
+		return p;
+	}
+
+	void cacheStore(Lexer::Tokens::const_iterator before, cpp::simple_template_id* symbol)
+	{
+#if 1 // work in progress.
+		// After successfully parsing template-argument-clause:
+		if(WalkerState::cached != 0) // if we are within a simple-type-specifier
+		{
+			// store this symbol
+			SimpleTemplateIdCache& entry = WalkerState::cached->insert(before, SimpleTemplateIdCache(symbol, parser->position, parser->context.allocator.position));
+			entry.id = id;
+			entry.arguments.set(arguments);
+			entry.declarations.set(declarations.declarations);
+#ifdef ALLOCATOR_DEBUG
+			entry.scopes.set(scopes);
+#endif
+		}
+#endif
 	}
 };
 
@@ -1128,9 +1225,11 @@ struct IdExpressionWalker : public WalkerQualified
 	Identifier* id;
 	bool isIdentifier;
 	bool isTemplate;
+	CachedSymbols cached;
 	IdExpressionWalker(const WalkerState& state)
 		: WalkerQualified(state), declaration(0), id(0), isIdentifier(false), isTemplate(false)
 	{
+		WalkerBase::cached = &cached;
 	}
 	// HACK: for postfix-expression-member 
 	void visit(cpp::terminal<boost::wave::T_TEMPLATE> symbol)
@@ -1558,53 +1657,6 @@ struct IsHiddenTypeName
 };
 
 
-template<typename ListType>
-struct ListCache
-{
-	ListNodeBase* first;
-	ListNodeBase* tail;
-
-	void set(const ListType& list)
-	{
-		if(!list.empty())
-		{
-			first = list.head.next;
-			tail = list.tail;
-		}
-		else
-		{
-			first = tail = 0;
-		}
-	}
-	void get(ListType& list) const
-	{
-		SEMANTIC_ASSERT(list.empty());
-		if(first != 0)
-		{
-			list.head.next = first;
-			list.tail = tail;
-			tail->next = &list.head;
-		}
-	}
-};
-
-struct SimpleTemplateIdCache
-{
-	cpp::simple_template_id* symbol;
-	Identifier* id;
-	ListCache<TemplateArguments> arguments;
-	ListCache<WalkerBase::Declarations::List> declarations;
-#ifdef ALLOCATOR_DEBUG
-	ListCache<WalkerBase::Scopes> scopes;
-#endif
-	size_t count;
-
-	explicit SimpleTemplateIdCache(cpp::simple_template_id* symbol, size_t count)
-		: symbol(symbol), count(count)
-	{
-	}
-};
-
 struct TypeNameWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
@@ -1643,32 +1695,41 @@ struct TypeNameWalker : public WalkerBase
 	{
 		ProfileScope profile(gProfileTemplateId);
 
-		Lexer::Tokens::const_iterator before = parser->context.position;
-		const SimpleTemplateIdCache* p = 0;
-		if(WalkerState::cached != 0) // if we are within a simple-type-specifier
-		{
-			// this symbol may have already been parsed successfully
-			WalkerState::cached->find(before, p);
-		}
-
 		TemplateIdWalker walker(getState());
+
+#if 0
+		Lexer::Tokens::const_iterator before = parser->context.position;
+		const SimpleTemplateIdCache* p = walker.cacheLookup(before);
 		if(p != 0)
 		{
-			// use cached symbol
-			walker.id = p->id;
-			p->arguments.get(walker.arguments);
-			p->declarations.get(walker.declarations.declarations);
-#ifdef ALLOCATOR_DEBUG
-			p->scopes.get(walker.scopes);
-#endif
-
-			parser->context.deferredDestroy.clear();
-			parser->context.allocator.position = parser->context.allocator.pendingBacktrack;
-			parser->context.allocator.pendingBacktrack = 0;
-			parser->position = p->count;
-			parser->advance();
+			*symbol = p->symbol;
+			result = symbol;
 		}
 		else
+		{
+			TREEWALKER_WALK_TRY(walker, symbol);
+			walker.cacheStore(before, symbol);
+		}
+
+		Declaration* declaration = lookupType(*walker.id, makeLookupFilter(filter));
+		if(declaration == &gUndeclared)
+		{
+			SEMANTIC_ASSERT(p == 0);
+			return reportIdentifierMismatch(symbol, *walker.id, &gUndeclared, "type-name");
+		}
+		if(declaration == &gDependentType
+			&& !isTypename)
+		{
+			SEMANTIC_ASSERT(p == 0);
+			// dependent type, are you missing a 'typename' keyword?
+			return reportIdentifierMismatch(symbol, *walker.id, &gUndeclared, "typename");
+		}
+
+		TREEWALKER_WALK_HIT(walker, symbol);
+#else
+		Lexer::Tokens::const_iterator before = parser->context.position;
+		const SimpleTemplateIdCache* p = walker.cacheLookup(before);
+		if(p == 0)
 		{
 			TREEWALKER_WALK_TRY(walker, symbol);
 		}
@@ -1695,22 +1756,10 @@ struct TypeNameWalker : public WalkerBase
 		else
 		{
 			SYMBOL_WALK_HIT(walker, symbol);
-#if 1 // work in progress.
-			// After successfully parsing template-argument-clause:
-			if(WalkerState::cached != 0) // if we are within a simple-type-specifier
-			{
-				// store this symbol
-				SimpleTemplateIdCache& entry = WalkerState::cached->insert(before, SimpleTemplateIdCache(symbol, parser->position));
-				entry.id = walker.id;
-				entry.arguments.set(walker.arguments);
-				entry.declarations.set(walker.declarations.declarations);
-#ifdef ALLOCATOR_DEBUG
-				entry.scopes.set(walker.scopes);
-#endif
-			}
-#endif
+			walker.cacheStore(before, symbol);
 			hit(walker); // must occur after storing scopes/declarations in cache
 		}
+#endif
 
 		walker.id->dec.p = declaration;
 		type.declaration = findTemplateSpecialization(declaration, walker.arguments);
@@ -3843,6 +3892,13 @@ struct NamespaceWalker : public WalkerBase
 };
 
 };
+
+#if 0
+inline cpp::simple_template_id* parseSymbol(ParserGeneric<Walker::TemplateIdWalker>& parser, cpp::simple_template_id* result)
+{
+	return parseSymbol(parser, result, False());
+}
+#endif
 
 
 TreeAllocator<int> getAllocator(ParserContext& context)
