@@ -1070,7 +1070,7 @@ struct TemplateIdWalker : public WalkerBase
 			p->scopes.get(scopes);
 #endif
 
-			parser->context.deferredDestroy.clear(); // TODO: cancel destruction of allocations that came before p->allocation
+			parser->context.allocator.deferredDestroy.clear(); // TODO: cancel destruction of allocations that came before p->allocation
 			parser->context.allocator.position = p->allocation;
 			if(parser->context.allocator.positionHwm == p->allocation)
 			{
@@ -1084,7 +1084,7 @@ struct TemplateIdWalker : public WalkerBase
 
 	void cacheStore(Lexer::Tokens::const_iterator before, cpp::simple_template_id* symbol)
 	{
-#if 1 // work in progress.
+#if 0 // work in progress.
 		// After successfully parsing template-argument-clause:
 		if(WalkerState::cached != 0) // if we are within a simple-type-specifier
 		{
@@ -1832,6 +1832,7 @@ struct NestedNameSpecifierPrefixWalker : public WalkerBase
 		: WalkerBase(state), type(0, context), allowDependent(allowDependent)
 	{
 	}
+#if 0
 	~NestedNameSpecifierPrefixWalker()
 	{
 		// preserve result of successful parse
@@ -1859,6 +1860,7 @@ struct NestedNameSpecifierPrefixWalker : public WalkerBase
 		}
 #endif
 	}
+#endif
 
 	void visit(cpp::namespace_name* symbol)
 	{

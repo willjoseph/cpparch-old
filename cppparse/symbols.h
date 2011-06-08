@@ -7,6 +7,7 @@
 #include "copied.h"
 #include "allocator.h"
 #include "list.h"
+#include "parser.h"
 
 #include <list>
 #include <map>
@@ -42,13 +43,16 @@ const DeclSpecifiers DECLSPEC_TYPEDEF = DeclSpecifiers(true, false, false, false
 #define TREEALLOCATOR_LINEAR
 
 #ifdef TREEALLOCATOR_LINEAR
+#if 1
 #define TreeAllocator LinearAllocatorWrapper
-#define TREEALLOCATOR_NULL TreeAllocator<int>(NullAllocator())
+#else
+#define TreeAllocator DeferredAllocator
+#endif
+#define TREEALLOCATOR_NULL TreeAllocator<int>(NullParserAllocator())
 #else
 #define TreeAllocator DebugAllocator
 #define TREEALLOCATOR_NULL TreeAllocator<int>()
 #endif
-
 
 // ----------------------------------------------------------------------------
 // type

@@ -90,4 +90,6 @@ struct TestList
 		LIST_ASSERT(*++++++++++c.begin() == 'c');
 		LIST_ASSERT(++++++++++++c.begin() == c.end());
 	}
-} gTestList;
+}
+//gTestList
+;

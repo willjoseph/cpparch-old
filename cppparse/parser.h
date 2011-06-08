@@ -306,23 +306,15 @@ struct Visualiser
 
 
 
-struct ParserState
-{
-	bool inTemplateArgumentList;
-
-	ParserState()
-		: inTemplateArgumentList(false)
-	{
-	}
-};
+typedef LinearAllocator<true> LexerAllocator;
 
 struct DestroyCallback
 {
-	typedef void (*Thunk)(void* data, struct ParserContext& context);
+	typedef void (*Thunk)(void* data, LexerAllocator& allocator);
 	Thunk thunk;
 	void* data;
 
-	void operator()(struct ParserContext& context) const
+	void operator()(LexerAllocator& context) const
 	{
 		thunk(data, context);
 	}
@@ -333,9 +325,9 @@ typedef std::list<DestroyCallback> DeferredDestroy;
 template<typename T>
 struct DeleteObjectThunk
 {
-	static void thunk(void* data, ParserContext& context)
+	static void thunk(void* data, LexerAllocator& allocator)
 	{
-		allocatorDelete(TreeAllocator<int>(context.allocator), static_cast<T*>(data));
+		allocatorDelete(LinearAllocatorWrapper<int>(allocator), static_cast<T*>(data));
 	}
 };
 
@@ -350,7 +342,7 @@ DestroyCallback makeDeleteCallback(T* p)
 template<typename T>
 struct DeleteObjectThunk2
 {
-	static void thunk(void* data, ParserContext& context)
+	static void thunk(void* data, LexerAllocator& allocator)
 	{
 		delete static_cast<T*>(data);
 	}
@@ -364,22 +356,13 @@ DestroyCallback makeDeleteCallback2(T* p)
 }
 
 
-typedef LinearAllocator<true> LexerAllocator;
 
-struct ParserContext : Lexer
+struct ParserAllocator : public LexerAllocator
 {
-	Visualiser visualiser;
-	LexerAllocator allocator;
 	DeferredDestroy deferredDestroy;
-	ParserContext(LexContext& context, const char* path)
-		: Lexer(context, path)
+	ParserAllocator()
 	{
-		allocator.onBacktrack = makeCallback(Member0<ParserContext, &ParserContext::deleteDeferred>(*this));
-	}
-
-	void backtrack(size_t count, const char* symbol = 0)
-	{
-		Lexer::backtrack(count, symbol);
+		LexerAllocator::onBacktrack = makeCallback(Member0<ParserAllocator, &ParserAllocator::deleteDeferred>(*this));
 	}
 	void deferDelete(const DestroyCallback& callback)
 	{
@@ -392,6 +375,127 @@ struct ParserContext : Lexer
 			(*i)(*this);
 		}
 		deferredDestroy.clear();
+	}
+};
+
+
+inline ParserAllocator& NullParserAllocator()
+{
+	static ParserAllocator null;
+	return null;
+}
+
+
+template<class T>
+class DeferredAllocator
+{
+public:
+	ParserAllocator& instance;
+
+	typedef T value_type;
+	typedef T* pointer;
+	typedef T& reference;
+	typedef const T* const_pointer;
+	typedef const T& const_reference;
+
+	typedef std::size_t size_type;
+	typedef std::ptrdiff_t difference_type;
+
+	template<class OtherT>
+	struct rebind
+	{
+		typedef DeferredAllocator<OtherT> other;
+	};
+	DeferredAllocator() : instance(NullParserAllocator())
+	{
+		throw AllocatorError();
+	}
+	DeferredAllocator(ParserAllocator& instance) : instance(instance)
+	{
+	}
+	DeferredAllocator(const DeferredAllocator<T>& other) : instance(other.instance)
+	{
+	}
+	template<class OtherT>
+	DeferredAllocator(const DeferredAllocator<OtherT>& other) : instance(other.instance)
+	{
+	}
+	template<class OtherT>
+	DeferredAllocator<T>& operator=(const DeferredAllocator<OtherT>& other)
+	{
+		if(this != &other)
+		{
+			this->~DeferredAllocator();
+			new(this) DeferredAllocator(other);
+		}
+		// do nothing!
+		return (*this);
+	}
+
+	void deallocate(pointer p, size_type count)
+	{
+		//std::cout << "deallocate: " << p << std::endl; 
+	}
+
+	pointer allocate(size_type count)
+	{
+		pointer p = pointer(instance.allocate(count * sizeof(T)));
+		//std::cout << "allocate: " << p << std::endl;
+		return p;
+	}
+
+	pointer allocate(size_type count, const void* hint)
+	{
+		return allocate(count);
+	}
+
+	void construct(pointer p, const T& value)
+	{
+		new(p) T(value);
+		instance.deferDelete(makeDeleteCallback(p));
+	}
+
+	void destroy(pointer p)
+	{
+	}
+
+	size_type max_size() const
+	{
+		size_type _Count = size_type(-1) / sizeof(T);
+		return (0 < _Count ? _Count : 1);
+	}
+};
+
+struct ParserContext : Lexer
+{
+	Visualiser visualiser;
+	ParserAllocator allocator;
+	ParserContext(LexContext& context, const char* path)
+		: Lexer(context, path)
+	{
+	}
+
+	void backtrack(size_t count, const char* symbol = 0)
+	{
+		Lexer::backtrack(count, symbol);
+	}
+	void deferDelete(const DestroyCallback& callback)
+	{
+		allocator.deferDelete(callback);
+	}
+	void deleteDeferred()
+	{
+		allocator.deleteDeferred();
+	}
+};
+
+struct ParserState
+{
+	bool inTemplateArgumentList;
+
+	ParserState()
+		: inTemplateArgumentList(false)
+	{
 	}
 };
 
@@ -533,12 +637,11 @@ struct SymbolAllocator<T, true>
 	}
 	T* allocate()
 	{
-		return new(context.allocator.allocate(sizeof(T))) T;
+		return allocatorNew(DeferredAllocator<int>(context.allocator), T());
 	}
 	void deallocate(T* p)
 	{
-		p->~T();
-		context.allocator.deallocate(p, sizeof(T));
+		allocatorDelete(DeferredAllocator<int>(context.allocator), p);
 	}
 };
 
@@ -560,7 +663,7 @@ struct SymbolAllocator<T, false>
 template<typename T>
 T* createSymbol(Parser& parser, T*)
 {
-	return new(parser.context.allocator.allocate(sizeof(T))) T;
+	return allocatorNew(DeferredAllocator<int>(parser.context.allocator), T());
 }
 
 struct SymbolDelete
@@ -612,53 +715,6 @@ void deleteSymbol(T* symbol, ParserContext& context)
 #endif
 }
 
-template<typename T>
-struct DestroySymbolThunk
-{
-	static void thunk(void* data, ParserContext& context)
-	{
-		deleteSymbol(static_cast<T*>(data), context);
-	}
-};
-
-template<typename T>
-DestroyCallback makeDestroyCallback(cpp::symbol<T> symbol)
-{
-	DestroyCallback result = { DestroySymbolThunk<T>::thunk, symbol.p };
-	return result;
-}
-
-struct SymbolDeferredDestroy
-{
-	ParserContext& context;
-	SymbolDeferredDestroy(ParserContext& context) : context(context)
-	{
-	}
-
-	void visit(cpp::terminal_identifier symbol)
-	{
-	}
-	void visit(cpp::terminal_string symbol)
-	{
-	}
-	void visit(cpp::terminal_choice2 symbol)
-	{
-	}
-
-	template<LexTokenId id>
-	void visit(cpp::terminal<id> symbol)
-	{
-	}
-
-	template<typename T>
-	void visit(cpp::symbol<T> symbol)
-	{
-		if(symbol.p != 0)
-		{
-			context.deferDelete(makeDestroyCallback(symbol));
-		}
-	}
-};
 
 template<typename T, bool isConcrete = IsConcrete<T>::RESULT >
 struct SymbolHolder;
@@ -678,15 +734,11 @@ struct SymbolHolder<T, true>
 	}
 	static T* hit(T* result, ParserContext& context)
 	{
-		return new(context.allocator.allocate(sizeof(T))) T(*result);
+		return allocatorNew(DeferredAllocator<int>(context.allocator), T(*result));
 	}
 	void miss()
 	{
-#if 1
-		SymbolDeferredDestroy walker(context);
-#else
 		SymbolDelete walker(context);
-#endif
 		value.accept(walker);
 	}
 };
