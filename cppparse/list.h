@@ -4,6 +4,8 @@
 
 #include <iterator>
 
+#include "allocator.h"
+
 template<typename T>
 struct TypeTraits
 {
@@ -65,10 +67,16 @@ struct ListIterator
 
 	reference operator*() const
 	{
+#ifdef ALLOCATOR_DEBUG
+		ALLOCATOR_ASSERT(!isDeallocated(p));
+#endif
 		return static_cast<Node*>(p)->value;
 	}
 	pointer operator->() const
 	{
+#ifdef ALLOCATOR_DEBUG
+		ALLOCATOR_ASSERT(!isDeallocated(p));
+#endif
 		return &static_cast<Node*>(p)->value;
 	}
 

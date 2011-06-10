@@ -320,7 +320,6 @@ struct DestroyCallback
 	}
 };
 
-typedef std::list<DestroyCallback> DeferredDestroy;
 
 template<typename T>
 struct DeleteObjectThunk
@@ -355,6 +354,8 @@ DestroyCallback makeDeleteCallback2(T* p)
 	return result;
 }
 
+typedef std::pair<size_t, DestroyCallback> DeferredDestroyElement;
+typedef std::list<DeferredDestroyElement> DeferredDestroy;
 
 
 struct ParserAllocator : public LexerAllocator
@@ -362,19 +363,28 @@ struct ParserAllocator : public LexerAllocator
 	DeferredDestroy deferredDestroy;
 	ParserAllocator()
 	{
-		LexerAllocator::onBacktrack = makeCallback(Member0<ParserAllocator, &ParserAllocator::deleteDeferred>(*this));
+		LexerAllocator::onBacktrack = makeCallback(Member1<ParserAllocator, size_t, &ParserAllocator::deleteDeferred>(*this));
 	}
-	void deferDelete(const DestroyCallback& callback)
+	void deferDelete(size_t position, const DestroyCallback& callback)
 	{
-		deferredDestroy.push_back(callback);
+		deferredDestroy.push_front(DeferredDestroyElement(position, callback));
 	}
-	void deleteDeferred()
+	void deleteDeferred(size_t position)
 	{
-		for(DeferredDestroy::iterator i = deferredDestroy.begin(); i != deferredDestroy.end(); ++i)
+		DeferredDestroy::iterator i = deferredDestroy.begin();
+		for(; i != deferredDestroy.end(); ++i)
 		{
-			(*i)(*this);
+			if((*i).first < position)
+			{
+				break;
+			}
+			(*i).second(*this);
 		}
-		deferredDestroy.clear();
+		deferredDestroy.erase(deferredDestroy.begin(), i);
+	}
+	void backtrack(size_t original)
+	{
+		LexerAllocator::backtrack(original);
 	}
 };
 
@@ -385,7 +395,9 @@ inline ParserAllocator& NullParserAllocator()
 	return null;
 }
 
-
+#if 0
+#define DeferredAllocator LinearAllocatorWrapper
+#else
 template<class T>
 class DeferredAllocator
 {
@@ -439,8 +451,17 @@ public:
 
 	pointer allocate(size_type count)
 	{
-		pointer p = pointer(instance.allocate(count * sizeof(T)));
+		size_t position = instance.position;
+		pointer p = pointer(instance.allocate(count * sizeof(T)
+#if 0//def ALLOCATOR_DEBUG
+			+ sizeof(size_t)
+#endif
+			));
+#if 0//ALLOCATOR_DEBUG
+		*reinterpret_cast<size_t*>(p + count) = position;
+#endif
 		//std::cout << "allocate: " << p << std::endl;
+		instance.deferDelete(position, makeDeleteCallback(p));
 		return p;
 	}
 
@@ -452,7 +473,6 @@ public:
 	void construct(pointer p, const T& value)
 	{
 		new(p) T(value);
-		instance.deferDelete(makeDeleteCallback(p));
 	}
 
 	void destroy(pointer p)
@@ -465,6 +485,7 @@ public:
 		return (0 < _Count ? _Count : 1);
 	}
 };
+#endif
 
 struct ParserContext : Lexer
 {
@@ -479,13 +500,13 @@ struct ParserContext : Lexer
 	{
 		Lexer::backtrack(count, symbol);
 	}
-	void deferDelete(const DestroyCallback& callback)
+	void deferDelete(size_t position, const DestroyCallback& callback)
 	{
-		allocator.deferDelete(callback);
+		allocator.deferDelete(position, callback);
 	}
-	void deleteDeferred()
+	void deleteDeferred(size_t position)
 	{
-		allocator.deleteDeferred();
+		allocator.deleteDeferred(position);
 	}
 };
 
@@ -709,9 +730,11 @@ struct SymbolDelete
 template<typename T>
 void deleteSymbol(T* symbol, ParserContext& context)
 {
+#if 0 // managed by parser
 #ifdef ALLOCATOR_DEBUG
 	SymbolDelete walker(context);
 	walker.visit(cpp::symbol<T>(symbol));
+#endif
 #endif
 }
 
@@ -738,8 +761,10 @@ struct SymbolHolder<T, true>
 	}
 	void miss()
 	{
+#if 0 // managed by parser
 		SymbolDelete walker(context);
 		value.accept(walker);
+#endif
 	}
 };
 

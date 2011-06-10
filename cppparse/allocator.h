@@ -93,6 +93,7 @@ struct AllocatorError
 #define ALLOCATOR_ASSERT(condition) if(!(condition)) { throw AllocatorError(); }
 
 #define ALLOCATOR_FREECHAR char(0xba)
+#define ALLOCATOR_INITCHAR char(0xcd)
 
 struct IsAllocated
 {
@@ -114,6 +115,95 @@ inline bool isAllocated(const char* first, const char* last)
 	return p != last;
 }
 
+struct IsDeallocated
+{
+	bool operator()(char c) const
+	{
+		return c == ALLOCATOR_FREECHAR;
+	}
+};
+
+inline bool isDeallocated(const char* first, const char* last)
+{
+	const char* p = std::find_if(first, last, IsDeallocated());
+	if(p != last)
+	{
+		std::cout << "deallocation at: " << static_cast<const void*>(p) << ": ";
+		std::cout.write(p, 4);
+		std::cout << std::endl;
+	}
+	return p != last;
+}
+
+template<typename T>
+inline bool isDeallocated(const T* p)
+{
+	return p != 0 &&
+#if 1
+		*reinterpret_cast<const size_t*>(p) == 0xbabababa;
+#else
+		isDeallocated(reinterpret_cast<const char*>(p), reinterpret_cast<const char*>(p + 1));
+#endif
+}
+
+template<typename T>
+struct SafePtr
+{
+	typedef T Type;
+	T* p;
+	SafePtr()
+	{
+	}
+	SafePtr(T* p)
+		: p(p)
+	{
+	}
+	SafePtr(const SafePtr<T>& other)
+		: p(other.p)
+	{
+#ifdef ALLOCATOR_DEBUG
+		ALLOCATOR_ASSERT(!isDeallocated(p));
+#endif
+	}
+	SafePtr<T>& operator=(const SafePtr<T>& other)
+	{
+		p = other;
+#ifdef ALLOCATOR_DEBUG
+		ALLOCATOR_ASSERT(!isDeallocated(p));
+#endif
+		return *this;
+	}
+	SafePtr<T>& operator=(T* other)
+	{
+		p = other;
+#ifdef ALLOCATOR_DEBUG
+		ALLOCATOR_ASSERT(!isDeallocated(p));
+#endif
+		return *this;
+	}
+	T& operator*() const
+	{
+#ifdef ALLOCATOR_DEBUG
+		ALLOCATOR_ASSERT(!isDeallocated(p));
+#endif
+		return *p;
+	}
+	T* operator->() const
+	{
+#ifdef ALLOCATOR_DEBUG
+		ALLOCATOR_ASSERT(!isDeallocated(p));
+#endif
+		return p;
+	}
+	operator T*() const
+	{
+#ifdef ALLOCATOR_DEBUG
+		ALLOCATOR_ASSERT(!isDeallocated(p));
+#endif
+		return p;
+	}
+};
+
 struct Page
 {
 	enum { SHIFT = 17 };
@@ -129,16 +219,16 @@ struct Page
 	}
 };
 
-struct Callback
+struct Callback0
 {
 	typedef void (*Function)(void* data);
 	Function function;
 	void* data;
-	Callback()
+	Callback0()
 		: function(defaultThunk)
 	{
 	}
-	Callback(Function function, void* data)
+	Callback0(Function function, void* data)
 		: function(function), data(data)
 	{
 	}
@@ -151,6 +241,29 @@ struct Callback
 	}
 };
 
+template<typename A>
+struct Callback1
+{
+	typedef void (*Function)(void* data, A);
+	Function function;
+	void* data;
+	Callback1()
+		: function(defaultThunk)
+	{
+	}
+	Callback1(Function function, void* data)
+		: function(function), data(data)
+	{
+	}
+	void operator()(A a) const
+	{
+		function(data, a);
+	}
+	static void defaultThunk(void*, A)
+	{
+	}
+};
+
 template<typename Object, void (Object::*member)()>
 struct Member0
 {
@@ -159,17 +272,33 @@ struct Member0
 		: object(&object)
 	{
 	}
+	typedef Callback0 Result;
 	static void thunk(void* object)
 	{
 		((*static_cast<Object*>(object)).*member)();
 	}
 };
+template<typename Object, typename A, void (Object::*member)(A)>
+struct Member1
+{
+	void* object;
+	Member1(Object& object)
+		: object(&object)
+	{
+	}
+	typedef Callback1<A> Result;
+	static void thunk(void* object, A a)
+	{
+		((*static_cast<Object*>(object)).*member)(a);
+	}
+};
 
 template<typename Caller>
-Callback makeCallback(Caller caller)
+typename Caller::Result makeCallback(Caller caller)
 {
-	return Callback(Caller::thunk, caller.object);
+	return typename Caller::Result(Caller::thunk, caller.object);
 }
+
 
 template<bool checked>
 struct LinearAllocator
@@ -178,7 +307,7 @@ struct LinearAllocator
 	Pages pages;
 	size_t position;
 	size_t positionHwm;
-	Callback onBacktrack; 
+	Callback1<size_t> onBacktrack; 
 
 
 	static void* debugAddress;
@@ -226,6 +355,7 @@ struct LinearAllocator
 		position += size;
 #ifdef ALLOCATOR_DEBUG
 		ALLOCATOR_ASSERT(!checked || !isAllocated(reinterpret_cast<char*>(p), reinterpret_cast<char*>(p) + size));
+		std::uninitialized_fill(reinterpret_cast<char*>(p), reinterpret_cast<char*>(p) + size, ALLOCATOR_INITCHAR);
 #endif
 		return p;
 	}
@@ -243,6 +373,9 @@ struct LinearAllocator
 			positionHwm = position;
 		}
 		position = original;
+#if 1 // test: force immediate backtrack
+		deferredBacktrack();
+#endif
 	}
 	void deferredBacktrack()
 	{
@@ -251,7 +384,7 @@ struct LinearAllocator
 			return;
 		}
 
-		onBacktrack();
+		onBacktrack(position);
 
 #ifdef ALLOCATOR_DEBUG
 		Pages::iterator first = pages.begin() + position / sizeof(Page);
@@ -342,12 +475,20 @@ public:
 	void deallocate(pointer p, size_type count)
 	{
 		//std::cout << "deallocate: " << p << std::endl; 
-		instance.deallocate(p, count * sizeof(T));
+		instance.deallocate(p, count * sizeof(T)
+#if 0//ALLOCATOR_DEBUG
+			+ sizeof(size_t)
+#endif
+			);
 	}
 
 	pointer allocate(size_type count)
 	{
-		pointer p = pointer(instance.allocate(count * sizeof(T)));
+		pointer p = pointer(instance.allocate(count * sizeof(T)
+#if 0//ALLOCATOR_DEBUG
+			+ sizeof(size_t)
+#endif
+			));
 		//std::cout << "allocate: " << p << std::endl;
 		return p;
 	}

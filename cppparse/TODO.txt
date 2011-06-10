@@ -9,6 +9,8 @@
 - support '>>' in nested template-argument-list
 - implement 'auto' from C++0x
 
+bug: infinite loop when source file ends without newline?
+
 - check that correct std::swap() is called for Copied
 
 - document boost::wave modification: resolved_include_file
@@ -171,6 +173,10 @@ not consider any scopes outside the innermost enclosing namespace.
 						- perform cache lookup for each subsequent parse attempt, using rtti
 						- on cache hit, return cached parse-tree, indicate that result is cached
 			- avoid deallocation of cached symbol table
+				- problem: ETS declaration in failed parse-tree is found by lookup of subsequent parse attempt
+					- move point of ets declaration to end of decl-specifier-seq?
+					- flush cached parse-tree at point of declaration
+					- in findDeclaration, assert that cached parse-tree does not contain declarations
 			- manage parse-tree allocations
 				- need to preserve parse-tree, until next successful parse causes partial unwind
 				- added complication: need to remove ETS allocations from enclosing scope

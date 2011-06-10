@@ -3,10 +3,12 @@
 #define INCLUDED_CPPPARSE_CPPTREE_H
 
 #include "visitor.h"
+#include "allocator.h"
 
 #include <boost/wave/token_ids.hpp>
 
 typedef boost::wave::token_id LexTokenId;
+
 
 class Declaration;
 
@@ -46,10 +48,16 @@ namespace cpp
 		}
 		T* operator->()
 		{
+#ifdef ALLOCATOR_DEBUG
+			ALLOCATOR_ASSERT(!isDeallocated(p));
+#endif
 			return p;
 		}
 		operator T*()
 		{
+#ifdef ALLOCATOR_DEBUG
+			ALLOCATOR_ASSERT(!isDeallocated(p));
+#endif
 			return p;
 		}
 	};
@@ -109,7 +117,7 @@ namespace cpp
 
 	struct decoration
 	{
-		Declaration* p;
+		SafePtr<Declaration> p;
 		decoration() : p(0)
 		{
 		}

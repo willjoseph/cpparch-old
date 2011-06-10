@@ -2,6 +2,7 @@
 #ifndef INCLUDED_CPPPARSE_COPIED_H
 #define INCLUDED_CPPPARSE_COPIED_H
 
+#include "allocator.h"
 
 template<typename T, typename A>
 class Copied : private A
@@ -44,15 +45,27 @@ public:
 
 	void swap(Copied& other)
 	{
+#ifdef ALLOCATOR_DEBUG
+		ALLOCATOR_ASSERT(!isDeallocated(p));
+#endif
 		std::swap(p, other.p);
+#ifdef ALLOCATOR_DEBUG
+		ALLOCATOR_ASSERT(!isDeallocated(p));
+#endif
 	}
 
 	T* get()
 	{
+#ifdef ALLOCATOR_DEBUG
+		ALLOCATOR_ASSERT(!isDeallocated(p));
+#endif
 		return p;
 	}
 	const T* get() const
 	{
+#ifdef ALLOCATOR_DEBUG
+		ALLOCATOR_ASSERT(!isDeallocated(p));
+#endif
 		return p;
 	}
 
@@ -62,10 +75,16 @@ public:
 	}
 	T& back()
 	{
+#ifdef ALLOCATOR_DEBUG
+		ALLOCATOR_ASSERT(!isDeallocated(p));
+#endif
 		return *p;
 	}
 	const T& back() const
 	{
+#ifdef ALLOCATOR_DEBUG
+		ALLOCATOR_ASSERT(!isDeallocated(p));
+#endif
 		return *p;
 	}
 };

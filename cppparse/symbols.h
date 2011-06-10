@@ -43,22 +43,37 @@ const DeclSpecifiers DECLSPEC_TYPEDEF = DeclSpecifiers(true, false, false, false
 #define TREEALLOCATOR_LINEAR
 
 #ifdef TREEALLOCATOR_LINEAR
-#if 1
-#define TreeAllocator LinearAllocatorWrapper
-#else
 #define TreeAllocator DeferredAllocator
-#endif
 #define TREEALLOCATOR_NULL TreeAllocator<int>(NullParserAllocator())
 #else
 #define TreeAllocator DebugAllocator
 #define TREEALLOCATOR_NULL TreeAllocator<int>()
 #endif
 
+template<typename T, typename A>
+class DeferredList : public List<T, A>
+{
+	typedef List<T, A> Base;
+public:
+	DeferredList()
+	{
+	}
+	DeferredList(const A& allocator)
+		: Base(allocator)
+	{
+	}
+	~DeferredList()
+	{
+		A allocator(getAllocator());
+		new (static_cast<Base*>(this)) Base(allocator);
+	}
+};
+
 // ----------------------------------------------------------------------------
 // type
 
 #if 1
-typedef List<struct TemplateArgument, TreeAllocator<struct TemplateArgument> > TemplateArguments2;
+typedef DeferredList<struct TemplateArgument, TreeAllocator<struct TemplateArgument> > TemplateArguments2;
 
 struct TemplateArguments : public TemplateArguments2
 {
@@ -73,11 +88,11 @@ private:
 	//TemplateArguments& operator=(const TemplateArguments&);
 };
 #else
-typedef List<struct TemplateArgument> TemplateArguments;
+typedef DeferredList<struct TemplateArgument> TemplateArguments;
 #endif
 
 
-typedef List<struct Type, TreeAllocator<int> > Types2;
+typedef DeferredList<struct Type, TreeAllocator<int> > Types2;
 
 /// A list of Type objects.
 struct Types : public Types2
@@ -97,10 +112,11 @@ typedef CopiedType Qualifying;
 
 
 class Declaration;
+typedef SafePtr<Declaration> DeclarationPtr;
 
 struct Type
 {
-	Declaration* declaration;
+	DeclarationPtr declaration;
 	TemplateArguments arguments;
 	Qualifying qualifying;
 	bool isImplicitTemplateId; // true if template-argument-clause has not been specified
@@ -201,7 +217,7 @@ struct DependencyNode
 	}
 };
 
-typedef List<DependencyNode, TreeAllocator<int> > Dependent2;
+typedef DeferredList<DependencyNode, TreeAllocator<int> > Dependent2;
 
 struct Dependent : public Dependent2
 {
@@ -270,12 +286,13 @@ inline const char* getValue(const Identifier& id)
 	return id.value == 0 ? "$unnamed" : id.value;
 }
 
+typedef SafePtr<Identifier> IdentifierPtr;
 
 // ----------------------------------------------------------------------------
 // declaration
 
 const size_t INDEX_INVALID = size_t(-1);
-typedef List<class Declaration*, TreeAllocator<int> > DeclarationList;
+typedef DeferredList<class Declaration*, TreeAllocator<int> > DeclarationList;
 
 class Declaration
 {
@@ -333,6 +350,8 @@ public:
 	}
 };
 
+typedef SafePtr<Declaration> DeclarationPtr;
+
 inline cpp::terminal_identifier& getDeclarationId(Declaration* declaration)
 {
 	return declaration->getName();
@@ -381,23 +400,48 @@ struct ScopeCounter
 	}
 };
 
+typedef SafePtr<Scope> ScopePtr;
+
 struct Scope : public ScopeCounter
 {
-	Scope* parent;
+	ScopePtr parent;
 	Identifier name;
 	size_t enclosedScopeCount; // number of scopes directly enclosed by this scope
 	typedef std::less<const char*> IdentifierLess;
-	typedef std::multimap<const char*, Declaration, IdentifierLess, TreeAllocator<int> > Declarations;
+
+	struct DeclarationElement : public Declaration
+	{
+		bool declared;
+		DeclarationElement(const Declaration& declaration)
+			: Declaration(declaration), declared(false)
+		{
+		}
+		~DeclarationElement()
+		{
+			if(declared)
+			{
+				declared = false;
+				scope->declarations.erase(getName().value);
+			}
+		}
+	};
+
+
+	typedef std::multimap<const char*, DeclarationElement, IdentifierLess, TreeAllocator<int> > Declarations;
 	Declarations declarations;
 	ScopeType type;
 	Types bases;
-	typedef List<Scope*, TreeAllocator<int> > Scopes;
+	typedef DeferredList<ScopePtr, TreeAllocator<int> > Scopes;
 	Scopes usingDirectives;
 	Declarations friendDeclarations;
 
 	Scope(const TreeAllocator<int>& allocator, const Identifier& name, ScopeType type = SCOPETYPE_UNKNOWN)
 		: parent(0), name(name), enclosedScopeCount(0), declarations(IdentifierLess(), allocator), type(type), bases(allocator), usingDirectives(allocator), friendDeclarations(IdentifierLess(), allocator)
 	{
+	}
+	~Scope()
+	{
+		SYMBOLS_ASSERT(declarations.empty());
 	}
 
 	Identifier& getUniqueName()
@@ -412,6 +456,7 @@ struct Scope : public ScopeCounter
 	Declaration* insert(const Declaration& other)
 	{
 		Scope::Declarations::iterator result = declarations.insert(Scope::Declarations::value_type(other.getName().value, other));
+		(*result).second.declared = true;
 		return &(*result).second;
 	}
 };

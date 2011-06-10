@@ -1,6 +1,7 @@
 
 
 #include "semantic.h"
+#include "util.h"
 
 #include "profiler.h"
 #include "symbols.h"
@@ -88,7 +89,7 @@ struct IdentifierMismatch
 {
 	Identifier id;
 	const char* expected;
-	Declaration* declaration;
+	DeclarationPtr declaration;
 	IdentifierMismatch()
 	{
 	}
@@ -240,10 +241,10 @@ struct WalkerState
 	typedef WalkerState State;
 
 	WalkerContext& context;
-	Scope* enclosing;
+	ScopePtr enclosing;
 	const Type* qualifying_p;
-	Scope* templateParams;
-	Scope* templateEnclosing;
+	ScopePtr templateParams;
+	ScopePtr templateEnclosing;
 	DeferredSymbols* deferred;
 	CachedSymbols* cached;
 
@@ -315,6 +316,13 @@ struct WalkerState
 		const Dependent& valueDependent = DEPENDENT_NULL)
 	{
 		SEMANTIC_ASSERT(parent != 0);
+
+		if(string_equal(getValue(name), "numpunct_byname"))
+		{
+			__debugbreak();
+		}
+
+		parser->context.allocator.deferredBacktrack(); // flush cached parse-tree
 
 		Declaration other(allocator, parent, name, type, enclosed, specifiers, isTemplate, arguments, templateParameter, valueDependent);
 		if(name.value != 0) // unnamed class/struct/union/enum
@@ -537,14 +545,14 @@ struct WalkerBase : public WalkerState
 {
 	typedef WalkerBase Base;
 
-	typedef List<Scope, TreeAllocator<int> > Scopes;
+	typedef DeferredList<Scope, TreeAllocator<int> > Scopes;
 
 	// Contains all elaborated-type-specifiers declared during the current parse.
 	// If these declarations have been added to a scope that has already been committed,
 	// when the parse fails, these declarations must be removed from their containing scope.
 	struct Declarations
 	{
-		typedef List<Declaration*, TreeAllocator<int> > List;
+		typedef DeferredList<DeclarationPtr, TreeAllocator<int> > List;
 
 		List declarations;
 
@@ -571,12 +579,14 @@ struct WalkerBase : public WalkerState
 #endif
 		~Declarations()
 		{
+#if 0
 			for(Declarations::iterator i = declarations.begin(); i != declarations.end(); ++i)
 			{
 				SEMANTIC_ASSERT(&(*(*i)->scope->declarations.find((*i)->getName().value)).second == (*i));
 
 				(*i)->scope->declarations.erase((*i)->getName().value);
 			}
+#endif
 		}
 		bool empty() const
 		{
@@ -700,36 +710,14 @@ struct WalkerBase : public WalkerState
 };
 
 // saves and restores the state in walker-base
-#if 0 // TODO: this optimisation is broken: fix it!
+#if 1
 struct ScopeGuard
 {
-	WalkerBase& base;
-#ifdef ALLOCATOR_DEBUG
-	WalkerBase::Scopes::iterator scopes;
-#endif
-	WalkerBase::Declarations::iterator declarations;
 	ScopeGuard(WalkerBase& base)
-		: base(base),
-#ifdef ALLOCATOR_DEBUG
-		scopes(base.scopes.end()),
-#endif
-		declarations(base.declarations.end())
 	{
 	}
-	~ScopeGuard()
-	{
-#ifdef ALLOCATOR_DEBUG
-		base.scopes.erase(scopes, base.scopes.end());
-#endif
-		base.declarations.erase(declarations, base.declarations.end());
-	}
-	// if parse succeeds, append new state to previous state
 	void hit()
 	{
-#ifdef ALLOCATOR_DEBUG
-		scopes = base.scopes.end();
-#endif
-		declarations = base.declarations.end();
 	}
 };
 #else
@@ -894,7 +882,7 @@ struct Walker
 
 struct IsHiddenNamespaceName
 {
-	Declaration* hidingType; // valid if the declaration is hidden by a type name
+	DeclarationPtr hidingType; // valid if the declaration is hidden by a type name
 
 	IsHiddenNamespaceName()
 		: hidingType(0)
@@ -920,7 +908,7 @@ struct NamespaceNameWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Declaration* declaration;
+	DeclarationPtr declaration;
 	IsHiddenNamespaceName filter;
 	NamespaceNameWalker(const WalkerState& state)
 		: WalkerBase(state), declaration(0)
@@ -1013,7 +1001,7 @@ struct ListCache
 struct SimpleTemplateIdCache
 {
 	cpp::simple_template_id* symbol;
-	Identifier* id;
+	IdentifierPtr id;
 	ListCache<TemplateArguments> arguments;
 	ListCache<WalkerBase::Declarations::List> declarations;
 #ifdef ALLOCATOR_DEBUG
@@ -1032,7 +1020,7 @@ struct TemplateIdWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Identifier* id;
+	IdentifierPtr id;
 	TemplateArguments arguments;
 	TemplateIdWalker(const WalkerState& state)
 		: WalkerBase(state), id(0), arguments(context)
@@ -1106,8 +1094,8 @@ struct UnqualifiedIdWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Declaration* declaration;
-	Identifier* id;
+	DeclarationPtr declaration;
+	IdentifierPtr id;
 	bool isIdentifier;
 	bool isTemplate;
 	UnqualifiedIdWalker(const WalkerState& state, bool isTemplate = false)
@@ -1172,8 +1160,8 @@ struct QualifiedIdWalker : public WalkerQualified
 {
 	TREEWALKER_DEFAULT;
 
-	Declaration* declaration;
-	Identifier* id;
+	DeclarationPtr declaration;
+	IdentifierPtr id;
 	bool isTemplate;
 	QualifiedIdWalker(const WalkerState& state)
 		: WalkerQualified(state), declaration(0), id(0), isTemplate(false)
@@ -1221,8 +1209,8 @@ struct IdExpressionWalker : public WalkerQualified
 	— a conversion-function-id that specifies a dependent type,
 	— a nested-name-specifier or a qualified-id that names a member of an unknown specialization
 	*/
-	Declaration* declaration;
-	Identifier* id;
+	DeclarationPtr declaration;
+	IdentifierPtr id;
 	bool isIdentifier;
 	bool isTemplate;
 	CachedSymbols cached;
@@ -1313,8 +1301,8 @@ struct DependentPrimaryExpressionWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Declaration* declaration;
-	Identifier* id;
+	DeclarationPtr declaration;
+	IdentifierPtr id;
 	Dependent typeDependent;
 	DependentPrimaryExpressionWalker(const WalkerState& state)
 		: WalkerBase(state), declaration(0), id(0), typeDependent(context)
@@ -1376,8 +1364,8 @@ struct DependentPostfixExpressionWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Declaration* declaration;
-	Identifier* id;
+	DeclarationPtr declaration;
+	IdentifierPtr id;
 	Dependent typeDependent;
 	DependentPostfixExpressionWalker(const WalkerState& state)
 		: WalkerBase(state), declaration(0), id(0), typeDependent(context)
@@ -1628,8 +1616,8 @@ struct ExpressionWalker : public WalkerBase
 
 struct IsHiddenTypeName
 {
-	Declaration* nonType; // valid if the declaration is hidden by a non-type name
-	Declaration* hidingNamespace; // valid if the declaration is hidden by a namespace name
+	DeclarationPtr nonType; // valid if the declaration is hidden by a non-type name
+	DeclarationPtr hidingNamespace; // valid if the declaration is hidden by a namespace name
 
 	IsHiddenTypeName()
 		: nonType(0), hidingNamespace(0)
@@ -2015,7 +2003,7 @@ struct UnqualifiedDeclaratorIdWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Identifier* id;
+	IdentifierPtr id;
 	UnqualifiedDeclaratorIdWalker(const WalkerState& state)
 		: WalkerBase(state), id(&gAnonymousId)
 	{
@@ -2061,7 +2049,7 @@ struct QualifiedDeclaratorIdWalker : public WalkerQualified
 {
 	TREEWALKER_DEFAULT;
 
-	Identifier* id;
+	IdentifierPtr id;
 	QualifiedDeclaratorIdWalker(const WalkerState& state)
 		: WalkerQualified(state), id(&gAnonymousId)
 	{
@@ -2088,7 +2076,7 @@ struct DeclaratorIdWalker : public WalkerQualified
 {
 	TREEWALKER_DEFAULT;
 
-	Identifier* id;
+	IdentifierPtr id;
 	DeclaratorIdWalker(const WalkerState& state)
 		: WalkerQualified(state), id(&gAnonymousId)
 	{
@@ -2176,7 +2164,7 @@ struct DeclaratorSuffixWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Scope* paramScope;
+	ScopePtr paramScope;
 	Dependent valueDependent;
 	DeclaratorSuffixWalker(const WalkerState& state)
 		: WalkerBase(state), paramScope(0), valueDependent(context)
@@ -2206,8 +2194,8 @@ struct DeclaratorWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Identifier* id;
-	Scope* paramScope;
+	IdentifierPtr id;
+	ScopePtr paramScope;
 	Dependent valueDependent;
 	DeclaratorWalker(const WalkerState& state)
 		: WalkerBase(state), id(&gAnonymousId), paramScope(0), valueDependent(context)
@@ -2280,8 +2268,8 @@ struct ClassHeadWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Declaration* declaration;
-	Identifier* id;
+	DeclarationPtr declaration;
+	IdentifierPtr id;
 	TemplateArguments arguments;
 	bool isUnion;
 	ClassHeadWalker(const WalkerState& state)
@@ -2426,7 +2414,7 @@ struct NamespaceAliasDefinitionWalker : public WalkerQualified
 {
 	TREEWALKER_DEFAULT;
 
-	Identifier* id;
+	IdentifierPtr id;
 	NamespaceAliasDefinitionWalker(const WalkerState& state)
 		: WalkerQualified(state), id(0)
 	{
@@ -2472,7 +2460,7 @@ struct MemberDeclarationWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Declaration* declaration;
+	DeclarationPtr declaration;
 	MemberDeclarationWalker(const WalkerState& state)
 		: WalkerBase(state), declaration(0)
 	{
@@ -2513,8 +2501,8 @@ struct ClassSpecifierWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Declaration* declaration;
-	Identifier* id;
+	DeclarationPtr declaration;
+	IdentifierPtr id;
 	TemplateArguments arguments;
 	DeferredSymbols deferred;
 	bool isUnion;
@@ -2572,7 +2560,7 @@ struct EnumeratorDefinitionWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Declaration* declaration;
+	DeclarationPtr declaration;
 	EnumeratorDefinitionWalker(const WalkerState& state)
 		: WalkerBase(state), declaration(0)
 	{
@@ -2603,8 +2591,8 @@ struct EnumSpecifierWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Declaration* declaration;
-	Identifier* id;
+	DeclarationPtr declaration;
+	IdentifierPtr id;
 	EnumSpecifierWalker(const WalkerState& state)
 		: WalkerBase(state), declaration(0), id(0)
 	{
@@ -2645,9 +2633,9 @@ struct ElaboratedTypeSpecifierWalker : public WalkerQualified
 {
 	TREEWALKER_DEFAULT;
 
-	Declaration* key;
+	DeclarationPtr key;
 	Type type;
-	Identifier* id;
+	IdentifierPtr id;
 	ElaboratedTypeSpecifierWalker(const WalkerState& state)
 		: WalkerQualified(state), key(0), type(0, context), id(0)
 	{
@@ -2824,7 +2812,7 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 	Type type;
 	unsigned fundamental;
 	DeclSpecifiers specifiers;
-	Identifier* forward;
+	IdentifierPtr forward;
 	bool isUnion;
 	bool isTemplateParameter;
 	DeclSpecifierSeqWalker(const WalkerState& state, bool isTemplateParameter = false)
@@ -3187,7 +3175,7 @@ struct MemberDeclaratorBitfieldWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Identifier* id;
+	IdentifierPtr id;
 	MemberDeclaratorBitfieldWalker(const WalkerState& state)
 		: WalkerBase(state), id(0)
 	{
@@ -3260,13 +3248,13 @@ struct SimpleDeclarationWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Declaration* declaration;
-	Scope* parent;
-	Identifier* id;
+	DeclarationPtr declaration;
+	ScopePtr parent;
+	IdentifierPtr id;
 	Type type;
-	Scope* enclosed;
+	ScopePtr enclosed;
 	DeclSpecifiers specifiers;
-	Identifier* forward;
+	IdentifierPtr forward;
 
 	DeferredSymbols deferred;
 	DeferredSymbols deferred2;
@@ -3637,7 +3625,7 @@ struct TypeParameterWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Declaration* declaration;
+	DeclarationPtr declaration;
 	Type argument; // the default argument for this param
 	Types arguments; // the default arguments for this param's template-params (if template-template-param)
 	size_t templateParameter;
@@ -3733,7 +3721,7 @@ struct TemplateDeclarationWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Declaration* declaration;
+	DeclarationPtr declaration;
 	Types params;
 	Types arguments;
 	TemplateDeclarationWalker(const WalkerState& state)
@@ -3776,7 +3764,7 @@ struct DeclarationWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Declaration* declaration;
+	DeclarationPtr declaration;
 	DeclarationWalker(const WalkerState& state)
 		: WalkerBase(state), declaration(0)
 	{
@@ -3848,8 +3836,8 @@ struct NamespaceWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Declaration* declaration;
-	Identifier* id;
+	DeclarationPtr declaration;
+	IdentifierPtr id;
 	NamespaceWalker(WalkerContext& context)
 		: WalkerBase(context), declaration(0), id(0)
 	{

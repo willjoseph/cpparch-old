@@ -1,5 +1,4 @@
 
-
 namespace N42
 {
 	template<typename T>
