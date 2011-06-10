@@ -441,11 +441,6 @@ struct WalkerState
 	template<typename T>
 	void reportIdentifierMismatch(T* symbol, const Identifier& id, Declaration* declaration, const char* expected)
 	{
-		if(!IsConcrete<T>::RESULT) // if the grammar-symbol is abstract
-		{
-			// the underlying concrete symbol was allocated, but the parser does not hold a reference to it and cannot deallocate it
-			deleteSymbol(symbol, parser->context);
-		}
 		result = 0;
 		gIdentifierMismatch = IdentifierMismatch(id, declaration, expected);
 	}

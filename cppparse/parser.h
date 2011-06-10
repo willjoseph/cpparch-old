@@ -728,58 +728,6 @@ T* createSymbol(Parser& parser, T*)
 	return allocatorNew(DeferredAllocator<int>(parser.context.allocator), T());
 }
 
-struct SymbolDelete
-{
-	ParserContext& context;
-	SymbolDelete(ParserContext& context) : context(context)
-	{
-	}
-
-	void visit(cpp::terminal_identifier symbol)
-	{
-	}
-	void visit(cpp::terminal_string symbol)
-	{
-	}
-	void visit(cpp::terminal_choice2 symbol)
-	{
-	}
-
-	template<LexTokenId id>
-	void visit(cpp::terminal<id> symbol)
-	{
-	}
-
-	template<typename T>
-	void visit(T* symbol)
-	{
-		symbol->accept(*this);
-		// delete only if T is concrete, or a terminal_choice
-		SymbolAllocator<T, !IsConvertible<T, cpp::choice<T> >::RESULT>(context).deallocate(symbol);
-	}
-
-	template<typename T>
-	void visit(cpp::symbol<T> symbol)
-	{
-		if(symbol.p != 0)
-		{
-			visit(symbol.p);
-		}
-	}
-};
-
-template<typename T>
-void deleteSymbol(T* symbol, ParserContext& context)
-{
-#if 0 // managed by parser
-#ifdef ALLOCATOR_DEBUG
-	SymbolDelete walker(context);
-	walker.visit(cpp::symbol<T>(symbol));
-#endif
-#endif
-}
-
-
 template<typename T, bool isConcrete = IsConcrete<T>::RESULT >
 struct SymbolHolder;
 
@@ -800,13 +748,6 @@ struct SymbolHolder<T, true>
 	{
 		return allocatorNew(DeferredAllocator<int>(context.allocator), T(*result));
 	}
-	void miss()
-	{
-#if 0 // managed by parser
-		SymbolDelete walker(context);
-		value.accept(walker);
-#endif
-	}
 };
 
 template<typename T>
@@ -822,9 +763,6 @@ struct SymbolHolder<T, false>
 	static T* hit(T* result, ParserContext& context)
 	{
 		return result;
-	}
-	void miss()
-	{
 	}
 };
 
@@ -869,7 +807,6 @@ cpp::symbol<T> parseSymbolRequired(ParserType& parser, cpp::symbol<T> symbol)
 		return cpp::symbol<T>(result);
 	}
 
-	holder.miss();
 #ifdef PARSER_DEBUG
 	parser.context.visualiser.pop(false);
 #endif
