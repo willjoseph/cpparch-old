@@ -64,6 +64,8 @@ not consider any scopes outside the innermost enclosing namespace.
 		
 - remove LookupResult
 
+- move Callback stuff into callback.h
+
 - fix leak of global WalkerContext in parseFile
 
 - check that template-arguments are 'evaluated in the context in which the entire postfix-expression occurs'
@@ -172,16 +174,26 @@ not consider any scopes outside the innermost enclosing namespace.
 						- on successful parse, replace cache with symbol
 						- perform cache lookup for each subsequent parse attempt, using rtti
 						- on cache hit, return cached parse-tree, indicate that result is cached
-			- avoid deallocation of cached symbol table
+			- defer deallocation of cached symbol table
 				- problem: ETS declaration in failed parse-tree is found by lookup of subsequent parse attempt
 					- move point of ets declaration to end of decl-specifier-seq?
 					- flush cached parse-tree at point of declaration
-					- in findDeclaration, assert that cached parse-tree does not contain declarations
+					- in findDeclaration, assert that cached parse-tree does not contain declarations?
 			- manage parse-tree allocations
+				- defer destruction/deallocation of symbol data within allocator
+					- list of successfully parsed symbols
+						- with point of allocation
+					- causes problem with removal of elements in std::map
+						- microsoft implementation doesn't use construct() correctly
+						- replace with a hash_map?
 				- need to preserve parse-tree, until next successful parse causes partial unwind
 				- added complication: need to remove ETS allocations from enclosing scope
-				- list of successfully parsed symbols?
-					- with point of allocation?
+				- remove ScopeGuard and declarations/scopes in WalkerBase
+				- don't use deleteSymbol/SymbolDelete
+				- avoid copying parse-tree allocations
+				- fix !ALLOCATOR_DEBUG
+					- don't destroy scopes/declarations
+					- only undeclare ETS declarations
 		
 - make gUniqueNames a member of Scope?
 

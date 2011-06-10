@@ -317,11 +317,6 @@ struct WalkerState
 	{
 		SEMANTIC_ASSERT(parent != 0);
 
-		if(string_equal(getValue(name), "numpunct_byname"))
-		{
-			__debugbreak();
-		}
-
 		parser->context.allocator.deferredBacktrack(); // flush cached parse-tree
 
 		Declaration other(allocator, parent, name, type, enclosed, specifiers, isTemplate, arguments, templateParameter, valueDependent);
@@ -380,7 +375,8 @@ struct WalkerState
 			}
 		}
 
-		return parent->insert(other);
+		Declaration* result = parent->insert(other);
+		return result;
 	}
 
 	TreeAllocator<int> getAllocator()
@@ -545,109 +541,25 @@ struct WalkerBase : public WalkerState
 {
 	typedef WalkerBase Base;
 
-	typedef DeferredList<Scope, TreeAllocator<int> > Scopes;
-
-	// Contains all elaborated-type-specifiers declared during the current parse.
-	// If these declarations have been added to a scope that has already been committed,
-	// when the parse fails, these declarations must be removed from their containing scope.
-	struct Declarations
-	{
-		typedef DeferredList<DeclarationPtr, TreeAllocator<int> > List;
-
-		List declarations;
-
-		typedef List::iterator iterator;
-		iterator begin()
-		{
-			return declarations.begin();
-		}
-		iterator end()
-		{
-			return declarations.end();
-		}
-
-		Declarations(const TreeAllocator<int>& allocator)
-			: declarations(allocator)
-		{
-		}
-
-#if 0
-	private:
-		Declarations(const Declarations&);
-		Declarations operator=(const Declarations&);
-	public:
-#endif
-		~Declarations()
-		{
-#if 0
-			for(Declarations::iterator i = declarations.begin(); i != declarations.end(); ++i)
-			{
-				SEMANTIC_ASSERT(&(*(*i)->scope->declarations.find((*i)->getName().value)).second == (*i));
-
-				(*i)->scope->declarations.erase((*i)->getName().value);
-			}
-#endif
-		}
-		bool empty() const
-		{
-			return declarations.empty();
-		}
-		void push_back(Declaration* declaration)
-		{
-			declarations.push_back(declaration);
-		}
-		void splice(iterator pos, Declarations& other)
-		{
-			declarations.splice(pos, other.declarations);
-		}
-		void swap(Declarations& other)
-		{
-			declarations.swap(other.declarations);
-		}
-#if 0
-		void erase(iterator first, iterator last)
-		{
-			declarations.erase(first, last);
-		}
-#endif
-	};
-
-#ifdef ALLOCATOR_DEBUG
-	Scopes scopes; // under-construction scopes
-#endif
-	Declarations declarations; // declarations must be destroyed before scopes!
-
 	WalkerBase(WalkerContext& context)
-		: WalkerState(context),
-#ifdef ALLOCATOR_DEBUG
-		scopes(context),
-#endif
-		declarations(context)
+		: WalkerState(context)
 	{
 	}
 	WalkerBase(const WalkerState& state)
-		: WalkerState(state),
-#ifdef ALLOCATOR_DEBUG
-		scopes(context),
-#endif
-		declarations(context)
+		: WalkerState(state)
 	{
 	}
 	Scope* newScope(const Identifier& name, ScopeType type = SCOPETYPE_UNKNOWN)
 	{
-#ifdef ALLOCATOR_DEBUG
-		scopes.push_back(Scope(context, name, type));
-		return &scopes.back();
-#else
 		return allocatorNew(context, Scope(context, name, type));
-#endif
 	}
 	void hit(WalkerBase& other)
 	{
-#ifdef ALLOCATOR_DEBUG
-		scopes.splice(scopes.end(), other.scopes);
-#endif
-		declarations.splice(declarations.end(), other.declarations);
+	}
+
+	void trackDeclaration(Declaration* declaration)
+	{
+		parser->deferDelete(makeUndeclareCallback(declaration));
 	}
 
 	Declaration* declareClass(Identifier* id, const TemplateArguments& arguments)
@@ -656,7 +568,7 @@ struct WalkerBase : public WalkerState
 		enclosed->type = SCOPETYPE_CLASS; // convert template-param-scope to class-scope if present
 		Declaration* declaration = pointOfDeclaration(context, enclosing, id == 0 ? enclosing->getUniqueName() : *id, TYPE_CLASS, enclosed, DeclSpecifiers(), enclosing == templateEnclosing, arguments);
 #ifdef ALLOCATOR_DEBUG
-		declarations.push_back(declaration);
+		trackDeclaration(declaration);
 #endif
 		if(id != 0)
 		{
@@ -670,7 +582,7 @@ struct WalkerBase : public WalkerState
 	{
 		Declaration* declaration = pointOfDeclaration(context, parent, *id, type, enclosed, specifiers, enclosing == templateEnclosing, TEMPLATEARGUMENTS_NULL, templateParameter, valueDependent); // 3.3.1.1
 #ifdef ALLOCATOR_DEBUG
-		declarations.push_back(declaration);
+		trackDeclaration(declaration);
 #endif
 		if(id != &gAnonymousId)
 		{
@@ -691,7 +603,7 @@ struct WalkerBase : public WalkerState
 			smallest non-class, non-function-prototype scope that contains the declaration.
 			*/
 			Declaration* declaration = pointOfDeclaration(context, getEtsScope(), *forward, TYPE_CLASS, 0, DeclSpecifiers(), enclosing == templateEnclosing);
-			declarations.push_back(declaration);
+			trackDeclaration(declaration);
 			forward->dec.p = declaration;
 			type = declaration;
 			return true;
@@ -708,55 +620,6 @@ struct WalkerBase : public WalkerState
 		return &gDependentTemplate;
 	}
 };
-
-// saves and restores the state in walker-base
-#if 1
-struct ScopeGuard
-{
-	ScopeGuard(WalkerBase& base)
-	{
-	}
-	void hit()
-	{
-	}
-};
-#else
-struct ScopeGuard
-{
-	WalkerBase& base;
-#ifdef ALLOCATOR_DEBUG
-	WalkerBase::Scopes scopes;
-#endif
-	WalkerBase::Declarations declarations;
-	ScopeGuard(WalkerBase& base)
-		: base(base),
-#ifdef ALLOCATOR_DEBUG
-		scopes(base.context),
-#endif
-		declarations(base.context)
-	{
-#ifdef ALLOCATOR_DEBUG
-		scopes.swap(base.scopes);
-#endif
-		declarations.swap(base.declarations);
-	}
-	~ScopeGuard()
-	{
-#ifdef ALLOCATOR_DEBUG
-		scopes.swap(base.scopes);
-#endif
-		declarations.swap(base.declarations);
-	}
-	// if parse succeeds, append new state to previous state
-	void hit()
-	{
-#ifdef ALLOCATOR_DEBUG
-		scopes.splice(scopes.end(), base.scopes);
-#endif
-		declarations.splice(declarations.end(), base.declarations);
-	}
-};
-#endif
 
 struct WalkerQualified : public WalkerBase
 {
@@ -1003,10 +866,6 @@ struct SimpleTemplateIdCache
 	cpp::simple_template_id* symbol;
 	IdentifierPtr id;
 	ListCache<TemplateArguments> arguments;
-	ListCache<WalkerBase::Declarations::List> declarations;
-#ifdef ALLOCATOR_DEBUG
-	ListCache<WalkerBase::Scopes> scopes;
-#endif
 	size_t count;
 	size_t allocation;
 
@@ -1053,10 +912,6 @@ struct TemplateIdWalker : public WalkerBase
 			// use cached symbol
 			id = p->id;
 			p->arguments.get(arguments);
-			p->declarations.get(declarations.declarations);
-#ifdef ALLOCATOR_DEBUG
-			p->scopes.get(scopes);
-#endif
 
 			parser->context.allocator.deferredDestroy.clear(); // TODO: cancel destruction of allocations that came before p->allocation
 			parser->context.allocator.position = p->allocation;
@@ -1080,10 +935,6 @@ struct TemplateIdWalker : public WalkerBase
 			SimpleTemplateIdCache& entry = WalkerState::cached->insert(before, SimpleTemplateIdCache(symbol, parser->position, parser->context.allocator.position));
 			entry.id = id;
 			entry.arguments.set(arguments);
-			entry.declarations.set(declarations.declarations);
-#ifdef ALLOCATOR_DEBUG
-			entry.scopes.set(scopes);
-#endif
 		}
 #endif
 	}
@@ -1820,35 +1671,6 @@ struct NestedNameSpecifierPrefixWalker : public WalkerBase
 		: WalkerBase(state), type(0, context), allowDependent(allowDependent)
 	{
 	}
-#if 0
-	~NestedNameSpecifierPrefixWalker()
-	{
-		// preserve result of successful parse
-		if(!type.arguments.empty())
-		{
-			TemplateArguments* p = new TemplateArguments(context);
-			p->swap(type.arguments);
-			parser->context.deferDelete(makeDeleteCallback2(p));
-		}
-
-		// declarations must be destroyed before scopes!
-		if(!declarations.empty())
-		{
-			WalkerBase::Declarations* p = new WalkerBase::Declarations(context);
-			p->swap(declarations);
-			parser->context.deferDelete(makeDeleteCallback2(p));
-		}
-
-#ifdef ALLOCATOR_DEBUG
-		if(!scopes.empty())
-		{
-			WalkerBase::Scopes* p = new WalkerBase::Scopes(context);
-			p->swap(scopes);
-			parser->context.deferDelete(makeDeleteCallback2(p));
-		}
-#endif
-	}
-#endif
 
 	void visit(cpp::namespace_name* symbol)
 	{
@@ -2113,10 +1935,12 @@ struct ParameterDeclarationClauseWalker : public WalkerBase
 		pushScope(newScope(makeIdentifier("$declarator"), SCOPETYPE_PROTOTYPE));
 		if(templateParams != 0)
 		{
+			size_t position = parser->context.allocator.position;
 			enclosing->declarations = templateParams->declarations;
 			for(Scope::Declarations::iterator i = enclosing->declarations.begin(); i != enclosing->declarations.end(); ++i)
 			{
 				(*i).second.scope = enclosing;
+				parser->context.allocator.deferDelete(position, makeUndeclareCallback(&(*i).second));
 			}
 		}
 		templateParams = 0;
@@ -2448,7 +2272,7 @@ struct NamespaceAliasDefinitionWalker : public WalkerQualified
 			// TODO: check for conflicts with earlier declarations
 			declaration = pointOfDeclaration(context, enclosing, *id, TYPE_NAMESPACE, declaration->enclosed);
 #ifdef ALLOCATOR_DEBUG
-			declarations.push_back(declaration);
+			trackDeclaration(declaration);
 #endif
 			id->dec.p = declaration;
 			TREEWALKER_LEAF_HIT(symbol);
@@ -2575,7 +2399,7 @@ struct EnumeratorDefinitionWalker : public WalkerBase
 		// TODO: give enumerators a type
 		declaration = pointOfDeclaration(context, enclosing, symbol->value, TYPE_ENUMERATOR, 0, DeclSpecifiers());
 #ifdef ALLOCATOR_DEBUG
-		declarations.push_back(declaration);
+		trackDeclaration(declaration);
 #endif
 		symbol->value.dec.p = declaration;
 	}
@@ -2621,7 +2445,7 @@ struct EnumSpecifierWalker : public WalkerBase
 			// unnamed enum
 			declaration = pointOfDeclaration(context, enclosing, enclosing->getUniqueName(), TYPE_ENUM, 0);
 #ifdef ALLOCATOR_DEBUG
-			declarations.push_back(declaration);
+			trackDeclaration(declaration);
 #endif
 		}
 		EnumeratorDefinitionWalker walker(getState());
@@ -3398,7 +3222,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		{
 			declaration = pointOfDeclaration(context, enclosing, *walker.id, type, 0, specifiers); // 3.3.1.1
 #ifdef ALLOCATOR_DEBUG
-			declarations.push_back(declaration);
+			trackDeclaration(declaration);
 #endif
 			walker.id->dec.p = declaration;
 		}
@@ -3471,7 +3295,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 
 	void visit(cpp::statement_seq_wrapper* symbol)
 	{
-		ScopeGuard guard(*this); // ensure that symbol-table modifications within the scope of 'guard' are undone on parse fail
+		// NOTE: we must ensure that symbol-table modifications within the scope of this function are undone on parse fail
 		pushScope(newScope(enclosing->getUniqueName(), SCOPETYPE_LOCAL));
 		if(WalkerState::deferred != 0)
 		{
@@ -3485,7 +3309,6 @@ struct SimpleDeclarationWalker : public WalkerBase
 		{
 			TREEWALKER_LEAF(symbol);
 		}
-		guard.hit();
 	}
 	void visit(cpp::statement* symbol)
 	{
@@ -3514,11 +3337,10 @@ struct SimpleDeclarationWalker : public WalkerBase
 		}
 	}
 
-	struct DeclareEtsGuard : public ScopeGuard
+	struct DeclareEtsGuard
 	{
 		Type* p;
 		DeclareEtsGuard(SimpleDeclarationWalker& walker)
-			: ScopeGuard(walker)
 		{
 			p = walker.declareEts(walker.type, walker.forward) ? &walker.type : 0;
 		}
@@ -3531,7 +3353,6 @@ struct SimpleDeclarationWalker : public WalkerBase
 		}
 		void hit()
 		{
-			ScopeGuard::hit();
 			p = 0;
 		}
 	};
@@ -3575,7 +3396,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		{
 			declaration = pointOfDeclaration(context, enclosing, *forward, TYPE_CLASS, 0, DeclSpecifiers(), enclosing == templateEnclosing);
 #ifdef ALLOCATOR_DEBUG
-			declarations.push_back(declaration);
+			trackDeclaration(declaration);
 #endif
 			forward->dec.p = declaration;
 			type = declaration;
@@ -3638,7 +3459,7 @@ struct TypeParameterWalker : public WalkerBase
 		TREEWALKER_LEAF(symbol);
 		declaration = pointOfDeclaration(context, enclosing, symbol->value, TYPE_PARAM, 0, DECLSPEC_TYPEDEF, !arguments.empty(), TEMPLATEARGUMENTS_NULL, templateParameter);
 #ifdef ALLOCATOR_DEBUG
-		declarations.push_back(declaration);
+		trackDeclaration(declaration);
 #endif
 		symbol->value.dec.p = declaration;
 		declaration->templateParamDefaults.swap(arguments);
@@ -3860,7 +3681,7 @@ struct NamespaceWalker : public WalkerBase
 		{
 			declaration = pointOfDeclaration(context, enclosing, *id, TYPE_NAMESPACE, 0);
 #ifdef ALLOCATOR_DEBUG
-			declarations.push_back(declaration);
+			trackDeclaration(declaration);
 #endif
 			id->dec.p = declaration;
 			if(declaration->enclosed == 0)

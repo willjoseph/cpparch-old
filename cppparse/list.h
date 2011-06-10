@@ -186,6 +186,10 @@ struct List : private A
 	
 	void push_back(const T& value)
 	{
+#ifdef ALLOCATOR_DEBUG
+		ALLOCATOR_ASSERT(!isDeallocated(head.next));
+		ALLOCATOR_ASSERT(!isDeallocated(tail));
+#endif
 		Node* node = allocatorNew(getAllocator(), Node(value));
 		node->next = &head;
 		tail->next = node;
@@ -193,6 +197,12 @@ struct List : private A
 	}
 	void splice(iterator position, List& other)
 	{
+#ifdef ALLOCATOR_DEBUG
+		ALLOCATOR_ASSERT(!isDeallocated(head.next));
+		ALLOCATOR_ASSERT(!isDeallocated(tail));
+		ALLOCATOR_ASSERT(!isDeallocated(other.head.next));
+		ALLOCATOR_ASSERT(!isDeallocated(other.tail));
+#endif
 		LIST_ASSERT(position == end());
 		LIST_ASSERT(&other != this);
 		// always splice at end for now
@@ -206,6 +216,12 @@ struct List : private A
 	}
 	void swap(List& other)
 	{
+#ifdef ALLOCATOR_DEBUG
+		ALLOCATOR_ASSERT(!isDeallocated(head.next));
+		ALLOCATOR_ASSERT(!isDeallocated(tail));
+		ALLOCATOR_ASSERT(!isDeallocated(other.head.next));
+		ALLOCATOR_ASSERT(!isDeallocated(other.tail));
+#endif
 		std::swap(head, other.head);
 		std::swap(tail, other.tail);
 		if(head.next != &other.head)

@@ -1,13 +1,4 @@
 
-namespace N42
-{
-	template<typename T>
-	struct Blah
-	{
-		typedef typename T::template X<T::value> Type;
-	};
-}
-
 namespace N113
 {
 	template<typename T>
@@ -46,6 +37,25 @@ namespace N112
 		void h(int) { /* ... */ } // definition of A::h
 		// A::f, A::g and A::h are visible here and known to be friends
 	}
+}
+
+namespace N115
+{
+	template<unsigned _SizeFIXED>
+	inline char*gets_s(char(&_Buffer)[_SizeFIXED])
+	{
+		return gets_s(_Buffer, _SizeFIXED);
+	}
+}
+
+
+namespace N42
+{
+	template<typename T>
+	struct Blah
+	{
+		typedef typename T::template X<T::value> Type;
+	};
 }
 
 namespace N111

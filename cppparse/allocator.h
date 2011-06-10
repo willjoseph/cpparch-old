@@ -204,21 +204,6 @@ struct SafePtr
 	}
 };
 
-struct Page
-{
-	enum { SHIFT = 17 };
-	enum { SIZE = 1 << SHIFT };
-	enum { MASK = SIZE - 1 };
-	char buffer[SIZE]; // debug padding
-
-	Page()
-	{
-#ifdef ALLOCATOR_DEBUG
-		std::uninitialized_fill(buffer, buffer + SIZE, ALLOCATOR_FREECHAR);
-#endif
-	}
-};
-
 struct Callback0
 {
 	typedef void (*Function)(void* data);
@@ -299,6 +284,21 @@ typename Caller::Result makeCallback(Caller caller)
 	return typename Caller::Result(Caller::thunk, caller.object);
 }
 
+struct Page
+{
+	enum { SHIFT = 17 };
+	enum { SIZE = 1 << SHIFT };
+	enum { MASK = SIZE - 1 };
+	char buffer[SIZE]; // debug padding
+
+	Page()
+	{
+#ifdef ALLOCATOR_DEBUG
+		std::uninitialized_fill(buffer, buffer + SIZE, ALLOCATOR_FREECHAR);
+#endif
+	}
+};
+
 
 template<bool checked>
 struct LinearAllocator
@@ -352,11 +352,11 @@ struct LinearAllocator
 		}
 		Page* page = getPage(position >> Page::SHIFT);
 		void* p = page->buffer + (position & Page::MASK);
-		position += size;
 #ifdef ALLOCATOR_DEBUG
 		ALLOCATOR_ASSERT(!checked || !isAllocated(reinterpret_cast<char*>(p), reinterpret_cast<char*>(p) + size));
 		std::uninitialized_fill(reinterpret_cast<char*>(p), reinterpret_cast<char*>(p) + size, ALLOCATOR_INITCHAR);
 #endif
+		position += size;
 		return p;
 	}
 	void deallocate(void* p, size_t size)
@@ -373,7 +373,7 @@ struct LinearAllocator
 			positionHwm = position;
 		}
 		position = original;
-#if 1 // test: force immediate backtrack
+#if 0 // test: force immediate backtrack
 		deferredBacktrack();
 #endif
 	}

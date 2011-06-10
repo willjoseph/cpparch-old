@@ -69,16 +69,6 @@ struct ContextDefer : public ContextBase
 
 struct ContextTest
 {
-	struct ScopeGuard
-	{
-		ScopeGuard(ContextDefer& base)
-		{
-		}
-		void hit()
-		{
-		}
-	};
-
 	struct DefaultContext : public ContextDefer
 	{
 		PARSERCONTEXT_DEFAULT;

@@ -320,39 +320,54 @@ struct DestroyCallback
 	}
 };
 
-
-template<typename T>
-struct DeleteObjectThunk
+template<typename T, void (*op)(T* p, LexerAllocator& allocator)>
+struct DestroyCallbackThunk
 {
 	static void thunk(void* data, LexerAllocator& allocator)
 	{
-		allocatorDelete(LinearAllocatorWrapper<int>(allocator), static_cast<T*>(data));
+		op(static_cast<T*>(data), allocator);
 	}
 };
+
+template<typename T>
+inline void deleteObject(T* p, LexerAllocator& allocator)
+{
+	allocatorDelete(LinearAllocatorWrapper<int>(allocator), p);
+}
 
 template<typename T>
 DestroyCallback makeDeleteCallback(T* p)
 {
-	DestroyCallback result = { DeleteObjectThunk<T>::thunk, p };
+	DestroyCallback result = { DestroyCallbackThunk<T, deleteObject>::thunk, p };
 	return result;
 }
 
+template<typename T>
+inline void destroyObject(T* p, LexerAllocator& allocator)
+{
+	LinearAllocatorWrapper<T>(allocator).destroy(p);
+}
 
 template<typename T>
-struct DeleteObjectThunk2
+DestroyCallback makeDestroyCallback(T* p)
 {
-	static void thunk(void* data, LexerAllocator& allocator)
-	{
-		delete static_cast<T*>(data);
-	}
-};
-
-template<typename T>
-DestroyCallback makeDeleteCallback2(T* p)
-{
-	DestroyCallback result = { DeleteObjectThunk2<T>::thunk, p };
+	DestroyCallback result = { DestroyCallbackThunk<T, destroyObject>::thunk, p };
 	return result;
 }
+
+template<typename T>
+inline void deallocateObject(T* p, LexerAllocator& allocator)
+{
+	LinearAllocatorWrapper<T>(allocator).deallocate(p, 1);
+}
+
+template<typename T>
+DestroyCallback makeDeallocateCallback(T* p)
+{
+	DestroyCallback result = { DestroyCallbackThunk<T, deallocateObject>::thunk, p };
+	return result;
+}
+
 
 typedef std::pair<size_t, DestroyCallback> DeferredDestroyElement;
 typedef std::list<DeferredDestroyElement> DeferredDestroy;
@@ -461,7 +476,10 @@ public:
 		*reinterpret_cast<size_t*>(p + count) = position;
 #endif
 		//std::cout << "allocate: " << p << std::endl;
-		instance.deferDelete(position, makeDeleteCallback(p));
+#ifdef ALLOCATOR_DEBUG
+		*reinterpret_cast<size_t*>(p) = position;
+		instance.deferDelete(position, makeDeallocateCallback(p));
+#endif
 		return p;
 	}
 
@@ -472,6 +490,9 @@ public:
 
 	void construct(pointer p, const T& value)
 	{
+#ifdef ALLOCATOR_DEBUG
+		instance.deferDelete(*reinterpret_cast<size_t*>(p), makeDestroyCallback(p));
+#endif
 		new(p) T(value);
 	}
 
@@ -485,6 +506,21 @@ public:
 		return (0 < _Count ? _Count : 1);
 	}
 };
+
+template<class T,
+class OtherT>
+	inline bool operator==(const DeferredAllocator<T>&, const DeferredAllocator<OtherT>&)
+{
+	return true;
+}
+
+template<class T,
+class OtherT>
+	inline bool operator!=(const DeferredAllocator<T>&, const DeferredAllocator<OtherT>&)
+{
+	return false;
+}
+
 #endif
 
 struct ParserContext : Lexer
@@ -576,6 +612,11 @@ struct Parser : public ParserState
 		{
 			context.advance(position);
 		}
+	}
+
+	void deferDelete(const DestroyCallback& callback)
+	{
+		context.allocator.deferDelete(allocation, callback);
 	}
 };
 
@@ -1052,9 +1093,7 @@ public:
 	template<typename T> \
 	void visit(T* symbol) \
 	{ \
-		ScopeGuard guard(*this); \
 		SYMBOL_WALK(*this, symbol); \
-		guard.hit(); \
 	} \
 	template<LexTokenId id> \
 	void visit(cpp::terminal<id> symbol) \

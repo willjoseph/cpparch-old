@@ -409,25 +409,28 @@ struct Scope : public ScopeCounter
 	size_t enclosedScopeCount; // number of scopes directly enclosed by this scope
 	typedef std::less<const char*> IdentifierLess;
 
-	struct DeclarationElement : public Declaration
+	typedef std::multimap<const char*, Declaration, IdentifierLess, TreeAllocator<int> > Declarations2;
+
+	struct Declarations : public Declarations2
 	{
-		bool declared;
-		DeclarationElement(const Declaration& declaration)
-			: Declaration(declaration), declared(false)
+		Declarations(const TreeAllocator<int>& allocator)
+			: Declarations2(IdentifierLess(), allocator)
 		{
 		}
-		~DeclarationElement()
+		Declarations(const Declarations& other)
+			: Declarations2(other)
 		{
-			if(declared)
-			{
-				declared = false;
-				scope->declarations.erase(getName().value);
-			}
+			SYMBOLS_ASSERT(other.empty());
+		}
+		~Declarations()
+		{
+			SYMBOLS_ASSERT(Declarations2::empty());
+			// hack: stop declarations being cleared
+			new(static_cast<Declarations2*>(this)) Declarations2(IdentifierLess(), TREEALLOCATOR_NULL);
 		}
 	};
 
 
-	typedef std::multimap<const char*, DeclarationElement, IdentifierLess, TreeAllocator<int> > Declarations;
 	Declarations declarations;
 	ScopeType type;
 	Types bases;
@@ -436,12 +439,8 @@ struct Scope : public ScopeCounter
 	Declarations friendDeclarations;
 
 	Scope(const TreeAllocator<int>& allocator, const Identifier& name, ScopeType type = SCOPETYPE_UNKNOWN)
-		: parent(0), name(name), enclosedScopeCount(0), declarations(IdentifierLess(), allocator), type(type), bases(allocator), usingDirectives(allocator), friendDeclarations(IdentifierLess(), allocator)
+		: parent(0), name(name), enclosedScopeCount(0), declarations(allocator), type(type), bases(allocator), usingDirectives(allocator), friendDeclarations(allocator)
 	{
-	}
-	~Scope()
-	{
-		SYMBOLS_ASSERT(declarations.empty());
 	}
 
 	Identifier& getUniqueName()
@@ -456,10 +455,23 @@ struct Scope : public ScopeCounter
 	Declaration* insert(const Declaration& other)
 	{
 		Scope::Declarations::iterator result = declarations.insert(Scope::Declarations::value_type(other.getName().value, other));
-		(*result).second.declared = true;
 		return &(*result).second;
 	}
 };
+
+inline void undeclareObject(Declaration* declaration, LexerAllocator& allocator)
+{
+	SYMBOLS_ASSERT(&(*declaration->scope->declarations.find(declaration->getName().value)).second == declaration);
+	declaration->scope->declarations.erase(declaration->getName().value);
+}
+
+inline DestroyCallback makeUndeclareCallback(Declaration* p)
+{
+	DestroyCallback result = { DestroyCallbackThunk<Declaration, undeclareObject>::thunk, p };
+	return result;
+}
+
+
 
 const Scope SCOPE_NULL = Scope(TREEALLOCATOR_NULL, IDENTIFIER_NULL);
 
