@@ -5,6 +5,12 @@
 + fixed crash in dependency analysis: declareEts not rolled back completely after parse fail - 'type' was left modified
 + fixed crash parsing cppparse.cpp, caused by friend-declaration shortcut
 + fixed false-positive order-dependent includes warnings
++ fixed skipping default-argument with nested parentheses
+
+- overhead of multiple-inherited vtables in identifier: 34 vtable pointers, 136 bytes
+	- constructor calls are slow
+	- is there an alternative mechanism for visiting parse-tree?
+	- visiting is not required during parse!
 
 - support '>>' in nested template-argument-list
 - implement 'auto' from C++0x
@@ -108,9 +114,6 @@ not consider any scopes outside the innermost enclosing namespace.
 		
 	- handle scope creation side-effects of failed parse tree
 		- preserve allocated scopes
-		
-- bug: inifinite loop at end of semantic.cpp
-	- skipParenthesised went off the end off the file?
 		
 - slow parsing of cpptree.h
 	- profile parse, find out exactly what's taking so long
