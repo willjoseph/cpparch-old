@@ -1,4 +1,31 @@
 
+
+namespace N115
+{
+	template<typename T>
+	struct Tmpl
+	{
+		Tmpl(int)
+		{
+		}
+	};
+
+	int f()
+	{
+		return 0;
+	}
+
+	struct S
+	{
+		S(const S& arguments = S(Tmpl<int>(f())))
+		{
+		}
+		S(const Tmpl<int>& arguments)
+		{
+		}
+	};
+}
+
 namespace N113
 {
 	template<typename T>

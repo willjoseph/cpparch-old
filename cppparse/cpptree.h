@@ -1199,9 +1199,9 @@ namespace cpp
 		VISITABLE_DERIVED(postfix_expression_suffix);
 		terminal_optional<boost::wave::T_COLON_COLON> isGlobal;
 		symbol_optional<nested_name_specifier> context;
-		terminal<boost::wave::T_COMPL> compl;
+		terminal<boost::wave::T_COMPL> compl_;
 		symbol<type_name> type;
-		FOREACH4(isGlobal, context, compl, type);
+		FOREACH4(isGlobal, context, compl_, type);
 	};
 
 	struct postfix_operator : public terminal_choice, public postfix_expression_suffix, public overloadable_operator
@@ -1636,9 +1636,9 @@ namespace cpp
 	struct destructor_id : public unqualified_id 
 	{
 		VISITABLE_DERIVED(unqualified_id);
-		terminal<boost::wave::T_COMPL> compl;
+		terminal<boost::wave::T_COMPL> compl_;
 		symbol<identifier> name;
-		FOREACH2(compl, name);
+		FOREACH2(compl_, name);
 	};
 
 	struct parameter_declaration_clause;

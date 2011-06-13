@@ -109,6 +109,9 @@ not consider any scopes outside the innermost enclosing namespace.
 	- handle scope creation side-effects of failed parse tree
 		- preserve allocated scopes
 		
+- bug: inifinite loop at end of semantic.cpp
+	- skipParenthesised went off the end off the file?
+		
 - slow parsing of cpptree.h
 	- profile parse, find out exactly what's taking so long
 	- caused by pathological case: nested template-ids

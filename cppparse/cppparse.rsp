@@ -9,9 +9,9 @@ C:\Program Files\Microsoft Visual Studio 8\VC\BIN\cl.exe
 /D _SCL_SECURE_NO_WARNINGS
 /D _UNICODE
 /D UNICODE
+.\semantic.cpp
 .\lexer.cpp
 .\cppparse.cpp
 .\parser.cpp
-.\semantic.cpp
 /I .\msvc-8.0\INCLUDE
 /I C:\Program Files\Microsoft SDKs\Windows\v7.1\Include

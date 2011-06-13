@@ -12,6 +12,7 @@ struct ParseError
 {
 	ParseError()
 	{
+		__debugbreak();
 	}
 };
 
@@ -642,20 +643,7 @@ inline void printSequence(Parser& parser)
 }
 
 #define PARSE_ERROR() throw ParseError()
-#ifdef _DEBUG
 #define PARSE_ASSERT(condition) if(!(condition)) { PARSE_ERROR(); }
-#else
-#define PARSE_ASSERT(condition)
-#endif
-
-
-inline void parseToken(Parser& parser, boost::wave::token_id id)
-{
-	PARSE_ASSERT(isToken(parser.get_id(), id));
-	parser.increment();
-};
-
-
 
 #define NULLSYMBOL(T) cpp::symbol< T >(0)
 
@@ -786,8 +774,10 @@ inline bool checkBacktrack(Parser& parser)
 template<typename ParserType, typename T>
 cpp::symbol<T> parseSymbolRequired(ParserType& parser, cpp::symbol<T> symbol)
 {
+#ifdef _DEBUG
 	PARSE_ASSERT(symbol.p == 0);
 	PARSE_ASSERT(!checkBacktrack(parser));
+#endif
 	ParserType tmp(parser);
 #ifdef PARSER_DEBUG
 	parser.context.visualiser.push(SYMBOL_NAME(T), parser.context.position);
@@ -1217,7 +1207,7 @@ inline void skipParenthesised(Parser& parser)
 		if(TOKEN_EQUAL(parser, boost::wave::T_LEFTPAREN))
 		{
 			parser.increment();
-			skipBraced(parser);
+			skipParenthesised(parser);
 			parser.increment();
 		}
 		else
@@ -1442,7 +1432,7 @@ inline void parseDeferred(ListType& deferred, Walker& walker)
 {
 	ParserOpaque& parser = *walker.parser;
 	const Token* position = parser.context.position;
-	for(ListType::iterator i = deferred.begin(); i != deferred.end(); ++i)
+	for(typename ListType::iterator i = deferred.begin(); i != deferred.end(); ++i)
 	{
 		typename ListType::value_type& item = (*i);
 

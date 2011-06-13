@@ -718,6 +718,17 @@ const char* getIdentifierType(IdentifierFunc func)
 #define TREEWALKER_DEFAULT PARSERCONTEXT_DEFAULT
 
 
+#define TREEWALKER_WALK_TRY_CACHED(walker, symbol) \
+	Lexer::Tokens::const_iterator before = walker.parser->context.position; \
+	if(!walker.cacheLookup(before, symbol)) \
+{ \
+	TREEWALKER_WALK_TRY(walker, symbol); \
+	walker.cacheStore(before, symbol); \
+}
+
+#define TREEWALKER_WALK_CACHED(walker, symbol) TREEWALKER_WALK_TRY_CACHED(walker, symbol); TREEWALKER_WALK_HIT(walker, symbol)
+
+
 bool isUnqualified(cpp::elaborated_type_specifier_default* symbol)
 {
 	return symbol != 0
@@ -732,7 +743,6 @@ bool isForwardDeclaration(cpp::decl_specifier_seq* symbol)
 		&& symbol->suffix == 0
 		&& isUnqualified(dynamic_cast<cpp::elaborated_type_specifier_default*>(symbol->type.p));
 }
-
 
 struct Walker
 {
@@ -858,14 +868,14 @@ struct ListCache
 
 struct SimpleTemplateIdCache
 {
-	cpp::simple_template_id* symbol;
+	cpp::simple_template_id symbol;
 	IdentifierPtr id;
 	ListCache<TemplateArguments> arguments;
 	size_t count;
 	size_t allocation;
 
-	explicit SimpleTemplateIdCache(cpp::simple_template_id* symbol, size_t count, size_t allocation)
-		: symbol(symbol), count(count), allocation(allocation)
+	explicit SimpleTemplateIdCache(const cpp::simple_template_id& symbol, size_t count, size_t allocation)
+		: symbol(symbol), id(0), count(count), allocation(allocation)
 	{
 	}
 };
@@ -893,7 +903,7 @@ struct TemplateIdWalker : public WalkerBase
 		arguments.swap(walker.arguments);
 	}
 
-	const SimpleTemplateIdCache* cacheLookup(Lexer::Tokens::const_iterator before)
+	bool cacheLookup(Lexer::Tokens::const_iterator before, cpp::simple_template_id* symbol)
 	{
 		const SimpleTemplateIdCache* p = 0;
 		if(WalkerState::cached != 0) // if we are within a simple-type-specifier
@@ -906,9 +916,9 @@ struct TemplateIdWalker : public WalkerBase
 		{
 			// use cached symbol
 			id = p->id;
+			*symbol = p->symbol;
 			p->arguments.get(arguments);
 
-			parser->context.allocator.deferredDestroy.clear(); // TODO: cancel destruction of allocations that came before p->allocation
 			parser->context.allocator.position = p->allocation;
 			if(parser->context.allocator.positionHwm == p->allocation)
 			{
@@ -916,18 +926,19 @@ struct TemplateIdWalker : public WalkerBase
 			}
 			parser->position = p->count;
 			parser->advance();
+			return true;
 		}
-		return p;
+		return false;
 	}
 
 	void cacheStore(Lexer::Tokens::const_iterator before, cpp::simple_template_id* symbol)
 	{
-#if 0 // work in progress.
+#if 1 // work in progress.
 		// After successfully parsing template-argument-clause:
 		if(WalkerState::cached != 0) // if we are within a simple-type-specifier
 		{
 			// store this symbol
-			SimpleTemplateIdCache& entry = WalkerState::cached->insert(before, SimpleTemplateIdCache(symbol, parser->position, parser->context.allocator.position));
+			SimpleTemplateIdCache& entry = WalkerState::cached->insert(before, SimpleTemplateIdCache(*symbol, parser->position, parser->context.allocator.position));
 			entry.id = id;
 			entry.arguments.set(arguments);
 		}
@@ -961,7 +972,7 @@ struct UnqualifiedIdWalker : public WalkerBase
 	void visit(cpp::simple_template_id* symbol)
 	{
 		TemplateIdWalker walker(getState());
-		TREEWALKER_WALK_TRY(walker, symbol);
+		TREEWALKER_WALK_TRY_CACHED(walker, symbol);
 		id = walker.id;
 		if(!isTemplate
 			&& !isDependent(qualifying_p))
@@ -1525,75 +1536,25 @@ struct TypeNameWalker : public WalkerBase
 		type.isImplicitTemplateId = declaration->isTemplate;
 		symbol->value.dec.p = declaration;
 	}
+
 	void visit(cpp::simple_template_id* symbol)
 	{
 		ProfileScope profile(gProfileTemplateId);
 
 		TemplateIdWalker walker(getState());
-
-#if 0
-		Lexer::Tokens::const_iterator before = parser->context.position;
-		const SimpleTemplateIdCache* p = walker.cacheLookup(before);
-		if(p != 0)
-		{
-			*symbol = p->symbol;
-			result = symbol;
-		}
-		else
-		{
-			TREEWALKER_WALK_TRY(walker, symbol);
-			walker.cacheStore(before, symbol);
-		}
-
+		TREEWALKER_WALK_TRY_CACHED(walker, symbol);
 		Declaration* declaration = lookupType(*walker.id, makeLookupFilter(filter));
 		if(declaration == &gUndeclared)
 		{
-			SEMANTIC_ASSERT(p == 0);
 			return reportIdentifierMismatch(symbol, *walker.id, &gUndeclared, "type-name");
 		}
 		if(declaration == &gDependentType
 			&& !isTypename)
 		{
-			SEMANTIC_ASSERT(p == 0);
 			// dependent type, are you missing a 'typename' keyword?
 			return reportIdentifierMismatch(symbol, *walker.id, &gUndeclared, "typename");
 		}
-
 		TREEWALKER_WALK_HIT(walker, symbol);
-#else
-		Lexer::Tokens::const_iterator before = parser->context.position;
-		const SimpleTemplateIdCache* p = walker.cacheLookup(before);
-		if(p == 0)
-		{
-			TREEWALKER_WALK_TRY(walker, symbol);
-		}
-
-		Declaration* declaration = lookupType(*walker.id, makeLookupFilter(filter));
-		if(declaration == &gUndeclared)
-		{
-			SEMANTIC_ASSERT(p == 0);
-			return reportIdentifierMismatch(symbol, *walker.id, &gUndeclared, "type-name");
-		}
-		if(declaration == &gDependentType
-			&& !isTypename)
-		{
-			SEMANTIC_ASSERT(p == 0);
-			// dependent type, are you missing a 'typename' keyword?
-			return reportIdentifierMismatch(symbol, *walker.id, &gUndeclared, "typename");
-		}
-
-		if(p != 0)
-		{
-			result = symbol = p->symbol;
-			hit(walker);
-		}
-		else
-		{
-			SYMBOL_WALK_HIT(walker, symbol);
-			walker.cacheStore(before, symbol);
-			hit(walker); // must occur after storing scopes/declarations in cache
-		}
-#endif
 
 		walker.id->dec.p = declaration;
 		type.declaration = findTemplateSpecialization(declaration, walker.arguments);
@@ -1833,7 +1794,7 @@ struct UnqualifiedDeclaratorIdWalker : public WalkerBase
 	void visit(cpp::simple_template_id* symbol) 
 	{
 		TemplateIdWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
+		TREEWALKER_WALK_CACHED(walker, symbol);
 		id = walker.id;
 	}
 	void visit(cpp::operator_function_id* symbol) 

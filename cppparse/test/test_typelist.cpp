@@ -1,27 +1,5 @@
 
 
-namespace N114
-{
-	template<typename T>
-	struct Base
-	{
-		Base(int, int)
-		{
-		}
-	};
-
-	template<typename T>
-	struct S
-		: public Base<T>
-	{
-		explicit S(int i, int j = 0)
-			: Base<T>(i, j)
-		{
-		}
-	};
-}
-
-
 template<typename T>
 struct S
 {
