@@ -25,107 +25,6 @@ struct GeneralError
 
 #define ASSERT(condition) if(!(condition)) { throw GeneralError(); }
 
-#ifdef CPPTREE_VIRTUAL
-struct SymbolDebug
-{
-	bool disambiguated;
-	SymbolDebug(bool disambiguated) : disambiguated(disambiguated)
-	{
-	}
-
-	void visit(cpp::terminal_identifier symbol)
-	{
-		std::cout << symbol.value << " ";
-	}
-
-	void visit(cpp::terminal_string symbol)
-	{
-		std::cout << symbol.value << " ";
-	}
-
-	void visit(cpp::terminal_choice2 symbol)
-	{
-		std::cout << symbol.value << " ";
-	}
-
-	template<LexTokenId id>
-	void visit(cpp::terminal<id> symbol)
-	{
-		if(symbol.value != 0)
-		{
-			std::cout << symbol.value << " ";
-		}
-	}
-
-	template<typename T>
-	void visit(T* symbol)
-	{
-		symbol->accept(*this);
-	}
-
-	template<typename T>
-	void visit(cpp::symbol<T> symbol)
-	{
-		if(symbol.p != 0)
-		{
-			visit(symbol.p);
-		}
-	}
-
-	void visit(cpp::template_argument_list* symbol)
-	{
-		if(disambiguated)
-		{
-			std::cout << "( ";
-			symbol->accept(*this);
-			std::cout << ") ";
-		}
-		else
-		{
-			symbol->accept(*this);
-		}
-	}
-	void visit(cpp::relational_expression_default* symbol)
-	{
-		if(disambiguated)
-		{
-			std::cout << "( ";
-			symbol->accept(*this);
-			std::cout << ") ";
-		}
-		else
-		{
-			symbol->accept(*this);
-		}
-	}
-
-	template<typename T>
-	void visit(cpp::ambiguity<T>* symbol)
-	{
-		if(disambiguated)
-		{
-			std::cout << "[ ";
-			symbol->accept(*this);
-			std::cout << "] ";
-		}
-		else
-		{
-			symbol->accept(*this);
-		}
-	}
-};
-#endif
-
-template<typename T>
-void printSymbol(T* symbol, bool disambiguated = false)
-{
-#ifdef CPPTREE_VIRTUAL
-	SymbolDebug walker(disambiguated);
-	walker.visit(symbol);
-#endif
-}
-
-
 
 inline bool isAlphabet(char c)
 {
@@ -1113,11 +1012,6 @@ inline T* parseSymbol(ParserType& parser, T* result, const False&)
 #define GENERIC_ITERATE16(i, op) op(i); GENERIC_ITERATE15(i + 1, op)
 #define GENERIC_ITERATE17(i, op) op(i); GENERIC_ITERATE16(i + 1, op)
 
-template<typename T>
-struct TypeListCount<TYPELIST1(cpp::ambiguity<T>)>
-{
-	enum { RESULT = 0 };
-};
 
 template<typename ParserType, typename T, size_t N>
 struct ChoiceParser

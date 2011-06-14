@@ -330,13 +330,6 @@ struct SymbolPrinter : PrintingWalker
 		}
 	}
 
-	template<typename T>
-	void visit(cpp::ambiguity<T>* symbol)
-	{
-		REPORT_ASSERT(symbol->second == 0);
-		visit(symbol->first);
-	}
-
 	typedef StringStack Includes;
 
 	Includes includes;

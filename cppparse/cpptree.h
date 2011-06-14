@@ -138,32 +138,20 @@ namespace cpp
 		const char* value;
 	};
 
-	template<typename T>
-	struct ambiguity : public T
-	{
-		VISITABLE_DERIVED_TMPL(T);
-		T* first;
-		T* second;
-		FOREACH1(first);
-	};
-
-
 	struct template_argument : public choice<template_argument>
 	{
-		VISITABLE_BASE(TYPELIST3(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(type_id), // TODO: ambiguity: 'type-id' and 'primary-expression' may both be 'identifier'. Prefer type-id to handle 'T(*)()'.
-			SYMBOLFWD(assignment_expression),
-			//SYMBOLFWD(id_expression), // TODO: assignment-expression contains id-expression
-			ambiguity<template_argument>
+			SYMBOLFWD(assignment_expression)
+			//SYMBOLFWD(id_expression) // TODO: assignment-expression contains id-expression
 		));
 	};
 
 	struct template_parameter : public choice<template_parameter>
 	{
-		VISITABLE_BASE(TYPELIST3(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(type_parameter), // TODO: ambiguity 'typename T' could be typename-specifier or type-parameter
-			SYMBOLFWD(parameter_declaration), // TODO: ambiguity 'class C' could be elaborated-type-specifier or type-parameter
-			ambiguity<template_parameter>
+			SYMBOLFWD(parameter_declaration) // TODO: ambiguity 'class C' could be elaborated-type-specifier or type-parameter
 		));
 	};
 
@@ -211,10 +199,9 @@ namespace cpp
 	struct expression : public choice<expression>, public condition
 	{
 		VISITABLE_DERIVED(condition);
-		VISITABLE_BASE(TYPELIST3(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(expression_list),
-			SYMBOLFWD(assignment_expression),
-			ambiguity<expression>
+			SYMBOLFWD(assignment_expression)
 		));
 	};
 
@@ -240,19 +227,17 @@ namespace cpp
 		VISITABLE_DERIVED(expression);
 		VISITABLE_DERIVED(template_argument);
 		VISITABLE_DERIVED(initializer_clause);
-		VISITABLE_BASE(TYPELIST4(
+		VISITABLE_BASE(TYPELIST3(
 			SYMBOLFWD(throw_expression),
 			SYMBOLFWD(logical_or_expression_precedent),
-			SYMBOLFWD(conditional_expression),
-			ambiguity<assignment_expression>
+			SYMBOLFWD(conditional_expression)
 		));
 	};
 
 	struct constant_expression : public choice<constant_expression>
 	{
-		VISITABLE_BASE(TYPELIST2(
-			SYMBOLFWD(conditional_expression),
-			ambiguity<constant_expression>
+		VISITABLE_BASE(TYPELIST1(
+			SYMBOLFWD(conditional_expression)
 		));
 	};
 
@@ -368,24 +353,22 @@ namespace cpp
 	struct cast_expression : public choice<cast_expression>, public pm_expression
 	{
 		VISITABLE_DERIVED(pm_expression);
-		VISITABLE_BASE(TYPELIST3(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(cast_expression_default),
-			SYMBOLFWD(unary_expression),
-			ambiguity<cast_expression>
+			SYMBOLFWD(unary_expression)
 		));
 	};
 
 	struct unary_expression : public choice<unary_expression>, public cast_expression
 	{
 		VISITABLE_DERIVED(cast_expression);
-		VISITABLE_BASE(TYPELIST7(
+		VISITABLE_BASE(TYPELIST6(
 			SYMBOLFWD(postfix_expression),
 			SYMBOLFWD(unary_expression_sizeoftype),
 			SYMBOLFWD(unary_expression_sizeof),
 			SYMBOLFWD(unary_expression_op),
 			SYMBOLFWD(new_expression),
-			SYMBOLFWD(delete_expression),
-			ambiguity<unary_expression>
+			SYMBOLFWD(delete_expression)
 		));
 	};
 
@@ -401,14 +384,13 @@ namespace cpp
 	struct postfix_expression_prefix : public choice<postfix_expression_prefix>, public postfix_expression
 	{
 		VISITABLE_DERIVED(postfix_expression);
-		VISITABLE_BASE(TYPELIST7(
+		VISITABLE_BASE(TYPELIST6(
 			SYMBOLFWD(primary_expression),
 			SYMBOLFWD(postfix_expression_disambiguate),
 			SYMBOLFWD(postfix_expression_construct),
 			SYMBOLFWD(postfix_expression_cast),
 			SYMBOLFWD(postfix_expression_typeid),
-			SYMBOLFWD(postfix_expression_typeidtype),
-			ambiguity<postfix_expression_prefix>
+			SYMBOLFWD(postfix_expression_typeidtype)
 		));
 	};
 
@@ -475,10 +457,9 @@ namespace cpp
 
 	struct nested_name : public choice<nested_name>
 	{
-		VISITABLE_BASE(TYPELIST3(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(type_name),
-			SYMBOLFWD(namespace_name),
-			ambiguity<nested_name>
+			SYMBOLFWD(namespace_name)
 		));
 	};
 
@@ -509,10 +490,9 @@ namespace cpp
 
 	struct mem_initializer_id : public choice<mem_initializer_id>
 	{
-		VISITABLE_BASE(TYPELIST3(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(mem_initializer_id_base),
-			SYMBOLFWD(identifier),
-			ambiguity<mem_initializer_id>
+			SYMBOLFWD(identifier)
 		));
 	};
 
@@ -1734,7 +1714,7 @@ namespace cpp
 
 	struct statement : public choice<statement>
 	{
-		VISITABLE_BASE(TYPELIST11(
+		VISITABLE_BASE(TYPELIST10(
 			SYMBOLFWD(msext_asm_statement_braced), // TODO: shared-prefix ambiguity: braced and unbraced start with '__asm'
 			SYMBOLFWD(msext_asm_statement),
 			SYMBOLFWD(compound_statement),
@@ -1744,8 +1724,7 @@ namespace cpp
 			SYMBOLFWD(selection_statement),
 			SYMBOLFWD(iteration_statement),
 			SYMBOLFWD(jump_statement),
-			SYMBOLFWD(try_block),
-			ambiguity<statement>
+			SYMBOLFWD(try_block)
 		));
 	};
 
@@ -2006,13 +1985,12 @@ namespace cpp
 
 	struct member_declaration : public choice<member_declaration>
 	{
-		VISITABLE_BASE(TYPELIST6(
+		VISITABLE_BASE(TYPELIST5(
 			SYMBOLFWD(using_declaration),
 			SYMBOLFWD(member_template_declaration),
 			SYMBOLFWD(member_declaration_implicit), // shared-prefix ambiguity:  this matches a constructor: Class(Type);
 			SYMBOLFWD(member_declaration_default), // this matches a member: Type(member);
-			SYMBOLFWD(member_declaration_nested),
-			ambiguity<member_declaration>
+			SYMBOLFWD(member_declaration_nested)
 		));
 	};
 
@@ -2191,10 +2169,9 @@ namespace cpp
 	struct parameter_declaration : public choice<parameter_declaration>, public template_parameter
 	{
 		VISITABLE_DERIVED(template_parameter);
-		VISITABLE_BASE(TYPELIST3(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(parameter_declaration_default), // TODO: ambiguity: 'C::A(X)' could be 'C::A X' or 'C::A(*)(X)'
-			SYMBOLFWD(parameter_declaration_abstract),
-			ambiguity<parameter_declaration>
+			SYMBOLFWD(parameter_declaration_abstract)
 		));
 	};
 
@@ -2500,10 +2477,9 @@ namespace cpp
 
 	struct for_init_statement : public choice<for_init_statement>
 	{
-		VISITABLE_BASE(TYPELIST3(
+		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(expression_statement),
-			SYMBOLFWD(simple_declaration),
-			ambiguity<for_init_statement>
+			SYMBOLFWD(simple_declaration)
 		));
 	};
 

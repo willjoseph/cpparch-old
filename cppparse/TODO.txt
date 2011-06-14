@@ -1,11 +1,21 @@
 
 + clean up main()
-
 + fixed mergeIncludes crash in lexer.cpp: failed to handle cyclic includes
 + fixed crash in dependency analysis: declareEts not rolled back completely after parse fail - 'type' was left modified
 + fixed crash parsing cppparse.cpp, caused by friend-declaration shortcut
 + fixed false-positive order-dependent includes warnings
 + fixed skipping default-argument with nested parentheses
++ check that correct std::swap() is called for Copied
++ remove 'original' in LookupResult
++ remove ambiguity<T>
++ move List into separate file
++ remove init_declarator_disambiguate
++ build against stlport for performance
++ buffer tokens from lexer: huge speed improvement!
++ allow source file + includes to be specified on commandline or config file
++ faster debugging: parse declaration-seq iteratively
+
+
 
 - overhead of multiple-inherited vtables in identifier: 34 vtable pointers, 136 bytes
 	- constructor calls are slow
@@ -17,9 +27,8 @@
 - support '>>' in nested template-argument-list
 - implement 'auto' from C++0x
 
-bug: infinite loop when source file ends without newline?
+- bug: infinite loop when source file ends without newline?
 
-- check that correct std::swap() is called for Copied
 
 - document boost::wave modification: resolved_include_file
 
@@ -43,7 +52,7 @@ name in a friend declaration is neither qualified nor a template-id and the decl
 an elaborated-type-specifier, the lookup to determine whether the entity has been previously declared shall
 not consider any scopes outside the innermost enclosing namespace.
 
-- in parseSymbolRequired, why not defer allocation of symbol until successful parse?
++ in parseSymbolRequired, defer allocation of symbol until successful parse
 	- requires stack-allocation and copying of parse-tree node
 	- when parsing identifier, we store a persistent reference to symbol
 		- allocate within visit()?
@@ -56,10 +65,7 @@ not consider any scopes outside the innermost enclosing namespace.
 - refactor mingled stuff
 	- combine WalkerContext and ParserContext?
 	- WALK macros
-	
-- ScopeGuard appears in every default visit()?
-	- where is is actually required?
-	
+
 - avoid constructing complex *_NULL constants on the fly
 
 - avoid copying Type in addDependency/DependencyNode
@@ -70,23 +76,39 @@ not consider any scopes outside the innermost enclosing namespace.
 		- nested-name-specifier-prefix: name lookup ignores object/function/enumerator names
 		- type-name lookup hidden by constructor
 		
-- remove LookupResult
-
 - move Callback stuff into callback.h
 
 - fix leak of global WalkerContext in parseFile
+	- currently required so that parse-tree declarations can be used in reporting?
 
 - check that template-arguments are 'evaluated in the context in which the entire postfix-expression occurs'
-
 - test that the simple-template-id in simple-type-specifier-template is looked up correctly
 - test that template-arguments in a nested-name-specifier-suffix-template are considered when deciding that the NNS is dependent
 
 - use custom list class for DeferredSymbols?
 
-- bug: without ALLOCATOR_DEBUG: stomped global-scope declarations
+
+- shared prefix: declarator
+	- simple-declaration-named -> init-declarator-list -> init-declarator -> declarator
+	- function-definition -> declarator
+
++ bug: without ALLOCATOR_DEBUG: stomped global-scope declarations
 	- occurs only when deferring delete of declarations
 	- stomped entry contains ets-declaration in failed parse-tree
 	- onBacktrack not called when ALLOCATER_DEBUG enabled
+
+- clean up caching and deferred destruction
+	- clean up CachedSymbols
+		- enable caching at any point in parse
+		- remove entry from cache when alternative parse succeeds
+			- otherwise, causes error when looking up template-id cached within nested-name-specifier-suffix?
+		- treat cache as stack, only top item considered?
+			- handle X<Y>::Z<W>
+	- clean up DeferredAllocator
+		- defer destruction at level of container
+			- need replacement for multimap?
+	- clean up DeferredDestroy
+		- store items grouped into frames, keyed off allocation-position stored in parser
 
 - generalised solution for re-using failed parse-tree
 	- requires that re-parsing a symbol in-place behaves the same way
@@ -113,7 +135,6 @@ not consider any scopes outside the innermost enclosing namespace.
 		- when does ETS declaration modify enclosing scope?
 			- decl-specifier-seq or parameter-declaration-clause in namespace scope -> containing namespace
 			- else, smallest non-class non-function-prototype scope that contains the declaration
-		
 	- handle scope creation side-effects of failed parse tree
 		- preserve allocated scopes
 		
@@ -221,12 +242,11 @@ not consider any scopes outside the innermost enclosing namespace.
 	- disambiguates nested function-call expression from postfix_expression_construct
 	- e.g. T()()
 
+	
 - parser is hard to work with - refactor?
 	- remove dead code
-	+ move List into separate file
 	- replace Copied with a list?
 	- remove unmingled parse
-		- remove disambiguation grammar: init_declarator_disambiguate
 	- clean up SimpleDeclarationWalker::deferred
 	- naming:
 		- ParserContext is lexer?
@@ -325,10 +345,6 @@ not consider any scopes outside the innermost enclosing namespace.
 
 - test parser for completeness and compliance
 
-- build against stlport for performance?
-
-- allow source file + includes to be specified on commandline or config file
-
 - profile wave
 	- reading files
 	- searching include paths
@@ -351,18 +367,13 @@ not consider any scopes outside the innermost enclosing namespace.
 			- avoid copying 'global-type'
 			- use list instead of 'copied'
 		- don't track list of scopes/declarations unless debugging
-		
-- buffer tokens from lexer
-	- huge speed improvement
-	
+			
 - optimise name-lookup?
 	- hashtable?
 	- single global id table, id:scopes?
 		- how to sort scopes?
 	- trace name-lookup pattern
-	
-- remove disambiguation hacks
-	- init_declarator_disambiguate
+	- went with a std::multimap
 	
 - handle errors
 	- if member-initializer parse fails, member declaration is already committed
@@ -524,9 +535,6 @@ NO LOOKUP PROFILE
 		- doesn't build easily on win32
 	- ucpp?
 		- only supports C99 tokens
-
-- faster debugging
-	- parse declaration-seq iteratively
 
 - fix printer bugs
 	- space between *= and &=

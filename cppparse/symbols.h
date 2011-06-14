@@ -129,7 +129,7 @@ struct Type
 	{
 		std::swap(declaration, other.declaration);
 		arguments.swap(other.arguments);
-		std::swap(qualifying, other.qualifying);
+		qualifying.swap(other.qualifying);
 		std::swap(isImplicitTemplateId, other.isImplicitTemplateId);
 	}
 	Type& operator=(Declaration* declaration)
