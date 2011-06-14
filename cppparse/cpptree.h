@@ -100,9 +100,11 @@ namespace cpp
 	template<typename T>
 	struct choice
 	{
+#ifdef CPPTREE_VIRTUAL
 		virtual ~choice()
 		{
 		}
+#endif
 	};
 
 	struct terminal_choice

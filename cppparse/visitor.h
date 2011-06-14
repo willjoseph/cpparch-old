@@ -89,6 +89,8 @@ struct VisitorFuncGeneric<TypeListEnd>
 	}
 };
 
+#define CPPTREE_VIRTUAL
+#ifdef CPPTREE_VIRTUAL
 
 #define VISITABLE_BASE(Types) \
 	typedef Types Choices; \
@@ -114,6 +116,14 @@ struct VisitorFuncGeneric<TypeListEnd>
 { \
 	visitor.visit(this); \
 }
+
+#else
+
+#define VISITABLE_BASE(Types) typedef Types Choices
+#define VISITABLE_DERIVED(Base)
+#define VISITABLE_DERIVED_TMPL(Base)
+
+#endif
 
 #endif
 

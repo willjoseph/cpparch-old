@@ -11,6 +11,18 @@
 #define REPORT_ASSERT ALLOCATOR_ASSERT
 typedef AllocatorError ReportError;
 
+#ifndef CPPTREE_VIRTUAL
+
+
+void printSymbol(cpp::declaration_seq* p, const PrintSymbolArgs& args)
+{
+}
+
+void printSymbol(cpp::statement_seq* p, const PrintSymbolArgs& args)
+{
+}
+
+#else
 
 template<typename OutputStreamType>
 struct TreePrinter // TODO: better name
@@ -597,3 +609,4 @@ void printSymbol(cpp::statement_seq* p, const PrintSymbolArgs& args)
 
 }
 
+#endif

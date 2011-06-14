@@ -736,13 +736,6 @@ bool isUnqualified(cpp::elaborated_type_specifier_default* symbol)
 		&& symbol->context.p == 0;
 }
 
-bool isForwardDeclaration(cpp::decl_specifier_seq* symbol)
-{
-	return symbol != 0
-		&& symbol->prefix == 0
-		&& symbol->suffix == 0
-		&& isUnqualified(dynamic_cast<cpp::elaborated_type_specifier_default*>(symbol->type.p));
-}
 
 struct Walker
 {

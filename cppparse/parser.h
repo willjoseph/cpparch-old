@@ -25,7 +25,7 @@ struct GeneralError
 
 #define ASSERT(condition) if(!(condition)) { throw GeneralError(); }
 
-
+#ifdef CPPTREE_VIRTUAL
 struct SymbolDebug
 {
 	bool disambiguated;
@@ -114,12 +114,15 @@ struct SymbolDebug
 		}
 	}
 };
+#endif
 
 template<typename T>
 void printSymbol(T* symbol, bool disambiguated = false)
 {
+#ifdef CPPTREE_VIRTUAL
 	SymbolDebug walker(disambiguated);
 	walker.visit(symbol);
+#endif
 }
 
 

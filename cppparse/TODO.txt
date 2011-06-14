@@ -11,6 +11,8 @@
 	- constructor calls are slow
 	- is there an alternative mechanism for visiting parse-tree?
 	- visiting is not required during parse!
+		- removing vtable reduces overhead to 1 byte per base-class, trivial constructor
+			- would be zero with empty-base-optimisation
 
 - support '>>' in nested template-argument-list
 - implement 'auto' from C++0x
