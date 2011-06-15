@@ -204,86 +204,6 @@ struct SafePtr
 	}
 };
 
-struct Callback0
-{
-	typedef void (*Function)(void* data);
-	Function function;
-	void* data;
-	Callback0()
-		: function(defaultThunk)
-	{
-	}
-	Callback0(Function function, void* data)
-		: function(function), data(data)
-	{
-	}
-	void operator()() const
-	{
-		function(data);
-	}
-	static void defaultThunk(void*)
-	{
-	}
-};
-
-template<typename A>
-struct Callback1
-{
-	typedef void (*Function)(void* data, A);
-	Function function;
-	void* data;
-	Callback1()
-		: function(defaultThunk)
-	{
-	}
-	Callback1(Function function, void* data)
-		: function(function), data(data)
-	{
-	}
-	void operator()(A a) const
-	{
-		function(data, a);
-	}
-	static void defaultThunk(void*, A)
-	{
-	}
-};
-
-template<typename Object, void (Object::*member)()>
-struct Member0
-{
-	void* object;
-	Member0(Object& object)
-		: object(&object)
-	{
-	}
-	typedef Callback0 Result;
-	static void thunk(void* object)
-	{
-		((*static_cast<Object*>(object)).*member)();
-	}
-};
-template<typename Object, typename A, void (Object::*member)(A)>
-struct Member1
-{
-	void* object;
-	Member1(Object& object)
-		: object(&object)
-	{
-	}
-	typedef Callback1<A> Result;
-	static void thunk(void* object, A a)
-	{
-		((*static_cast<Object*>(object)).*member)(a);
-	}
-};
-
-template<typename Caller>
-typename Caller::Result makeCallback(Caller caller)
-{
-	return typename Caller::Result(Caller::thunk, caller.object);
-}
-
 struct Page
 {
 	enum { SHIFT = 17 };
@@ -306,8 +226,6 @@ struct LinearAllocator
 	typedef std::vector<Page*> Pages;
 	Pages pages;
 	size_t position;
-	size_t positionHwm;
-	Callback1<size_t> onBacktrack; 
 
 
 	static void* debugAddress;
@@ -315,7 +233,7 @@ struct LinearAllocator
 	static size_t debugAllocationId;
 
 	LinearAllocator()
-		: position(0), positionHwm(0)
+		: position(0)
 	{
 	}
 	~LinearAllocator()
@@ -344,7 +262,6 @@ struct LinearAllocator
 			std::cout << "debug allocation!" << std::endl;
 		}
 #endif
-		deferredBacktrack();
 		size_t available = sizeof(Page) - (position & Page::MASK);
 		if(size > available)
 		{
@@ -368,44 +285,25 @@ struct LinearAllocator
 	void backtrack(size_t original)
 	{
 		ALLOCATOR_ASSERT(original <= position);
-		if(positionHwm == 0)
-		{
-			positionHwm = position;
-		}
-		position = original;
-#if 0 // test: force immediate backtrack
-		deferredBacktrack();
-#endif
-	}
-	void deferredBacktrack()
-	{
-		if(positionHwm == 0)
-		{
-			return;
-		}
-
-		onBacktrack(position);
-
 #ifdef ALLOCATOR_DEBUG
-		Pages::iterator first = pages.begin() + position / sizeof(Page);
-		Pages::iterator last = pages.begin() + positionHwm / sizeof(Page);
+		Pages::iterator first = pages.begin() + original / sizeof(Page);
+		Pages::iterator last = pages.begin() + position / sizeof(Page);
 		for(Pages::iterator i = first; i != pages.end(); ++i)
 		{
 			ALLOCATOR_ASSERT(!checked || 
 				!isAllocated(
-					(*i)->buffer + (i == first ? position % sizeof(Page) : 0),
-					(*i)->buffer + (i == last ? positionHwm % sizeof(Page) : sizeof(Page))
+				(*i)->buffer + (i == first ? original % sizeof(Page) : 0),
+				(*i)->buffer + (i == last ? position % sizeof(Page) : sizeof(Page))
 				)
-			);
+				);
 			if(i == last)
 			{
 				break;
 			}
 		}
 #endif
-
-		positionHwm = 0;
-	}	
+		position = original;
+	}
 };
 
 

@@ -23,6 +23,8 @@
 	- visiting is not required during parse!
 		- removing vtable reduces overhead to 1 byte per base-class, trivial constructor
 			- would be zero with empty-base-optimisation
+			- remove multiple-inheritance?
+				- need alternative method to enforce valid casting?
 
 - support '>>' in nested template-argument-list
 - implement 'auto' from C++0x
@@ -104,7 +106,7 @@ not consider any scopes outside the innermost enclosing namespace.
 			- otherwise, causes error when looking up template-id cached within nested-name-specifier-suffix?
 		- treat cache as stack, only top item considered?
 			- handle X<Y>::Z<W>
-	- clean up DeferredAllocator
+	- clean up ParserAllocatorWrapper
 		- defer destruction at level of container
 			- need replacement for multimap?
 	- clean up DeferredDestroy

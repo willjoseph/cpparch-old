@@ -279,9 +279,10 @@ typedef std::list<DeferredDestroyElement> DeferredDestroy;
 struct ParserAllocator : public LexerAllocator
 {
 	DeferredDestroy deferredDestroy;
+	size_t position;
 	ParserAllocator()
+		: position(0)
 	{
-		LexerAllocator::onBacktrack = makeCallback(Member1<ParserAllocator, size_t, &ParserAllocator::deleteDeferred>(*this));
 	}
 	void deferDelete(size_t position, const DestroyCallback& callback)
 	{
@@ -302,8 +303,30 @@ struct ParserAllocator : public LexerAllocator
 	}
 	void backtrack(size_t original)
 	{
-		LexerAllocator::backtrack(original);
+		ALLOCATOR_ASSERT(original <= position);
+		position = original;
+#if 0 // test: force immediate backtrack
+		deferredBacktrack();
+#endif
 	}
+	void* allocate(size_t size)
+	{
+		deferredBacktrack();
+		void* result = LexerAllocator::allocate(size);
+		position = LexerAllocator::position;
+		return result;
+	}
+	void deferredBacktrack()
+	{
+		if(position == LexerAllocator::position)
+		{
+			return;
+		}
+
+		deleteDeferred(position);
+
+		LexerAllocator::backtrack(position);
+	}	
 };
 
 
@@ -314,10 +337,10 @@ inline ParserAllocator& NullParserAllocator()
 }
 
 #if 0
-#define DeferredAllocator LinearAllocatorWrapper
+#define ParserAllocatorWrapper LinearAllocatorWrapper
 #else
 template<class T>
-class DeferredAllocator
+class ParserAllocatorWrapper
 {
 public:
 	ParserAllocator& instance;
@@ -334,29 +357,29 @@ public:
 	template<class OtherT>
 	struct rebind
 	{
-		typedef DeferredAllocator<OtherT> other;
+		typedef ParserAllocatorWrapper<OtherT> other;
 	};
-	DeferredAllocator() : instance(NullParserAllocator())
+	ParserAllocatorWrapper() : instance(NullParserAllocator())
 	{
 		throw AllocatorError();
 	}
-	DeferredAllocator(ParserAllocator& instance) : instance(instance)
+	ParserAllocatorWrapper(ParserAllocator& instance) : instance(instance)
 	{
 	}
-	DeferredAllocator(const DeferredAllocator<T>& other) : instance(other.instance)
-	{
-	}
-	template<class OtherT>
-	DeferredAllocator(const DeferredAllocator<OtherT>& other) : instance(other.instance)
+	ParserAllocatorWrapper(const ParserAllocatorWrapper<T>& other) : instance(other.instance)
 	{
 	}
 	template<class OtherT>
-	DeferredAllocator<T>& operator=(const DeferredAllocator<OtherT>& other)
+	ParserAllocatorWrapper(const ParserAllocatorWrapper<OtherT>& other) : instance(other.instance)
+	{
+	}
+	template<class OtherT>
+	ParserAllocatorWrapper<T>& operator=(const ParserAllocatorWrapper<OtherT>& other)
 	{
 		if(this != &other)
 		{
-			this->~DeferredAllocator();
-			new(this) DeferredAllocator(other);
+			this->~ParserAllocatorWrapper();
+			new(this) ParserAllocatorWrapper(other);
 		}
 		// do nothing!
 		return (*this);
@@ -412,14 +435,14 @@ public:
 
 template<class T,
 class OtherT>
-	inline bool operator==(const DeferredAllocator<T>&, const DeferredAllocator<OtherT>&)
+	inline bool operator==(const ParserAllocatorWrapper<T>&, const ParserAllocatorWrapper<OtherT>&)
 {
 	return true;
 }
 
 template<class T,
 class OtherT>
-	inline bool operator!=(const DeferredAllocator<T>&, const DeferredAllocator<OtherT>&)
+	inline bool operator!=(const ParserAllocatorWrapper<T>&, const ParserAllocatorWrapper<OtherT>&)
 {
 	return false;
 }
@@ -589,11 +612,11 @@ struct SymbolAllocator<T, true>
 	}
 	T* allocate()
 	{
-		return allocatorNew(DeferredAllocator<int>(context.allocator), T());
+		return allocatorNew(ParserAllocatorWrapper<int>(context.allocator), T());
 	}
 	void deallocate(T* p)
 	{
-		allocatorDelete(DeferredAllocator<int>(context.allocator), p);
+		allocatorDelete(ParserAllocatorWrapper<int>(context.allocator), p);
 	}
 };
 
@@ -615,7 +638,7 @@ struct SymbolAllocator<T, false>
 template<typename T>
 T* createSymbol(Parser& parser, T*)
 {
-	return allocatorNew(DeferredAllocator<int>(parser.context.allocator), T());
+	return allocatorNew(ParserAllocatorWrapper<int>(parser.context.allocator), T());
 }
 
 template<typename T, bool isConcrete = IsConcrete<T>::RESULT >
@@ -636,7 +659,7 @@ struct SymbolHolder<T, true>
 	}
 	static T* hit(T* result, ParserContext& context)
 	{
-		return allocatorNew(DeferredAllocator<int>(context.allocator), T(*result));
+		return allocatorNew(ParserAllocatorWrapper<int>(context.allocator), T(*result));
 	}
 };
 

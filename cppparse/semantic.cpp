@@ -913,10 +913,6 @@ struct TemplateIdWalker : public WalkerBase
 			p->arguments.get(arguments);
 
 			parser->context.allocator.position = p->allocation;
-			if(parser->context.allocator.positionHwm == p->allocation)
-			{
-				parser->context.allocator.positionHwm = 0;
-			}
 			parser->position = p->count;
 			parser->advance();
 			return true;

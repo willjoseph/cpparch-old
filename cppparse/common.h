@@ -108,6 +108,90 @@ struct TypeListCount<TypeListEnd>
 
 #define TYPELIST_COUNT(Types) TypeListCount<Types>::RESULT
 
+
+
+
+
+struct Callback0
+{
+	typedef void (*Function)(void* data);
+	Function function;
+	void* data;
+	Callback0()
+		: function(defaultThunk)
+	{
+	}
+	Callback0(Function function, void* data)
+		: function(function), data(data)
+	{
+	}
+	void operator()() const
+	{
+		function(data);
+	}
+	static void defaultThunk(void*)
+	{
+	}
+};
+
+template<typename A>
+struct Callback1
+{
+	typedef void (*Function)(void* data, A);
+	Function function;
+	void* data;
+	Callback1()
+		: function(defaultThunk)
+	{
+	}
+	Callback1(Function function, void* data)
+		: function(function), data(data)
+	{
+	}
+	void operator()(A a) const
+	{
+		function(data, a);
+	}
+	static void defaultThunk(void*, A)
+	{
+	}
+};
+
+template<typename Object, void (Object::*member)()>
+struct Member0
+{
+	void* object;
+	Member0(Object& object)
+		: object(&object)
+	{
+	}
+	typedef Callback0 Result;
+	static void thunk(void* object)
+	{
+		((*static_cast<Object*>(object)).*member)();
+	}
+};
+template<typename Object, typename A, void (Object::*member)(A)>
+struct Member1
+{
+	void* object;
+	Member1(Object& object)
+		: object(&object)
+	{
+	}
+	typedef Callback1<A> Result;
+	static void thunk(void* object, A a)
+	{
+		((*static_cast<Object*>(object)).*member)(a);
+	}
+};
+
+template<typename Caller>
+typename Caller::Result makeCallback(Caller caller)
+{
+	return typename Caller::Result(Caller::thunk, caller.object);
+}
+
 #endif
 
 

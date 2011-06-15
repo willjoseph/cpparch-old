@@ -43,7 +43,7 @@ const DeclSpecifiers DECLSPEC_TYPEDEF = DeclSpecifiers(true, false, false, false
 #define TREEALLOCATOR_LINEAR
 
 #ifdef TREEALLOCATOR_LINEAR
-#define TreeAllocator DeferredAllocator
+#define TreeAllocator ParserAllocatorWrapper
 #define TREEALLOCATOR_NULL TreeAllocator<int>(NullParserAllocator())
 #else
 #define TreeAllocator DebugAllocator
