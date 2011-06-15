@@ -211,7 +211,7 @@ struct Visualiser
 
 typedef LinearAllocator<true> LexerAllocator;
 
-struct DestroyCallback
+struct BacktrackCallback
 {
 	typedef void (*Thunk)(void* data, LexerAllocator& allocator);
 	Thunk thunk;
@@ -224,7 +224,7 @@ struct DestroyCallback
 };
 
 template<typename T, void (*op)(T* p, LexerAllocator& allocator)>
-struct DestroyCallbackThunk
+struct BacktrackCallbackThunk
 {
 	static void thunk(void* data, LexerAllocator& allocator)
 	{
@@ -239,9 +239,9 @@ inline void deleteObject(T* p, LexerAllocator& allocator)
 }
 
 template<typename T>
-DestroyCallback makeDeleteCallback(T* p)
+BacktrackCallback makeDeleteCallback(T* p)
 {
-	DestroyCallback result = { DestroyCallbackThunk<T, deleteObject>::thunk, p };
+	BacktrackCallback result = { BacktrackCallbackThunk<T, deleteObject>::thunk, p };
 	return result;
 }
 
@@ -252,9 +252,9 @@ inline void destroyObject(T* p, LexerAllocator& allocator)
 }
 
 template<typename T>
-DestroyCallback makeDestroyCallback(T* p)
+BacktrackCallback makeDestroyCallback(T* p)
 {
-	DestroyCallback result = { DestroyCallbackThunk<T, destroyObject>::thunk, p };
+	BacktrackCallback result = { BacktrackCallbackThunk<T, destroyObject>::thunk, p };
 	return result;
 }
 
@@ -265,41 +265,28 @@ inline void deallocateObject(T* p, LexerAllocator& allocator)
 }
 
 template<typename T>
-DestroyCallback makeDeallocateCallback(T* p)
+BacktrackCallback makeDeallocateCallback(T* p)
 {
-	DestroyCallback result = { DestroyCallbackThunk<T, deallocateObject>::thunk, p };
+	BacktrackCallback result = { BacktrackCallbackThunk<T, deallocateObject>::thunk, p };
 	return result;
 }
 
 
-typedef std::pair<size_t, DestroyCallback> DeferredDestroyElement;
-typedef std::list<DeferredDestroyElement> DeferredDestroy;
+typedef std::pair<size_t, BacktrackCallback> BacktrackCallbacksElement;
+typedef std::list<BacktrackCallbacksElement> BacktrackCallbacks;
 
 
 struct ParserAllocator : public LexerAllocator
 {
-	DeferredDestroy deferredDestroy;
+	BacktrackCallbacks backtrackCallbacks;
 	size_t position;
 	ParserAllocator()
 		: position(0)
 	{
 	}
-	void deferDelete(size_t position, const DestroyCallback& callback)
+	void addBacktrackCallback(size_t position, const BacktrackCallback& callback)
 	{
-		deferredDestroy.push_front(DeferredDestroyElement(position, callback));
-	}
-	void deleteDeferred(size_t position)
-	{
-		DeferredDestroy::iterator i = deferredDestroy.begin();
-		for(; i != deferredDestroy.end(); ++i)
-		{
-			if((*i).first < position)
-			{
-				break;
-			}
-			(*i).second(*this);
-		}
-		deferredDestroy.erase(deferredDestroy.begin(), i);
+		backtrackCallbacks.push_front(BacktrackCallbacksElement(position, callback));
 	}
 	void backtrack(size_t original)
 	{
@@ -323,7 +310,16 @@ struct ParserAllocator : public LexerAllocator
 			return;
 		}
 
-		deleteDeferred(position);
+		BacktrackCallbacks::iterator i = backtrackCallbacks.begin();
+		for(; i != backtrackCallbacks.end(); ++i)
+		{
+			if((*i).first < position)
+			{
+				break;
+			}
+			(*i).second(*this);
+		}
+		backtrackCallbacks.erase(backtrackCallbacks.begin(), i);
 
 		LexerAllocator::backtrack(position);
 	}	
@@ -404,7 +400,7 @@ public:
 		//std::cout << "allocate: " << p << std::endl;
 #ifdef ALLOCATOR_DEBUG
 		*reinterpret_cast<size_t*>(p) = position;
-		instance.deferDelete(position, makeDeallocateCallback(p));
+		instance.addBacktrackCallback(position, makeDeallocateCallback(p));
 #endif
 		return p;
 	}
@@ -417,7 +413,7 @@ public:
 	void construct(pointer p, const T& value)
 	{
 #ifdef ALLOCATOR_DEBUG
-		instance.deferDelete(*reinterpret_cast<size_t*>(p), makeDestroyCallback(p));
+		instance.addBacktrackCallback(*reinterpret_cast<size_t*>(p), makeDestroyCallback(p));
 #endif
 		new(p) T(value);
 	}
@@ -462,13 +458,9 @@ struct ParserContext : Lexer
 	{
 		Lexer::backtrack(count, symbol);
 	}
-	void deferDelete(size_t position, const DestroyCallback& callback)
+	void addBacktrackCallback(size_t position, const BacktrackCallback& callback)
 	{
-		allocator.deferDelete(position, callback);
-	}
-	void deleteDeferred(size_t position)
-	{
-		allocator.deleteDeferred(position);
+		allocator.addBacktrackCallback(position, callback);
 	}
 };
 
@@ -540,9 +532,9 @@ struct Parser : public ParserState
 		}
 	}
 
-	void deferDelete(const DestroyCallback& callback)
+	void addBacktrackCallback(const BacktrackCallback& callback)
 	{
-		context.allocator.deferDelete(allocation, callback);
+		context.allocator.addBacktrackCallback(allocation, callback);
 	}
 };
 

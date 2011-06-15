@@ -554,7 +554,7 @@ struct WalkerBase : public WalkerState
 
 	void trackDeclaration(Declaration* declaration)
 	{
-		parser->deferDelete(makeUndeclareCallback(declaration));
+		parser->addBacktrackCallback(makeUndeclareCallback(declaration));
 	}
 
 	Declaration* declareClass(Identifier* id, const TemplateArguments& arguments)
@@ -1880,12 +1880,11 @@ struct ParameterDeclarationClauseWalker : public WalkerBase
 		pushScope(newScope(makeIdentifier("$declarator"), SCOPETYPE_PROTOTYPE));
 		if(templateParams != 0)
 		{
-			size_t position = parser->context.allocator.position;
 			enclosing->declarations = templateParams->declarations;
 			for(Scope::Declarations::iterator i = enclosing->declarations.begin(); i != enclosing->declarations.end(); ++i)
 			{
 				(*i).second.scope = enclosing;
-				parser->context.allocator.deferDelete(position, makeUndeclareCallback(&(*i).second));
+				trackDeclaration(&(*i).second);
 			}
 		}
 		templateParams = 0;

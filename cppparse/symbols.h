@@ -465,9 +465,9 @@ inline void undeclareObject(Declaration* declaration, LexerAllocator& allocator)
 	declaration->scope->declarations.erase(declaration->getName().value);
 }
 
-inline DestroyCallback makeUndeclareCallback(Declaration* p)
+inline BacktrackCallback makeUndeclareCallback(Declaration* p)
 {
-	DestroyCallback result = { DestroyCallbackThunk<Declaration, undeclareObject>::thunk, p };
+	BacktrackCallback result = { BacktrackCallbackThunk<Declaration, undeclareObject>::thunk, p };
 	return result;
 }
 

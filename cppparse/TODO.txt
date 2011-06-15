@@ -109,7 +109,7 @@ not consider any scopes outside the innermost enclosing namespace.
 	- clean up ParserAllocatorWrapper
 		- defer destruction at level of container
 			- need replacement for multimap?
-	- clean up DeferredDestroy
+	- clean up BacktrackCallbacks
 		- store items grouped into frames, keyed off allocation-position stored in parser
 
 - generalised solution for re-using failed parse-tree
