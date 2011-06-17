@@ -469,9 +469,6 @@ struct WalkerBase : public WalkerState
 			id->dec.p = declaration;
 		}
 		enclosed->name = declaration->getName();
-#if 1 // test
-		arguments.clear();
-#endif
 		return declaration;
 	}
 
