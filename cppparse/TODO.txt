@@ -16,7 +16,7 @@
 + faster debugging: parse declaration-seq iteratively
 + fixed: template-function template-param scope not renamed from $template
 
-
+- check that using-declaration is linked to correct definition: the one visible at point of using-declaration
 
 - overhead of multiple-inherited vtables in identifier: 34 vtable pointers, 136 bytes
 	- constructor calls are slow

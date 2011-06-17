@@ -223,7 +223,7 @@ struct WalkerState
 		{
 			if(specifiers.isFriend)
 			{
-				return &(*parent->friendDeclarations.insert(Scope::Declarations::value_type(name.value, other))).second;
+				return parent->friendDeclarations.insert(other);
 			}
 
 			/* 3.4.4-1
@@ -274,7 +274,7 @@ struct WalkerState
 			}
 		}
 
-		Declaration* result = parent->insert(other);
+		Declaration* result = parent->declarations.insert(other);
 		return result;
 	}
 
@@ -2006,9 +2006,15 @@ struct UsingDeclarationWalker : public WalkerQualified
 			{
 				return reportIdentifierMismatch(symbol, *walker.id, declaration, "object-name or type-name");
 			}
+			 
+			declaration = pointOfDeclaration(context, enclosing, *walker.id, declaration->type, isFunction(*declaration) ? declaration->enclosed : 0, declaration->specifiers,
+				false, TEMPLATEARGUMENTS_NULL, // the name in a using-declaration may not have template-params ...
+				INDEX_INVALID, // ... or be a template-argument
+				declaration->valueDependent);
+#ifdef ALLOCATOR_DEBUG
+			trackDeclaration(declaration);
+#endif
 
-			// TODO: check for conflicts with earlier declarations
-			enclosing->declarations.insert(Scope::Declarations::value_type(declaration->getName().value, *declaration));
 			walker.id->dec.p = declaration;
 		}
 		else
@@ -3258,9 +3264,10 @@ struct SimpleDeclarationWalker : public WalkerBase
 					}
 				}
 				member.scope = enclosing;
-				enclosing->declarations.insert(*i);
+				Identifier* id = &member.getName();
+				id->dec.p = enclosing->declarations.insert(member);
 			}
-
+			declaration->enclosed = 0;
 		}
 	}
 };

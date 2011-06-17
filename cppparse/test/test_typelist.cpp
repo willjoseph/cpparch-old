@@ -1,24 +1,16 @@
 
-namespace N68
+namespace N116
 {
-	template<typename X>
+	template<typename T>
 	struct Tmpl
 	{
-	};
-	template<>
-	struct Tmpl<char>
-	{
-		static const char VALUE = 0;
+		int x[sizeof(T)];
 	};
 
-	const char Tmpl<char>::VALUE;
-
-	template<>
-	struct Tmpl<int>
+	struct S : Tmpl<int>
 	{
-		static const int VALUE = 0;
+		using Tmpl<int>::x;
 	};
-	const int Tmpl<int>::VALUE; // Tmpl<int>::VALUE should be distinct from Tmpl<char>::VALUE
 }
 
 template<typename T>

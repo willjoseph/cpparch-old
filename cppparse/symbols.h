@@ -54,6 +54,7 @@ template<typename T, typename A>
 class DeferredList : public List<T, A>
 {
 	typedef List<T, A> Base;
+	void clear();
 public:
 	DeferredList()
 	{
@@ -64,8 +65,61 @@ public:
 	}
 	~DeferredList()
 	{
-		A allocator(getAllocator());
+		A allocator(Base::getAllocator());
 		new (static_cast<Base*>(this)) Base(allocator);
+	}
+};
+
+template<typename T, typename A>
+class DeferredRefList : public DeferredList<T, A>
+{
+	typedef DeferredList<T, A> Base;
+	DeferredRefList& operator=(const DeferredRefList&);
+	void clear();
+	void push_back(const T& value);
+	void splice(iterator position, List& other);
+	void swap(List& other);
+public:
+	DeferredRefList()
+	{
+	}
+	DeferredRefList(const A& allocator)
+		: Base(allocator)
+	{
+	}
+	DeferredRefList(const DeferredRefList& other)
+		: Base(other.getAllocator())
+	{
+		if(other.empty())
+		{
+			Base::construct()
+		}
+		else
+		{
+			Base::head = other.head;
+			Base::tail = other.tail;
+		}
+	}
+	DeferredRefList(const Base& other)
+		: Base(other.getAllocator())
+	{
+		if(other.empty())
+		{
+			Base::construct()
+		}
+		else
+		{
+			Base::head = other.head;
+			Base::tail = other.tail;
+		}
+	}
+	typename Base::iterator end()
+	{
+		return iterator(Base::tail->next);
+	}
+	typename Base::const_iterator end() const
+	{
+		return const_iterator(Base::tail->next);
 	}
 };
 
@@ -90,6 +144,9 @@ private:
 	TemplateArguments& operator=(const TemplateArguments&);
 #endif
 };
+
+typedef DeferredRefList<struct TemplateArgument, TreeAllocator<struct TemplateArgument> > TemplateArgumentsRef;
+
 #else
 typedef DeferredList<struct TemplateArgument> TemplateArguments;
 #endif
@@ -269,7 +326,8 @@ struct TemplateArgument
 
 inline TemplateArguments& nullTemplateArguments()
 {
-	static TemplateArguments null = TemplateArguments(TREEALLOCATOR_NULL);
+	const TreeAllocator<int> allocator = TREEALLOCATOR_NULL;
+	static TemplateArguments null(allocator);
 	return null;
 }
 #define TEMPLATEARGUMENTS_NULL nullTemplateArguments()
@@ -306,14 +364,14 @@ class Declaration
 {
 	Identifier* name;
 
-	//Declaration(const Declaration&);
+	Declaration(const Declaration&);
 	Declaration& operator=(const Declaration&);
 public:
 	Scope* scope;
 	Type type;
 	Scope* enclosed;
 	Declaration* overloaded;
-	Dependent valueDependent;
+	Dependent valueDependent; // the dependent-types/names that are referred to in the declarator-suffix (array size)
 	DeclSpecifiers specifiers;
 	size_t templateParameter;
 	Types templateParams;
@@ -438,6 +496,16 @@ struct ScopeCounter
 
 typedef SafePtr<Scope> ScopePtr;
 
+struct DeclarationHolder : Declaration
+{
+	DeclarationHolder()
+	{
+	}
+	DeclarationHolder(const DeclarationHolder&)
+	{
+	}
+};
+
 struct Scope : public ScopeCounter
 {
 	ScopePtr parent;
@@ -445,7 +513,7 @@ struct Scope : public ScopeCounter
 	size_t enclosedScopeCount; // number of scopes directly enclosed by this scope
 	typedef std::less<const char*> IdentifierLess;
 
-	typedef std::multimap<const char*, Declaration, IdentifierLess, TreeAllocator<int> > Declarations2;
+	typedef std::multimap<const char*, DeclarationHolder, IdentifierLess, TreeAllocator<int> > Declarations2;
 
 	struct Declarations : public Declarations2
 	{
@@ -463,6 +531,13 @@ struct Scope : public ScopeCounter
 			SYMBOLS_ASSERT(Declarations2::empty());
 			// hack: stop declarations being cleared
 			new(static_cast<Declarations2*>(this)) Declarations2(IdentifierLess(), TREEALLOCATOR_NULL);
+		}
+
+		Declaration* insert(Declaration& other)
+		{
+			Scope::Declarations::iterator result = Declarations2::insert(Scope::Declarations::value_type(other.getName().value, DeclarationHolder()));
+			(*result).second.swap(other);
+			return &(*result).second;
 		}
 	};
 
@@ -488,12 +563,9 @@ struct Scope : public ScopeCounter
 		return *gUniqueNames[enclosedScopeCount++];
 	}
 
-	Declaration* insert(Declaration& other)
-	{
-		Scope::Declarations::iterator result = declarations.insert(Scope::Declarations::value_type(other.getName().value, Declaration()));
-		(*result).second.swap(other);
-		return &(*result).second;
-	}
+private:
+	//Scope(const Scope&);
+	//Scope& operator=(const Scope&);
 };
 
 inline void undeclareObject(Declaration* declaration, LexerAllocator& allocator)
@@ -509,8 +581,12 @@ inline BacktrackCallback makeUndeclareCallback(Declaration* p)
 }
 
 
-
-const Scope SCOPE_NULL = Scope(TREEALLOCATOR_NULL, IDENTIFIER_NULL);
+inline const Scope& nullScope()
+{
+	static Scope null(TREEALLOCATOR_NULL, IDENTIFIER_NULL);
+	return null;
+}
+#define SCOPE_NULL nullScope()
 
 inline bool enclosesEts(ScopeType type)
 {
