@@ -210,7 +210,7 @@ struct WalkerState
 		Scope* enclosed,
 		DeclSpecifiers specifiers = DeclSpecifiers(),
 		bool isTemplate = false,
-		const TemplateArguments& arguments = TEMPLATEARGUMENTS_NULL,
+		TemplateArguments& arguments = TEMPLATEARGUMENTS_NULL,
 		size_t templateParameter = INDEX_INVALID,
 		const Dependent& valueDependent = DEPENDENT_NULL)
 	{
@@ -456,7 +456,7 @@ struct WalkerBase : public WalkerState
 		parser->addBacktrackCallback(makeUndeclareCallback(declaration));
 	}
 
-	Declaration* declareClass(Identifier* id, const TemplateArguments& arguments)
+	Declaration* declareClass(Identifier* id, TemplateArguments& arguments)
 	{
 		Scope* enclosed = templateParams != 0 ? templateParams : newScope(makeIdentifier("$class"));
 		enclosed->type = SCOPETYPE_CLASS; // convert template-param-scope to class-scope if present
@@ -469,6 +469,9 @@ struct WalkerBase : public WalkerState
 			id->dec.p = declaration;
 		}
 		enclosed->name = declaration->getName();
+#if 1 // test
+		arguments.clear();
+#endif
 		return declaration;
 	}
 
@@ -1767,6 +1770,7 @@ struct ParameterDeclarationClauseWalker : public WalkerBase
 		pushScope(newScope(makeIdentifier("$declarator"), SCOPETYPE_PROTOTYPE));
 		if(templateParams != 0)
 		{
+			// TODO: is it necessary to copy?
 			enclosing->declarations = templateParams->declarations;
 			for(Scope::Declarations::iterator i = enclosing->declarations.begin(); i != enclosing->declarations.end(); ++i)
 			{

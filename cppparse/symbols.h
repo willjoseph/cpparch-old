@@ -85,7 +85,10 @@ private:
 	TemplateArguments()
 	{
 	}
-	//TemplateArguments& operator=(const TemplateArguments&);
+#if  0
+	TemplateArguments(const TemplateArguments&);
+	TemplateArguments& operator=(const TemplateArguments&);
+#endif
 };
 #else
 typedef DeferredList<struct TemplateArgument> TemplateArguments;
@@ -264,7 +267,12 @@ struct TemplateArgument
 	}
 };
 
-#define TEMPLATEARGUMENTS_NULL TemplateArguments(TREEALLOCATOR_NULL)
+inline TemplateArguments& nullTemplateArguments()
+{
+	static TemplateArguments null = TemplateArguments(TREEALLOCATOR_NULL);
+	return null;
+}
+#define TEMPLATEARGUMENTS_NULL nullTemplateArguments()
 
 
 
@@ -297,6 +305,9 @@ typedef DeferredList<class Declaration*, TreeAllocator<int> > DeclarationList;
 class Declaration
 {
 	Identifier* name;
+
+	//Declaration(const Declaration&);
+	Declaration& operator=(const Declaration&);
 public:
 	Scope* scope;
 	Type type;
@@ -318,7 +329,7 @@ public:
 		Scope* enclosed,
 		DeclSpecifiers specifiers = DeclSpecifiers(),
 		bool isTemplate = false,
-		const TemplateArguments& arguments = TEMPLATEARGUMENTS_NULL,
+		TemplateArguments& arguments = TEMPLATEARGUMENTS_NULL,
 		size_t templateParameter = INDEX_INVALID,
 		const Dependent& valueDependent = DEPENDENT_NULL
 	) : scope(scope),
@@ -331,10 +342,35 @@ public:
 		templateParameter(templateParameter),
 		templateParams(allocator),
 		templateParamDefaults(allocator),
-		arguments(arguments),
+		arguments(allocator),
 		isTemplate(isTemplate)
 	{
+		this->arguments.swap(arguments);
 	}
+	Declaration() :
+		type(0, TREEALLOCATOR_NULL),
+		valueDependent(TREEALLOCATOR_NULL),
+		templateParams(TREEALLOCATOR_NULL),
+		templateParamDefaults(TREEALLOCATOR_NULL),
+		arguments(TREEALLOCATOR_NULL)
+	{
+	}
+	void swap(Declaration& other)
+	{
+		std::swap(name, other.name);
+		std::swap(scope, other.scope);
+		type.swap(other.type);
+		std::swap(enclosed, other.enclosed);
+		std::swap(overloaded, other.overloaded);
+		valueDependent.swap(other.valueDependent);
+		std::swap(specifiers, other.specifiers);
+		std::swap(templateParameter, other.templateParameter);
+		templateParams.swap(other.templateParams);
+		templateParamDefaults.swap(other.templateParamDefaults);
+		arguments.swap(other.arguments);
+		std::swap(isTemplate, other.isTemplate);
+	}
+
 
 	Identifier& getName()
 	{
@@ -452,9 +488,10 @@ struct Scope : public ScopeCounter
 		return *gUniqueNames[enclosedScopeCount++];
 	}
 
-	Declaration* insert(const Declaration& other)
+	Declaration* insert(Declaration& other)
 	{
-		Scope::Declarations::iterator result = declarations.insert(Scope::Declarations::value_type(other.getName().value, other));
+		Scope::Declarations::iterator result = declarations.insert(Scope::Declarations::value_type(other.getName().value, Declaration()));
+		(*result).second.swap(other);
 		return &(*result).second;
 	}
 };

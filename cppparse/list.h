@@ -119,13 +119,21 @@ struct List : private A
 
 	List()
 	{
-		init_raw();
+		construct();
 	}
 	List(const A& allocator) :  A(allocator)
 	{
-		init_raw();
+		construct();
 	}
 	~List()
+	{
+		destroy();
+	}
+	void construct()
+	{
+		head.next = tail = &head;
+	}
+	void destroy()
 	{
 		for(ListNodeBase* p = head.next; p != &head; )
 		{
@@ -133,10 +141,6 @@ struct List : private A
 			allocatorDelete(getAllocator(), static_cast<Node*>(p));
 			p = next;
 		}
-	}
-	void init_raw()
-	{
-		head.next = tail = &head;
 	}
 
 	List(const List& other)
@@ -183,6 +187,11 @@ struct List : private A
 	{
 		return static_cast<Node*>(tail)->value;
 	}
+	void clear()
+	{
+		destroy();
+		construct();
+	}
 	
 	void push_back(const T& value)
 	{
@@ -211,7 +220,7 @@ struct List : private A
 			tail->next = other.head.next;
 			tail = other.tail;
 			tail->next = &head;
-			other.init_raw();
+			other.construct();
 		}
 	}
 	void swap(List& other)
@@ -230,7 +239,7 @@ struct List : private A
 		}
 		else
 		{
-			init_raw();
+			construct();
 		}
 		if(other.head.next != &head)
 		{
@@ -238,7 +247,7 @@ struct List : private A
 		}
 		else
 		{
-			other.init_raw();
+			other.construct();
 		}
 	}
 };
