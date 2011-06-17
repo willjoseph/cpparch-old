@@ -7,9 +7,14 @@
 template<typename T, typename A>
 class Copied : private A
 {
+protected:
 	T* p;
 
 	A& getAllocator()
+	{
+		return *this;
+	}
+	const A& getAllocator() const
 	{
 		return *this;
 	}

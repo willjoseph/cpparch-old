@@ -167,7 +167,35 @@ private:
 	}
 };
 
+#if 1
+template<typename T, typename A>
+class DeferredCopied : public Copied<T, A>
+{
+	typedef Copied<T, A> Base;
+public:
+	DeferredCopied(const A& allocator)
+		: Base(allocator)
+	{
+	}
+	DeferredCopied(const T& value, const A& allocator)
+		: Base(value, allocator)
+	{
+	}
+	DeferredCopied(const DeferredCopied& other)
+		: Base(other.getAllocator())
+	{
+		Base::p = other.p;
+	}
+	DeferredCopied& operator=(const DeferredCopied& other)
+	{
+		Base::p = other.p;
+		return *this;
+	}
+};
+typedef DeferredCopied<struct Type, TreeAllocator<int> > CopiedType;
+#else
 typedef Copied<Type, TreeAllocator<int> > CopiedType;
+#endif
 typedef CopiedType Qualifying;
 
 

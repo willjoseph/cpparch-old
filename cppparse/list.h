@@ -116,6 +116,10 @@ struct List : private A
 	{
 		return *this;
 	}
+	const A& getAllocator() const
+	{
+		return *this;
+	}
 
 	List()
 	{
