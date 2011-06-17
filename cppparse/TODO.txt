@@ -14,6 +14,7 @@
 + buffer tokens from lexer: huge speed improvement!
 + allow source file + includes to be specified on commandline or config file
 + faster debugging: parse declaration-seq iteratively
++ fixed: template-function template-param scope not renamed from $template
 
 
 
