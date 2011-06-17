@@ -70,15 +70,16 @@ public:
 	}
 };
 
+#if 0
+#define DeferredRefList DeferredList
+#else
 template<typename T, typename A>
 class DeferredRefList : public DeferredList<T, A>
 {
 	typedef DeferredList<T, A> Base;
 	DeferredRefList& operator=(const DeferredRefList&);
 	void clear();
-	void push_back(const T& value);
 	void splice(iterator position, List& other);
-	void swap(List& other);
 public:
 	DeferredRefList()
 	{
@@ -92,7 +93,7 @@ public:
 	{
 		if(other.empty())
 		{
-			Base::construct()
+			Base::construct();
 		}
 		else
 		{
@@ -122,12 +123,13 @@ public:
 		return const_iterator(Base::tail->next);
 	}
 };
+#endif
 
 // ----------------------------------------------------------------------------
 // type
 
 #if 1
-typedef DeferredList<struct TemplateArgument, TreeAllocator<struct TemplateArgument> > TemplateArguments2;
+typedef DeferredRefList<struct TemplateArgument, TreeAllocator<struct TemplateArgument> > TemplateArguments2;
 
 struct TemplateArguments : public TemplateArguments2
 {
@@ -145,14 +147,12 @@ private:
 #endif
 };
 
-typedef DeferredRefList<struct TemplateArgument, TreeAllocator<struct TemplateArgument> > TemplateArgumentsRef;
-
 #else
-typedef DeferredList<struct TemplateArgument> TemplateArguments;
+typedef DeferredRefList<struct TemplateArgument> TemplateArguments;
 #endif
 
 
-typedef DeferredList<struct Type, TreeAllocator<int> > Types2;
+typedef DeferredRefList<struct Type, TreeAllocator<int> > Types2;
 
 /// A list of Type objects.
 struct Types : public Types2
@@ -169,30 +169,30 @@ private:
 
 #if 1
 template<typename T, typename A>
-class DeferredCopied : public Copied<T, A>
+class Referenced : public Copied<T, A>
 {
 	typedef Copied<T, A> Base;
 public:
-	DeferredCopied(const A& allocator)
+	Referenced(const A& allocator)
 		: Base(allocator)
 	{
 	}
-	DeferredCopied(const T& value, const A& allocator)
+	Referenced(const T& value, const A& allocator)
 		: Base(value, allocator)
 	{
 	}
-	DeferredCopied(const DeferredCopied& other)
+	Referenced(const Referenced& other)
 		: Base(other.getAllocator())
 	{
 		Base::p = other.p;
 	}
-	DeferredCopied& operator=(const DeferredCopied& other)
+	Referenced& operator=(const Referenced& other)
 	{
 		Base::p = other.p;
 		return *this;
 	}
 };
-typedef DeferredCopied<struct Type, TreeAllocator<int> > CopiedType;
+typedef Referenced<struct Type, TreeAllocator<int> > CopiedType;
 #else
 typedef Copied<Type, TreeAllocator<int> > CopiedType;
 #endif
@@ -386,14 +386,15 @@ typedef SafePtr<Identifier> IdentifierPtr;
 // declaration
 
 const size_t INDEX_INVALID = size_t(-1);
-typedef DeferredList<class Declaration*, TreeAllocator<int> > DeclarationList;
 
 class Declaration
 {
 	Identifier* name;
 
+#if 0
 	Declaration(const Declaration&);
 	Declaration& operator=(const Declaration&);
+#endif
 public:
 	Scope* scope;
 	Type type;
@@ -524,6 +525,9 @@ struct ScopeCounter
 
 typedef SafePtr<Scope> ScopePtr;
 
+#if 1
+#define DeclarationHolder Declaration
+#else
 struct DeclarationHolder : Declaration
 {
 	DeclarationHolder()
@@ -533,6 +537,7 @@ struct DeclarationHolder : Declaration
 	{
 	}
 };
+#endif
 
 struct Scope : public ScopeCounter
 {
@@ -573,7 +578,7 @@ struct Scope : public ScopeCounter
 	Declarations declarations;
 	ScopeType type;
 	Types bases;
-	typedef DeferredList<ScopePtr, TreeAllocator<int> > Scopes;
+	typedef DeferredRefList<ScopePtr, TreeAllocator<int> > Scopes;
 	Scopes usingDirectives;
 	Declarations friendDeclarations;
 

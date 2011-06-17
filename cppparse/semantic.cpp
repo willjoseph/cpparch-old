@@ -1764,8 +1764,22 @@ struct ParameterDeclarationClauseWalker : public WalkerBase
 	ParameterDeclarationClauseWalker(const WalkerState& state)
 		: WalkerBase(state)
 	{
+#if 0
 		pushScope(templateParams != 0 ? templateParams : newScope(makeIdentifier("$declarator")));
 		enclosing->type = SCOPETYPE_PROTOTYPE;
+#else
+		pushScope(newScope(makeIdentifier("$declarator"), SCOPETYPE_PROTOTYPE));
+		if(templateParams != 0)
+		{
+			// TODO: is it necessary to copy?
+			enclosing->declarations = templateParams->declarations;
+			for(Scope::Declarations::iterator i = enclosing->declarations.begin(); i != enclosing->declarations.end(); ++i)
+			{
+				(*i).second.scope = enclosing;
+				trackDeclaration(&(*i).second);
+			}
+		}
+#endif	
 		templateParams = 0;
 	}
 
