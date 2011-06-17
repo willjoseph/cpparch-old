@@ -1,4 +1,25 @@
 
+namespace N68
+{
+	template<typename X>
+	struct Tmpl
+	{
+	};
+	template<>
+	struct Tmpl<char>
+	{
+		static const char VALUE = 0;
+	};
+
+	const char Tmpl<char>::VALUE;
+
+	template<>
+	struct Tmpl<int>
+	{
+		static const int VALUE = 0;
+	};
+	const int Tmpl<int>::VALUE; // Tmpl<int>::VALUE should be distinct from Tmpl<char>::VALUE
+}
 
 template<typename T>
 struct S

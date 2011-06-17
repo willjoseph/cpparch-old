@@ -209,6 +209,131 @@ struct Visualiser
 
 
 
+class OpaqueCopied
+{
+	void* p;
+	void (*release)(void*);
+
+	template<typename T>
+	struct ReleaseGeneric
+	{
+		static void apply(void* p)
+		{
+			delete static_cast<T*>(p);
+		}
+	};
+
+	static void releaseNull(void* p)
+	{
+	}
+
+public:
+	OpaqueCopied()
+		: p(0), release(releaseNull)
+	{
+	}
+	OpaqueCopied(const OpaqueCopied& other)
+		: p(0), release(releaseNull)
+	{
+		ASSERT(other.p == NULL);
+	}
+	OpaqueCopied& operator=(const OpaqueCopied& other)
+	{
+		ASSERT(p == NULL);
+		ASSERT(other.p == NULL);
+	}
+	template<typename T>
+	OpaqueCopied(const T& value)
+		: p(new T(value)), release(ReleaseGeneric<T>::apply)
+	{
+	}
+	~OpaqueCopied()
+	{
+		release(p);
+	}
+	template<typename T>
+	void get(T*& result)
+	{
+		// TODO
+		//SEMANTIC_ASSERT(release == ReleaseGeneric<T>::apply);
+		result = static_cast<T*>(p);
+	}
+};
+
+
+struct CachedSymbols
+{
+	typedef Lexer::Tokens::const_iterator Key;
+	struct Value;
+	typedef std::pair<Key, Value> Entry;
+	typedef std::list<Entry> Entries;
+
+	struct Value
+	{
+		Entries::iterator end;
+		OpaqueCopied copied;
+	};
+
+	Entries entries;
+	Entries::iterator position;
+	size_t hits;
+
+	static const size_t NONE = size_t(-1);
+
+	CachedSymbols()
+		: hits(0), position(entries.begin())
+	{
+	}
+	~CachedSymbols()
+	{
+		if(hits > 0)
+		{
+			//std::cout << "total hits: " << hits << std::endl;
+		}
+	}
+
+	template<typename T>
+	void find(Key key, const T*& p)
+	{
+		if(position != entries.begin())
+		{
+			Entries::iterator i = position;
+			--i;
+			if((*i).first != key)
+			{
+				p = 0;
+			}
+			else
+			{
+				++hits;
+				Value& value = (*i).second;
+				value.copied.get(p);
+				position = value.end;
+			}
+		}
+	}
+	template<typename T>
+	T& insert(Entries::iterator at, Key key, const T& t)
+	{
+		flush();
+		Value& value = (*entries.insert(at, Entries::value_type(key, Value()))).second;
+		position = entries.begin();
+		value.end = position;
+		value.copied.~OpaqueCopied();
+		new (&value.copied) OpaqueCopied(t);
+		T* p;
+		value.copied.get(p);
+		return *p;
+	}
+	void flush()
+	{
+		if(position != entries.begin())
+		{
+			entries.erase(entries.begin(), position);
+		}
+	}
+};
+
 typedef LinearAllocator<true> LexerAllocator;
 
 struct BacktrackCallback
@@ -280,6 +405,7 @@ struct ParserAllocator : public LexerAllocator
 {
 	BacktrackCallbacks backtrackCallbacks;
 	size_t position;
+	CachedSymbols cachedSymbols;
 	ParserAllocator()
 		: position(0)
 	{
@@ -310,16 +436,20 @@ struct ParserAllocator : public LexerAllocator
 			return;
 		}
 
-		BacktrackCallbacks::iterator i = backtrackCallbacks.begin();
-		for(; i != backtrackCallbacks.end(); ++i)
+		cachedSymbols.flush();
+
 		{
-			if((*i).first < position)
+			BacktrackCallbacks::iterator i = backtrackCallbacks.begin();
+			for(; i != backtrackCallbacks.end(); ++i)
 			{
-				break;
+				if((*i).first < position)
+				{
+					break;
+				}
+				(*i).second(*this);
 			}
-			(*i).second(*this);
+			backtrackCallbacks.erase(backtrackCallbacks.begin(), i);
 		}
-		backtrackCallbacks.erase(backtrackCallbacks.begin(), i);
 
 		LexerAllocator::backtrack(position);
 	}	
@@ -449,6 +579,7 @@ struct ParserContext : Lexer
 {
 	Visualiser visualiser;
 	ParserAllocator allocator;
+
 	ParserContext(LexContext& context, const char* path)
 		: Lexer(context, path)
 	{
@@ -479,13 +610,14 @@ struct Parser : public ParserState
 	ParserContext& context;
 	size_t position;
 	size_t allocation;
+	CachedSymbols::Entries::iterator cachePosition;
 
 	Parser(ParserContext& context)
 		: context(context), position(0), allocation(0)
 	{
 	}
 	Parser(const Parser& other)
-		: ParserState(other), context(other.context), position(0), allocation(context.allocator.position)
+		: ParserState(other), context(other.context), position(0), allocation(context.allocator.position), cachePosition(context.allocator.cachedSymbols.position)
 	{
 	}
 
@@ -523,6 +655,7 @@ struct Parser : public ParserState
 			context.allocator.backtrack(allocation);
 		}
 		context.backtrack(position, symbol);
+		context.allocator.cachedSymbols.position = cachePosition;
 	}
 	void advance()
 	{

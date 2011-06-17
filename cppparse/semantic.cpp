@@ -132,106 +132,6 @@ struct WalkerContext : public TreeAllocator<int>
 
 typedef std::list< DeferredParse<struct WalkerBase, struct WalkerState> > DeferredSymbols;
 
-class OpaqueCopied
-{
-	void* p;
-	void (*release)(void*);
-
-	template<typename T>
-	struct ReleaseGeneric
-	{
-		static void apply(void* p)
-		{
-			delete static_cast<T*>(p);
-		}
-	};
-
-	static void releaseNull(void* p)
-	{
-	}
-
-public:
-	OpaqueCopied()
-		: p(0), release(releaseNull)
-	{
-	}
-	OpaqueCopied(const OpaqueCopied& other)
-		: p(0), release(releaseNull)
-	{
-		SEMANTIC_ASSERT(other.p == NULL);
-	}
-	OpaqueCopied& operator=(const OpaqueCopied& other)
-	{
-		SEMANTIC_ASSERT(p == NULL);
-		SEMANTIC_ASSERT(other.p == NULL);
-	}
-	template<typename T>
-	OpaqueCopied(const T& value)
-		: p(new T(value)), release(ReleaseGeneric<T>::apply)
-	{
-	}
-	~OpaqueCopied()
-	{
-		release(p);
-	}
-	template<typename T>
-	void get(T*& result)
-	{
-		// TODO
-		//SEMANTIC_ASSERT(release == ReleaseGeneric<T>::apply);
-		result = static_cast<T*>(p);
-	}
-};
-
-
-struct CachedSymbols
-{
-	typedef Lexer::Tokens::const_iterator Key;
-	typedef OpaqueCopied Entry;
-	typedef std::map<Key, OpaqueCopied> Entries;
-	Entries entries;
-	size_t hits;
-
-	static const size_t NONE = size_t(-1);
-
-	CachedSymbols()
-		: hits(0)
-	{
-	}
-	~CachedSymbols()
-	{
-		if(hits > 0)
-		{
-			//std::cout << "total hits: " << hits << std::endl;
-		}
-	}
-
-	template<typename T>
-	void find(Key key, const T*& p)
-	{
-		Entries::iterator result = entries.find(key);
-		if(result != entries.end())
-		{
-			++hits;
-			(*result).second.get(p);
-		}
-		else
-		{
-			p = 0;
-		}
-	}
-	template<typename T>
-	T& insert(Key key, const T& value)
-	{
-		Entries::iterator result = entries.insert(Entries::value_type(key, Entry())).first;
-		(*result).second.~Entry();
-		new (&(*result).second) Entry(value);
-		T* p;
-		(*result).second.get(p);
-		return *p;
-	}
-};
-
 typedef bool (*IdentifierFunc)(const Declaration& declaration);
 const char* getIdentifierType(IdentifierFunc func);
 
@@ -246,10 +146,9 @@ struct WalkerState
 	ScopePtr templateParams;
 	ScopePtr templateEnclosing;
 	DeferredSymbols* deferred;
-	CachedSymbols* cached;
 
 	WalkerState(WalkerContext& context)
-		: context(context), enclosing(0), qualifying_p(0), templateParams(0), templateEnclosing(0), deferred(0), cached(0)
+		: context(context), enclosing(0), qualifying_p(0), templateParams(0), templateEnclosing(0), deferred(0)
 	{
 	}
 	const WalkerState& getState() const
@@ -719,12 +618,12 @@ const char* getIdentifierType(IdentifierFunc func)
 
 
 #define TREEWALKER_WALK_TRY_CACHED(walker, symbol) \
-	Lexer::Tokens::const_iterator before = walker.parser->context.position; \
-	if(!walker.cacheLookup(before, symbol)) \
-{ \
-	TREEWALKER_WALK_TRY(walker, symbol); \
-	walker.cacheStore(before, symbol); \
-}
+	CachedSymbols::Key key_ = walker.parser->context.position; \
+	if(!walker.cacheLookup(key_, symbol)) \
+	{ \
+		TREEWALKER_WALK_TRY(walker, symbol); \
+		walker.cacheStore(key_, symbol); \
+	}
 
 #define TREEWALKER_WALK_CACHED(walker, symbol) TREEWALKER_WALK_TRY_CACHED(walker, symbol); TREEWALKER_WALK_HIT(walker, symbol)
 
@@ -797,7 +696,6 @@ struct TemplateArgumentListWalker : public WalkerBase
 	TemplateArgumentListWalker(const WalkerState& state)
 		: WalkerBase(state), arguments(context)
 	{
-		WalkerState::cached = 0; // stop caching template-argument-clause
 	}
 	void visit(cpp::type_id* symbol)
 	{
@@ -896,14 +794,11 @@ struct TemplateIdWalker : public WalkerBase
 		arguments.swap(walker.arguments);
 	}
 
-	bool cacheLookup(Lexer::Tokens::const_iterator before, cpp::simple_template_id* symbol)
+	bool cacheLookup(CachedSymbols::Key key, cpp::simple_template_id* symbol)
 	{
+		// this symbol may have already been parsed successfully
 		const SimpleTemplateIdCache* p = 0;
-		if(WalkerState::cached != 0) // if we are within a simple-type-specifier
-		{
-			// this symbol may have already been parsed successfully
-			WalkerState::cached->find(before, p);
-		}
+		parser->context.allocator.cachedSymbols.find(key, p);
 
 		if(p != 0)
 		{
@@ -920,17 +815,13 @@ struct TemplateIdWalker : public WalkerBase
 		return false;
 	}
 
-	void cacheStore(Lexer::Tokens::const_iterator before, cpp::simple_template_id* symbol)
+	void cacheStore(CachedSymbols::Key key, cpp::simple_template_id* symbol)
 	{
-#if 1 // work in progress.
-		// After successfully parsing template-argument-clause:
-		if(WalkerState::cached != 0) // if we are within a simple-type-specifier
-		{
-			// store this symbol
-			SimpleTemplateIdCache& entry = WalkerState::cached->insert(before, SimpleTemplateIdCache(*symbol, parser->position, parser->context.allocator.position));
-			entry.id = id;
-			entry.arguments.set(arguments);
-		}
+#if 1
+		// After successfully parsing template-argument-clause, store this symbol
+		SimpleTemplateIdCache& entry = parser->context.allocator.cachedSymbols.insert(parser->cachePosition, key, SimpleTemplateIdCache(*symbol, parser->position, parser->context.allocator.position));
+		entry.id = id;
+		entry.arguments.set(arguments);
 #endif
 	}
 };
@@ -1059,11 +950,9 @@ struct IdExpressionWalker : public WalkerQualified
 	IdentifierPtr id;
 	bool isIdentifier;
 	bool isTemplate;
-	CachedSymbols cached;
 	IdExpressionWalker(const WalkerState& state)
 		: WalkerQualified(state), declaration(0), id(0), isIdentifier(false), isTemplate(false)
 	{
-		WalkerBase::cached = &cached;
 	}
 	// HACK: for postfix-expression-member 
 	void visit(cpp::terminal<boost::wave::T_TEMPLATE> symbol)
@@ -1586,7 +1475,7 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 	void visit(cpp::simple_template_id* symbol)
 	{
 		TemplateIdWalker walker(getState());
-		TREEWALKER_WALK_TRY(walker, symbol);
+		TREEWALKER_WALK_TRY_CACHED(walker, symbol);
 		if(!isTemplate
 			&& (allowDependent
 				|| !isDependent(qualifying_p)))
@@ -1691,11 +1580,9 @@ struct TypeSpecifierWalker : public WalkerQualified
 
 	Type type;
 	unsigned fundamental;
-	CachedSymbols cached;
 	TypeSpecifierWalker(const WalkerState& state)
 		: WalkerQualified(state), type(0, context), fundamental(0)
 	{
-		WalkerState::cached = &cached;
 	}
 	void visit(cpp::simple_type_specifier_name* symbol)
 	{
@@ -1737,7 +1624,7 @@ struct TypeSpecifierWalker : public WalkerQualified
 	void visit(cpp::simple_template_id* symbol) // simple_type_specifier_template
 	{
 		TemplateIdWalker walker(getState());
-		TREEWALKER_WALK_TRY(walker, symbol);
+		TREEWALKER_WALK_TRY_CACHED(walker, symbol);
 		IsHiddenTypeName filter;
 		Declaration* declaration = lookupType(*walker.id, makeLookupFilter(filter));
 		if(declaration == &gUndeclared)
@@ -2050,7 +1937,7 @@ struct ClassHeadWalker : public WalkerBase
 		TREEWALKER_LEAF(symbol);
 		isUnion = symbol->id == cpp::class_key::UNION;
 	}
-	void visit(cpp::identifier* symbol)
+	void visit(cpp::identifier* symbol) // class_name
 	{
 		TREEWALKER_LEAF(symbol);
 		id = &symbol->value;
@@ -2069,10 +1956,10 @@ struct ClassHeadWalker : public WalkerBase
 			enclosing = walker.getQualifyingScope(); // names in declaration of nested-class are looked up in scope of enclosing class
 		}
 	}
-	void visit(cpp::simple_template_id* symbol) 
+	void visit(cpp::simple_template_id* symbol) // class_name
 	{
 		TemplateIdWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
+		TREEWALKER_WALK_CACHED(walker, symbol);
 		// TODO: don't declare anything - this is a template (partial) specialisation
 		id = walker.id;
 		arguments.swap(walker.arguments);
@@ -2452,7 +2339,7 @@ struct ElaboratedTypeSpecifierWalker : public WalkerQualified
 	{
 		SEMANTIC_ASSERT(key == &gClass);
 		TemplateIdWalker walker(getState());
-		TREEWALKER_WALK_TRY(walker, symbol);
+		TREEWALKER_WALK_TRY_CACHED(walker, symbol);
 		Declaration* declaration = lookupType(*walker.id, IsTypeName());
 		if(declaration == &gUndeclared)
 		{
