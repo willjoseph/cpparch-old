@@ -1,4 +1,18 @@
 
+namespace N116
+{
+	template<typename T>
+	struct Tmpl
+	{
+		int x[sizeof(T)];
+	};
+
+	struct S : Tmpl<int>
+	{
+		using Tmpl<int>::x;
+	};
+}
+
 
 namespace N115
 {

@@ -327,10 +327,7 @@ struct CachedSymbols
 	}
 	void flush()
 	{
-		if(position != entries.begin())
-		{
-			entries.erase(entries.begin(), position);
-		}
+		entries.erase(entries.begin(), position);
 	}
 };
 

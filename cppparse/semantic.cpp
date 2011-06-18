@@ -607,7 +607,7 @@ const char* getIdentifierType(IdentifierFunc func)
 
 
 #define TREEWALKER_WALK_TRY(walker, symbol) SYMBOL_WALK_TRY(walker, symbol)
-#define TREEWALKER_WALK_HIT(walker, symbol) SYMBOL_WALK_HIT(walker, symbol); hit(walker)
+#define TREEWALKER_WALK_HIT(walker, symbol) SYMBOL_WALK_HIT(walker, symbol)
 #define TREEWALKER_WALK(walker, symbol) TREEWALKER_WALK_TRY(walker, symbol); TREEWALKER_WALK_HIT(walker, symbol)
 
 #define TREEWALKER_LEAF_TRY(symbol) SYMBOL_WALK_TRY(*this, symbol)
@@ -1764,14 +1764,13 @@ struct ParameterDeclarationClauseWalker : public WalkerBase
 	ParameterDeclarationClauseWalker(const WalkerState& state)
 		: WalkerBase(state)
 	{
-#if 0
+#if 0 // TODO: this causes error if parse fails after templateParams is modified
 		pushScope(templateParams != 0 ? templateParams : newScope(makeIdentifier("$declarator")));
 		enclosing->type = SCOPETYPE_PROTOTYPE;
 #else
 		pushScope(newScope(makeIdentifier("$declarator"), SCOPETYPE_PROTOTYPE));
 		if(templateParams != 0)
 		{
-			// TODO: is it necessary to copy?
 			enclosing->declarations = templateParams->declarations;
 			for(Scope::Declarations::iterator i = enclosing->declarations.begin(); i != enclosing->declarations.end(); ++i)
 			{
@@ -2983,17 +2982,15 @@ struct SimpleDeclarationWalker : public WalkerBase
 	void visit(cpp::parameter_declaration_default* symbol)
 	{
 		SimpleDeclarationWalker walker(getState(), isParameter, templateParameter);
-		TREEWALKER_WALK_TRY(walker, symbol);
+		TREEWALKER_WALK(walker, symbol);
 		walker.commit();
-		TREEWALKER_WALK_HIT(walker, symbol);
 	}
 	// when parsing parameter-declaration, ensure that state of walker does not persist after failing parameter-declaration-abstract
 	void visit(cpp::parameter_declaration_abstract* symbol)
 	{
 		SimpleDeclarationWalker walker(getState(), isParameter, templateParameter);
-		TREEWALKER_WALK_TRY(walker, symbol);
+		TREEWALKER_WALK(walker, symbol);
 		walker.commit();
-		TREEWALKER_WALK_HIT(walker, symbol);
 	}
 	void visit(cpp::decl_specifier_seq* symbol)
 	{
