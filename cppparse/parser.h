@@ -6,6 +6,7 @@
 #include "cpptree.h"
 #include <typeinfo>
 
+#include "list.h"
 #include <list>
 
 struct ParseError
@@ -208,8 +209,10 @@ struct Visualiser
 
 
 
+typedef LinearAllocatorWrapper<int, struct ParserAllocator> DefaultParserAllocator;
+inline struct ParserAllocator& NullParserAllocator();
 
-class OpaqueCopied
+class OpaqueCopied : DefaultParserAllocator
 {
 	void* p;
 	void (*release)(void*);
@@ -228,12 +231,12 @@ class OpaqueCopied
 	}
 
 public:
-	OpaqueCopied()
-		: p(0), release(releaseNull)
+	OpaqueCopied(const DefaultParserAllocator& allocator)
+		: DefaultParserAllocator(*this), p(0), release(releaseNull)
 	{
 	}
 	OpaqueCopied(const OpaqueCopied& other)
-		: p(0), release(releaseNull)
+		: DefaultParserAllocator(other), p(0), release(releaseNull)
 	{
 		ASSERT(other.p == NULL);
 	}
@@ -243,8 +246,8 @@ public:
 		ASSERT(other.p == NULL);
 	}
 	template<typename T>
-	OpaqueCopied(const T& value)
-		: p(new T(value)), release(ReleaseGeneric<T>::apply)
+	OpaqueCopied(const T& value, const DefaultParserAllocator& allocator)
+		: DefaultParserAllocator(allocator), p(new T(value)), release(ReleaseGeneric<T>::apply)
 	{
 	}
 	~OpaqueCopied()
@@ -266,12 +269,15 @@ struct CachedSymbols
 	typedef Lexer::Tokens::const_iterator Key;
 	struct Value;
 	typedef std::pair<Key, Value> Entry;
-	typedef std::list<Entry> Entries;
+	typedef std::list<Entry, DefaultParserAllocator> Entries;
 
 	struct Value
 	{
 		Entries::iterator end;
 		OpaqueCopied copied;
+		Value() : copied(NullParserAllocator())
+		{
+		}
 	};
 
 	Entries entries;
@@ -280,8 +286,8 @@ struct CachedSymbols
 
 	static const size_t NONE = size_t(-1);
 
-	CachedSymbols()
-		: hits(0), position(entries.begin())
+	CachedSymbols(const DefaultParserAllocator& allocator)
+		: entries(allocator), position(entries.begin()), hits(0)
 	{
 	}
 	~CachedSymbols()
@@ -320,7 +326,7 @@ struct CachedSymbols
 		position = entries.begin();
 		value.end = position;
 		value.copied.~OpaqueCopied();
-		new (&value.copied) OpaqueCopied(t);
+		new (&value.copied) OpaqueCopied(t, entries.get_allocator());
 		T* p;
 		value.copied.get(p);
 		return *p;
@@ -395,7 +401,7 @@ BacktrackCallback makeDeallocateCallback(T* p)
 
 
 typedef std::pair<size_t, BacktrackCallback> BacktrackCallbacksElement;
-typedef std::list<BacktrackCallbacksElement> BacktrackCallbacks;
+typedef List<BacktrackCallbacksElement, DefaultParserAllocator> BacktrackCallbacks;
 
 
 struct ParserAllocator : public LexerAllocator
@@ -404,7 +410,7 @@ struct ParserAllocator : public LexerAllocator
 	size_t position;
 	CachedSymbols cachedSymbols;
 	ParserAllocator()
-		: position(0)
+		: position(0), backtrackCallbacks(DefaultParserAllocator(*this)), cachedSymbols(DefaultParserAllocator(*this))
 	{
 	}
 	void addBacktrackCallback(size_t position, const BacktrackCallback& callback)

@@ -765,8 +765,8 @@ struct SimpleTemplateIdCache
 	size_t count;
 	size_t allocation;
 
-	explicit SimpleTemplateIdCache(const cpp::simple_template_id& symbol, size_t count, size_t allocation)
-		: symbol(symbol), id(0), count(count), allocation(allocation)
+	explicit SimpleTemplateIdCache(const cpp::simple_template_id& symbol, size_t count)
+		: symbol(symbol), id(0), count(count)
 	{
 	}
 };
@@ -819,9 +819,10 @@ struct TemplateIdWalker : public WalkerBase
 	{
 #if 1
 		// After successfully parsing template-argument-clause, store this symbol
-		SimpleTemplateIdCache& entry = parser->context.allocator.cachedSymbols.insert(parser->cachePosition, key, SimpleTemplateIdCache(*symbol, parser->position, parser->context.allocator.position));
+		SimpleTemplateIdCache& entry = parser->context.allocator.cachedSymbols.insert(parser->cachePosition, key, SimpleTemplateIdCache(*symbol, parser->position));
 		entry.id = id;
 		entry.arguments.set(arguments);
+		entry.allocation = parser->context.allocator.position; // this must be stored after all allocations performed by cachedSymbols
 #endif
 	}
 };

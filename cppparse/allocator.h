@@ -324,11 +324,11 @@ inline CheckedLinearAllocator& NullAllocator()
 	return null;
 }
 
-template<class T>
+template<typename T, typename Instance = CheckedLinearAllocator>
 class LinearAllocatorWrapper
 {
 public:
-	CheckedLinearAllocator& instance;
+	Instance& instance;
 
 	typedef T value_type;
 	typedef T* pointer;
@@ -339,27 +339,27 @@ public:
 	typedef std::size_t size_type;
 	typedef std::ptrdiff_t difference_type;
 
-	template<class OtherT>
+	template<typename OtherT>
 	struct rebind
 	{
-		typedef LinearAllocatorWrapper<OtherT> other;
+		typedef LinearAllocatorWrapper<OtherT, Instance> other;
 	};
 	LinearAllocatorWrapper() : instance(NullAllocator())
 	{
 		throw AllocatorError();
 	}
-	LinearAllocatorWrapper(CheckedLinearAllocator& instance) : instance(instance)
+	LinearAllocatorWrapper(Instance& instance) : instance(instance)
 	{
 	}
-	LinearAllocatorWrapper(const LinearAllocatorWrapper<T>& other) : instance(other.instance)
+	LinearAllocatorWrapper(const LinearAllocatorWrapper<T, Instance>& other) : instance(other.instance)
 	{
 	}
-	template<class OtherT>
-	LinearAllocatorWrapper(const LinearAllocatorWrapper<OtherT>& other) : instance(other.instance)
+	template<typename OtherT>
+	LinearAllocatorWrapper(const LinearAllocatorWrapper<OtherT, Instance>& other) : instance(other.instance)
 	{
 	}
-	template<class OtherT>
-	LinearAllocatorWrapper<T>& operator=(const LinearAllocatorWrapper<OtherT>& other)
+	template<typename OtherT>
+	LinearAllocatorWrapper<T>& operator=(const LinearAllocatorWrapper<OtherT, Instance>& other)
 	{
 		if(this != &other)
 		{
@@ -413,16 +413,14 @@ public:
 	}
 };
 
-template<class T,
-class OtherT>
-inline bool operator==(const LinearAllocatorWrapper<T>&, const LinearAllocatorWrapper<OtherT>&)
+template<typename T, typename Instance, typename OtherT>
+inline bool operator==(const LinearAllocatorWrapper<T, Instance>&, const LinearAllocatorWrapper<OtherT, Instance>&)
 {
 	return true;
 }
 
-template<class T,
-class OtherT>
-inline bool operator!=(const LinearAllocatorWrapper<T>&, const LinearAllocatorWrapper<OtherT>&)
+template<typename T, typename Instance, typename OtherT>
+inline bool operator!=(const LinearAllocatorWrapper<T, Instance>&, const LinearAllocatorWrapper<OtherT, Instance>&)
 {
 	return false;
 }

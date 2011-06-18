@@ -208,6 +208,31 @@ struct List : private A
 		tail->next = node;
 		tail = node;
 	}
+	void push_front(const T& value)
+	{
+#ifdef ALLOCATOR_DEBUG
+		ALLOCATOR_ASSERT(!isDeallocated(head.next));
+		ALLOCATOR_ASSERT(!isDeallocated(tail));
+#endif
+		Node* node = allocatorNew(getAllocator(), Node(value));
+		if(empty())
+		{
+			tail = node;
+		}
+		node->next = head.next;
+		head.next = node;
+	}
+	void erase(iterator first, iterator last)
+	{
+		LIST_ASSERT(first == begin());
+		for(ListNodeBase* p = head.next; p != last.p; )
+		{
+			ListNodeBase* next = p->next;
+			allocatorDelete(getAllocator(), static_cast<Node*>(p));
+			p = next;
+		}
+		head.next = last.p;
+	}
 	void splice(iterator position, List& other)
 	{
 #ifdef ALLOCATOR_DEBUG

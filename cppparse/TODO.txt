@@ -102,16 +102,22 @@ not consider any scopes outside the innermost enclosing namespace.
 
 - clean up caching and deferred destruction
 	- clean up CachedSymbols
-		- enable caching at any point in parse
-		- remove entry from cache when alternative parse succeeds
+		+ enable caching at any point in parse
+		+ use linear-allocator
+		+ remove entry from cache when alternative parse succeeds
 			- otherwise, causes error when looking up template-id cached within nested-name-specifier-suffix?
-		- treat cache as stack, only top item considered?
+		+ treat cache as stack, only top item considered?
 			- handle X<Y>::Z<W>
+		- use custom list class
+		- cache more than just template-id
 	- clean up ParserAllocatorWrapper
 		- defer destruction at level of container
 			- need replacement for multimap?
 	- clean up BacktrackCallbacks
+		+ use linear-allocator
+		+ use custom list class
 		- store items grouped into frames, keyed off allocation-position stored in parser
+		- specialise list class for front-insertion
 
 - generalised solution for re-using failed parse-tree
 	- requires that re-parsing a symbol in-place behaves the same way
