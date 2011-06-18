@@ -106,7 +106,7 @@ public:
 	{
 		if(other.empty())
 		{
-			Base::construct()
+			Base::construct();
 		}
 		else
 		{
@@ -1155,10 +1155,15 @@ inline bool isDependentFast(const Type& type, const DependentContext& context)
 
 inline bool isDependent(const Type& type, const DependentContext& context)
 {
+	if(type.visited)
+	{
+		return false;
+	}
+
 	type.visited = true;
-	bool result = isDependentInternal(type, context);
+	bool result = isDependentFast(type, context);
 #if 0
-	bool alternative = isDependentFast(type, context);
+	bool alternative = isDependentInternal(type, context);
 	if(result != alternative)
 	{
 		__debugbreak();

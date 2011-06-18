@@ -2022,7 +2022,8 @@ struct UsingDeclarationWalker : public WalkerQualified
 			}
 			 
 			declaration = pointOfDeclaration(context, enclosing, *walker.id, declaration->type, isFunction(*declaration) ? declaration->enclosed : 0, declaration->specifiers,
-				false, TEMPLATEARGUMENTS_NULL, // the name in a using-declaration may not have template-params ...
+				declaration->isTemplate,
+				TEMPLATEARGUMENTS_NULL, // the name in a using-declaration may not have template-arguments ...
 				INDEX_INVALID, // ... or be a template-argument
 				declaration->valueDependent);
 #ifdef ALLOCATOR_DEBUG

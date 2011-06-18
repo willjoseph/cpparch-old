@@ -316,6 +316,25 @@ public:
 		//std::cout << "defined macro: " << macro_name.get_value().c_str() << std::endl;
 	}
 
+	template <typename ContextT, typename ExceptionT>
+	void
+	throw_exception(ContextT const& ctx, ExceptionT const& e)
+	{
+		boost::throw_exception(e);
+	}
+	template <typename ContextT>
+	void
+	throw_exception(ContextT const& ctx, boost::wave::preprocess_exception const& e)
+	{
+		std::cerr 
+			<< e.file_name() << "(" << e.line_no() << "): "
+			<< e.description() << std::endl;
+		if(!boost::wave::is_recoverable(e))
+		{
+			throw LexError();
+		}
+	}
+
 	const char* getSourcePath() const
 	{
 		return includes[depth - 1];
@@ -511,10 +530,6 @@ Token* Lexer::read(Token* first, Token* last)
 		std::cerr 
 			<< e.file_name() << "(" << e.line_no() << "): "
 			<< e.description() << std::endl;
-		if(!boost::wave::is_recoverable(e))
-		{
-			throw LexError();
-		}
 		return read(first, last);
 	}
 	return first;
@@ -530,10 +545,7 @@ void increment(LexIterator& i)
 		std::cerr 
 			<< e.file_name() << "(" << e.line_no() << "): "
 			<< e.description() << std::endl;
-		if(!boost::wave::is_recoverable(e))
-		{
-			throw LexError();
-		}
+		throw LexError();
 	}
 }
 

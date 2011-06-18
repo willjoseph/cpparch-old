@@ -15,6 +15,7 @@
 + allow source file + includes to be specified on commandline or config file
 + faster debugging: parse declaration-seq iteratively
 + fixed: template-function template-param scope not renamed from $template
++ bug: infinite loop when source file ends without newline?
 
 - check that using-declaration is linked to correct definition: the one visible at point of using-declaration
 
@@ -27,10 +28,9 @@
 			- remove multiple-inheritance?
 				- need alternative method to enforce valid casting?
 
-- support '>>' in nested template-argument-list
-- implement 'auto' from C++0x
-
-- bug: infinite loop when source file ends without newline?
+- C++0x
+	- support '>>' in nested template-argument-list
+	- implement 'auto' 
 
 
 - document boost::wave modification: resolved_include_file

@@ -1,4 +1,22 @@
 
+namespace N117
+{
+	namespace N
+	{
+		template<typename T>
+		struct Tmpl
+		{
+		};
+	}
+
+	using N::Tmpl;
+
+	struct S : Tmpl<int>
+	{
+	};
+}
+
+
 namespace N116
 {
 	template<typename T>

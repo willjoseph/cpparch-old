@@ -151,6 +151,7 @@ int runTest(const Test& test)
 			<< std::endl;
 		return 1;
 	}
+#if 0
 	catch(...)
 	{
 		std::cerr 
@@ -158,6 +159,7 @@ int runTest(const Test& test)
 			<< std::endl;
 		return 1;
 	}
+#endif
 
 	return 0;
 }
