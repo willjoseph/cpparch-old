@@ -77,9 +77,8 @@ template<typename T, typename A>
 class DeferredRefList : public DeferredList<T, A>
 {
 	typedef DeferredList<T, A> Base;
-	DeferredRefList& operator=(const DeferredRefList&);
 	void clear();
-	void splice(iterator position, List& other);
+	//void splice(iterator position, List& other);
 public:
 	DeferredRefList()
 	{
@@ -113,6 +112,19 @@ public:
 			Base::head = other.head;
 			Base::tail = other.tail;
 		}
+	}
+	DeferredRefList& operator=(const DeferredRefList& other)
+	{
+		if(other.empty())
+		{
+			Base::construct();
+		}
+		else
+		{
+			Base::head = other.head;
+			Base::tail = other.tail;
+		}
+		return *this;
 	}
 	typename Base::iterator end()
 	{
@@ -305,7 +317,7 @@ struct DependencyNode
 	}
 };
 
-typedef DeferredList<DependencyNode, TreeAllocator<int> > Dependent2;
+typedef DeferredRefList<DependencyNode, TreeAllocator<int> > Dependent2;
 
 struct Dependent : public Dependent2
 {

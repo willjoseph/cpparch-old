@@ -241,7 +241,7 @@ struct List : private A
 		ALLOCATOR_ASSERT(!isDeallocated(other.head.next));
 		ALLOCATOR_ASSERT(!isDeallocated(other.tail));
 #endif
-		LIST_ASSERT(position == end());
+		//LIST_ASSERT(position == end());
 		LIST_ASSERT(&other != this);
 		// always splice at end for now
 		if(!other.empty())
