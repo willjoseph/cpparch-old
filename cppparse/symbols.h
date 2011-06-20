@@ -70,9 +70,10 @@ public:
 	}
 };
 
-#if 0
-#define DeferredRefList DeferredList
+#if 1
+#define DeferredRefList ListReference
 #else
+
 template<typename T, typename A>
 class DeferredRefList : public DeferredList<T, A>
 {
@@ -140,7 +141,7 @@ public:
 // ----------------------------------------------------------------------------
 // type
 
-#if 1
+
 typedef DeferredRefList<struct TemplateArgument, TreeAllocator<struct TemplateArgument> > TemplateArguments2;
 
 struct TemplateArguments : public TemplateArguments2
@@ -153,15 +154,9 @@ private:
 	TemplateArguments()
 	{
 	}
-#if  0
-	TemplateArguments(const TemplateArguments&);
-	TemplateArguments& operator=(const TemplateArguments&);
-#endif
 };
 
-#else
-typedef DeferredRefList<struct TemplateArgument> TemplateArguments;
-#endif
+
 
 
 typedef DeferredRefList<struct Type, TreeAllocator<int> > Types2;
@@ -179,7 +174,6 @@ private:
 	}
 };
 
-#if 1
 template<typename T, typename A>
 class Referenced : public Copied<T, A>
 {
@@ -204,11 +198,9 @@ public:
 		return *this;
 	}
 };
-typedef Referenced<struct Type, TreeAllocator<int> > CopiedType;
-#else
-typedef Copied<Type, TreeAllocator<int> > CopiedType;
-#endif
-typedef CopiedType Qualifying;
+typedef Referenced<struct Type, TreeAllocator<int> > TypeRef;
+
+typedef TypeRef Qualifying;
 
 
 class Declaration;
@@ -241,11 +233,6 @@ struct Type
 	}
 private:
 	Type();
-#if 0
-private:
-	Type(const Type&);
-	Type& operator=(const Type&);
-#endif
 };
 
 #define TYPE_NULL Type(0, TREEALLOCATOR_NULL)
@@ -286,7 +273,6 @@ DependencyCallback makeDependencyCallback(T* declaration, bool (*isDependent)(T*
 	return result;
 }
 
-typedef CopiedType TypeRef;
 
 struct DependencyNode
 {

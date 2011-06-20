@@ -727,46 +727,17 @@ struct TemplateArgumentListWalker : public WalkerBase
 	}
 };
 
-template<typename ListType>
-struct ListCache
-{
-	ListNodeBase* first;
-	ListNodeBase* tail;
-
-	void set(const ListType& list)
-	{
-		if(!list.empty())
-		{
-			first = list.head.next;
-			tail = list.tail;
-		}
-		else
-		{
-			first = tail = 0;
-		}
-	}
-	void get(ListType& list) const
-	{
-		SEMANTIC_ASSERT(list.empty());
-		if(first != 0)
-		{
-			list.head.next = first;
-			list.tail = tail;
-			tail->next = &list.head;
-		}
-	}
-};
 
 struct SimpleTemplateIdCache
 {
 	cpp::simple_template_id symbol;
 	IdentifierPtr id;
-	ListCache<TemplateArguments> arguments;
+	TemplateArguments arguments;
 	size_t count;
 	size_t allocation;
 
 	explicit SimpleTemplateIdCache(const cpp::simple_template_id& symbol, size_t count)
-		: symbol(symbol), id(0), count(count)
+		: symbol(symbol), id(0), arguments(TREEALLOCATOR_NULL), count(count)
 	{
 	}
 };
@@ -805,7 +776,7 @@ struct TemplateIdWalker : public WalkerBase
 			// use cached symbol
 			id = p->id;
 			*symbol = p->symbol;
-			p->arguments.get(arguments);
+			arguments = p->arguments;
 
 			parser->context.allocator.position = p->allocation;
 			parser->position = p->count;
@@ -821,7 +792,7 @@ struct TemplateIdWalker : public WalkerBase
 		// After successfully parsing template-argument-clause, store this symbol
 		SimpleTemplateIdCache& entry = parser->context.allocator.cachedSymbols.insert(parser->cachePosition, key, SimpleTemplateIdCache(*symbol, parser->position));
 		entry.id = id;
-		entry.arguments.set(arguments);
+		entry.arguments = arguments;
 		entry.allocation = parser->context.allocator.position; // this must be stored after all allocations performed by cachedSymbols
 #endif
 	}
