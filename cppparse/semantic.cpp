@@ -119,13 +119,13 @@ struct WalkerContext : public TreeAllocator<int>
 {
 	Scope global;
 	Declaration globalDecl;
-	Type globalType;
+	TypeRef globalType;
 
 	WalkerContext(const TreeAllocator<int>& allocator) :
 		TreeAllocator<int>(allocator),
 		global(allocator, makeIdentifier("$global"), SCOPETYPE_NAMESPACE),
 		globalDecl(allocator, 0, makeIdentifier("$global"), TYPE_NULL, &global),
-		globalType(&globalDecl, allocator)
+		globalType(Type(&globalDecl, allocator), allocator)
 	{
 	}
 };
@@ -142,7 +142,7 @@ struct WalkerState
 
 	WalkerContext& context;
 	ScopePtr enclosing;
-	const Type* qualifying_p;
+	Reference<Type> qualifying_p;
 	ScopePtr templateParams;
 	ScopePtr templateEnclosing;
 	DeferredSymbols* deferred;
@@ -152,7 +152,7 @@ struct WalkerState
 	{
 	}
 	const WalkerState& getState() const
-	{
+	{ 
 		return *this;
 	}
 
@@ -307,13 +307,6 @@ struct WalkerState
 		enclosing = scope;
 	}
 
-	void pushTemplateParams(Scope* scope)
-	{
-		SEMANTIC_ASSERT(findScope(templateParams, scope) == 0);
-		scope->parent = templateParams;
-		templateParams = scope;
-	}
-
 	void addBase(Declaration* declaration, const Type& base)
 	{
 		if(getInstantiatedType(base).declaration == declaration)
@@ -421,7 +414,7 @@ struct WalkerState
 	{
 		TypeRef tmp(TYPE_NULL, context);
 		tmp.back().swap(type);
-		addDependent(dependent, makeDependencyCallback(tmp.get(), isDependentType));
+		addDependent(dependent, makeDependencyCallback(static_cast<Type*>(tmp.get()), isDependentType));
 		dependent.back().type.swap(tmp);
 	}
 	void addDependent(Dependent& dependent, Scope* scope)
@@ -445,10 +438,7 @@ struct WalkerBase : public WalkerState
 	}
 	Scope* newScope(const Identifier& name, ScopeType type = SCOPETYPE_UNKNOWN)
 	{
-		return allocatorNew(context, Scope(context, name, type));
-	}
-	void hit(WalkerBase& other)
-	{
+		return allocatorNew(context, makeReferenceCounted(Scope(context, name, type)));
 	}
 
 	void trackDeclaration(Declaration* declaration)
@@ -526,7 +516,7 @@ struct WalkerQualified : public WalkerBase
 	void setQualifyingGlobal()
 	{
 		SEMANTIC_ASSERT(qualifying.empty());
-		qualifying_p = &context.globalType;
+		qualifying_p = context.globalType.get();
 	}
 
 	void swapQualifying(Type& type)

@@ -6,18 +6,6 @@
 
 #include "allocator.h"
 
-template<typename T>
-struct TypeTraits
-{
-	typedef T Value;
-};
-
-template<typename T>
-struct TypeTraits<const T>
-{
-	typedef T Value;
-};
-
 struct ListError
 {
 	ListError()

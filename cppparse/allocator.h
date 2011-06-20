@@ -469,6 +469,119 @@ void allocatorDelete(const A& a, T* p)
 	}
 }
 
+template<typename T>
+struct TypeTraits
+{
+	typedef T Value;
+};
+
+template<typename T>
+struct TypeTraits<const T>
+{
+	typedef T Value;
+};
+
+
+
+template<typename T>
+struct ReferenceCounted : T
+{
+	size_t count;
+	ReferenceCounted(const T& value)
+		: T(value), count(0)
+	{
+	}
+	~ReferenceCounted()
+	{
+		ALLOCATOR_ASSERT(count == 0);
+	}
+};
+
+
+#ifdef ALLOCATOR_DEBUG
+template<typename T>
+inline ReferenceCounted<T> makeReferenceCounted(const T& t)
+{
+	return ReferenceCounted<T>(t);
+}
+#else
+template<typename T>
+inline const T& makeReferenceCounted(const T& t)
+{
+	return t;
+}
+#endif
+
+template<typename T>
+struct Reference
+{
+#ifdef ALLOCATOR_DEBUG
+	typedef ReferenceCounted<T> Value;
+	void decrement()
+	{
+		if(p != 0)
+		{
+			--p->count;
+		}
+	}
+	void increment()
+	{
+		if(p != 0)
+		{
+			++p->count;
+		}
+	}
+#else
+	typedef T Value;
+	void decrement()
+	{
+	}
+	void increment()
+	{
+	}
+#endif
+	Value* p;
+	Reference(Value* p)
+		: p(p)
+	{
+		increment();
+	}
+	~Reference()
+	{
+		decrement();
+	}
+	Reference(const Reference& other)
+		: p(other.p)
+	{
+		increment();
+	}
+	Reference& operator=(Reference tmp)
+	{
+		tmp.swap(*this);
+		return *this;
+	}
+	bool empty() const
+	{
+		return p == 0;
+	}
+	void swap(Reference& other)
+	{
+		std::swap(p, other.p);
+	}
+	T& operator*() const
+	{
+		return *p;
+	}
+	T* operator->() const
+	{
+		return p;
+	}
+	operator T*() const
+	{
+		return p;
+	}
+};
+
 #endif
 
 

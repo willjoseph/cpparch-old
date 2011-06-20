@@ -103,6 +103,65 @@ namespace std
 	}
 }
 
+template<typename T, typename A>
+class CopiedReference : private A
+{
+	Reference<T> p;
+
+	A& getAllocator()
+	{
+		return *this;
+	}
+	const A& getAllocator() const
+	{
+		return *this;
+	}
+public:
+	CopiedReference(const A& allocator)
+		: A(allocator), p(0)
+	{
+	}
+	CopiedReference(const T& t, const A& allocator)
+		: A(allocator), p(allocatorNew(getAllocator(), makeReferenceCounted(t)))
+	{
+	}
+	CopiedReference& operator=(const T& t)
+	{
+		CopiedReference tmp(t, getAllocator());
+		tmp.swap(*this);
+		return *this;
+	}
+	CopiedReference& operator=(CopiedReference tmp)
+	{
+		tmp.swap(*this);
+		return *this;
+	}
+
+	void swap(CopiedReference& other)
+	{
+		p.swap(other.p);
+	}
+
+	const Reference<T>& get() const
+	{
+		return p;
+	}
+
+	bool empty() const
+	{
+		return p.empty();
+	}
+	T& back()
+	{
+		return *p;
+	}
+	const T& back() const
+	{
+		return *p;
+	}
+};
+
+
 #endif
 
 

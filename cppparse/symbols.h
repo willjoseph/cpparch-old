@@ -50,99 +50,12 @@ const DeclSpecifiers DECLSPEC_TYPEDEF = DeclSpecifiers(true, false, false, false
 #define TREEALLOCATOR_NULL TreeAllocator<int>()
 #endif
 
-template<typename T, typename A>
-class DeferredList : public List<T, A>
-{
-	typedef List<T, A> Base;
-	void clear();
-public:
-	DeferredList()
-	{
-	}
-	DeferredList(const A& allocator)
-		: Base(allocator)
-	{
-	}
-	~DeferredList()
-	{
-		A allocator(Base::getAllocator());
-		new (static_cast<Base*>(this)) Base(allocator);
-	}
-};
-
-#if 1
-#define DeferredRefList ListReference
-#else
-
-template<typename T, typename A>
-class DeferredRefList : public DeferredList<T, A>
-{
-	typedef DeferredList<T, A> Base;
-	void clear();
-	//void splice(iterator position, List& other);
-public:
-	DeferredRefList()
-	{
-	}
-	DeferredRefList(const A& allocator)
-		: Base(allocator)
-	{
-	}
-	DeferredRefList(const DeferredRefList& other)
-		: Base(other.getAllocator())
-	{
-		if(other.empty())
-		{
-			Base::construct();
-		}
-		else
-		{
-			Base::head = other.head;
-			Base::tail = other.tail;
-		}
-	}
-	DeferredRefList(const Base& other)
-		: Base(other.getAllocator())
-	{
-		if(other.empty())
-		{
-			Base::construct();
-		}
-		else
-		{
-			Base::head = other.head;
-			Base::tail = other.tail;
-		}
-	}
-	DeferredRefList& operator=(const DeferredRefList& other)
-	{
-		if(other.empty())
-		{
-			Base::construct();
-		}
-		else
-		{
-			Base::head = other.head;
-			Base::tail = other.tail;
-		}
-		return *this;
-	}
-	typename Base::iterator end()
-	{
-		return iterator(Base::tail->next);
-	}
-	typename Base::const_iterator end() const
-	{
-		return const_iterator(Base::tail->next);
-	}
-};
-#endif
 
 // ----------------------------------------------------------------------------
 // type
 
 
-typedef DeferredRefList<struct TemplateArgument, TreeAllocator<struct TemplateArgument> > TemplateArguments2;
+typedef ListReference<struct TemplateArgument, TreeAllocator<struct TemplateArgument> > TemplateArguments2;
 
 struct TemplateArguments : public TemplateArguments2
 {
@@ -159,7 +72,7 @@ private:
 
 
 
-typedef DeferredRefList<struct Type, TreeAllocator<int> > Types2;
+typedef ListReference<struct Type, TreeAllocator<int> > Types2;
 
 /// A list of Type objects.
 struct Types : public Types2
@@ -174,31 +87,8 @@ private:
 	}
 };
 
-template<typename T, typename A>
-class Referenced : public Copied<T, A>
-{
-	typedef Copied<T, A> Base;
-public:
-	Referenced(const A& allocator)
-		: Base(allocator)
-	{
-	}
-	Referenced(const T& value, const A& allocator)
-		: Base(value, allocator)
-	{
-	}
-	Referenced(const Referenced& other)
-		: Base(other.getAllocator())
-	{
-		Base::p = other.p;
-	}
-	Referenced& operator=(const Referenced& other)
-	{
-		Base::p = other.p;
-		return *this;
-	}
-};
-typedef Referenced<struct Type, TreeAllocator<int> > TypeRef;
+
+typedef CopiedReference<struct Type, TreeAllocator<int> > TypeRef;
 
 typedef TypeRef Qualifying;
 
@@ -303,7 +193,7 @@ struct DependencyNode
 	}
 };
 
-typedef DeferredRefList<DependencyNode, TreeAllocator<int> > Dependent2;
+typedef ListReference<DependencyNode, TreeAllocator<int> > Dependent2;
 
 struct Dependent : public Dependent2
 {
@@ -414,7 +304,7 @@ public:
 		Scope* enclosed,
 		DeclSpecifiers specifiers = DeclSpecifiers(),
 		bool isTemplate = false,
-		TemplateArguments& arguments = TEMPLATEARGUMENTS_NULL,
+		const TemplateArguments& arguments = TEMPLATEARGUMENTS_NULL,
 		size_t templateParameter = INDEX_INVALID,
 		const Dependent& valueDependent = DEPENDENT_NULL
 	) : scope(scope),
@@ -427,10 +317,9 @@ public:
 		templateParameter(templateParameter),
 		templateParams(allocator),
 		templateParamDefaults(allocator),
-		arguments(allocator),
+		arguments(arguments),
 		isTemplate(isTemplate)
 	{
-		this->arguments.swap(arguments);
 	}
 	Declaration() :
 		type(0, TREEALLOCATOR_NULL),
@@ -576,7 +465,7 @@ struct Scope : public ScopeCounter
 	Declarations declarations;
 	ScopeType type;
 	Types bases;
-	typedef DeferredRefList<ScopePtr, TreeAllocator<int> > Scopes;
+	typedef ListReference<ScopePtr, TreeAllocator<int> > Scopes;
 	Scopes usingDirectives;
 	Declarations friendDeclarations;
 

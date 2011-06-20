@@ -1412,10 +1412,6 @@ struct DeferredParseThunk
 		Walker walker(state);
 		T* symbol = static_cast<T*>(p);
 		void* result = parseSymbol(walker.getParser(walker), symbol);
-		if(result != 0)
-		{
-			base.hit(walker);
-		}
 		return result;
 	}
 };
