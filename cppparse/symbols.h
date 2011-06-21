@@ -177,11 +177,15 @@ struct ReferenceCallbacks
 {
 	static void increment(typename Reference<T>::Value* p)
 	{
+#ifdef ALLOCATOR_DEBUG
 		++p->count;
+#endif
 	}
 	static void decrement(typename Reference<T>::Value* p)
 	{
+#ifdef ALLOCATOR_DEBUG
 		--p->count;
+#endif
 	}
 };
 
