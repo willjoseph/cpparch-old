@@ -2209,18 +2209,24 @@ namespace cpp
 		FOREACH3(item, comma, next);
 	};
 
+	struct template_parameter_clause
+	{
+		terminal<boost::wave::T_LESS> lt;
+		symbol<template_parameter_list> params;
+		terminal<boost::wave::T_GREATER> gt;
+		FOREACH3(lt, params, gt);
+	};
+
 	struct type_parameter_template : public type_parameter
 	{
 		VISITABLE_DERIVED(type_parameter);
 		terminal<boost::wave::T_TEMPLATE> key;
-		terminal<boost::wave::T_LESS> lt;
-		symbol<template_parameter_list> params;
-		terminal<boost::wave::T_GREATER> gt;
+		symbol<template_parameter_clause> params;
 		terminal<boost::wave::T_CLASS> key2;
 		symbol_optional<identifier> id;
 		terminal_suffix<boost::wave::T_ASSIGN> assign;
 		symbol<id_expression> init;
-		FOREACH8(key, lt, params, gt, key2, id, assign, init);
+		FOREACH6(key, params, key2, id, assign, init);
 	};
 
 	struct default_parameter
@@ -2717,10 +2723,8 @@ namespace cpp
 	{
 		terminal_optional<boost::wave::T_EXPORT> isExport;
 		terminal<boost::wave::T_TEMPLATE> key;
-		terminal<boost::wave::T_LESS> lt;
-		symbol<template_parameter_list> params;
-		terminal<boost::wave::T_GREATER> gt;
-		FOREACH5(isExport, key, lt, params, gt);
+		symbol<template_parameter_clause> params;
+		FOREACH3(isExport, key, params);
 	};
 
 	struct template_declaration : public declaration

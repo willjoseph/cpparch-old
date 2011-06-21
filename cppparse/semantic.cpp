@@ -436,6 +436,11 @@ struct WalkerState
 		{
 			return;
 		}
+		if(dependent.empty())
+		{
+			dependent = other;
+			return;
+		}
 		CopiedReference<Dependent, TreeAllocator<int> > tmp(other, context);
 		static DependencyCallbacks<Reference<Dependent>::Value> callbacks = makeDependencyCallbacks(isDependentListRef, ReferenceCallbacks<Dependent>::increment, ReferenceCallbacks<Dependent>::decrement);
 		addDependent(dependent, makeDependencyCallback(tmp.get_ref().p, &callbacks));
@@ -726,8 +731,8 @@ struct TemplateArgumentListWalker : public WalkerBase
 	{
 		TemplateArgumentListWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		walker.arguments.push_front(walker.argument); // allocates last element first!
 		arguments.swap(walker.arguments);
+		arguments.push_front(walker.argument); // allocates last element first!
 	}
 };
 
@@ -3289,9 +3294,9 @@ struct TypeParameterWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		argument.swap(walker.type);
 	}
-	void visit(cpp::template_parameter_list* symbol)
+	void visit(cpp::template_parameter_clause* symbol)
 	{
-		TemplateParameterListWalker walker(getState());
+		TemplateParameterClauseWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		arguments.swap(walker.arguments);
 	}
@@ -3317,42 +3322,72 @@ struct TemplateParameterListWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
+	Type param;
 	Types params;
+	Type argument;
 	Types arguments;
 	size_t count;
-	TemplateParameterListWalker(const WalkerState& state)
-		: WalkerBase(state), params(context), arguments(context), count(0)
+	TemplateParameterListWalker(const WalkerState& state, size_t count)
+		: WalkerBase(state), param(0, context), params(context), argument(0, context), arguments(context), count(count)
 	{
-		// collect template-params into a new scope
-		Scope* scope = templateParams != 0 ? templateParams : newScope(makeIdentifier("$template"), SCOPETYPE_TEMPLATE);
-		templateParams = 0;
-		pushScope(scope);
 	}
 	void visit(cpp::type_parameter_default* symbol)
 	{
 		TypeParameterWalker walker(getState(), count);
 		TREEWALKER_WALK(walker, symbol);
-		params.push_back(Type(walker.declaration, context));
-		arguments.push_back(Type(0, context));
-		arguments.back().swap(walker.argument);
+		param = walker.declaration;
+		argument.swap(walker.argument);
 		++count;
 	}
 	void visit(cpp::type_parameter_template* symbol)
 	{
 		TypeParameterWalker walker(getState(), count);
 		TREEWALKER_WALK(walker, symbol);
-		params.push_back(Type(walker.declaration, context));
-		arguments.push_back(Type(0, context));
-		arguments.back().swap(walker.argument);
+		param = walker.declaration;
+		argument.swap(walker.argument);
 		++count;
 	}
 	void visit(cpp::parameter_declaration* symbol)
 	{
 		SimpleDeclarationWalker walker(getState(), false, count);
 		TREEWALKER_WALK(walker, symbol);
-		params.push_back(Type(walker.declaration, context));
-		arguments.push_back(Type(0, context)); // TODO: default value for non-type template-param
+		param = walker.declaration;
+		// TODO: default value for non-type template-param
 		++count;
+	}
+	void visit(cpp::template_parameter_list* symbol)
+	{
+		TemplateParameterListWalker walker(getState(), count);
+		TREEWALKER_WALK(walker, symbol);
+		params.swap(walker.params);
+		arguments.swap(walker.arguments);
+		params.push_front(walker.param);
+		arguments.push_front(walker.argument);
+	}
+};
+
+struct TemplateParameterClauseWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	Types params;
+	Types arguments;
+	TemplateParameterClauseWalker(const WalkerState& state)
+		: WalkerBase(state), params(context), arguments(context)
+	{
+		// collect template-params into a new scope
+		Scope* scope = templateParams != 0 ? templateParams : newScope(makeIdentifier("$template"), SCOPETYPE_TEMPLATE);
+		templateParams = 0;
+		pushScope(scope);
+	}
+	void visit(cpp::template_parameter_list* symbol)
+	{
+		TemplateParameterListWalker walker(getState(), 0);
+		TREEWALKER_WALK(walker, symbol);
+		params.swap(walker.params);
+		arguments.swap(walker.arguments);
+		params.push_front(walker.param);
+		arguments.push_front(walker.argument);
 	}
 };
 
@@ -3368,9 +3403,9 @@ struct TemplateDeclarationWalker : public WalkerBase
 	{
 		templateEnclosing = enclosing;
 	}
-	void visit(cpp::template_parameter_list* symbol)
+	void visit(cpp::template_parameter_clause* symbol)
 	{
-		TemplateParameterListWalker walker(getState());
+		TemplateParameterClauseWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		templateParams = walker.enclosing;
 		enclosing = walker.enclosing->parent;
