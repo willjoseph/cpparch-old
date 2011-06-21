@@ -142,9 +142,13 @@ public:
 		p.swap(other.p);
 	}
 
-	const Reference<T>& get() const
+	const Reference<T>& get_ref() const
 	{
 		return p;
+	}
+	T* get() const
+	{
+		return p.get();
 	}
 
 	bool empty() const

@@ -143,57 +143,112 @@ struct DependentContext
 	}
 };
 
-
-struct DependencyCallback
+struct ReferenceCallbacksOpaque
 {
-	void* context;
-	typedef bool (*Function)(void*, const DependentContext&);
-	Function function;
+	typedef void (*Function0)(void*);
+	Function0 increment;
+	Function0 decrement;
+};
 
-	bool operator()(const DependentContext& args) const
+struct DependencyCallbacksOpaque : ReferenceCallbacksOpaque
+{
+	typedef bool (*IsDependent)(void*, const DependentContext&);
+	IsDependent isDependent;
+};
+
+template<typename T>
+struct DependencyCallbacks : DependencyCallbacksOpaque
+{
+};
+
+template<typename T>
+struct ReferenceCallbacksDefault
+{
+	static void increment(T*)
 	{
-		return function(context, args);
+	}
+	static void decrement(T*)
+	{
 	}
 };
 
 template<typename T>
-DependencyCallback makeDependencyCallback(T* declaration, bool (*isDependent)(T*, const DependentContext&))
+struct ReferenceCallbacks
 {
-	DependencyCallback result = { declaration, DependencyCallback::Function(isDependent) };
-	return result;
-}
-
-
-struct DependencyNode
-{
-	DependencyCallback isDependent;
-	TypeRef type;
-	DependencyNode(const DependencyCallback& isDependent, const TreeAllocator<int>& allocator)
-		: isDependent(isDependent), type(allocator)
+	static void increment(typename Reference<T>::Value* p)
 	{
+		++p->count;
 	}
-	DependencyNode(const DependencyNode& other)
-		: isDependent(other.isDependent), type(other.type)
+	static void decrement(typename Reference<T>::Value* p)
 	{
-		if(type.get() != 0)
-		{
-			isDependent.context = type.get();
-		}
-	}
-	DependencyNode& operator=(const DependencyNode& other)
-	{
-		DependencyNode tmp(other);
-		tmp.swap(*this);
-		return *this;
-	}
-	void swap(DependencyNode& other)
-	{
-		std::swap(isDependent, other.isDependent);
-		std::swap(type, other.type);
+		--p->count;
 	}
 };
 
-typedef ListReference<DependencyNode, TreeAllocator<int> > Dependent2;
+template<typename T>
+DependencyCallbacks<T> makeDependencyCallbacks(
+	bool (*isDependent)(T*, const DependentContext&),
+	void (*increment)(T*) = ReferenceCallbacksDefault<T>::increment,
+	void (*decrement)(T*) = ReferenceCallbacksDefault<T>::decrement
+)
+{
+	DependencyCallbacks<T> result;
+	result.isDependent = DependencyCallbacksOpaque::IsDependent(isDependent);
+	result.increment = DependencyCallbacksOpaque::Function0(increment);
+	result.decrement = DependencyCallbacksOpaque::Function0(decrement);
+	return result;
+}
+
+struct DependencyCallback
+{
+	void* context;
+	DependencyCallbacksOpaque* callbacks;
+
+	DependencyCallback(void* context, DependencyCallbacksOpaque* callbacks)
+		: context(context), callbacks(callbacks)
+	{
+		increment();
+	}
+	DependencyCallback(const DependencyCallback& other)
+		: context(other.context), callbacks(other.callbacks)
+	{
+		increment();
+	}
+	~DependencyCallback()
+	{
+		decrement();
+	}
+	void swap(DependencyCallback& other)
+	{
+		std::swap(context, other.context);
+		std::swap(callbacks, other.callbacks);
+	}
+
+	bool isDependent(const DependentContext& args) const
+	{
+		return callbacks->isDependent(context, args);
+	}
+	void increment()
+	{
+#ifdef ALLOCATOR_DEBUG
+		callbacks->increment(context);
+#endif
+	}
+	void decrement()
+	{
+#ifdef ALLOCATOR_DEBUG
+		callbacks->decrement(context);
+#endif
+	}
+};
+
+template<typename T>
+DependencyCallback makeDependencyCallback(T* context, DependencyCallbacks<T>* callbacks)
+{
+	return DependencyCallback(context, callbacks);
+}
+
+typedef ListReference<DependencyCallback, TreeAllocator<int> > Dependent2;
 
 struct Dependent : public Dependent2
 {
@@ -202,7 +257,7 @@ struct Dependent : public Dependent2
 	}
 	void splice(Dependent& other)
 	{
-		Dependent2::splice(end(), other);
+		Dependent2::splice(begin(), other);
 	}
 private:
 	Dependent();
@@ -1072,9 +1127,19 @@ inline bool isDependentType(Type* type, const DependentContext& context)
 	return isDependent(*type, context);
 }
 
+inline bool isDependentTypeRef(Reference<Type>::Value* type, const DependentContext& context)
+{
+	return isDependentType(type, context);
+}
+
 inline bool isDependentClass(Scope* scope, const DependentContext& context)
 {
 	return isDependent(scope->bases, context);
+}
+
+inline bool isDependentListRef(Reference<Dependent>::Value* dependent, const DependentContext& context)
+{
+	return evaluateDependent(*dependent, context);
 }
 
 inline const char* getDeclarationType(const Declaration& declaration)

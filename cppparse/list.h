@@ -43,15 +43,15 @@ struct ListIterator
 
 	typedef ListNode<value_type> Node;
 	Node* p;
-	ListIterator(Node* p)
+	explicit ListIterator(Node* p)
 		: p(p)
 	{
 	}
-	ListIterator(const Node* p)
+	explicit ListIterator(const Node* p)
 		: p(const_cast<Node*>(p))
 	{
 	}
-	ListIterator(const ListIterator<value_type>& other) // allow initialisation from a non-const iterator
+	ListIterator(const ListIterator<value_type>& other) // allow initialisation from a mutable iterator
 		: p(other.p)
 	{
 	}
@@ -71,14 +71,14 @@ struct ListIterator
 		return &p->value;
 	}
 
-	ListIterator<T>& operator++()
+	ListIterator& operator++()
 	{
 		p = p->next;
 		return *this;
 	}
-	ListIterator<T> operator++(int)
+	ListIterator operator++(int)
 	{
-		ListIterator<T> tmp = *this;
+		ListIterator tmp = *this;
 		++*this;
 		return tmp;
 	}
@@ -176,7 +176,7 @@ struct List : protected A
 	}
 	bool empty() const
 	{
-		return head.next == &head;
+		return begin() == end();
 	}
 	T& back()
 	{
@@ -273,12 +273,85 @@ struct List : protected A
 };
 
 
+template<typename T>
+struct ListReferenceNode;
+template<typename T>
+struct ListReferenceNodeBase
+{
+	Reference< ListReferenceNode<T> > next;
+};
+template<typename T>
+struct ListReferenceNode : ListReferenceNodeBase<T>
+{
+	T value;
+	explicit ListReferenceNode(const T& value)
+		: value(value)
+	{
+	}
+};
+
+template<typename T>
+struct ListReferenceIterator
+{
+	typedef std::forward_iterator_tag iterator_category;
+	typedef typename TypeTraits<T>::Value value_type;
+	typedef ptrdiff_t difference_type;
+	typedef T* pointer;
+	typedef T& reference;
+
+	typedef ListReferenceNode<value_type> Node;
+	typedef Reference<Node> Pointer;
+	Pointer p;
+	explicit ListReferenceIterator(Pointer p)
+		: p(p)
+	{
+	}
+	ListReferenceIterator(const ListReferenceIterator<value_type>& other) // allow initialisation from a mutable iterator
+		: p(other.p)
+	{
+	}
+
+	reference operator*() const
+	{
+		return p->value;
+	}
+	pointer operator->() const
+	{
+		return &p->value;
+	}
+
+	ListReferenceIterator& operator++()
+	{
+		p = p->next;
+		return *this;
+	}
+	ListReferenceIterator operator++(int)
+	{
+		ListIterator tmp = *this;
+		++*this;
+		return tmp;
+	}
+};
+
+template<typename T, typename Other>
+inline bool operator==(ListReferenceIterator<T> left, ListReferenceIterator<Other> right)
+{
+	return &(*left) == &(*right);
+}
+template<typename T, typename Other>
+inline bool operator!=(ListReferenceIterator<T> left, ListReferenceIterator<Other> right)
+{
+	return &(*left) != &(*right);
+}
+
+
 template<typename T, typename A>
 struct ListReference : A
 {
-	typedef ListNode<T> Node;
-	ListNodeBase<T> head;
-	Node* tail;
+	typedef ListReferenceNode<T> Node;
+	typedef Reference<Node> Pointer;
+	ListReferenceNodeBase<T> head;
+	Pointer tail;
 	typedef typename A::template rebind<Node>::other Allocator;
 
 	A& getAllocator()
@@ -309,8 +382,8 @@ struct ListReference : A
 		head.next = tail = 0;
 	}
 
-	typedef ListIterator<T> iterator;
-	typedef ListIterator<const T> const_iterator;
+	typedef ListReferenceIterator<T> iterator;
+	typedef ListReferenceIterator<const T> const_iterator;
 
 	iterator begin()
 	{
@@ -322,15 +395,15 @@ struct ListReference : A
 	}
 	iterator end()
 	{
-		return iterator(static_cast<const Node*>(0));
+		return iterator(Pointer(0));
 	}
 	const_iterator end() const
 	{
-		return const_iterator(static_cast<const Node*>(0));
+		return const_iterator(Pointer(0));
 	}
 	bool empty() const
 	{
-		return head.next == 0;
+		return begin() == end();
 	}
 	T& back()
 	{
@@ -343,11 +416,7 @@ struct ListReference : A
 
 	void push_back(const T& value)
 	{
-#ifdef ALLOCATOR_DEBUG
-		ALLOCATOR_ASSERT(!isDeallocated(head.next));
-		ALLOCATOR_ASSERT(!isDeallocated(tail));
-#endif
-		Node* node = allocatorNew(getAllocator(), Node(value));
+		Pointer node = allocatorNew(getAllocator(), makeReferenceCounted(Node(value)));
 		node->next = 0;
 		if(empty())
 		{
@@ -361,53 +430,37 @@ struct ListReference : A
 	}
 	void push_front(const T& value)
 	{
-#ifdef ALLOCATOR_DEBUG
-		ALLOCATOR_ASSERT(!isDeallocated(head.next));
-		ALLOCATOR_ASSERT(!isDeallocated(tail));
-#endif
-		Node* node = allocatorNew(getAllocator(), Node(value));
+		Pointer node = allocatorNew(getAllocator(), makeReferenceCounted(Node(value)));
 		node->next = head.next;
-		head.next = node;
 		if(empty())
 		{
 			tail = node;
 		}
+		head.next = node;
 	}
 	void splice(iterator position, ListReference& other)
 	{
-#ifdef ALLOCATOR_DEBUG
-		ALLOCATOR_ASSERT(!isDeallocated(head.next));
-		ALLOCATOR_ASSERT(!isDeallocated(tail));
-		ALLOCATOR_ASSERT(!isDeallocated(other.head.next));
-		ALLOCATOR_ASSERT(!isDeallocated(other.tail));
-#endif
-		LIST_ASSERT(position == end());
+		LIST_ASSERT(position == begin());
 		LIST_ASSERT(&other != this);
-		// always splice at end for now
+		// always splice at begin for now
 		if(!other.empty())
 		{
 			if(empty())
 			{
-				head = other.head;
+				tail = other.tail;
 			}
 			else
 			{
-				tail->next = other.head.next;
+				other.tail->next = head.next;
 			}
-			tail = other.tail;
+			head = other.head;
 			other.construct();
 		}
 	}
 	void swap(ListReference& other)
 	{
-#ifdef ALLOCATOR_DEBUG
-		ALLOCATOR_ASSERT(!isDeallocated(head.next));
-		ALLOCATOR_ASSERT(!isDeallocated(tail));
-		ALLOCATOR_ASSERT(!isDeallocated(other.head.next));
-		ALLOCATOR_ASSERT(!isDeallocated(other.tail));
-#endif
-		std::swap(head, other.head);
-		std::swap(tail, other.tail);
+		head.next.swap(other.head.next);
+		tail.swap(other.tail);
 	}
 };
 #endif

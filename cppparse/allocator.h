@@ -374,7 +374,7 @@ public:
 	{
 		//std::cout << "deallocate: " << p << std::endl; 
 		instance.deallocate(p, count * sizeof(T)
-#if 0//ALLOCATOR_DEBUG
+#ifdef ALLOCATOR_DEBUG
 			+ sizeof(size_t)
 #endif
 			);
@@ -383,7 +383,7 @@ public:
 	pointer allocate(size_type count)
 	{
 		pointer p = pointer(instance.allocate(count * sizeof(T)
-#if 0//ALLOCATOR_DEBUG
+#ifdef ALLOCATOR_DEBUG
 			+ sizeof(size_t)
 #endif
 			));
@@ -541,6 +541,10 @@ struct Reference
 	}
 #endif
 	Value* p;
+	Reference()
+		: p(0)
+	{
+	}
 	Reference(Value* p)
 		: p(p)
 	{
@@ -576,9 +580,13 @@ struct Reference
 	{
 		return p;
 	}
-	operator T*() const
+	T* get() const
 	{
 		return p;
+	}
+	operator bool() const
+	{
+		return p != 0;
 	}
 };
 

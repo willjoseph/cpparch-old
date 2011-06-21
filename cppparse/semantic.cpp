@@ -318,7 +318,7 @@ struct WalkerState
 
 	Scope* getQualifyingScope()
 	{
-		if(qualifying_p == 0)
+		if(!qualifying_p)
 		{
 			return 0;
 		}
@@ -388,39 +388,59 @@ struct WalkerState
 		return ::isDependent(bases, DependentContext(*enclosing, templateParams != 0 ? *templateParams : SCOPE_NULL));
 	}
 
-	bool isDependent(const Type* qualifying)
+	bool isDependent(const Reference<Type>& qualifying)
 	{
 		if(qualifying != 0)
 		{
 			//std::cout << "isDependent(Type*)" << std::endl;
 		}
-		return ::isDependent(qualifying, DependentContext(*enclosing, templateParams != 0 ? *templateParams : SCOPE_NULL));
+		return ::isDependent(qualifying.get(), DependentContext(*enclosing, templateParams != 0 ? *templateParams : SCOPE_NULL));
 	}
 
 
 	void addDependent(Dependent& dependent, const DependencyCallback& callback)
 	{
-		dependent.push_back(DependencyNode(callback, context));
+		dependent.push_front(callback);
 	}
 	void addDependentName(Dependent& dependent, Declaration* declaration)
 	{
-		addDependent(dependent, makeDependencyCallback(declaration, isDependentName));
+		static DependencyCallbacks<Declaration> callbacks = makeDependencyCallbacks(isDependentName);
+		addDependent(dependent, makeDependencyCallback(declaration, &callbacks));
 	}
 	void addDependentType(Dependent& dependent, Declaration* declaration)
 	{
-		addDependent(dependent, makeDependencyCallback(&declaration->type, isDependentType));
+		static DependencyCallbacks<Type> callbacks = makeDependencyCallbacks(isDependentType);
+		addDependent(dependent, makeDependencyCallback(&declaration->type, &callbacks));
 	}
 	void addDependent(Dependent& dependent, Type& type)
 	{
 		TypeRef tmp(TYPE_NULL, context);
 		tmp.back().swap(type);
-		addDependent(dependent, makeDependencyCallback(static_cast<Type*>(tmp.get()), isDependentType));
-		dependent.back().type.swap(tmp);
+		static DependencyCallbacks<Reference<Type>::Value> callbacks = makeDependencyCallbacks(isDependentTypeRef, ReferenceCallbacks<Type>::increment, ReferenceCallbacks<Type>::decrement);
+		addDependent(dependent, makeDependencyCallback(tmp.get_ref().p, &callbacks));
 	}
 	void addDependent(Dependent& dependent, Scope* scope)
 	{
-		addDependent(dependent, makeDependencyCallback(scope, isDependentClass));
+		static DependencyCallbacks<Scope> callbacks = makeDependencyCallbacks(isDependentClass);
+		addDependent(dependent, makeDependencyCallback(scope, &callbacks));
 	}
+#if 0
+	void addDependent(Dependent& dependent, Dependent& other)
+	{
+		dependent.splice(other);
+	}
+#else
+	void addDependent(Dependent& dependent, Dependent& other)
+	{
+		if(other.empty())
+		{
+			return;
+		}
+		CopiedReference<Dependent, TreeAllocator<int> > tmp(other, context);
+		static DependencyCallbacks<Reference<Dependent>::Value> callbacks = makeDependencyCallbacks(isDependentListRef, ReferenceCallbacks<Dependent>::increment, ReferenceCallbacks<Dependent>::decrement);
+		addDependent(dependent, makeDependencyCallback(tmp.get_ref().p, &callbacks));
+	}
+#endif
 };
 
 
@@ -516,7 +536,7 @@ struct WalkerQualified : public WalkerBase
 	void setQualifyingGlobal()
 	{
 		SEMANTIC_ASSERT(qualifying.empty());
-		qualifying_p = context.globalType.get();
+		qualifying_p = context.globalType.get_ref();
 	}
 
 	void swapQualifying(Type& type)
@@ -538,7 +558,7 @@ struct WalkerQualified : public WalkerBase
 	void swapQualifying(Qualifying& other)
 	{
 		qualifying.swap(other);
-		qualifying_p = qualifying.get();
+		qualifying_p = qualifying.get_ref();
 	}
 };
 
@@ -681,39 +701,33 @@ struct TemplateArgumentListWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
+	TemplateArgument argument;
 	TemplateArguments arguments;
 
 	TemplateArgumentListWalker(const WalkerState& state)
-		: WalkerBase(state), arguments(context)
+		: WalkerBase(state), argument(context), arguments(context)
 	{
 	}
 	void visit(cpp::type_id* symbol)
 	{
 		TypeIdWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-#if 0
-		TemplateArgument& argument = append(arguments);
 		argument.type.swap(walker.type);
-		argument.dependent.splice(walker.valueDependent);
-#else
-		arguments.push_back(TemplateArgument(context));
-		arguments.back().type.swap(walker.type);
-		arguments.back().dependent.splice(walker.valueDependent);
-#endif
+		argument.dependent.swap(walker.valueDependent);
 	}
 	void visit(cpp::assignment_expression* symbol)
 	{
 		ExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-#if 0
-		TemplateArgument& argument = append(arguments);
-		argument.dependent.splice(walker.typeDependent);
-		argument.dependent.splice(walker.valueDependent);
-#else
-		arguments.push_back(TemplateArgument(context)); // todo: evaluate constant-expression (unless it's dependent expression)
-		arguments.back().dependent = walker.typeDependent;
-		arguments.back().dependent.splice(walker.valueDependent);
-#endif
+		argument.dependent.swap(walker.typeDependent);
+		addDependent(argument.dependent, walker.valueDependent);
+	}
+	void visit(cpp::template_argument_list* symbol)
+	{
+		TemplateArgumentListWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+		walker.arguments.push_front(walker.argument); // allocates last element first!
+		arguments.swap(walker.arguments);
 	}
 };
 
@@ -971,26 +985,26 @@ struct ExplicitTypeExpressionWalker : public WalkerBase
 		TypeIdWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		addDependent(typeDependent, walker.type);
-		typeDependent.splice(walker.valueDependent);
+		addDependent(typeDependent, walker.valueDependent);
 	}
 	void visit(cpp::new_type* symbol)
 	{
 		TypeIdWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		addDependent(typeDependent, walker.type);
-		typeDependent.splice(walker.valueDependent);
+		addDependent(typeDependent, walker.valueDependent);
 	}
 	void visit(cpp::assignment_expression* symbol)
 	{
 		ExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		valueDependent.splice(walker.valueDependent);
+		addDependent(valueDependent, walker.valueDependent);
 	}
 	void visit(cpp::cast_expression* symbol)
 	{
 		ExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		valueDependent.splice(walker.valueDependent);
+		addDependent(valueDependent, walker.valueDependent);
 	}
 };
 
@@ -1053,7 +1067,7 @@ struct DependentPrimaryExpressionWalker : public WalkerBase
 	{
 		ExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		typeDependent.splice(walker.typeDependent);
+		addDependent(typeDependent, walker.typeDependent);
 	}
 };
 
@@ -1074,13 +1088,13 @@ struct DependentPostfixExpressionWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		declaration = walker.declaration;
 		id = walker.id;
-		typeDependent.splice(walker.typeDependent);
+		addDependent(typeDependent, walker.typeDependent);
 	}
 	void visit(cpp::postfix_expression_call* symbol)
 	{
 		ExpressionWalker walker(getState());
 		TREEWALKER_WALK_TRY(walker, symbol);
-		typeDependent.splice(walker.typeDependent);
+		addDependent(typeDependent, walker.typeDependent);
 		if(id != 0)
 		{
 			if(typeDependent.empty())
@@ -1170,7 +1184,7 @@ struct ExpressionWalker : public WalkerBase
 		}
 		else
 		{
-			if(isDependent(walker.qualifying.get()))
+			if(isDependent(walker.qualifying.get_ref()))
 			{
 				walker.id->dec.p = &gDependentObject;
 			}
@@ -1195,7 +1209,7 @@ struct ExpressionWalker : public WalkerBase
 		*/
 		DependentPostfixExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		typeDependent.splice(walker.typeDependent);
+		addDependent(typeDependent, walker.typeDependent);
 	}
 	/* 14.6.2.2-3
 	Expressions of the following forms are type-dependent only if the type specified by the type-id, simple-type-specifier
@@ -1218,19 +1232,19 @@ struct ExpressionWalker : public WalkerBase
 	{
 		ExplicitTypeExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		typeDependent.splice(walker.typeDependent);
+		addDependent(typeDependent, walker.typeDependent);
 	}
 	void visit(cpp::new_expression_placement* symbol)
 	{
 		ExplicitTypeExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		typeDependent.splice(walker.typeDependent);
+		addDependent(typeDependent, walker.typeDependent);
 	}
 	void visit(cpp::new_expression_default* symbol)
 	{
 		ExplicitTypeExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		typeDependent.splice(walker.typeDependent);
+		addDependent(typeDependent, walker.typeDependent);
 	}
 	void visit(cpp::postfix_expression_cast* symbol)
 	{
@@ -1239,19 +1253,19 @@ struct ExpressionWalker : public WalkerBase
 		if(symbol->op->id != cpp::cast_operator::DYNAMIC)
 		{
 			Dependent tmp(walker.typeDependent);
-			valueDependent.splice(tmp);
+			addDependent(valueDependent, tmp);
 		}
-		typeDependent.splice(walker.typeDependent);
-		valueDependent.splice(walker.valueDependent);
+		addDependent(typeDependent, walker.typeDependent);
+		addDependent(valueDependent, walker.valueDependent);
 	}
 	void visit(cpp::cast_expression_default* symbol)
 	{
 		ExplicitTypeExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		Dependent tmp(walker.typeDependent);
-		valueDependent.splice(tmp);
-		typeDependent.splice(walker.typeDependent);
-		valueDependent.splice(walker.valueDependent);
+		addDependent(valueDependent, tmp);
+		addDependent(typeDependent, walker.typeDependent);
+		addDependent(valueDependent, walker.valueDependent);
 	}
 	/* 14.6.2.2-4
 	Expressions of the following forms are never type-dependent (because the type of the expression cannot be
@@ -1280,14 +1294,14 @@ struct ExpressionWalker : public WalkerBase
 	{
 		ExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		valueDependent.splice(walker.typeDependent);
+		addDependent(valueDependent, walker.typeDependent);
 	}
 	void visit(cpp::unary_expression_sizeoftype* symbol)
 	{
 		TypeIdWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		addDependent(valueDependent, walker.type);
-		valueDependent.splice(walker.valueDependent);
+		addDependent(valueDependent, walker.valueDependent);
 	}
 	void visit(cpp::postfix_expression_typeid* symbol)
 	{
@@ -1808,7 +1822,7 @@ struct DeclaratorSuffixWalker : public WalkerBase
 	{
 		ExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		valueDependent.splice(walker.valueDependent);
+		addDependent(valueDependent, walker.valueDependent);
 	}
 };
 
@@ -1845,14 +1859,14 @@ struct DeclaratorWalker : public WalkerBase
 	{
 		DeclaratorSuffixWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		valueDependent.splice(walker.valueDependent);
+		addDependent(valueDependent, walker.valueDependent);
 	}
 	void visit(cpp::declarator_suffix_function* symbol)
 	{
 		DeclaratorSuffixWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		paramScope = walker.paramScope;
-		valueDependent.splice(walker.valueDependent);
+		addDependent(valueDependent, walker.valueDependent);
 	}
 };
 
@@ -2212,7 +2226,7 @@ struct EnumeratorDefinitionWalker : public WalkerBase
 	{
 		ExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		declaration->valueDependent.splice(walker.valueDependent);
+		addDependent(declaration->valueDependent, walker.valueDependent);
 	}
 };
 
@@ -2842,7 +2856,7 @@ struct TypeIdWalker : public WalkerBase
 	{
 		DeclaratorWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		valueDependent.splice(walker.valueDependent);
+		addDependent(valueDependent, walker.valueDependent);
 	}
 };
 
@@ -3002,7 +3016,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 			— the name of a non-type template parameter,
 			— a constant with effective literal type and is initialized with an expression that is value-dependent.
 		*/
-		valueDependent.splice(walker.valueDependent);
+		addDependent(valueDependent, walker.valueDependent);
 	}
 	void visit(cpp::declarator* symbol)
 	{
@@ -3093,7 +3107,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		ExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		SEMANTIC_ASSERT(declaration != 0);
-		declaration->valueDependent.splice(walker.valueDependent);
+		addDependent(declaration->valueDependent, walker.valueDependent);
 	}
 
 	void visit(cpp::statement_seq_wrapper* symbol)

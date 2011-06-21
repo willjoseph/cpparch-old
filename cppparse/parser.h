@@ -523,11 +523,11 @@ public:
 	{
 		size_t position = instance.position;
 		pointer p = pointer(instance.allocate(count * sizeof(T)
-#if 0//def ALLOCATOR_DEBUG
+#ifdef ALLOCATOR_DEBUG
 			+ sizeof(size_t)
 #endif
 			));
-#if 0//ALLOCATOR_DEBUG
+#ifdef ALLOCATOR_DEBUG
 		*reinterpret_cast<size_t*>(p + count) = position;
 #endif
 		//std::cout << "allocate: " << p << std::endl;
