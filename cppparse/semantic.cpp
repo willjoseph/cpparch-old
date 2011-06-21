@@ -313,7 +313,7 @@ struct WalkerState
 		{
 			return; // TODO: implement template-instantiation, and disallow inheriting from current-instantiation
 		}
-		declaration->enclosed->bases.push_back(base);
+		declaration->enclosed->bases.push_front(base);
 	}
 
 	Scope* getQualifyingScope()
