@@ -314,23 +314,26 @@ struct CachedSymbols
 	template<typename T>
 	void find(Key key, const T*& p)
 	{
-		if(position != entries.begin())
+		// iterate through all entries at 'key'
+		// in top-down grammar order: declarator-id -> id-expression -> unqualified-id -> template-id -> identifier
+		for(Entries::iterator i = position; i != entries.begin();)
 		{
-			Entries::iterator i = position;
 			--i;
-			if((*i).first == key
-				&& (*i).second.type == &typeid(T))
+			if((*i).first != key)
+			{
+				break;
+			}
+			if((*i).second.type == &typeid(T)) // if this entry is the right type
 			{
 				++hits;
 				Value& value = (*i).second;
 				value.copied.get(p);
+				entries.erase(++i, position); // discard entries that match a 'more abstract' symbol
 				position = value.end;
-			}
-			else
-			{
-				p = 0;
+				return;
 			}
 		}
+		p = 0;
 	}
 	template<typename T>
 	T& insert(Entries::iterator at, Key key, const T& t)

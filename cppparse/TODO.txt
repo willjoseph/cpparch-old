@@ -100,6 +100,8 @@ not consider any scopes outside the innermost enclosing namespace.
 	- occurs only when deferring delete of declarations
 	- stomped entry contains ets-declaration in failed parse-tree
 	- onBacktrack not called when ALLOCATER_DEBUG enabled
+	
+- bug: with ALLOCATOR_DEBUG, if type_info is not defined, error parsing malloc.h?
 
 - clean up caching and deferred destruction
 	- clean up CachedSymbols
@@ -109,8 +111,14 @@ not consider any scopes outside the innermost enclosing namespace.
 			- otherwise, causes error when looking up template-id cached within nested-name-specifier-suffix?
 		+ treat cache as stack, only top item considered?
 			- handle X<Y>::Z<W>
+		+ cache more than just template-id
 		- use custom list class
-		- cache more than just template-id
+		- cache multiple symbols for each position
+			- e.g. declarator-id -> id-expression -> unqualified-id -> template-id -> identifier
+			- linear search?
+			- test case
+				- type-specifier -> nested-name-specifier -> nested-name -> type-name -> identifier
+				- type-specifier -> type-name -> identifier				
 	- clean up ParserAllocatorWrapper
 		- defer destruction at level of container
 			- need replacement for multimap?

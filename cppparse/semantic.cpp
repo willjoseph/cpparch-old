@@ -1343,7 +1343,7 @@ struct TypeNameWalker : public WalkerBase
 
 	void visit(cpp::simple_template_id* symbol)
 	{
-		ProfileScope profile(gProfileTemplateId);
+		//ProfileScope profile(gProfileTemplateId);
 
 		TemplateIdWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
@@ -1429,6 +1429,14 @@ struct NestedNameSpecifierPrefixWalker : public WalkerBase
 	{
 	}
 
+#if 0 // for debugging parse-tree cache
+	void visit(cpp::nested_name* symbol)
+	{
+		NestedNameSpecifierPrefixWalker walker(getState(), allowDependent);
+		TREEWALKER_WALK_CACHED(walker, symbol);
+		type.swap(walker.type);
+	}
+#endif
 	void visit(cpp::namespace_name* symbol)
 	{
 		NamespaceNameWalker walker(getState());
@@ -2924,8 +2932,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		isUnion = walker.isUnion;
 	}
 
-	template<typename T>
-	void walkDeclarator(T* symbol)
+	void visit(cpp::declarator* symbol)
 	{
 		DeclaratorWalker walker(getState());
 		if(isParameter)
@@ -2941,7 +2948,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 			walker.deferred = &deferred2;
 		}
 
-		TREEWALKER_WALK(walker, symbol);
+		TREEWALKER_WALK_CACHED(walker, symbol);
 		parent = walker.enclosing; // if the id-expression in the declarator is a qualified-id, this is the qualifying scope
 		id = walker.id;
 		enclosed = walker.paramScope;
@@ -2952,10 +2959,6 @@ struct SimpleDeclarationWalker : public WalkerBase
 			— a constant with effective literal type and is initialized with an expression that is value-dependent.
 		*/
 		addDependent(valueDependent, walker.valueDependent);
-	}
-	void visit(cpp::declarator* symbol)
-	{
-		walkDeclarator(symbol);
 	}
 	void visit(cpp::abstract_declarator* symbol)
 	{
