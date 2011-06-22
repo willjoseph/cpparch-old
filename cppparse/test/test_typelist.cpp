@@ -1,4 +1,9 @@
 
+// testing shared-prefix declarator_suffix
+void f()
+{
+}
+
 template<typename T>
 struct S
 {

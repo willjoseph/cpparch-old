@@ -268,9 +268,9 @@ struct Cached
 {
 	size_t count;
 	size_t allocation;
-	Symbol symbol;
+	Symbol* symbol;
 	Walker walker;
-	Cached(const Symbol& symbol, const Walker& walker)
+	Cached(Symbol* symbol, const Walker& walker)
 		: symbol(symbol), walker(walker)
 	{
 	}
@@ -285,6 +285,7 @@ struct CachedSymbols
 
 	struct Value
 	{
+		const type_info* type;
 		Entries::iterator end;
 		OpaqueCopied copied;
 		Value() : copied(NullParserAllocator())
@@ -317,16 +318,17 @@ struct CachedSymbols
 		{
 			Entries::iterator i = position;
 			--i;
-			if((*i).first != key)
-			{
-				p = 0;
-			}
-			else
+			if((*i).first == key
+				&& (*i).second.type == &typeid(T))
 			{
 				++hits;
 				Value& value = (*i).second;
 				value.copied.get(p);
 				position = value.end;
+			}
+			else
+			{
+				p = 0;
 			}
 		}
 	}
@@ -336,6 +338,7 @@ struct CachedSymbols
 		flush();
 		Value& value = (*entries.insert(at, Entries::value_type(key, Value()))).second;
 		position = entries.begin();
+		value.type = &typeid(T);
 		value.end = position;
 		value.copied.~OpaqueCopied();
 		new (&value.copied) OpaqueCopied(t, entries.get_allocator());
@@ -686,7 +689,7 @@ struct Parser : public ParserState
 	}
 
 	template<typename Symbol, typename Walker>
-	bool cacheLookup(CachedSymbols::Key key, Symbol& symbol, Walker& walker)
+	bool cacheLookup(CachedSymbols::Key key, Symbol*& symbol, Walker& walker)
 	{
 		const Cached<Symbol, Walker>* p = 0;
 		context.allocator.cachedSymbols.find(key, p);
@@ -704,11 +707,13 @@ struct Parser : public ParserState
 		return false;
 	}
 	template<typename Symbol, typename Walker>
-	void cacheStore(CachedSymbols::Key key, const Symbol& symbol, const Walker& walker)
+	void cacheStore(CachedSymbols::Key key, Symbol* symbol, const Walker& walker)
 	{
+#if 1
 		Cached<Symbol, Walker>& entry = context.allocator.cachedSymbols.insert(cachePosition, key, Cached<Symbol, Walker>(symbol, walker));
 		entry.count = position;
 		entry.allocation = context.allocator.position; // this must be stored after all allocations performed by cachedSymbols
+#endif
 	}
 };
 
@@ -1104,8 +1109,8 @@ public:
 	}
 };
 
-#define SYMBOL_WALK_TRY(walker, symbol) if((result = symbol = parseSymbol(getParser(walker), symbol)) == 0) return
-#define SYMBOL_WALK_HIT(walker, symbol) result = symbol = parseHit(getParser(walker), symbol)
+#define SYMBOL_WALK_TRY(walker, symbol) if((result = symbol = parseSymbol(getParser(walker), symbol)) == 0) return; result = symbol = parseHit(getParser(walker), symbol)
+#define SYMBOL_WALK_HIT(walker, symbol)
 #define SYMBOL_WALK(walker, symbol) SYMBOL_WALK_TRY(walker, symbol); SYMBOL_WALK_HIT(walker, symbol)
 #define PARSERCONTEXT_DEFAULT \
 	template<typename T> \
