@@ -1109,9 +1109,7 @@ public:
 	}
 };
 
-#define SYMBOL_WALK_TRY(walker, symbol) if((result = symbol = parseSymbol(getParser(walker), symbol)) == 0) return; result = symbol = parseHit(getParser(walker), symbol)
-#define SYMBOL_WALK_HIT(walker, symbol)
-#define SYMBOL_WALK(walker, symbol) SYMBOL_WALK_TRY(walker, symbol); SYMBOL_WALK_HIT(walker, symbol)
+#define SYMBOL_WALK(walker, symbol) if((result = symbol = parseSymbol(getParser(walker), symbol)) == 0) return; result = symbol = parseHit(getParser(walker), symbol)
 #define PARSERCONTEXT_DEFAULT \
 	template<typename T> \
 	void visit(T* symbol) \
