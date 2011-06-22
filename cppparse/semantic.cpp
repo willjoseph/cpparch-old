@@ -634,10 +634,10 @@ const char* getIdentifierType(IdentifierFunc func)
 
 #define TREEWALKER_WALK_TRY_CACHED(walker, symbol) \
 	CachedSymbols::Key key_ = walker.parser->context.position; \
-	if(!walker.cacheLookup(key_, symbol)) \
+	if(!parser->cacheLookup(key_, *symbol, walker)) \
 	{ \
 		TREEWALKER_WALK_TRY(walker, symbol); \
-		walker.cacheStore(key_, symbol); \
+		parser->cacheStore(key_, *symbol, walker); \
 	}
 
 #define TREEWALKER_WALK_CACHED(walker, symbol) TREEWALKER_WALK_TRY_CACHED(walker, symbol); TREEWALKER_WALK_HIT(walker, symbol)
@@ -736,21 +736,6 @@ struct TemplateArgumentListWalker : public WalkerBase
 	}
 };
 
-
-struct SimpleTemplateIdCache
-{
-	cpp::simple_template_id symbol;
-	IdentifierPtr id;
-	TemplateArguments arguments;
-	size_t count;
-	size_t allocation;
-
-	explicit SimpleTemplateIdCache(const cpp::simple_template_id& symbol, size_t count)
-		: symbol(symbol), id(0), arguments(TREEALLOCATOR_NULL), count(count)
-	{
-	}
-};
-
 struct TemplateIdWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
@@ -772,38 +757,6 @@ struct TemplateIdWalker : public WalkerBase
 		TemplateArgumentListWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		arguments.swap(walker.arguments);
-	}
-
-	bool cacheLookup(CachedSymbols::Key key, cpp::simple_template_id* symbol)
-	{
-		// this symbol may have already been parsed successfully
-		const SimpleTemplateIdCache* p = 0;
-		parser->context.allocator.cachedSymbols.find(key, p);
-
-		if(p != 0)
-		{
-			// use cached symbol
-			id = p->id;
-			*symbol = p->symbol;
-			arguments = p->arguments;
-
-			parser->context.allocator.position = p->allocation;
-			parser->position = p->count;
-			parser->advance();
-			return true;
-		}
-		return false;
-	}
-
-	void cacheStore(CachedSymbols::Key key, cpp::simple_template_id* symbol)
-	{
-#if 1
-		// After successfully parsing template-argument-clause, store this symbol
-		SimpleTemplateIdCache& entry = parser->context.allocator.cachedSymbols.insert(parser->cachePosition, key, SimpleTemplateIdCache(*symbol, parser->position));
-		entry.id = id;
-		entry.arguments = arguments;
-		entry.allocation = parser->context.allocator.position; // this must be stored after all allocations performed by cachedSymbols
-#endif
 	}
 };
 
@@ -1863,13 +1816,13 @@ struct DeclaratorWalker : public WalkerBase
 	void visit(cpp::declarator_suffix_array* symbol)
 	{
 		DeclaratorSuffixWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
+		TREEWALKER_WALK_CACHED(walker, symbol);
 		addDependent(valueDependent, walker.valueDependent);
 	}
 	void visit(cpp::declarator_suffix_function* symbol)
 	{
 		DeclaratorSuffixWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
+		TREEWALKER_WALK_CACHED(walker, symbol);
 		paramScope = walker.paramScope;
 		addDependent(valueDependent, walker.valueDependent);
 	}

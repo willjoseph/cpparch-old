@@ -263,6 +263,18 @@ public:
 	}
 };
 
+template<typename Symbol, typename Walker>
+struct Cached
+{
+	size_t count;
+	size_t allocation;
+	Symbol symbol;
+	Walker walker;
+	Cached(const Symbol& symbol, const Walker& walker)
+		: symbol(symbol), walker(walker)
+	{
+	}
+};
 
 struct CachedSymbols
 {
@@ -671,6 +683,32 @@ struct Parser : public ParserState
 	void addBacktrackCallback(const BacktrackCallback& callback)
 	{
 		context.allocator.addBacktrackCallback(allocation, callback);
+	}
+
+	template<typename Symbol, typename Walker>
+	bool cacheLookup(CachedSymbols::Key key, Symbol& symbol, Walker& walker)
+	{
+		const Cached<Symbol, Walker>* p = 0;
+		context.allocator.cachedSymbols.find(key, p);
+		if(p != 0)
+		{
+			symbol = p->symbol;
+			walker.~Walker();
+			new(&walker) Walker(p->walker);
+
+			context.allocator.position = p->allocation;
+			position = p->count;
+			advance();
+			return true;
+		}
+		return false;
+	}
+	template<typename Symbol, typename Walker>
+	void cacheStore(CachedSymbols::Key key, const Symbol& symbol, const Walker& walker)
+	{
+		Cached<Symbol, Walker>& entry = context.allocator.cachedSymbols.insert(cachePosition, key, Cached<Symbol, Walker>(symbol, walker));
+		entry.count = position;
+		entry.allocation = context.allocator.position; // this must be stored after all allocations performed by cachedSymbols
 	}
 };
 
