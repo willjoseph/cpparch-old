@@ -615,9 +615,12 @@ struct ParserContext : Lexer
 	ParserContext(LexContext& context, const char* path)
 		: Lexer(context, path)
 	{
+#ifdef _DEBUG
 		allocator.onBacktrack = makeCallback(Member1<ParserContext, size_t, &ParserContext::onBacktrack>(*this));
+#endif
 	}
 
+#ifdef _DEBUG
 	void onBacktrack(size_t count)
 	{
 		if(count > stats.count)
@@ -627,6 +630,7 @@ struct ParserContext : Lexer
 			stats.position = Lexer::get_position();
 		}
 	}
+#endif
 
 	void backtrack(size_t count, const char* symbol = 0)
 	{
