@@ -844,7 +844,7 @@ struct QualifiedIdWalker : public WalkerQualified
 	void visit(cpp::nested_name_specifier* symbol)
 	{
 		NestedNameSpecifierWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
+		TREEWALKER_WALK_CACHED(walker, symbol);
 		swapQualifying(walker.qualifying);
 	}
 	void visit(cpp::terminal<boost::wave::T_TEMPLATE> symbol)
@@ -1546,7 +1546,7 @@ struct TypeSpecifierWalker : public WalkerQualified
 	void visit(cpp::nested_name_specifier* symbol) // simple_type_specifier_name | simple_type_specifier_template
 	{
 		NestedNameSpecifierWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
+		TREEWALKER_WALK_CACHED(walker, symbol);
 		swapQualifying(walker.qualifying);
 	}
 	void visit(cpp::simple_template_id* symbol) // simple_type_specifier_template
@@ -1641,8 +1641,8 @@ struct QualifiedDeclaratorIdWalker : public WalkerQualified
 	}
 	void visit(cpp::nested_name_specifier* symbol)
 	{
-		NestedNameSpecifierWalker walker(getState(), true);
-		TREEWALKER_WALK(walker, symbol);
+		NestedNameSpecifierWalker walker(getState(), true); // the qualifying nested-name-specifier may be dependent on a template-parameter
+		TREEWALKER_WALK(walker, symbol); // no need to cache: the nested-name-specifier is not a shared-prefix
 		swapQualifying(walker.qualifying);
 	}
 	void visit(cpp::unqualified_id* symbol)
@@ -1742,7 +1742,7 @@ struct PtrOperatorWalker : public WalkerQualified
 	void visit(cpp::nested_name_specifier* symbol)
 	{
 		NestedNameSpecifierWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
+		TREEWALKER_WALK_CACHED(walker, symbol);
 		swapQualifying(walker.qualifying);
 	}
 };
@@ -1834,7 +1834,7 @@ struct BaseSpecifierWalker : public WalkerQualified
 	void visit(cpp::nested_name_specifier* symbol)
 	{
 		NestedNameSpecifierWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
+		TREEWALKER_WALK_CACHED(walker, symbol);
 		swapQualifying(walker.qualifying);
 	}
 	void visit(cpp::class_name* symbol)
@@ -1877,7 +1877,7 @@ struct ClassHeadWalker : public WalkerBase
 	void visit(cpp::nested_name_specifier* symbol)
 	{
 		NestedNameSpecifierWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
+		TREEWALKER_WALK_CACHED(walker, symbol);
 
 		if(walker.getQualifyingScope() != 0)
 		{
@@ -1930,7 +1930,7 @@ struct UsingDeclarationWalker : public WalkerQualified
 	void visit(cpp::nested_name_specifier* symbol)
 	{
 		NestedNameSpecifierWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
+		TREEWALKER_WALK_CACHED(walker, symbol);
 		swapQualifying(walker.qualifying);
 	}
 	void visit(cpp::unqualified_id* symbol)
@@ -1985,7 +1985,7 @@ struct UsingDirectiveWalker : public WalkerQualified
 	void visit(cpp::nested_name_specifier* symbol)
 	{
 		NestedNameSpecifierWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
+		TREEWALKER_WALK_CACHED(walker, symbol);
 		swapQualifying(walker.qualifying);
 	}
 	void visit(cpp::namespace_name* symbol)
@@ -2019,7 +2019,7 @@ struct NamespaceAliasDefinitionWalker : public WalkerQualified
 	void visit(cpp::nested_name_specifier* symbol)
 	{
 		NestedNameSpecifierWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
+		TREEWALKER_WALK_CACHED(walker, symbol);
 		swapQualifying(walker.qualifying);
 	}
 	void visit(cpp::identifier* symbol)
@@ -2258,7 +2258,7 @@ struct ElaboratedTypeSpecifierWalker : public WalkerQualified
 	void visit(cpp::nested_name_specifier* symbol) // elaborated_type_specifier_default | elaborated_type_specifier_template
 	{
 		NestedNameSpecifierWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
+		TREEWALKER_WALK_CACHED(walker, symbol);
 		swapQualifying(walker.qualifying);
 	}
 	void visit(cpp::class_key* symbol)
@@ -2378,7 +2378,7 @@ struct TypenameSpecifierWalker : public WalkerQualified
 	void visit(cpp::nested_name_specifier* symbol)
 	{
 		NestedNameSpecifierWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
+		TREEWALKER_WALK_CACHED(walker, symbol);
 		swapQualifying(walker.qualifying);
 	}
 	void visit(cpp::type_name* symbol)
@@ -2712,7 +2712,7 @@ struct QualifiedTypeNameWalker : public WalkerQualified
 	void visit(cpp::nested_name_specifier* symbol)
 	{
 		NestedNameSpecifierWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
+		TREEWALKER_WALK_CACHED(walker, symbol);
 		swapQualifying(walker.qualifying);
 	}
 	void visit(cpp::class_name* symbol)
