@@ -628,11 +628,11 @@ const char* getIdentifierType(IdentifierFunc func)
 
 
 #define TREEWALKER_WALK_CACHED_DATA(walker, symbol, data) \
-	CachedSymbols::Key key_ = (walker).parser->context.position; \
-	if(!parser->cacheLookup(key_, (symbol), (data))) \
+	if(!parser->cacheLookup((symbol), (data))) \
 	{ \
+		CachedSymbols::Key key = parser->context.position; \
 		TREEWALKER_WALK(walker, symbol); \
-		parser->cacheStore(key_, (symbol), (data)); \
+		parser->cacheStore(key, (symbol), (data)); \
 	} \
 	else \
 	{ \

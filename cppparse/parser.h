@@ -351,6 +351,12 @@ struct CachedSymbols
 	}
 	void flush()
 	{
+#if 0//def _DEBUG
+		if(entries.begin() != position)
+		{
+			Key key = position == entries.end() ? 
+		}
+#endif
 		entries.erase(entries.begin(), position);
 	}
 };
@@ -427,6 +433,7 @@ struct ParserAllocator : public LexerAllocator
 	BacktrackCallbacks backtrackCallbacks;
 	size_t position;
 	CachedSymbols cachedSymbols;
+	Callback1<size_t> onBacktrack;
 	ParserAllocator()
 		: position(0), backtrackCallbacks(DefaultParserAllocator(*this)), cachedSymbols(DefaultParserAllocator(*this))
 	{
@@ -456,6 +463,9 @@ struct ParserAllocator : public LexerAllocator
 		{
 			return;
 		}
+#ifdef _DEBUG
+		onBacktrack(LexerAllocator::position - position);
+#endif
 
 		cachedSymbols.flush();
 
@@ -600,10 +610,22 @@ struct ParserContext : Lexer
 {
 	Visualiser visualiser;
 	ParserAllocator allocator;
+	BacktrackStats stats;
 
 	ParserContext(LexContext& context, const char* path)
 		: Lexer(context, path)
 	{
+		allocator.onBacktrack = makeCallback(Member1<ParserContext, size_t, &ParserContext::onBacktrack>(*this));
+	}
+
+	void onBacktrack(size_t count)
+	{
+		if(count > stats.count)
+		{
+			stats.count = count;
+			stats.symbol = Lexer::get_value();
+			stats.position = Lexer::get_position();
+		}
 	}
 
 	void backtrack(size_t count, const char* symbol = 0)
@@ -692,10 +714,11 @@ struct Parser : public ParserState
 	}
 
 	template<typename Symbol, typename Walker>
-	bool cacheLookup(CachedSymbols::Key key, Symbol*& symbol, Walker& walker)
+	bool cacheLookup(Symbol*& symbol, Walker& walker)
 	{
+		CachedSymbols::Key key = context.position;
 		const Cached<Symbol, Walker>* p = 0;
-		context.allocator.cachedSymbols.find(key, p);
+		context.allocator.cachedSymbols.find(context.position, p);
 		if(p != 0)
 		{
 			symbol = p->symbol;
@@ -707,6 +730,7 @@ struct Parser : public ParserState
 			advance();
 			return true;
 		}
+		ASSERT(context.position == key);
 		return false;
 	}
 	template<typename Symbol, typename Walker>
