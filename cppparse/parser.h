@@ -276,6 +276,20 @@ struct Cached
 	}
 };
 
+template<typename T>
+struct TypeInfo
+{
+	static const type_info* id;
+};
+template<typename T>
+const type_info* TypeInfo<T>::id = &typeid(T);
+
+template<typename T>
+struct Opaque
+{
+	char data[sizeof(T)];
+};
+
 struct CachedSymbols
 {
 	typedef Lexer::Tokens::const_iterator Key;
@@ -283,10 +297,31 @@ struct CachedSymbols
 	typedef std::pair<Key, Value> Entry;
 	typedef std::list<Entry, DefaultParserAllocator> Entries;
 
+#ifdef _STLP_DEBUG
+	struct Position
+	{
+		typedef Opaque<Entries::iterator> Value;
+		Value value;
+		Position()
+		{
+		}
+		Position(const Entries::iterator& i)
+			: value(*reinterpret_cast<const Value*>(&i))
+		{
+		}
+		operator const Entries::iterator&() const
+		{
+			return *reinterpret_cast<const Entries::iterator*>(&value);
+		}
+	};
+#else
+	typedef Entries::iterator position;
+#endif
+
 	struct Value
 	{
 		const type_info* type;
-		Entries::iterator end;
+		Position end;
 		OpaqueCopied copied;
 		Value() : copied(NullParserAllocator())
 		{
@@ -323,7 +358,7 @@ struct CachedSymbols
 			{
 				break;
 			}
-			if((*i).second.type == &typeid(T)) // if this entry is the right type
+			if((*i).second.type == TypeInfo<T>::id) // if this entry is the right type
 			{
 				++hits;
 				Value& value = (*i).second;
@@ -341,7 +376,7 @@ struct CachedSymbols
 		flush();
 		Value& value = (*entries.insert(at, Entries::value_type(key, Value()))).second;
 		position = entries.begin();
-		value.type = &typeid(T);
+		value.type = TypeInfo<T>::id;
 		value.end = position;
 		value.copied.~OpaqueCopied();
 		new (&value.copied) OpaqueCopied(t, entries.get_allocator());
@@ -351,12 +386,6 @@ struct CachedSymbols
 	}
 	void flush()
 	{
-#if 0//def _DEBUG
-		if(entries.begin() != position)
-		{
-			Key key = position == entries.end() ? 
-		}
-#endif
 		entries.erase(entries.begin(), position);
 	}
 };
@@ -661,7 +690,7 @@ struct Parser : public ParserState
 	ParserContext& context;
 	size_t position;
 	size_t allocation;
-	CachedSymbols::Entries::iterator cachePosition;
+	CachedSymbols::Position cachePosition;
 
 	Parser(ParserContext& context)
 		: context(context), position(0), allocation(0)
