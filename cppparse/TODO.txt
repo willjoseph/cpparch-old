@@ -118,7 +118,8 @@ not consider any scopes outside the innermost enclosing namespace.
 			- linear search?
 			- test case
 				- type-specifier -> nested-name-specifier -> nested-name -> type-name -> identifier
-				- type-specifier -> type-name -> identifier				
+				- type-specifier -> type-name -> identifier
+		- cache shared-prefix 'class-key'		
 	- clean up ParserAllocatorWrapper
 		- defer destruction at level of container
 			- need replacement for multimap?

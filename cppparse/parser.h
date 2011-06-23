@@ -629,6 +629,10 @@ struct ParserContext : Lexer
 			stats.symbol = Lexer::get_value();
 			stats.position = Lexer::get_position();
 		}
+#if 0 // spam!
+		printPosition(Lexer::get_position());
+		std::cout << "backtrack: " << Lexer::get_value() << ": " << count << std::endl;
+#endif
 	}
 #endif
 
