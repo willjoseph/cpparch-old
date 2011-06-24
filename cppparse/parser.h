@@ -315,7 +315,7 @@ struct CachedSymbols
 		}
 	};
 #else
-	typedef Entries::iterator position;
+	typedef Entries::iterator Position;
 #endif
 
 	struct Value
