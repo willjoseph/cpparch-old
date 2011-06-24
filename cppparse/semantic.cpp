@@ -142,7 +142,7 @@ struct WalkerState
 
 	WalkerContext& context;
 	ScopePtr enclosing;
-	Reference<Type> qualifying_p;
+	TypePtr qualifying_p;
 	ScopePtr templateParams;
 	ScopePtr templateEnclosing;
 	DeferredSymbols* deferred;
@@ -388,7 +388,7 @@ struct WalkerState
 		return ::isDependent(bases, DependentContext(*enclosing, templateParams != 0 ? *templateParams : SCOPE_NULL));
 	}
 
-	bool isDependent(const Reference<Type>& qualifying)
+	bool isDependent(const TypePtr& qualifying)
 	{
 		if(qualifying != 0)
 		{
@@ -409,14 +409,13 @@ struct WalkerState
 	}
 	void addDependentType(Dependent& dependent, Declaration* declaration)
 	{
-		static DependencyCallbacks<Type> callbacks = makeDependencyCallbacks(isDependentType);
-		addDependent(dependent, makeDependencyCallback(&declaration->type, &callbacks));
+		static DependencyCallbacks<const Type> callbacks = makeDependencyCallbacks(isDependentType);
+		addDependent(dependent, makeDependencyCallback(const_cast<const Type*>(&declaration->type), &callbacks));
 	}
-	void addDependent(Dependent& dependent, Type& type)
+	void addDependent(Dependent& dependent, const Type& type)
 	{
-		TypeRef tmp(TYPE_NULL, context);
-		tmp.back().swap(type);
-		static DependencyCallbacks<Reference<Type>::Value> callbacks = makeDependencyCallbacks(isDependentTypeRef, ReferenceCallbacks<Type>::increment, ReferenceCallbacks<Type>::decrement);
+		TypeRef tmp(type, context);
+		static DependencyCallbacks<TypePtr::Value> callbacks = makeDependencyCallbacks(isDependentTypeRef, ReferenceCallbacks<const Type>::increment, ReferenceCallbacks<const Type>::decrement);
 		addDependent(dependent, makeDependencyCallback(tmp.get_ref().p, &callbacks));
 	}
 	void addDependent(Dependent& dependent, Scope* scope)
@@ -463,7 +462,7 @@ struct WalkerBase : public WalkerState
 	}
 	Scope* newScope(const Identifier& name, ScopeType type = SCOPETYPE_UNKNOWN)
 	{
-		return allocatorNew(context, makeReferenceCounted(Scope(context, name, type)));
+		return allocatorNew(context, Scope(context, name, type));
 	}
 
 	void trackDeclaration(Declaration* declaration)
@@ -556,8 +555,7 @@ struct WalkerQualified : public WalkerBase
 			throw SemanticError();
 		}
 #endif
-		Qualifying tmp(TYPE_NULL, context);
-		tmp.back().swap(type);
+		Qualifying tmp(type, context);
 		swapQualifying(tmp);
 	}
 	void swapQualifying(Qualifying& other)

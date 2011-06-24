@@ -122,7 +122,7 @@ public:
 	{
 	}
 	CopiedReference(const T& t, const A& allocator)
-		: A(allocator), p(allocatorNew(getAllocator(), makeReferenceCounted(t)))
+		: A(allocator), p(allocatorNew(getAllocator(), Reference<T>::makeValue(t)))
 	{
 	}
 	CopiedReference& operator=(const T& t)

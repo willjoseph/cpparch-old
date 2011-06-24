@@ -87,8 +87,11 @@ private:
 	}
 };
 
+struct Type;
 
-typedef CopiedReference<struct Type, TreeAllocator<int> > TypeRef;
+typedef Reference<const Type> TypePtr;
+
+typedef CopiedReference<const Type, TreeAllocator<int> > TypeRef;
 
 typedef TypeRef Qualifying;
 
@@ -249,7 +252,7 @@ struct DependencyCallback
 template<typename T>
 DependencyCallback makeDependencyCallback(T* context, DependencyCallbacks<T>* callbacks)
 {
-	return DependencyCallback(context, callbacks);
+	return DependencyCallback(const_cast<TypeTraits<T>::Value*>(context), callbacks);
 }
 
 typedef ListReference<DependencyCallback, TreeAllocator<int> > Dependent2;
@@ -1126,12 +1129,12 @@ inline bool isDependentName(Declaration* declaration, const DependentContext& co
 		|| evaluateDependent(declaration->valueDependent, context);
 }
 
-inline bool isDependentType(Type* type, const DependentContext& context)
+inline bool isDependentType(const Type* type, const DependentContext& context)
 {
 	return isDependent(*type, context);
 }
 
-inline bool isDependentTypeRef(Reference<Type>::Value* type, const DependentContext& context)
+inline bool isDependentTypeRef(TypePtr::Value* type, const DependentContext& context)
 {
 	return isDependentType(type, context);
 }

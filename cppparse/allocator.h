@@ -498,25 +498,16 @@ struct ReferenceCounted : T
 };
 
 
-#ifdef ALLOCATOR_DEBUG
-template<typename T>
-inline ReferenceCounted<T> makeReferenceCounted(const T& t)
-{
-	return ReferenceCounted<T>(t);
-}
-#else
-template<typename T>
-inline const T& makeReferenceCounted(const T& t)
-{
-	return t;
-}
-#endif
 
 template<typename T>
 struct Reference
 {
 #ifdef ALLOCATOR_DEBUG
 	typedef ReferenceCounted<T> Value;
+	static Value makeValue(const T& t)
+	{
+		return Value(t);
+	}
 	void decrement()
 	{
 		if(p != 0)
@@ -533,6 +524,10 @@ struct Reference
 	}
 #else
 	typedef T Value;
+	static Value makeValue(const T& t)
+	{
+		return t;
+	}
 	void decrement()
 	{
 	}
