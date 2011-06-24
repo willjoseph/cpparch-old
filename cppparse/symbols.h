@@ -252,7 +252,7 @@ struct DependencyCallback
 template<typename T>
 DependencyCallback makeDependencyCallback(T* context, DependencyCallbacks<T>* callbacks)
 {
-	return DependencyCallback(const_cast<TypeTraits<T>::Value*>(context), callbacks);
+	return DependencyCallback(const_cast<typename TypeTraits<T>::Value*>(context), callbacks);
 }
 
 typedef ListReference<DependencyCallback, TreeAllocator<int> > Dependent2;
