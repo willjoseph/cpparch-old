@@ -112,14 +112,16 @@ not consider any scopes outside the innermost enclosing namespace.
 		+ treat cache as stack, only top item considered?
 			- handle X<Y>::Z<W>
 		+ cache more than just template-id
-		- use custom list class
-		- cache multiple symbols for each position
+		+ cache multiple symbols for each position
 			- e.g. declarator-id -> id-expression -> unqualified-id -> template-id -> identifier
 			- linear search?
 			- test case
 				- type-specifier -> nested-name-specifier -> nested-name -> type-name -> identifier
 				- type-specifier -> type-name -> identifier
-		- cache shared-prefix 'class-key'		
+		- use custom list class
+		+ cache shared-prefix 'class-key'		
+			- type-specifier -> elaborated-type-specifier -> elaborated-type-specifier-key -> class-key
+			- type-specifier -> class-specifier -> class-head -> class-key
 	- clean up ParserAllocatorWrapper
 		- defer destruction at level of container
 			- need replacement for multimap?

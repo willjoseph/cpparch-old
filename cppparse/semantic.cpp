@@ -1864,7 +1864,7 @@ struct ClassHeadWalker : public WalkerBase
 
 	void visit(cpp::class_key* symbol)
 	{
-		TREEWALKER_LEAF(symbol);
+		TREEWALKER_LEAF_CACHED(symbol);
 		isUnion = symbol->id == cpp::class_key::UNION;
 	}
 	void visit(cpp::identifier* symbol) // class_name
@@ -2261,7 +2261,7 @@ struct ElaboratedTypeSpecifierWalker : public WalkerQualified
 	}
 	void visit(cpp::class_key* symbol)
 	{
-		TREEWALKER_LEAF(symbol);
+		TREEWALKER_LEAF_CACHED(symbol);
 		key = &gClass;
 	}
 	void visit(cpp::enum_key* symbol)

@@ -550,15 +550,17 @@ private:
 	//Scope& operator=(const Scope&);
 };
 
-inline void undeclareObject(Declaration* declaration, LexerAllocator& allocator)
+inline void undeclare(Declaration* declaration, LexerAllocator& allocator)
 {
 	SYMBOLS_ASSERT(&(*declaration->scope->declarations.find(declaration->getName().value)).second == declaration);
+	SYMBOLS_ASSERT(declaration->getName().dec.p == declaration);
+	declaration->getName().dec.p = 0;
 	declaration->scope->declarations.erase(declaration->getName().value);
 }
 
 inline BacktrackCallback makeUndeclareCallback(Declaration* p)
 {
-	BacktrackCallback result = { BacktrackCallbackThunk<Declaration, undeclareObject>::thunk, p };
+	BacktrackCallback result = { BacktrackCallbackThunk<Declaration, undeclare>::thunk, p };
 	return result;
 }
 
