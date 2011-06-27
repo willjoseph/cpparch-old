@@ -202,7 +202,9 @@ public:
 	{
 		includes[depth] = names.makeFilename(absname.c_str());
 		//LEXER_ASSERT(std::find(includes, includes + depth, includes[depth]) == includes + depth); // cyclic includes! 
+#ifdef _DEBUG
 		std::cout << "lexer: " << findFilename(includes[depth - 1]) << "  included: " << findFilename(includes[depth]) << "\n";
+#endif
 		++depth;
 		++events.push;
 	}
@@ -229,7 +231,9 @@ public:
 #endif
 
 		--depth;
+#ifdef _DEBUG
 		std::cout << "lexer: " << findFilename(includes[depth - 1]) << "  returned: " << findFilename(includes[depth]) << "\n";
+#endif
 		if(events.push != 0)
 		{
 			--events.push;

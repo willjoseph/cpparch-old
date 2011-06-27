@@ -371,7 +371,7 @@ not consider any scopes outside the innermost enclosing namespace.
 	- searching include paths
 	- recognises pragma once and include-guards
 	- 20%: get_tss_data/set_tss_data/RtlEnterCriticalSection/RtlLeaveCriticalSection
-		- compile wave without BOOST_WAVE_SUPPORT_THREADING
+		- compile wave without BOOST_WAVE_SUPPORT_THREADING <-- wave runs 50% faster
 	- 10%: malloc/memmove/free in lexer
 		- replace with stlp allocator?
 	- 10%: operator-new/free in spirit trees (vector)
