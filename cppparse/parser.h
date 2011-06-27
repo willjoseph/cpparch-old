@@ -215,18 +215,18 @@ inline struct ParserAllocator& NullParserAllocator();
 class OpaqueCopied : DefaultParserAllocator
 {
 	void* p;
-	void (*release)(void*);
+	void (*release)(DefaultParserAllocator&, void*);
 
 	template<typename T>
 	struct ReleaseGeneric
 	{
-		static void apply(void* p)
+		static void apply(DefaultParserAllocator& allocator, void* p)
 		{
-			delete static_cast<T*>(p);
+			allocatorDelete(allocator, static_cast<T*>(p));
 		}
 	};
 
-	static void releaseNull(void* p)
+	static void releaseNull(DefaultParserAllocator&, void* p)
 	{
 	}
 
@@ -247,12 +247,12 @@ public:
 	}
 	template<typename T>
 	OpaqueCopied(const T& value, const DefaultParserAllocator& allocator)
-		: DefaultParserAllocator(allocator), p(new T(value)), release(ReleaseGeneric<T>::apply)
+		: DefaultParserAllocator(allocator), p(allocatorNew(allocator, T(value))), release(ReleaseGeneric<T>::apply)
 	{
 	}
 	~OpaqueCopied()
 	{
-		release(p);
+		release(*this, p);
 	}
 	template<typename T>
 	void get(T*& result)
