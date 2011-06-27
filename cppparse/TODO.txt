@@ -370,6 +370,19 @@ not consider any scopes outside the innermost enclosing namespace.
 	- reading files
 	- searching include paths
 	- recognises pragma once and include-guards
+	- 20%: get_tss_data/set_tss_data/RtlEnterCriticalSection/RtlLeaveCriticalSection
+		- compile spirit without PHOENIX_THREADSAFE / BOOST_SPIRIT_THREADSAFE
+	- 25%: new/malloc/free/memmove in lexer
+		- lexer with linear-allocator?
+	- 10%: print to console
+	- 2%: lex_token copying
+	- general file-position string copying
+	
+- profile parser
+	- construction of symbol vtables
+	- virtual-destructors
+		- don't destroy temporary-created symbols!
+			- non-virtual concrete symbols
 	
 - optimise parser allocations
 	- ensure allocator uses good block size: 128kb?
