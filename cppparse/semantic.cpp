@@ -334,7 +334,9 @@ struct WalkerState
 	void reportIdentifierMismatch(T* symbol, const Identifier& id, Declaration* declaration, const char* expected)
 	{
 		result = 0;
+#if 0
 		gIdentifierMismatch = IdentifierMismatch(id, declaration, expected);
+#endif
 	}
 
 	Scope* getEtsScope()
@@ -1699,8 +1701,10 @@ struct ParameterDeclarationClauseWalker : public WalkerBase
 			enclosing->declarations = templateParams->declarations;
 			for(Scope::Declarations::iterator i = enclosing->declarations.begin(); i != enclosing->declarations.end(); ++i)
 			{
-				(*i).second.scope = enclosing;
-				trackDeclaration(&(*i).second);
+				Declaration* declaration = &(*i).second;
+				declaration->getName().dec.p = declaration;
+				declaration->scope = enclosing;
+				trackDeclaration(declaration);
 			}
 		}
 #endif	
