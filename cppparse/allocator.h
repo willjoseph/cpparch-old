@@ -11,6 +11,7 @@
 #define ALLOCATOR_DEBUG // causes unallocated memory to be marked and checked
 #endif
 
+#ifdef ALLOCATOR_DEBUG
 extern size_t gAllocatorFootprint;
 
 template<class T>
@@ -81,6 +82,9 @@ class OtherT> inline
 	return (false);
 }
 
+#else
+#define DebugAllocator std::allocator
+#endif
 
 
 struct AllocatorError

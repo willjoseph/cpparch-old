@@ -41,9 +41,11 @@ struct LoadFile
 
 typedef LoadFile input_policy_type;
 
+typedef std::basic_string<char, std::char_traits<char>, DebugAllocator<char> > LexString;
+
 struct LexNames
 {
-	typedef std::set<std::string, std::less<std::string>, DebugAllocator<std::string> > Identifiers;
+	typedef std::set<LexString, std::less<LexString>, DebugAllocator<int> > Identifiers;
 	Identifiers identifiers;
 	Identifiers filenames;
 
@@ -55,8 +57,8 @@ struct LexNames
 	const char* makeFilename(const char* value)
 	{
 		ProfileScope profile(gProfileIdentifier);
-		std::string tmp(value);
-		for(std::string::iterator i = tmp.begin(); i != tmp.end(); ++i)
+		LexString tmp(value);
+		for(LexString::iterator i = tmp.begin(); i != tmp.end(); ++i)
 		{
 			if(*i == '/')
 			{
@@ -200,7 +202,7 @@ public:
 	{
 		includes[depth] = names.makeFilename(absname.c_str());
 		//LEXER_ASSERT(std::find(includes, includes + depth, includes[depth]) == includes + depth); // cyclic includes! 
-		std::cout << "lexer: " << findFilename(includes[depth - 1]) << "  included: " << findFilename(includes[depth]) << std::endl;
+		std::cout << "lexer: " << findFilename(includes[depth - 1]) << "  included: " << findFilename(includes[depth]) << "\n";
 		++depth;
 		++events.push;
 	}
@@ -227,7 +229,7 @@ public:
 #endif
 
 		--depth;
-		std::cout << "lexer: " << findFilename(includes[depth - 1]) << "  returned: " << findFilename(includes[depth]) << std::endl;
+		std::cout << "lexer: " << findFilename(includes[depth - 1]) << "  returned: " << findFilename(includes[depth]) << "\n";
 		if(events.push != 0)
 		{
 			--events.push;

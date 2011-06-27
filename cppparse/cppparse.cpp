@@ -75,6 +75,11 @@ int runTest(const Test& test)
 		add_macro_definition(lexer, "__uuidof(type)=GUID()", true);
 		add_macro_definition(lexer, "__alignof(type)=4", true);
 
+		// Visual Studio 2010
+		add_macro_definition(lexer, "__single_inheritance", true);
+		add_macro_definition(lexer, "__multiple_inheritance", true);
+		add_macro_definition(lexer, "__virtual_inheritance", true);
+
 		add_macro_definition(lexer, "__has_nothrow_constructor(type)=0", true);
 		add_macro_definition(lexer, "__has_nothrow_copy(type)=0", true);
 		add_macro_definition(lexer, "__has_trivial_assign(type)=0", true);

@@ -371,18 +371,25 @@ not consider any scopes outside the innermost enclosing namespace.
 	- searching include paths
 	- recognises pragma once and include-guards
 	- 20%: get_tss_data/set_tss_data/RtlEnterCriticalSection/RtlLeaveCriticalSection
-		- compile spirit without PHOENIX_THREADSAFE / BOOST_SPIRIT_THREADSAFE
-	- 25%: new/malloc/free/memmove in lexer
-		- lexer with linear-allocator?
+		- compile wave without BOOST_WAVE_SUPPORT_THREADING
+	- 10%: malloc/memmove/free in lexer
+		- replace with stlp allocator?
+	- 10%: operator-new/free in spirit trees (vector)
+		- BOOST_SPIRIT_USE_BOOST_ALLOCATOR_FOR_TREES <-- much slower?
+		- BOOST_SPIRIT_USE_LIST_FOR_TREES
 	- 10%: print to console
 	- 2%: lex_token copying
-	- general file-position string copying
+	- general string copying
+		- file-position
+	- BOOST_SPIRIT_SINGLE_GRAMMAR_INSTANCE <--  no appreciable speedup
 	
 - profile parser
 	- construction of symbol vtables
 	- virtual-destructors
 		- don't destroy temporary-created symbols!
 			- non-virtual concrete symbols
+	- 2%: makeFilename
+		- char_traits<>::compare
 	
 - optimise parser allocations
 	- ensure allocator uses good block size: 128kb?

@@ -550,12 +550,31 @@ private:
 	//Scope& operator=(const Scope&);
 };
 
+inline Scope::Declarations::iterator findDeclaration(Scope::Declarations& declarations, Declaration* declaration)
+{
+	const Identifier& id = declaration->getName();
+	Scope::Declarations::iterator i = declarations.upper_bound(id.value);
+
+	for(; i != declarations.begin()
+		&& (*--i).first == id.value;)
+	{
+		if(&(*i).second == declaration)
+		{
+			return i;
+		}
+	}
+
+	return declarations.end();
+}
+
 inline void undeclare(Declaration* declaration, LexerAllocator& allocator)
 {
-	SYMBOLS_ASSERT(&(*declaration->scope->declarations.find(declaration->getName().value)).second == declaration);
-	SYMBOLS_ASSERT(declaration->getName().dec.p == declaration);
+	SYMBOLS_ASSERT(declaration->getName().dec.p == 0 || declaration->getName().dec.p == declaration);
 	declaration->getName().dec.p = 0;
-	declaration->scope->declarations.erase(declaration->getName().value);
+
+	Scope::Declarations::iterator i = findDeclaration(declaration->scope->declarations, declaration);
+	SYMBOLS_ASSERT(i != declaration->scope->declarations.end());
+	declaration->scope->declarations.erase(i);
 }
 
 inline BacktrackCallback makeUndeclareCallback(Declaration* p)
