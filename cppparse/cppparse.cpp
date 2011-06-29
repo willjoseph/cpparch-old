@@ -45,9 +45,9 @@ int runTest(const Test& test)
 			std::cerr << "Could not open input file: " << predefined << std::endl;
 			return -2;
 		}
-		std::cout << "reading input file: " << predefined << std::endl;
 		instream.unsetf(std::ios::skipws);
 
+		std::cout << "parsing input file: " << test.input << std::endl;
 
 		LexContext& lexer = createContext(instream, "$outer.cpp");
 		add_macro_definition(lexer, Concatenate(makeRange("_CPPP_SRC=\""), makeRange(test.input), makeRange("\"")).c_str(), true);
@@ -111,7 +111,7 @@ int runTest(const Test& test)
 			add_include_path(lexer, *p);
 			add_sysinclude_path(lexer, *p);
 		}
-#if 0 // full parse
+#if 1 // full parse
 		StringRange root(test.input, strrchr(test.input, '.'));
 		ParserContext context(lexer, Concatenate(root, makeRange(".prepro.cpp")).c_str());
 		PrintSymbolArgs args = { "out\\", context.getIncludeGraph() };
