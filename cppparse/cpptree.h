@@ -100,7 +100,8 @@ namespace cpp
 	template<typename T>
 	struct choice
 	{
-#ifdef CPPTREE_VIRTUAL
+		// VISITABLE_BASE already makes virtual, removing (empty) virtual destructor reduces destruction time
+#if 0//def CPPTREE_VIRTUAL
 		virtual ~choice()
 		{
 		}

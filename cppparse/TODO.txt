@@ -367,6 +367,7 @@ not consider any scopes outside the innermost enclosing namespace.
 - test parser for completeness and compliance
 
 - profile wave
+	- generally difficult - symbols are too long
 	- reading files
 	- searching include paths
 	- recognises pragma once and include-guards
@@ -384,12 +385,16 @@ not consider any scopes outside the innermost enclosing namespace.
 	- BOOST_SPIRIT_SINGLE_GRAMMAR_INSTANCE <--  no appreciable speedup
 	
 - profile parser
-	- construction of symbol vtables
-	- virtual-destructors
-		- don't destroy temporary-created symbols!
-			- non-virtual concrete symbols
-	- 2%: makeFilename
-		- char_traits<>::compare
+	- 10%: construction/destruction of multi-inherited interfaces
+		- remove virtual-destructors <-- 10% speedup
+		- non-virtual concrete symbols
+	- 6%: lex-names
+		- 5%: char_traits<>::compare
+		- 1%: makeFilename: 0.5%: convert forward-slash to backslash
+			- avoid slash-conversion unless absolutely necessary (assert correct convention)
+		- customise lex-token for fast comparison and share between lexer and parser?
+		- use hash-table
+	- 1% findDeclaration
 	
 - optimise parser allocations
 	- ensure allocator uses good block size: 128kb?
