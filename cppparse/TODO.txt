@@ -367,8 +367,12 @@ not consider any scopes outside the innermost enclosing namespace.
 - test parser for completeness and compliance
 
 - profile wave
+	- run wave on its own to profile..
 	- generally difficult - symbols are too long
 	- reading files
+		- copying file into string?
+		- why not just read straight from buffered iostream?
+			- lexer makes assumption that input iterator is a char* buffer the same size as the file
 	- searching include paths
 	- recognises pragma once and include-guards
 	- 20%: get_tss_data/set_tss_data/RtlEnterCriticalSection/RtlLeaveCriticalSection

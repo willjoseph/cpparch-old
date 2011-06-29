@@ -137,3 +137,6 @@ __declspec(unmanaged) void __cdecl __annotation(const unsigned short *, ...);
 #endif
 
 #endif
+
+
+#include _CPPP_SRC

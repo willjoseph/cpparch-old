@@ -25,23 +25,6 @@ typedef boost::wave::cpplexer::lex_token<LexFilePosition> token_type;
 //  parametrized with the token type.
 typedef boost::wave::cpplexer::lex_iterator<token_type> lex_iterator_type;
 
-struct LoadFile
-{
-    template <typename IterContextT>
-	struct inner : public boost::wave::iteration_context_policies::load_file_to_string::inner<IterContextT>
-	{
-            template <typename PositionT>
-            static void init_iterators(IterContextT &iter_ctx, 
-				PositionT const &act_pos, boost::wave::language_support language)
-            {
-				ProfileScope profile(gProfileIo);
-				boost::wave::iteration_context_policies::load_file_to_string::inner<IterContextT>::init_iterators(iter_ctx, act_pos, language);
-			}
-	};
-};
-
-typedef LoadFile input_policy_type;
-
 typedef std::basic_string<char, std::char_traits<char>, DebugAllocator<char> > LexString;
 
 struct LexNames
@@ -348,10 +331,132 @@ public:
 	}
 };
 
+class FileBuffer
+{
+	FileBuffer(const FileBuffer&);
+	FileBuffer& operator=(const FileBuffer&);
+public:
+	char* buffer;
+	size_t length;
+
+
+	FileBuffer()
+		: buffer(0)
+	{
+	}
+	FileBuffer(std::ifstream& instream)
+	{
+		instream.seekg(0, std::ios::end);
+		length = size_t(instream.tellg());
+		instream.seekg(0, std::ios::beg);
+		buffer = new char[length];
+		length = size_t(instream.readsome(buffer, length));
+	}
+	~FileBuffer()
+	{
+		delete[] buffer;
+	}
+};
+
+struct LoadFile
+{
+	typedef const char* iterator_type;
+
+	template <typename IterContextT>
+	struct inner
+	{
+		FileBuffer file;
+
+		template <typename PositionT>
+		static void init_iterators(IterContextT &iter_ctx, 
+			PositionT const &act_pos, boost::wave::language_support language)
+		{
+			ProfileScope profile(gProfileIo);
+
+			typedef typename IterContextT::iterator_type iterator_type;
+
+			// read in the file
+			std::ifstream instream(iter_ctx.filename.c_str());
+			if (!instream.is_open()) {
+				BOOST_WAVE_THROW_CTX(iter_ctx.ctx, preprocess_exception, 
+					bad_include_file, iter_ctx.filename.c_str(), act_pos);
+				return;
+			}
+			instream.unsetf(std::ios::skipws);
+
+			iter_ctx.file.~FileBuffer();
+			new (&iter_ctx.file) FileBuffer(instream);
+
+			iter_ctx.first = iterator_type(
+				iter_ctx.file.buffer, iter_ctx.file.buffer + iter_ctx.file.length, 
+				PositionT(iter_ctx.filename), language);
+			iter_ctx.last = iterator_type();
+		}
+	};
+};
+
+
+struct StreamFile
+{
+	typedef std::istreambuf_iterator<char> base_iterator_type;
+	typedef boost::spirit::multi_pass<base_iterator_type> IteratorBase;
+	struct Iterator : IteratorBase
+	{
+		Iterator()
+		{
+		}
+		Iterator(const base_iterator_type& other)
+			: IteratorBase(other)
+		{
+		}
+		reference operator*() const
+		{
+			return IteratorBase::operator*();
+		}
+		pointer operator->() const
+		{
+			return &(operator*());
+		}
+	};
+	typedef Iterator iterator_type;
+
+	template <typename IterContextT>
+	struct inner
+	{
+		template <typename PositionT>
+		static void init_iterators(IterContextT &iter_ctx, 
+			PositionT const &act_pos, boost::wave::language_support language)
+		{
+			typedef typename IterContextT::iterator_type iterator_type;
+
+			// read in the file
+			std::ifstream instream(iter_ctx.filename.c_str());
+			if (!instream.is_open()) {
+				BOOST_WAVE_THROW_CTX(iter_ctx.ctx, preprocess_exception, 
+					bad_include_file, iter_ctx.filename.c_str(), act_pos);
+				return;
+			}
+			instream.unsetf(std::ios::skipws);
+
+			iter_ctx.first = iterator_type(
+				Iterator(base_iterator_type(instream.rdbuf())), Iterator(base_iterator_type()), 
+				PositionT(iter_ctx.filename), language);
+			iter_ctx.last = iterator_type();
+		}
+	};
+};
+
+#if 1
+typedef LoadFile input_policy_type;
+#else
+typedef StreamFile input_policy_type; // doesn't work because lexer assumes iterator to be a char*
+#endif
+
+
 //  This is the resulting context type to use. The first template parameter
 //  should match the iterator type to be used during construction of the
 //  corresponding context object (see below).
-typedef boost::wave::context<std::string::iterator, lex_iterator_type, input_policy_type, Hooks>
+typedef boost::wave::context<input_policy_type::iterator_type, lex_iterator_type, input_policy_type, Hooks>
 context_type;
 
 //  The preprocessor iterator shouldn't be constructed directly. It is 
@@ -362,10 +467,10 @@ context_type;
 //  The preprocessing of the input stream is done on the fly behind the 
 //  scenes during iteration over the context_type::iterator_type stream.
 
-struct LexContext : public context_type, public LexNames
+struct LexContext : public FileBuffer, public context_type, public LexNames
 {
-	LexContext(std::string& instring, const char* input)
-		: context_type(instring.begin(), instring.end(), input, *this)
+	LexContext(std::ifstream& instream, const char* input)
+		: FileBuffer(instream), context_type(FileBuffer::buffer, FileBuffer::buffer + FileBuffer::length, input, *this)
 	{
 		set_language(boost::wave::language_support(
 			boost::wave::support_normal
@@ -376,6 +481,8 @@ struct LexContext : public context_type, public LexNames
 					| boost::wave::support_option_emit_pragma_directives))));
 	}
 };
+
+
 
 struct LexIterator : public context_type::iterator_type
 {
@@ -409,7 +516,7 @@ context_type::iterator_type& makeBase(LexIterator& i)
 }
 
 
-LexContext& createContext(std::string& instring, const char* input)
+LexContext& createContext(std::ifstream& instring, const char* input)
 {
 	return *(new LexContext(instring, input));
 }
@@ -532,12 +639,20 @@ Token* Lexer::read(Token* first, Token* last)
 			//debugEvents(context.get_hooks().events, context.get_hooks().getSourcePath());
 		}
 	}
-	catch (boost::wave::cpp_exception const& e) {
+	catch (boost::wave::cpp_exception const& e)
+	{
 		// some preprocessing error
 		std::cerr 
 			<< e.file_name() << "(" << e.line_no() << "): "
 			<< e.description() << std::endl;
-		return read(first, last);
+		throw LexError();
+	}
+	catch (boost::wave::cpplexer::lexing_exception const& e)
+	{
+		std::cerr 
+			<< e.file_name() << "(" << e.line_no() << "): "
+			<< e.description() << std::endl;
+		throw LexError();
 	}
 	return first;
 }
@@ -554,6 +669,13 @@ void increment(LexIterator& i)
 			<< e.description() << std::endl;
 		throw LexError();
 	}
+	catch (boost::wave::cpplexer::lexing_exception const& e)
+	{
+		std::cerr 
+			<< e.file_name() << "(" << e.line_no() << "): "
+			<< e.description() << std::endl;
+		throw LexError();
+	}
 }
 
 const LexToken& dereference(const LexIterator& i)
@@ -563,6 +685,13 @@ const LexToken& dereference(const LexIterator& i)
 	}
 	catch (boost::wave::cpp_exception const& e) {
 		// some preprocessing error
+		std::cerr 
+			<< e.file_name() << "(" << e.line_no() << "): "
+			<< e.description() << std::endl;
+		throw LexError();
+	}
+	catch (boost::wave::cpplexer::lexing_exception const& e)
+	{
 		std::cerr 
 			<< e.file_name() << "(" << e.line_no() << "): "
 			<< e.description() << std::endl;
@@ -584,3 +713,8 @@ const LexFilePosition& get_position(const LexToken& token)
 {
 	return token.get_position();
 }
+
+#if 1 // required only if iterator is not a std::string::iterator
+#include <boost/wave/cpplexer/re2clex/cpp_re2c_lexer.hpp>
+template struct boost::wave::cpplexer::new_lexer_gen<input_policy_type::iterator_type>;
+#endif

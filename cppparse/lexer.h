@@ -5,7 +5,6 @@
 #include <boost/wave/token_ids.hpp>
 #include <boost/wave/util/file_position.hpp>
 
-#include <string>
 #include <fstream>
 
 #include "common.h"
@@ -30,7 +29,7 @@ struct LexError
 
 #define LEXER_ASSERT(condition) if(!(condition)) { throw LexError(); }
 
-LexContext& createContext(std::string& instring, const char* input);
+LexContext& createContext(std::ifstream& instring, const char* input);
 bool add_include_path(LexContext& context, const char* path);
 bool add_sysinclude_path(LexContext& context, const char* path);
 bool add_macro_definition(LexContext& context, const char* macroname, bool is_predefined);
@@ -46,7 +45,7 @@ inline bool operator!=(const LexIterator& l, const LexIterator& r)
 {
 	return !(l == r);
 }
-#if 0
+#if 1
 void increment(LexIterator& i);
 const LexToken& dereference(const LexIterator& i);
 const char* get_value(const LexToken& token);

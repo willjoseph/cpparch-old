@@ -38,7 +38,6 @@ int runTest(const Test& test)
 
 		std::string instring;
 
-#if 1 // read predefined stuff into a buffer, append #include "<source>"
 		const char* predefined = "$predefined_msvc.h";
 		std::ifstream instream(predefined);
 
@@ -48,15 +47,10 @@ int runTest(const Test& test)
 		}
 		std::cout << "reading input file: " << predefined << std::endl;
 		instream.unsetf(std::ios::skipws);
-		instring = std::string(std::istreambuf_iterator<char>(instream.rdbuf()),
-			std::istreambuf_iterator<char>());
 
-		instring += Concatenate(makeRange("\n #include \""), makeRange(test.input), makeRange("\"\n")).c_str();
-#else // #include predefined stuff before #include "<source>"
-		instring = Concatenate(makeRange("#include \"$predefined_msvc.h\"\n" " #include \""), makeRange(test.input), makeRange("\"\n")).c_str();
-#endif
 
-		LexContext& lexer = createContext(instring, "$outer.cpp");
+		LexContext& lexer = createContext(instream, "$outer.cpp");
+		add_macro_definition(lexer, Concatenate(makeRange("_CPPP_SRC=\""), makeRange(test.input), makeRange("\"")).c_str(), true);
 		add_macro_definition(lexer, "__fastcall=", true);
 		add_macro_definition(lexer, "__thiscall=", true);
 		add_macro_definition(lexer, "__clrcall=", true);
@@ -117,7 +111,7 @@ int runTest(const Test& test)
 			add_include_path(lexer, *p);
 			add_sysinclude_path(lexer, *p);
 		}
-#if 1 // full parse
+#if 0 // full parse
 		StringRange root(test.input, strrchr(test.input, '.'));
 		ParserContext context(lexer, Concatenate(root, makeRange(".prepro.cpp")).c_str());
 		PrintSymbolArgs args = { "out\\", context.getIncludeGraph() };
@@ -135,7 +129,9 @@ int runTest(const Test& test)
 		//  [first, last)
 		while (first != last) {
 			const LexToken& token = dereference(first);
+#ifdef _DEBUG
 			std::cout << get_value(token);
+#endif
 			increment(first);
 		}
 #endif
