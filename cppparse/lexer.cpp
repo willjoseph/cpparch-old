@@ -38,7 +38,7 @@ struct LexNames
 		ProfileScope profile(gProfileIdentifier);
 		return (*identifiers.insert(value).first).c_str();
 	}
-	const char* makeFilename(const char* value)
+	Name makeFilename(const char* value)
 	{
 		ProfileScope profile(gProfileIdentifier);
 		LexString tmp(value);
@@ -49,7 +49,7 @@ struct LexNames
 				*i = '\\';
 			}
 		}
-		return (*filenames.insert(tmp).first).c_str();
+		return Name((*filenames.insert(tmp).first).c_str());
 	}
 	FilePosition makeFilePosition(const LexFilePosition& position)
 	{
@@ -67,7 +67,7 @@ class Hooks : public boost::wave::context_policies::eat_whitespace<token_type>
 {
 public:
 	LexNames& names;
-	const char* includes[1024];
+	Name includes[1024];
 	size_t depth;
 
 	size_t macroDepth;
@@ -83,7 +83,7 @@ public:
 	Hooks(LexNames& names)
 		: names(names), depth(1), macroDepth(0)
 	{
-		includes[0] = "$outer";
+		includes[0].value = "$outer";
 	}
 
     // new signature
@@ -187,7 +187,7 @@ public:
 		includes[depth] = names.makeFilename(absname.c_str());
 		//LEXER_ASSERT(std::find(includes, includes + depth, includes[depth]) == includes + depth); // cyclic includes! 
 #ifdef _DEBUG
-		std::cout << "lexer: " << findFilename(includes[depth - 1]) << "  included: " << findFilename(includes[depth]) << "\n";
+		std::cout << "lexer: " << findFilename(includes[depth - 1].c_str()) << "  included: " << findFilename(includes[depth].c_str()) << "\n";
 #endif
 		++depth;
 		++events.push;
@@ -216,7 +216,7 @@ public:
 
 		--depth;
 #ifdef _DEBUG
-		std::cout << "lexer: " << findFilename(includes[depth - 1]) << "  returned: " << findFilename(includes[depth]) << "\n";
+		std::cout << "lexer: " << findFilename(includes[depth - 1].c_str()) << "  returned: " << findFilename(includes[depth].c_str()) << "\n";
 #endif
 		if(events.push != 0)
 		{
@@ -247,7 +247,7 @@ public:
 		{
 			macroPosition = names.makeFilePosition(macrocall.get_position());
 		}
-		const char* defPath = names.makeFilename(macrodef.get_position().get_file().c_str());
+		Name defPath = names.makeFilename(macrodef.get_position().get_file().c_str());
 		IncludeDependencyNode& d = dependencies.get(defPath);
 		//d.macro = names.makeIdentifier(macrodef.get_value().c_str());
 		dependencies.get(getSourcePath()).insert(&d);
@@ -325,7 +325,7 @@ public:
 		}
 	}
 
-	const char* getSourcePath() const
+	Name getSourcePath() const
 	{
 		return includes[depth - 1];
 	}
@@ -577,21 +577,21 @@ const IncludeDependencyGraph& Lexer::getIncludeGraph() const
 }
 
 #ifdef _DEBUG
-void Lexer::debugEvents(IncludeEvents events, const char* source)
+void Lexer::debugEvents(IncludeEvents events, Name source)
 {
 	for(unsigned short i = 0; i != events.pop; ++i)
 	{
 		--depth;
-		includes[depth] = 0;
+		includes[depth] = NAME_NULL;
 	}
 	for(unsigned short i = 0; i != events.push; ++i)
 	{
-		includes[depth++] = 0;
+		includes[depth++] = NAME_NULL;
 	}
-	if(includes[depth - 1] == 0)
+	if(includes[depth - 1] == NAME_NULL)
 	{
 		includes[depth - 1] = source;
-		std::cout << "parser: " << findFilenameSafe(includes[depth - 1]) << std::endl;
+		std::cout << "parser: " << findFilenameSafe(includes[depth - 1].c_str()) << std::endl;
 	}
 }
 #endif

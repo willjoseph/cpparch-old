@@ -184,7 +184,7 @@ struct Visualiser
 						{
 							cpp::terminal_identifier& id = getDeclarationId(p->declaration);
 							std::cout << id.value << " ";
-							if(id.position.file != 0)
+							if(id.position.file != NAME_NULL)
 							{
 								printPosition(id.position);
 							}
@@ -717,7 +717,7 @@ struct Parser : public ParserState
 	{
 		return context.get_events();
 	}
-	const char* get_source()
+	Name get_source()
 	{
 		return context.get_source();
 	}
@@ -1622,7 +1622,7 @@ inline T* defer(ListType& deferred, ContextType& walker, Func skipFunc, T* symbo
 		{
 			*buffer.position++ = *p;
 		}
-		FilePosition nullPos = { "$null.cpp", 0, 0 };
+		FilePosition nullPos = { Name("$null.cpp"), 0, 0 };
 		*buffer.position++ = Token(boost::wave::T_EOF, "", nullPos);
 
 		deferred.back().buffer.swap(buffer);

@@ -116,8 +116,8 @@ typedef std::set<const struct IncludeDependencyNode*> IncludeDependencyNodes;
 
 struct IncludeDependencyNode : public IncludeDependencyNodes
 {
-	const char* name;
-	IncludeDependencyNode(const char* name)
+	Name name;
+	IncludeDependencyNode(Name name)
 		: name(name)
 	{
 	}
@@ -128,9 +128,9 @@ inline bool operator<(const IncludeDependencyNode& left, const IncludeDependency
 	return left.name < right.name;
 }
 
-typedef std::pair<const char*, const char*> MacroDeclaration; // first=source, second=name
+typedef std::pair<Name, const char*> MacroDeclaration; // first=source, second=name
 typedef std::set<MacroDeclaration> MacroDeclarationSet;
-typedef std::map<const char*, MacroDeclarationSet> MacroDependencyMap; // key=source
+typedef std::map<Name, MacroDeclarationSet> MacroDependencyMap; // key=source
 
 struct IncludeDependencyGraph
 {
@@ -139,7 +139,7 @@ struct IncludeDependencyGraph
 
 	MacroDependencyMap macros;
 
-	IncludeDependencyNode& get(const char* name)
+	IncludeDependencyNode& get(Name name)
 	{
 		Includes::iterator i = includes.insert(name).first;
 		return const_cast<IncludeDependencyNode&>(*i);
@@ -164,14 +164,14 @@ struct Token
 	LexTokenId id;
 	const char* value;
 	FilePosition position;
-	const char* source;
+	Name source;
 	IncludeEvents events;
 
 	Token()
 		: id(boost::wave::T_UNKNOWN)
 	{
 	}
-	Token(LexTokenId id, const char* value, const FilePosition& position, const char* source = "<unknown>", IncludeEvents events = IncludeEvents())
+	Token(LexTokenId id, const char* value, const FilePosition& position, Name source = Name("<unknown>"), IncludeEvents events = IncludeEvents())
 		: id(id), value(value), position(position), events(events), source(source)
 	{
 	}
@@ -379,7 +379,7 @@ struct Lexer
 	{
 #ifdef _DEBUG
 		depth = 0;
-		includes[depth++] = "<root>";
+		includes[depth++] = Name("<root>");
 #endif
 		refill();
 	}
@@ -450,7 +450,7 @@ struct Lexer
 	{
 		return (*position).events;
 	}
-	const char* get_source()
+	Name get_source()
 	{
 		return (*position).source;
 	}
@@ -464,10 +464,10 @@ struct Lexer
 	}
 
 #ifdef _DEBUG
-	const char* includes[1024];
+	Name includes[1024];
 	size_t depth;
 
-	void debugEvents(IncludeEvents events, const char* source);
+	void debugEvents(IncludeEvents events, Name source);
 #endif
 
 	Token* read(Token* first, Token* last);
@@ -504,7 +504,7 @@ inline void printPosition(const LexFilePosition& position)
 
 inline void printPosition(const FilePosition& position)
 {
-	std::cout << position.file << "(" << position.line << "): ";
+	std::cout << position.file.c_str() << "(" << position.line << "): ";
 }
 
 #endif

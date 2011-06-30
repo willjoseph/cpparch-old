@@ -187,11 +187,11 @@ bool isPrimary(const Identifier& id)
 	return id.dec.p != 0 && id.position == id.dec.p->getName().position;
 }
 
-typedef std::pair<const char*, Declaration*> ModuleDeclaration; // first=source, second=declaration
+typedef std::pair<Name, Declaration*> ModuleDeclaration; // first=source, second=declaration
 
 typedef std::set<ModuleDeclaration> DeclarationSet;
 
-typedef std::map<const char*, DeclarationSet> ModuleDependencyMap; // key=source
+typedef std::map<Name, DeclarationSet> ModuleDependencyMap; // key=source
 
 // recursively merges all source files in the \p graph into \p includes
 void mergeIncludes(IncludeDependencyNodes& includes, const IncludeDependencyNode& graph)
@@ -229,8 +229,8 @@ struct SymbolPrinter : PrintingWalker
 		root(args.path),
 		includeGraph(args.includeGraph)
 	{
-		includes.push("$outer");
-		open(includes.top());
+		includes.push(Name("$outer"));
+		open(includes.top().c_str());
 	}
 	~SymbolPrinter()
 	{
@@ -330,21 +330,22 @@ struct SymbolPrinter : PrintingWalker
 		}
 	}
 
-	typedef StringStack Includes;
+	typedef Stack<Name, 1024> NameStack;
+	typedef NameStack Includes;
 
 	Includes includes;
 
 	void push()
 	{
 		REPORT_ASSERT(!includes.empty());
-		if(includes.top() != 0)
+		if(includes.top() != NAME_NULL)
 		{
 			suspend();
 		}
-		includes.push(0);
+		includes.push(NAME_NULL);
 	}
 
-	bool isIncluded(const IncludeDependencyNodes& included, const char* source)
+	bool isIncluded(const IncludeDependencyNodes& included, Name source)
 	{
 		IncludeDependencyGraph::Includes::const_iterator i = includeGraph.includes.find(source);
 
@@ -356,7 +357,7 @@ struct SymbolPrinter : PrintingWalker
 	{
 		for(; declaration != 0; declaration = declaration->overloaded)
 		{
-			if(*declaration->getName().source == '$' // '$outer'
+			if(*declaration->getName().source.c_str() == '$' // '$outer'
 				|| isIncluded(included, declaration->getName().source))
 			{
 				return true;
@@ -368,15 +369,15 @@ struct SymbolPrinter : PrintingWalker
 	void pop()
 	{
 		REPORT_ASSERT(!includes.empty());
-		if(includes.top() != 0)
+		if(includes.top() != NAME_NULL)
 		{
 			close();
 
-			out.open(Concatenate(makeRange(root), makeRange(findFilenameSafe(includes.top())), makeRange(".d")).c_str());
+			out.open(Concatenate(makeRange(root), makeRange(findFilenameSafe(includes.top().c_str())), makeRange(".d")).c_str());
 
 			bool warnings = false;
 
-			bool isHeader = !string_equal_nocase(findExtension(includes.top()), ".inl");
+			bool isHeader = !string_equal_nocase(findExtension(includes.top().c_str()), ".inl");
 
 			IncludeDependencyNodes included;
 			{
@@ -401,16 +402,16 @@ struct SymbolPrinter : PrintingWalker
 					{
 						const ModuleDeclaration& declaration = *i;
 
-						printer.out << (declaration.first != 0 ? declaration.first : "<unknown>") << ": ";
+						printer.out << (declaration.first != NAME_NULL ? declaration.first : Name("<unknown>")).c_str() << ": ";
 						printName(declaration.second);
 						printer.out << std::endl;
 
-						if(declaration.first != 0
+						if(declaration.first != NAME_NULL
 							&& declaration.second != 0
 							&& isHeader
 							&& !isIncluded(included, declaration.second))
 						{
-							printer.out << "WARNING: depending on file that was not (in)directly included: " << declaration.first << std::endl;
+							printer.out << "WARNING: depending on file that was not (in)directly included: " << declaration.first.c_str() << std::endl;
 							warnings = true;
 						}
 					}
@@ -424,14 +425,14 @@ struct SymbolPrinter : PrintingWalker
 					for(MacroDeclarationSet::const_iterator i = d.begin(); i != d.end(); ++i)
 					{
 						const MacroDeclaration& declaration = *i;
-						printer.out << declaration.first << ": " << declaration.second << std::endl;
+						printer.out << declaration.first.c_str() << ": " << declaration.second << std::endl;
 
-						if(*declaration.first != '<' // <command line>
+						if(*declaration.first.c_str() != '<' // <command line>
 							&& isHeader
 							&& !string_equal(declaration.second, "NULL")// TEMP HACK
 							&& !isIncluded(included, declaration.first)) 
 						{
-							printer.out << "WARNING: depending on file that was not (in)directly included: " << declaration.first << std::endl;
+							printer.out << "WARNING: depending on file that was not (in)directly included: " << declaration.first.c_str() << std::endl;
 							warnings = true;
 						}
 					}
@@ -441,14 +442,14 @@ struct SymbolPrinter : PrintingWalker
 
 			if(warnings)
 			{
-				std::cout << "warnings found: " << includes.top() << std::endl;
+				std::cout << "warnings found: " << includes.top().c_str() << std::endl;
 			}
 		}
 		includes.pop();
 		if(!includes.empty()
-			&& includes.top() != 0)
+			&& includes.top() != NAME_NULL)
 		{
-			resume(includes.top());
+			resume(includes.top().c_str());
 		}
 	}
 
@@ -470,10 +471,10 @@ struct SymbolPrinter : PrintingWalker
 		{
 			push();
 		}
-		if(includes.top() == 0)
+		if(includes.top() == NAME_NULL)
 		{
 			includes.top() = symbol->source;
-			open(includes.top());
+			open(includes.top().c_str());
 
 			{
 				IncludeDependencyGraph::Includes::const_iterator i = includeGraph.includes.find(symbol->source);
@@ -482,7 +483,7 @@ struct SymbolPrinter : PrintingWalker
 					const IncludeDependencyNode& d = *i;
 					for(IncludeDependencyNode::const_iterator i = d.begin(); i != d.end(); ++i)
 					{
-						printer.out << "<a href='" << OutPath("", (*i)->name).c_str() << "'>" << (*i)->name << "</a>" << std::endl;
+						printer.out << "<a href='" << OutPath("", (*i)->name.c_str()).c_str() << "'>" << (*i)->name.c_str() << "</a>" << std::endl;
 					}
 				}
 			}
@@ -533,7 +534,7 @@ struct SymbolPrinter : PrintingWalker
 			printer.out << "<a href='";
 			if(symbol->value.dec.p != 0)
 			{
-				printer.out << OutPath(root, symbol->value.dec.p->getName().source).c_str() + 4; // HACK! Remove 'out/' from path
+				printer.out << OutPath(root, symbol->value.dec.p->getName().source.c_str()).c_str() + 4; // HACK! Remove 'out/' from path
 			}
 			printer.out << "#";
 			printName(symbol->value.dec.p);
@@ -541,7 +542,7 @@ struct SymbolPrinter : PrintingWalker
 
 			if(symbol->value.dec.p != 0
 				&& !isNamespace(*symbol->value.dec.p)
-				&& symbol->value.dec.p->getName().source != 0 // refers to a symbol declared in a module
+				&& symbol->value.dec.p->getName().source != NAME_NULL // refers to a symbol declared in a module
 				&& symbol->value.source != symbol->value.dec.p->getName().source) // refers to a symbol not declared in the current module
 			{
 				moduleDependencies[symbol->value.source].insert(ModuleDeclaration(symbol->value.dec.p->getName().source, symbol->value.dec.p));

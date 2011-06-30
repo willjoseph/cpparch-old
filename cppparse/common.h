@@ -2,9 +2,43 @@
 #ifndef INCLUDED_CPPPARSE_COMMON_H
 #define INCLUDED_CPPPARSE_COMMON_H
 
+struct Name
+{
+	const char* value;
+	Name()
+		: value(0)
+	{
+	}
+	explicit Name(const char* value)
+		: value(value)
+	{
+	}
+	const char* c_str() const
+	{
+		return value;
+	}
+};
+
+#define NAME_NULL Name(0)
+
+inline bool operator==(const Name& left, const Name& right)
+{
+	return left.value == right.value;
+}
+
+inline bool operator!=(const Name& left, const Name& right)
+{
+	return left.value != right.value;
+}
+
+inline bool operator<(const Name& left, const Name& right)
+{
+	return left.value < right.value;
+}
+
 struct FilePosition
 {
-	const char* file;
+	Name file;
 	unsigned int line;
 	unsigned int column;
 };

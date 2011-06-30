@@ -115,18 +115,18 @@ struct Concatenate
 	}
 };
 
-
-struct StringStack
+template<typename T, size_t CAPACITY>
+struct Stack
 {
-	StringStack()
+	Stack()
 		: depth(0)
 	{
 	}
-	typedef const char* value_type;
+	typedef T value_type;
 	typedef value_type* iterator;
 	typedef const value_type* const_iterator;
 
-	value_type stack[1024];
+	value_type stack[CAPACITY];
 	size_t depth;
 
 	bool empty() const
@@ -159,6 +159,7 @@ struct StringStack
 	}
 };
 
+typedef Stack<const char*, 1024> StringStack;
 
 #endif
 

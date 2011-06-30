@@ -3349,7 +3349,7 @@ struct TemplateDeclarationWalker : public WalkerBase
 	void visit(cpp::declaration* symbol)
 	{
 		DeclarationWalker walker(getState());
-		const char* source = parser->get_source();
+		Name source = parser->get_source();
 		TREEWALKER_WALK(walker, symbol);
 		symbol->source = source;
 		declaration = walker.declaration;
@@ -3482,7 +3482,7 @@ struct NamespaceWalker : public WalkerBase
 	{
 		DeclarationWalker walker(getState());
 		IncludeEvents events = parser->get_events();
-		const char* source = parser->get_source();
+		Name source = parser->get_source();
 		TREEWALKER_WALK(walker, symbol);
 		symbol->events = events;
 		symbol->source = source;
