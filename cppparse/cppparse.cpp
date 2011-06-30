@@ -261,7 +261,7 @@ int main(int argc, char *argv[])
 						}
 					}
 
-					if(type != COMPILEROPTIONCOUNT)
+					if(type != COMPILEROPTIONCOUNT) 
 					{
 						GetValues(options, type).push_back(value);
 					}

@@ -14,7 +14,58 @@
 
 
 typedef boost::wave::token_id LexTokenId;
+#if 0 // WIP
+struct LexFilename
+{
+	typedef BOOST_WAVE_STRINGTYPE::size_type size_type;
+	typedef BOOST_WAVE_STRINGTYPE::value_type value_type;
+	typedef BOOST_WAVE_STRINGTYPE::reference reference;
+	typedef BOOST_WAVE_STRINGTYPE::const_reference const_reference;
+	static const size_type npos =size_type(-1);
+
+
+	BOOST_WAVE_STRINGTYPE value;
+
+	LexFilename()
+	{
+	}
+	LexFilename(const char* value)
+		: value(value)
+	{
+	}
+	const char* c_str() const
+	{
+		return value.c_str();
+	}
+	size_type find_first_of(const char* s, size_type pos = 0) const
+	{
+		return value.find_first_of(s, pos);
+	}
+	const_reference operator[](size_type pos) const
+	{
+		return value[pos];
+	}
+	reference operator[](size_type pos)
+	{
+		return value[pos];
+	}
+
+};
+
+struct LexFilePosition : boost::wave::util::file_position<LexFilename>
+{
+	typedef boost::wave::util::file_position<LexFilename> Base;
+	LexFilePosition()
+	{
+	}
+	LexFilePosition(LexFilename const& file, unsigned int line = 1, unsigned int column = 1)
+		: Base(file, line, column)
+	{
+	}
+};
+#else
 typedef boost::wave::util::file_position_type LexFilePosition;
+#endif
 
 struct LexContext;
 struct LexIterator;
@@ -448,7 +499,7 @@ struct Lexer
 
 inline void printPosition(const LexFilePosition& position)
 {
-	std::cout << position.get_file() << "(" << position.get_line() << "): ";
+	std::cout << position.get_file().c_str() << "(" << position.get_line() << "): ";
 }
 
 inline void printPosition(const FilePosition& position)
