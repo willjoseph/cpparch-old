@@ -219,7 +219,7 @@ struct WalkerState
 		parser->context.allocator.deferredBacktrack(); // flush cached parse-tree
 
 		Declaration other(allocator, parent, name, type, enclosed, specifiers, isTemplate, arguments, templateParameter, valueDependent);
-		if(name.value != 0) // unnamed class/struct/union/enum
+		if(!name.value.empty()) // unnamed class/struct/union/enum
 		{
 			if(specifiers.isFriend)
 			{
@@ -244,7 +244,7 @@ struct WalkerState
 				catch(DeclarationError& e)
 				{
 					printPosition(name.position);
-					std::cout << "'" << name.value << "': " << e.description << std::endl;
+					std::cout << "'" << name.value.c_str() << "': " << e.description << std::endl;
 					printPosition(declaration->getName().position);
 					throw SemanticError();
 				}
@@ -646,7 +646,7 @@ const char* getIdentifierType(IdentifierFunc func)
 bool isUnqualified(cpp::elaborated_type_specifier_default* symbol)
 {
 	return symbol != 0
-		&& symbol->isGlobal.value == 0
+		&& symbol->isGlobal.value.empty()
 		&& symbol->context.p == 0;
 }
 
@@ -2321,7 +2321,7 @@ struct ElaboratedTypeSpecifierWalker : public WalkerQualified
 			if(isTypedef(*declaration))
 			{
 				printPosition(symbol->value.position);
-				std::cout << "'" << symbol->value.value << "': elaborated-type-specifier refers to a typedef" << std::endl;
+				std::cout << "'" << symbol->value.value.c_str() << "': elaborated-type-specifier refers to a typedef" << std::endl;
 				printPosition(declaration->getName().position);
 				throw SemanticError();
 			}
@@ -2333,7 +2333,7 @@ struct ElaboratedTypeSpecifierWalker : public WalkerQualified
 			if(declaration->type.declaration != key)
 			{
 				printPosition(symbol->value.position);
-				std::cout << "'" << symbol->value.value << "': elaborated-type-specifier key does not match declaration" << std::endl;
+				std::cout << "'" << symbol->value.value.c_str() << "': elaborated-type-specifier key does not match declaration" << std::endl;
 				printPosition(declaration->getName().position);
 				throw SemanticError();
 			}
@@ -2351,7 +2351,7 @@ struct ElaboratedTypeSpecifierWalker : public WalkerQualified
 			{
 				SEMANTIC_ASSERT(key == &gEnum);
 				printPosition(symbol->value.position);
-				std::cout << "'" << symbol->value.value << "': elaborated-type-specifier refers to undefined enum" << std::endl;
+				std::cout << "'" << symbol->value.value.c_str() << "': elaborated-type-specifier refers to undefined enum" << std::endl;
 				throw SemanticError();
 			}
 			type = key;
@@ -3186,7 +3186,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 					if(declaration != 0)
 					{
 						printPosition(member.getName().position);
-						std::cout << "'" << member.getName().value << "': anonymous union member already declared" << std::endl;
+						std::cout << "'" << member.getName().value.c_str() << "': anonymous union member already declared" << std::endl;
 						printPosition(declaration->getName().position);
 						throw SemanticError();
 					}

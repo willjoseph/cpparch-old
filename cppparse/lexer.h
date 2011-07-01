@@ -2,70 +2,17 @@
 #ifndef INCLUDED_CPPPARSE_LEXER_H
 #define INCLUDED_CPPPARSE_LEXER_H
 
-#include <boost/wave/token_ids.hpp>
-#include <boost/wave/util/file_position.hpp>
-
 #include <fstream>
 
 #include "common.h"
+#include "token.h"
 #include "printer.h"
 #include "profiler.h"
 #include "allocator.h"
 
 
 typedef boost::wave::token_id LexTokenId;
-#if 0 // WIP
-struct LexFilename
-{
-	typedef BOOST_WAVE_STRINGTYPE::size_type size_type;
-	typedef BOOST_WAVE_STRINGTYPE::value_type value_type;
-	typedef BOOST_WAVE_STRINGTYPE::reference reference;
-	typedef BOOST_WAVE_STRINGTYPE::const_reference const_reference;
-	static const size_type npos =size_type(-1);
 
-
-	BOOST_WAVE_STRINGTYPE value;
-
-	LexFilename()
-	{
-	}
-	LexFilename(const char* value)
-		: value(value)
-	{
-	}
-	const char* c_str() const
-	{
-		return value.c_str();
-	}
-	size_type find_first_of(const char* s, size_type pos = 0) const
-	{
-		return value.find_first_of(s, pos);
-	}
-	const_reference operator[](size_type pos) const
-	{
-		return value[pos];
-	}
-	reference operator[](size_type pos)
-	{
-		return value[pos];
-	}
-
-};
-
-struct LexFilePosition : boost::wave::util::file_position<LexFilename>
-{
-	typedef boost::wave::util::file_position<LexFilename> Base;
-	LexFilePosition()
-	{
-	}
-	LexFilePosition(LexFilename const& file, unsigned int line = 1, unsigned int column = 1)
-		: Base(file, line, column)
-	{
-	}
-};
-#else
-typedef boost::wave::util::file_position_type LexFilePosition;
-#endif
 
 struct LexContext;
 struct LexIterator;
@@ -96,9 +43,9 @@ inline bool operator!=(const LexIterator& l, const LexIterator& r)
 {
 	return !(l == r);
 }
-#if 1
 void increment(LexIterator& i);
 const LexToken& dereference(const LexIterator& i);
+#if 0
 const char* get_value(const LexToken& token);
 LexTokenId get_id(const LexToken& token);
 const LexFilePosition& get_position(const LexToken& token);
@@ -162,7 +109,7 @@ inline bool isWhiteSpace(LexTokenId token)
 struct Token
 {
 	LexTokenId id;
-	const char* value;
+	TokenValue value;
 	FilePosition position;
 	Name source;
 	IncludeEvents events;
@@ -171,7 +118,7 @@ struct Token
 		: id(boost::wave::T_UNKNOWN)
 	{
 	}
-	Token(LexTokenId id, const char* value, const FilePosition& position, Name source = Name("<unknown>"), IncludeEvents events = IncludeEvents())
+	Token(LexTokenId id, const TokenValue& value, const FilePosition& position, Name source = Name("<unknown>"), IncludeEvents events = IncludeEvents())
 		: id(id), value(value), position(position), events(events), source(source)
 	{
 	}
@@ -438,11 +385,11 @@ struct Lexer
 	{
 		return (*position).id;
 	}
-	const char* get_value()
+	const TokenValue& get_value()
 	{
 		return (*position).value;
 	}
-	FilePosition get_position()
+	const FilePosition& get_position()
 	{
 		return (*position).position;
 	}
@@ -454,7 +401,7 @@ struct Lexer
 	{
 		return (*position).source;
 	}
-	const char* getErrorValue()
+	const TokenValue& getErrorValue()
 	{
 		return (*error).value;
 	}
@@ -497,10 +444,12 @@ struct Lexer
 	const IncludeDependencyGraph& getIncludeGraph() const;
 };
 
+#if 0
 inline void printPosition(const LexFilePosition& position)
 {
 	std::cout << position.get_file().c_str() << "(" << position.get_line() << "): ";
 }
+#endif
 
 inline void printPosition(const FilePosition& position)
 {

@@ -14,6 +14,59 @@
 #include <boost/wave/cpplexer/cpp_lex_token.hpp>    // token class
 #include <boost/wave/cpplexer/cpp_lex_iterator.hpp> // lexer class
 
+#if 0 // WIP
+struct LexFilename
+{
+	typedef BOOST_WAVE_STRINGTYPE::size_type size_type;
+	typedef BOOST_WAVE_STRINGTYPE::value_type value_type;
+	typedef BOOST_WAVE_STRINGTYPE::reference reference;
+	typedef BOOST_WAVE_STRINGTYPE::const_reference const_reference;
+	static const size_type npos =size_type(-1);
+
+
+	BOOST_WAVE_STRINGTYPE value;
+
+	LexFilename()
+	{
+	}
+	LexFilename(const char* value)
+		: value(value)
+	{
+	}
+	const char* c_str() const
+	{
+		return value.c_str();
+	}
+	size_type find_first_of(const char* s, size_type pos = 0) const
+	{
+		return value.find_first_of(s, pos);
+	}
+	const_reference operator[](size_type pos) const
+	{
+		return value[pos];
+	}
+	reference operator[](size_type pos)
+	{
+		return value[pos];
+	}
+
+};
+
+struct LexFilePosition : boost::wave::util::file_position<LexFilename>
+{
+	typedef boost::wave::util::file_position<LexFilename> Base;
+	LexFilePosition()
+	{
+	}
+	LexFilePosition(LexFilename const& file, unsigned int line = 1, unsigned int column = 1)
+		: Base(file, line, column)
+	{
+	}
+};
+#else
+typedef boost::wave::util::file_position_type LexFilePosition;
+#endif
+
 
 //  This token type is one of the central types used throughout the library, 
 //  because it is a template parameter to some of the public classes and  
@@ -54,7 +107,7 @@ struct LexNames
 	FilePosition makeFilePosition(const LexFilePosition& position)
 	{
 		FilePosition result = {
-			makeFilename(position.get_file().c_str()),
+			position.get_file(),
 			position.get_line(),
 			position.get_column()
 		};
@@ -623,7 +676,7 @@ Token* Lexer::read(Token* first, Token* last)
 				FilePosition position = context.get_hooks().macroDepth == 0
 					? context.makeFilePosition(token.get_position())
 					: context.get_hooks().macroPosition;
-				*first++ = Token(token, context.makeIdentifier(token.get_value().c_str()), position, context.get_hooks().getSourcePath(), context.get_hooks().events);
+				*first++ = Token(token, TokenValue(context.makeIdentifier(token.get_value().c_str())), position, context.get_hooks().getSourcePath(), context.get_hooks().events);
 
 				//debugEvents(context.get_hooks().events, context.get_hooks().getSourcePath());
 
@@ -634,7 +687,7 @@ Token* Lexer::read(Token* first, Token* last)
 		if(this->first == this->last
 			&& first != last)
 		{
-			*first++ = Token(boost::wave::T_EOF, "", FilePosition(), context.get_hooks().getSourcePath(), context.get_hooks().events);
+			*first++ = Token(boost::wave::T_EOF, TokenValue(), FilePosition(), context.get_hooks().getSourcePath(), context.get_hooks().events);
 
 			//debugEvents(context.get_hooks().events, context.get_hooks().getSourcePath());
 		}

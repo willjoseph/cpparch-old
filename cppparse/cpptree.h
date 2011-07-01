@@ -5,9 +5,10 @@
 #include "visitor.h"
 #include "allocator.h"
 
-#include <boost/wave/token_ids.hpp>
+#include "token.h"
 
 typedef boost::wave::token_id LexTokenId;
+
 
 
 class Declaration;
@@ -18,11 +19,7 @@ namespace cpp
 	struct terminal
 	{
 		static const LexTokenId ID = id;
-		const char* value;
-		terminal()
-			: value(0)
-		{
-		}
+		TokenValue value;
 	};
 
 	template<LexTokenId id>
@@ -115,7 +112,7 @@ namespace cpp
 	struct terminal_choice2 // TODO: replace terminal_choice
 	{
 		LexTokenId id;
-		const char* value; // TODO: avoid storing this
+		TokenValue value; // TODO: avoid storing this
 	};
 
 	struct decoration
@@ -128,7 +125,7 @@ namespace cpp
 
 	struct terminal_identifier
 	{
-		const char* value;
+		TokenValue value;
 		FilePosition position;
 		Name source;
 		decoration dec;
@@ -136,7 +133,7 @@ namespace cpp
 
 	struct terminal_string
 	{
-		const char* value;
+		TokenValue value;
 	};
 
 	struct template_argument : public choice<template_argument>

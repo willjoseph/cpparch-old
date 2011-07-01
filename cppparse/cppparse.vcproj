@@ -337,6 +337,14 @@
 				>
 			</File>
 			<File
+				RelativePath=".\token.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\token.h"
+				>
+			</File>
+			<File
 				RelativePath=".\util.cpp"
 				>
 			</File>

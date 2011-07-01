@@ -60,12 +60,12 @@ inline void printSequence(BacktrackBuffer& buffer, BacktrackBuffer::const_iterat
 	bool endline = false;
 	for( BacktrackBuffer::const_iterator i = first; i != last; i = next(buffer, i))
 	{
-		if(space && isIdentifier(*(*i).value))
+		if(space && isIdentifier(*(*i).value.c_str()))
 		{
 			std::cout << " ";
 		}
-		std::cout << (*i).value;
-		space = isIdentifier((*i).value[strlen((*i).value) - 1]);
+		std::cout << (*i).value.c_str();
+		space = isIdentifier((*i).value.c_str()[strlen((*i).value.c_str()) - 1]);
 	}
 }
 
@@ -183,15 +183,15 @@ struct Visualiser
 						if(p->declaration != 0)
 						{
 							cpp::terminal_identifier& id = getDeclarationId(p->declaration);
-							std::cout << id.value << " ";
-							if(id.position.file != NAME_NULL)
+							std::cout << id.value.c_str() << " ";
+							if(!id.position.file.empty())
 							{
 								printPosition(id.position);
 							}
 						}
 						else
 						{
-							std::cout << (*p->position).value;
+							std::cout << (*p->position).value.c_str();
 						}
 					}
 					std::cout << std::endl;
@@ -655,7 +655,7 @@ struct ParserContext : Lexer
 		if(count > stats.count)
 		{
 			stats.count = count;
-			stats.symbol = Lexer::get_value();
+			stats.symbol = "$symbol";//Lexer::get_value();
 			stats.position = Lexer::get_position();
 		}
 #if 0 // spam!
@@ -705,11 +705,11 @@ struct Parser : public ParserState
 	{
 		return context.get_id();
 	}
-	const char* get_value()
+	const TokenValue& get_value()
 	{
 		return context.get_value();
 	}
-	FilePosition get_position()
+	const FilePosition& get_position()
 	{
 		return context.get_position();
 	}
@@ -790,7 +790,7 @@ inline void printError(Parser& parser)
 	printPosition(parser.context, context.history[parser.context.stacktrace.back()].position);
 #endif
 	printPosition(parser.context.getErrorPosition());
-	std::cout << "syntax error: '" << parser.context.getErrorValue() << "'" << std::endl;
+	std::cout << "syntax error: '" << parser.context.getErrorValue().c_str() << "'" << std::endl;
 #if 1 // TODO!
 	parser.context.visualiser.print(parser.context.history);
 #endif
@@ -1001,15 +1001,15 @@ inline LexTokenId getTokenId(cpp::terminal<id>)
 	return id;
 }
 
-inline const char* parseTerminal(Parser& parser, LexTokenId id)
+inline bool parseTerminal(Parser& parser, LexTokenId id, TokenValue& value)
 {
 	if(isToken(parser.get_id(), id))
 	{
-		const char* value = parser.get_value();
+		value = parser.get_value();
 		parser.increment();
-		return value;
+		return true;
 	}
-	return NULL;
+	return false;
 }
 
 enum ParseResult
@@ -1022,22 +1022,20 @@ enum ParseResult
 template<LexTokenId id>
 inline ParseResult parseTerminal(Parser& parser, cpp::terminal<id>& result)
 {
-	result.value = parseTerminal(parser, getTokenId(result));
-	return result.value != 0 ? PARSERESULT_PASS : PARSERESULT_FAIL;
+	return parseTerminal(parser, getTokenId(result), result.value) ? PARSERESULT_PASS : PARSERESULT_FAIL;
 }
 
 template<LexTokenId id>
 inline ParseResult parseTerminal(Parser& parser, cpp::terminal_optional<id>& result)
 {
-	result.value = parseTerminal(parser, getTokenId(result));
+	parseTerminal(parser, getTokenId(result), result.value);
 	return PARSERESULT_PASS;
 }
 
 template<LexTokenId id>
 inline ParseResult parseTerminal(Parser& parser, cpp::terminal_suffix<id>& result)
 {
-	result.value = parseTerminal(parser, getTokenId(result));
-	return result.value != 0 ? PARSERESULT_PASS : PARSERESULT_SKIP;
+	return parseTerminal(parser, getTokenId(result), result.value) ? PARSERESULT_PASS : PARSERESULT_SKIP;
 }
 
 
@@ -1161,7 +1159,7 @@ public:
 	ParseResult parse(cpp::terminal<ID>& t)
 	{
 		ParseResult result = parseTerminal(*this, t);
-		if(t.value != 0)
+		if(!t.value.empty())
 		{
 			WalkerType& walker = getWalker();
 			ParserOpaque* tmp = walker.parser;
@@ -1622,8 +1620,8 @@ inline T* defer(ListType& deferred, ContextType& walker, Func skipFunc, T* symbo
 		{
 			*buffer.position++ = *p;
 		}
-		FilePosition nullPos = { Name("$null.cpp"), 0, 0 };
-		*buffer.position++ = Token(boost::wave::T_EOF, "", nullPos);
+		FilePosition nullPos = { "$null.cpp", 0, 0 };
+		*buffer.position++ = Token(boost::wave::T_EOF, TokenValue(), nullPos);
 
 		deferred.back().buffer.swap(buffer);
 

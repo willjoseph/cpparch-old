@@ -171,13 +171,13 @@ const char* escapeTerminal(LexTokenId id, const char* value)
 template<LexTokenId id> 
 const char* escapeTerminal(cpp::terminal<id> symbol)
 {
-	return escapeTerminal(id, symbol.value);
+	return escapeTerminal(id, symbol.value.c_str());
 }
 
 
 const char* escapeTerminal(cpp::terminal_choice2 symbol)
 {
-	return escapeTerminal(symbol.id, symbol.value);
+	return escapeTerminal(symbol.id, symbol.value.c_str());
 }
 
 
@@ -277,14 +277,14 @@ struct SymbolPrinter : PrintingWalker
 
 	void visit(cpp::terminal_identifier symbol)
 	{
-		printer.printToken(boost::wave::T_IDENTIFIER, symbol.value);
+		printer.printToken(boost::wave::T_IDENTIFIER, symbol.value.c_str());
 	}
 
 	void visit(cpp::terminal_string symbol)
 	{
 #if 1
 		printer.formatToken(boost::wave::T_STRINGLIT);
-		for(const char* p = symbol.value; *p != '\0'; ++p)
+		for(const char* p = symbol.value.c_str(); *p != '\0'; ++p)
 		{
 			char c = *p;
 			switch(c)
@@ -297,7 +297,7 @@ struct SymbolPrinter : PrintingWalker
 			}
 		}
 #else
-		printer.printToken(boost::wave::T_STRINGLIT, symbol.value);
+		printer.printToken(boost::wave::T_STRINGLIT, symbol.value.c_str());
 #endif
 	}
 
@@ -309,7 +309,7 @@ struct SymbolPrinter : PrintingWalker
 	template<LexTokenId id>
 	void visit(cpp::terminal<id> symbol)
 	{
-		if(symbol.value != 0)
+		if(!symbol.value.empty())
 		{
 			printer.printToken(id, escapeTerminal(symbol));
 		}
@@ -562,7 +562,7 @@ struct SymbolPrinter : PrintingWalker
 		printer.formatToken(symbol->value.id);
 
 		printer.out << "<type>";
-		printer.out << symbol->value.value;
+		printer.out << symbol->value.value.c_str();
 		printer.out << "</type>";
 	}
 	void visit(cpp::primary_expression_builtin* symbol)
@@ -570,7 +570,7 @@ struct SymbolPrinter : PrintingWalker
 		printer.formatToken(symbol->key.ID);
 
 		printer.out << "<object>";
-		printer.out << symbol->key.value;
+		printer.out << symbol->key.value.c_str();
 		printer.out << "</object>";
 	}
 };

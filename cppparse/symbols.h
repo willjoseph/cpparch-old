@@ -319,15 +319,15 @@ typedef cpp::terminal_identifier Identifier;
 
 inline Identifier makeIdentifier(const char* value)
 {
-	Identifier result = { value };
+	Identifier result = { TokenValue(value) };
 	return result;
 }
 
-const Identifier IDENTIFIER_NULL = makeIdentifier(0);
+const Identifier IDENTIFIER_NULL;
 
 inline const char* getValue(const Identifier& id)
 {
-	return id.value == 0 ? "$unnamed" : id.value;
+	return id.value.empty() ? "$unnamed" : id.value.c_str();
 }
 
 typedef SafePtr<Identifier> IdentifierPtr;
@@ -438,7 +438,7 @@ struct UniqueName : public Identifier
 	UniqueName(size_t index)
 	{
 		sprintf(buffer, "$%x", index);
-		Identifier::value = buffer;
+		Identifier::value = TokenValue(buffer);
 	}
 };
 typedef std::vector<UniqueName*> UniqueNames;
@@ -493,9 +493,9 @@ struct Scope : public ScopeCounter
 	ScopePtr parent;
 	Identifier name;
 	size_t enclosedScopeCount; // number of scopes directly enclosed by this scope
-	typedef std::less<const char*> IdentifierLess;
+	typedef std::less<TokenValue> IdentifierLess;
 
-	typedef std::multimap<const char*, DeclarationHolder, IdentifierLess, TreeAllocator<int> > Declarations2;
+	typedef std::multimap<TokenValue, DeclarationHolder, IdentifierLess, TreeAllocator<int> > Declarations2;
 
 	struct Declarations : public Declarations2
 	{
@@ -1185,7 +1185,7 @@ inline const char* getDeclarationType(const Declaration& declaration)
 
 inline bool isAnonymous(const Declaration& declaration)
 {
-	return *declaration.getName().value == '$';
+	return *declaration.getName().value.c_str() == '$';
 }
 
 struct DeclarationError

@@ -2,64 +2,6 @@
 #ifndef INCLUDED_CPPPARSE_COMMON_H
 #define INCLUDED_CPPPARSE_COMMON_H
 
-struct Name
-{
-	const char* value;
-	Name()
-		: value(0)
-	{
-	}
-	explicit Name(const char* value)
-		: value(value)
-	{
-	}
-	const char* c_str() const
-	{
-		return value;
-	}
-};
-
-#define NAME_NULL Name(0)
-
-inline bool operator==(const Name& left, const Name& right)
-{
-	return left.value == right.value;
-}
-
-inline bool operator!=(const Name& left, const Name& right)
-{
-	return left.value != right.value;
-}
-
-inline bool operator<(const Name& left, const Name& right)
-{
-	return left.value < right.value;
-}
-
-struct FilePosition
-{
-	Name file;
-	unsigned int line;
-	unsigned int column;
-};
-
-inline bool operator==(const FilePosition& left, const FilePosition& right)
-{
-	return left.file == right.file
-		&& left.line == right.line
-		&& left.column == right.column;
-}
-
-struct IncludeEvents
-{
-	unsigned short push;
-	unsigned short pop;
-	IncludeEvents()
-		: push(0), pop(0)
-	{
-	}
-};
-
 
 #define ARRAY_COUNT(array) (sizeof(array) / sizeof(*array))
 #define ARRAY_END(array) ((array) + ARRAY_COUNT(array))

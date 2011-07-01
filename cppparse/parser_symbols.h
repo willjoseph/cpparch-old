@@ -324,7 +324,7 @@ inline cpp::member_declaration_bitfield* parseSymbol(ParserType& parser, cpp::me
 {
 	PARSE_REQUIRED(parser, result->item);
 	PARSE_TERMINAL(parser, result->comma);
-	if(result->comma.value != 0)
+	if(!result->comma.value.empty())
 	{
 		PARSE_REQUIRED(parser, result->next);
 	}
@@ -744,7 +744,7 @@ inline cpp::msext_asm_element_list_inline* parseSymbol(ParserType& parser, cpp::
 	}
 	else
 	{
-		result->semicolon.value = 0;
+		result->semicolon.value.clear();
 	}
 	return result;
 }
