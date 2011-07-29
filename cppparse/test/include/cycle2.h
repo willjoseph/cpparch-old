@@ -1,6 +1,6 @@
-#ifndef INCLUDED_TEST_CYCLE_H
-#define INCLUDED_TEST_CYCLE_H
+#ifndef INCLUDED_TEST_CYCLE2_H
+#define INCLUDED_TEST_CYCLE2_H
 
-#include "cycle2.h"
+#include "cycle.h"
 
 #endif

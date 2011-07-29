@@ -16,6 +16,15 @@
 + faster debugging: parse declaration-seq iteratively
 + fixed: template-function template-param scope not renamed from $template
 + bug: infinite loop when source file ends without newline?
++ remove 'else' after 'return reportIdentifierMismatch'
++ shared prefix: declarator
+	- simple-declaration-named -> init-declarator-list -> init-declarator -> declarator
+	- function-definition -> declarator
++ bug: without ALLOCATOR_DEBUG: stomped global-scope declarations
+	- occurs only when deferring delete of declarations
+	- stomped entry contains ets-declaration in failed parse-tree
+	- onBacktrack not called when ALLOCATER_DEBUG enabled
+	
 
 - check that using-declaration is linked to correct definition: the one visible at point of using-declaration
 
@@ -62,8 +71,6 @@ not consider any scopes outside the innermost enclosing namespace.
 			- if parseSymbol succeeds
 	- when deferring parse, we store a persistent reference to symbol
 
-- cleanup
-	- remove 'else' after 'return reportIdentifierMismatch'
 	
 - refactor mingled stuff
 	- combine WalkerContext and ParserContext?
@@ -92,15 +99,6 @@ not consider any scopes outside the innermost enclosing namespace.
 - use custom list class for DeferredSymbols?
 
 
-- shared prefix: declarator
-	- simple-declaration-named -> init-declarator-list -> init-declarator -> declarator
-	- function-definition -> declarator
-
-+ bug: without ALLOCATOR_DEBUG: stomped global-scope declarations
-	- occurs only when deferring delete of declarations
-	- stomped entry contains ets-declaration in failed parse-tree
-	- onBacktrack not called when ALLOCATER_DEBUG enabled
-	
 - bug: with ALLOCATOR_DEBUG, if type_info is not defined, error parsing malloc.h?
 
 - clean up caching and deferred destruction
@@ -282,6 +280,7 @@ not consider any scopes outside the innermost enclosing namespace.
 - replace std::list with custom List class?
 	- or just use custom tree-allocator?
 
+- report files that contain no definitions
 - ensure output files are unique
 	- one output subdir per .cpp
 	- create subdirs relative to include-path

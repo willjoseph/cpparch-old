@@ -229,12 +229,12 @@ struct SymbolPrinter : PrintingWalker
 		root(args.path),
 		includeGraph(args.includeGraph)
 	{
-		includes.push(Name("$outer"));
-		open(includes.top().c_str());
+		includeStack.push(Name("$outer"));
+		open(includeStack.top().c_str());
 	}
 	~SymbolPrinter()
 	{
-		while(!includes.empty())
+		while(!includeStack.empty())
 		{
 			pop();
 		}
@@ -331,18 +331,18 @@ struct SymbolPrinter : PrintingWalker
 	}
 
 	typedef Stack<Name, 1024> NameStack;
-	typedef NameStack Includes;
+	typedef NameStack IncludeStack;
 
-	Includes includes;
+	IncludeStack includeStack;
 
 	void push()
 	{
-		REPORT_ASSERT(!includes.empty());
-		if(includes.top() != NAME_NULL)
+		REPORT_ASSERT(!includeStack.empty());
+		if(includeStack.top() != NAME_NULL)
 		{
 			suspend();
 		}
-		includes.push(NAME_NULL);
+		includeStack.push(NAME_NULL);
 	}
 
 	bool isIncluded(const IncludeDependencyNodes& included, Name source)
@@ -368,33 +368,39 @@ struct SymbolPrinter : PrintingWalker
 
 	void pop()
 	{
-		REPORT_ASSERT(!includes.empty());
-		if(includes.top() != NAME_NULL)
+		REPORT_ASSERT(!includeStack.empty());
+		if(includeStack.top() != NAME_NULL)
 		{
 			close();
 
-			out.open(Concatenate(makeRange(root), makeRange(findFilenameSafe(includes.top().c_str())), makeRange(".d")).c_str());
+			out.open(Concatenate(makeRange(root), makeRange(findFilenameSafe(includeStack.top().c_str())), makeRange(".d")).c_str());
 
 			bool warnings = false;
 
-			bool isHeader = !string_equal_nocase(findExtension(includes.top().c_str()), ".inl");
+			bool isHeader = !string_equal_nocase(findExtension(includeStack.top().c_str()), ".inl");
 
 			IncludeDependencyNodes included;
 			{
-				IncludeDependencyGraph::Includes::const_iterator i = includeGraph.includes.find(includes.top());
+				IncludeDependencyGraph::Includes::const_iterator i = includeGraph.includes.find(includeStack.top());
 				if(i != includeGraph.includes.end())
 				{
-					mergeIncludes(included, *i);
-#if 0
+					const IncludeDependencyNode& graph = *i;
+					mergeIncludes(included, graph);
+#if 1
+					for(IncludeDependencyNodes::const_iterator i = graph.begin(); i != graph.end(); ++i)
+					{
+						printer.out << "direct: " << (*i)->name.c_str() << std::endl;
+					}
+
 					for(IncludeDependencyNodes::const_iterator i = included.begin(); i != included.end(); ++i)
 					{
-						printer.out << (*i)->name << std::endl;
+						printer.out << "indirect: " << (*i)->name.c_str() << std::endl;
 					}
 #endif
 				}
 			}
 			{
-				ModuleDependencyMap::const_iterator i = moduleDependencies.find(includes.top());
+				ModuleDependencyMap::const_iterator i = moduleDependencies.find(includeStack.top());
 				if(i != moduleDependencies.end())
 				{
 					const DeclarationSet& d = (*i).second;
@@ -418,7 +424,7 @@ struct SymbolPrinter : PrintingWalker
 				}
 			}
 			{
-				MacroDependencyMap::const_iterator i = includeGraph.macros.find(includes.top());
+				MacroDependencyMap::const_iterator i = includeGraph.macros.find(includeStack.top());
 				if(i != includeGraph.macros.end())
 				{
 					const MacroDeclarationSet& d = (*i).second;
@@ -442,14 +448,14 @@ struct SymbolPrinter : PrintingWalker
 
 			if(warnings)
 			{
-				std::cout << "warnings found: " << includes.top().c_str() << std::endl;
+				std::cout << "warnings found: " << includeStack.top().c_str() << std::endl;
 			}
 		}
-		includes.pop();
-		if(!includes.empty()
-			&& includes.top() != NAME_NULL)
+		includeStack.pop();
+		if(!includeStack.empty()
+			&& includeStack.top() != NAME_NULL)
 		{
-			resume(includes.top().c_str());
+			resume(includeStack.top().c_str());
 		}
 	}
 
@@ -471,10 +477,10 @@ struct SymbolPrinter : PrintingWalker
 		{
 			push();
 		}
-		if(includes.top() == NAME_NULL)
+		if(includeStack.top() == NAME_NULL)
 		{
-			includes.top() = symbol->source;
-			open(includes.top().c_str());
+			includeStack.top() = symbol->source;
+			open(includeStack.top().c_str());
 
 			{
 				IncludeDependencyGraph::Includes::const_iterator i = includeGraph.includes.find(symbol->source);
