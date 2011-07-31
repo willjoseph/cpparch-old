@@ -327,7 +327,7 @@ struct ListReferenceIterator
 	}
 	ListReferenceIterator operator++(int)
 	{
-		ListIterator tmp = *this;
+		ListReferenceIterator tmp = *this;
 		++*this;
 		return tmp;
 	}

@@ -6,14 +6,30 @@
 #include <iomanip>
 
 //#define PROFILE_ENABLED
+#ifdef WIN32
 
-__int64 getCPUTimeElapsed();
+typedef __int64 CPUTime;
+
+CPUTime getCPUTimeElapsed();
+
+
+#else
+
+typedef int CPUTime;
+
+inline CPUTime getCPUTimeElapsed()
+{
+    return 0;
+}
+
+#endif
+
 
 struct ProfileEntry
 {
 	const char* name;
-	__int64 elapsed;
-	__int64 elapsedChild;
+	CPUTime elapsed;
+	CPUTime elapsedChild;
 	ProfileEntry(const char* name) : name(name), elapsed(0), elapsedChild(0)
 	{
 	}
@@ -21,12 +37,12 @@ struct ProfileEntry
 
 struct Timer
 {
-	__int64 time;
+	CPUTime time;
 	void start()
 	{
 		time = getCPUTimeElapsed();
 	}
-	__int64 elapsed() const
+	CPUTime elapsed() const
 	{
 		return getCPUTimeElapsed() - time;
 	}
@@ -36,6 +52,7 @@ struct Profiler
 {
 	static struct ProfileScope* scope;
 };
+
 
 
 #ifdef PROFILE_ENABLED
@@ -54,7 +71,7 @@ struct ProfileScope
 	~ProfileScope()
 	{
 		Profiler::scope = parent;
-		__int64 elapsed = timer.elapsed();
+		CPUTime elapsed = timer.elapsed();
 		entry.elapsed += elapsed;
 		if(Profiler::scope != 0)
 		{

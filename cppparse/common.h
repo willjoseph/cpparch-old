@@ -2,6 +2,8 @@
 #ifndef INCLUDED_CPPPARSE_COMMON_H
 #define INCLUDED_CPPPARSE_COMMON_H
 
+#include <cstddef> // size_t 
+
 
 #define ARRAY_COUNT(array) (sizeof(array) / sizeof(*array))
 #define ARRAY_END(array) ((array) + ARRAY_COUNT(array))

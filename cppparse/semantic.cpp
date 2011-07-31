@@ -113,6 +113,7 @@ void printIdentifierMismatch(const IdentifierMismatch& e)
 	}
 }
 
+Identifier gGlobalId = makeIdentifier("$global");
 
 
 struct WalkerContext : public TreeAllocator<int>
@@ -123,8 +124,8 @@ struct WalkerContext : public TreeAllocator<int>
 
 	WalkerContext(const TreeAllocator<int>& allocator) :
 		TreeAllocator<int>(allocator),
-		global(allocator, makeIdentifier("$global"), SCOPETYPE_NAMESPACE),
-		globalDecl(allocator, 0, makeIdentifier("$global"), TYPE_NULL, &global),
+		global(allocator, gGlobalId, SCOPETYPE_NAMESPACE),
+		globalDecl(allocator, 0, gGlobalId, TYPE_NULL, &global),
 		globalType(Type(&globalDecl, allocator), allocator)
 	{
 	}
@@ -474,7 +475,7 @@ struct WalkerBase : public WalkerState
 
 	Declaration* declareClass(Identifier* id, TemplateArguments& arguments)
 	{
-		Scope* enclosed = templateParams != 0 ? templateParams : newScope(makeIdentifier("$class"));
+		Scope* enclosed = templateParams != 0 ? static_cast<Scope*>(templateParams) : newScope(makeIdentifier("$class"));
 		enclosed->type = SCOPETYPE_CLASS; // convert template-param-scope to class-scope if present
 		Declaration* declaration = pointOfDeclaration(context, enclosing, id == 0 ? enclosing->getUniqueName() : *id, TYPE_CLASS, enclosed, DeclSpecifiers(), enclosing == templateEnclosing, arguments);
 #ifdef ALLOCATOR_DEBUG
@@ -3310,7 +3311,7 @@ struct TemplateParameterClauseWalker : public WalkerBase
 		: WalkerBase(state), params(context), arguments(context)
 	{
 		// collect template-params into a new scope
-		Scope* scope = templateParams != 0 ? templateParams : newScope(makeIdentifier("$template"), SCOPETYPE_TEMPLATE);
+		Scope* scope = templateParams != 0 ? static_cast<Scope*>(templateParams) : newScope(makeIdentifier("$template"), SCOPETYPE_TEMPLATE);
 		templateParams = 0;
 		pushScope(scope);
 	}

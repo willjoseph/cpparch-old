@@ -106,13 +106,14 @@ struct PrintingWalker
 		: printer(printer)
 	{
 	}
+#if 0
 	template<typename T>
 	void printSymbol(T* symbol)
 	{
 		SymbolPrinter walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 	}
-
+#endif
 	void printName(Scope* scope)
 	{
 		if(scope != 0

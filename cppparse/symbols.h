@@ -323,7 +323,7 @@ inline Identifier makeIdentifier(const char* value)
 	return result;
 }
 
-const Identifier IDENTIFIER_NULL;
+const Identifier IDENTIFIER_NULL = Identifier();
 
 inline const char* getValue(const Identifier& id)
 {
@@ -437,7 +437,7 @@ struct UniqueName : public Identifier
 	char buffer[10];
 	UniqueName(size_t index)
 	{
-		sprintf(buffer, "$%x", index);
+		sprintf(buffer, "$%x", unsigned(index));
 		Identifier::value = TokenValue(buffer);
 	}
 };

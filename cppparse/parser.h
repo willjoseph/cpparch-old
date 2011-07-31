@@ -13,7 +13,7 @@ struct ParseError
 {
 	ParseError()
 	{
-		__debugbreak();
+		//__debugbreak();
 	}
 };
 
@@ -279,10 +279,10 @@ struct Cached
 template<typename T>
 struct TypeInfo
 {
-	static const type_info* id;
+	static const std::type_info* id;
 };
 template<typename T>
-const type_info* TypeInfo<T>::id = &typeid(T);
+const std::type_info* TypeInfo<T>::id = &typeid(T);
 
 template<typename T>
 struct Opaque
@@ -320,7 +320,7 @@ struct CachedSymbols
 
 	struct Value
 	{
-		const type_info* type;
+		const std::type_info* type;
 		Position end;
 		OpaqueCopied copied;
 		Value() : copied(NullParserAllocator())
@@ -1283,7 +1283,7 @@ struct ChoiceParser
 		} \
 	}
 
-#define CHOICEPARSER_OP(N) if(result = parseSymbolRequired(parser, NULLSYMBOL(TYPELIST_NTH(typename T::Choices, N)))) return result
+#define CHOICEPARSER_OP(N) if((result = parseSymbolRequired(parser, NULLSYMBOL(TYPELIST_NTH(typename T::Choices, N))))) return result
 DEFINE_CHOICEPARSER(1);
 DEFINE_CHOICEPARSER(2);
 DEFINE_CHOICEPARSER(3);
@@ -1523,7 +1523,7 @@ template<typename Base, typename ContextType>
 struct DeferredParseBase
 {
 	typedef void* (*Func)(Base&, const ContextType&, void*);
-	typename ContextType context;
+	ContextType context;
 	void* symbol;
 	Func func;
 };
