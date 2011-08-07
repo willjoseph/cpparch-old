@@ -12,9 +12,11 @@ X()
 #include "include/empty.h"
 #include "include/used.h"
 #include "include/used_duplicate.h"
+#include "include/used_indirect.h"
 
 
 const int TEST = USED;
+const int TEST_INDIRECT = INDIRECT;
 
 void test()
 {

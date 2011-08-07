@@ -318,7 +318,7 @@ public:
 			}
 #endif
 			// the current file depends on the file containing the declaration of the called macro
-			includeGraph.macros[getSourcePath()].insert(MacroDeclaration(defPath, name));
+			includeGraph.macros[getSourcePath()].insert(MacroDeclarationSet::value_type(defPath, name));
 		}
 	}
     template <typename ContextT, typename TokenT, typename ContainerT, typename IteratorT>

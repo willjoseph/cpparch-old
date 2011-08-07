@@ -91,6 +91,9 @@ struct AllocatorError
 {
 	AllocatorError()
 	{
+#ifdef WIN32
+		__debugbreak();
+#endif
 	}
 };
 

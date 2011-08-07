@@ -77,6 +77,7 @@ inline bool operator<(const IncludeDependencyNode& left, const IncludeDependency
 
 typedef std::pair<Name, const char*> MacroDeclaration; // first=source, second=name
 typedef std::set<MacroDeclaration> MacroDeclarationSet;
+const MacroDeclarationSet MACRODECLARATIONSET_NULL = MacroDeclarationSet();
 typedef std::map<Name, MacroDeclarationSet> MacroDependencyMap; // key=source
 
 struct IncludeDependencyGraph

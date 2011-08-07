@@ -24,7 +24,9 @@
 	- occurs only when deferring delete of declarations
 	- stomped entry contains ets-declaration in failed parse-tree
 	- onBacktrack not called when ALLOCATER_DEBUG enabled
-	
++ enabled syntax-highlighted output from mingled parse 
+
+
 
 - check that using-declaration is linked to correct definition: the one visible at point of using-declaration
 
@@ -304,6 +306,18 @@ not consider any scopes outside the innermost enclosing namespace.
 			- ignore dependency on X when wrapped in #ifdef X
 - detect cyclic includes
 - detect unused includes
+	- if directly included and not used
+		- and all children are not used
+	- unused if not directly or indirectly included
+- detect missing includes
+	- if module A is directly dependent on module B, A should directly include B
+- visualise include graph
+	- as module dependency graph?
+	- module dependency graph not built until after .html
+		- two pass
+	- show dependencies that are indirect
+- in each output file, add link to original source file
+- show point-of-declaration for macros?
 
 - list symbols depended on by each module
 	- use consistent path-separator/root in filenames
@@ -434,147 +448,6 @@ not consider any scopes outside the innermost enclosing namespace.
 			- don't track declarations (except forward-decl) unless ALLOCATOR_DEBUG
 			
 - clean up test code
-
-- profile:
-- vector
-	wave                   21737366
-	parser                 30846199
-	ambiguity                 50397
-	diagnose                      0
-	allocator              19302030
-	identifier              7748102
-- iostream
-	wave                   48499593
-	parser                 63617130
-	ambiguity                106620
-	diagnose                      0
-	allocator              39960755
-	identifier             16882862
-- windows
-	wave                  469218637
-	parser                141999356
-	ambiguity                111879
-	diagnose                      0
-	allocator              89381859
-	identifier             37617169
-
-NEW/DELETE
-- vector		
-	io                       508691
-	wave                   41324007
-	parser                 82063803
-	ambiguity                     0
-	diagnose                      0
-	allocator              20110129
-	identifier              9453886
-- iostream
-	io                       884982
-	wave                   72270147
-	parser                146057297
-	ambiguity                     0
-	diagnose                      0
-	allocator              41178337
-	identifier             19643432
-	
-TREE
-- vector
-	io                       568027
-	wave                   15583271
-	parser                 40107449
-	ambiguity                     0
-	diagnose                      0
-	allocator              32477248
-	identifier              7014206
-- iostream
-	io                      1121058
-	wave                   38006128
-	parser                 83479098
-	ambiguity                     0
-	diagnose                      0
-	allocator              66734488
-	identifier             15814600
-	
-STLPORT+TREE
-- vector
-	io                       445430
-	wave                    6840977
-	parser                 30122501
-	ambiguity                     0
-	diagnose                      0
-	allocator              21647419
-	identifier              6718764
-- iostream
-	io                      1005437
-	wave                   16988790
-	parser                 63241322
-	ambiguity                     0
-	diagnose                      0
-	allocator              44870679
-	identifier             15404659
-- windows
-	io                      1873929
-	wave                  162443353
-	parser                141978326
-	ambiguity                     0
-	diagnose                      0
-	allocator              99781309
-	identifier             34715545
-	
-STLPORT+TREE+SWAP
-- vector
-	io                       317450
-	wave                    6584380
-	parser                 27955728
-	ambiguity                     0
-	diagnose                      0
-	allocator              20275536
-	identifier              6456379
-- iostream
-	io                       567670
-	wave                   15366589
-	parser                 58518065
-	ambiguity                     0
-	diagnose                      0
-	allocator              41955459
-	identifier             14694980
-	
-STLPORT+TREE+SWAP+NODTOR
-- vector
-	io                       220464
-	wave                    6355605
-	parser                 27956837
-	ambiguity                     0
-	diagnose                      0
-	allocator              20200340
-	identifier              6438978
-- iostream
-	io                       474440
-	wave                   15658861
-	parser                 59074170
-	ambiguity                     0
-	diagnose                      0
-	allocator              42071153
-	identifier             14853047
-
-BUFFERED LEXER
-- iostream
-	io                       626678
-	wave                   14295285
-	parser                 10937817
-	lookup                 11108735
-	diagnose                      0
-	allocator                 90220
-	identifier              2245122
-	
-NO LOOKUP PROFILE
-- iostream
-	io                       690777
-	wave                   16251974
-	parser                  3415241
-	lookup                  1579450
-	diagnose                      0
-	allocator                 89982
-	identifier              2356020
 		
 - faster lexer
 	- optimise boost::wave?
@@ -591,8 +464,6 @@ NO LOOKUP PROFILE
 	- space between return and true/false
 	- space between nested > in template decl
 	
-- enabled syntax-highlighted output from mingled parse 
-
 - generate parser
 	- point of declaration
 		- namespace: after identifier in namespace-declaration
