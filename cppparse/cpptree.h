@@ -1808,7 +1808,7 @@ namespace cpp
 	struct declaration : public choice<declaration>, public linkage_specification_suffix
 	{
 		IncludeEvents events;
-		Name source;
+		Source source;
 		VISITABLE_DERIVED(linkage_specification_suffix);
 		VISITABLE_BASE(TYPELIST8(
 			SYMBOLFWD(linkage_specification),

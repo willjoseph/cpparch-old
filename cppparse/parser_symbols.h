@@ -12,7 +12,7 @@ inline cpp::identifier* parseSymbol(ParserType& parser, cpp::identifier* result)
 	{
 		result->value.value = parser.get_value();
 		result->value.position = parser.get_position();
-		result->value.source = parser.get_source();
+		result->value.source = parser.get_source().absolute;
 		parser.increment();
 		return result;
 	}

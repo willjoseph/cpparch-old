@@ -282,7 +282,7 @@ struct SymbolPrinter : PrintingWalker
 		includeGraph(args.includeGraph),
 		moduleDependencies(dependencies)
 	{
-		includeStack.push(Name("$outer"));
+		includeStack.push(Source(Name(""), Name("$outer")));
 		open(includeStack.top().c_str());
 	}
 	~SymbolPrinter()
@@ -385,19 +385,18 @@ struct SymbolPrinter : PrintingWalker
 		}
 	}
 
-	typedef Stack<Name, 1024> NameStack;
-	typedef NameStack IncludeStack;
+	typedef Stack<Source, 1024> IncludeStack;
 
 	IncludeStack includeStack;
 
 	void push()
 	{
 		REPORT_ASSERT(!includeStack.empty());
-		if(includeStack.top() != NAME_NULL)
+		if(includeStack.top() != SOURCE_NULL)
 		{
 			suspend();
 		}
-		includeStack.push(NAME_NULL);
+		includeStack.push(SOURCE_NULL);
 	}
 
 	bool isIncluded(const IncludeDependencyNodes& included, Name source)
@@ -545,13 +544,13 @@ struct SymbolPrinter : PrintingWalker
 	void pop()
 	{
 		REPORT_ASSERT(!includeStack.empty());
-		if(includeStack.top() != NAME_NULL)
+		if(includeStack.top() != SOURCE_NULL)
 		{
 			close();
 
 			out.open(Concatenate(makeRange(root), makeRange(findFilenameSafe(includeStack.top().c_str())), makeRange(".d")).c_str());
 
-			bool warnings = printDependencies(includeStack.top());
+			bool warnings = printDependencies(includeStack.top().absolute);
 			out.close();
 
 			if(warnings)
@@ -561,7 +560,7 @@ struct SymbolPrinter : PrintingWalker
 		}
 		includeStack.pop();
 		if(!includeStack.empty()
-			&& includeStack.top() != NAME_NULL)
+			&& includeStack.top() != SOURCE_NULL)
 		{
 			resume(includeStack.top().c_str());
 		}
@@ -585,16 +584,16 @@ struct SymbolPrinter : PrintingWalker
 		{
 			push();
 		}
-		if(includeStack.top() == NAME_NULL)
+		if(includeStack.top() == SOURCE_NULL)
 		{
 			includeStack.top() = symbol->source;
 			open(includeStack.top().c_str());
 
 			{
-				const ModuleDeclarationSet& dependencies = findModuleDependencies(symbol->source);
-				const MacroDeclarationSet& macros = findModuleMacroDependencies(symbol->source);
+				const ModuleDeclarationSet& dependencies = findModuleDependencies(symbol->source.absolute);
+				const MacroDeclarationSet& macros = findModuleMacroDependencies(symbol->source.absolute);
 
-				IncludeDependencyGraph::Includes::const_iterator i = includeGraph.includes.find(symbol->source);
+				IncludeDependencyGraph::Includes::const_iterator i = includeGraph.includes.find(symbol->source.absolute);
 				if(i != includeGraph.includes.end())
 				{
 					const IncludeDependencyNode& d = *i;

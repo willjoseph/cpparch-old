@@ -115,13 +115,38 @@ struct LexNames
 	}
 };
 
+std::ptrdiff_t popDirectories(const char* path, std::size_t n)
+{
+	const char* last = findFilename(path);
+	for(std::size_t i = 0; i != n; ++i)
+	{
+		LEXER_ASSERT(last != path);
+		const char* p = last - 1;
+		for(;;)
+		{
+			if(path == p)
+			{
+				return i - n;
+			}
+			--p;
+			if(*p == '\\')
+			{
+				last = p + 1;
+				break;
+			}
+		}
+	}
+	return last - path;
+}
+
 
 class Hooks : public boost::wave::context_policies::eat_whitespace<token_type>
 {
 public:
 	LexNames& names;
-	Name includes[1024];
+	Source includes[1024];
 	size_t depth;
+	std::string directive;
 
 	size_t macroDepth;
 	FilePosition macroPosition;
@@ -136,7 +161,7 @@ public:
 	Hooks(LexNames& names)
 		: names(names), depth(1), macroDepth(0)
 	{
-		includes[0].value = "$outer";
+		includes[0] = Source(Name(""), Name("$outer"));
 	}
 
     // new signature
@@ -220,6 +245,7 @@ public:
 	template <typename ContextT>
     bool found_include_directive(ContextT const& ctx, std::string const& filename, bool include_next) 
     {
+		directive = std::string(filename.c_str() + 1, findFilename(filename.c_str() + 1));
         return false;    // ok to include this file
     }
 
@@ -230,14 +256,100 @@ public:
 	{
 		IncludeDependencyNode& d = includeGraph.get(names.makeFilename(absname.c_str()));
 		//d.macro = names.makeIdentifier(macrodef.get_value().c_str());
-		includeGraph.get(getSourcePath()).insert(&d);
+		includeGraph.get(getSourcePath().absolute).insert(&d);
 	}
 	template <typename ContextT>
 	void opened_include_file(ContextT const &ctx, 
 		std::string const &relname, std::string const& absname,
 		bool is_system_include)
 	{
-		includes[depth] = names.makeFilename(absname.c_str());
+		std::size_t up = 0;
+		std::vector<char> normalised;
+		{
+			const char* p = directive.c_str();
+			for(const char* i = p; *i != '\0'; ++i)
+			{
+				if(*i == '\\'
+					|| *i == '/')
+				{
+					if(i - p == 0)
+					{
+						// ignore "//"
+					}
+					if(i - p == 1
+						&& *p == '.')
+					{
+						// ignore "/./"
+					}
+					else if(i - p == 2
+						&& *p == '.'
+						&& *(p + 1) == '.')
+					{
+						if(normalised.empty())
+						{
+							++up;
+						}
+						else for(;;)
+						{
+							normalised.pop_back();
+							if(normalised.back() == '\\')
+							{
+								break;
+							}
+						}
+					}
+					else
+					{
+						normalised.insert(normalised.end(), p, i);
+						normalised.push_back('\\');
+					}
+					p = i + 1;
+				}
+			}
+		}
+
+		Source parent = includes[depth - 1];
+		Name absolute = names.makeFilename(absname.c_str());
+
+		bool isLocal = false; // whether the included file is local to the including file
+
+		if(!is_system_include)
+		{
+			std::ptrdiff_t n = popDirectories(parent.absolute.c_str(), up);
+			if(n >= 0)
+			{
+				isLocal = std::equal(parent.absolute.c_str(), parent.absolute.c_str() + n, absolute.c_str())
+					&& std::equal(normalised.begin(), normalised.end(), absolute.c_str() + n);
+			}
+		}
+
+		std::ptrdiff_t n = up;
+		StringRange suffix = makeRange("");
+		std::vector<char> root;
+		if(!isLocal)
+		{
+			StringRange tmp(makeRange("$include\\"));
+			root.insert(root.end(), tmp.first, tmp.last);
+		}
+		else
+		{
+			n = popDirectories(parent.relative.c_str(), up);
+			if(n > 0)
+			{
+				suffix = StringRange(parent.relative.c_str(), parent.relative.c_str() + n);
+				n = 0;
+			}
+		}
+		for(; n != 0; --n)
+		{
+			StringRange tmp(makeRange("..\\"));
+			root.insert(root.end(), tmp.first, tmp.last);
+		}
+		root.insert(root.end(), suffix.first, suffix.last);
+
+		Name relative = names.makeFilename(Concatenate(makeRange(root), makeRange(normalised)).c_str());
+
+		includes[depth] = Source(relative, absolute);
 		//LEXER_ASSERT(std::find(includes, includes + depth, includes[depth]) == includes + depth); // cyclic includes! 
 #ifdef _DEBUG
 		std::cout << "lexer: " << findFilename(includes[depth - 1].c_str()) << "  included: " << findFilename(includes[depth].c_str()) << "\n";
@@ -250,7 +362,7 @@ public:
 	{
 #if 0
 		{
-			IncludeDependencyNode& d = includeGraph.get(getSourcePath());
+			IncludeDependencyNode& d = includeGraph.get(getSourcePath().absolute);
 			for(IncludeDependencyNode::iterator i = d.begin(); i != d.end(); ++i)
 			{
 				std::cout << "    " << (*i)->name << std::endl;
@@ -259,7 +371,7 @@ public:
 #endif
 #if 0
 		{
-			IncludeDependencyNode& d = dependencies.get(getSourcePath());
+			IncludeDependencyNode& d = dependencies.get(getSourcePath().absolute);
 			for(IncludeDependencyNode::iterator i = d.begin(); i != d.end(); ++i)
 			{
 				std::cout << "    " << (*i)->name << std::endl;
@@ -303,9 +415,9 @@ public:
 		Name defPath = names.makeFilename(macrodef.get_position().get_file().c_str());
 		IncludeDependencyNode& d = dependencies.get(defPath);
 		//d.macro = names.makeIdentifier(macrodef.get_value().c_str());
-		dependencies.get(getSourcePath()).insert(&d);
+		dependencies.get(getSourcePath().absolute).insert(&d);
 
-		if(defPath != getSourcePath()) // if the macro being called is within a different file
+		if(defPath != getSourcePath().absolute) // if the macro being called is within a different file
 		{
 			const char* name = names.makeIdentifier(macrodef.get_value().c_str());
 #if 0
@@ -314,11 +426,11 @@ public:
 				// the file containing the declaration of the called macro is implicitly included by the current file
 				// TODO: perform this when 'ifdef X' is encountered, if X was defined in another file
 				IncludeDependencyNode& d = includeGraph.get(defPath);
-				includeGraph.get(getSourcePath()).insert(&d);
+				includeGraph.get(getSourcePath().absolute).insert(&d);
 			}
 #endif
 			// the current file depends on the file containing the declaration of the called macro
-			includeGraph.macros[getSourcePath()].insert(MacroDeclarationSet::value_type(defPath, name));
+			includeGraph.macros[getSourcePath().absolute].insert(MacroDeclarationSet::value_type(defPath, name));
 		}
 	}
     template <typename ContextT, typename TokenT, typename ContainerT, typename IteratorT>
@@ -378,7 +490,7 @@ public:
 		}
 	}
 
-	Name getSourcePath() const
+	Source getSourcePath() const
 	{
 		return includes[depth - 1];
 	}
@@ -678,7 +790,7 @@ Token* Lexer::read(Token* first, Token* last)
 					: context.get_hooks().macroPosition;
 				*first++ = Token(token, TokenValue(context.makeIdentifier(token.get_value().c_str())), position, context.get_hooks().getSourcePath(), context.get_hooks().events);
 
-				//debugEvents(context.get_hooks().events, context.get_hooks().getSourcePath());
+				//debugEvents(context.get_hooks().events, context.get_hooks().getSourcePath().absolute);
 
 				context.get_hooks().events = IncludeEvents();
 			}
@@ -689,7 +801,7 @@ Token* Lexer::read(Token* first, Token* last)
 		{
 			*first++ = Token(boost::wave::T_EOF, TokenValue(), FilePosition(), context.get_hooks().getSourcePath(), context.get_hooks().events);
 
-			//debugEvents(context.get_hooks().events, context.get_hooks().getSourcePath());
+			//debugEvents(context.get_hooks().events, context.get_hooks().getSourcePath().absolute);
 		}
 	}
 	catch (boost::wave::cpp_exception const& e)

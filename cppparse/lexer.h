@@ -112,14 +112,14 @@ struct Token
 	LexTokenId id;
 	TokenValue value;
 	FilePosition position;
-	Name source;
+	Source source;
 	IncludeEvents events;
 
 	Token()
 		: id(boost::wave::T_UNKNOWN)
 	{
 	}
-	Token(LexTokenId id, const TokenValue& value, const FilePosition& position, Name source = Name("<unknown>"), IncludeEvents events = IncludeEvents())
+	Token(LexTokenId id, const TokenValue& value, const FilePosition& position, Source source = Source(Name("\"$unknown\""), Name("$unknown")), IncludeEvents events = IncludeEvents())
 		: id(id), value(value), position(position), events(events), source(source)
 	{
 	}
@@ -398,7 +398,7 @@ struct Lexer
 	{
 		return (*position).events;
 	}
-	Name get_source()
+	const Source& get_source()
 	{
 		return (*position).source;
 	}
@@ -432,7 +432,7 @@ struct Lexer
 			}
 		}
 #ifdef _DEBUG
-		debugEvents((*position).events, (*position).source);
+		debugEvents((*position).events, (*position).source.absolute);
 #endif
 	}
 

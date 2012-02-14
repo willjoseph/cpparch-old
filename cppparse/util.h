@@ -12,13 +12,13 @@ inline const char* findFilename(const char* path)
 	const char* result = strrchr(path, '\\');
 	if(result == 0)
 	{
-		result = path;
+		result = strrchr(path, '/');
+		if(result == 0)
+		{
+			return path;
+		}
 	}
-	else
-	{
-		++result;
-	}
-	return result;
+	return ++result;
 }
 
 inline const char* findFilenameSafe(const char* path)
@@ -83,6 +83,11 @@ inline StringRange makeRange(const char* s)
 inline size_t getLength(const StringRange& range)
 {
 	return range.last - range.first;
+}
+
+inline StringRange makeRange(const std::vector<char>& buffer)
+{
+	return buffer.empty() ? StringRange(0, 0) : StringRange(&(*buffer.begin()), &(*buffer.begin()) + buffer.size());
 }
 
 

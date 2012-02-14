@@ -283,9 +283,19 @@ not consider any scopes outside the innermost enclosing namespace.
 	- or just use custom tree-allocator?
 
 - report files that contain no definitions
+- support case-insensitivity for include lookup
 - ensure output files are unique
 	- one output subdir per .cpp
 	- create subdirs relative to include-path
+		- use name found in include-directive: e.g. included from c:/project/src/source.cpp
+			- <header.h> -> c:/project/inc/header.h -> $include/
+			- "header.h" -> c:/project/src/header.h -> $./
+			- "../header.h" -> c:/project/header.h -> $../
+			- "subdir/header.h" -> c:/project/src/subdir/header.h -> subdir/
+				- "header2.h" -> c:/project/src/subdir/header2.h -> subdir/
+				- <header.h> -> c:/project/inc/header.h -> $include/
+				- "header3.h" -> c:/project/inc/header3.h -> $include/
+				- "../header.h" -> c:/project/src/header.h -> $./
 		- how to determine which include-path a source file is rooted in?
 		- include-path '.' may override other include-paths?
 			- put output files sourced from include-paths into $include subdir

@@ -102,6 +102,40 @@ struct IncludeEvents
 	}
 };
 
+struct Source
+{
+	Name relative;
+	Name absolute;
+
+	Source()
+	{
+	}
+	Source(Name relative, Name absolute)
+		: relative(relative), absolute(absolute)
+	{
+	}
+	const char* c_str() const
+	{
+		return absolute.c_str();
+	}
+};
+
+inline bool operator==(const Source& left, const Source& right)
+{
+	return left.absolute == right.absolute;
+}
+
+inline bool operator!=(const Source& left, const Source& right)
+{
+	return left.absolute != right.absolute;
+}
+
+inline bool operator<(const Source& left, const Source& right)
+{
+	return left.absolute < right.absolute;
+}
+
+#define SOURCE_NULL Source(Name(0), Name(0))
 
 #endif
 

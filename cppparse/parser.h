@@ -717,7 +717,7 @@ struct Parser : public ParserState
 	{
 		return context.get_events();
 	}
-	Name get_source()
+	const Source& get_source()
 	{
 		return context.get_source();
 	}
