@@ -27,7 +27,7 @@ inline const char* findFilenameSafe(const char* path)
 	{
 		return findFilename(path);
 	}
-	return "<unknown>";
+	return "<error>";
 }
 
 inline const char* findExtension(const char* path)

@@ -4,6 +4,7 @@
 #include "printer.h"
 #include "lexer.h"
 #include "util.h"
+#include <boost/filesystem.hpp>
 
 #include <fstream>
 #include <set>
@@ -267,6 +268,73 @@ struct DependencyBuilder
 	}
 };
 
+void createDirectories(const char* path)
+{
+	try
+	{
+		boost::filesystem::create_directories(boost::filesystem::path(path).remove_filename());
+	}
+	catch(boost::filesystem::filesystem_error& e)
+	{
+		std::cerr << e.what() << std::endl;
+		throw ReportError();
+	}
+}
+
+StringRange getDrive(const char* path)
+{
+	if(*path == '\0'
+		|| *(path + 1) != ':')
+	{
+		return StringRange(0, 0);
+	}
+	return StringRange(path, path + 1);
+}
+
+const char* getWorkingDirectory()
+{
+	static std::string working = boost::filesystem::current_path().string() + "\\";
+	return working.c_str();
+}
+
+StringRange getRoot(const char* path)
+{
+	if(*path == '\0'
+		|| *(path + 1) != ':')
+	{
+		return makeRange(getWorkingDirectory());
+	}
+	return StringRange(0, 0);
+}
+
+
+const char* removeDrive(const char* path)
+{
+	if(*path == '\0'
+		|| *(path + 1) != ':')
+	{
+		return path;
+	}
+	return path + 2;
+}
+
+struct AbsolutePath : public Concatenate
+{
+	AbsolutePath(const char* path)
+		: Concatenate(getRoot(path), makeRange(path))
+	{
+	}
+};
+
+struct EscapedPath : public Concatenate
+{
+	EscapedPath(const char* path)
+		: Concatenate(getDrive(path), makeRange(removeDrive(path)))
+	{
+	}
+};
+
+
 struct SymbolPrinter : PrintingWalker
 {
 	std::ofstream out;
@@ -274,6 +342,14 @@ struct SymbolPrinter : PrintingWalker
 	const char* root;
 	const IncludeDependencyGraph& includeGraph;
 	ModuleDependencyMap& moduleDependencies;
+
+	struct OutPath : public Concatenate
+	{
+		OutPath(const char* root, const char* path)
+			: Concatenate(makeRange(AbsolutePath(root).c_str()), makeRange(EscapedPath(path).c_str()), makeRange(".html"))
+		{
+		}
+	};
 
 	SymbolPrinter(const PrintSymbolArgs& args, ModuleDependencyMap& dependencies)
 		: PrintingWalker(printer),
@@ -297,11 +373,13 @@ struct SymbolPrinter : PrintingWalker
 	void open(const char* path)
 	{
 		REPORT_ASSERT(!out.is_open());
-		out.open(OutPath(root, path).c_str());
+		OutPath tmp(root, path);
+		createDirectories(tmp.c_str());
+		out.open(tmp.c_str());
 
 		out << "<html>\n"
 			"<head>\n"
-			"<link rel='stylesheet' type='text/css' href='identifier.css'/>\n"
+			"<link rel='stylesheet' type='text/css' href='file://" << AbsolutePath(root).c_str() << "identifier.css'/>\n"
 			"</style>\n"
 			"</head>\n"
 			"<body>\n"
@@ -507,20 +585,28 @@ struct SymbolPrinter : PrintingWalker
 		return warnings;
 	}
 
-	void printAnchorStart(Declaration* declaration)
+	bool printAnchorStart(Declaration* declaration)
 	{
+		if(declaration != 0
+			&& declaration->getName().source == NAME_NULL) // this identifier is a dependent-name
+		{
+			return false; // don't make this identifier a link
+		}
+
 		printer.out << "<a href='";
 		if(declaration != 0)
 		{
-			printer.out << OutPath(root, declaration->getName().source.c_str()).c_str() + 4; // HACK! Remove 'out/' from path
+			printer.out << OutPath(root, declaration->getName().source.c_str()).c_str();
 		}
 		printer.out << "#";
 		printName(declaration);
 		printer.out << "'>";
+		return true;
 	}
 
 	void printIdentifier(cpp::identifier* symbol)
 	{
+		bool anchor = false;
 		if(isPrimary(symbol->value))
 		{
 			printer.out << "<a name='";
@@ -529,13 +615,13 @@ struct SymbolPrinter : PrintingWalker
 		}
 		else
 		{
-			printAnchorStart(symbol->value.dec.p);
+			anchor = printAnchorStart(symbol->value.dec.p);
 		}
 		const char* type = symbol->value.dec.p != 0 ? getDeclarationType(*symbol->value.dec.p) : "unknown";
 		printer.out << "<" << type << ">";
 		printer.out << getValue(symbol->value);
 		printer.out << "</" << type << ">";
-		if(!isPrimary(symbol->value))
+		if(anchor)
 		{
 			printer.out << "</a>";
 		}
@@ -548,7 +634,7 @@ struct SymbolPrinter : PrintingWalker
 		{
 			close();
 
-			out.open(Concatenate(makeRange(root), makeRange(findFilenameSafe(includeStack.top().c_str())), makeRange(".d")).c_str());
+			out.open(Concatenate(makeRange(root), makeRange(EscapedPath(includeStack.top().c_str()).c_str()), makeRange(".d")).c_str());
 
 			bool warnings = printDependencies(includeStack.top().absolute);
 			out.close();
@@ -565,14 +651,6 @@ struct SymbolPrinter : PrintingWalker
 			resume(includeStack.top().c_str());
 		}
 	}
-
-	struct OutPath : public Concatenate
-	{
-		OutPath(const char* root, const char* path)
-			: Concatenate(makeRange(root), makeRange(findFilenameSafe(path)), makeRange(".html"))
-		{
-		}
-	};
 
 	void visit(cpp::declaration* symbol)
 	{
@@ -600,7 +678,7 @@ struct SymbolPrinter : PrintingWalker
 					for(IncludeDependencyNode::const_iterator i = d.begin(); i != d.end(); ++i)
 					{
 						//printer.out << (void*)(*i)->name.c_str();
-						printer.out << "<a href='" << OutPath("", (*i)->name.c_str()).c_str() << "'>" << (*i)->name.c_str() << "</a>" << std::endl;
+						printer.out << "<a href='" << OutPath(root, (*i)->name.c_str()).c_str() << "'>" << (*i)->name.c_str() << "</a>" << std::endl;
 
 						{
 							MacroDeclarationSet::const_iterator j = macros.lower_bound(MacroDeclarationSet::value_type((*i)->name, 0));

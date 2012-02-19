@@ -282,6 +282,14 @@ not consider any scopes outside the innermost enclosing namespace.
 - replace std::list with custom List class?
 	- or just use custom tree-allocator?
 
+- bug: lookup skipped for name nominated by friend declaration, if called with parameters incorrectly determined to be type-dependent.
+	A name nominated by a friend declaration shall be accessible in the scope of the class containing the friend declaration.
+	- fails to report error gracefully if lookup fails.
+
+- bug: using-declaration has wrong source path?
+	- std::size_t in <ctime>
+
+
 - report files that contain no definitions
 - support case-insensitivity for include lookup
 - ensure output files are unique

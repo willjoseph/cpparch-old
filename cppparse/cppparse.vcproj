@@ -41,7 +41,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="..\..\boost_1_41_0;..\..\STLport-5.2.1\stlport"
+				AdditionalIncludeDirectories="..\..\boost_1_41_0;&quot;..\..\STLport-5.2.1\stlport&quot;;..\common"
 				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE;_CRT_SECURE_NO_DEPRECATE;CRT_SECURE_NO_WARNINGS;_SCL_SECURE_NO_WARNINGS;_STLP_DEBUG=1"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
@@ -126,7 +126,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="3"
 				InlineFunctionExpansion="2"
-				AdditionalIncludeDirectories="..\..\boost_1_41_0;..\..\STLport-5.2.1\stlport"
+				AdditionalIncludeDirectories="..\..\boost_1_41_0;&quot;..\..\STLport-5.2.1\stlport&quot;;..\common"
 				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE;_CRT_SECURE_NO_DEPRECATE;CRT_SECURE_NO_WARNINGS;_SCL_SECURE_NO_WARNINGS"
 				RuntimeLibrary="2"
 				BufferSecurityCheck="false"

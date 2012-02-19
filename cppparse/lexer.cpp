@@ -315,11 +315,19 @@ public:
 
 		if(!is_system_include)
 		{
-			std::ptrdiff_t n = popDirectories(parent.absolute.c_str(), up);
-			if(n >= 0)
+			if(*parent.absolute.c_str() == '$')
 			{
-				isLocal = std::equal(parent.absolute.c_str(), parent.absolute.c_str() + n, absolute.c_str())
-					&& std::equal(normalised.begin(), normalised.end(), absolute.c_str() + n);
+				// special case for root
+				isLocal = true;
+			}
+			else
+			{
+				std::ptrdiff_t n = popDirectories(parent.absolute.c_str(), up);
+				if(n >= 0)
+				{
+					isLocal = std::equal(parent.absolute.c_str(), parent.absolute.c_str() + n, absolute.c_str())
+						&& std::equal(normalised.begin(), normalised.end(), absolute.c_str() + n);
+				}
 			}
 		}
 
@@ -342,7 +350,7 @@ public:
 		}
 		for(; n != 0; --n)
 		{
-			StringRange tmp(makeRange("..\\"));
+			StringRange tmp(makeRange("$..\\"));
 			root.insert(root.end(), tmp.first, tmp.last);
 		}
 		root.insert(root.end(), suffix.first, suffix.last);
