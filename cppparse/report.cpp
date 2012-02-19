@@ -293,7 +293,7 @@ StringRange getDrive(const char* path)
 
 const char* getWorkingDirectory()
 {
-	static std::string working = boost::filesystem::current_path().string() + "\\";
+	static std::string working = boost::filesystem::initial_path().string() + "\\";
 	return working.c_str();
 }
 
