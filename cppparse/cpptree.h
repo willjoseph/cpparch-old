@@ -128,7 +128,7 @@ namespace cpp
 		TokenValue value;
 		FilePosition position;
 		Name source;
-		decoration dec;
+		decoration dec; // refers to the primary declaration named by this identifier
 	};
 
 	struct terminal_string

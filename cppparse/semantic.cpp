@@ -1949,6 +1949,8 @@ struct UsingDeclarationWalker : public WalkerQualified
 			{
 				return reportIdentifierMismatch(symbol, *walker.id, declaration, "object-name or type-name");
 			}
+
+			walker.id->dec.p = declaration; // refer to the primary declaration of this name, rather than the one declared by this using-declaration
 			 
 			declaration = pointOfDeclaration(context, enclosing, *walker.id, declaration->type, isFunction(*declaration) ? declaration->enclosed : 0, declaration->specifiers,
 				declaration->isTemplate,
@@ -1959,7 +1961,6 @@ struct UsingDeclarationWalker : public WalkerQualified
 			trackDeclaration(declaration);
 #endif
 
-			walker.id->dec.p = declaration;
 		}
 		else
 		{

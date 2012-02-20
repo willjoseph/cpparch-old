@@ -14,6 +14,10 @@ struct PrintSymbolArgs
 {
 	const char* path;
 	const IncludeDependencyGraph& includeGraph;
+	PrintSymbolArgs(const char* path, const IncludeDependencyGraph& includeGraph)
+		: path(path), includeGraph(includeGraph)
+	{
+	}
 };
 
 void printSymbol(cpp::declaration_seq* p, const PrintSymbolArgs& args);

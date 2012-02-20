@@ -289,11 +289,16 @@ not consider any scopes outside the innermost enclosing namespace.
 - bug: using-declaration has wrong source path?
 	- std::size_t in <ctime>
 
+~ make using-declaration link to named declaration
 
 - report files that contain no definitions
 - support case-insensitivity for include lookup
 - ensure output files are unique
 	- one output subdir per .cpp
+		- grouped by project and /Fo
+	- move identifier.css to sensible place
+		- or inline in html?
+	- store relative paths in output html
 	- create subdirs relative to include-path
 		- use name found in include-directive: e.g. included from c:/project/src/source.cpp
 			- <header.h> -> c:/project/inc/header.h -> $include/

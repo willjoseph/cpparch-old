@@ -379,7 +379,7 @@ struct SymbolPrinter : PrintingWalker
 
 		out << "<html>\n"
 			"<head>\n"
-			"<link rel='stylesheet' type='text/css' href='file://" << AbsolutePath(root).c_str() << "identifier.css'/>\n"
+			"<link rel='stylesheet' type='text/css' href='file://" << AbsolutePath(root).c_str() << "../identifier.css'/>\n"
 			"</style>\n"
 			"</head>\n"
 			"<body>\n"
