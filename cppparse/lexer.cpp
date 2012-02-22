@@ -347,6 +347,10 @@ public:
 				suffix = StringRange(parent.relative.c_str(), parent.relative.c_str() + n);
 				n = 0;
 			}
+			else
+			{
+				n = -n;
+			}
 		}
 		for(; n != 0; --n)
 		{

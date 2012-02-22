@@ -316,6 +316,7 @@ not consider any scopes outside the innermost enclosing namespace.
 	- compare output files generated from same source?
 - warn on escaping from include-path using '..'
 - add exclusions for warning messages
+	- specify source file
 - detect order-dependent includes
 	- e.g. header1.h depends on header2.h but does not (in)directly include it
 		- confused by multiple declarations in different headers: e.g. getwchar in stdio.h and wchar.h
@@ -341,6 +342,9 @@ not consider any scopes outside the innermost enclosing namespace.
 	- show dependencies that are indirect
 - in each output file, add link to original source file
 - show point-of-declaration for macros?
+- improve formatting of output html
+	- enum members on separate line
+
 
 - list symbols depended on by each module
 	- use consistent path-separator/root in filenames
@@ -352,6 +356,7 @@ not consider any scopes outside the innermost enclosing namespace.
 	- ignore namespace names
 	- perform type-dependent name-lookup for template instantiations
 	- handle multiple identical typedef/forward-declaration in different modules
+	- if symbol is forward-declared, link to primary declaration if visible
 			
 
 - fix or remove macroPosition

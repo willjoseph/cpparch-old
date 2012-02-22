@@ -1,7 +1,7 @@
 
-typedef int I;
+#include <xlocinfo>
 
-namespace N
+void f()
 {
-	using ::I;
+	throw runtime_error("");
 }

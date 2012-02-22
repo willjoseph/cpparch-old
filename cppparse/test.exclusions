@@ -1,0 +1,8 @@
+D:\dev\cpparch\cppparse\msvc-8.0\include\malloc.h|NotIncluded|_STATIC_ASSERT // crtdbg.h+malloc.h: wrapped with #ifndef _STATIC_ASSERT
+D:\dev\cpparch\cppparse\msvc-8.0\include\malloc.h|NotIncluded|_CrtDbgReportW;_CrtDbgBreak;_CRT_ASSERT;_ASSERT_EXPR;_ASSERTE // crtdbg.h: wrapped with #if defined(_ASSERTE)
+D:\dev\cpparch\cppparse\msvc-8.0\include\malloc.h|NotIncluded|free // stdlib.h+malloc.h: wrapped with #ifndef _CRT_ALLOCATION_DEFINED
+D:\dev\cpparch\cppparse\msvc-8.0\include\wchar.h|NotIncluded|FILE // stdio.h+wchar.h+mbstring.h: wrapped with #ifndef _FILE_DEFINED
+D:\dev\cpparch\cppparse\msvc-8.0\include\cwchar|NotIncluded|wcscat;wcscmp;wcscpy;wcscspn;wcslen;wcsncat;wcsncmp;wcsncpy;wcsspn;wcstok;wcsxfrm;wcscoll;wcschr;wcspbrk;wcsrchr;wcsstr;wscanf;getwchar;putwchar;fgetwc;fputwc;getwc;putwc;ungetwc;fgetws;fputws;fwprintf;wprintf;vfwprintf;vwprintf;fwscanf;swscanf;swprintf;vswprintf;wcstod;wcstol;wcstoul // string.h+wchar.h: wrapped with #ifndef _WSTRING_DEFINED
+D:\dev\cpparch\cppparse\msvc-8.0\include\xlocinfo.h|NotIncluded|_C_LIB_DECL;_END_C_LIB_DECL;_C_STD_BEGIN;_C_STD_END;_MRTIMP2_NCEEPURE // yvals.h: wrapped with #ifndef _YVALS
+D:\dev\cpparch\cppparse\msvc-8.0\include\xlocinfo.h|NotIncluded|__CLRCALL_PURE_OR_CDECL // yvals.h: wrapped with #ifndef _YVALS and #ifndef __CLRCALL_PURE_OR_CDECL
+D:\dev\cpparch\cppparse\msvc-8.0\include\xlocinfo|NotIncluded|std::runtime_error // stdexcept: wrapped with #ifndef _YVALS and #ifndef __CLRCALL_PURE_OR_CDECL
