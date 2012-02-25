@@ -293,7 +293,7 @@ StringRange getDrive(const char* path)
 
 const char* getWorkingDirectory()
 {
-	static std::string working = boost::filesystem::initial_path().string() + "\\";
+	static std::string working = boost::filesystem::initial_path().string() + "/";
 	return working.c_str();
 }
 
@@ -318,6 +318,11 @@ const char* removeDrive(const char* path)
 	return path + 2;
 }
 
+bool pathStartsWith(const char* path, const char* root)
+{
+	return std::equal(root, root + strlen(root), path);
+}
+
 struct AbsolutePath : public Concatenate
 {
 	AbsolutePath(const char* path)
@@ -339,14 +344,15 @@ struct SymbolPrinter : PrintingWalker
 {
 	std::ofstream out;
 	FileTokenPrinter printer;
-	const char* root;
+	const char* inputRoot;
+	const char* outputRoot;
 	const IncludeDependencyGraph& includeGraph;
 	ModuleDependencyMap& moduleDependencies;
 
 	struct OutPath : public Concatenate
 	{
-		OutPath(const char* root, const char* path)
-			: Concatenate(makeRange(AbsolutePath(root).c_str()), makeRange(EscapedPath(path).c_str()), makeRange(".html"))
+		OutPath(const char* outputRoot, const char* path)
+			: Concatenate(makeRange(AbsolutePath(outputRoot).c_str()), makeRange(EscapedPath(path).c_str()), makeRange(".html"))
 		{
 		}
 	};
@@ -354,7 +360,8 @@ struct SymbolPrinter : PrintingWalker
 	SymbolPrinter(const PrintSymbolArgs& args, ModuleDependencyMap& dependencies)
 		: PrintingWalker(printer),
 		printer(out),
-		root(args.path),
+		inputRoot(args.inputRoot),
+		outputRoot(args.outputRoot),
 		includeGraph(args.includeGraph),
 		moduleDependencies(dependencies)
 	{
@@ -373,13 +380,13 @@ struct SymbolPrinter : PrintingWalker
 	void open(const char* path)
 	{
 		REPORT_ASSERT(!out.is_open());
-		OutPath tmp(root, path);
+		OutPath tmp(outputRoot, path);
 		createDirectories(tmp.c_str());
 		out.open(tmp.c_str());
 
 		out << "<html>\n"
 			"<head>\n"
-			"<link rel='stylesheet' type='text/css' href='file://" << AbsolutePath(root).c_str() << "../identifier.css'/>\n"
+			"<link rel='stylesheet' type='text/css' href='file://" << AbsolutePath(outputRoot).c_str() << "../identifier.css'/>\n"
 			"</style>\n"
 			"</head>\n"
 			"<body>\n"
@@ -405,7 +412,7 @@ struct SymbolPrinter : PrintingWalker
 	void resume(const char* path)
 	{
 		REPORT_ASSERT(!out.is_open());
-		out.open(OutPath(root, path).c_str(), std::ios::app);
+		out.open(OutPath(outputRoot, path).c_str(), std::ios::app);
 	}
 
 	void visit(cpp::terminal_identifier symbol)
@@ -518,11 +525,29 @@ struct SymbolPrinter : PrintingWalker
 		return MACRODECLARATIONSET_NULL;
 	}
 
+	bool isReportable(const char* source)
+	{
+		typedef const char* CharConstPointer;
+		const CharConstPointer exclude[] = {
+			"malloc.h", "wchar.h", "cwchar", "xlocinfo.h", "xlocinfo", "cstdlib"
+		};
+		const char* name = findFilename(source);
+		for(const CharConstPointer* p = exclude; p != ARRAY_END(exclude); ++p)
+		{
+			if(string_equal(*p, name))
+			{
+				return false;
+			}
+		}
+		return pathStartsWith(source, AbsolutePath(inputRoot).c_str());
+	}
+
 	bool printDependencies(Name path)
 	{
 		bool warnings = false;
 
 		bool isHeader = !string_equal_nocase(findExtension(path.c_str()), ".inl");
+		bool reportable = isReportable(path.c_str());
 
 		IncludeDependencyNodes included;
 		{
@@ -554,7 +579,8 @@ struct SymbolPrinter : PrintingWalker
 				printName(declaration.second);
 				printer.out << std::endl;
 
-				if(declaration.first != NAME_NULL
+				if(reportable
+					&& declaration.first != NAME_NULL
 					&& declaration.second != 0
 					&& isHeader
 					&& !isIncluded(included, declaration.second))
@@ -571,7 +597,8 @@ struct SymbolPrinter : PrintingWalker
 				const MacroDeclarationSet::value_type& declaration = *i;
 				printer.out << declaration.first.c_str() << ": " << declaration.second << std::endl;
 
-				if(*declaration.first.c_str() != '<' // <command line>
+				if(reportable
+					&& *declaration.first.c_str() != '<' // <command line>
 					&& isHeader
 					&& !string_equal(declaration.second, "NULL")// TEMP HACK
 					&& !isIncluded(included, declaration.first)) 
@@ -596,7 +623,7 @@ struct SymbolPrinter : PrintingWalker
 		printer.out << "<a href='";
 		if(declaration != 0)
 		{
-			printer.out << OutPath(root, declaration->getName().source.c_str()).c_str();
+			printer.out << OutPath(outputRoot, declaration->getName().source.c_str()).c_str();
 		}
 		printer.out << "#";
 		printName(declaration);
@@ -634,7 +661,7 @@ struct SymbolPrinter : PrintingWalker
 		{
 			close();
 
-			out.open(Concatenate(makeRange(root), makeRange(EscapedPath(includeStack.top().c_str()).c_str()), makeRange(".d")).c_str());
+			out.open(Concatenate(makeRange(outputRoot), makeRange(EscapedPath(includeStack.top().c_str()).c_str()), makeRange(".d")).c_str());
 
 			bool warnings = printDependencies(includeStack.top().absolute);
 			out.close();
@@ -678,7 +705,7 @@ struct SymbolPrinter : PrintingWalker
 					for(IncludeDependencyNode::const_iterator i = d.begin(); i != d.end(); ++i)
 					{
 						//printer.out << (void*)(*i)->name.c_str();
-						printer.out << "<a href='" << OutPath(root, (*i)->name.c_str()).c_str() << "'>" << (*i)->name.c_str() << "</a>" << std::endl;
+						printer.out << "<a href='" << OutPath(outputRoot, (*i)->name.c_str()).c_str() << "'>" << (*i)->name.c_str() << "</a>" << std::endl;
 
 						{
 							MacroDeclarationSet::const_iterator j = macros.lower_bound(MacroDeclarationSet::value_type((*i)->name, 0));

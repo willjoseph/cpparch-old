@@ -12,10 +12,11 @@ struct IncludeDependencyGraph;
 
 struct PrintSymbolArgs
 {
-	const char* path;
+	const char* inputRoot;
+	const char* outputRoot;
 	const IncludeDependencyGraph& includeGraph;
-	PrintSymbolArgs(const char* path, const IncludeDependencyGraph& includeGraph)
-		: path(path), includeGraph(includeGraph)
+	PrintSymbolArgs(const char* inputRoot, const char* outputRoot, const IncludeDependencyGraph& includeGraph)
+		: inputRoot(inputRoot), outputRoot(outputRoot), includeGraph(includeGraph)
 	{
 	}
 };

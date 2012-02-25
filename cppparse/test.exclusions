@@ -7,3 +7,4 @@ D:\dev\cpparch\cppparse\msvc-8.0\include\xlocinfo.h|NotIncluded|_C_LIB_DECL;_END
 D:\dev\cpparch\cppparse\msvc-8.0\include\xlocinfo.h|NotIncluded|__CLRCALL_PURE_OR_CDECL // yvals.h: wrapped with #ifndef _YVALS and #ifndef __CLRCALL_PURE_OR_CDECL
 D:\dev\cpparch\cppparse\msvc-8.0\include\xlocinfo|NotIncluded|std::runtime_error // stdexcept: bug
 D:\dev\cpparch\cppparse\msvc-8.0\include\xlocinfo|NotIncluded|std::string // xstring: bug
+D:\dev\cpparch\cppparse\msvc-8.0\include\cstdlib|NotIncluded|calloc;free;malloc;realloc // malloc.h+stdlib.h: wrapped with #ifndef _CRT_ALLOCATION_DEFINED

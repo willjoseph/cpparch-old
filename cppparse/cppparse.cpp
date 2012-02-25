@@ -114,7 +114,11 @@ int runTest(const Test& test)
 #if 1 // full parse
 		StringRange root(test.input, strrchr(test.input, '.'));
 		ParserContext context(lexer, Concatenate(root, makeRange(".prepro.cpp")).c_str());
-		int result = test.verify(test.parse(context), PrintSymbolArgs(Concatenate(makeRange("out\\"), makeRange(findFilename(test.input)), makeRange("\\")).c_str(), context.getIncludeGraph()));
+		int result = test.verify(test.parse(context), PrintSymbolArgs(
+			"",
+			Concatenate(makeRange("out/"), makeRange(findFilename(test.input)), makeRange("/")).c_str(), 
+			context.getIncludeGraph())
+		);
 		if(context.stats.count != 0)
 		{
 			printPosition(context.stats.position);

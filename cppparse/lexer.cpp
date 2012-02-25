@@ -97,9 +97,9 @@ struct LexNames
 		LexString tmp(value);
 		for(LexString::iterator i = tmp.begin(); i != tmp.end(); ++i)
 		{
-			if(*i == '/')
+			if(*i == '\\')
 			{
-				*i = '\\';
+				*i = '/';
 			}
 		}
 		return Name((*filenames.insert(tmp).first).c_str());
@@ -129,7 +129,7 @@ std::ptrdiff_t popDirectories(const char* path, std::size_t n)
 				return i - n;
 			}
 			--p;
-			if(*p == '\\')
+			if(*p == '/')
 			{
 				last = p + 1;
 				break;
@@ -292,7 +292,7 @@ public:
 						else for(;;)
 						{
 							normalised.pop_back();
-							if(normalised.back() == '\\')
+							if(normalised.back() == '/')
 							{
 								break;
 							}
@@ -301,7 +301,7 @@ public:
 					else
 					{
 						normalised.insert(normalised.end(), p, i);
-						normalised.push_back('\\');
+						normalised.push_back('/');
 					}
 					p = i + 1;
 				}
@@ -336,7 +336,7 @@ public:
 		std::vector<char> root;
 		if(!isLocal)
 		{
-			StringRange tmp(makeRange("$include\\"));
+			StringRange tmp(makeRange("$include/"));
 			root.insert(root.end(), tmp.first, tmp.last);
 		}
 		else
@@ -354,7 +354,7 @@ public:
 		}
 		for(; n != 0; --n)
 		{
-			StringRange tmp(makeRange("$..\\"));
+			StringRange tmp(makeRange("$../"));
 			root.insert(root.end(), tmp.first, tmp.last);
 		}
 		root.insert(root.end(), suffix.first, suffix.last);

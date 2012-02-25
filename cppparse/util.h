@@ -9,10 +9,10 @@
 
 inline const char* findFilename(const char* path)
 {
-	const char* result = strrchr(path, '\\');
+	const char* result = strrchr(path, '/');
 	if(result == 0)
 	{
-		result = strrchr(path, '/');
+		result = strrchr(path, '\\');
 		if(result == 0)
 		{
 			return path;
