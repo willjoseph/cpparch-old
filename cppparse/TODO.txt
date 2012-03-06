@@ -25,6 +25,20 @@
 	- stomped entry contains ets-declaration in failed parse-tree
 	- onBacktrack not called when ALLOCATER_DEBUG enabled
 + enabled syntax-highlighted output from mingled parse 
++ replaced std::list with custom List class
+	- custom tree-allocator with std::list doesn't work: allocation pattern is implementation-defined
++ in parseSymbolRequired, defer allocation of symbol until successful parse
+	- requires stack-allocation and copying of parse-tree node
+	- when parsing identifier, we store a persistent reference to symbol
+		- allocate within visit()?
+			- if parseSymbol succeeds
+	- when deferring parse, we store a persistent reference to symbol
++ avoid copying Type in addDependent/Dependent
+	- use list allocated with tree-allocator
+		- use reference-counting to ensure nodes not freed before release
++ make using-declaration link to named declaration
+
+
 
 
 
@@ -66,21 +80,16 @@ name in a friend declaration is neither qualified nor a template-id and the decl
 an elaborated-type-specifier, the lookup to determine whether the entity has been previously declared shall
 not consider any scopes outside the innermost enclosing namespace.
 
-+ in parseSymbolRequired, defer allocation of symbol until successful parse
-	- requires stack-allocation and copying of parse-tree node
-	- when parsing identifier, we store a persistent reference to symbol
-		- allocate within visit()?
-			- if parseSymbol succeeds
-	- when deferring parse, we store a persistent reference to symbol
+- bug: lookup skipped for name nominated by friend declaration, if called with parameters incorrectly determined to be type-dependent.
+	A name nominated by a friend declaration shall be accessible in the scope of the class containing the friend declaration.
+	- fails to report error gracefully if lookup fails.
+
 
 	
 - refactor mingled stuff
 	- combine WalkerContext and ParserContext?
 	- WALK macros
 
-- avoid constructing complex *_NULL constants on the fly
-
-- avoid copying Type in addDependency/DependencyNode
 
 - test-cases
 	- document existing tests
@@ -98,10 +107,12 @@ not consider any scopes outside the innermost enclosing namespace.
 - test that template-arguments in a nested-name-specifier-suffix-template are considered when deciding that the NNS is dependent
 - test that names introduced into namespace by using-directive correctly hide previously-declared names
 
-- use custom list class for DeferredSymbols?
 
 
 - bug: with ALLOCATOR_DEBUG, if type_info is not defined, error parsing malloc.h?
+
+- avoid constructing complex *_NULL constants on the fly
+- use custom list class for DeferredSymbols?
 
 - clean up caching and deferred destruction
 	- clean up CachedSymbols
@@ -265,9 +276,10 @@ not consider any scopes outside the innermost enclosing namespace.
 
 	
 - parser is hard to work with - refactor?
+	+ remove unmingled parse
 	- remove dead code
 	- replace Copied with a list?
-	- remove unmingled parse
+		- done mostly, except for addDependent(Dependent)?
 	- clean up SimpleDeclarationWalker::deferred
 	- naming:
 		- ParserContext is lexer?
@@ -279,24 +291,14 @@ not consider any scopes outside the innermost enclosing namespace.
 	- inTemplateArgumentList
 	- overloadable_operator
 	
-- replace std::list with custom List class?
-	- or just use custom tree-allocator?
-
-- bug: lookup skipped for name nominated by friend declaration, if called with parameters incorrectly determined to be type-dependent.
-	A name nominated by a friend declaration shall be accessible in the scope of the class containing the friend declaration.
-	- fails to report error gracefully if lookup fails.
-
 - bug: using-declaration has wrong source path?
 	- std::size_t in <ctime>
-
-~ make using-declaration link to named declaration
 
 - add exclusions/suppression for warning messages
 	- specify source file, warning-type, identifier
 	- automatically exclude external library headers? e.g. STLPort, boost, stdc, win32
 		- how to tell if they're external?
 			- require user to specify root(s) for files to report about?
-			- 
 - report files that contain no definitions
 - support case-insensitivity for include lookup
 - ensure output files are unique
@@ -377,7 +379,7 @@ not consider any scopes outside the innermost enclosing namespace.
 	
 - detect mid-declaration-includes
 
-- output one html per #include
++ output one html per #include
 	- why?
 		- not required for dependency-tracking?
 		- easier to browse html source
@@ -445,25 +447,20 @@ not consider any scopes outside the innermost enclosing namespace.
 		- use hash-table
 	- 1% findDeclaration
 	
-- optimise parser allocations
-	- ensure allocator uses good block size: 128kb?
-	- use parse-tree allocator where possible
-		- scopes
-		- declarations
-		- types
-	- avoid allocations where possible
-		- don't allocate symbol until successful parse
++ optimise parser allocations
+	+ ensure allocator uses good block size: 128kb?
+	+ use parse-tree allocator where possible
+		+ scopes
+		+ declarations
+		+ types
+	+ avoid allocations where possible
+		+ don't allocate symbol until successful parse
 			- measure cost
-		- avoid copying 'qualifying' when creating WalkerState
-			- parsing nested-name-specifier
-			- copy-on-write?
-			- move to walker-base?
-			- ref instead of copy?
-			- avoid copying 'global-type'
-			- use list instead of 'copied'
-		- don't track list of scopes/declarations unless debugging
+		+ avoid copying 'qualifying' when creating WalkerState: e.g. parsing nested-name-specifier
+			+ ref instead of copy
+		+ don't track list of scopes/declarations unless debugging
 			
-- optimise name-lookup?
++ optimise name-lookup?
 	- hashtable?
 	- single global id table, id:scopes?
 		- how to sort scopes?
