@@ -1025,6 +1025,7 @@ struct DependentPrimaryExpressionWalker : public WalkerBase
 	}
 };
 
+// walks an argument-dependent-lookup function-call expression: postfix-expression ( expression-list. )
 struct DependentPostfixExpressionWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;

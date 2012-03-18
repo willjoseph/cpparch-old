@@ -384,7 +384,7 @@ namespace cpp
 		VISITABLE_DERIVED(postfix_expression);
 		VISITABLE_BASE(TYPELIST6(
 			SYMBOLFWD(primary_expression),
-			SYMBOLFWD(postfix_expression_disambiguate),
+			SYMBOLFWD(postfix_expression_disambiguate), // matches X()() as nested function call, before X() is matched as a constructor call
 			SYMBOLFWD(postfix_expression_construct),
 			SYMBOLFWD(postfix_expression_cast),
 			SYMBOLFWD(postfix_expression_typeid),
@@ -1149,6 +1149,7 @@ namespace cpp
 		FOREACH3(lp, args, rp);
 	};
 
+	// disambiguates nested function-call expression from postfix_expression_construct
 	struct postfix_expression_disambiguate : public postfix_expression_prefix
 	{
 		VISITABLE_DERIVED(postfix_expression_prefix);

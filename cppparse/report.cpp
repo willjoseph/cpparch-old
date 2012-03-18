@@ -792,7 +792,102 @@ struct SymbolPrinter : PrintingWalker
 	}
 };
 
+struct ParseTreePrinter
+{
+	std::ofstream out;
+	FileTokenPrinter printer;
+	ParseTreePrinter(const char* outputRoot)
+		: out(OutPath(outputRoot).c_str()), printer(out)
+	{
+		out << "<html>\n"
+			"<head>\n"
+			"</head>\n"
+			"<body>\n"
+			"<pre style='color:#000000;background:#ffffff;'>\n";
+	}
+	~ParseTreePrinter()
+	{
+		REPORT_ASSERT(out.is_open());
 
+		out << "</pre>\n"
+			"</body>\n"
+			"</html>\n";
+	}
+
+	struct OutPath : public Concatenate
+	{
+		OutPath(const char* out)
+			: Concatenate(makeRange(out), makeRange("parse.html"))
+		{
+		}
+	};
+
+	void visit(cpp::terminal_identifier symbol)
+	{
+		printer.printToken(boost::wave::T_IDENTIFIER, symbol.value.c_str());
+	}
+
+	void visit(cpp::terminal_string symbol)
+	{
+#if 1
+		printer.formatToken(boost::wave::T_STRINGLIT);
+		for(const char* p = symbol.value.c_str(); *p != '\0'; ++p)
+		{
+			char c = *p;
+			switch(c)
+			{
+			case '"': printer.out << "&quot;"; break;
+			case '&': printer.out << "&amp;"; break;
+			case '<': printer.out << "&lt;"; break;
+			case '>': printer.out << "&gt;"; break;
+			default: printer.out << c; break;
+			}
+		}
+#else
+		printer.printToken(boost::wave::T_STRINGLIT, symbol.value.c_str());
+#endif
+	}
+
+	void visit(cpp::terminal_choice2 symbol)
+	{
+		printer.printToken(symbol.id, escapeTerminal(symbol));
+	}
+
+	template<LexTokenId id>
+	void visit(cpp::terminal<id> symbol)
+	{
+		if(!symbol.value.empty())
+		{
+			printer.printToken(id, escapeTerminal(symbol));
+		}
+	}
+
+	template<typename T>
+	void visit(T* symbol)
+	{
+		if(typeid(T) != typeid(*symbol) // if abstract
+			|| typeid(T) == typeid(cpp::declaration_seq)) // or nested sequence
+		{
+			// don't print span
+			symbol->accept(*this);
+		}
+		else
+		{
+			out << "<span title=\"" << SYMBOL_NAME(*symbol) << "\">";
+			symbol->accept(*this);
+			out << "</span>";
+		}
+	}
+
+	template<typename T>
+	void visit(cpp::symbol<T> symbol)
+	{
+		if(symbol.p != 0)
+		{
+			visit(symbol.p);
+		}
+	}
+};
 
 
 void printSymbol(cpp::declaration_seq* p, const PrintSymbolArgs& args)
@@ -801,8 +896,14 @@ void printSymbol(cpp::declaration_seq* p, const PrintSymbolArgs& args)
 	{
 		DependencyBuilder builder;
 		builder.visit(makeSymbol(p));
-		SymbolPrinter printer(args, builder.moduleDependencies);
-		printer.visit(makeSymbol(p));
+		{
+			ParseTreePrinter printer(args.outputRoot);
+			printer.visit(makeSymbol(p));
+		}
+		{
+			SymbolPrinter printer(args, builder.moduleDependencies);
+			printer.visit(makeSymbol(p));
+		}
 	}
 	catch(ReportError&)
 	{
@@ -815,8 +916,14 @@ void printSymbol(cpp::statement_seq* p, const PrintSymbolArgs& args)
 	{
 		DependencyBuilder builder;
 		builder.visit(makeSymbol(p));
-		SymbolPrinter printer(args, builder.moduleDependencies);
-		printer.visit(makeSymbol(p));
+		{
+			ParseTreePrinter printer(args.outputRoot);
+			printer.visit(makeSymbol(p));
+		}
+		{
+			SymbolPrinter printer(args, builder.moduleDependencies);
+			printer.visit(makeSymbol(p));
+		}
 	}
 	catch(ReportError&)
 	{
