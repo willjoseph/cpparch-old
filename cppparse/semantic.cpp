@@ -1176,59 +1176,19 @@ struct LiteralWalker : public WalkerBase
 	}
 };
 
-struct BinaryExpressionWalker : public WalkerBase
-{
-	TREEWALKER_DEFAULT;
-	Type type;
-	Dependent typeDependent;
-	Dependent valueDependent;
-	bool postOperator;
-	BinaryExpressionWalker(const WalkerState& state)
-		: WalkerBase(state), type(0, context), typeDependent(context), valueDependent(context), postOperator(false)
-	{
-	}
-	template<typename Walker>
-	void parsedExpression(Walker& walker)
-	{
-		if(postOperator)
-		{
-			if(type.declaration != 0) // TODO: assert
-			{
-				type = binaryOperatorType(type, walker.type);
-			}
-		}
-		else
-		{
-			type.swap(walker.type);
-		}
-		addDependent(typeDependent, walker.typeDependent);
-		addDependent(valueDependent, walker.valueDependent);
-	}
-	void visit(cpp::multiplicative_operator* symbol)
-	{
-		TREEWALKER_LEAF(symbol);
-		postOperator = true;
-	}
-	void visit(cpp::pm_expression* symbol)
-	{
-		ExpressionWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
-		parsedExpression(walker);
-	}
-};
-
 struct ExpressionWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
 	Type type;
+	Type otherType; // type of the right-hand side of a binary-expression, if applicable
 	/* 14.6.2.2-1
 	...an expression is type-dependent if any subexpression is type-dependent.
 	*/
 	Dependent typeDependent;
 	Dependent valueDependent;
 	ExpressionWalker(const WalkerState& state)
-		: WalkerBase(state), type(0, context), typeDependent(context), valueDependent(context)
+		: WalkerBase(state), type(0, context), otherType(0, context), typeDependent(context), valueDependent(context)
 	{
 	}
 	void visit(cpp::postfix_expression_member* symbol)
@@ -1242,15 +1202,100 @@ struct ExpressionWalker : public WalkerBase
 	{
 		LiteralWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
+		SEMANTIC_ASSERT(walker.type.declaration != 0);
 		type.swap(walker.type);
+	}
+	template<typename T>
+	void walkBinaryExpression(T* symbol)
+	{
+		ExpressionWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+		addDependent(typeDependent, walker.typeDependent);
+		addDependent(valueDependent, walker.valueDependent);
+		// TODO: SEMANTIC_ASSERT(walker.type.declaration != 0);
+		(type.declaration != 0 ? otherType : type).swap(walker.type);
+	}
+	template<typename T>
+	void walkBinaryArithmeticExpression(T* symbol)
+	{
+		walkBinaryExpression(symbol);
+		// TODO: SEMANTIC_ASSERT(type.declaration != 0 && otherType.declaration != 0);
+		// TODO: overloaded arithmetic operators
+		type = binaryOperatorType(type, otherType);
+	}
+	template<typename T>
+	void walkBinaryIntegralExpression(T* symbol)
+	{
+		walkBinaryExpression(symbol);
+		// TODO: SEMANTIC_ASSERT(type.declaration != 0 && otherType.declaration != 0);
+		// TODO: overloaded shift operators
+		type = binaryOperatorIntegralType(type, otherType);
+	}
+	template<typename T>
+	void walkBinaryBooleanExpression(T* symbol)
+	{
+		walkBinaryExpression(symbol);
+		// TODO: SEMANTIC_ASSERT(type.declaration != 0 && otherType.declaration != 0);
+		// TODO: overloaded boolean operators
+		type = gBool;
+	}
+	void visit(cpp::assignment_expression* symbol)
+	{
+		// 5.1.7 Assignment operators
+		// the type of an assignment expression is that of its left operand
+		walkBinaryExpression(symbol);
+	}
+	void visit(cpp::conditional_expression* symbol)
+	{
+		walkBinaryExpression(symbol);
+		// TODO: determine type of conditional expression, including implicit conversions
+		type = 0;
+	}
+	void visit(cpp::logical_or_expression* symbol)
+	{
+		walkBinaryIntegralExpression(symbol);
+	}
+	void visit(cpp::logical_and_expression* symbol)
+	{
+		walkBinaryBooleanExpression(symbol);
+	}
+	void visit(cpp::inclusive_or_expression* symbol)
+	{
+		walkBinaryIntegralExpression(symbol);
+	}
+	void visit(cpp::exclusive_or_expression* symbol)
+	{
+		walkBinaryIntegralExpression(symbol);
+	}
+	void visit(cpp::and_expression* symbol)
+	{
+		walkBinaryIntegralExpression(symbol);
+	}
+	void visit(cpp::equality_expression* symbol)
+	{
+		walkBinaryBooleanExpression(symbol);
+	}
+	void visit(cpp::relational_expression* symbol)
+	{
+		walkBinaryBooleanExpression(symbol);
+	}
+	void visit(cpp::shift_expression* symbol)
+	{
+		walkBinaryIntegralExpression(symbol);
+	}
+	void visit(cpp::additive_expression* symbol)
+	{
+		walkBinaryArithmeticExpression(symbol);
 	}
 	void visit(cpp::multiplicative_expression* symbol)
 	{
-		BinaryExpressionWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
-		type.swap(walker.type);
-		addDependent(typeDependent, walker.typeDependent);
-		addDependent(valueDependent, walker.valueDependent);
+		walkBinaryArithmeticExpression(symbol);
+	}
+	void visit(cpp::pm_expression* symbol)
+	{
+		walkBinaryExpression(symbol);
+		// TODO: determine type of pm expression
+		type = 0;
 	}
 	void visit(cpp::primary_expression_builtin* symbol)
 	{
