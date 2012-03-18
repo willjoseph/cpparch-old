@@ -222,11 +222,6 @@ struct WalkerState
 		Declaration other(allocator, parent, name, type, enclosed, specifiers, isTemplate, arguments, templateParameter, valueDependent);
 		if(!name.value.empty()) // unnamed class/struct/union/enum
 		{
-			if(specifiers.isFriend)
-			{
-				return parent->friendDeclarations.insert(other);
-			}
-
 			/* 3.4.4-1
 			An elaborated-type-specifier (7.1.6.3) may be used to refer to a previously declared class-name or enum-name
 			even though the name has been hidden by a non-type declaration (3.3.10).
@@ -345,6 +340,20 @@ struct WalkerState
 		Scope* scope = enclosing;
 		for(; !enclosesEts(scope->type); scope = scope->parent)
 		{
+		}
+		return scope;
+	}
+
+	Scope* getFriendScope()
+	{
+		SEMANTIC_ASSERT(enclosing->type == SCOPETYPE_CLASS);
+		Scope* scope = enclosing;
+		for(; scope->type != SCOPETYPE_NAMESPACE; scope = scope->parent)
+		{
+			if(scope->type == SCOPETYPE_LOCAL)
+			{
+				return enclosing; // friend declaration in a local class lives in class scope
+			}
 		}
 		return scope;
 	}
@@ -491,6 +500,16 @@ struct WalkerBase : public WalkerState
 
 	Declaration* declareObject(Scope* parent, Identifier* id, const Type& type, Scope* enclosed, DeclSpecifiers specifiers, size_t templateParameter, const Dependent& valueDependent)
 	{
+		// 7.3.1.2 Namespace member definitions
+		// Paragraph 3
+		// Every name first declared in a namespace is a member of that namespace. If a friend declaration in a non-local class
+		// first declares a class or function (this implies that the name of the class or function is unqualified) the friend
+		// class or function is a member of the innermost enclosing namespace.
+		if(specifiers.isFriend // is friend
+			&& parent == enclosing) // is unqualified
+		{
+			parent = getFriendScope();
+		}
 		Declaration* declaration = pointOfDeclaration(context, parent, *id, type, enclosed, specifiers, enclosing == templateEnclosing, TEMPLATEARGUMENTS_NULL, templateParameter, valueDependent); // 3.3.1.1
 #ifdef ALLOCATOR_DEBUG
 		trackDeclaration(declaration);
@@ -1153,6 +1172,7 @@ struct ExpressionWalker : public WalkerBase
 	*/
 	void visit(cpp::postfix_expression_disambiguate* symbol)
 	{
+		// TODO: should this also apply to postfix_expression_default?
 		// TODO
 		/* 14.6.2-1
 		In an expression of the form:

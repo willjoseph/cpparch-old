@@ -227,7 +227,7 @@ namespace cpp
 		VISITABLE_DERIVED(initializer_clause);
 		VISITABLE_BASE(TYPELIST3(
 			SYMBOLFWD(throw_expression),
-			SYMBOLFWD(logical_or_expression_precedent),
+			SYMBOLFWD(assignment_expression_default),
 			SYMBOLFWD(conditional_expression)
 		));
 	};
@@ -384,7 +384,7 @@ namespace cpp
 		VISITABLE_DERIVED(postfix_expression);
 		VISITABLE_BASE(TYPELIST6(
 			SYMBOLFWD(primary_expression),
-			SYMBOLFWD(postfix_expression_disambiguate), // matches X()() as nested function call, before X() is matched as a constructor call
+			SYMBOLFWD(postfix_expression_disambiguate),
 			SYMBOLFWD(postfix_expression_construct),
 			SYMBOLFWD(postfix_expression_cast),
 			SYMBOLFWD(postfix_expression_typeid),
@@ -1149,7 +1149,6 @@ namespace cpp
 		FOREACH3(lp, args, rp);
 	};
 
-	// disambiguates nested function-call expression from postfix_expression_construct
 	struct postfix_expression_disambiguate : public postfix_expression_prefix
 	{
 		VISITABLE_DERIVED(postfix_expression_prefix);
@@ -1571,7 +1570,7 @@ namespace cpp
 		FOREACH2(left, right);
 	};
 
-	struct logical_or_expression_precedent : public assignment_expression
+	struct assignment_expression_default : public assignment_expression
 	{
 		VISITABLE_DERIVED(assignment_expression);
 		symbol<logical_or_expression> left;

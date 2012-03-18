@@ -681,7 +681,7 @@ inline cpp::conditional_expression_default* parseSymbol(ParserType& parser, cpp:
 	return result;
 }
 
-inline cpp::assignment_expression* pruneSymbol(cpp::logical_or_expression_precedent* symbol)
+inline cpp::assignment_expression* pruneSymbol(cpp::assignment_expression_default* symbol)
 {
 	if(symbol->right == 0)
 	{
@@ -701,7 +701,7 @@ inline cpp::conditional_expression* parseSymbol(ParserType& parser, cpp::conditi
 template<typename ParserType>
 inline cpp::assignment_expression* parseSymbol(ParserType& parser, cpp::assignment_expression* result)
 {
-	PARSE_EXPRESSION(parser, cpp::logical_or_expression_precedent);
+	PARSE_EXPRESSION(parser, cpp::assignment_expression_default);
 	PARSE_SELECT(parser, cpp::throw_expression);
 	return result;
 }

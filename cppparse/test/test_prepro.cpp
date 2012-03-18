@@ -1,7 +1,7 @@
 
-void f()
+template<typename T>
+typename T::dependent f(typename T::dependent t)
 {
-	f();
+	dependent1(T::dependent2());
 }
-
 

@@ -1,4 +1,25 @@
 
+namespace N45
+{
+	struct S
+	{
+		S operator()() const
+		{
+			return S();
+		}
+	};
+
+	void f()
+	{
+		S()(); // construct and call
+		S()()();
+		S s;
+		s()(); // nested call
+		s()()();
+	}
+
+}
+
 namespace N117
 {
 	namespace N
@@ -73,6 +94,12 @@ namespace N113
 		}
 	};
 }
+
+// 7.3.1.2 Namespace member definitions
+// Paragraph 3
+// Every name first declared in a namespace is a member of that namespace. If a friend declaration in a non-local class
+// first declares a class or function (this implies that the name of the class or function is unqualified) the friend
+// class or function is a member of the innermost enclosing namespace.
 
 namespace N112
 {

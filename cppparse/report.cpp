@@ -868,12 +868,12 @@ struct ParseTreePrinter
 		if(typeid(T) != typeid(*symbol) // if abstract
 			|| typeid(T) == typeid(cpp::declaration_seq)) // or nested sequence
 		{
-			// don't print span
+			// don't print name
 			symbol->accept(*this);
 		}
 		else
 		{
-			out << "<span title=\"" << SYMBOL_NAME(*symbol) << "\">";
+			out << "<span title=\"" << SYMBOL_NAME(T) << "\">";
 			symbol->accept(*this);
 			out << "</span>";
 		}

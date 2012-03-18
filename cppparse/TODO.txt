@@ -272,9 +272,9 @@ not consider any scopes outside the innermost enclosing namespace.
 	- only required when template-id appears in an expression
 	
 - explain postfix_expression_disambiguate
-	- disambiguates nested function-call expression from postfix_expression_construct
-	- e.g. T()()
-
+	- required in the context of a template definition
+	- matches: unqualified-id ( expression-list )
+	- handles dependent names (somehow?)
 	
 - parser is hard to work with - refactor?
 	+ remove unmingled parse
