@@ -575,6 +575,8 @@ enclosing the definition of class X, or
 or a nested class within a local class of a function that is a member of N, before the use of the name,
 in namespace N or in one of N ’s enclosing namespaces.
 
+3.4.5 class member access
+
 
 
 

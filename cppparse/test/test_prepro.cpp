@@ -1,7 +1,5 @@
 
-template<typename T>
-typename T::dependent f(typename T::dependent t)
+void f()
 {
-	dependent1(T::dependent2());
+	int x = 1 * 3 * (9 * 8.2);
 }
-

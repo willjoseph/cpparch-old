@@ -549,6 +549,69 @@ struct WalkerBase : public WalkerState
 		}
 		return &gDependentTemplate;
 	}
+
+	// 4.5 Integral Promotions
+	// TODO: handle bitfield types?
+	const Type& promoteToIntegralType(const Type& type)
+	{
+		if(&type == &gChar
+			|| &type == &gSignedChar
+			|| &type == &gUnsignedChar
+			|| &type == &gSignedShortInt
+			|| &type == &gUnsignedShortInt)
+		{
+			return gSignedInt;
+		}
+		if(&type == &gWCharT
+			|| type.declaration == &gEnum)
+		{
+			return gSignedInt;
+		}
+		if(&type == &gBool)
+		{
+			return gSignedInt;
+		}
+		return type;
+	}
+	// 5 Expressions
+	// paragraph 9: usual arithmetic conversions
+	const Type& binaryOperatorIntegralType(const Type& left, const Type& right)
+	{
+		if(&left == &gUnsignedLongInt || &right == &gUnsignedLongInt)
+		{
+			return gLongDouble;
+		}
+		if((&left == &gSignedLongInt && &right == &gUnsignedInt)
+			|| (&left == &gUnsignedInt && &right == &gSignedLongInt))
+		{
+			return gUnsignedLongInt;
+		}
+		if(&left == &gSignedLongInt || &right == &gSignedLongInt)
+		{
+			return gSignedLongInt;
+		}
+		if(&left == &gUnsignedInt || &right == &gUnsignedInt)
+		{
+			return gUnsignedInt;
+		}
+		return gSignedInt;
+	}
+	const Type& binaryOperatorType(const Type& left, const Type& right)
+	{
+		if(&left == &gLongDouble || &right == &gLongDouble)
+		{
+			return gLongDouble;
+		}
+		if(&left == &gDouble || &right == &gDouble)
+		{
+			return gDouble;
+		}
+		if(&left == &gFloat || &right == &gFloat)
+		{
+			return gFloat;
+		}
+		return binaryOperatorIntegralType(promoteToIntegralType(left), promoteToIntegralType(right));
+	}
 };
 
 struct WalkerQualified : public WalkerBase
@@ -1092,17 +1155,80 @@ struct DependentPostfixExpressionWalker : public WalkerBase
 	}
 };
 
+struct LiteralWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	Type type;
+	LiteralWalker(const WalkerState& state)
+		: WalkerBase(state), type(0, context)
+	{
+	}
+	void visit(cpp::numeric_literal* symbol)
+	{
+		TREEWALKER_LEAF(symbol);
+		type = gSignedInt; // TODO: determine actual type
+	}
+	void visit(cpp::string_literal* symbol)
+	{
+		TREEWALKER_LEAF(symbol);
+		type = gChar; // TODO: determine actual type
+	}
+};
+
+struct BinaryExpressionWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+	Type type;
+	Dependent typeDependent;
+	Dependent valueDependent;
+	bool postOperator;
+	BinaryExpressionWalker(const WalkerState& state)
+		: WalkerBase(state), type(0, context), typeDependent(context), valueDependent(context), postOperator(false)
+	{
+	}
+	template<typename Walker>
+	void parsedExpression(Walker& walker)
+	{
+		if(postOperator)
+		{
+			if(type.declaration != 0) // TODO: assert
+			{
+				type = binaryOperatorType(type, walker.type);
+			}
+		}
+		else
+		{
+			type.swap(walker.type);
+		}
+		addDependent(typeDependent, walker.typeDependent);
+		addDependent(valueDependent, walker.valueDependent);
+	}
+	void visit(cpp::multiplicative_operator* symbol)
+	{
+		TREEWALKER_LEAF(symbol);
+		postOperator = true;
+	}
+	void visit(cpp::pm_expression* symbol)
+	{
+		ExpressionWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+		parsedExpression(walker);
+	}
+};
+
 struct ExpressionWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
+	Type type;
 	/* 14.6.2.2-1
 	...an expression is type-dependent if any subexpression is type-dependent.
 	*/
 	Dependent typeDependent;
 	Dependent valueDependent;
 	ExpressionWalker(const WalkerState& state)
-		: WalkerBase(state), typeDependent(context), valueDependent(context)
+		: WalkerBase(state), type(0, context), typeDependent(context), valueDependent(context)
 	{
 	}
 	void visit(cpp::postfix_expression_member* symbol)
@@ -1111,6 +1237,20 @@ struct ExpressionWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		// TODO: name-lookup for member id-expression
 		// TODO: inherit type-dependent property
+	}
+	void visit(cpp::literal* symbol)
+	{
+		LiteralWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+		type.swap(walker.type);
+	}
+	void visit(cpp::multiplicative_expression* symbol)
+	{
+		BinaryExpressionWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+		type.swap(walker.type);
+		addDependent(typeDependent, walker.typeDependent);
+		addDependent(valueDependent, walker.valueDependent);
 	}
 	void visit(cpp::primary_expression_builtin* symbol)
 	{

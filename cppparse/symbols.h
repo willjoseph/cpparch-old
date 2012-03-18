@@ -630,23 +630,24 @@ extern Declaration gUnknown;
 #define TYPE_UNKNOWN Type(&gUnknown, TREEALLOCATOR_NULL)
 
 // fundamental types
-extern Declaration gChar;
-extern Declaration gSignedChar;
-extern Declaration gUnsignedChar;
-extern Declaration gSignedShortInt;
-extern Declaration gUnsignedShortInt;
-extern Declaration gSignedInt;
-extern Declaration gUnsignedInt;
-extern Declaration gSignedLongInt;
-extern Declaration gUnsignedLongInt;
-extern Declaration gSignedLongLongInt;
-extern Declaration gUnsignedLongLongInt;
-extern Declaration gWCharT;
-extern Declaration gBool;
-extern Declaration gFloat;
-extern Declaration gDouble;
-extern Declaration gLongDouble;
-extern Declaration gVoid;
+extern Type gChar;
+extern Type gCharType;
+extern Type gSignedChar;
+extern Type gUnsignedChar;
+extern Type gSignedShortInt;
+extern Type gUnsignedShortInt;
+extern Type gSignedInt;
+extern Type gUnsignedInt;
+extern Type gSignedLongInt;
+extern Type gUnsignedLongInt;
+extern Type gSignedLongLongInt;
+extern Type gUnsignedLongLongInt;
+extern Type gWCharT;
+extern Type gBool;
+extern Type gFloat;
+extern Type gDouble;
+extern Type gLongDouble;
+extern Type gVoid;
 
 inline unsigned combineFundamental(unsigned fundamental, unsigned token)
 {
@@ -665,34 +666,34 @@ inline Declaration* getFundamentalType(unsigned fundamental)
 {
 	switch(fundamental)
 	{
-	case MAKE_FUNDAMENTAL(CHAR): return &gChar;
-	case MAKE_FUNDAMENTAL(SIGNED) | MAKE_FUNDAMENTAL(CHAR): return &gSignedChar;
-	case MAKE_FUNDAMENTAL(UNSIGNED) | MAKE_FUNDAMENTAL(CHAR): return &gUnsignedChar;
+	case MAKE_FUNDAMENTAL(CHAR): return gChar.declaration;
+	case MAKE_FUNDAMENTAL(SIGNED) | MAKE_FUNDAMENTAL(CHAR): return gSignedChar.declaration;
+	case MAKE_FUNDAMENTAL(UNSIGNED) | MAKE_FUNDAMENTAL(CHAR): return gUnsignedChar.declaration;
 	case MAKE_FUNDAMENTAL(SHORT):
 	case MAKE_FUNDAMENTAL(SIGNED) | MAKE_FUNDAMENTAL(SHORT):
-	case MAKE_FUNDAMENTAL(SIGNED) | MAKE_FUNDAMENTAL(SHORT) | MAKE_FUNDAMENTAL(INT): return &gSignedShortInt;
+	case MAKE_FUNDAMENTAL(SIGNED) | MAKE_FUNDAMENTAL(SHORT) | MAKE_FUNDAMENTAL(INT): return gSignedShortInt.declaration;
 	case MAKE_FUNDAMENTAL(UNSIGNED) | MAKE_FUNDAMENTAL(SHORT):
-	case MAKE_FUNDAMENTAL(UNSIGNED) | MAKE_FUNDAMENTAL(SHORT) | MAKE_FUNDAMENTAL(INT): return &gUnsignedShortInt;
+	case MAKE_FUNDAMENTAL(UNSIGNED) | MAKE_FUNDAMENTAL(SHORT) | MAKE_FUNDAMENTAL(INT): return gUnsignedShortInt.declaration;
 	case MAKE_FUNDAMENTAL(INT):
-	case MAKE_FUNDAMENTAL(SIGNED) | MAKE_FUNDAMENTAL(INT): return &gSignedInt;
+	case MAKE_FUNDAMENTAL(SIGNED) | MAKE_FUNDAMENTAL(INT): return gSignedInt.declaration;
 	case MAKE_FUNDAMENTAL(UNSIGNED):
-	case MAKE_FUNDAMENTAL(UNSIGNED) | MAKE_FUNDAMENTAL(INT): return &gUnsignedInt;
+	case MAKE_FUNDAMENTAL(UNSIGNED) | MAKE_FUNDAMENTAL(INT): return gUnsignedInt.declaration;
 	case MAKE_FUNDAMENTAL(LONG):
 	case MAKE_FUNDAMENTAL(SIGNED) | MAKE_FUNDAMENTAL(LONG):
-	case MAKE_FUNDAMENTAL(SIGNED) | MAKE_FUNDAMENTAL(LONG) | MAKE_FUNDAMENTAL(INT): return &gSignedLongInt;
+	case MAKE_FUNDAMENTAL(SIGNED) | MAKE_FUNDAMENTAL(LONG) | MAKE_FUNDAMENTAL(INT): return gSignedLongInt.declaration;
 	case MAKE_FUNDAMENTAL(UNSIGNED) | MAKE_FUNDAMENTAL(LONG):
-	case MAKE_FUNDAMENTAL(UNSIGNED) | MAKE_FUNDAMENTAL(LONG) | MAKE_FUNDAMENTAL(INT): return &gUnsignedLongInt;
+	case MAKE_FUNDAMENTAL(UNSIGNED) | MAKE_FUNDAMENTAL(LONG) | MAKE_FUNDAMENTAL(INT): return gUnsignedLongInt.declaration;
 	case MAKE_FUNDAMENTAL(LONG) | MAKE_FUNDAMENTAL2(LONG):
 	case MAKE_FUNDAMENTAL(SIGNED) | MAKE_FUNDAMENTAL(LONG) | MAKE_FUNDAMENTAL2(LONG):
-	case MAKE_FUNDAMENTAL(SIGNED) | MAKE_FUNDAMENTAL(LONG) | MAKE_FUNDAMENTAL2(LONG) | MAKE_FUNDAMENTAL(INT): return &gSignedLongLongInt;
+	case MAKE_FUNDAMENTAL(SIGNED) | MAKE_FUNDAMENTAL(LONG) | MAKE_FUNDAMENTAL2(LONG) | MAKE_FUNDAMENTAL(INT): return gSignedLongLongInt.declaration;
 	case MAKE_FUNDAMENTAL(UNSIGNED) | MAKE_FUNDAMENTAL(LONG) | MAKE_FUNDAMENTAL2(LONG):
-	case MAKE_FUNDAMENTAL(UNSIGNED) | MAKE_FUNDAMENTAL(LONG) | MAKE_FUNDAMENTAL2(LONG) | MAKE_FUNDAMENTAL(INT): return &gUnsignedLongLongInt;
-	case MAKE_FUNDAMENTAL(WCHAR_T): return &gWCharT;
-	case MAKE_FUNDAMENTAL(BOOL): return &gBool;
-	case MAKE_FUNDAMENTAL(FLOAT): return &gFloat;
-	case MAKE_FUNDAMENTAL(DOUBLE): return &gDouble;
-	case MAKE_FUNDAMENTAL(LONG) | MAKE_FUNDAMENTAL(DOUBLE): return &gLongDouble;
-	case MAKE_FUNDAMENTAL(VOID): return &gVoid;
+	case MAKE_FUNDAMENTAL(UNSIGNED) | MAKE_FUNDAMENTAL(LONG) | MAKE_FUNDAMENTAL2(LONG) | MAKE_FUNDAMENTAL(INT): return gUnsignedLongLongInt.declaration;
+	case MAKE_FUNDAMENTAL(WCHAR_T): return gWCharT.declaration;
+	case MAKE_FUNDAMENTAL(BOOL): return gBool.declaration;
+	case MAKE_FUNDAMENTAL(FLOAT): return gFloat.declaration;
+	case MAKE_FUNDAMENTAL(DOUBLE): return gDouble.declaration;
+	case MAKE_FUNDAMENTAL(LONG) | MAKE_FUNDAMENTAL(DOUBLE): return gLongDouble.declaration;
+	case MAKE_FUNDAMENTAL(VOID): return gVoid.declaration;
 	}
 	return 0;
 }
