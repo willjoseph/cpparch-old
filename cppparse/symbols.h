@@ -57,6 +57,7 @@ const DeclSpecifiers DECLSPEC_TYPEDEF = DeclSpecifiers(true, false, false, false
 
 typedef ListReference<struct TemplateArgument, TreeAllocator<struct TemplateArgument> > TemplateArguments2;
 
+// wrapper to disable default-constructor
 struct TemplateArguments : public TemplateArguments2
 {
 	TemplateArguments(const TreeAllocator<int>& allocator)
@@ -74,7 +75,7 @@ private:
 
 typedef ListReference<struct Type, TreeAllocator<int> > Types2;
 
-/// A list of Type objects.
+// wrapper to disable default-constructor
 struct Types : public Types2
 {
 	Types(const TreeAllocator<int>& allocator)
@@ -102,10 +103,10 @@ typedef SafePtr<Declaration> DeclarationPtr;
 struct Type
 {
 	DeclarationPtr declaration;
-	TemplateArguments templateArguments;
+	TemplateArguments templateArguments; // may be non-empty if this is a template
 	Qualifying qualifying;
-	bool isImplicitTemplateId; // true if template-argument-clause has not been specified
-	mutable bool visited;
+	bool isImplicitTemplateId; // true if this is a template but the template-argument-clause has not been specified
+	mutable bool visited; // use while iterating a set of types, to avoid visiting the same type twice (an optimisation, and a mechanism for handling cyclic dependencies)
 	Type(Declaration* declaration, const TreeAllocator<int>& allocator)
 		: declaration(declaration), templateArguments(allocator), qualifying(allocator), isImplicitTemplateId(false), visited(false)
 	{
