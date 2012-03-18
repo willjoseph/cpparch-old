@@ -1362,7 +1362,7 @@ struct TypeNameWalker : public WalkerBase
 
 		walker.id->dec.p = declaration;
 		type.declaration = findTemplateSpecialization(declaration, walker.arguments);
-		type.arguments.swap(walker.arguments);
+		type.templateArguments.swap(walker.arguments);
 	}
 };
 
@@ -1412,7 +1412,7 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 			}
 			declaration = findTemplateSpecialization(declaration, walker.arguments);
 			type.declaration = declaration;
-			type.arguments.swap(walker.arguments);
+			type.templateArguments.swap(walker.arguments);
 		}
 	}
 };
@@ -1571,7 +1571,7 @@ struct TypeSpecifierWalker : public WalkerQualified
 		}
 		walker.id->dec.p = declaration;
 		type.declaration = findTemplateSpecialization(declaration, walker.arguments);
-		type.arguments.swap(walker.arguments);
+		type.templateArguments.swap(walker.arguments);
 		type.qualifying.swap(qualifying);
 	}
 	void visit(cpp::simple_type_specifier_builtin* symbol)
@@ -2293,7 +2293,7 @@ struct ElaboratedTypeSpecifierWalker : public WalkerQualified
 		 // 3.4.4-2: when looking up 'identifier' in elaborated-type-specifier, ignore any non-type names that have been declared. 
 		walker.id->dec.p = declaration;
 		type.declaration = findTemplateSpecialization(declaration, walker.arguments);
-		type.arguments.swap(walker.arguments);
+		type.templateArguments.swap(walker.arguments);
 		type.qualifying.swap(qualifying);
 	}
 	void visit(cpp::identifier* symbol)

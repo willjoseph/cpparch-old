@@ -102,24 +102,24 @@ typedef SafePtr<Declaration> DeclarationPtr;
 struct Type
 {
 	DeclarationPtr declaration;
-	TemplateArguments arguments;
+	TemplateArguments templateArguments;
 	Qualifying qualifying;
 	bool isImplicitTemplateId; // true if template-argument-clause has not been specified
 	mutable bool visited;
 	Type(Declaration* declaration, const TreeAllocator<int>& allocator)
-		: declaration(declaration), arguments(allocator), qualifying(allocator), isImplicitTemplateId(false), visited(false)
+		: declaration(declaration), templateArguments(allocator), qualifying(allocator), isImplicitTemplateId(false), visited(false)
 	{
 	}
 	void swap(Type& other)
 	{
 		std::swap(declaration, other.declaration);
-		arguments.swap(other.arguments);
+		templateArguments.swap(other.templateArguments);
 		qualifying.swap(other.qualifying);
 		std::swap(isImplicitTemplateId, other.isImplicitTemplateId);
 	}
 	Type& operator=(Declaration* declaration)
 	{
-		SYMBOLS_ASSERT(arguments.empty());
+		SYMBOLS_ASSERT(templateArguments.empty());
 		SYMBOLS_ASSERT(qualifying.empty());
 		this->declaration = declaration;
 		return *this;
@@ -355,7 +355,7 @@ public:
 	size_t templateParameter;
 	Types templateParams;
 	Types templateParamDefaults;
-	TemplateArguments arguments;
+	TemplateArguments templateArguments;
 	bool isTemplate;
 
 	Declaration(
@@ -366,7 +366,7 @@ public:
 		Scope* enclosed,
 		DeclSpecifiers specifiers = DeclSpecifiers(),
 		bool isTemplate = false,
-		const TemplateArguments& arguments = TEMPLATEARGUMENTS_NULL,
+		const TemplateArguments& templateArguments = TEMPLATEARGUMENTS_NULL,
 		size_t templateParameter = INDEX_INVALID,
 		const Dependent& valueDependent = DEPENDENT_NULL
 	) : scope(scope),
@@ -379,7 +379,7 @@ public:
 		templateParameter(templateParameter),
 		templateParams(allocator),
 		templateParamDefaults(allocator),
-		arguments(arguments),
+		templateArguments(templateArguments),
 		isTemplate(isTemplate)
 	{
 	}
@@ -388,7 +388,7 @@ public:
 		valueDependent(TREEALLOCATOR_NULL),
 		templateParams(TREEALLOCATOR_NULL),
 		templateParamDefaults(TREEALLOCATOR_NULL),
-		arguments(TREEALLOCATOR_NULL)
+		templateArguments(TREEALLOCATOR_NULL)
 	{
 	}
 	void swap(Declaration& other)
@@ -403,7 +403,7 @@ public:
 		std::swap(templateParameter, other.templateParameter);
 		templateParams.swap(other.templateParams);
 		templateParamDefaults.swap(other.templateParamDefaults);
-		arguments.swap(other.arguments);
+		templateArguments.swap(other.templateArguments);
 		std::swap(isTemplate, other.isTemplate);
 	}
 
@@ -823,11 +823,11 @@ inline const Declaration* getType(const Declaration& declaration)
 
 inline const Type& getTemplateArgument(const Type& type, size_t index)
 {
-	TemplateArguments::const_iterator a = type.arguments.begin();
+	TemplateArguments::const_iterator a = type.templateArguments.begin();
 	Types::const_iterator p = type.declaration->templateParamDefaults.begin();
 	for(;; --index)
 	{
-		if(a != type.arguments.end())
+		if(a != type.templateArguments.end())
 		{
 			if(index == 0)
 			{
@@ -990,7 +990,7 @@ inline bool isDependentInternal(const Type& type, const DependentContext& contex
 	}
 	else
 	{
-		if(isDependent(original.arguments, context))
+		if(isDependent(original.templateArguments, context))
 		{
 			return true;
 		}
@@ -1065,7 +1065,7 @@ inline void findTypes(const Type& type, TypeSet& result)
 	}
 	else
 	{
-		findTypes(original.arguments, result);
+		findTypes(original.templateArguments, result);
 	}
 	Scope* enclosed = original.declaration->enclosed;
 	if(enclosed != 0)
@@ -1096,7 +1096,7 @@ inline bool isDependentNonRecursive(const Type& type, const DependentContext& co
 	}
 	else
 	{
-		for(TemplateArguments::const_iterator i = original.arguments.begin(); i != original.arguments.end(); ++i)
+		for(TemplateArguments::const_iterator i = original.templateArguments.begin(); i != original.templateArguments.end(); ++i)
 		{
 			if(evaluateDependent((*i).dependent, context)) // array-size or constant-initializer
 			{
@@ -1226,11 +1226,11 @@ inline const Declaration& getPrimaryDeclaration(const Declaration& first, const 
 		}
 		if(isClass(first))
 		{
-			if(!second.arguments.empty())
+			if(!second.templateArguments.empty())
 			{
 				return second; // TODO
 			}
-			if(!first.arguments.empty())
+			if(!first.templateArguments.empty())
 			{
 				return second; // TODO
 			}
@@ -1293,7 +1293,7 @@ inline Declaration* findPrimaryTemplate(Declaration* declaration)
 	SYMBOLS_ASSERT(declaration->isTemplate);
 	for(;declaration != 0; declaration = declaration->overloaded)
 	{
-		if(declaration->arguments.empty())
+		if(declaration->templateArguments.empty())
 		{
 			SYMBOLS_ASSERT(declaration->isTemplate);
 			return declaration;
@@ -1322,7 +1322,7 @@ inline bool isEqual(const Type& l, const Type& r)
 	if(left.declaration->isTemplate)
 	{
 		Declaration* primary = findPrimaryTemplate(left.declaration);
-		return isEqual(primary->templateParamDefaults, left.arguments, right.arguments);
+		return isEqual(primary->templateParamDefaults, left.templateArguments, right.templateArguments);
 	}
 	return true;
 }
@@ -1359,8 +1359,8 @@ inline Declaration* findTemplateSpecialization(Declaration* declaration, const T
 	Declaration* primary = findPrimaryTemplate(declaration);
 	for(;declaration != 0; declaration = declaration->overloaded)
 	{
-		if(!declaration->arguments.empty()
-			&& isEqual(primary->templateParamDefaults, declaration->arguments, arguments))
+		if(!declaration->templateArguments.empty()
+			&& isEqual(primary->templateParamDefaults, declaration->templateArguments, arguments))
 		{
 			return declaration;
 		}
