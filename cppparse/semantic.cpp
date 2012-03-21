@@ -1047,6 +1047,48 @@ struct ExplicitTypeExpressionWalker : public WalkerBase
 	}
 };
 
+struct ArgumentListWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	Types arguments;
+	Dependent typeDependent;
+	Dependent valueDependent;
+	ArgumentListWalker(const WalkerState& state)
+		: WalkerBase(state), arguments(context), typeDependent(context), valueDependent(context)
+	{
+	}
+	void visit(cpp::assignment_expression* symbol)
+	{
+		ExpressionWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+		arguments.push_front(walker.type);
+		addDependent(typeDependent, walker.typeDependent);
+		addDependent(valueDependent, walker.valueDependent);
+	}
+};
+
+struct LiteralWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	Type type;
+	LiteralWalker(const WalkerState& state)
+		: WalkerBase(state), type(0, context)
+	{
+	}
+	void visit(cpp::numeric_literal* symbol)
+	{
+		TREEWALKER_LEAF(symbol);
+		type = gSignedInt; // TODO: determine actual type
+	}
+	void visit(cpp::string_literal* symbol)
+	{
+		TREEWALKER_LEAF(symbol);
+		type = gChar; // TODO: determine actual type
+	}
+};
+
 struct DependentPrimaryExpressionWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
@@ -1115,8 +1157,9 @@ struct DependentPostfixExpressionWalker : public WalkerBase
 	DeclarationPtr declaration;
 	IdentifierPtr id;
 	Dependent typeDependent;
+	Types arguments;
 	DependentPostfixExpressionWalker(const WalkerState& state)
-		: WalkerBase(state), declaration(0), id(0), typeDependent(context)
+		: WalkerBase(state), declaration(0), id(0), typeDependent(context), arguments(context)
 	{
 	}
 	void visit(cpp::primary_expression* symbol)
@@ -1129,8 +1172,9 @@ struct DependentPostfixExpressionWalker : public WalkerBase
 	}
 	void visit(cpp::postfix_expression_call* symbol)
 	{
-		ExpressionWalker walker(getState());
+		ArgumentListWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
+		arguments.swap(walker.arguments);
 		addDependent(typeDependent, walker.typeDependent);
 		if(id != 0)
 		{
@@ -1155,24 +1199,182 @@ struct DependentPostfixExpressionWalker : public WalkerBase
 	}
 };
 
-struct LiteralWalker : public WalkerBase
+struct PrimaryExpressionWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
 	Type type;
-	LiteralWalker(const WalkerState& state)
-		: WalkerBase(state), type(0, context)
+	IdentifierPtr id;
+	Dependent typeDependent;
+	Dependent valueDependent;
+	PrimaryExpressionWalker(const WalkerState& state)
+		: WalkerBase(state), type(0, context), id(0), typeDependent(context), valueDependent(context)
 	{
 	}
-	void visit(cpp::numeric_literal* symbol)
+	void visit(cpp::literal* symbol)
 	{
-		TREEWALKER_LEAF(symbol);
-		type = gSignedInt; // TODO: determine actual type
+		LiteralWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+		SEMANTIC_ASSERT(walker.type.declaration != 0);
+		type.swap(walker.type);
 	}
-	void visit(cpp::string_literal* symbol)
+	/* temp.dep.constexpr
+	An identifier is value-dependent if it is:
+	— a name declared with a dependent type,
+	— the name of a non-type template parameter,
+	— a constant with integral or enumeration type and is initialized with an expression that is value-dependent.
+	*/
+	void visit(cpp::id_expression* symbol)
+	{
+		IdExpressionWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+		id = walker.id;
+		Declaration* declaration = walker.declaration;
+		if(declaration != 0)
+		{
+			if(declaration == &gUndeclared
+				|| !isObject(*declaration))
+			{
+				return reportIdentifierMismatch(symbol, *id, declaration, "object-name");
+			}
+			addDependentType(typeDependent, declaration);
+			addDependentType(valueDependent, declaration);
+			addDependentName(valueDependent, declaration);
+			id->dec.p = declaration;
+		}
+		else
+		{
+			if(isDependent(walker.qualifying.get_ref()))
+			{
+				id->dec.p = &gDependentObject;
+			}
+			if(!walker.qualifying.empty())
+			{
+				addDependent(typeDependent, walker.qualifying.back());
+			}
+		}
+	}
+	void visit(cpp::primary_expression_parenthesis* symbol)
+	{
+		ExpressionWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+		addDependent(typeDependent, walker.typeDependent);
+		addDependent(valueDependent, walker.valueDependent);
+	}
+	void visit(cpp::primary_expression_builtin* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		type = gChar; // TODO: determine actual type
+		// TODO
+		/* 14.6.2.2-2
+		'this' is type-dependent if the class type of the enclosing member function is dependent
+		*/
+		addDependent(typeDependent, getClassScope());
+	}
+};
+
+struct PostfixExpressionWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	Type type;
+	IdentifierPtr id;
+	Types arguments;
+	Dependent typeDependent;
+	Dependent valueDependent;
+	PostfixExpressionWalker(const WalkerState& state)
+		: WalkerBase(state), type(0, context), id(0), arguments(context), typeDependent(context), valueDependent(context)
+	{
+	}
+	// TODO: postfix_expression_destructor
+	void visit(cpp::primary_expression* symbol)
+	{
+		PrimaryExpressionWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+		type.swap(walker.type);
+		addDependent(typeDependent, walker.typeDependent);
+		addDependent(valueDependent, walker.valueDependent);
+		id = walker.id;
+	}
+	void visit(cpp::postfix_expression_index* symbol)
+	{
+		ExpressionWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+		type.swap(walker.type);
+		addDependent(typeDependent, walker.typeDependent);
+		addDependent(valueDependent, walker.valueDependent);
+	}
+	void visit(cpp::postfix_expression_call* symbol)
+	{
+		ArgumentListWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+		arguments.swap(walker.arguments);
+		addDependent(typeDependent, walker.typeDependent);
+		addDependent(valueDependent, walker.valueDependent);
+		if(type.declaration == 0) // if the prefix expression has no type (i.e. names an overloadable function)
+		{
+			if(id != 0) // if the prefix contains an id-expression
+			{
+				// TODO: 13.3.1.1.1  Call to named function
+			}
+			else
+			{
+				// ill-formed?
+			}
+		}
+		else
+		{
+			// TODO: 13.3.1.1.2  Call to object of class type
+		}
+	}
+	void visit(cpp::postfix_expression_member* symbol)
+	{
+		IdExpressionWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+		// TODO: name-lookup for member id-expression
+		// TODO: inherit type-dependent property
+	}
+	void visit(cpp::postfix_expression_construct* symbol)
+	{
+		ExplicitTypeExpressionWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+		addDependent(typeDependent, walker.typeDependent);
+	}
+	void visit(cpp::postfix_expression_cast* symbol)
+	{
+		ExplicitTypeExpressionWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+		if(symbol->op->id != cpp::cast_operator::DYNAMIC)
+		{
+			Dependent tmp(walker.typeDependent);
+			addDependent(valueDependent, tmp);
+		}
+		addDependent(typeDependent, walker.typeDependent);
+		addDependent(valueDependent, walker.valueDependent);
+	}
+	void visit(cpp::postfix_expression_typeid* symbol)
+	{
+		ExpressionWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+		// not dependent
+	}
+	void visit(cpp::postfix_expression_typeidtype* symbol)
+	{
+		TypeIdWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+		// not dependent
+	}
+	void visit(cpp::postfix_expression_disambiguate* symbol)
+	{
+		// TODO
+		/* 14.6.2-1
+		In an expression of the form:
+		postfix-expression ( expression-list. )
+		where the postfix-expression is an unqualified-id but not a template-id, the unqualified-id denotes a dependent
+		name if and only if any of the expressions in the expression-list is a type-dependent expression (
+		*/
+		DependentPostfixExpressionWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+		addDependent(typeDependent, walker.typeDependent);
 	}
 };
 
@@ -1190,20 +1392,6 @@ struct ExpressionWalker : public WalkerBase
 	ExpressionWalker(const WalkerState& state)
 		: WalkerBase(state), type(0, context), otherType(0, context), typeDependent(context), valueDependent(context)
 	{
-	}
-	void visit(cpp::postfix_expression_member* symbol)
-	{
-		IdExpressionWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
-		// TODO: name-lookup for member id-expression
-		// TODO: inherit type-dependent property
-	}
-	void visit(cpp::literal* symbol)
-	{
-		LiteralWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
-		SEMANTIC_ASSERT(walker.type.declaration != 0);
-		type.swap(walker.type);
 	}
 	template<typename T>
 	void walkBinaryExpression(T* symbol)
@@ -1297,77 +1485,13 @@ struct ExpressionWalker : public WalkerBase
 		// TODO: determine type of pm expression
 		type = 0;
 	}
-	void visit(cpp::primary_expression_builtin* symbol)
+	void visit(cpp::postfix_expression* symbol)
 	{
-		TREEWALKER_LEAF(symbol);
-		// TODO
-		/* 14.6.2.2-2
-		'this' is type-dependent if the class type of the enclosing member function is dependent
-		*/
-		addDependent(typeDependent, getClassScope());
-	}
-	void visit(cpp::type_id* symbol)
-	{
-		// TODO
-		TypeIdWalker walker(getState());
+		PostfixExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-	}
-	void visit(cpp::simple_type_specifier* symbol)
-	{
-		TypeSpecifierWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
-	}
-	/* temp.dep.constexpr
-	An identifier is value-dependent if it is:
-	— a name declared with a dependent type,
-	— the name of a non-type template parameter,
-	— a constant with integral or enumeration type and is initialized with an expression that is value-dependent.
-	*/
-	void visit(cpp::id_expression* symbol)
-	{
-		IdExpressionWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
-		Declaration* declaration = walker.declaration;
-		if(declaration != 0)
-		{
-			if(declaration == &gUndeclared
-				|| !isObject(*declaration))
-			{
-				return reportIdentifierMismatch(symbol, *walker.id, declaration, "object-name");
-			}
-			addDependentType(typeDependent, declaration);
-			addDependentType(valueDependent, declaration);
-			addDependentName(valueDependent, declaration);
-			walker.id->dec.p = declaration;
-		}
-		else
-		{
-			if(isDependent(walker.qualifying.get_ref()))
-			{
-				walker.id->dec.p = &gDependentObject;
-			}
-			if(!walker.qualifying.empty())
-			{
-				addDependent(typeDependent, walker.qualifying.back());
-			}
-		}
-	}
-	/* 14.6.2.2-1
-	... an expression is type-dependent if any subexpression is type-dependent.
-	*/
-	void visit(cpp::postfix_expression_disambiguate* symbol)
-	{
-		// TODO: should this also apply to postfix_expression_default?
-		// TODO
-		/* 14.6.2-1
-		In an expression of the form:
-		postfix-expression ( expression-list. )
-		where the postfix-expression is an unqualified-id but not a template-id, the unqualified-id denotes a dependent
-		name if and only if any of the expressions in the expression-list is a type-dependent expression (
-		*/
-		DependentPostfixExpressionWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
+		type.swap(walker.type);
 		addDependent(typeDependent, walker.typeDependent);
+		addDependent(valueDependent, walker.valueDependent);
 	}
 	/* 14.6.2.2-3
 	Expressions of the following forms are type-dependent only if the type specified by the type-id, simple-type-specifier
@@ -1386,12 +1510,6 @@ struct ExpressionWalker : public WalkerBase
 	reinterpret_cast < type-id > ( expression )
 	( type-id ) cast-expression
 	*/
-	void visit(cpp::postfix_expression_construct* symbol)
-	{
-		ExplicitTypeExpressionWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
-		addDependent(typeDependent, walker.typeDependent);
-	}
 	void visit(cpp::new_expression_placement* symbol)
 	{
 		ExplicitTypeExpressionWalker walker(getState());
@@ -1403,18 +1521,6 @@ struct ExpressionWalker : public WalkerBase
 		ExplicitTypeExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		addDependent(typeDependent, walker.typeDependent);
-	}
-	void visit(cpp::postfix_expression_cast* symbol)
-	{
-		ExplicitTypeExpressionWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
-		if(symbol->op->id != cpp::cast_operator::DYNAMIC)
-		{
-			Dependent tmp(walker.typeDependent);
-			addDependent(valueDependent, tmp);
-		}
-		addDependent(typeDependent, walker.typeDependent);
-		addDependent(valueDependent, walker.valueDependent);
 	}
 	void visit(cpp::cast_expression_default* symbol)
 	{
@@ -1460,16 +1566,6 @@ struct ExpressionWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		addDependent(valueDependent, walker.type);
 		addDependent(valueDependent, walker.valueDependent);
-	}
-	void visit(cpp::postfix_expression_typeid* symbol)
-	{
-		ExpressionWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
-	}
-	void visit(cpp::postfix_expression_typeidtype* symbol)
-	{
-		TypeIdWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
 	}
 	void visit(cpp::delete_expression* symbol)
 	{

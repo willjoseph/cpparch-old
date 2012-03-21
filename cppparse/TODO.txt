@@ -528,6 +528,8 @@ not consider any scopes outside the innermost enclosing namespace.
 
 - overload resolution
 	- across using-directive
+	- ( identifier ) ( expression-list )
+	- object-of-class-type ( expression-list )
 - argument-dependent-lookup
 - name-lookup for overloaded-operators
 

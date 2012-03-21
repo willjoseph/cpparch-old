@@ -384,7 +384,7 @@ namespace cpp
 		VISITABLE_DERIVED(postfix_expression);
 		VISITABLE_BASE(TYPELIST6(
 			SYMBOLFWD(primary_expression),
-			SYMBOLFWD(postfix_expression_disambiguate),
+			SYMBOLFWD(postfix_expression_disambiguate), // matched when 'identifier' in primary-expression is dependent
 			SYMBOLFWD(postfix_expression_construct),
 			SYMBOLFWD(postfix_expression_cast),
 			SYMBOLFWD(postfix_expression_typeid),
