@@ -40,7 +40,8 @@
 
 
 
-
+- crash: Release, lexer.h, IncludeDependencyNode already declared as non-type
+	- intermittent?
 
 - check that using-declaration is linked to correct definition: the one visible at point of using-declaration
 

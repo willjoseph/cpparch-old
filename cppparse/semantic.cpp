@@ -219,8 +219,9 @@ struct WalkerState
 
 		parser->context.allocator.deferredBacktrack(); // flush cached parse-tree
 
+		SEMANTIC_ASSERT(!name.value.empty());
 		Declaration other(allocator, parent, name, type, enclosed, specifiers, isTemplate, arguments, templateParameter, valueDependent);
-		if(!name.value.empty()) // unnamed class/struct/union/enum
+		if(!isAnonymous(other)) // unnamed class/struct/union/enum
 		{
 			/* 3.4.4-1
 			An elaborated-type-specifier (7.1.6.3) may be used to refer to a previously declared class-name or enum-name
@@ -271,6 +272,7 @@ struct WalkerState
 		}
 
 		Declaration* result = parent->declarations.insert(other);
+		parent->declarationList.push_back(result);
 		return result;
 	}
 
@@ -1258,6 +1260,7 @@ struct PrimaryExpressionWalker : public WalkerBase
 	{
 		ExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
+		id = walker.id;
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
 	}
@@ -1285,7 +1288,6 @@ struct PostfixExpressionWalker : public WalkerBase
 		: WalkerBase(state), type(0, context), id(0), arguments(context), typeDependent(context), valueDependent(context)
 	{
 	}
-	// TODO: postfix_expression_destructor
 	void visit(cpp::primary_expression* symbol)
 	{
 		PrimaryExpressionWalker walker(getState());
@@ -1295,43 +1297,19 @@ struct PostfixExpressionWalker : public WalkerBase
 		addDependent(valueDependent, walker.valueDependent);
 		id = walker.id;
 	}
-	void visit(cpp::postfix_expression_index* symbol)
+	// prefix
+	void visit(cpp::postfix_expression_disambiguate* symbol)
 	{
-		ExpressionWalker walker(getState());
+		// TODO
+		/* 14.6.2-1
+		In an expression of the form:
+		postfix-expression ( expression-list. )
+		where the postfix-expression is an unqualified-id but not a template-id, the unqualified-id denotes a dependent
+		name if and only if any of the expressions in the expression-list is a type-dependent expression (
+		*/
+		DependentPostfixExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		type.swap(walker.type);
 		addDependent(typeDependent, walker.typeDependent);
-		addDependent(valueDependent, walker.valueDependent);
-	}
-	void visit(cpp::postfix_expression_call* symbol)
-	{
-		ArgumentListWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
-		arguments.swap(walker.arguments);
-		addDependent(typeDependent, walker.typeDependent);
-		addDependent(valueDependent, walker.valueDependent);
-		if(type.declaration == 0) // if the prefix expression has no type (i.e. names an overloadable function)
-		{
-			if(id != 0) // if the prefix contains an id-expression
-			{
-				// TODO: 13.3.1.1.1  Call to named function
-			}
-			else
-			{
-				// ill-formed?
-			}
-		}
-		else
-		{
-			// TODO: 13.3.1.1.2  Call to object of class type
-		}
-	}
-	void visit(cpp::postfix_expression_member* symbol)
-	{
-		IdExpressionWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
-		// TODO: name-lookup for member id-expression
-		// TODO: inherit type-dependent property
 	}
 	void visit(cpp::postfix_expression_construct* symbol)
 	{
@@ -1363,18 +1341,70 @@ struct PostfixExpressionWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		// not dependent
 	}
-	void visit(cpp::postfix_expression_disambiguate* symbol)
+	// suffix
+	void visit(cpp::postfix_expression_index* symbol)
 	{
-		// TODO
-		/* 14.6.2-1
-		In an expression of the form:
-		postfix-expression ( expression-list. )
-		where the postfix-expression is an unqualified-id but not a template-id, the unqualified-id denotes a dependent
-		name if and only if any of the expressions in the expression-list is a type-dependent expression (
-		*/
-		DependentPostfixExpressionWalker walker(getState());
+		ExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
+		type.swap(walker.type);
 		addDependent(typeDependent, walker.typeDependent);
+		addDependent(valueDependent, walker.valueDependent);
+		id = 0;
+	}
+	void visit(cpp::postfix_expression_call* symbol)
+	{
+		ArgumentListWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+		arguments.swap(walker.arguments);
+		addDependent(typeDependent, walker.typeDependent);
+		addDependent(valueDependent, walker.valueDependent);
+		if(type.declaration == 0) // if the prefix expression has no type (i.e. names an overloadable function)
+		{
+			if(id != 0) // if the prefix contains an id-expression
+			{
+				// TODO: 13.3.1.1.1  Call to named function
+				Declaration* best = 0;
+				for(Declaration* p = id->dec.p; p != 0; p = p->overloaded)
+				{
+					// TODO
+					// Gather all the functions in the current scope that have the same name as the function called.
+					// Exclude those that don't have the right number of parameters to match the arguments in the call. (be careful about parameters with default values; void f(int x, int y = 0) is a candidate for the call f(25);)
+					// If no function matches, the compiler reports an error.
+					// If there is more than one match, select the 'best match'.
+					// If there is no clear winner of the best matches, the compiler reports an error - ambiguous function call.
+					if(p->enclosed != 0)
+					{
+						for(Scope::DeclarationList::iterator i = p->enclosed->declarationList.begin(); i != p->enclosed->declarationList.end(); ++i)
+						{
+							const Declaration& parameter = *(*i);
+						}
+					}
+				}
+			}
+			else
+			{
+				// ill-formed?
+			}
+		}
+		else
+		{
+			// TODO: 13.3.1.1.2  Call to object of class type
+		}
+		id = 0;
+	}
+	void visit(cpp::postfix_expression_member* symbol)
+	{
+		IdExpressionWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+		id = walker.id;
+		// TODO: name-lookup for member id-expression
+		// TODO: inherit type-dependent property
+	}
+	void visit(cpp::postfix_expression_destructor* symbol)
+	{
+		TREEWALKER_LEAF(symbol);
+		id = 0;
+		// TODO: name-lookup for member id-expression
 	}
 };
 
@@ -1382,6 +1412,7 @@ struct ExpressionWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
+	IdentifierPtr id;
 	Type type;
 	Type otherType; // type of the right-hand side of a binary-expression, if applicable
 	/* 14.6.2.2-1
@@ -1390,7 +1421,7 @@ struct ExpressionWalker : public WalkerBase
 	Dependent typeDependent;
 	Dependent valueDependent;
 	ExpressionWalker(const WalkerState& state)
-		: WalkerBase(state), type(0, context), otherType(0, context), typeDependent(context), valueDependent(context)
+		: WalkerBase(state), id(0), type(0, context), otherType(0, context), typeDependent(context), valueDependent(context)
 	{
 	}
 	template<typename T>
@@ -1398,6 +1429,7 @@ struct ExpressionWalker : public WalkerBase
 	{
 		ExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
+		id = walker.id;
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
 		// TODO: SEMANTIC_ASSERT(walker.type.declaration != 0);
@@ -1489,6 +1521,7 @@ struct ExpressionWalker : public WalkerBase
 	{
 		PostfixExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
+		id = walker.id;
 		type.swap(walker.type);
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
@@ -2001,6 +2034,7 @@ struct ParameterDeclarationClauseWalker : public WalkerBase
 		pushScope(newScope(makeIdentifier("$declarator"), SCOPETYPE_PROTOTYPE));
 		if(templateParams != 0)
 		{
+#if 0
 			enclosing->declarations = templateParams->declarations;
 			for(Scope::Declarations::iterator i = enclosing->declarations.begin(); i != enclosing->declarations.end(); ++i)
 			{
@@ -2009,6 +2043,20 @@ struct ParameterDeclarationClauseWalker : public WalkerBase
 				declaration->scope = enclosing;
 				trackDeclaration(declaration);
 			}
+#else
+			for(Scope::DeclarationList::iterator i = templateParams->declarationList.begin(); i != templateParams->declarationList.end(); ++i)
+			{
+				Declaration tmp(*(*i)); // copy because insert() will swap
+				Declaration* declaration = enclosing->declarations.insert(tmp);
+				enclosing->declarationList.push_back(declaration);
+				if(!isAnonymous(*declaration))
+				{
+					declaration->getName().dec.p = declaration;
+				}
+				declaration->scope = enclosing;
+				trackDeclaration(declaration);
+			}
+#endif
 		}
 #endif	
 		templateParams = 0;
@@ -3216,6 +3264,8 @@ struct SimpleDeclarationWalker : public WalkerBase
 	{
 		SimpleDeclarationWalker walker(getState(), isParameter, templateParameter);
 		TREEWALKER_WALK(walker, symbol);
+		walker.parent = enclosing;
+		walker.id = &gAnonymousId;
 		walker.commit();
 	}
 	void visit(cpp::decl_specifier_seq* symbol)
@@ -3274,6 +3324,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 			walker.declareEts(type, forward);
 		}
 		TREEWALKER_WALK(walker, symbol);
+		enclosed = walker.paramScope;
 	}
 	void visit(cpp::member_declarator_bitfield* symbol)
 	{
@@ -3498,6 +3549,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 				member.scope = enclosing;
 				Identifier* id = &member.getName();
 				id->dec.p = enclosing->declarations.insert(member);
+				enclosing->declarationList.push_back(id->dec.p);
 			}
 			declaration->enclosed = 0;
 		}

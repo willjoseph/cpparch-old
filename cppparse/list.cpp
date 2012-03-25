@@ -89,7 +89,23 @@ struct TestList
 		LIST_ASSERT(*++++++++c.begin() == 'b');
 		LIST_ASSERT(*++++++++++c.begin() == 'c');
 		LIST_ASSERT(++++++++++++c.begin() == c.end());
+
+
+		c.pop_back();
+		LIST_ASSERT(!c.empty());
+		c.pop_back();
+		LIST_ASSERT(!c.empty());
+		c.pop_back();
+		LIST_ASSERT(!c.empty());
+		c.pop_back();
+		LIST_ASSERT(!c.empty());
+		c.pop_back();
+		LIST_ASSERT(!c.empty());
+		c.pop_back();
+		LIST_ASSERT(c.empty());
 	}
 }
-//gTestList
+#ifdef _DEBUG
+gTestList
+#endif
 ;

@@ -528,11 +528,13 @@ struct Scope : public ScopeCounter
 	Declarations declarations;
 	ScopeType type;
 	Types bases;
-	typedef ListReference<ScopePtr, TreeAllocator<int> > Scopes;
+	typedef List<ScopePtr, TreeAllocator<int> > Scopes;
 	Scopes usingDirectives;
+	typedef List<DeclarationPtr, TreeAllocator<int> > DeclarationList;
+	DeclarationList declarationList;
 
 	Scope(const TreeAllocator<int>& allocator, const Identifier& name, ScopeType type = SCOPETYPE_UNKNOWN)
-		: parent(0), name(name), enclosedScopeCount(0), declarations(allocator), type(type), bases(allocator), usingDirectives(allocator)
+		: parent(0), name(name), enclosedScopeCount(0), declarations(allocator), type(type), bases(allocator), usingDirectives(allocator), declarationList(allocator)
 	{
 	}
 
@@ -572,9 +574,16 @@ inline void undeclare(Declaration* declaration, LexerAllocator& allocator)
 	SYMBOLS_ASSERT(declaration->getName().dec.p == 0 || declaration->getName().dec.p == declaration);
 	declaration->getName().dec.p = 0;
 
+	SYMBOLS_ASSERT(!declaration->scope->declarations.empty());
+	SYMBOLS_ASSERT(!declaration->scope->declarationList.empty());
+
+	SYMBOLS_ASSERT(declaration == declaration->scope->declarationList.back());
+	declaration->scope->declarationList.pop_back(); // TODO: optimise
+
 	Scope::Declarations::iterator i = findDeclaration(declaration->scope->declarations, declaration);
 	SYMBOLS_ASSERT(i != declaration->scope->declarations.end());
 	declaration->scope->declarations.erase(i);
+
 }
 
 inline BacktrackCallback makeUndeclareCallback(Declaration* p)

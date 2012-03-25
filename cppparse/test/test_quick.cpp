@@ -1,4 +1,24 @@
 
+namespace N46
+{
+	namespace _bi
+	{
+		template<class F, class L> class bind_t
+		{
+		};
+
+		class list0
+		{
+		};
+	}
+
+	template<class R>
+	_bi::bind_t<R (*) (), _bi::list0>
+		bind()
+	{
+	}
+}
+
 namespace N45
 {
 	struct S

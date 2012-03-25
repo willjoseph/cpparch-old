@@ -141,13 +141,13 @@ struct List : protected A
 	List(const List& other)
 		: A(other)
 	{
-		tail = &head;
+		tail = static_cast<Node*>(&head);
 		for(Node* p = other.head.next; p != &other.head; p = p->next)
 		{
 			tail->next = allocatorNew(getAllocator(), Node(p->value));
 			tail = tail->next;
 		}
-		tail->next = &head;
+		tail->next = static_cast<Node*>(&head);
 	}
 	List& operator=(List other)
 	{
@@ -178,6 +178,10 @@ struct List : protected A
 	{
 		return begin() == end();
 	}
+	T& front()
+	{
+		return head.next->value;
+	}
 	T& back()
 	{
 		return tail->value;
@@ -191,8 +195,8 @@ struct List : protected A
 	void push_back(const T& value)
 	{
 #ifdef ALLOCATOR_DEBUG
-		ALLOCATOR_ASSERT(!isDeallocated(head.next));
-		ALLOCATOR_ASSERT(!isDeallocated(tail));
+		ALLOCATOR_ASSERT(empty() || !isDeallocated(head.next));
+		ALLOCATOR_ASSERT(empty() || !isDeallocated(tail));
 #endif
 		Node* node = allocatorNew(getAllocator(), Node(value));
 		node->next = static_cast<Node*>(&head);
@@ -202,8 +206,8 @@ struct List : protected A
 	void push_front(const T& value)
 	{
 #ifdef ALLOCATOR_DEBUG
-		ALLOCATOR_ASSERT(!isDeallocated(head.next));
-		ALLOCATOR_ASSERT(!isDeallocated(tail));
+		ALLOCATOR_ASSERT(empty() || !isDeallocated(head.next));
+		ALLOCATOR_ASSERT(empty() || !isDeallocated(tail));
 #endif
 		Node* node = allocatorNew(getAllocator(), Node(value));
 		if(empty())
@@ -212,6 +216,33 @@ struct List : protected A
 		}
 		node->next = head.next;
 		head.next = node;
+	}
+	void pop_front()
+	{
+#ifdef ALLOCATOR_DEBUG
+		ALLOCATOR_ASSERT(empty() || !isDeallocated(head.next));
+		ALLOCATOR_ASSERT(empty() || !isDeallocated(tail));
+#endif
+		LIST_ASSERT(!empty());
+		Node* p = head.next;
+		head.next = p->next;
+		allocatorDelete(getAllocator(), p);
+	}
+	void pop_back()
+	{
+#ifdef ALLOCATOR_DEBUG
+		ALLOCATOR_ASSERT(empty() || !isDeallocated(head.next));
+		ALLOCATOR_ASSERT(empty() || !isDeallocated(tail));
+#endif
+		LIST_ASSERT(!empty());
+		Node* p = static_cast<Node*>(&head);
+		for(; p->next != tail; )
+		{
+			p = p->next;
+		}
+		allocatorDelete(getAllocator(), tail);
+		tail = p;
+		tail->next = static_cast<Node*>(&head);
 	}
 	void erase(iterator first, iterator last)
 	{
@@ -227,10 +258,10 @@ struct List : protected A
 	void splice(iterator position, List& other)
 	{
 #ifdef ALLOCATOR_DEBUG
-		ALLOCATOR_ASSERT(!isDeallocated(head.next));
-		ALLOCATOR_ASSERT(!isDeallocated(tail));
-		ALLOCATOR_ASSERT(!isDeallocated(other.head.next));
-		ALLOCATOR_ASSERT(!isDeallocated(other.tail));
+		ALLOCATOR_ASSERT(empty() || !isDeallocated(head.next));
+		ALLOCATOR_ASSERT(empty() || !isDeallocated(tail));
+		ALLOCATOR_ASSERT(empty() || !isDeallocated(other.head.next));
+		ALLOCATOR_ASSERT(empty() || !isDeallocated(other.tail));
 #endif
 		//LIST_ASSERT(position == end());
 		LIST_ASSERT(&other != this);
@@ -246,10 +277,10 @@ struct List : protected A
 	void swap(List& other)
 	{
 #ifdef ALLOCATOR_DEBUG
-		ALLOCATOR_ASSERT(!isDeallocated(head.next));
-		ALLOCATOR_ASSERT(!isDeallocated(tail));
-		ALLOCATOR_ASSERT(!isDeallocated(other.head.next));
-		ALLOCATOR_ASSERT(!isDeallocated(other.tail));
+		ALLOCATOR_ASSERT(empty() || !isDeallocated(head.next));
+		ALLOCATOR_ASSERT(empty() || !isDeallocated(tail));
+		ALLOCATOR_ASSERT(empty() || !isDeallocated(other.head.next));
+		ALLOCATOR_ASSERT(empty() || !isDeallocated(other.tail));
 #endif
 		std::swap(head, other.head);
 		std::swap(tail, other.tail);

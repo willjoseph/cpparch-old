@@ -115,7 +115,7 @@ struct PrintingWalker
 		TREEWALKER_WALK(walker, symbol);
 	}
 #endif
-	void printName(Scope* scope)
+	void printName(const Scope* scope)
 	{
 		if(scope != 0
 			&& scope->parent != 0)
@@ -125,7 +125,7 @@ struct PrintingWalker
 		}
 	}
 
-	void printName(Declaration* name)
+	void printName(const Declaration* name)
 	{
 		if(name == 0)
 		{
@@ -135,6 +135,26 @@ struct PrintingWalker
 		{
 			printName(name->scope);
 			printer.out << getValue(name->getName());
+			if(name->enclosed != 0
+				&& name->enclosed->type == SCOPETYPE_PROTOTYPE)
+			{
+				printer.out << "(";
+				bool separator = false;
+				for(Scope::DeclarationList::iterator i = name->enclosed->declarationList.begin(); i != name->enclosed->declarationList.end(); ++i)
+				{
+					const Declaration* declaration = *i;
+					if(declaration->templateParameter == INDEX_INVALID)
+					{
+						if(separator)
+						{
+							printer.out << ",";
+						}
+						printName(getType(*declaration));
+						separator = true;
+					}
+				}
+				printer.out << ")";
+			}
 		}
 	}
 
