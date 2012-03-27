@@ -1,10 +1,12 @@
 
-template<class _Ty> inline
-void swap(_Ty& _Left, _Ty& _Right)
-{	// exchange values stored at _Left and _Right
-	_Ty _Tmp = _Left;
-	_Left = _Right, _Right = _Tmp;
+void f(int a);
+
+void (*pf(int a)) (int)
+{
+	int i = a;
+	return f;
 }
+
 
 void overloaded(double)
 {
