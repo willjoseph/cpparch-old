@@ -1021,6 +1021,12 @@ struct ExplicitTypeExpressionWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		addDependent(typeDependent, walker.type);
 	}
+	void visit(cpp::typename_specifier* symbol)
+	{
+		TypenameSpecifierWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+		addDependent(typeDependent, walker.type);
+	}
 	void visit(cpp::type_id* symbol)
 	{
 		TypeIdWalker walker(getState());
@@ -2054,7 +2060,9 @@ struct ParameterDeclarationClauseWalker : public WalkerBase
 					declaration->getName().dec.p = declaration;
 				}
 				declaration->scope = enclosing;
+#ifdef ALLOCATOR_DEBUG
 				trackDeclaration(declaration);
+#endif
 			}
 #endif
 		}
@@ -2137,8 +2145,9 @@ struct DeclaratorWalker : public WalkerBase
 	IdentifierPtr id;
 	ScopePtr paramScope;
 	Dependent valueDependent;
+	TypeSequence typeSequence;
 	DeclaratorWalker(const WalkerState& state)
-		: WalkerBase(state), id(&gAnonymousId), paramScope(0), valueDependent(context)
+		: WalkerBase(state), id(&gAnonymousId), paramScope(0), valueDependent(context), typeSequence(context)
 	{
 	}
 
@@ -2146,6 +2155,16 @@ struct DeclaratorWalker : public WalkerBase
 	{
 		PtrOperatorWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
+	}
+	void visit(cpp::declarator_ptr* symbol)
+	{
+		TREEWALKER_LEAF(symbol);
+		typeSequence.push(DeclaratorPointer());
+	}
+	void visit(cpp::abstract_declarator_ptr* symbol)
+	{
+		TREEWALKER_LEAF(symbol);
+		typeSequence.push(DeclaratorPointer());
 	}
 	void visit(cpp::declarator_id* symbol)
 	{
@@ -2164,13 +2183,38 @@ struct DeclaratorWalker : public WalkerBase
 		DeclaratorSuffixWalker walker(getState());
 		TREEWALKER_WALK_CACHED(walker, symbol);
 		addDependent(valueDependent, walker.valueDependent);
+		typeSequence.push(DeclaratorArray());
 	}
 	void visit(cpp::declarator_suffix_function* symbol)
 	{
 		DeclaratorSuffixWalker walker(getState());
 		TREEWALKER_WALK_CACHED(walker, symbol);
+		if(paramScope == 0) // only interested in the innermost parameter-list
+		{
+			paramScope = walker.paramScope;
+		}
+		addDependent(valueDependent, walker.valueDependent);
+		typeSequence.push(DeclaratorFunction(paramScope));
+	}
+	void visit(cpp::declarator* symbol)
+	{
+		DeclaratorWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+		id = walker.id;
 		paramScope = walker.paramScope;
 		addDependent(valueDependent, walker.valueDependent);
+		SYMBOLS_ASSERT(typeSequence.empty());
+		typeSequence = walker.typeSequence;
+	}
+	void visit(cpp::abstract_declarator* symbol)
+	{
+		DeclaratorWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+		id = walker.id;
+		paramScope = walker.paramScope;
+		addDependent(valueDependent, walker.valueDependent);
+		SYMBOLS_ASSERT(typeSequence.empty());
+		typeSequence = walker.typeSequence;
 	}
 };
 

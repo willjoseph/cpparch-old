@@ -791,7 +791,7 @@ Token* Lexer::read(Token* first, Token* last)
 				{
 					break;
 				}
-#ifdef _DEBUG
+#if 1//def _DEBUG
 				{
 					ProfileScope profile(gProfileDiagnose);
 					printer.printToken(token, token.get_value().c_str());

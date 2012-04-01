@@ -488,6 +488,34 @@ struct TypeTraits<const T>
 	typedef T Value;
 };
 
+struct TrueSized
+{
+	char m[1];
+};
+
+struct FalseSized
+{
+	char m[2];
+};
+
+template<typename T, typename Base>
+struct IsConvertible
+{
+	static TrueSized test(Base*);
+	static FalseSized test(...);
+
+	static const bool RESULT = sizeof(IsConvertible<T, Base>::test(static_cast<T*>(0))) == sizeof(TrueSized);
+};
+
+template<bool b>
+struct CompileTimeAssert;
+
+template<>
+struct CompileTimeAssert<true>
+{
+};
+
+#define COMPILETIMEASSERT(expression)  enum { COMPILETIMEASSERT_ENUM = sizeof(CompileTimeAssert<bool(expression)>) }
 
 
 template<typename T>
@@ -504,17 +532,26 @@ struct ReferenceCounted : T
 	}
 };
 
-
+#ifdef ALLOCATOR_DEBUG
+template<typename T>
+inline ReferenceCounted<T> makeReferenceCounted(const T& t)
+{
+	return ReferenceCounted<T>(t);
+}
+#else
+template<typename T>
+inline const T& makeReferenceCounted(const T& t)
+{
+	return t;
+}
+#endif
 
 template<typename T>
 struct Reference
 {
+	typedef typename TypeTraits<T>::Value value_type;
 #ifdef ALLOCATOR_DEBUG
-	typedef ReferenceCounted<T> Value;
-	static Value makeValue(const T& t)
-	{
-		return Value(t);
-	}
+	typedef ReferenceCounted<value_type> Value;
 	void decrement()
 	{
 		if(p != 0)
@@ -530,11 +567,7 @@ struct Reference
 		}
 	}
 #else
-	typedef T Value;
-	static Value makeValue(const T& t)
-	{
-		return t;
-	}
+	typedef value_type Value;
 	void decrement()
 	{
 	}
@@ -547,6 +580,15 @@ struct Reference
 		: p(0)
 	{
 	}
+#ifdef ALLOCATOR_DEBUG
+	template<typename Other>
+	explicit Reference(ReferenceCounted<Other>* p)
+		: p(reinterpret_cast<ReferenceCounted<T>*>(p))
+	{
+		COMPILETIMEASSERT((IsConvertible<Other, T>::RESULT)); // if this fails, T and Other are not compatible
+		increment();
+	}
+#endif
 	Reference(Value* p)
 		: p(p)
 	{

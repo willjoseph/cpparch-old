@@ -1,4 +1,43 @@
 
+namespace N49
+{
+	template<typename T>
+	struct Inner
+	{
+	};
+
+	template<typename T>
+	struct Outer
+	{
+	};
+
+	Outer<typename Inner<int> > a; // typename-specifier as template-argument
+}
+
+namespace N48
+{
+	void f(int a);
+
+	void (*pf(int a)) (int hidden)
+	{
+		int i = a;
+		return f;
+	}
+}
+
+namespace N47
+{
+	template<bool b>
+	struct BoolTmpl
+	{
+	};
+
+	const bool RESULT = true;
+
+	enum { X = sizeof(BoolTmpl<RESULT>) };
+	enum { Z = sizeof(BoolTmpl<bool(RESULT)>) };
+}
+
 namespace N46
 {
 	namespace _bi

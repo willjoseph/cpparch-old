@@ -139,8 +139,8 @@ namespace cpp
 	struct template_argument : public choice<template_argument>
 	{
 		VISITABLE_BASE(TYPELIST2(
-			SYMBOLFWD(type_id), // TODO: ambiguity: 'type-id' and 'primary-expression' may both be 'identifier'. Prefer type-id to handle 'T(*)()'.
-			SYMBOLFWD(assignment_expression)
+			SYMBOLFWD(assignment_expression), // ambiguity: T(identifier) could be function-style-cast expression or type-id - prefer the expression
+			SYMBOLFWD(type_id) // TODO: ambiguity: 'type-id' and 'primary-expression' may both be 'identifier'. Prefer type-id to handle 'T(*)()'.
 			//SYMBOLFWD(id_expression) // TODO: assignment-expression contains id-expression
 		));
 	};

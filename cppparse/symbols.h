@@ -52,6 +52,112 @@ const DeclSpecifiers DECLSPEC_TYPEDEF = DeclSpecifiers(true, false, false, false
 
 
 // ----------------------------------------------------------------------------
+// sequence
+
+template<typename Visitor>
+struct SequenceNode
+{
+	Reference<SequenceNode> next;
+	virtual ~SequenceNode()
+	{
+	}
+	virtual void accept(Visitor& visitor) const
+	{
+		throw SymbolsError();
+	}
+};
+
+template<typename T, typename Visitor>
+struct SequenceNodeGeneric : SequenceNode<Visitor>
+{
+	T value;
+	SequenceNodeGeneric(const T& value)
+		: value(value)
+	{
+	}
+	void accept(Visitor& visitor) const
+	{
+		visitor.visit(value);
+	}
+};
+
+template<typename A, typename Visitor>
+struct Sequence : A
+{
+	typedef SequenceNode<Visitor> Node;
+	typedef Reference<Node> Pointer;
+	Node head;
+
+	A& getAllocator()
+	{
+		return *this;
+	}
+	const A& getAllocator() const
+	{
+		return *this;
+	}
+
+	Sequence()
+	{
+		construct();
+	}
+	Sequence(const A& allocator)
+		:  A(allocator)
+	{
+		construct();
+	}
+	void construct()
+	{
+		head.next = 0;
+	}
+	Sequence& operator=(Sequence other)
+	{
+		head = other.head;
+		return *this;
+	}
+
+	bool empty() const
+	{
+		return head.next == 0;
+	}
+
+	template<typename T>
+	void push(const T& value)
+	{
+		Pointer node(allocatorNew(getAllocator(), makeReferenceCounted(SequenceNodeGeneric<T, Visitor>(value))));
+		node->next = head.next;
+		head.next = node;
+	}
+
+	void swap(Sequence& other)
+	{
+		head.next.swap(other.head.next);
+	}
+
+	void accept(Visitor& visitor) const
+	{
+		for(Node* p = head.next; p != 0; )
+		{
+			p->accept(visitor);
+		}
+	}
+};
+
+// ----------------------------------------------------------------------------
+// type sequence
+
+
+struct TypeElementVisitor
+{
+	virtual void visit(const struct DeclaratorPointer&);
+	virtual void visit(const struct DeclaratorArray&);
+	virtual void visit(const struct DeclaratorMemberPointer&);
+	virtual void visit(const struct DeclaratorFunction&);
+};
+
+typedef Sequence<TreeAllocator<int>, TypeElementVisitor> TypeSequence;
+
+// ----------------------------------------------------------------------------
 // type
 
 
@@ -607,6 +713,29 @@ inline bool enclosesEts(ScopeType type)
 }
 
 
+struct DeclaratorPointer
+{
+	bool isReference;
+};
+
+struct DeclaratorMemberPointer
+{
+	DeclarationPtr classDeclaration;
+};
+
+struct DeclaratorArray
+{
+	// TODO: size
+};
+
+struct DeclaratorFunction
+{
+	ScopePtr paramScope;
+	DeclaratorFunction(Scope* scope)
+		: paramScope(scope)
+	{
+	}
+};
 
 
 // ----------------------------------------------------------------------------

@@ -447,7 +447,7 @@ struct ListReference : A
 
 	void push_back(const T& value)
 	{
-		Pointer node = allocatorNew(getAllocator(), Pointer::makeValue(Node(value)));
+		Pointer node = allocatorNew(getAllocator(), makeReferenceCounted(Node(value)));
 		node->next = 0;
 		if(empty())
 		{
@@ -461,7 +461,7 @@ struct ListReference : A
 	}
 	void push_front(const T& value)
 	{
-		Pointer node = allocatorNew(getAllocator(), Pointer::makeValue(Node(value)));
+		Pointer node = allocatorNew(getAllocator(), makeReferenceCounted(Node(value)));
 		node->next = head.next;
 		if(empty())
 		{

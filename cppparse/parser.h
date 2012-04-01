@@ -808,25 +808,6 @@ inline void printSequence(Parser& parser)
 #define NULLSYMBOL(T) cpp::symbol< T >(0)
 
 
-struct TrueSized
-{
-	char m[1];
-};
-
-struct FalseSized
-{
-	char m[2];
-};
-
-template<typename T, typename Base>
-struct IsConvertible
-{
-	static TrueSized test(Base*);
-	static FalseSized test(...);
-
-	static const bool RESULT = sizeof(IsConvertible<T, Base>::test(NULLSYMBOL(T))) == sizeof(TrueSized);
-};
-
 template<typename T>
 struct IsConcrete
 {
@@ -834,6 +815,7 @@ struct IsConcrete
 		&& !IsConvertible<T, cpp::terminal_choice>::RESULT; // this is true within specialised parseSymbol containing PARSE_SELECT_TOKEN
 };
 
+#if 0
 template<typename T, bool isConcrete = IsConcrete<T>::RESULT >
 struct SymbolAllocator;
 
@@ -869,6 +851,7 @@ struct SymbolAllocator<T, false>
 	{
 	}
 };
+#endif
 
 template<typename T>
 T* createSymbol(Parser& parser, T*)
