@@ -125,26 +125,46 @@ struct PrintingWalker : TypeElementVisitor
 		}
 	}
 
-	void visit(const DeclaratorPointer&)
+	void visit(const DeclaratorPointer&, const Visitable* next)
 	{
+		printer.out << "(";
 		printer.out << "*";
+		visit(next);
+		printer.out << ")";
 	}
-	void visit(const DeclaratorArray&)
+	void visit(const DeclaratorArray&, const Visitable* next)
 	{
+		printer.out << "(";
+		visit(next);
 		printer.out << "[]";
+		printer.out << ")";
 	}
-	void visit(const DeclaratorMemberPointer&)
+	void visit(const DeclaratorMemberPointer&, const Visitable* next)
 	{
+		printer.out << "(";
 		printer.out << "::*";
+		visit(next);
+		printer.out << ")";
 	}
-	void visit(const DeclaratorFunction& function)
+	void visit(const DeclaratorFunction& function, const Visitable* next)
 	{
+		printer.out << "(";
+		visit(next);
 		printParameters(function.paramScope->declarationList);
+		printer.out << ")";
+	}
+
+	void visit(const Visitable* visitable)
+	{
+		if(visitable != 0)
+		{
+			visitable->accept(*this);
+		}
 	}
 
 	void printTypeSequence(const Declaration& declaration)
 	{
-		declaration.typeSequence.accept(*this);
+		visit(declaration.typeSequence.get());
 		if(declaration.specifiers.isTypedef)
 		{
 			printTypeSequence(*declaration.type.declaration);
@@ -164,8 +184,8 @@ struct PrintingWalker : TypeElementVisitor
 				{
 					printer.out << ",";
 				}
-				printTypeSequence(*declaration);
 				printName(getType(*declaration));
+				printTypeSequence(*declaration);
 				separator = true;
 			}
 		}

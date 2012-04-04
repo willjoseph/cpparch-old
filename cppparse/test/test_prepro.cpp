@@ -1,4 +1,18 @@
 
+void f(void (*pf(int a)) (float hidden))
+{
+}
+
+#if 0
+void f(int(*(int))[1][1])
+{
+}
+#else
+void f(int((*((int)))[]))
+{
+}
+#endif
+
 template<typename T>
 struct C99
 {
@@ -11,13 +25,6 @@ struct C99
 
 int f(void (*)(void));
 
-void f(int(*())[1][1])
-{
-}
-
-void f(void (*pf(int a)) (int hidden))
-{
-}
 
 
 void overloaded(double)

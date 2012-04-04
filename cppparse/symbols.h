@@ -55,7 +55,7 @@ const DeclSpecifiers DECLSPEC_TYPEDEF = DeclSpecifiers(true, false, false, false
 // sequence
 
 template<typename Visitor>
-struct SequenceNode
+struct SequenceNode : Visitor::Visitable
 {
 	Reference<SequenceNode> next;
 	virtual ~SequenceNode()
@@ -77,7 +77,7 @@ struct SequenceNodeGeneric : Reference< SequenceNode<Visitor> >::Value
 	}
 	void accept(Visitor& visitor) const
 	{
-		visitor.visit(value);
+		visitor.visit(value, next.get());
 	}
 };
 
@@ -138,12 +138,9 @@ struct Sequence : A
 		head.next.swap(other.head.next);
 	}
 
-	void accept(Visitor& visitor) const
+	const typename Visitor::Visitable* get() const
 	{
-		for(Pointer p = head.next; p != 0; p = p->next)
-		{
-			p->accept(visitor);
-		}
+		return head.next.get();
 	}
 };
 
@@ -153,10 +150,15 @@ struct Sequence : A
 
 struct TypeElementVisitor
 {
-	virtual void visit(const struct DeclaratorPointer&) = 0;
-	virtual void visit(const struct DeclaratorArray&) = 0;
-	virtual void visit(const struct DeclaratorMemberPointer&) = 0;
-	virtual void visit(const struct DeclaratorFunction&) = 0;
+	struct Visitable
+	{
+		virtual void accept(TypeElementVisitor& visitor) const = 0;
+	};
+
+	virtual void visit(const struct DeclaratorPointer&, const Visitable* next) = 0;
+	virtual void visit(const struct DeclaratorArray&, const Visitable* next) = 0;
+	virtual void visit(const struct DeclaratorMemberPointer&, const Visitable* next) = 0;
+	virtual void visit(const struct DeclaratorFunction&, const Visitable* next) = 0;
 };
 
 typedef Sequence<TreeAllocator<int>, TypeElementVisitor> TypeSequence;

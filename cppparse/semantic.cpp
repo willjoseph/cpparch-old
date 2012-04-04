@@ -2108,14 +2108,13 @@ struct PtrOperatorWalker : public WalkerQualified
 	}
 };
 
-struct DeclaratorSuffixWalker : public WalkerBase
+struct DeclaratorFunctionWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
 	ScopePtr paramScope;
-	Dependent valueDependent;
-	DeclaratorSuffixWalker(const WalkerState& state)
-		: WalkerBase(state), paramScope(0), valueDependent(context)
+	DeclaratorFunctionWalker(const WalkerState& state)
+		: WalkerBase(state), paramScope(0)
 	{
 	}
 
@@ -2130,6 +2129,18 @@ struct DeclaratorSuffixWalker : public WalkerBase
 		ExceptionSpecificationWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 	}
+};
+
+struct DeclaratorArrayWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	Dependent valueDependent;
+	DeclaratorArrayWalker(const WalkerState& state)
+		: WalkerBase(state), valueDependent(context)
+	{
+	}
+
 	void visit(cpp::constant_expression* symbol)
 	{
 		ExpressionWalker walker(getState());
@@ -2180,21 +2191,30 @@ struct DeclaratorWalker : public WalkerBase
 	}
 	void visit(cpp::declarator_suffix_array* symbol)
 	{
-		DeclaratorSuffixWalker walker(getState());
+		DeclaratorArrayWalker walker(getState());
 		TREEWALKER_WALK_CACHED(walker, symbol);
 		addDependent(valueDependent, walker.valueDependent);
-		typeSequence.push_front(DeclaratorArray());
+		typeSequence.push_front(DeclaratorArray()); // TODO: how many dimensions, array size
 	}
 	void visit(cpp::declarator_suffix_function* symbol)
 	{
-		DeclaratorSuffixWalker walker(getState());
+		DeclaratorFunctionWalker walker(getState());
 		TREEWALKER_WALK_CACHED(walker, symbol);
 		if(paramScope == 0) // only interested in the innermost parameter-list
 		{
 			paramScope = walker.paramScope;
 		}
-		addDependent(valueDependent, walker.valueDependent);
 		typeSequence.push_front(DeclaratorFunction(paramScope));
+	}
+	void visit(cpp::direct_abstract_declarator* symbol)
+	{
+		DeclaratorWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol); // if parse fails, state of typeSeqence is not modified. e.g. type-id: int((int))
+		id = walker.id;
+		paramScope = walker.paramScope;
+		addDependent(valueDependent, walker.valueDependent);
+		SYMBOLS_ASSERT(typeSequence.empty());
+		typeSequence = walker.typeSequence;
 	}
 	void visit(cpp::direct_abstract_declarator_parenthesis* symbol)
 	{

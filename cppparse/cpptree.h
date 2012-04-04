@@ -949,9 +949,10 @@ namespace cpp
 	struct abstract_declarator : public choice<abstract_declarator>, public exception_declarator
 	{
 		VISITABLE_DERIVED(exception_declarator);
-		VISITABLE_BASE(TYPELIST2(
+		VISITABLE_BASE(TYPELIST3(
 			SYMBOLFWD(abstract_declarator_ptr),
-			SYMBOLFWD(direct_abstract_declarator)
+			SYMBOLFWD(direct_abstract_declarator),
+			SYMBOLFWD(direct_abstract_declarator_parenthesis)
 		));
 	};
 
@@ -963,8 +964,9 @@ namespace cpp
 		FOREACH2(op, decl);
 	};
 
-	struct direct_abstract_declarator_parenthesis
+	struct direct_abstract_declarator_parenthesis : public abstract_declarator
 	{
+		VISITABLE_DERIVED(abstract_declarator);
 		terminal<boost::wave::T_LEFTPAREN> lp;
 		symbol<abstract_declarator> decl;
 		terminal<boost::wave::T_RIGHTPAREN> rp;
