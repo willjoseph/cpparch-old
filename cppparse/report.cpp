@@ -106,6 +106,7 @@ struct PrintingWalker : TypeElementVisitor
 	PrintingWalker(FileTokenPrinter& printer)
 		: printer(printer)
 	{
+		typeStack.push_back(false);
 	}
 #if 0
 	template<typename T>
@@ -125,33 +126,55 @@ struct PrintingWalker : TypeElementVisitor
 		}
 	}
 
+	std::vector<bool> typeStack;
+
+	void pushType(bool isPointer)
+	{
+		bool wasPointer = typeStack.back();
+		bool parenthesise = typeStack.size() != 1 && !wasPointer && isPointer;
+		if(parenthesise)
+		{
+			printer.out << "(";
+		}
+		typeStack.back() = parenthesise;
+		typeStack.push_back(isPointer);
+	}
+	void popType()
+	{
+		typeStack.pop_back();
+		if(typeStack.back())
+		{
+			printer.out << ")";
+		}
+	}
+
 	void visit(const DeclaratorPointer&, const Visitable* next)
 	{
-		printer.out << "(";
+		pushType(true);
 		printer.out << "*";
 		visit(next);
-		printer.out << ")";
+		popType();
 	}
 	void visit(const DeclaratorArray&, const Visitable* next)
 	{
-		printer.out << "(";
+		pushType(false);
 		visit(next);
 		printer.out << "[]";
-		printer.out << ")";
+		popType();
 	}
 	void visit(const DeclaratorMemberPointer&, const Visitable* next)
 	{
-		printer.out << "(";
+		pushType(true);
 		printer.out << "::*";
 		visit(next);
-		printer.out << ")";
+		popType();
 	}
 	void visit(const DeclaratorFunction& function, const Visitable* next)
 	{
-		printer.out << "(";
+		pushType(false);
 		visit(next);
 		printParameters(function.paramScope->declarationList);
-		printer.out << ")";
+		popType();
 	}
 
 	void visit(const Visitable* visitable)

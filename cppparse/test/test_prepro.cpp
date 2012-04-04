@@ -3,15 +3,55 @@ void f(void (*pf(int a)) (float hidden))
 {
 }
 
-#if 0
-void f(int(*(int))[1][1])
+void f(int*) // pointer to
 {
 }
-#else
-void f(int((*((int)))[]))
+void f(int**) // pointer to pointer to
 {
 }
-#endif
+void f(int*()) // function returning pointer to
+{
+}
+void f(int**()) // function returning pointer to pointer to
+{
+}
+void f(int*[]) // array of pointer to
+{
+}
+void f(int(*)()) // pointer to function returning
+{
+}
+void f(int*(*)()) // pointer to function returning pointer to
+{
+}
+void f(int(*)[]) // pointer to array of
+{
+}
+
+void f(int(*())[]) // function returning pointer to array of
+{
+}
+void f(int(*[])()) // array of pointer to function returning
+{
+}
+
+struct S
+{
+};
+
+void f(int(S::*())[]) // function returning member-pointer to array of
+{
+}
+void f(int(S::*[])()) // array of member-pointer to function returning
+{
+}
+
+// not allowed:
+// *[](): array of function returning pointer to
+// (*)[](): pointer to array of function returning
+// *()[]: function returning array of pointer to
+// (*)()[]: pointer to function returning array of
+
 
 template<typename T>
 struct C99
