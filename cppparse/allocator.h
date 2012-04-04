@@ -522,6 +522,10 @@ template<typename T>
 struct ReferenceCounted : T
 {
 	size_t count;
+	ReferenceCounted()
+		: count(0)
+	{
+	}
 	ReferenceCounted(const T& value)
 		: T(value), count(0)
 	{
@@ -580,15 +584,6 @@ struct Reference
 		: p(0)
 	{
 	}
-#ifdef ALLOCATOR_DEBUG
-	template<typename Other>
-	explicit Reference(ReferenceCounted<Other>* p)
-		: p(reinterpret_cast<ReferenceCounted<T>*>(p))
-	{
-		COMPILETIMEASSERT((IsConvertible<Other, T>::RESULT)); // if this fails, T and Other are not compatible
-		increment();
-	}
-#endif
 	Reference(Value* p)
 		: p(p)
 	{

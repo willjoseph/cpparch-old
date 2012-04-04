@@ -2159,12 +2159,12 @@ struct DeclaratorWalker : public WalkerBase
 	void visit(cpp::declarator_ptr* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		typeSequence.push(DeclaratorPointer());
+		typeSequence.push_front(DeclaratorPointer());
 	}
 	void visit(cpp::abstract_declarator_ptr* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		typeSequence.push(DeclaratorPointer());
+		typeSequence.push_front(DeclaratorPointer());
 	}
 	void visit(cpp::declarator_id* symbol)
 	{
@@ -2183,7 +2183,7 @@ struct DeclaratorWalker : public WalkerBase
 		DeclaratorSuffixWalker walker(getState());
 		TREEWALKER_WALK_CACHED(walker, symbol);
 		addDependent(valueDependent, walker.valueDependent);
-		typeSequence.push(DeclaratorArray());
+		typeSequence.push_front(DeclaratorArray());
 	}
 	void visit(cpp::declarator_suffix_function* symbol)
 	{
@@ -2194,7 +2194,17 @@ struct DeclaratorWalker : public WalkerBase
 			paramScope = walker.paramScope;
 		}
 		addDependent(valueDependent, walker.valueDependent);
-		typeSequence.push(DeclaratorFunction(paramScope));
+		typeSequence.push_front(DeclaratorFunction(paramScope));
+	}
+	void visit(cpp::direct_abstract_declarator_parenthesis* symbol)
+	{
+		DeclaratorWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol); // if parse fails, state of typeSeqence is not modified. e.g. function-style-cast type-id followed by parenthesised expression: int(*this)
+		id = walker.id;
+		paramScope = walker.paramScope;
+		addDependent(valueDependent, walker.valueDependent);
+		SYMBOLS_ASSERT(typeSequence.empty());
+		typeSequence = walker.typeSequence;
 	}
 	void visit(cpp::declarator* symbol)
 	{
@@ -3236,6 +3246,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 	ScopePtr parent;
 	IdentifierPtr id;
 	Type type;
+	TypeSequence typeSequence;
 	ScopePtr enclosed;
 	DeclSpecifiers specifiers;
 	IdentifierPtr forward;
@@ -3253,6 +3264,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		parent(0),
 		id(0),
 		type(&gCtor, context),
+		typeSequence(context),
 		enclosed(0),
 		forward(0),
 		valueDependent(context),
@@ -3275,6 +3287,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 				enclosed = templateParams; // for a static-member-variable definition, store template-params with different names than those in the class definition
 			}
 			declaration = declareObject(parent, id, type, enclosed, specifiers, templateParameter, valueDependent);
+			declaration->typeSequence = typeSequence;
 
 			enclosing = parent;
 
@@ -3352,6 +3365,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		parent = walker.enclosing; // if the id-expression in the declarator is a qualified-id, this is the qualifying scope
 		id = walker.id;
 		enclosed = walker.paramScope;
+		typeSequence = walker.typeSequence;
 		/* temp.dep.constexpr
 		An identifier is value-dependent if it is:
 			— a name declared with a dependent type,
@@ -3369,6 +3383,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		}
 		TREEWALKER_WALK(walker, symbol);
 		enclosed = walker.paramScope;
+		typeSequence = walker.typeSequence;
 	}
 	void visit(cpp::member_declarator_bitfield* symbol)
 	{
@@ -3496,9 +3511,11 @@ struct SimpleDeclarationWalker : public WalkerBase
 	struct DeclareEtsGuard
 	{
 		Type* p;
+		TypeSequence* typeSequence;
 		DeclareEtsGuard(SimpleDeclarationWalker& walker)
 		{
 			p = walker.declareEts(walker.type, walker.forward) ? &walker.type : 0;
+			typeSequence = &walker.typeSequence;
 		}
 		~DeclareEtsGuard()
 		{
@@ -3506,10 +3523,15 @@ struct SimpleDeclarationWalker : public WalkerBase
 			{
 				*p = &gClass;
 			}
+			if(typeSequence != 0)
+			{
+				typeSequence->clear(); // if declaration parse failed, don't keep a reference to the (deleted) type-sequence
+			}
 		}
 		void hit()
 		{
 			p = 0;
+			typeSequence = 0;
 		}
 	};
 

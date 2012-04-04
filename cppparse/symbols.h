@@ -68,7 +68,7 @@ struct SequenceNode
 };
 
 template<typename T, typename Visitor>
-struct SequenceNodeGeneric : SequenceNode<Visitor>
+struct SequenceNodeGeneric : Reference< SequenceNode<Visitor> >::Value
 {
 	T value;
 	SequenceNodeGeneric(const T& value)
@@ -106,25 +106,29 @@ struct Sequence : A
 	{
 		construct();
 	}
-	void construct()
-	{
-		head.next = 0;
-	}
 	Sequence& operator=(Sequence other)
 	{
 		head = other.head;
 		return *this;
+	}
+	void construct()
+	{
+		head.next = 0;
 	}
 
 	bool empty() const
 	{
 		return head.next == 0;
 	}
+	void clear()
+	{
+		construct();
+	}
 
 	template<typename T>
-	void push(const T& value)
+	void push_front(const T& value)
 	{
-		Pointer node(allocatorNew(getAllocator(), makeReferenceCounted(SequenceNodeGeneric<T, Visitor>(value))));
+		Pointer node = allocatorNew(getAllocator(), SequenceNodeGeneric<T, Visitor>(value));
 		node->next = head.next;
 		head.next = node;
 	}
@@ -136,7 +140,7 @@ struct Sequence : A
 
 	void accept(Visitor& visitor) const
 	{
-		for(Node* p = head.next; p != 0; )
+		for(Pointer p = head.next; p != 0; p = p->next)
 		{
 			p->accept(visitor);
 		}
@@ -149,10 +153,10 @@ struct Sequence : A
 
 struct TypeElementVisitor
 {
-	virtual void visit(const struct DeclaratorPointer&);
-	virtual void visit(const struct DeclaratorArray&);
-	virtual void visit(const struct DeclaratorMemberPointer&);
-	virtual void visit(const struct DeclaratorFunction&);
+	virtual void visit(const struct DeclaratorPointer&) = 0;
+	virtual void visit(const struct DeclaratorArray&) = 0;
+	virtual void visit(const struct DeclaratorMemberPointer&) = 0;
+	virtual void visit(const struct DeclaratorFunction&) = 0;
 };
 
 typedef Sequence<TreeAllocator<int>, TypeElementVisitor> TypeSequence;
@@ -455,6 +459,7 @@ class Declaration
 public:
 	Scope* scope;
 	Type type;
+	TypeSequence typeSequence;
 	Scope* enclosed;
 	Declaration* overloaded;
 	Dependent valueDependent; // the dependent-types/names that are referred to in the declarator-suffix (array size)
@@ -479,6 +484,7 @@ public:
 	) : scope(scope),
 		name(&name),
 		type(type),
+		typeSequence(allocator),
 		enclosed(enclosed),
 		overloaded(0),
 		valueDependent(valueDependent),
@@ -492,6 +498,7 @@ public:
 	}
 	Declaration() :
 		type(0, TREEALLOCATOR_NULL),
+		typeSequence(TREEALLOCATOR_NULL),
 		valueDependent(TREEALLOCATOR_NULL),
 		templateParams(TREEALLOCATOR_NULL),
 		templateParamDefaults(TREEALLOCATOR_NULL),

@@ -963,7 +963,7 @@ namespace cpp
 		FOREACH2(op, decl);
 	};
 
-	struct abstract_declarator_parenthesis
+	struct direct_abstract_declarator_parenthesis
 	{
 		terminal<boost::wave::T_LEFTPAREN> lp;
 		symbol<abstract_declarator> decl;
@@ -976,7 +976,7 @@ namespace cpp
 	struct direct_abstract_declarator : public abstract_declarator
 	{
 		VISITABLE_DERIVED(abstract_declarator);
-		symbol_optional<abstract_declarator_parenthesis> prefix;
+		symbol_optional<direct_abstract_declarator_parenthesis> prefix;
 		symbol<declarator_suffix> suffix;
 		FOREACH2(prefix, suffix);
 	};
@@ -2282,12 +2282,6 @@ namespace cpp
 		symbol<direct_abstract_declarator> decl;
 		symbol<constant_expression> size;
 		FOREACH2(decl, size);
-	};
-
-	struct direct_abstract_declarator_parenthesis : public direct_abstract_declarator
-	{
-		symbol<abstract_declarator> decl;
-		FOREACH1(decl);
 	};
 
 	struct decl_specifier_default : public terminal_choice, public decl_specifier_nontype

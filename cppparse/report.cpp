@@ -100,7 +100,7 @@ struct TreePrinter // TODO: better name
 
 typedef TokenPrinter<std::ofstream> FileTokenPrinter;
 
-struct PrintingWalker
+struct PrintingWalker : TypeElementVisitor
 {
 	FileTokenPrinter& printer;
 	PrintingWalker(FileTokenPrinter& printer)
@@ -125,6 +125,53 @@ struct PrintingWalker
 		}
 	}
 
+	void visit(const DeclaratorPointer&)
+	{
+		printer.out << "*";
+	}
+	void visit(const DeclaratorArray&)
+	{
+		printer.out << "[]";
+	}
+	void visit(const DeclaratorMemberPointer&)
+	{
+		printer.out << "::*";
+	}
+	void visit(const DeclaratorFunction& function)
+	{
+		printParameters(function.paramScope->declarationList);
+	}
+
+	void printTypeSequence(const Declaration& declaration)
+	{
+		declaration.typeSequence.accept(*this);
+		if(declaration.specifiers.isTypedef)
+		{
+			printTypeSequence(*declaration.type.declaration);
+		}
+	}
+
+	void printParameters(const Scope::DeclarationList& parameters)
+	{
+		printer.out << "(";
+		bool separator = false;
+		for(Scope::DeclarationList::const_iterator i = parameters.begin(); i != parameters.end(); ++i)
+		{
+			const Declaration* declaration = *i;
+			if(declaration->templateParameter == INDEX_INVALID)
+			{
+				if(separator)
+				{
+					printer.out << ",";
+				}
+				printTypeSequence(*declaration);
+				printName(getType(*declaration));
+				separator = true;
+			}
+		}
+		printer.out << ")";
+	}
+
 	void printName(const Declaration* name)
 	{
 		if(name == 0)
@@ -138,22 +185,7 @@ struct PrintingWalker
 			if(name->enclosed != 0
 				&& name->enclosed->type == SCOPETYPE_PROTOTYPE)
 			{
-				printer.out << "(";
-				bool separator = false;
-				for(Scope::DeclarationList::iterator i = name->enclosed->declarationList.begin(); i != name->enclosed->declarationList.end(); ++i)
-				{
-					const Declaration* declaration = *i;
-					if(declaration->templateParameter == INDEX_INVALID)
-					{
-						if(separator)
-						{
-							printer.out << ",";
-						}
-						printName(getType(*declaration));
-						separator = true;
-					}
-				}
-				printer.out << ")";
+				printParameters(name->enclosed->declarationList);
 			}
 		}
 	}
