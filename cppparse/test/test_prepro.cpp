@@ -1,4 +1,24 @@
 
+void f()
+{
+	f('\0');
+	f(L'\0');
+	f("");
+	f(L"");
+	f(0.1);
+	f(0.1f);
+	f(0.1l);
+	f(1);
+	f(1L);
+	f(1U);
+	f(1UL);
+	f(1l);
+	f(1u);
+	f(1ul);
+
+	f(1 * 3 * (9 * 8.2));
+}
+
 typedef int* A[1]; // array of pointer to
 
 void f(A(*x)[1]) // pointer to array of
@@ -83,15 +103,3 @@ int f(void (*)(void));
 
 
 
-void overloaded(double)
-{
-}
-
-void overloaded(int)
-{
-}
-
-void f()
-{
-	overloaded(1 * 3 * (9 * 8.2));
-}

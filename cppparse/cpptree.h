@@ -201,6 +201,7 @@ namespace cpp
 			SYMBOLFWD(expression_list),
 			SYMBOLFWD(assignment_expression)
 		));
+		decoration dec; // the type of the expression
 	};
 
 	struct initializer : public choice<initializer>

@@ -223,11 +223,28 @@ struct PrintingWalker : TypeElementVisitor
 		}
 	}
 
+	void printTypeSequence(const Type& type)
+	{
+		VisitType::apply(type, typeHistory);
+		visitTypeHistory();
+	}
+
 	void printTypeSequence(const Declaration& declaration)
 	{
 		typeHistory.push_back(&declaration);
-		VisitType::apply(declaration.type, typeHistory);
-		visitTypeHistory();
+		printTypeSequence(declaration.type);
+	}
+
+	void printType(const Type& type)
+	{
+		printName(getInstantiatedType(type).declaration);
+		printTypeSequence(type);
+	}
+
+	void printType(const Declaration& declaration)
+	{
+		printName(getInstantiatedType(declaration.type).declaration);
+		printTypeSequence(declaration);
 	}
 
 	void printParameters(const Scope::DeclarationList& parameters)
@@ -243,8 +260,7 @@ struct PrintingWalker : TypeElementVisitor
 				{
 					printer.out << ",";
 				}
-				printName(getInstantiatedType(declaration->type).declaration);
-				printTypeSequence(*declaration);
+				printType(*declaration);
 				separator = true;
 			}
 		}
@@ -923,12 +939,12 @@ struct SymbolPrinter : PrintingWalker
 	}
 };
 
-struct ParseTreePrinter
+struct ParseTreePrinter : PrintingWalker
 {
 	std::ofstream out;
 	FileTokenPrinter printer;
 	ParseTreePrinter(const char* outputRoot)
-		: out(OutPath(outputRoot).c_str()), printer(out)
+		: PrintingWalker(printer), out(OutPath(outputRoot).c_str()), printer(out)
 	{
 		out << "<html>\n"
 			"<head>\n"
@@ -1007,6 +1023,22 @@ struct ParseTreePrinter
 			out << "<span title=\"" << SYMBOL_NAME(T) << "\">";
 			symbol->accept(*this);
 			out << "</span>";
+		}
+	}
+
+	void visit(cpp::assignment_expression* symbol)
+	{
+		if(symbol->dec.p != 0)
+		{
+			out << "<a href=\"";
+			printType(Type(symbol->dec.p, TREEALLOCATOR_NULL));
+			out << "\">";
+			symbol->accept(*this);
+			out << "</a>";
+		}
+		else
+		{
+			symbol->accept(*this);
 		}
 	}
 
