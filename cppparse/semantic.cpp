@@ -1088,12 +1088,12 @@ struct LiteralWalker : public WalkerBase
 	void visit(cpp::numeric_literal* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		type = gSignedInt; // TODO: determine actual type
+		type = getNumericLiteralType(symbol);
 	}
 	void visit(cpp::string_literal* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		type = gChar; // TODO: determine actual type
+		type = getStringLiteralType(symbol);
 	}
 };
 

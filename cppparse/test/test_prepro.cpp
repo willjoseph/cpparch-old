@@ -1,4 +1,20 @@
 
+typedef int* A[1]; // array of pointer to
+
+void f(A(*x)[1]) // pointer to array of
+{
+}
+void f(int*(*x)[1][1])// pointer to array of array of pointer to
+{
+}
+
+void f(int*(*x)[1]);
+
+typedef void (*Pf) (float hidden);
+
+void f(Pf pf(int a));
+
+
 void f(void (*pf(int a)) (float hidden))
 {
 }

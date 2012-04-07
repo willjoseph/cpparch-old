@@ -243,6 +243,7 @@ private:
 
 #define TYPE_NULL Type(0, TREEALLOCATOR_NULL)
 
+const Type gTypeNull = TYPE_NULL;
 
 // ----------------------------------------------------------------------------
 // dependent-name
@@ -764,6 +765,15 @@ extern Declaration gEnum;
 #define TYPE_ENUM Type(&gEnum, TREEALLOCATOR_NULL)
 
 // types
+struct BuiltInTypeDeclaration : Declaration
+{
+	BuiltInTypeDeclaration(Identifier& name)
+		: Declaration(TREEALLOCATOR_NULL, 0, name, TYPE_SPECIAL, 0)
+	{
+	}
+};
+
+
 extern Declaration gNamespace;
 
 #define TYPE_NAMESPACE Type(&gNamespace, TREEALLOCATOR_NULL)
@@ -795,6 +805,18 @@ extern Type gFloat;
 extern Type gDouble;
 extern Type gLongDouble;
 extern Type gVoid;
+
+struct StringLiteralDeclaration : Declaration
+{
+	StringLiteralDeclaration(Identifier& name, const Type& type, TypeSequence::Pointer node)
+		: Declaration(TREEALLOCATOR_NULL, 0, name, type, 0, DECLSPEC_TYPEDEF) // TODO: const
+	{
+		typeSequence.head.next = node;
+	}
+};
+
+extern Type gStringLiteral;
+extern Type gWideStringLiteral;
 
 inline unsigned combineFundamental(unsigned fundamental, unsigned token)
 {
@@ -844,6 +866,93 @@ inline Declaration* getFundamentalType(unsigned fundamental)
 	}
 	return 0;
 }
+
+#define MAKE_INTEGERLITERALSUFFIX(token) (1 << cpp::simple_type_specifier_builtin::token)
+
+inline const char* getIntegerLiteralSuffix(const char* value)
+{
+	const char* p = value;
+	for(; *p != '\0'; ++p)
+	{
+		if(std::strchr("ulUL", *p) != 0)
+		{
+			break;
+		}
+	}
+	return p;
+}
+
+inline const Type& getIntegerLiteralType(const char* value)
+{
+	const char* suffix = getIntegerLiteralSuffix(value);
+	if(*suffix == '\0')
+	{
+		return gSignedInt; // TODO: return long on overflow
+	}
+	if(*(suffix + 1) == '\0') // u U l L
+	{
+		return *suffix == 'u' || *suffix == 'U' ? gUnsignedInt : gSignedLongInt; // TODO: return long/unsigned on overflow
+	}
+	if(*(suffix + 2) == '\0') // ul lu uL Lu Ul lU UL LU
+	{
+		return gUnsignedLongInt; // TODO: long long
+	}
+	throw SymbolsError();
+}
+
+inline const char* getFloatingLiteralSuffix(const char* value)
+{
+	const char* p = value;
+	for(; *p != '\0'; ++p)
+	{
+		if(std::strchr("flFL", *p) != 0)
+		{
+			break;
+		}
+	}
+	return p;
+}
+
+inline const Type& getFloatingLiteralType(const char* value)
+{
+	const char* suffix = getIntegerLiteralSuffix(value);
+	if(*suffix == '\0')
+	{
+		return gDouble;
+	}
+	if(*(suffix + 1) == '\0') // f F l L
+	{
+		return *suffix == 'f' || *suffix == 'F' ? gFloat : gLongDouble;
+	}
+	throw SymbolsError();
+}
+
+inline const Type& getCharacterLiteralType(const char* value)
+{
+	return *value == 'L' ? gWCharT : gSignedChar; // TODO: multicharacter literal
+}
+
+inline const Type& getNumericLiteralType(cpp::numeric_literal* symbol)
+{
+	const char* value = symbol->value.value.c_str();
+	switch(symbol->id)
+	{
+	case cpp::numeric_literal::INTEGER: return getIntegerLiteralType(value);
+	case cpp::numeric_literal::CHARACTER: return getCharacterLiteralType(value);
+	case cpp::numeric_literal::FLOATING: return getFloatingLiteralType(value);
+	case cpp::numeric_literal::BOOLEAN: return gBool;
+	default: break;
+	}
+	throw SymbolsError();
+}
+
+inline const Type& getStringLiteralType(cpp::string_literal* symbol)
+{
+	const char* value = symbol->value.value.c_str();
+	return *value == 'L' ? gWideStringLiteral : gStringLiteral;
+}
+
+
 
 extern Declaration gDependentType;
 extern Declaration gDependentObject;
@@ -994,12 +1103,15 @@ inline const Type& getTemplateArgument(const Type& type, size_t index)
 	}
 }
 
-inline const Type& getInstantiatedType(const Type& type)
+inline const Type& getInstantiatedSimpleType(const Type& type);
+
+template<typename Inner>
+inline const Type& getInstantiatedTypeGeneric(const Type& type, Inner inner)
 {
 	if(type.declaration->specifiers.isTypedef // if this is a typedef..
 		&& type.declaration->templateParameter == INDEX_INVALID) // .. and not a template-parameter
 	{
-		const Type& original = getInstantiatedType(type.declaration->type);
+		const Type& original = inner(type.declaration->type);
 
 		size_t index = original.declaration->templateParameter;
 		if(index != INDEX_INVALID) // if the original type is a template-parameter.
@@ -1007,7 +1119,7 @@ inline const Type& getInstantiatedType(const Type& type)
 			// Find the template-specialisation it belongs to:
 			for(const Type* i = type.qualifying.get(); i != 0; i = (*i).qualifying.get())
 			{
-				const Type& instantiated = getInstantiatedType(*i);
+				const Type& instantiated = getInstantiatedSimpleType(*i);
 				if(instantiated.declaration->enclosed == original.declaration->scope)
 				{
 					return getTemplateArgument(instantiated, index);
@@ -1019,6 +1131,24 @@ inline const Type& getInstantiatedType(const Type& type)
 	}
 	return type;
 }
+
+inline const Type& getInstantiatedType(const Type& type)
+{
+	return getInstantiatedTypeGeneric(type, getInstantiatedType);
+}
+
+inline bool isSimple(const Type& type)
+{
+	return type.declaration->typeSequence.empty();
+}
+
+// asserts that the resulting type is not a complex type. e.g. type-id found in nested-name-specifier
+inline const Type& getInstantiatedSimpleType(const Type& type)
+{
+	SYMBOLS_ASSERT(isSimple(type));
+	return getInstantiatedTypeGeneric(type, getInstantiatedSimpleType);
+}
+
 
 
 inline bool isVisible(Declaration* declaration, const Scope& scope)

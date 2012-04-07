@@ -531,6 +531,20 @@ not consider any scopes outside the innermost enclosing namespace.
 	- across using-directive
 	- ( identifier ) ( expression-list )
 	- object-of-class-type ( expression-list )
+	- record argument types for function-call
+		- record complex types
+			+ pointer, array, function
+			- member-ptr, const
+		- print complex types
+			+ pointer, array, function
+			- member-ptr, const
+	- evaluate type of expression
+		- binary-operator
+		- ternary-operator
+		- overloaded-operator
+		- promotions
+		- numeric-literal: double, float, hex, oct, modifiers
+		- string-literal: wide
 - argument-dependent-lookup
 - name-lookup for overloaded-operators
 

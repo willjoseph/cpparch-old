@@ -177,21 +177,57 @@ struct PrintingWalker : TypeElementVisitor
 		popType();
 	}
 
+	typedef std::vector<const Declaration*> DeclarationHistory;
+	DeclarationHistory typeHistory;
+
 	void visit(const Visitable* visitable)
 	{
 		if(visitable != 0)
 		{
 			visitable->accept(*this);
 		}
+		else
+		{
+			visitTypeHistory();
+		}
+	}
+
+	struct VisitType
+	{
+		DeclarationHistory& history;
+		VisitType(DeclarationHistory& history)
+			: history(history)
+		{
+		}
+		const Type& operator()(const Type& type) const
+		{
+			return apply(type, history);
+		}
+		static const Type& apply(const Type& type, DeclarationHistory& history)
+		{
+			if(!isSimple(type))
+			{
+				history.push_back(type.declaration);
+			}
+			return getInstantiatedTypeGeneric(type, VisitType(history));
+		}
+	};
+
+	void visitTypeHistory()
+	{
+		if(!typeHistory.empty())
+		{
+			const Declaration& declaration = *typeHistory.back();
+			typeHistory.pop_back();
+			visit(declaration.typeSequence.get());
+		}
 	}
 
 	void printTypeSequence(const Declaration& declaration)
 	{
-		visit(declaration.typeSequence.get());
-		if(declaration.specifiers.isTypedef)
-		{
-			printTypeSequence(*declaration.type.declaration);
-		}
+		typeHistory.push_back(&declaration);
+		VisitType::apply(declaration.type, typeHistory);
+		visitTypeHistory();
 	}
 
 	void printParameters(const Scope::DeclarationList& parameters)
@@ -207,7 +243,7 @@ struct PrintingWalker : TypeElementVisitor
 				{
 					printer.out << ",";
 				}
-				printName(getType(*declaration));
+				printName(getInstantiatedType(declaration->type).declaration);
 				printTypeSequence(*declaration);
 				separator = true;
 			}
