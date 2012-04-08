@@ -556,20 +556,20 @@ struct WalkerBase : public WalkerState
 	// TODO: handle bitfield types?
 	static const Type& promoteToIntegralType(const Type& type)
 	{
-		if(&type == &gChar
-			|| &type == &gSignedChar
-			|| &type == &gUnsignedChar
-			|| &type == &gSignedShortInt
-			|| &type == &gUnsignedShortInt)
+		if(type.declaration == gChar.declaration
+			|| type.declaration == gSignedChar.declaration
+			|| type.declaration == gUnsignedChar.declaration
+			|| type.declaration == gSignedShortInt.declaration
+			|| type.declaration == gUnsignedShortInt.declaration)
 		{
 			return gSignedInt;
 		}
-		if(&type == &gWCharT
+		if(type.declaration == gWCharT.declaration
 			|| type.declaration == &gEnum)
 		{
 			return gSignedInt;
 		}
-		if(&type == &gBool)
+		if(type.declaration == gBool.declaration)
 		{
 			return gSignedInt;
 		}
@@ -579,20 +579,25 @@ struct WalkerBase : public WalkerState
 	// paragraph 9: usual arithmetic conversions
 	static const Type& binaryOperatorIntegralType(const Type& left, const Type& right)
 	{
-		if(&left == &gUnsignedLongInt || &right == &gUnsignedLongInt)
+		if(left.declaration == gUnsignedLongInt.declaration
+			|| right.declaration == gUnsignedLongInt.declaration)
 		{
 			return gLongDouble;
 		}
-		if((&left == &gSignedLongInt && &right == &gUnsignedInt)
-			|| (&left == &gUnsignedInt && &right == &gSignedLongInt))
+		if((left.declaration == gSignedLongInt.declaration
+				&& right.declaration == gUnsignedInt.declaration)
+			|| (left.declaration == gUnsignedInt.declaration
+				&& right.declaration == gSignedLongInt.declaration))
 		{
 			return gUnsignedLongInt;
 		}
-		if(&left == &gSignedLongInt || &right == &gSignedLongInt)
+		if(left.declaration == gSignedLongInt.declaration
+			|| right.declaration == gSignedLongInt.declaration)
 		{
 			return gSignedLongInt;
 		}
-		if(&left == &gUnsignedInt || &right == &gUnsignedInt)
+		if(left.declaration == gUnsignedInt.declaration
+			|| right.declaration == gUnsignedInt.declaration)
 		{
 			return gUnsignedInt;
 		}
@@ -600,15 +605,18 @@ struct WalkerBase : public WalkerState
 	}
 	static const Type& binaryOperatorType(const Type& left, const Type& right)
 	{
-		if(&left == &gLongDouble || &right == &gLongDouble)
+		if(left.declaration == gLongDouble.declaration
+			|| right.declaration == gLongDouble.declaration)
 		{
 			return gLongDouble;
 		}
-		if(&left == &gDouble || &right == &gDouble)
+		if(left.declaration == gDouble.declaration
+			|| right.declaration == gDouble.declaration)
 		{
 			return gDouble;
 		}
-		if(&left == &gFloat || &right == &gFloat)
+		if(left.declaration == gFloat.declaration
+			|| right.declaration == gFloat.declaration)
 		{
 			return gFloat;
 		}
@@ -1090,6 +1098,10 @@ struct LiteralWalker : public WalkerBase
 	void visit(cpp::numeric_literal* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
+		if(symbol->id == cpp::numeric_literal::UNKNOWN) // workaround for boost::wave issue: T_PP_NUMBER exists in final token stream
+		{
+			symbol->id = isFloatingLiteral(symbol->value.value.c_str()) ? cpp::numeric_literal::FLOATING : cpp::numeric_literal::INTEGER;
+		}
 		type = getNumericLiteralType(symbol);
 	}
 	void visit(cpp::string_literal* symbol)
@@ -1268,6 +1280,7 @@ struct PrimaryExpressionWalker : public WalkerBase
 	{
 		ExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
+		type.swap(walker.type);
 		id = walker.id;
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
@@ -1447,20 +1460,18 @@ struct ExpressionWalker : public WalkerBase
 		: WalkerBase(state), id(0), type(0, context), typeDependent(context), valueDependent(context)
 	{
 	}
+	// this path handles the right-hand side of a binary expression
+	// it is assumed that 'type' already contains the type of the left-hand side
 	template<typename T, typename Select>
 	void walkBinaryExpression(T* symbol, Select select)
 	{
+		// TODO: SEMANTIC_ASSERT(walker.type.declaration != 0);
 		ExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		id = walker.id;
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
-		// TODO: SEMANTIC_ASSERT(walker.type.declaration != 0);
-		if(type.declaration == 0)
-		{
-			type.swap(walker.type);
-		}
-		else
+		if(type.declaration != 0) // left-hand side already parsed
 		{
 			// TODO: SEMANTIC_ASSERT(type.declaration != 0 && walker.type.declaration != 0);
 			type = select(type, walker.type);
@@ -1484,13 +1495,13 @@ struct ExpressionWalker : public WalkerBase
 		walkBinaryExpression(symbol, binaryOperatorBoolean);
 		// TODO: overloaded boolean operators
 	}
-	void visit(cpp::assignment_expression_default* symbol)
+	void visit(cpp::assignment_expression_suffix* symbol)
 	{
 		// 5.1.7 Assignment operators
 		// the type of an assignment expression is that of its left operand
 		walkBinaryExpression(symbol, binaryOperatorAssignment);
 	}
-	void visit(cpp::conditional_expression_default* symbol)
+	void visit(cpp::conditional_expression_suffix* symbol)
 	{
 		walkBinaryExpression(symbol, binaryOperatorNull);
 		// TODO: determine type of conditional expression, including implicit conversions

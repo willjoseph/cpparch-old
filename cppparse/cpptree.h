@@ -1037,7 +1037,7 @@ namespace cpp
 	struct numeric_literal : public terminal_choice, public literal
 	{
 		VISITABLE_DERIVED(literal);
-		enum { INTEGER, CHARACTER, FLOATING, BOOLEAN } id;
+		enum { INTEGER, CHARACTER, FLOATING, BOOLEAN, UNKNOWN } id;
 		terminal_choice2 value;
 		FOREACH1(value);
 	};
@@ -1425,6 +1425,23 @@ namespace cpp
 		FOREACH1(value);
 	};
 
+#if 0
+	struct multiplicative_expression_suffix
+	{
+		symbol<multiplicative_operator> op;
+		symbol<pm_expression> right;
+		symbol_next<multiplicative_expression_suffix> next;
+		FOREACH3(op, right, next);
+	};
+	struct multiplicative_expression_default : public multiplicative_expression
+	{
+		VISITABLE_DERIVED(multiplicative_expression);
+		symbol<pm_expression> left;
+		symbol_sequence<multiplicative_expression_suffix> suffix;
+		FOREACH2(left, suffix);
+	};
+#else
+
 	struct multiplicative_expression_default : public multiplicative_expression
 	{
 		VISITABLE_DERIVED(multiplicative_expression);
@@ -1433,6 +1450,7 @@ namespace cpp
 		symbol<pm_expression> right;
 		FOREACH3(left, op, right);
 	};
+#endif
 
 	struct additive_operator : public terminal_choice, public overloadable_operator
 	{
@@ -1547,17 +1565,17 @@ namespace cpp
 		FOREACH3(left, op, right);
 	};
 
-	struct logical_or_expression_suffix : public choice<logical_or_expression_suffix>
+	struct conditional_or_assignment_expression_suffix : public choice<conditional_or_assignment_expression_suffix>
 	{
 		VISITABLE_BASE(TYPELIST2(
-			SYMBOLFWD(conditional_expression_rhs),
-			SYMBOLFWD(assignment_expression_rhs)
+			SYMBOLFWD(conditional_expression_suffix),
+			SYMBOLFWD(assignment_expression_suffix)
 		));
 	};
 
-	struct conditional_expression_rhs : public logical_or_expression_suffix
+	struct conditional_expression_suffix : public conditional_or_assignment_expression_suffix
 	{
-		VISITABLE_DERIVED(logical_or_expression_suffix);
+		VISITABLE_DERIVED(conditional_or_assignment_expression_suffix);
 		terminal<boost::wave::T_QUESTION_MARK> key;
 		symbol<expression> mid;
 		terminal<boost::wave::T_COLON> colon;
@@ -1569,7 +1587,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(conditional_expression);
 		symbol<logical_or_expression> left;
-		symbol_optional<conditional_expression_rhs> right;
+		symbol_optional<conditional_expression_suffix> right;
 		FOREACH2(left, right);
 	};
 
@@ -1577,7 +1595,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(assignment_expression);
 		symbol<logical_or_expression> left;
-		symbol_optional<logical_or_expression_suffix> right;
+		symbol_optional<conditional_or_assignment_expression_suffix> right;
 		FOREACH2(left, right);
 	};
 
@@ -1589,9 +1607,9 @@ namespace cpp
 		FOREACH1(value);
 	};
 
-	struct assignment_expression_rhs : public logical_or_expression_suffix
+	struct assignment_expression_suffix : public conditional_or_assignment_expression_suffix
 	{
-		VISITABLE_DERIVED(logical_or_expression_suffix);
+		VISITABLE_DERIVED(conditional_or_assignment_expression_suffix);
 		symbol<assignment_operator> op;
 		symbol<assignment_expression> right;
 		FOREACH2(op, right);

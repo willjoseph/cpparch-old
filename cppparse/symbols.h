@@ -869,6 +869,28 @@ inline Declaration* getFundamentalType(unsigned fundamental)
 
 #define MAKE_INTEGERLITERALSUFFIX(token) (1 << cpp::simple_type_specifier_builtin::token)
 
+inline bool isHexadecimalLiteral(const char* value)
+{
+	return *value++ == '0'
+		&& (*value == 'x' || *value == 'X');
+}
+
+inline bool isFloatingLiteral(const char* value)
+{
+	if(!isHexadecimalLiteral(value))
+	{
+		const char* p = value;
+		for(; *p != '\0'; ++p)
+		{
+			if(std::strchr(".eE", *p) != 0)
+			{
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
 inline const char* getIntegerLiteralSuffix(const char* value)
 {
 	const char* p = value;
@@ -915,7 +937,7 @@ inline const char* getFloatingLiteralSuffix(const char* value)
 
 inline const Type& getFloatingLiteralType(const char* value)
 {
-	const char* suffix = getIntegerLiteralSuffix(value);
+	const char* suffix = getFloatingLiteralSuffix(value);
 	if(*suffix == '\0')
 	{
 		return gDouble;

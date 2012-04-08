@@ -527,6 +527,7 @@ not consider any scopes outside the innermost enclosing namespace.
 
 - distinguish names that refer to 'current instantiation' as not dependent - 14.6.2.1
 
+- use caching to simplify grammar for shared-prefix of assignment-expression/conditional-expression/constant-expression
 - overload resolution
 	- across using-directive
 	- ( identifier ) ( expression-list )
@@ -540,6 +541,8 @@ not consider any scopes outside the innermost enclosing namespace.
 			- member-ptr, const
 	- evaluate type of expression
 		- binary-operator
+			- handle out-of-order parse for left-associative expressions
+				- 
 		- ternary-operator
 		- overloaded-operator
 		- promotions

@@ -36,7 +36,7 @@ inline cpp::string_literal* parseSymbol(ParserType& parser, cpp::string_literal*
 template<typename ParserType>
 inline cpp::numeric_literal* parseSymbol(ParserType& parser, cpp::numeric_literal* result)
 {
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_PP_NUMBER, cpp::numeric_literal::INTEGER);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_PP_NUMBER, cpp::numeric_literal::UNKNOWN);
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_INTLIT, cpp::numeric_literal::INTEGER);
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_CHARLIT, cpp::numeric_literal::CHARACTER);
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_FLOATLIT, cpp::numeric_literal::FLOATING);
