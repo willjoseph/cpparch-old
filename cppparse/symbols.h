@@ -52,6 +52,49 @@ const DeclSpecifiers DECLSPEC_TYPEDEF = DeclSpecifiers(true, false, false, false
 
 
 // ----------------------------------------------------------------------------
+// expression helper
+
+template<typename T, bool isExpression = IsConvertible<T, cpp::expression>::RESULT>
+struct ExpressionType;
+
+template<typename T>
+struct ExpressionType<T, false>
+{
+	static Declaration* get(T* symbol)
+	{
+		return 0;
+	}
+	static void set(T* symbol, Declaration* declaration)
+	{
+	}
+};
+
+template<typename T>
+inline Declaration* getExpressionType(T* symbol)
+{
+	return symbol->dec.p;
+}
+template<typename T>
+inline void setExpressionType(T* symbol, Declaration* declaration)
+{
+	symbol->dec.p = declaration;
+}
+
+template<typename T>
+struct ExpressionType<T, true>
+{
+	static Declaration* get(T* symbol)
+	{
+		return getExpressionType(symbol);
+	}
+	static void set(T* symbol, Declaration* declaration)
+	{
+		setExpressionType(symbol, declaration);
+	}
+};
+
+
+// ----------------------------------------------------------------------------
 // sequence
 
 template<typename Visitor>
@@ -992,6 +1035,27 @@ extern Identifier gConversionFunctionId;
 extern Identifier gOperatorFunctionTemplateId;
 // TODO: don't declare if id is anonymous?
 extern Identifier gAnonymousId;
+
+
+inline const Type& binaryOperatorAssignment(const Type& left, const Type& right)
+{
+	return left;
+}
+
+inline const Type& binaryOperatorComma(const Type& left, const Type& right)
+{
+	return right;
+}
+
+inline const Type& binaryOperatorBoolean(const Type& left, const Type& right)
+{
+	return gBool;
+}
+
+inline const Type& binaryOperatorNull(const Type& left, const Type& right)
+{
+	return gTypeNull;
+}
 
 
 

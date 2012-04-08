@@ -1,6 +1,12 @@
 
+struct S
+{
+} s;
+
 void f()
 {
+	s, 0;
+	f(s);
 	f(9 * (8.2));
 	f(9 * 8.2);
 	f(3 * (9 * 8.2));
@@ -74,10 +80,6 @@ void f(int(*())[]) // function returning pointer to array of
 void f(int(*[])()) // array of pointer to function returning
 {
 }
-
-struct S
-{
-};
 
 void f(int(S::*())[]) // function returning member-pointer to array of
 {

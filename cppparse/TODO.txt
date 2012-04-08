@@ -527,7 +527,9 @@ not consider any scopes outside the innermost enclosing namespace.
 
 - distinguish names that refer to 'current instantiation' as not dependent - 14.6.2.1
 
-- use caching to simplify grammar for shared-prefix of assignment-expression/conditional-expression/constant-expression
+- use caching to simplify grammar
+	- for shared-prefix of assignment-expression/conditional-expression/constant-expression
+	- shared-prefix of expression/expression-list/assignment-expression
 - overload resolution
 	- across using-directive
 	- ( identifier ) ( expression-list )
@@ -540,9 +542,19 @@ not consider any scopes outside the innermost enclosing namespace.
 			+ pointer, array, function
 			- member-ptr, const
 	- evaluate type of expression
+		- expression-list
+			- choose last
+			- found in: parenthesis, array-index, cast, typeid, new-array, conditional-second, expression-statement, condition, iteration-cond+incr, return, 
+		- primary
+			- identifier
+		- postfix
+			- member
+		- cast
 		- binary-operator
-			- handle out-of-order parse for left-associative expressions
-				- 
+			+ handle out-of-order parse for left-associative expressions
+		- unary-operator
+			- address
+			- dereference
 		- ternary-operator
 		- overloaded-operator
 		- promotions

@@ -1020,25 +1020,16 @@ struct ParseTreePrinter : PrintingWalker
 		}
 		else
 		{
-			out << "<span title=\"" << SYMBOL_NAME(T) << "\">";
-			symbol->accept(*this);
-			out << "</span>";
-		}
-	}
-
-	void visit(cpp::assignment_expression* symbol)
-	{
-		if(symbol->dec.p != 0)
-		{
-			out << "<a href=\"";
-			printType(Type(symbol->dec.p, TREEALLOCATOR_NULL));
+			Declaration* declaration = ExpressionType<T>::get(symbol);
+			out << "<span title=\"" << SYMBOL_NAME(T);
+			if(declaration != 0)
+			{
+				out << ":";
+				printType(Type(declaration, TREEALLOCATOR_NULL));
+			}
 			out << "\">";
 			symbol->accept(*this);
-			out << "</a>";
-		}
-		else
-		{
-			symbol->accept(*this);
+			out << "</span>";
 		}
 	}
 

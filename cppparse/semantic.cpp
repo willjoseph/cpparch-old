@@ -1081,8 +1081,6 @@ struct ArgumentListWalker : public WalkerBase
 		arguments.push_front(walker.type);
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
-
-		symbol->dec.p = walker.type.declaration;
 	}
 };
 
@@ -1263,6 +1261,7 @@ struct PrimaryExpressionWalker : public WalkerBase
 			addDependentType(valueDependent, declaration);
 			addDependentName(valueDependent, declaration);
 			id->dec.p = declaration;
+			type = declaration;
 		}
 		else
 		{
@@ -1317,6 +1316,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
 		id = walker.id;
+		setExpressionType(symbol, type.declaration);
 	}
 	// prefix
 	void visit(cpp::postfix_expression_disambiguate* symbol)
@@ -1429,22 +1429,6 @@ struct PostfixExpressionWalker : public WalkerBase
 	}
 };
 
-static const Type& binaryOperatorAssignment(const Type& left, const Type& right)
-{
-	return left;
-}
-
-static const Type& binaryOperatorBoolean(const Type& left, const Type& right)
-{
-	return gBool;
-}
-
-static const Type& binaryOperatorNull(const Type& left, const Type& right)
-{
-	return gTypeNull;
-}
-
-
 struct ExpressionWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
@@ -1475,6 +1459,7 @@ struct ExpressionWalker : public WalkerBase
 		{
 			// TODO: SEMANTIC_ASSERT(type.declaration != 0 && walker.type.declaration != 0);
 			type = select(type, walker.type);
+			ExpressionType<T>::set(symbol, type.declaration);
 		}
 	}
 	template<typename T>
@@ -1551,6 +1536,20 @@ struct ExpressionWalker : public WalkerBase
 		walkBinaryExpression(symbol, binaryOperatorNull);
 		// TODO: determine type of pm expression
 	}
+	void visit(cpp::assignment_expression_default* symbol)
+	{
+		TREEWALKER_LEAF(symbol);
+		setExpressionType(symbol, type.declaration);
+	}
+	void visit(cpp::expression* symbol) // RHS of expression-list
+	{
+		walkBinaryExpression(symbol, binaryOperatorComma);
+	}
+	void visit(cpp::expression_list* symbol)
+	{
+		TREEWALKER_LEAF(symbol);
+		setExpressionType(symbol, type.declaration);
+	}
 	void visit(cpp::postfix_expression* symbol)
 	{
 		PostfixExpressionWalker walker(getState());
@@ -1559,6 +1558,7 @@ struct ExpressionWalker : public WalkerBase
 		type.swap(walker.type);
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
+		setExpressionType(symbol, type.declaration);
 	}
 	/* 14.6.2.2-3
 	Expressions of the following forms are type-dependent only if the type specified by the type-id, simple-type-specifier
