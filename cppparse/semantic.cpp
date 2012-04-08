@@ -1398,6 +1398,8 @@ struct PostfixExpressionWalker : public WalkerBase
 						for(Scope::DeclarationList::iterator i = p->enclosed->declarationList.begin(); i != p->enclosed->declarationList.end(); ++i)
 						{
 							const Declaration& parameter = *(*i);
+							CanonicalType type(parameter);
+							SEMANTIC_ASSERT(isEqual(type, type));
 						}
 					}
 				}
@@ -2198,12 +2200,12 @@ struct DeclaratorWalker : public WalkerBase
 	void visit(cpp::declarator_ptr* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		typeSequence.push_front(DeclaratorPointer());
+		typeSequence.push_front(DeclaratorPointer(symbol->op->key->id == cpp::ptr_operator_key::PTR));
 	}
 	void visit(cpp::abstract_declarator_ptr* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		typeSequence.push_front(DeclaratorPointer());
+		typeSequence.push_front(DeclaratorPointer(symbol->op->key->id == cpp::ptr_operator_key::PTR));
 	}
 	void visit(cpp::declarator_id* symbol)
 	{

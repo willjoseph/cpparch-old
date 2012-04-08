@@ -98,13 +98,29 @@ struct ExpressionType<T, true>
 // sequence
 
 template<typename Visitor>
-struct SequenceNode : Visitor::Visitable
+struct SequenceNodeAbstract
+{
+	virtual void accept(Visitor& visitor) const = 0;
+	virtual const SequenceNodeAbstract* get() const = 0;
+	virtual bool isEqualTo(const SequenceNodeAbstract& other) const = 0;
+};
+
+template<typename Visitor>
+struct SequenceNode : SequenceNodeAbstract<Visitor>
 {
 	Reference<SequenceNode> next;
 	virtual ~SequenceNode()
 	{
 	}
 	virtual void accept(Visitor& visitor) const
+	{
+		throw SymbolsError();
+	}
+	virtual const SequenceNodeAbstract<Visitor>* get() const
+	{
+		throw SymbolsError();
+	}
+	virtual bool isEqualTo(const SequenceNodeAbstract<Visitor>& other) const
 	{
 		throw SymbolsError();
 	}
@@ -120,13 +136,23 @@ struct SequenceNodeGeneric : Reference< SequenceNode<Visitor> >::Value
 	}
 	void accept(Visitor& visitor) const
 	{
-		visitor.visit(value, next.get());
+		visitor.visit(value);
+	}
+	const SequenceNodeAbstract<Visitor>* get() const
+	{
+		return next.get();
+	}
+	bool isEqualTo(const SequenceNodeAbstract<Visitor>& other) const
+	{
+		return typeid(*this) == typeid(other)
+			&& value == static_cast<const SequenceNodeGeneric*>(&other)->value;
 	}
 };
 
 template<typename A, typename Visitor>
 struct Sequence : A
 {
+	typedef SequenceNodeAbstract<Visitor> Visitable;
 	typedef SequenceNode<Visitor> Node;
 	typedef Reference<Node> Pointer;
 	Node head;
@@ -181,7 +207,7 @@ struct Sequence : A
 		head.next.swap(other.head.next);
 	}
 
-	const typename Visitor::Visitable* get() const
+	const Visitable* get() const
 	{
 		return head.next.get();
 	}
@@ -193,15 +219,10 @@ struct Sequence : A
 
 struct TypeElementVisitor
 {
-	struct Visitable
-	{
-		virtual void accept(TypeElementVisitor& visitor) const = 0;
-	};
-
-	virtual void visit(const struct DeclaratorPointer&, const Visitable* next) = 0;
-	virtual void visit(const struct DeclaratorArray&, const Visitable* next) = 0;
-	virtual void visit(const struct DeclaratorMemberPointer&, const Visitable* next) = 0;
-	virtual void visit(const struct DeclaratorFunction&, const Visitable* next) = 0;
+	virtual void visit(const struct DeclaratorPointer&) = 0;
+	virtual void visit(const struct DeclaratorArray&) = 0;
+	virtual void visit(const struct DeclaratorMemberPointer&) = 0;
+	virtual void visit(const struct DeclaratorFunction&) = 0;
 };
 
 typedef Sequence<TreeAllocator<int>, TypeElementVisitor> TypeSequence;
@@ -769,17 +790,42 @@ inline bool enclosesEts(ScopeType type)
 struct DeclaratorPointer
 {
 	bool isReference;
+	DeclaratorPointer(bool isReference)
+		: isReference(isReference)
+	{
+	}
 };
+
+inline bool operator==(const DeclaratorPointer& left, const DeclaratorPointer& right)
+{
+	return left.isReference == right.isReference;
+}
+
 
 struct DeclaratorMemberPointer
 {
 	DeclarationPtr classDeclaration;
+	DeclaratorMemberPointer(Declaration* declaration)
+		: classDeclaration(declaration)
+	{
+	}
 };
+
+inline bool operator==(const DeclaratorMemberPointer& left, const DeclaratorMemberPointer& right)
+{
+	return left.classDeclaration == right.classDeclaration;
+}
+
 
 struct DeclaratorArray
 {
 	// TODO: size
 };
+
+inline bool operator==(const DeclaratorArray& left, const DeclaratorArray& right)
+{
+	return true;
+}
 
 struct DeclaratorFunction
 {
@@ -790,6 +836,10 @@ struct DeclaratorFunction
 	}
 };
 
+inline bool operator==(const DeclaratorFunction& left, const DeclaratorFunction& right)
+{
+	return left.paramScope == right.paramScope;
+}
 
 // ----------------------------------------------------------------------------
 // built-in symbols
@@ -1223,9 +1273,14 @@ inline const Type& getInstantiatedType(const Type& type)
 	return getInstantiatedTypeGeneric(type, getInstantiatedType);
 }
 
+inline bool isSimple(const Declaration& declaration)
+{
+	return declaration.typeSequence.empty();
+}
+
 inline bool isSimple(const Type& type)
 {
-	return type.declaration->typeSequence.empty();
+	return isSimple(*type.declaration);
 }
 
 // asserts that the resulting type is not a complex type. e.g. type-id found in nested-name-specifier
@@ -1235,6 +1290,121 @@ inline const Type& getInstantiatedSimpleType(const Type& type)
 	return getInstantiatedTypeGeneric(type, getInstantiatedSimpleType);
 }
 
+
+typedef std::vector<const Declaration*> DeclarationHistory;
+
+struct VisitType
+{
+	DeclarationHistory& history;
+	VisitType(DeclarationHistory& history)
+		: history(history)
+	{
+	}
+	const Type& operator()(const Type& type) const
+	{
+		return apply(type, history);
+	}
+	static const Type& apply(const Type& type, DeclarationHistory& history)
+	{
+		if(!isSimple(type))
+		{
+			history.push_back(type.declaration);
+		}
+		return getInstantiatedTypeGeneric(type, VisitType(history));
+	}
+	static const Type& apply(const Declaration& declaration, DeclarationHistory& history)
+	{
+		if(!isSimple(declaration))
+		{
+			history.push_back(&declaration);
+		}
+		return apply(declaration.type, history);
+	}
+};
+
+struct TypeIterator
+{
+	DeclarationHistory::const_reverse_iterator i;
+	TypeSequence::Node* p;
+
+	TypeIterator(DeclarationHistory::const_reverse_iterator i)
+		: i(i), p(0)
+	{
+	}
+
+	TypeSequence::Node* evaluate() const
+	{
+		// defer dereference of 'i' until we know 'i' is valid
+		return (p == 0) ? (*i)->typeSequence.head.next.get() : p;
+	}
+
+	const TypeSequence::Visitable& operator*() const
+	{
+		return *evaluate();
+	}
+
+	TypeIterator& operator++()
+	{
+		p = evaluate()->next.get();
+		if(p == 0)
+		{
+			p = 0;
+			++i;
+		}
+		return *this;
+	}
+};
+
+inline bool operator==(const TypeIterator& left, const TypeIterator& right)
+{
+	return left.i == right.i
+		&& left.p == right.p;
+}
+
+inline bool operator!=(const TypeIterator& left, const TypeIterator& right)
+{
+	return !(left == right);
+}
+
+struct CanonicalType
+{
+	DeclarationHistory history;
+	CanonicalType(const Declaration& declaration)
+	{
+		VisitType::apply(declaration, history);
+	}
+	typedef TypeIterator const_iterator;
+	const_iterator begin() const
+	{
+		return const_iterator(history.rbegin());
+	}
+	const_iterator end() const
+	{
+		return const_iterator(history.rend());
+	}
+};
+
+inline bool isEqual(const CanonicalType& left, const CanonicalType& right)
+{
+	TypeIterator l = left.begin();
+	TypeIterator r = right.begin();
+	for(;; ++l, ++r)
+	{
+		if(l == left.end())
+		{
+			return r == right.end();
+		}
+		if(r == right.end())
+		{
+			return false;
+		}
+		if(!(*l).isEqualTo(*r))
+		{
+			return false;
+		}
+	}
+	return true;
+}
 
 
 inline bool isVisible(Declaration* declaration, const Scope& scope)

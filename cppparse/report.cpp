@@ -148,42 +148,45 @@ struct PrintingWalker : TypeElementVisitor
 		}
 	}
 
-	void visit(const DeclaratorPointer&, const Visitable* next)
+	const TypeSequence::Visitable* nextElement;
+
+	void visit(const DeclaratorPointer& pointer)
 	{
 		pushType(true);
-		printer.out << "*";
-		visit(next);
+		printer.out << (pointer.isReference ? "&" : "*");
+		visitTypeElement();
 		popType();
 	}
-	void visit(const DeclaratorArray&, const Visitable* next)
+	void visit(const DeclaratorArray&)
 	{
 		pushType(false);
-		visit(next);
+		visitTypeElement();
 		printer.out << "[]";
 		popType();
 	}
-	void visit(const DeclaratorMemberPointer&, const Visitable* next)
+	void visit(const DeclaratorMemberPointer&)
 	{
 		pushType(true);
 		printer.out << "::*";
-		visit(next);
+		visitTypeElement();
 		popType();
 	}
-	void visit(const DeclaratorFunction& function, const Visitable* next)
+	void visit(const DeclaratorFunction& function)
 	{
 		pushType(false);
-		visit(next);
+		visitTypeElement();
 		printParameters(function.paramScope->declarationList);
 		popType();
 	}
 
-	typedef std::vector<const Declaration*> DeclarationHistory;
 	DeclarationHistory typeHistory;
 
-	void visit(const Visitable* visitable)
+	void visitTypeElement()
 	{
-		if(visitable != 0)
+		if(nextElement != 0)
 		{
+			const TypeSequence::Visitable* visitable = nextElement;
+			nextElement = visitable->get();
 			visitable->accept(*this);
 		}
 		else
@@ -192,34 +195,14 @@ struct PrintingWalker : TypeElementVisitor
 		}
 	}
 
-	struct VisitType
-	{
-		DeclarationHistory& history;
-		VisitType(DeclarationHistory& history)
-			: history(history)
-		{
-		}
-		const Type& operator()(const Type& type) const
-		{
-			return apply(type, history);
-		}
-		static const Type& apply(const Type& type, DeclarationHistory& history)
-		{
-			if(!isSimple(type))
-			{
-				history.push_back(type.declaration);
-			}
-			return getInstantiatedTypeGeneric(type, VisitType(history));
-		}
-	};
-
 	void visitTypeHistory()
 	{
 		if(!typeHistory.empty())
 		{
 			const Declaration& declaration = *typeHistory.back();
 			typeHistory.pop_back();
-			visit(declaration.typeSequence.get());
+			nextElement = declaration.typeSequence.get();
+			visitTypeElement();
 		}
 	}
 
@@ -231,8 +214,8 @@ struct PrintingWalker : TypeElementVisitor
 
 	void printTypeSequence(const Declaration& declaration)
 	{
-		typeHistory.push_back(&declaration);
-		printTypeSequence(declaration.type);
+		VisitType::apply(declaration, typeHistory);
+		visitTypeHistory();
 	}
 
 	void printType(const Type& type)

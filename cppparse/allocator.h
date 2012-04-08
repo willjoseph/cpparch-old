@@ -211,6 +211,12 @@ struct SafePtr
 	}
 };
 
+template<typename T>
+inline bool operator==(const SafePtr<T>& left, const SafePtr<T>& right)
+{
+	return left.p == right.p;
+}
+
 struct Page
 {
 	enum { SHIFT = 17 };
