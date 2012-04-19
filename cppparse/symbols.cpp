@@ -12,6 +12,8 @@ Identifier gUndeclaredId = makeIdentifier("$undeclared");
 Declaration gUndeclared(TREEALLOCATOR_NULL, 0, gUndeclaredId, TYPE_NULL, 0);
 
 // meta types
+Identifier gArithmeticId = makeIdentifier("$arithmetic");
+Declaration gArithmetic(TREEALLOCATOR_NULL, 0, gArithmeticId, TYPE_NULL, 0);
 Identifier gSpecialId = makeIdentifier("$special");
 Declaration gSpecial(TREEALLOCATOR_NULL, 0, gSpecialId, TYPE_NULL, 0);
 Identifier gClassId = makeIdentifier("$class");

@@ -5,6 +5,9 @@ struct S
 
 void f()
 {
+	S* p;
+	p + 3;
+
 	s, 0;
 	f(s);
 	f(9 * (8.2));

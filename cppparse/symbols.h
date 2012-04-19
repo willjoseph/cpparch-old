@@ -213,6 +213,19 @@ struct Sequence : A
 	}
 };
 
+template<typename Visitor>
+const SequenceNodeAbstract<Visitor>* findLast(const SequenceNodeAbstract<Visitor>* node)
+{
+	SYMBOLS_ASSERT(node != 0);
+	const SequenceNodeAbstract<Visitor>* next = node->get();
+	if(next == 0)
+	{
+		return node;
+	}
+	return findLast(next);
+}
+
+
 // ----------------------------------------------------------------------------
 // type sequence
 
@@ -334,6 +347,16 @@ struct TypeId : Type
 		SYMBOLS_ASSERT(typeSequence.empty());
 		Type::operator=(declaration);
 		return *this;
+	}
+	void swap(TypeId& other)
+	{
+		Type::swap(other);
+		typeSequence.swap(other.typeSequence);
+	}
+	void swap(Type& other)
+	{
+		SYMBOLS_ASSERT(typeSequence.empty());
+		Type::swap(other);
 	}
 };
 
@@ -878,10 +901,12 @@ extern Declaration gUndeclared;
 
 
 // meta types
+extern Declaration gArithmetic;
 extern Declaration gSpecial;
 extern Declaration gClass;
 extern Declaration gEnum;
 
+#define TYPE_ARITHMETIC TypeId(&gArithmetic, TREEALLOCATOR_NULL)
 #define TYPE_SPECIAL TypeId(&gSpecial, TREEALLOCATOR_NULL)
 #define TYPE_CLASS TypeId(&gClass, TREEALLOCATOR_NULL)
 #define TYPE_ENUM TypeId(&gEnum, TREEALLOCATOR_NULL)
@@ -890,7 +915,7 @@ extern Declaration gEnum;
 struct BuiltInTypeDeclaration : Declaration
 {
 	BuiltInTypeDeclaration(Identifier& name)
-		: Declaration(TREEALLOCATOR_NULL, 0, name, TYPE_SPECIAL, 0)
+		: Declaration(TREEALLOCATOR_NULL, 0, name, TYPE_ARITHMETIC, 0)
 	{
 	}
 };
@@ -1026,7 +1051,7 @@ inline const char* getIntegerLiteralSuffix(const char* value)
 	return p;
 }
 
-inline const Type& getIntegerLiteralType(const char* value)
+inline const TypeId& getIntegerLiteralType(const char* value)
 {
 	const char* suffix = getIntegerLiteralSuffix(value);
 	if(*suffix == '\0')
@@ -1057,7 +1082,7 @@ inline const char* getFloatingLiteralSuffix(const char* value)
 	return p;
 }
 
-inline const Type& getFloatingLiteralType(const char* value)
+inline const TypeId& getFloatingLiteralType(const char* value)
 {
 	const char* suffix = getFloatingLiteralSuffix(value);
 	if(*suffix == '\0')
@@ -1071,12 +1096,12 @@ inline const Type& getFloatingLiteralType(const char* value)
 	throw SymbolsError();
 }
 
-inline const Type& getCharacterLiteralType(const char* value)
+inline const TypeId& getCharacterLiteralType(const char* value)
 {
 	return *value == 'L' ? gWCharT : gSignedChar; // TODO: multicharacter literal
 }
 
-inline const Type& getNumericLiteralType(cpp::numeric_literal* symbol)
+inline const TypeId& getNumericLiteralType(cpp::numeric_literal* symbol)
 {
 	const char* value = symbol->value.value.c_str();
 	switch(symbol->id)
@@ -1090,7 +1115,7 @@ inline const Type& getNumericLiteralType(cpp::numeric_literal* symbol)
 	throw SymbolsError();
 }
 
-inline const Type& getStringLiteralType(cpp::string_literal* symbol)
+inline const TypeId& getStringLiteralType(cpp::string_literal* symbol)
 {
 	const char* value = symbol->value.value.c_str();
 	return *value == 'L' ? gWideStringLiteral : gStringLiteral;
@@ -1141,6 +1166,7 @@ inline const TypeId& binaryOperatorNull(const TypeId& left, const TypeId& right)
 inline bool isType(const Declaration& type)
 {
 	return type.specifiers.isTypedef
+		|| type.type.declaration == &gArithmetic
 		|| type.type.declaration == &gSpecial
 		|| type.type.declaration == &gEnum
 		|| type.type.declaration == &gClass;
@@ -1214,6 +1240,27 @@ inline bool isExtern(const Declaration& declaration)
 	return declaration.specifiers.isExtern;
 }
 
+inline bool isArithmetic(const Type& type)
+{
+	return type.declaration->type.declaration == &gArithmetic;
+}
+
+inline bool isFloating(const Type& type)
+{
+	return type.declaration == gFloat.declaration
+		|| type.declaration == gDouble.declaration
+		|| type.declaration == gLongDouble.declaration;
+}
+
+inline bool isIntegral(const Type& type)
+{
+	return isArithmetic(type) && !isFloating(type);
+}
+
+inline bool isEnumerator(const Type& type)
+{
+	return type.declaration == &gEnumerator;
+}
 
 
 
@@ -1323,6 +1370,35 @@ inline const Type& getInstantiatedSimpleType(const Type& type)
 	SYMBOLS_ASSERT(isSimple(type));
 	return getInstantiatedTypeGeneric(type, getInstantiatedSimpleType);
 }
+
+struct IsPointer
+{
+	bool& result;
+	IsPointer(bool& result)
+		: result(result)
+	{
+	}
+
+	const Type& operator()(const TypeId& type) const
+	{
+		if(!type.typeSequence.empty())
+		{
+			result = findLast(type.typeSequence.get())->isEqualTo(SequenceNodeGeneric<DeclaratorPointer, TypeElementVisitor>(false));
+			return gVoid;
+		}
+		return getInstantiatedTypeGeneric(type, *this);
+	}
+};
+
+inline bool isPointer(const TypeId& type)
+{
+	SYMBOLS_ASSERT(type.declaration != 0);
+	bool result = false;
+	IsPointer visitor(result);
+	visitor(type);
+	return result;
+}
+
 
 
 typedef std::vector<const Declaration*> DeclarationHistory;

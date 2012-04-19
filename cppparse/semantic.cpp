@@ -579,10 +579,17 @@ struct WalkerBase : public WalkerState
 	// paragraph 9: usual arithmetic conversions
 	static const TypeId& binaryOperatorIntegralType(const TypeId& left, const TypeId& right)
 	{
+		if(left.declaration == 0
+			|| right.declaration == 0)
+		{
+			// TODO: assert
+			return gTypeNull;
+		}
+
 		if(left.declaration == gUnsignedLongInt.declaration
 			|| right.declaration == gUnsignedLongInt.declaration)
 		{
-			return gLongDouble;
+			return gUnsignedLongInt;
 		}
 		if((left.declaration == gSignedLongInt.declaration
 				&& right.declaration == gUnsignedInt.declaration)
@@ -603,8 +610,16 @@ struct WalkerBase : public WalkerState
 		}
 		return gSignedInt;
 	}
-	static const TypeId& binaryOperatorType(const TypeId& left, const TypeId& right)
+	static const TypeId& binaryOperatorArithmeticType(const TypeId& left, const TypeId& right)
 	{
+		if(left.declaration == 0
+			|| right.declaration == 0)
+		{
+			// TODO: assert
+			return gTypeNull;
+		}
+
+		//TODO: SEMANTIC_ASSERT(isArithmetic(left) && isArithmetic(right));
 		if(left.declaration == gLongDouble.declaration
 			|| right.declaration == gLongDouble.declaration)
 		{
@@ -621,6 +636,33 @@ struct WalkerBase : public WalkerState
 			return gFloat;
 		}
 		return binaryOperatorIntegralType(promoteToIntegralType(left), promoteToIntegralType(right));
+	}
+	static const TypeId& binaryOperatorAdditiveType(const TypeId& left, const TypeId& right)
+	{
+		if(left.declaration == 0
+			|| right.declaration == 0)
+		{
+			 // TODO: assert
+			return gTypeNull;
+		}
+
+		if(isPointer(left))
+		{
+			if(isIntegral(right)
+				|| isEnumerator(right))
+			{
+				return left;
+			}
+			if(isPointer(right))
+			{
+				return gSignedLongInt; // TODO: ptrdiff_t
+			}
+		}
+		return binaryOperatorArithmeticType(left, right);
+	}
+	Declaration* makeTypedef(const TypeId& type)
+	{
+		return type.declaration == 0 ? 0 : allocatorNew(context, Declaration(context, 0, gAnonymousId, type, 0, DECLSPEC_TYPEDEF));
 	}
 };
 
@@ -1088,7 +1130,7 @@ struct LiteralWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Type type;
+	TypeId type;
 	LiteralWalker(const WalkerState& state)
 		: WalkerBase(state), type(0, context)
 	{
@@ -1221,7 +1263,7 @@ struct PrimaryExpressionWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Type type;
+	TypeId type;
 	IdentifierPtr id;
 	Dependent typeDependent;
 	Dependent valueDependent;
@@ -1259,7 +1301,7 @@ struct PrimaryExpressionWalker : public WalkerBase
 			addDependentType(valueDependent, declaration);
 			addDependentName(valueDependent, declaration);
 			id->dec.p = declaration;
-			type = declaration;
+			type = declaration->type;
 		}
 		else
 		{
@@ -1297,7 +1339,7 @@ struct PostfixExpressionWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Type type;
+	TypeId type;
 	IdentifierPtr id;
 	Dependent typeDependent;
 	Dependent valueDependent;
@@ -1313,7 +1355,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
 		id = walker.id;
-		setExpressionType(symbol, type.declaration);
+		setExpressionType(symbol, makeTypedef(type));
 	}
 	// prefix
 	void visit(cpp::postfix_expression_disambiguate* symbol)
@@ -1473,17 +1515,20 @@ struct ExpressionWalker : public WalkerBase
 		id = walker.id;
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
-		if(type.declaration != 0) // left-hand side already parsed
-		{
-			// TODO: SEMANTIC_ASSERT(type.declaration != 0 && walker.type.declaration != 0);
-			type = select(type, walker.type);
-			ExpressionType<T>::set(symbol, type.declaration);
-		}
+		// TODO: SEMANTIC_ASSERT(type.declaration != 0 && walker.type.declaration != 0);
+		type = select(type, walker.type);
+		ExpressionType<T>::set(symbol, makeTypedef(type));
 	}
 	template<typename T>
 	void walkBinaryArithmeticExpression(T* symbol)
 	{
-		walkBinaryExpression(symbol, binaryOperatorType);
+		walkBinaryExpression(symbol, binaryOperatorArithmeticType);
+		// TODO: overloaded arithmetic operators
+	}
+	template<typename T>
+	void walkBinaryAdditiveExpression(T* symbol)
+	{
+		walkBinaryExpression(symbol, binaryOperatorAdditiveType);
 		// TODO: overloaded arithmetic operators
 	}
 	template<typename T>
@@ -1543,7 +1588,7 @@ struct ExpressionWalker : public WalkerBase
 	}
 	void visit(cpp::additive_expression_default* symbol)
 	{
-		walkBinaryArithmeticExpression(symbol);
+		walkBinaryAdditiveExpression(symbol);
 	}
 	void visit(cpp::multiplicative_expression_default* symbol)
 	{
@@ -1557,16 +1602,17 @@ struct ExpressionWalker : public WalkerBase
 	void visit(cpp::assignment_expression_default* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		setExpressionType(symbol, type.declaration);
+		setExpressionType(symbol, makeTypedef(type));
 	}
 	void visit(cpp::expression* symbol) // RHS of expression-list
 	{
+		// TODO: this could also be ( expression )
 		walkBinaryExpression(symbol, binaryOperatorComma);
 	}
 	void visit(cpp::expression_list* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		setExpressionType(symbol, type.declaration);
+		setExpressionType(symbol, makeTypedef(type));
 	}
 	void visit(cpp::postfix_expression* symbol)
 	{
@@ -1576,7 +1622,7 @@ struct ExpressionWalker : public WalkerBase
 		type.swap(walker.type);
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
-		setExpressionType(symbol, type.declaration);
+		setExpressionType(symbol, makeTypedef(type));
 	}
 	/* 14.6.2.2-3
 	Expressions of the following forms are type-dependent only if the type specified by the type-id, simple-type-specifier
@@ -2216,12 +2262,12 @@ struct DeclaratorWalker : public WalkerBase
 	void visit(cpp::declarator_ptr* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		typeSequence.push_front(DeclaratorPointer(symbol->op->key->id == cpp::ptr_operator_key::PTR));
+		typeSequence.push_front(DeclaratorPointer(symbol->op->key->id == cpp::ptr_operator_key::REF));
 	}
 	void visit(cpp::abstract_declarator_ptr* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		typeSequence.push_front(DeclaratorPointer(symbol->op->key->id == cpp::ptr_operator_key::PTR));
+		typeSequence.push_front(DeclaratorPointer(symbol->op->key->id == cpp::ptr_operator_key::REF));
 	}
 	void visit(cpp::declarator_id* symbol)
 	{
