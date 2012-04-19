@@ -61,7 +61,7 @@ struct VisitorCallback
 };
 
 template<typename T>
-struct TypeId
+struct VisitorTypeId
 {
 	typedef T Type;
 };
@@ -73,7 +73,7 @@ struct VisitorFuncGeneric : public VisitorFunc<typename Types::Item*>, public Vi
 	typedef VisitorFunc<typename Types::Item*> FuncType;
 	typedef VisitorFuncGeneric<typename Types::Next> NextType;
 	template<typename VisitorType>
-	explicit VisitorFuncGeneric(const TypeId<VisitorType>& visitorType) :
+	explicit VisitorFuncGeneric(const VisitorTypeId<VisitorType>& visitorType) :
 		FuncType(VisitorThunk<VisitorType, typename FuncType::Type>::visit),
 		NextType(visitorType)
 	{
@@ -84,7 +84,7 @@ template<>
 struct VisitorFuncGeneric<TypeListEnd>
 {
 	template<typename VisitorType>
-	explicit VisitorFuncGeneric(const TypeId<VisitorType>&)
+	explicit VisitorFuncGeneric(const VisitorTypeId<VisitorType>&)
 	{
 	}
 };
@@ -100,7 +100,7 @@ struct VisitorFuncGeneric<TypeListEnd>
 	template<typename VisitorType> \
 	void accept(VisitorType& visitor) \
 	{ \
-		static VisitorFuncTable table = VisitorFuncTable(TypeId<VisitorType>()); \
+		static VisitorFuncTable table = VisitorFuncTable(VisitorTypeId<VisitorType>()); \
 		Visitor callback = { &visitor, &table }; \
 		acceptAbstract(callback); \
 	}

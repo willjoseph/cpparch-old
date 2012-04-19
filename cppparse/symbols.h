@@ -264,6 +264,22 @@ private:
 	}
 };
 
+typedef ListReference<struct TypeId, TreeAllocator<int> > TypeIds2;
+
+// wrapper to disable default-constructor
+struct TypeIds : public TypeIds2
+{
+	TypeIds(const TreeAllocator<int>& allocator)
+		: TypeIds2(allocator)
+	{
+	}
+private:
+	TypeIds()
+	{
+	}
+};
+
+
 struct Type;
 
 typedef Reference<const Type> TypePtr;
@@ -305,9 +321,25 @@ private:
 	Type();
 };
 
-#define TYPE_NULL Type(0, TREEALLOCATOR_NULL)
+struct TypeId : Type
+{
+	TypeSequence typeSequence;
 
-const Type gTypeNull = TYPE_NULL;
+	TypeId(Declaration* declaration, const TreeAllocator<int>& allocator)
+		: Type(declaration, allocator), typeSequence(allocator)
+	{
+	}
+	TypeId& operator=(Declaration* declaration)
+	{
+		SYMBOLS_ASSERT(typeSequence.empty());
+		Type::operator=(declaration);
+		return *this;
+	}
+};
+
+#define TYPE_NULL TypeId(0, TREEALLOCATOR_NULL)
+
+const TypeId gTypeNull = TYPE_NULL;
 
 // ----------------------------------------------------------------------------
 // dependent-name
@@ -525,8 +557,7 @@ class Declaration
 #endif
 public:
 	Scope* scope;
-	Type type;
-	TypeSequence typeSequence;
+	TypeId type;
 	Scope* enclosed;
 	Declaration* overloaded;
 	Dependent valueDependent; // the dependent-types/names that are referred to in the declarator-suffix (array size)
@@ -541,7 +572,7 @@ public:
 		const TreeAllocator<int>& allocator,
 		Scope* scope,
 		Identifier& name,
-		const Type& type,
+		const TypeId& type,
 		Scope* enclosed,
 		DeclSpecifiers specifiers = DeclSpecifiers(),
 		bool isTemplate = false,
@@ -551,7 +582,6 @@ public:
 	) : scope(scope),
 		name(&name),
 		type(type),
-		typeSequence(allocator),
 		enclosed(enclosed),
 		overloaded(0),
 		valueDependent(valueDependent),
@@ -565,7 +595,6 @@ public:
 	}
 	Declaration() :
 		type(0, TREEALLOCATOR_NULL),
-		typeSequence(TREEALLOCATOR_NULL),
 		valueDependent(TREEALLOCATOR_NULL),
 		templateParams(TREEALLOCATOR_NULL),
 		templateParamDefaults(TREEALLOCATOR_NULL),
@@ -853,9 +882,9 @@ extern Declaration gSpecial;
 extern Declaration gClass;
 extern Declaration gEnum;
 
-#define TYPE_SPECIAL Type(&gSpecial, TREEALLOCATOR_NULL)
-#define TYPE_CLASS Type(&gClass, TREEALLOCATOR_NULL)
-#define TYPE_ENUM Type(&gEnum, TREEALLOCATOR_NULL)
+#define TYPE_SPECIAL TypeId(&gSpecial, TREEALLOCATOR_NULL)
+#define TYPE_CLASS TypeId(&gClass, TREEALLOCATOR_NULL)
+#define TYPE_ENUM TypeId(&gEnum, TREEALLOCATOR_NULL)
 
 // types
 struct BuiltInTypeDeclaration : Declaration
@@ -869,47 +898,47 @@ struct BuiltInTypeDeclaration : Declaration
 
 extern Declaration gNamespace;
 
-#define TYPE_NAMESPACE Type(&gNamespace, TREEALLOCATOR_NULL)
+#define TYPE_NAMESPACE TypeId(&gNamespace, TREEALLOCATOR_NULL)
 
 extern Declaration gCtor;
 extern Declaration gEnumerator;
 extern Declaration gUnknown;
 
-#define TYPE_CTOR Type(&gCtor, TREEALLOCATOR_NULL)
-#define TYPE_ENUMERATOR Type(&gEnumerator, TREEALLOCATOR_NULL)
-#define TYPE_UNKNOWN Type(&gUnknown, TREEALLOCATOR_NULL)
+#define TYPE_CTOR TypeId(&gCtor, TREEALLOCATOR_NULL)
+#define TYPE_ENUMERATOR TypeId(&gEnumerator, TREEALLOCATOR_NULL)
+#define TYPE_UNKNOWN TypeId(&gUnknown, TREEALLOCATOR_NULL)
 
 // fundamental types
-extern Type gChar;
-extern Type gCharType;
-extern Type gSignedChar;
-extern Type gUnsignedChar;
-extern Type gSignedShortInt;
-extern Type gUnsignedShortInt;
-extern Type gSignedInt;
-extern Type gUnsignedInt;
-extern Type gSignedLongInt;
-extern Type gUnsignedLongInt;
-extern Type gSignedLongLongInt;
-extern Type gUnsignedLongLongInt;
-extern Type gWCharT;
-extern Type gBool;
-extern Type gFloat;
-extern Type gDouble;
-extern Type gLongDouble;
-extern Type gVoid;
+extern TypeId gChar;
+extern TypeId gCharType;
+extern TypeId gSignedChar;
+extern TypeId gUnsignedChar;
+extern TypeId gSignedShortInt;
+extern TypeId gUnsignedShortInt;
+extern TypeId gSignedInt;
+extern TypeId gUnsignedInt;
+extern TypeId gSignedLongInt;
+extern TypeId gUnsignedLongInt;
+extern TypeId gSignedLongLongInt;
+extern TypeId gUnsignedLongLongInt;
+extern TypeId gWCharT;
+extern TypeId gBool;
+extern TypeId gFloat;
+extern TypeId gDouble;
+extern TypeId gLongDouble;
+extern TypeId gVoid;
 
 struct StringLiteralDeclaration : Declaration
 {
-	StringLiteralDeclaration(Identifier& name, const Type& type, TypeSequence::Pointer node)
+	StringLiteralDeclaration(Identifier& name, const TypeId& type, TypeSequence::Pointer node)
 		: Declaration(TREEALLOCATOR_NULL, 0, name, type, 0, DECLSPEC_TYPEDEF) // TODO: const
 	{
-		typeSequence.head.next = node;
+		Declaration::type.typeSequence.head.next = node;
 	}
 };
 
-extern Type gStringLiteral;
-extern Type gWideStringLiteral;
+extern TypeId gStringLiteral;
+extern TypeId gWideStringLiteral;
 
 inline unsigned combineFundamental(unsigned fundamental, unsigned token)
 {
@@ -1076,7 +1105,7 @@ extern Declaration gDependentNested;
 
 extern Declaration gParam;
 
-#define TYPE_PARAM Type(&gParam, TREEALLOCATOR_NULL)
+#define TYPE_PARAM TypeId(&gParam, TREEALLOCATOR_NULL)
 
 
 // objects
@@ -1087,22 +1116,22 @@ extern Identifier gOperatorFunctionTemplateId;
 extern Identifier gAnonymousId;
 
 
-inline const Type& binaryOperatorAssignment(const Type& left, const Type& right)
+inline const TypeId& binaryOperatorAssignment(const TypeId& left, const TypeId& right)
 {
 	return left;
 }
 
-inline const Type& binaryOperatorComma(const Type& left, const Type& right)
+inline const TypeId& binaryOperatorComma(const TypeId& left, const TypeId& right)
 {
 	return right;
 }
 
-inline const Type& binaryOperatorBoolean(const Type& left, const Type& right)
+inline const TypeId& binaryOperatorBoolean(const TypeId& left, const TypeId& right)
 {
 	return gBool;
 }
 
-inline const Type& binaryOperatorNull(const Type& left, const Type& right)
+inline const TypeId& binaryOperatorNull(const TypeId& left, const TypeId& right)
 {
 	return gTypeNull;
 }
@@ -1273,9 +1302,14 @@ inline const Type& getInstantiatedType(const Type& type)
 	return getInstantiatedTypeGeneric(type, getInstantiatedType);
 }
 
+inline bool isSimple(const TypeId& type)
+{
+	return type.typeSequence.empty();
+}
+
 inline bool isSimple(const Declaration& declaration)
 {
-	return declaration.typeSequence.empty();
+	return isSimple(declaration.type);
 }
 
 inline bool isSimple(const Type& type)
@@ -1335,7 +1369,7 @@ struct TypeIterator
 	TypeSequence::Node* evaluate() const
 	{
 		// defer dereference of 'i' until we know 'i' is valid
-		return (p == 0) ? (*i)->typeSequence.head.next.get() : p;
+		return (p == 0) ? (*i)->type.typeSequence.head.next.get() : p;
 	}
 
 	const TypeSequence::Visitable& operator*() const

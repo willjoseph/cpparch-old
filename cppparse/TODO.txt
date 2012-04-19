@@ -527,6 +527,8 @@ not consider any scopes outside the innermost enclosing namespace.
 
 - distinguish names that refer to 'current instantiation' as not dependent - 14.6.2.1
 
+- specialised expression parsing
+	http://www.engr.mun.ca/~theo/Misc/exp_parsing.htm
 - use caching to simplify grammar
 	- for shared-prefix of assignment-expression/conditional-expression/constant-expression
 	- shared-prefix of expression/expression-list/assignment-expression
@@ -560,6 +562,15 @@ not consider any scopes outside the innermost enclosing namespace.
 		- promotions
 		- numeric-literal: double, float, hex, oct, modifiers
 		- string-literal: wide
+	- implicit-conversion
+		- can be identity
+		- can be ambiguous
+		- left-operand of assignment and implicit-object param cannot be temporaries
+		- standard
+			- up to one of each of lvalue transform, promotion/conversion, qualification adjustment, applied in order
+			- ranked as exact, promotion or conversion
+		- user-defined
+		- ellipsis
 - argument-dependent-lookup
 - name-lookup for overloaded-operators
 

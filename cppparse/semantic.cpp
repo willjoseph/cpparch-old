@@ -207,7 +207,7 @@ struct WalkerState
 		const TreeAllocator<int>& allocator,
 		Scope* parent,
 		Identifier& name,
-		const Type& type,
+		const TypeId& type,
 		Scope* enclosed,
 		DeclSpecifiers specifiers = DeclSpecifiers(),
 		bool isTemplate = false,
@@ -424,7 +424,7 @@ struct WalkerState
 	void addDependentType(Dependent& dependent, Declaration* declaration)
 	{
 		static DependencyCallbacks<const Type> callbacks = makeDependencyCallbacks(isDependentType);
-		addDependent(dependent, makeDependencyCallback(const_cast<const Type*>(&declaration->type), &callbacks));
+		addDependent(dependent, makeDependencyCallback(static_cast<const Type*>(&declaration->type), &callbacks));
 	}
 	void addDependent(Dependent& dependent, const Type& type)
 	{
@@ -500,7 +500,7 @@ struct WalkerBase : public WalkerState
 		return declaration;
 	}
 
-	Declaration* declareObject(Scope* parent, Identifier* id, const Type& type, Scope* enclosed, DeclSpecifiers specifiers, size_t templateParameter, const Dependent& valueDependent)
+	Declaration* declareObject(Scope* parent, Identifier* id, const TypeId& type, Scope* enclosed, DeclSpecifiers specifiers, size_t templateParameter, const Dependent& valueDependent)
 	{
 		// 7.3.1.2 Namespace member definitions
 		// Paragraph 3
@@ -554,7 +554,7 @@ struct WalkerBase : public WalkerState
 
 	// 4.5 Integral Promotions
 	// TODO: handle bitfield types?
-	static const Type& promoteToIntegralType(const Type& type)
+	static const TypeId& promoteToIntegralType(const TypeId& type)
 	{
 		if(type.declaration == gChar.declaration
 			|| type.declaration == gSignedChar.declaration
@@ -577,7 +577,7 @@ struct WalkerBase : public WalkerState
 	}
 	// 5 Expressions
 	// paragraph 9: usual arithmetic conversions
-	static const Type& binaryOperatorIntegralType(const Type& left, const Type& right)
+	static const TypeId& binaryOperatorIntegralType(const TypeId& left, const TypeId& right)
 	{
 		if(left.declaration == gUnsignedLongInt.declaration
 			|| right.declaration == gUnsignedLongInt.declaration)
@@ -603,7 +603,7 @@ struct WalkerBase : public WalkerState
 		}
 		return gSignedInt;
 	}
-	static const Type& binaryOperatorType(const Type& left, const Type& right)
+	static const TypeId& binaryOperatorType(const TypeId& left, const TypeId& right)
 	{
 		if(left.declaration == gLongDouble.declaration
 			|| right.declaration == gLongDouble.declaration)
@@ -1067,7 +1067,7 @@ struct ArgumentListWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Types arguments;
+	TypeIds arguments;
 	Dependent typeDependent;
 	Dependent valueDependent;
 	ArgumentListWalker(const WalkerState& state)
@@ -1177,9 +1177,8 @@ struct DependentPostfixExpressionWalker : public WalkerBase
 	DeclarationPtr declaration;
 	IdentifierPtr id;
 	Dependent typeDependent;
-	Types arguments;
 	DependentPostfixExpressionWalker(const WalkerState& state)
-		: WalkerBase(state), declaration(0), id(0), typeDependent(context), arguments(context)
+		: WalkerBase(state), declaration(0), id(0), typeDependent(context)
 	{
 	}
 	void visit(cpp::primary_expression* symbol)
@@ -1194,7 +1193,6 @@ struct DependentPostfixExpressionWalker : public WalkerBase
 	{
 		ArgumentListWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		arguments.swap(walker.arguments);
 		addDependent(typeDependent, walker.typeDependent);
 		if(id != 0)
 		{
@@ -1301,11 +1299,10 @@ struct PostfixExpressionWalker : public WalkerBase
 
 	Type type;
 	IdentifierPtr id;
-	Types arguments;
 	Dependent typeDependent;
 	Dependent valueDependent;
 	PostfixExpressionWalker(const WalkerState& state)
-		: WalkerBase(state), type(0, context), id(0), arguments(context), typeDependent(context), valueDependent(context)
+		: WalkerBase(state), type(0, context), id(0), typeDependent(context), valueDependent(context)
 	{
 	}
 	void visit(cpp::primary_expression* symbol)
@@ -1372,11 +1369,29 @@ struct PostfixExpressionWalker : public WalkerBase
 		addDependent(valueDependent, walker.valueDependent);
 		id = 0;
 	}
+	enum IcsRank
+	{
+		ICSRANK_STANDARDEXACT,
+		ICSRANK_STANDARDPROMOTION,
+		ICSRANK_STANDARDCONVERSION,
+		ICSRANK_USERDEFINED,
+		ICSRANK_ELLIPSIS,
+		ICSRANK_INVALID,
+	};
+	IcsRank getIcsRank(const CanonicalType& to, const CanonicalType& from)
+	{
+		return ICSRANK_STANDARDEXACT;
+	}
+	struct ImplicitConversion
+	{
+		const Declaration* to;
+		const Type* from;
+		IcsRank rank;
+	};
 	void visit(cpp::postfix_expression_call* symbol)
 	{
 		ArgumentListWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		arguments.swap(walker.arguments);
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
 		if(type.declaration == 0) // if the prefix expression has no type (i.e. names an overloadable function)
@@ -1395,6 +1410,7 @@ struct PostfixExpressionWalker : public WalkerBase
 					// If there is no clear winner of the best matches, the compiler reports an error - ambiguous function call.
 					if(p->enclosed != 0)
 					{
+						TypeIds::const_iterator a = walker.arguments.begin();
 						for(Scope::DeclarationList::iterator i = p->enclosed->declarationList.begin(); i != p->enclosed->declarationList.end(); ++i)
 						{
 							const Declaration& parameter = *(*i);
@@ -1436,7 +1452,7 @@ struct ExpressionWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	IdentifierPtr id;
-	Type type;
+	TypeId type;
 	/* 14.6.2.2-1
 	...an expression is type-dependent if any subexpression is type-dependent.
 	*/
@@ -3295,8 +3311,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 	DeclarationPtr declaration;
 	ScopePtr parent;
 	IdentifierPtr id;
-	Type type;
-	TypeSequence typeSequence;
+	TypeId type;
 	ScopePtr enclosed;
 	DeclSpecifiers specifiers;
 	IdentifierPtr forward;
@@ -3314,7 +3329,6 @@ struct SimpleDeclarationWalker : public WalkerBase
 		parent(0),
 		id(0),
 		type(&gCtor, context),
-		typeSequence(context),
 		enclosed(0),
 		forward(0),
 		valueDependent(context),
@@ -3337,7 +3351,6 @@ struct SimpleDeclarationWalker : public WalkerBase
 				enclosed = templateParams; // for a static-member-variable definition, store template-params with different names than those in the class definition
 			}
 			declaration = declareObject(parent, id, type, enclosed, specifiers, templateParameter, valueDependent);
-			declaration->typeSequence = typeSequence;
 
 			enclosing = parent;
 
@@ -3415,7 +3428,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		parent = walker.enclosing; // if the id-expression in the declarator is a qualified-id, this is the qualifying scope
 		id = walker.id;
 		enclosed = walker.paramScope;
-		typeSequence = walker.typeSequence;
+		type.typeSequence = walker.typeSequence;
 		/* temp.dep.constexpr
 		An identifier is value-dependent if it is:
 			— a name declared with a dependent type,
@@ -3433,7 +3446,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		}
 		TREEWALKER_WALK(walker, symbol);
 		enclosed = walker.paramScope;
-		typeSequence = walker.typeSequence;
+		type.typeSequence = walker.typeSequence;
 	}
 	void visit(cpp::member_declarator_bitfield* symbol)
 	{
@@ -3565,7 +3578,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		DeclareEtsGuard(SimpleDeclarationWalker& walker)
 		{
 			p = walker.declareEts(walker.type, walker.forward) ? &walker.type : 0;
-			typeSequence = &walker.typeSequence;
+			typeSequence = &walker.type.typeSequence;
 		}
 		~DeclareEtsGuard()
 		{

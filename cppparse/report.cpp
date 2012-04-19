@@ -201,7 +201,7 @@ struct PrintingWalker : TypeElementVisitor
 		{
 			const Declaration& declaration = *typeHistory.back();
 			typeHistory.pop_back();
-			nextElement = declaration.typeSequence.get();
+			nextElement = declaration.type.typeSequence.get();
 			visitTypeElement();
 		}
 	}
