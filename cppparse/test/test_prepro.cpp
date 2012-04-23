@@ -1,12 +1,23 @@
 
+typedef int* P;
+P* pp;
+
 struct S
 {
 } s;
 
 void f()
 {
+	&s;
 	S* p;
+	*p;
 	p + 3;
+
+	int i;
+	-i;
+	+i;
+	~i;
+	!i;
 
 	s, 0;
 	f(s);

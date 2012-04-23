@@ -1624,6 +1624,37 @@ struct ExpressionWalker : public WalkerBase
 		addDependent(valueDependent, walker.valueDependent);
 		setExpressionType(symbol, makeTypedef(type));
 	}
+	void visit(cpp::unary_expression_op* symbol)
+	{
+		TREEWALKER_LEAF(symbol);
+		if(symbol->op->id == cpp::unary_operator::AND) // address-of
+		{
+			++type.indirection;
+		}
+		else if(symbol->op->id == cpp::unary_operator::STAR) // dereference
+		{
+			--type.indirection;
+		}
+		else if(symbol->op->id == cpp::unary_operator::PLUS
+			|| symbol->op->id == cpp::unary_operator::MINUS)
+		{
+			if(!isFloating(type))
+			{
+				// TODO: check type is integral or enumeration
+				type = promoteToIntegralType(type);
+			}
+		}
+		else if(symbol->op->id == cpp::unary_operator::NOT)
+		{
+			type = gBool;
+		}
+		else if(symbol->op->id == cpp::unary_operator::COMPL)
+		{
+			// TODO: check type is integral or enumeration
+			type = promoteToIntegralType(type);
+		}
+		setExpressionType(symbol, makeTypedef(type));
+	}
 	/* 14.6.2.2-3
 	Expressions of the following forms are type-dependent only if the type specified by the type-id, simple-type-specifier
 	or new-type-id is dependent, even if any subexpression is type-dependent:

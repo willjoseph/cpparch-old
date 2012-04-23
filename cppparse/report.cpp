@@ -208,13 +208,13 @@ struct PrintingWalker : TypeElementVisitor
 
 	void printTypeSequence(const Type& type)
 	{
-		VisitType::apply(type, typeHistory);
+		GetTypeHistory::apply(type, typeHistory);
 		visitTypeHistory();
 	}
 
 	void printTypeSequence(const Declaration& declaration)
 	{
-		VisitType::apply(declaration, typeHistory);
+		GetTypeHistory::apply(declaration, typeHistory);
 		visitTypeHistory();
 	}
 

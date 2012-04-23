@@ -201,15 +201,68 @@ struct Sequence : A
 		node->next = head.next;
 		head.next = node;
 	}
+	template<typename T>
+	void push_back(const T& value)
+	{
+		Pointer node = allocatorNew(getAllocator(), SequenceNodeGeneric<T, Visitor>(value));
+		if(empty())
+		{
+			node->next = head.next;
+			head.next = node;
+		}
+		else
+		{
+			Pointer last = head.next;
+			for(Pointer next = last->next; next != 0; next = next->next)
+			{
+				last = next;
+			}
+			node->next = 0;
+			last->next = node;
+		}
+	}
+	void pop_front()
+	{
+#ifdef ALLOCATOR_DEBUG
+		SYMBOLS_ASSERT(head.next.p->count == 1);
+#endif
+		SYMBOLS_ASSERT(!empty());
+		Pointer node = head.next;
+		head.next = node->next;
+		allocatorDelete(getAllocator(), node.get());
+	}
 
 	void swap(Sequence& other)
 	{
 		head.next.swap(other.head.next);
 	}
+	void reverse()
+	{
+#ifdef ALLOCATOR_DEBUG
+		SYMBOLS_ASSERT(head.next.p->count == 1);
+#endif
+		Pointer root = head.next;
+		head.next = 0;
+		while(root != 0)
+		{
+			Pointer next = root->next;
+			root->next = head.next;
+			head.next = root;
+			root = next;
+		}
+	}
 
 	const Visitable* get() const
 	{
 		return head.next.get();
+	}
+
+	void accept(Visitor& visitor)
+	{
+		for(const Visitable* node = get(); node != 0; node = node->get())
+		{
+			node->accept(visitor);
+		}
 	}
 };
 
@@ -224,6 +277,7 @@ const SequenceNodeAbstract<Visitor>* findLast(const SequenceNodeAbstract<Visitor
 	}
 	return findLast(next);
 }
+
 
 
 // ----------------------------------------------------------------------------
@@ -337,9 +391,10 @@ private:
 struct TypeId : Type
 {
 	TypeSequence typeSequence;
+	int indirection;
 
 	TypeId(Declaration* declaration, const TreeAllocator<int>& allocator)
-		: Type(declaration, allocator), typeSequence(allocator)
+		: Type(declaration, allocator), typeSequence(allocator), indirection(0)
 	{
 	}
 	TypeId& operator=(Declaration* declaration)
@@ -1403,10 +1458,10 @@ inline bool isPointer(const TypeId& type)
 
 typedef std::vector<const Declaration*> DeclarationHistory;
 
-struct VisitType
+struct GetTypeHistory
 {
 	DeclarationHistory& history;
-	VisitType(DeclarationHistory& history)
+	GetTypeHistory(DeclarationHistory& history)
 		: history(history)
 	{
 	}
@@ -1420,7 +1475,7 @@ struct VisitType
 		{
 			history.push_back(type.declaration);
 		}
-		return getInstantiatedTypeGeneric(type, VisitType(history));
+		return getInstantiatedTypeGeneric(type, GetTypeHistory(history));
 	}
 	static const Type& apply(const Declaration& declaration, DeclarationHistory& history)
 	{
@@ -1431,6 +1486,62 @@ struct VisitType
 		return apply(declaration.type, history);
 	}
 };
+
+struct TypeSequenceReverseCopy : TypeElementVisitor
+{
+	TypeSequence& typeSequence;
+	TypeSequenceReverseCopy(TypeSequence& typeSequence)
+		: typeSequence(typeSequence)
+	{
+	}
+	void visit(const DeclaratorPointer& element)
+	{
+		typeSequence.push_front(element);
+	}
+	void visit(const DeclaratorArray& element)
+	{
+		typeSequence.push_front(element);
+	}
+	void visit(const DeclaratorMemberPointer& element)
+	{
+		typeSequence.push_front(element);
+	}
+	void visit(const DeclaratorFunction& element)
+	{
+		typeSequence.push_front(element);
+	}
+};
+
+struct GetCanonicalTypeSequence
+{
+	TypeSequence& typeSequence;
+	GetCanonicalTypeSequence(TypeSequence& typeSequence)
+		: typeSequence(typeSequence)
+	{
+	}
+	const Type& operator()(const TypeId& type) const
+	{
+		const Type& result = getInstantiatedTypeGeneric(type, *this);
+		TypeSequenceReverseCopy copier(typeSequence);
+		typeSequence.accept(copier);
+		return result;
+	}
+};
+
+inline const Type& makeCanonicalTypeSequence(const TypeId& type, TypeSequence& typeSequence)
+{
+	GetCanonicalTypeSequence visitor(typeSequence);
+	const Type& result = visitor(type);
+	while(type.indirection < 0)
+	{
+		typeSequence.pop_front();
+	}
+	while(type.indirection > 0)
+	{
+		typeSequence.push_front(DeclaratorPointer(false));
+	}
+	return result;
+}
 
 struct TypeIterator
 {
@@ -1481,7 +1592,7 @@ struct CanonicalType
 	DeclarationHistory history;
 	CanonicalType(const Declaration& declaration)
 	{
-		VisitType::apply(declaration, history);
+		GetTypeHistory::apply(declaration, history);
 	}
 	typedef TypeIterator const_iterator;
 	const_iterator begin() const
