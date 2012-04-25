@@ -148,7 +148,7 @@ struct PrintingWalker : TypeElementVisitor
 		}
 	}
 
-	const TypeSequence::Visitable* nextElement;
+	const TypeSequence::Node* nextElement;
 
 	void visit(const DeclaratorPointer& pointer)
 	{
@@ -185,7 +185,7 @@ struct PrintingWalker : TypeElementVisitor
 	{
 		if(nextElement != 0)
 		{
-			const TypeSequence::Visitable* visitable = nextElement;
+			const TypeSequence::Node* visitable = nextElement;
 			nextElement = visitable->get();
 			visitable->accept(*this);
 		}

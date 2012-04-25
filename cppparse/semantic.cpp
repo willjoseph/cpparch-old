@@ -1420,7 +1420,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		ICSRANK_ELLIPSIS,
 		ICSRANK_INVALID,
 	};
-	IcsRank getIcsRank(const CanonicalType& to, const CanonicalType& from)
+	IcsRank getIcsRank(const TypeContainer& to, const TypeContainer& from)
 	{
 		return ICSRANK_STANDARDEXACT;
 	}
@@ -1456,7 +1456,13 @@ struct PostfixExpressionWalker : public WalkerBase
 						for(Scope::DeclarationList::iterator i = p->enclosed->declarationList.begin(); i != p->enclosed->declarationList.end(); ++i)
 						{
 							const Declaration& parameter = *(*i);
-							CanonicalType type(parameter);
+							TypeContainer type(parameter);
+							if(a != walker.arguments.end()
+								&& (*a).declaration != 0) // TODO: assert
+							{
+								CanonicalType canonicalType = CANONICALTYPE_NULL;
+								const Type& original = makeCanonicalType(*a, canonicalType);
+							}
 							SEMANTIC_ASSERT(isEqual(type, type));
 						}
 					}

@@ -113,3 +113,6 @@ Identifier gConversionFunctionId = makeIdentifier("operator T");
 Identifier gOperatorFunctionTemplateId = makeIdentifier("operator () <>");
 // TODO: don't declare if id is anonymous?
 Identifier gAnonymousId = makeIdentifier("$anonymous");
+
+
+CanonicalTypes gCanonicalTypes;

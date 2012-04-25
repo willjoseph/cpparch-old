@@ -98,29 +98,34 @@ struct ExpressionType<T, true>
 // sequence
 
 template<typename Visitor>
-struct SequenceNodeAbstract
-{
-	virtual void accept(Visitor& visitor) const = 0;
-	virtual const SequenceNodeAbstract* get() const = 0;
-	virtual bool isEqualTo(const SequenceNodeAbstract& other) const = 0;
-};
-
-template<typename Visitor>
-struct SequenceNode : SequenceNodeAbstract<Visitor>
+struct SequenceNode
 {
 	Reference<SequenceNode> next;
+
 	virtual ~SequenceNode()
 	{
 	}
+	virtual void accept(Visitor& visitor) const = 0;
+	virtual bool operator==(const SequenceNode& other) const = 0;
+
+	const SequenceNode* get() const
+	{
+		return next.get();
+	}
+};
+
+template<typename Visitor>
+struct SequenceNodeEmpty : SequenceNode<Visitor>
+{
 	virtual void accept(Visitor& visitor) const
 	{
 		throw SymbolsError();
 	}
-	virtual const SequenceNodeAbstract<Visitor>* get() const
+	virtual bool operator==(const SequenceNode<Visitor>& other) const
 	{
 		throw SymbolsError();
 	}
-	virtual bool isEqualTo(const SequenceNodeAbstract<Visitor>& other) const
+	virtual bool operator<(const SequenceNode<Visitor>& other) const
 	{
 		throw SymbolsError();
 	}
@@ -138,24 +143,24 @@ struct SequenceNodeGeneric : Reference< SequenceNode<Visitor> >::Value
 	{
 		visitor.visit(value);
 	}
-	const SequenceNodeAbstract<Visitor>* get() const
-	{
-		return next.get();
-	}
-	bool isEqualTo(const SequenceNodeAbstract<Visitor>& other) const
+	bool operator==(const SequenceNode<Visitor>& other) const
 	{
 		return typeid(*this) == typeid(other)
 			&& value == static_cast<const SequenceNodeGeneric*>(&other)->value;
+	}
+	bool operator<(const SequenceNode<Visitor>& other) const
+	{
+		return (typeid(*this).before(typeid(other)) ||
+			!(typeid(other).before(typeid(*this))) && value < static_cast<const SequenceNodeGeneric*>(&other)->value);
 	}
 };
 
 template<typename A, typename Visitor>
 struct Sequence : A
 {
-	typedef SequenceNodeAbstract<Visitor> Visitable;
 	typedef SequenceNode<Visitor> Node;
 	typedef Reference<Node> Pointer;
-	Node head;
+	SequenceNodeEmpty<Visitor> head;
 
 	A& getAllocator()
 	{
@@ -252,14 +257,14 @@ struct Sequence : A
 		}
 	}
 
-	const Visitable* get() const
+	const Node* get() const
 	{
 		return head.next.get();
 	}
 
-	void accept(Visitor& visitor)
+	void accept(Visitor& visitor) const
 	{
-		for(const Visitable* node = get(); node != 0; node = node->get())
+		for(const Node* node = get(); node != 0; node = node->get())
 		{
 			node->accept(visitor);
 		}
@@ -267,10 +272,10 @@ struct Sequence : A
 };
 
 template<typename Visitor>
-const SequenceNodeAbstract<Visitor>* findLast(const SequenceNodeAbstract<Visitor>* node)
+const SequenceNode<Visitor>* findLast(const SequenceNode<Visitor>* node)
 {
 	SYMBOLS_ASSERT(node != 0);
-	const SequenceNodeAbstract<Visitor>* next = node->get();
+	const SequenceNode<Visitor>* next = node->get();
 	if(next == 0)
 	{
 		return node;
@@ -908,6 +913,10 @@ inline bool operator==(const DeclaratorPointer& left, const DeclaratorPointer& r
 	return left.isReference == right.isReference;
 }
 
+inline bool operator<(const DeclaratorPointer& left, const DeclaratorPointer& right)
+{
+	return left.isReference < right.isReference;
+}
 
 struct DeclaratorMemberPointer
 {
@@ -923,6 +932,10 @@ inline bool operator==(const DeclaratorMemberPointer& left, const DeclaratorMemb
 	return left.classDeclaration == right.classDeclaration;
 }
 
+inline bool operator<(const DeclaratorMemberPointer& left, const DeclaratorMemberPointer& right)
+{
+	return left.classDeclaration < right.classDeclaration;
+}
 
 struct DeclaratorArray
 {
@@ -932,6 +945,11 @@ struct DeclaratorArray
 inline bool operator==(const DeclaratorArray& left, const DeclaratorArray& right)
 {
 	return true;
+}
+
+inline bool operator<(const DeclaratorArray& left, const DeclaratorArray& right)
+{
+	return false;
 }
 
 struct DeclaratorFunction
@@ -946,6 +964,11 @@ struct DeclaratorFunction
 inline bool operator==(const DeclaratorFunction& left, const DeclaratorFunction& right)
 {
 	return left.paramScope == right.paramScope;
+}
+
+inline bool operator<(const DeclaratorFunction& left, const DeclaratorFunction& right)
+{
+	return left.paramScope < right.paramScope; // TODO: deep compare
 }
 
 // ----------------------------------------------------------------------------
@@ -1438,7 +1461,7 @@ struct IsPointer
 	{
 		if(!type.typeSequence.empty())
 		{
-			result = findLast(type.typeSequence.get())->isEqualTo(SequenceNodeGeneric<DeclaratorPointer, TypeElementVisitor>(false));
+			result = *findLast(type.typeSequence.get()) == SequenceNodeGeneric<DeclaratorPointer, TypeElementVisitor>(false);
 			return gVoid;
 		}
 		return getInstantiatedTypeGeneric(type, *this);
@@ -1487,58 +1510,153 @@ struct GetTypeHistory
 	}
 };
 
+
+struct TypeElement
+{
+	const TypeElement* next;
+
+	virtual ~TypeElement()
+	{
+	}
+	virtual void accept(TypeElementVisitor& visitor) const = 0;
+	virtual bool operator<(const TypeElement& other) const = 0;
+};
+
+struct TypeElementEmpty : TypeElement
+{
+	TypeElementEmpty()
+	{
+		next = 0;
+	}
+	virtual void accept(TypeElementVisitor& visitor) const
+	{
+		throw SymbolsError();
+	}
+	virtual bool operator<(const TypeElement& other) const
+	{
+		throw SymbolsError();
+	}
+};
+
+const TypeElementEmpty gTypeElementEmpty;
+
+template<typename T>
+struct TypeElementGeneric : TypeElement
+{
+	T value;
+	TypeElementGeneric(const T& value)
+		: value(value)
+	{
+	}
+	void accept(TypeElementVisitor& visitor) const
+	{
+		visitor.visit(value);
+	}
+	bool operator<(const TypeElement& other) const
+	{
+		return (typeid(*this).before(typeid(other)) ||
+			!(typeid(other).before(typeid(*this))) && value < static_cast<const TypeElementGeneric*>(&other)->value);
+	}
+};
+
+typedef const TypeElement* CanonicalType;
+
+const CanonicalType CANONICALTYPE_NULL = &gTypeElementEmpty;
+
+
+struct CanonicalTypeLess
+{
+	bool operator()(CanonicalType left, CanonicalType right) const
+	{
+		return (*left < *right ||
+			!(*right < *left) && left->next < right->next);
+	}
+};
+
+typedef std::set<CanonicalType, CanonicalTypeLess> CanonicalTypes;
+
+
+template<typename T>
+inline CanonicalType pushCanonicalType(CanonicalTypes& types, CanonicalType type, const T& value)
+{
+	TypeElementGeneric<T> node(value);
+	node.next = type;
+	CanonicalTypes::iterator i = types.lower_bound(&node); // first element not less than value
+	if(i != types.end()
+		&& !types.key_comp()(&node, *i)) // if value is not less than lower bound
+	{
+		// lower bound is equal to value
+		return *i;
+	}
+	return *types.insert(i, new TypeElementGeneric<T>(node)); // leaked deliberately
+}
+
+extern CanonicalTypes gCanonicalTypes;
+
+template<typename T>
+inline void pushCanonicalType(CanonicalType& type, const T& value)
+{
+	type = pushCanonicalType(gCanonicalTypes, type, value);
+}
+
+inline void popCanonicalType(CanonicalType& type)
+{
+	SYMBOLS_ASSERT(type != 0);
+	type = type->next;
+}
+
 struct TypeSequenceReverseCopy : TypeElementVisitor
 {
-	TypeSequence& typeSequence;
-	TypeSequenceReverseCopy(TypeSequence& typeSequence)
-		: typeSequence(typeSequence)
+	CanonicalType& type;
+	TypeSequenceReverseCopy(CanonicalType& type)
+		: type(type)
 	{
 	}
 	void visit(const DeclaratorPointer& element)
 	{
-		typeSequence.push_front(element);
+		pushCanonicalType(type, element);
 	}
 	void visit(const DeclaratorArray& element)
 	{
-		typeSequence.push_front(element);
+		pushCanonicalType(type, element);
 	}
 	void visit(const DeclaratorMemberPointer& element)
 	{
-		typeSequence.push_front(element);
+		pushCanonicalType(type, element);
 	}
 	void visit(const DeclaratorFunction& element)
 	{
-		typeSequence.push_front(element);
+		pushCanonicalType(type, element);
 	}
 };
 
 struct GetCanonicalTypeSequence
 {
-	TypeSequence& typeSequence;
-	GetCanonicalTypeSequence(TypeSequence& typeSequence)
-		: typeSequence(typeSequence)
+	CanonicalType& canonicalType;
+	GetCanonicalTypeSequence(CanonicalType& canonicalType)
+		: canonicalType(canonicalType)
 	{
 	}
 	const Type& operator()(const TypeId& type) const
 	{
 		const Type& result = getInstantiatedTypeGeneric(type, *this);
-		TypeSequenceReverseCopy copier(typeSequence);
-		typeSequence.accept(copier);
+		TypeSequenceReverseCopy copier(canonicalType);
+		type.typeSequence.accept(copier);
 		return result;
 	}
 };
 
-inline const Type& makeCanonicalTypeSequence(const TypeId& type, TypeSequence& typeSequence)
+inline const Type& makeCanonicalType(const TypeId& type, CanonicalType& canonicalType)
 {
-	GetCanonicalTypeSequence visitor(typeSequence);
+	GetCanonicalTypeSequence visitor(canonicalType);
 	const Type& result = visitor(type);
-	while(type.indirection < 0)
+	for(int i = type.indirection; i < 0; ++i)
 	{
-		typeSequence.pop_front();
+		popCanonicalType(canonicalType);
 	}
-	while(type.indirection > 0)
+	for(int i = type.indirection; i > 0; --i)
 	{
-		typeSequence.push_front(DeclaratorPointer(false));
+		pushCanonicalType(canonicalType, DeclaratorPointer(false));
 	}
 	return result;
 }
@@ -1559,7 +1677,7 @@ struct TypeIterator
 		return (p == 0) ? (*i)->type.typeSequence.head.next.get() : p;
 	}
 
-	const TypeSequence::Visitable& operator*() const
+	const TypeSequence::Node& operator*() const
 	{
 		return *evaluate();
 	}
@@ -1587,10 +1705,10 @@ inline bool operator!=(const TypeIterator& left, const TypeIterator& right)
 	return !(left == right);
 }
 
-struct CanonicalType
+struct TypeContainer
 {
 	DeclarationHistory history;
-	CanonicalType(const Declaration& declaration)
+	TypeContainer(const Declaration& declaration)
 	{
 		GetTypeHistory::apply(declaration, history);
 	}
@@ -1605,7 +1723,7 @@ struct CanonicalType
 	}
 };
 
-inline bool isEqual(const CanonicalType& left, const CanonicalType& right)
+inline bool isEqual(const TypeContainer& left, const TypeContainer& right)
 {
 	TypeIterator l = left.begin();
 	TypeIterator r = right.begin();
@@ -1619,7 +1737,7 @@ inline bool isEqual(const CanonicalType& left, const CanonicalType& right)
 		{
 			return false;
 		}
-		if(!(*l).isEqualTo(*r))
+		if(!(*l == *r))
 		{
 			return false;
 		}
