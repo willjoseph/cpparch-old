@@ -554,7 +554,7 @@ struct WalkerBase : public WalkerState
 
 	// 4.5 Integral Promotions
 	// TODO: handle bitfield types?
-	static const TypeId& promoteToIntegralType(const TypeId& type)
+	static const UniqueTypeId& promoteToIntegralType(const UniqueTypeId& type)
 	{
 		if(type.declaration == gChar.declaration
 			|| type.declaration == gSignedChar.declaration
@@ -577,13 +577,13 @@ struct WalkerBase : public WalkerState
 	}
 	// 5 Expressions
 	// paragraph 9: usual arithmetic conversions
-	static const TypeId& binaryOperatorIntegralType(const TypeId& left, const TypeId& right)
+	static const UniqueTypeId& binaryOperatorIntegralType(const UniqueTypeId& left, const UniqueTypeId& right)
 	{
 		if(left.declaration == 0
 			|| right.declaration == 0)
 		{
 			// TODO: assert
-			return gTypeNull;
+			return gUniqueTypeNull;
 		}
 
 		if(left.declaration == gUnsignedLongInt.declaration
@@ -610,13 +610,13 @@ struct WalkerBase : public WalkerState
 		}
 		return gSignedInt;
 	}
-	static const TypeId& binaryOperatorArithmeticType(const TypeId& left, const TypeId& right)
+	static const UniqueTypeId& binaryOperatorArithmeticType(const UniqueTypeId& left, const UniqueTypeId& right)
 	{
 		if(left.declaration == 0
 			|| right.declaration == 0)
 		{
 			// TODO: assert
-			return gTypeNull;
+			return gUniqueTypeNull;
 		}
 
 		//TODO: SEMANTIC_ASSERT(isArithmetic(left) && isArithmetic(right));
@@ -637,32 +637,32 @@ struct WalkerBase : public WalkerState
 		}
 		return binaryOperatorIntegralType(promoteToIntegralType(left), promoteToIntegralType(right));
 	}
-	static const TypeId& binaryOperatorAdditiveType(const TypeId& left, const TypeId& right)
+	static const UniqueTypeId& binaryOperatorAdditiveType(const UniqueTypeId& left, const UniqueTypeId& right)
 	{
 		if(left.declaration == 0
 			|| right.declaration == 0)
 		{
 			 // TODO: assert
-			return gTypeNull;
+			return gUniqueTypeNull;
 		}
 
-		if(isPointer(left))
+		if(left.isPointer())
 		{
 			if(isIntegral(right)
 				|| isEnumerator(right))
 			{
 				return left;
 			}
-			if(isPointer(right))
+			if(right.isPointer())
 			{
 				return gSignedLongInt; // TODO: ptrdiff_t
 			}
 		}
 		return binaryOperatorArithmeticType(left, right);
 	}
-	Declaration* makeTypedef(const TypeId& type)
+	UniqueTypeId* newUniqueType(const UniqueTypeId& type)
 	{
-		return type.declaration == 0 ? 0 : allocatorNew(context, Declaration(context, 0, gAnonymousId, type, 0, DECLSPEC_TYPEDEF));
+		return type.declaration == 0 ? 0 : allocatorNew(context, type);
 	}
 };
 
@@ -1130,7 +1130,7 @@ struct LiteralWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	TypeId type;
+	UniqueTypeId type;
 	LiteralWalker(const WalkerState& state)
 		: WalkerBase(state), type(0, context)
 	{
@@ -1263,7 +1263,7 @@ struct PrimaryExpressionWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	TypeId type;
+	UniqueTypeId type;
 	IdentifierPtr id;
 	Dependent typeDependent;
 	Dependent valueDependent;
@@ -1301,7 +1301,8 @@ struct PrimaryExpressionWalker : public WalkerBase
 			addDependentType(valueDependent, declaration);
 			addDependentName(valueDependent, declaration);
 			id->dec.p = declaration;
-			type = declaration->type;
+
+			makeUniqueTypeId(declaration->type, type);
 		}
 		else
 		{
@@ -1339,7 +1340,7 @@ struct PostfixExpressionWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	TypeId type;
+	UniqueTypeId type;
 	IdentifierPtr id;
 	Dependent typeDependent;
 	Dependent valueDependent;
@@ -1355,7 +1356,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
 		id = walker.id;
-		setExpressionType(symbol, makeTypedef(type));
+		setExpressionType(symbol, newUniqueType(type));
 	}
 	// prefix
 	void visit(cpp::postfix_expression_disambiguate* symbol)
@@ -1369,6 +1370,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		*/
 		DependentPostfixExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
+		// TODO: type = &gDependent;
 		addDependent(typeDependent, walker.typeDependent);
 	}
 	void visit(cpp::postfix_expression_construct* symbol)
@@ -1460,12 +1462,16 @@ struct PostfixExpressionWalker : public WalkerBase
 							if(a != walker.arguments.end()
 								&& (*a).declaration != 0) // TODO: assert
 							{
-								CanonicalType canonicalType = CANONICALTYPE_NULL;
-								const Type& original = makeCanonicalType(*a, canonicalType);
+								const UniqueTypeId& uniqueType = *a;
 							}
 							SEMANTIC_ASSERT(isEqual(type, type));
 						}
 					}
+				}
+
+				if(best != 0)
+				{
+					makeUniqueTypeId(best->type, type);
 				}
 			}
 			else
@@ -1500,7 +1506,7 @@ struct ExpressionWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	IdentifierPtr id;
-	TypeId type;
+	UniqueTypeId type;
 	/* 14.6.2.2-1
 	...an expression is type-dependent if any subexpression is type-dependent.
 	*/
@@ -1523,7 +1529,7 @@ struct ExpressionWalker : public WalkerBase
 		addDependent(valueDependent, walker.valueDependent);
 		// TODO: SEMANTIC_ASSERT(type.declaration != 0 && walker.type.declaration != 0);
 		type = select(type, walker.type);
-		ExpressionType<T>::set(symbol, makeTypedef(type));
+		ExpressionType<T>::set(symbol, newUniqueType(type));
 	}
 	template<typename T>
 	void walkBinaryArithmeticExpression(T* symbol)
@@ -1608,7 +1614,7 @@ struct ExpressionWalker : public WalkerBase
 	void visit(cpp::assignment_expression_default* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		setExpressionType(symbol, makeTypedef(type));
+		setExpressionType(symbol, newUniqueType(type));
 	}
 	void visit(cpp::expression* symbol) // RHS of expression-list
 	{
@@ -1618,7 +1624,7 @@ struct ExpressionWalker : public WalkerBase
 	void visit(cpp::expression_list* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		setExpressionType(symbol, makeTypedef(type));
+		setExpressionType(symbol, newUniqueType(type));
 	}
 	void visit(cpp::postfix_expression* symbol)
 	{
@@ -1628,18 +1634,19 @@ struct ExpressionWalker : public WalkerBase
 		type.swap(walker.type);
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
-		setExpressionType(symbol, makeTypedef(type));
+		setExpressionType(symbol, newUniqueType(type));
 	}
 	void visit(cpp::unary_expression_op* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
 		if(symbol->op->id == cpp::unary_operator::AND) // address-of
 		{
-			++type.indirection;
+			type.uniqueType.push_front(DeclaratorPointer(false));
 		}
 		else if(symbol->op->id == cpp::unary_operator::STAR) // dereference
 		{
-			--type.indirection;
+			SEMANTIC_ASSERT(!type.uniqueType.empty()); // TODO: dependent types
+			type.uniqueType.pop_front();
 		}
 		else if(symbol->op->id == cpp::unary_operator::PLUS
 			|| symbol->op->id == cpp::unary_operator::MINUS)
@@ -1659,7 +1666,7 @@ struct ExpressionWalker : public WalkerBase
 			// TODO: check type is integral or enumeration
 			type = promoteToIntegralType(type);
 		}
-		setExpressionType(symbol, makeTypedef(type));
+		setExpressionType(symbol, newUniqueType(type));
 	}
 	/* 14.6.2.2-3
 	Expressions of the following forms are type-dependent only if the type specified by the type-id, simple-type-specifier

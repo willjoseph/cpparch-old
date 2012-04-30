@@ -230,6 +230,11 @@ struct PrintingWalker : TypeElementVisitor
 		printTypeSequence(declaration);
 	}
 
+	void printType(const UniqueTypeId& type)
+	{
+		// TODO:
+	}
+
 	void printParameters(const Scope::DeclarationList& parameters)
 	{
 		printer.out << "(";
@@ -1003,12 +1008,12 @@ struct ParseTreePrinter : PrintingWalker
 		}
 		else
 		{
-			Declaration* declaration = ExpressionType<T>::get(symbol);
+			UniqueTypeId* type = ExpressionType<T>::get(symbol);
 			out << "<span title=\"" << SYMBOL_NAME(T);
-			if(declaration != 0)
+			if(type != 0)
 			{
 				out << ":";
-				printType(Type(declaration, TREEALLOCATOR_NULL));
+				printType(*type);
 			}
 			out << "\">";
 			symbol->accept(*this);

@@ -50,50 +50,6 @@ const DeclSpecifiers DECLSPEC_TYPEDEF = DeclSpecifiers(true, false, false, false
 #define TREEALLOCATOR_NULL TreeAllocator<int>()
 #endif
 
-
-// ----------------------------------------------------------------------------
-// expression helper
-
-template<typename T, bool isExpression = IsConvertible<T, cpp::expression>::RESULT>
-struct ExpressionType;
-
-template<typename T>
-struct ExpressionType<T, false>
-{
-	static Declaration* get(T* symbol)
-	{
-		return 0;
-	}
-	static void set(T* symbol, Declaration* declaration)
-	{
-	}
-};
-
-template<typename T>
-inline Declaration* getExpressionType(T* symbol)
-{
-	return symbol->dec.p;
-}
-template<typename T>
-inline void setExpressionType(T* symbol, Declaration* declaration)
-{
-	symbol->dec.p = declaration;
-}
-
-template<typename T>
-struct ExpressionType<T, true>
-{
-	static Declaration* get(T* symbol)
-	{
-		return getExpressionType(symbol);
-	}
-	static void set(T* symbol, Declaration* declaration)
-	{
-		setExpressionType(symbol, declaration);
-	}
-};
-
-
 // ----------------------------------------------------------------------------
 // sequence
 
@@ -336,7 +292,7 @@ private:
 	}
 };
 
-typedef ListReference<struct TypeId, TreeAllocator<int> > TypeIds2;
+typedef ListReference<struct UniqueTypeId, TreeAllocator<int> > TypeIds2;
 
 // wrapper to disable default-constructor
 struct TypeIds : public TypeIds2
@@ -396,10 +352,9 @@ private:
 struct TypeId : Type
 {
 	TypeSequence typeSequence;
-	int indirection;
 
 	TypeId(Declaration* declaration, const TreeAllocator<int>& allocator)
-		: Type(declaration, allocator), typeSequence(allocator), indirection(0)
+		: Type(declaration, allocator), typeSequence(allocator)
 	{
 	}
 	TypeId& operator=(Declaration* declaration)
@@ -421,8 +376,6 @@ struct TypeId : Type
 };
 
 #define TYPE_NULL TypeId(0, TREEALLOCATOR_NULL)
-
-const TypeId gTypeNull = TYPE_NULL;
 
 // ----------------------------------------------------------------------------
 // dependent-name
@@ -899,6 +852,165 @@ inline bool enclosesEts(ScopeType type)
 }
 
 
+// ----------------------------------------------------------------------------
+// unique types
+
+struct TypeElement
+{
+	const TypeElement* next;
+
+	virtual ~TypeElement()
+	{
+	}
+	virtual void accept(TypeElementVisitor& visitor) const = 0;
+	virtual bool operator<(const TypeElement& other) const = 0;
+};
+
+struct TypeElementEmpty : TypeElement
+{
+	TypeElementEmpty()
+	{
+		next = 0;
+	}
+	virtual void accept(TypeElementVisitor& visitor) const
+	{
+		throw SymbolsError();
+	}
+	virtual bool operator<(const TypeElement& other) const
+	{
+		throw SymbolsError();
+	}
+};
+
+const TypeElementEmpty gTypeElementEmpty;
+
+template<typename T>
+struct TypeElementGeneric : TypeElement
+{
+	T value;
+	TypeElementGeneric(const T& value)
+		: value(value)
+	{
+	}
+	void accept(TypeElementVisitor& visitor) const
+	{
+		visitor.visit(value);
+	}
+	bool operator<(const TypeElement& other) const
+	{
+		return (typeid(*this).before(typeid(other)) ||
+			!(typeid(other).before(typeid(*this))) && value < static_cast<const TypeElementGeneric*>(&other)->value);
+	}
+};
+
+typedef const TypeElement* UniqueType;
+
+const UniqueType UNIQUETYPE_NULL = &gTypeElementEmpty;
+
+
+struct UniqueTypeLess
+{
+	bool operator()(UniqueType left, UniqueType right) const
+	{
+		return (*left < *right ||
+			!(*right < *left) && left->next < right->next);
+	}
+};
+
+typedef std::set<UniqueType, UniqueTypeLess> UniqueTypes;
+
+
+template<typename T>
+inline UniqueType pushUniqueType(UniqueTypes& types, UniqueType type, const T& value)
+{
+	TypeElementGeneric<T> node(value);
+	node.next = type;
+	UniqueTypes::iterator i = types.lower_bound(&node); // first element not less than value
+	if(i != types.end()
+		&& !types.key_comp()(&node, *i)) // if value is not less than lower bound
+	{
+		// lower bound is equal to value
+		return *i;
+	}
+	return *types.insert(i, new TypeElementGeneric<T>(node)); // leaked deliberately
+}
+
+extern UniqueTypes gUniqueTypes;
+
+template<typename T>
+inline void pushUniqueType(UniqueType& type, const T& value)
+{
+	type = pushUniqueType(gUniqueTypes, type, value);
+}
+
+inline void popUniqueType(UniqueType& type)
+{
+	SYMBOLS_ASSERT(type != 0);
+	type = type->next;
+}
+
+struct UniqueTypeWrapper
+{
+	UniqueType value;
+
+	UniqueTypeWrapper()
+		: value(&gTypeElementEmpty)
+	{
+	}
+	template<typename T>
+	void push_front(const T& t)
+	{
+		pushUniqueType(value, t);
+	}
+	void pop_front()
+	{
+		popUniqueType(value);
+	}
+	void swap(UniqueTypeWrapper& other)
+	{
+		std::swap(value, other.value);
+	}
+	bool empty()
+	{
+		return value == &gTypeElementEmpty;
+	}
+};
+
+struct UniqueTypeId : Type
+{
+	UniqueTypeWrapper uniqueType;
+
+	UniqueTypeId(Declaration* declaration, const TreeAllocator<int>& allocator)
+		: Type(declaration, allocator)
+	{
+	}
+	UniqueTypeId& operator=(Declaration* declaration)
+	{
+		SYMBOLS_ASSERT(uniqueType.empty());
+		Type::operator=(declaration);
+		return *this;
+	}
+	void swap(UniqueTypeId& other)
+	{
+		Type::swap(other);
+		uniqueType.swap(other.uniqueType);
+	}
+	void swap(Type& other)
+	{
+		SYMBOLS_ASSERT(uniqueType.empty());
+		Type::swap(other);
+	}
+
+	bool isPointer() const
+	{
+		return typeid(*uniqueType.value) == typeid(TypeElementGeneric<DeclaratorPointer>);
+	}
+};
+
+const UniqueTypeId gUniqueTypeNull = UniqueTypeId(0, TREEALLOCATOR_NULL);
+
+
+
 struct DeclaratorPointer
 {
 	bool isReference;
@@ -971,6 +1083,51 @@ inline bool operator<(const DeclaratorFunction& left, const DeclaratorFunction& 
 	return left.paramScope < right.paramScope; // TODO: deep compare
 }
 
+
+
+// ----------------------------------------------------------------------------
+// expression helper
+
+template<typename T, bool isExpression = IsConvertible<T, cpp::expression>::RESULT>
+struct ExpressionType;
+
+template<typename T>
+struct ExpressionType<T, false>
+{
+	static UniqueTypeId* get(T* symbol)
+	{
+		return 0;
+	}
+	static void set(T* symbol, UniqueTypeId* declaration)
+	{
+	}
+};
+
+template<typename T>
+inline UniqueTypeId* getExpressionType(T* symbol)
+{
+	return symbol->dec.p;
+}
+template<typename T>
+inline void setExpressionType(T* symbol, UniqueTypeId* value)
+{
+	symbol->dec.p = value;
+}
+
+template<typename T>
+struct ExpressionType<T, true>
+{
+	static UniqueTypeId* get(T* symbol)
+	{
+		return getExpressionType(symbol);
+	}
+	static void set(T* symbol, UniqueTypeId* declaration)
+	{
+		setExpressionType(symbol, declaration);
+	}
+};
+
+
 // ----------------------------------------------------------------------------
 // built-in symbols
 
@@ -1012,36 +1169,36 @@ extern Declaration gUnknown;
 #define TYPE_UNKNOWN TypeId(&gUnknown, TREEALLOCATOR_NULL)
 
 // fundamental types
-extern TypeId gChar;
-extern TypeId gCharType;
-extern TypeId gSignedChar;
-extern TypeId gUnsignedChar;
-extern TypeId gSignedShortInt;
-extern TypeId gUnsignedShortInt;
-extern TypeId gSignedInt;
-extern TypeId gUnsignedInt;
-extern TypeId gSignedLongInt;
-extern TypeId gUnsignedLongInt;
-extern TypeId gSignedLongLongInt;
-extern TypeId gUnsignedLongLongInt;
-extern TypeId gWCharT;
-extern TypeId gBool;
-extern TypeId gFloat;
-extern TypeId gDouble;
-extern TypeId gLongDouble;
-extern TypeId gVoid;
+extern UniqueTypeId gChar;
+extern UniqueTypeId gCharType;
+extern UniqueTypeId gSignedChar;
+extern UniqueTypeId gUnsignedChar;
+extern UniqueTypeId gSignedShortInt;
+extern UniqueTypeId gUnsignedShortInt;
+extern UniqueTypeId gSignedInt;
+extern UniqueTypeId gUnsignedInt;
+extern UniqueTypeId gSignedLongInt;
+extern UniqueTypeId gUnsignedLongInt;
+extern UniqueTypeId gSignedLongLongInt;
+extern UniqueTypeId gUnsignedLongLongInt;
+extern UniqueTypeId gWCharT;
+extern UniqueTypeId gBool;
+extern UniqueTypeId gFloat;
+extern UniqueTypeId gDouble;
+extern UniqueTypeId gLongDouble;
+extern UniqueTypeId gVoid;
 
-struct StringLiteralDeclaration : Declaration
+struct StringLiteralTypeId : UniqueTypeId
 {
-	StringLiteralDeclaration(Identifier& name, const TypeId& type, TypeSequence::Pointer node)
-		: Declaration(TREEALLOCATOR_NULL, 0, name, type, 0, DECLSPEC_TYPEDEF) // TODO: const
+	StringLiteralTypeId(Declaration* declaration, const TreeAllocator<int>& allocator)
+		: UniqueTypeId(declaration, allocator)
 	{
-		Declaration::type.typeSequence.head.next = node;
+		uniqueType.push_front(DeclaratorArray());
 	}
 };
 
-extern TypeId gStringLiteral;
-extern TypeId gWideStringLiteral;
+extern StringLiteralTypeId gStringLiteral;
+extern StringLiteralTypeId gWideStringLiteral;
 
 inline unsigned combineFundamental(unsigned fundamental, unsigned token)
 {
@@ -1129,7 +1286,7 @@ inline const char* getIntegerLiteralSuffix(const char* value)
 	return p;
 }
 
-inline const TypeId& getIntegerLiteralType(const char* value)
+inline const UniqueTypeId& getIntegerLiteralType(const char* value)
 {
 	const char* suffix = getIntegerLiteralSuffix(value);
 	if(*suffix == '\0')
@@ -1160,7 +1317,7 @@ inline const char* getFloatingLiteralSuffix(const char* value)
 	return p;
 }
 
-inline const TypeId& getFloatingLiteralType(const char* value)
+inline const UniqueTypeId& getFloatingLiteralType(const char* value)
 {
 	const char* suffix = getFloatingLiteralSuffix(value);
 	if(*suffix == '\0')
@@ -1174,12 +1331,12 @@ inline const TypeId& getFloatingLiteralType(const char* value)
 	throw SymbolsError();
 }
 
-inline const TypeId& getCharacterLiteralType(const char* value)
+inline const UniqueTypeId& getCharacterLiteralType(const char* value)
 {
 	return *value == 'L' ? gWCharT : gSignedChar; // TODO: multicharacter literal
 }
 
-inline const TypeId& getNumericLiteralType(cpp::numeric_literal* symbol)
+inline const UniqueTypeId& getNumericLiteralType(cpp::numeric_literal* symbol)
 {
 	const char* value = symbol->value.value.c_str();
 	switch(symbol->id)
@@ -1193,7 +1350,7 @@ inline const TypeId& getNumericLiteralType(cpp::numeric_literal* symbol)
 	throw SymbolsError();
 }
 
-inline const TypeId& getStringLiteralType(cpp::string_literal* symbol)
+inline const UniqueTypeId& getStringLiteralType(cpp::string_literal* symbol)
 {
 	const char* value = symbol->value.value.c_str();
 	return *value == 'L' ? gWideStringLiteral : gStringLiteral;
@@ -1219,24 +1376,24 @@ extern Identifier gOperatorFunctionTemplateId;
 extern Identifier gAnonymousId;
 
 
-inline const TypeId& binaryOperatorAssignment(const TypeId& left, const TypeId& right)
+inline const UniqueTypeId& binaryOperatorAssignment(const UniqueTypeId& left, const UniqueTypeId& right)
 {
 	return left;
 }
 
-inline const TypeId& binaryOperatorComma(const TypeId& left, const TypeId& right)
+inline const UniqueTypeId& binaryOperatorComma(const UniqueTypeId& left, const UniqueTypeId& right)
 {
 	return right;
 }
 
-inline const TypeId& binaryOperatorBoolean(const TypeId& left, const TypeId& right)
+inline const UniqueTypeId& binaryOperatorBoolean(const UniqueTypeId& left, const UniqueTypeId& right)
 {
 	return gBool;
 }
 
-inline const TypeId& binaryOperatorNull(const TypeId& left, const TypeId& right)
+inline const UniqueTypeId& binaryOperatorNull(const UniqueTypeId& left, const UniqueTypeId& right)
 {
-	return gTypeNull;
+	return gUniqueTypeNull;
 }
 
 
@@ -1449,34 +1606,6 @@ inline const Type& getInstantiatedSimpleType(const Type& type)
 	return getInstantiatedTypeGeneric(type, getInstantiatedSimpleType);
 }
 
-struct IsPointer
-{
-	bool& result;
-	IsPointer(bool& result)
-		: result(result)
-	{
-	}
-
-	const Type& operator()(const TypeId& type) const
-	{
-		if(!type.typeSequence.empty())
-		{
-			result = *findLast(type.typeSequence.get()) == SequenceNodeGeneric<DeclaratorPointer, TypeElementVisitor>(false);
-			return gVoid;
-		}
-		return getInstantiatedTypeGeneric(type, *this);
-	}
-};
-
-inline bool isPointer(const TypeId& type)
-{
-	SYMBOLS_ASSERT(type.declaration != 0);
-	bool result = false;
-	IsPointer visitor(result);
-	visitor(type);
-	return result;
-}
-
 
 
 typedef std::vector<const Declaration*> DeclarationHistory;
@@ -1510,155 +1639,58 @@ struct GetTypeHistory
 	}
 };
 
-
-struct TypeElement
-{
-	const TypeElement* next;
-
-	virtual ~TypeElement()
-	{
-	}
-	virtual void accept(TypeElementVisitor& visitor) const = 0;
-	virtual bool operator<(const TypeElement& other) const = 0;
-};
-
-struct TypeElementEmpty : TypeElement
-{
-	TypeElementEmpty()
-	{
-		next = 0;
-	}
-	virtual void accept(TypeElementVisitor& visitor) const
-	{
-		throw SymbolsError();
-	}
-	virtual bool operator<(const TypeElement& other) const
-	{
-		throw SymbolsError();
-	}
-};
-
-const TypeElementEmpty gTypeElementEmpty;
-
-template<typename T>
-struct TypeElementGeneric : TypeElement
-{
-	T value;
-	TypeElementGeneric(const T& value)
-		: value(value)
-	{
-	}
-	void accept(TypeElementVisitor& visitor) const
-	{
-		visitor.visit(value);
-	}
-	bool operator<(const TypeElement& other) const
-	{
-		return (typeid(*this).before(typeid(other)) ||
-			!(typeid(other).before(typeid(*this))) && value < static_cast<const TypeElementGeneric*>(&other)->value);
-	}
-};
-
-typedef const TypeElement* CanonicalType;
-
-const CanonicalType CANONICALTYPE_NULL = &gTypeElementEmpty;
-
-
-struct CanonicalTypeLess
-{
-	bool operator()(CanonicalType left, CanonicalType right) const
-	{
-		return (*left < *right ||
-			!(*right < *left) && left->next < right->next);
-	}
-};
-
-typedef std::set<CanonicalType, CanonicalTypeLess> CanonicalTypes;
-
-
-template<typename T>
-inline CanonicalType pushCanonicalType(CanonicalTypes& types, CanonicalType type, const T& value)
-{
-	TypeElementGeneric<T> node(value);
-	node.next = type;
-	CanonicalTypes::iterator i = types.lower_bound(&node); // first element not less than value
-	if(i != types.end()
-		&& !types.key_comp()(&node, *i)) // if value is not less than lower bound
-	{
-		// lower bound is equal to value
-		return *i;
-	}
-	return *types.insert(i, new TypeElementGeneric<T>(node)); // leaked deliberately
-}
-
-extern CanonicalTypes gCanonicalTypes;
-
-template<typename T>
-inline void pushCanonicalType(CanonicalType& type, const T& value)
-{
-	type = pushCanonicalType(gCanonicalTypes, type, value);
-}
-
-inline void popCanonicalType(CanonicalType& type)
-{
-	SYMBOLS_ASSERT(type != 0);
-	type = type->next;
-}
-
 struct TypeSequenceReverseCopy : TypeElementVisitor
 {
-	CanonicalType& type;
-	TypeSequenceReverseCopy(CanonicalType& type)
+	UniqueType& type;
+	TypeSequenceReverseCopy(UniqueType& type)
 		: type(type)
 	{
 	}
 	void visit(const DeclaratorPointer& element)
 	{
-		pushCanonicalType(type, element);
+		pushUniqueType(type, element);
 	}
 	void visit(const DeclaratorArray& element)
 	{
-		pushCanonicalType(type, element);
+		pushUniqueType(type, element);
 	}
 	void visit(const DeclaratorMemberPointer& element)
 	{
-		pushCanonicalType(type, element);
+		pushUniqueType(type, element);
 	}
 	void visit(const DeclaratorFunction& element)
 	{
-		pushCanonicalType(type, element);
+		pushUniqueType(type, element);
 	}
 };
 
-struct GetCanonicalTypeSequence
+struct GetUniqueTypeSequence
 {
-	CanonicalType& canonicalType;
-	GetCanonicalTypeSequence(CanonicalType& canonicalType)
-		: canonicalType(canonicalType)
+	UniqueType& uniqueType;
+	GetUniqueTypeSequence(UniqueType& uniqueType)
+		: uniqueType(uniqueType)
 	{
 	}
 	const Type& operator()(const TypeId& type) const
 	{
 		const Type& result = getInstantiatedTypeGeneric(type, *this);
-		TypeSequenceReverseCopy copier(canonicalType);
+		TypeSequenceReverseCopy copier(uniqueType);
 		type.typeSequence.accept(copier);
 		return result;
 	}
 };
 
-inline const Type& makeCanonicalType(const TypeId& type, CanonicalType& canonicalType)
+inline const Type& makeUniqueType(const TypeId& type, UniqueType& uniqueType)
 {
-	GetCanonicalTypeSequence visitor(canonicalType);
-	const Type& result = visitor(type);
-	for(int i = type.indirection; i < 0; ++i)
-	{
-		popCanonicalType(canonicalType);
-	}
-	for(int i = type.indirection; i > 0; --i)
-	{
-		pushCanonicalType(canonicalType, DeclaratorPointer(false));
-	}
-	return result;
+	GetUniqueTypeSequence visitor(uniqueType);
+	return visitor(type);
+}
+
+inline void makeUniqueTypeId(const TypeId& type, UniqueTypeId& result)
+{
+	UniqueType uniqueType = UNIQUETYPE_NULL;
+	*static_cast<Type*>(&result) = makeUniqueType(type, uniqueType);
+	result.uniqueType.value = uniqueType;
 }
 
 struct TypeIterator

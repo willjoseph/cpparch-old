@@ -2,9 +2,9 @@
 #include "symbols.h"
 
 UniqueNames gUniqueNames;
+UniqueTypes gUniqueTypes;
 
 size_t gScopeCount = 0;
-
 
 
 // special-case
@@ -35,64 +35,58 @@ Declaration gUnknown(TREEALLOCATOR_NULL, 0, gUnknownId, TYPE_SPECIAL, 0);
 // fundamental types
 Identifier gCharId = makeIdentifier("$char");
 BuiltInTypeDeclaration gCharDeclaration(gCharId);
-TypeId gChar(&gCharDeclaration, TREEALLOCATOR_NULL);
+UniqueTypeId gChar(&gCharDeclaration, TREEALLOCATOR_NULL);
 Identifier gSignedCharId = makeIdentifier("$signed-char");
 BuiltInTypeDeclaration gSignedCharDeclaration(gSignedCharId);
-TypeId gSignedChar(&gSignedCharDeclaration, TREEALLOCATOR_NULL);
+UniqueTypeId gSignedChar(&gSignedCharDeclaration, TREEALLOCATOR_NULL);
 Identifier gUnsignedCharId = makeIdentifier("$unsigned-char");
 BuiltInTypeDeclaration gUnsignedCharDeclaration(gUnsignedCharId);
-TypeId gUnsignedChar(&gUnsignedCharDeclaration, TREEALLOCATOR_NULL);
+UniqueTypeId gUnsignedChar(&gUnsignedCharDeclaration, TREEALLOCATOR_NULL);
 Identifier gSignedShortIntId = makeIdentifier("$signed-short-int");
 BuiltInTypeDeclaration gSignedShortIntDeclaration(gSignedShortIntId);
-TypeId gSignedShortInt(&gSignedShortIntDeclaration, TREEALLOCATOR_NULL);
+UniqueTypeId gSignedShortInt(&gSignedShortIntDeclaration, TREEALLOCATOR_NULL);
 Identifier gUnsignedShortIntId = makeIdentifier("$unsigned-short-int");
 BuiltInTypeDeclaration gUnsignedShortIntDeclaration(gUnsignedShortIntId);
-TypeId gUnsignedShortInt(&gUnsignedShortIntDeclaration, TREEALLOCATOR_NULL);
+UniqueTypeId gUnsignedShortInt(&gUnsignedShortIntDeclaration, TREEALLOCATOR_NULL);
 Identifier gSignedIntId = makeIdentifier("$signed-int");
 BuiltInTypeDeclaration gSignedIntDeclaration(gSignedIntId);
-TypeId gSignedInt(&gSignedIntDeclaration, TREEALLOCATOR_NULL);
+UniqueTypeId gSignedInt(&gSignedIntDeclaration, TREEALLOCATOR_NULL);
 Identifier gUnsignedIntId = makeIdentifier("$unsigned-int");
 BuiltInTypeDeclaration gUnsignedIntDeclaration(gUnsignedIntId);
-TypeId gUnsignedInt(&gUnsignedIntDeclaration, TREEALLOCATOR_NULL);
+UniqueTypeId gUnsignedInt(&gUnsignedIntDeclaration, TREEALLOCATOR_NULL);
 Identifier gSignedLongIntId = makeIdentifier("$signed-long-int");
 BuiltInTypeDeclaration gSignedLongIntDeclaration(gSignedLongIntId);
-TypeId gSignedLongInt(&gSignedLongIntDeclaration, TREEALLOCATOR_NULL);
+UniqueTypeId gSignedLongInt(&gSignedLongIntDeclaration, TREEALLOCATOR_NULL);
 Identifier gUnsignedLongIntId = makeIdentifier("$unsigned-long-int");
 BuiltInTypeDeclaration gUnsignedLongIntDeclaration(gUnsignedLongIntId);
-TypeId gUnsignedLongInt(&gUnsignedLongIntDeclaration, TREEALLOCATOR_NULL);
+UniqueTypeId gUnsignedLongInt(&gUnsignedLongIntDeclaration, TREEALLOCATOR_NULL);
 Identifier gSignedLongLongIntId = makeIdentifier("$signed-long-long-int");
 BuiltInTypeDeclaration gSignedLongLongIntDeclaration(gSignedLongLongIntId);
-TypeId gSignedLongLongInt(&gSignedLongLongIntDeclaration, TREEALLOCATOR_NULL);
+UniqueTypeId gSignedLongLongInt(&gSignedLongLongIntDeclaration, TREEALLOCATOR_NULL);
 Identifier gUnsignedLongLongIntId = makeIdentifier("$unsigned-long-long-int");
 BuiltInTypeDeclaration gUnsignedLongLongIntDeclaration(gUnsignedLongLongIntId);
-TypeId gUnsignedLongLongInt(&gUnsignedLongLongIntDeclaration, TREEALLOCATOR_NULL);
+UniqueTypeId gUnsignedLongLongInt(&gUnsignedLongLongIntDeclaration, TREEALLOCATOR_NULL);
 Identifier gWCharId = makeIdentifier("$wchar_t");
 BuiltInTypeDeclaration gWCharTDeclaration(gWCharId);
-TypeId gWCharT(&gWCharTDeclaration, TREEALLOCATOR_NULL);
+UniqueTypeId gWCharT(&gWCharTDeclaration, TREEALLOCATOR_NULL);
 Identifier gBoolId = makeIdentifier("$bool");
 BuiltInTypeDeclaration gBoolDeclaration(gBoolId);
-TypeId gBool(&gBoolDeclaration, TREEALLOCATOR_NULL);
+UniqueTypeId gBool(&gBoolDeclaration, TREEALLOCATOR_NULL);
 Identifier gFloatId = makeIdentifier("$float");
 BuiltInTypeDeclaration gFloatDeclaration(gFloatId);
-TypeId gFloat(&gFloatDeclaration, TREEALLOCATOR_NULL);
+UniqueTypeId gFloat(&gFloatDeclaration, TREEALLOCATOR_NULL);
 Identifier gDoubleId = makeIdentifier("$double");
 BuiltInTypeDeclaration gDoubleDeclaration(gDoubleId);
-TypeId gDouble(&gDoubleDeclaration, TREEALLOCATOR_NULL);
+UniqueTypeId gDouble(&gDoubleDeclaration, TREEALLOCATOR_NULL);
 Identifier gLongDoubleId = makeIdentifier("$long-double");
 BuiltInTypeDeclaration gLongDoubleDeclaration(gLongDoubleId);
-TypeId gLongDouble(&gLongDoubleDeclaration, TREEALLOCATOR_NULL);
+UniqueTypeId gLongDouble(&gLongDoubleDeclaration, TREEALLOCATOR_NULL);
 Identifier gVoidId = makeIdentifier("$void");
 BuiltInTypeDeclaration gVoidDeclaration(gVoidId);
-TypeId gVoid(&gVoidDeclaration, TREEALLOCATOR_NULL);
+UniqueTypeId gVoid(&gVoidDeclaration, TREEALLOCATOR_NULL);
 
-Reference< SequenceNodeGeneric<DeclaratorArray, TypeElementVisitor> >::Value gDeclaratorArrayNode = DeclaratorArray();
-
-Identifier gStringLiteralId = makeIdentifier("$string-literal");
-StringLiteralDeclaration gStringLiteralDeclaration(gStringLiteralId, gSignedChar, &gDeclaratorArrayNode);
-TypeId gStringLiteral(&gStringLiteralDeclaration, TREEALLOCATOR_NULL);
-Identifier gWideStringLiteralId = makeIdentifier("$wide-string-literal");
-StringLiteralDeclaration gWideStringLiteralDeclaration(gWideStringLiteralId, gWCharT, &gDeclaratorArrayNode);
-TypeId gWideStringLiteral(&gWideStringLiteralDeclaration, TREEALLOCATOR_NULL);
+StringLiteralTypeId gStringLiteral(&gCharDeclaration, TREEALLOCATOR_NULL);
+StringLiteralTypeId gWideStringLiteral(&gWCharTDeclaration, TREEALLOCATOR_NULL);
 
 // template placeholders
 Identifier gDependentTypeId = makeIdentifier("$type");
@@ -113,6 +107,3 @@ Identifier gConversionFunctionId = makeIdentifier("operator T");
 Identifier gOperatorFunctionTemplateId = makeIdentifier("operator () <>");
 // TODO: don't declare if id is anonymous?
 Identifier gAnonymousId = makeIdentifier("$anonymous");
-
-
-CanonicalTypes gCanonicalTypes;

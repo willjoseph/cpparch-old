@@ -12,6 +12,7 @@ typedef boost::wave::token_id LexTokenId;
 
 
 class Declaration;
+struct UniqueTypeId;
 
 namespace cpp
 {
@@ -123,6 +124,14 @@ namespace cpp
 		}
 	};
 
+	struct expression_decoration
+	{
+		SafePtr<UniqueTypeId> p;
+		expression_decoration() : p(0)
+		{
+		}
+	};
+
 	struct terminal_identifier
 	{
 		TokenValue value;
@@ -201,7 +210,7 @@ namespace cpp
 			SYMBOLFWD(expression_list),
 			SYMBOLFWD(assignment_expression)
 		));
-		decoration dec; // the type of the expression
+		expression_decoration dec; // the type of the expression
 	};
 
 	struct initializer : public choice<initializer>
