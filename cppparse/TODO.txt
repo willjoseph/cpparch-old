@@ -532,6 +532,10 @@ not consider any scopes outside the innermost enclosing namespace.
 - use caching to simplify grammar
 	- for shared-prefix of assignment-expression/conditional-expression/constant-expression
 	- shared-prefix of expression/expression-list/assignment-expression
+- unique types
+	- issue: unique type reference to function-param-scope left dangling
+		- copy list of unique types in param-list
+	- defer evaluation of dependent-type
 - overload resolution
 	- across using-directive
 	- ( identifier ) ( expression-list )

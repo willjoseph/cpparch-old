@@ -1,6 +1,8 @@
 
 #include "symbols.h"
 
+const TypeElementEmpty gTypeElementEmpty;
+
 UniqueNames gUniqueNames;
 UniqueTypes gUniqueTypes;
 

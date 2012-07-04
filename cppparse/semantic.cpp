@@ -1059,28 +1059,32 @@ struct ExplicitTypeExpressionWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
+	TypeId type;
 	Dependent typeDependent;
 	Dependent valueDependent;
 	ExplicitTypeExpressionWalker(const WalkerState& state)
-		: WalkerBase(state), typeDependent(context), valueDependent(context)
+		: WalkerBase(state), type(0, context), typeDependent(context), valueDependent(context)
 	{
 	}
 	void visit(cpp::simple_type_specifier* symbol)
 	{
 		TypeSpecifierWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
+		type.swap(walker.type);
 		addDependent(typeDependent, walker.type);
 	}
 	void visit(cpp::typename_specifier* symbol)
 	{
 		TypenameSpecifierWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
+		type.swap(walker.type);
 		addDependent(typeDependent, walker.type);
 	}
 	void visit(cpp::type_id* symbol)
 	{
 		TypeIdWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
+		type.swap(walker.type);
 		addDependent(typeDependent, walker.type);
 		addDependent(typeDependent, walker.valueDependent);
 	}
@@ -1088,6 +1092,7 @@ struct ExplicitTypeExpressionWalker : public WalkerBase
 	{
 		TypeIdWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
+		type.swap(walker.type);
 		addDependent(typeDependent, walker.type);
 		addDependent(typeDependent, walker.valueDependent);
 	}
@@ -1328,7 +1333,9 @@ struct PrimaryExpressionWalker : public WalkerBase
 	void visit(cpp::primary_expression_builtin* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		// TODO
+		// TODO: class type
+		type = gUniqueTypeNull;
+		type.uniqueType.push_front(DeclaratorPointer(false));
 		/* 14.6.2.2-2
 		'this' is type-dependent if the class type of the enclosing member function is dependent
 		*/
@@ -1645,8 +1652,11 @@ struct ExpressionWalker : public WalkerBase
 		}
 		else if(symbol->op->id == cpp::unary_operator::STAR) // dereference
 		{
-			SEMANTIC_ASSERT(!type.uniqueType.empty()); // TODO: dependent types
-			type.uniqueType.pop_front();
+			if(!type.uniqueType.empty())
+			{
+				// TODO: dependent types
+				type.uniqueType.pop_front();
+			}
 		}
 		else if(symbol->op->id == cpp::unary_operator::PLUS
 			|| symbol->op->id == cpp::unary_operator::MINUS)
@@ -1689,22 +1699,30 @@ struct ExpressionWalker : public WalkerBase
 	{
 		ExplicitTypeExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
+		makeUniqueTypeId(walker.type, type);
+		type.uniqueType.push_front(DeclaratorPointer(false));
 		addDependent(typeDependent, walker.typeDependent);
+		setExpressionType(symbol, newUniqueType(type));
 	}
 	void visit(cpp::new_expression_default* symbol)
 	{
 		ExplicitTypeExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
+		makeUniqueTypeId(walker.type, type);
+		type.uniqueType.push_front(DeclaratorPointer(false));
 		addDependent(typeDependent, walker.typeDependent);
+		setExpressionType(symbol, newUniqueType(type));
 	}
 	void visit(cpp::cast_expression_default* symbol)
 	{
 		ExplicitTypeExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
+		makeUniqueTypeId(walker.type, type);
 		Dependent tmp(walker.typeDependent);
 		addDependent(valueDependent, tmp);
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
+		setExpressionType(symbol, newUniqueType(type));
 	}
 	/* 14.6.2.2-4
 	Expressions of the following forms are never type-dependent (because the type of the expression cannot be
@@ -3346,7 +3364,7 @@ struct TypeIdWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Type type;
+	TypeId type;
 	Dependent valueDependent;
 	TypeIdWalker(const WalkerState& state)
 		: WalkerBase(state), type(0, context), valueDependent(context)
@@ -3364,6 +3382,7 @@ struct TypeIdWalker : public WalkerBase
 		DeclaratorWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		addDependent(valueDependent, walker.valueDependent);
+		type.typeSequence = walker.typeSequence;
 	}
 };
 

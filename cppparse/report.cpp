@@ -100,6 +100,66 @@ struct TreePrinter // TODO: better name
 
 typedef TokenPrinter<std::ofstream> FileTokenPrinter;
 
+struct TypeElementOpaque
+{
+	const void* p;
+	typedef void (*VisitCallback)(TypeElementVisitor& visitor, const void* p);
+	VisitCallback callback;
+	void accept(TypeElementVisitor& visitor)
+	{
+		callback(visitor, p);
+	}
+};
+
+template<typename ElementType>
+struct TypeElementThunk
+{
+	static void thunk(TypeElementVisitor& visitor, const void* p)
+	{
+		visitor.visit(*static_cast<const ElementType*>(p));
+	}
+};
+
+template<typename ElementType>
+TypeElementOpaque makeTypeElementOpaque(const ElementType& element)
+{
+	TypeElementOpaque result = { &element, &TypeElementThunk<ElementType>::thunk };
+	return result;
+}
+
+typedef std::list<TypeElementOpaque> TypeElements;
+
+struct TypeElementsAppend : TypeElementVisitor
+{
+	TypeElements& typeElements;
+	TypeElementsAppend(TypeElements& typeElements)
+		: typeElements(typeElements)
+	{
+	}
+
+	template<typename T>
+	void visitGeneric(const T& element)
+	{
+		typeElements.push_back(makeTypeElementOpaque(element));
+	}
+	void visit(const DeclaratorPointer& element)
+	{
+		visitGeneric(element);
+	}
+	void visit(const DeclaratorArray& element)
+	{
+		visitGeneric(element);
+	}
+	void visit(const DeclaratorMemberPointer& element)
+	{
+		visitGeneric(element);
+	}
+	void visit(const DeclaratorFunction& element)
+	{
+		visitGeneric(element);
+	}
+};
+
 struct PrintingWalker : TypeElementVisitor
 {
 	FileTokenPrinter& printer;
@@ -175,47 +235,51 @@ struct PrintingWalker : TypeElementVisitor
 	{
 		pushType(false);
 		visitTypeElement();
+#if 0 // workaround for crash: declarationList undeclared
 		printParameters(function.paramScope->declarationList);
+#endif
 		popType();
 	}
 
-	DeclarationHistory typeHistory;
+	TypeElements typeElements;
 
 	void visitTypeElement()
 	{
-		if(nextElement != 0)
+		if(!typeElements.empty())
 		{
-			const TypeSequence::Node* visitable = nextElement;
-			nextElement = visitable->get();
-			visitable->accept(*this);
-		}
-		else
-		{
-			visitTypeHistory();
+			TypeElementOpaque element = typeElements.front();
+			typeElements.pop_front();
+			element.accept(*this);
 		}
 	}
 
-	void visitTypeHistory()
+	void visitTypeHistory(const DeclarationHistory& typeHistory)
 	{
-		if(!typeHistory.empty())
+		for(DeclarationHistory::const_reverse_iterator i = typeHistory.rbegin(); i != typeHistory.rend(); ++i)
 		{
-			const Declaration& declaration = *typeHistory.back();
-			typeHistory.pop_back();
-			nextElement = declaration.type.typeSequence.get();
-			visitTypeElement();
+			const Declaration& declaration = *(*i);
+			for(const TypeSequence::Node* node = declaration.type.typeSequence.get(); node != 0; node = node->get())
+			{
+				TypeElementsAppend visitor(typeElements);
+				node->accept(visitor);
+			}
 		}
 	}
 
 	void printTypeSequence(const Type& type)
 	{
+		DeclarationHistory typeHistory;
 		GetTypeHistory::apply(type, typeHistory);
-		visitTypeHistory();
+		visitTypeHistory(typeHistory);
+		visitTypeElement();
 	}
 
 	void printTypeSequence(const Declaration& declaration)
 	{
+		DeclarationHistory typeHistory;
 		GetTypeHistory::apply(declaration, typeHistory);
-		visitTypeHistory();
+		visitTypeHistory(typeHistory);
+		visitTypeElement();
 	}
 
 	void printType(const Type& type)
@@ -232,7 +296,13 @@ struct PrintingWalker : TypeElementVisitor
 
 	void printType(const UniqueTypeId& type)
 	{
-		// TODO:
+		for(UniqueType i = type.uniqueType.value; i != UNIQUETYPE_NULL; i = i->next)
+		{
+			TypeElementsAppend visitor(typeElements);
+			i->accept(visitor);
+		}
+		typeElements.reverse();
+		visitTypeElement();
 	}
 
 	void printParameters(const Scope::DeclarationList& parameters)
@@ -248,7 +318,8 @@ struct PrintingWalker : TypeElementVisitor
 				{
 					printer.out << ",";
 				}
-				printType(*declaration);
+				PrintingWalker walker(printer);
+				walker.printType(*declaration);
 				separator = true;
 			}
 		}

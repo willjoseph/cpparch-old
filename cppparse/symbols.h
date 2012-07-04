@@ -882,7 +882,7 @@ struct TypeElementEmpty : TypeElement
 	}
 };
 
-const TypeElementEmpty gTypeElementEmpty;
+extern const TypeElementEmpty gTypeElementEmpty;
 
 template<typename T>
 struct TypeElementGeneric : TypeElement
@@ -1075,12 +1075,12 @@ struct DeclaratorFunction
 
 inline bool operator==(const DeclaratorFunction& left, const DeclaratorFunction& right)
 {
-	return left.paramScope == right.paramScope;
+	return true;
 }
 
 inline bool operator<(const DeclaratorFunction& left, const DeclaratorFunction& right)
 {
-	return left.paramScope < right.paramScope; // TODO: deep compare
+	return false; // TODO: deep compare
 }
 
 
@@ -1660,6 +1660,7 @@ struct TypeSequenceReverseCopy : TypeElementVisitor
 	}
 	void visit(const DeclaratorFunction& element)
 	{
+		SYMBOLS_ASSERT(element.paramScope != 0);
 		pushUniqueType(type, element);
 	}
 };

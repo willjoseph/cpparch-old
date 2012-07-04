@@ -1,4 +1,18 @@
 
+void   free(void * _Memory);
+
+namespace N48
+{
+	void f(int a);
+
+	void (*pf(int a)) (int hidden)
+	{
+		int i = a;
+		return f;
+	}
+}
+
+
 typedef int* P;
 P* pp;
 

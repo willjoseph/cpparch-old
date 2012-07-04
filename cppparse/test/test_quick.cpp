@@ -1,4 +1,14 @@
 
+namespace N71
+{
+	// dereference template-param
+	template<typename T>
+	void f(T t)
+	{
+		*t;
+	}
+}
+
 namespace N49
 {
 	template<typename T>
