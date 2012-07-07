@@ -1,6 +1,4 @@
 
-void   free(void * _Memory);
-
 namespace N48
 {
 	void f(int a);

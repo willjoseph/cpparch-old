@@ -1080,7 +1080,7 @@ inline bool operator==(const DeclaratorFunction& left, const DeclaratorFunction&
 
 inline bool operator<(const DeclaratorFunction& left, const DeclaratorFunction& right)
 {
-	return false; // TODO: deep compare
+	return left.paramScope < right.paramScope; // TODO: deep compare
 }
 
 

@@ -183,6 +183,10 @@
 				</File>
 			</Filter>
 		</Filter>
+		<File
+			RelativePath=".\test\test.rsp"
+			>
+		</File>
 	</Files>
 	<Globals>
 	</Globals>

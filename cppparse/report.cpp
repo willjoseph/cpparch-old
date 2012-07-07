@@ -235,9 +235,7 @@ struct PrintingWalker : TypeElementVisitor
 	{
 		pushType(false);
 		visitTypeElement();
-#if 0 // workaround for crash: declarationList undeclared
 		printParameters(function.paramScope->declarationList);
-#endif
 		popType();
 	}
 

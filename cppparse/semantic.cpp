@@ -4106,6 +4106,7 @@ TreeAllocator<int> getAllocator(ParserContext& context)
 cpp::declaration_seq* parseFile(ParserContext& context)
 {
 	gUniqueNames.clear();
+	gUniqueTypes.clear();
 
 	WalkerContext& globals = *new WalkerContext(getAllocator(context));
 	Walker::NamespaceWalker& walker = *new Walker::NamespaceWalker(globals);
@@ -4141,6 +4142,9 @@ cpp::declaration_seq* parseFile(ParserContext& context)
 
 cpp::statement_seq* parseFunction(ParserContext& context)
 {
+	gUniqueNames.clear();
+	gUniqueTypes.clear();
+
 	WalkerContext& globals = *new WalkerContext(getAllocator(context));
 	Walker::CompoundStatementWalker& walker = *new Walker::CompoundStatementWalker(globals);
 	ParserGeneric<Walker::CompoundStatementWalker> parser(context, walker);
