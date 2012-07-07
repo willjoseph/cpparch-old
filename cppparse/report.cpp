@@ -294,6 +294,7 @@ struct PrintingWalker : TypeElementVisitor
 
 	void printType(const UniqueTypeId& type)
 	{
+		printName(getInstantiatedType(type).declaration);
 		for(UniqueType i = type.uniqueType.value; i != UNIQUETYPE_NULL; i = i->next)
 		{
 			TypeElementsAppend visitor(typeElements);
