@@ -649,7 +649,7 @@ struct WalkerBase : public WalkerState
 		if(left.isPointer())
 		{
 			if(isIntegral(right)
-				|| isEnumerator(right))
+				|| isEnumeration(right))
 			{
 				return left;
 			}
@@ -1429,16 +1429,140 @@ struct PostfixExpressionWalker : public WalkerBase
 		ICSRANK_ELLIPSIS,
 		ICSRANK_INVALID,
 	};
-	IcsRank getIcsRank(const TypeContainer& to, const TypeContainer& from)
+	bool isBaseOf(const Declaration& declaration, const Declaration& other)
 	{
-		return ICSRANK_STANDARDEXACT;
+		return false; // TODO: return true if 'declaration' is base of 'other'
+	}
+	bool isPromotion(const UniqueTypeId& to, const UniqueTypeId& from)
+	{
+		if(from.declaration == 0)
+		{
+			return false; // TODO: assert
+		}
+		if(isArithmetic(from) && isSimple(from)
+			&& isArithmetic(to) && isSimple(to))
+		{
+			return (from.declaration == gFloat.declaration && to.declaration == gDouble.declaration)
+				|| (promoteToIntegralType(from).declaration == to.declaration);
+		}
+		return false;
+	}
+	bool isConversion(const UniqueTypeId& to, const UniqueTypeId& from, bool isNullPointerConstant = false) // TODO: detect null pointer constant
+	{
+		if(from.declaration == 0)
+		{
+			return false; // TODO: assert
+		}
+		if((isArithmetic(from) || isEnumeration(from)) && isSimple(from)
+			&& isArithmetic(to) && isSimple(to))
+		{
+			// can convert from enumeration to integer/floating/bool, but not in reverse
+			return true;
+		}
+		if((to.isPointer() || to.isMemberPointer())
+			&& isNullPointerConstant)
+		{
+			return true; // 0 -> T*
+		}
+		if(to.isSimplePointer()
+			&& from.isSimplePointer()
+			&& to.declaration == gVoid.declaration)
+		{
+			return true; // T* -> void*
+		}
+		if(to.isSimplePointer()
+			&& from.isSimplePointer()
+			&& isBaseOf(*to.declaration, *from.declaration))
+		{
+			return true; // D* -> B*
+		}
+		if(to.isMemberPointer()
+			&& from.isMemberPointer()
+			&& isBaseOf(getMemberPointerClass(to.uniqueType.value), getMemberPointerClass(from.uniqueType.value)))
+		{
+			return true; // D::* -> B::*
+		}
+		if(isSimple(to)
+			&& to.declaration == gBool.declaration
+			&& (from.isPointer() || from.isMemberPointer()))
+		{
+			return true; // T* -> bool, T::* -> bool
+		}
+		if(isSimple(to)
+			&& isSimple(from)
+			&& isBaseOf(*to.declaration, *from.declaration))
+		{
+			return true; // D -> B
+		}
+		return false;
+	}
+	IcsRank getIcsRank(const UniqueTypeId& to, const UniqueTypeId& from, bool isNullPointerConstant = false)
+	{
+		// TODO: user-defined conversion
+		if(isEqual(to, from))
+		{
+			return ICSRANK_STANDARDEXACT;
+		}
+		if(isPromotion(to, from))
+		{
+			return ICSRANK_STANDARDPROMOTION;
+		}
+		if(isConversion(to, from))
+		{
+			return ICSRANK_STANDARDCONVERSION; // TODO: ordering of conversions by inheritance distance
+		}
+		// TODO: user-defined
+		// TODO: ellipsis
+		return ICSRANK_INVALID;
 	}
 	struct ImplicitConversion
 	{
-		const Declaration* to;
-		const Type* from;
 		IcsRank rank;
+		ImplicitConversion(IcsRank rank)
+			: rank(rank)
+		{
+		}
 	};
+	bool isBetter(const ImplicitConversion& l, const ImplicitConversion& r)
+	{
+		return l.rank < r.rank;
+	}
+	typedef std::vector<ImplicitConversion> ArgumentConversions;
+	struct CandidateFunction
+	{
+		Declaration* declaration;
+		ArgumentConversions conversions;
+		bool isTemplate;
+		CandidateFunction(Declaration* declaration)
+			: declaration(declaration), isTemplate(false)
+		{
+		}
+	};
+	bool isBetter(const CandidateFunction& l, const CandidateFunction& r)
+	{
+		SEMANTIC_ASSERT(l.conversions.size() == r.conversions.size());
+		for(size_t i = 0; i != l.conversions.size(); ++i)
+		{
+			if(isBetter(r.conversions[i], l.conversions[i]))
+			{
+				return false; // at least one argument is not a better conversion sequence
+			}
+		}
+		for(size_t i = 0; i != l.conversions.size(); ++i)
+		{
+			if(isBetter(l.conversions[i], r.conversions[i]))
+			{
+				return true; // at least one argument is a better conversion sequence
+			}
+		}
+		if(!l.isTemplate && r.isTemplate)
+		{
+			return true; // non-template better than template
+		}
+		// TODO: ordering of template specialisations
+		// TODO: in context of initialisation by user defined conversion, consider return type
+		return false;
+	}
 	void visit(cpp::postfix_expression_call* symbol)
 	{
 		ArgumentListWalker walker(getState());
@@ -1450,7 +1574,9 @@ struct PostfixExpressionWalker : public WalkerBase
 			if(id != 0) // if the prefix contains an id-expression
 			{
 				// TODO: 13.3.1.1.1  Call to named function
-				Declaration* best = 0;
+				size_t count = std::distance(walker.arguments.begin(), walker.arguments.end());
+				CandidateFunction best(0);
+				best.conversions.resize(count, ImplicitConversion(ICSRANK_INVALID));
 				for(Declaration* p = id->dec.p; p != 0; p = p->overloaded)
 				{
 					// TODO
@@ -1461,24 +1587,46 @@ struct PostfixExpressionWalker : public WalkerBase
 					// If there is no clear winner of the best matches, the compiler reports an error - ambiguous function call.
 					if(p->enclosed != 0)
 					{
+						CandidateFunction candidate(p);
+						candidate.conversions.reserve(count);
+
 						TypeIds::const_iterator a = walker.arguments.begin();
 						for(Scope::DeclarationList::iterator i = p->enclosed->declarationList.begin(); i != p->enclosed->declarationList.end(); ++i)
 						{
 							const Declaration& parameter = *(*i);
-							TypeContainer type(parameter);
-							if(a != walker.arguments.end()
-								&& (*a).declaration != 0) // TODO: assert
+							UniqueTypeId type(0, context);
+							makeUniqueTypeId(parameter.type, type);
+							if(a != walker.arguments.end())
 							{
-								const UniqueTypeId& uniqueType = *a;
+								candidate.conversions.push_back(getIcsRank(type, *a));
+								++a;
 							}
-							SEMANTIC_ASSERT(isEqual(type, type));
+							else
+							{
+								break; // TODO: default parameter values
+							}
+						}
+
+						if(candidate.conversions.size() != count)
+						{
+							continue; // TODO: early-out for functions with not enough params
+						}
+
+						if(isBetter(candidate, best))
+						{
+							best = candidate;
+						}
+						else if(!isBetter(best, candidate))
+						{
+							best.declaration = 0;
+							break; // ambiguous overload resolution!
 						}
 					}
 				}
 
-				if(best != 0)
+				if(best.declaration != 0)
 				{
-					makeUniqueTypeId(best->type, type);
+					makeUniqueTypeId(best.declaration->type, type);
 				}
 			}
 			else

@@ -854,7 +854,11 @@ inline bool enclosesEts(ScopeType type)
 
 // ----------------------------------------------------------------------------
 // unique types
-
+// Representation of a declarator, with type-elements linked in 'normal' order.
+// e.g. int(*)[] == pointer to array of == DeclaratorPointer -> DeclaratorArray
+// Note that this is the reverse of the order that the declarator is parsed in.
+// This means a given unique type sub-sequence need only be stored once.
+// This allows fast comparison of types and simplifies printing of declarators.
 struct TypeElement
 {
 	const TypeElement* next;
@@ -972,7 +976,7 @@ struct UniqueTypeWrapper
 	}
 	bool empty()
 	{
-		return value == &gTypeElementEmpty;
+		return value == UNIQUETYPE_NULL;
 	}
 };
 
@@ -1005,9 +1009,24 @@ struct UniqueTypeId : Type
 	{
 		return typeid(*uniqueType.value) == typeid(TypeElementGeneric<DeclaratorPointer>);
 	}
+	bool isMemberPointer() const
+	{
+		return typeid(*uniqueType.value) == typeid(TypeElementGeneric<DeclaratorMemberPointer>);
+	}
+	bool isSimplePointer() const
+	{
+		return isPointer()
+			&& uniqueType.value->next == UNIQUETYPE_NULL;
+	}
 };
 
 const UniqueTypeId gUniqueTypeNull = UniqueTypeId(0, TREEALLOCATOR_NULL);
+
+inline bool isEqual(const UniqueTypeId& l, const UniqueTypeId& r)
+{
+	return l.declaration == r.declaration
+		&& l.uniqueType.value == r.uniqueType.value;
+}
 
 
 
@@ -1038,6 +1057,12 @@ struct DeclaratorMemberPointer
 	{
 	}
 };
+
+inline const Declaration& getMemberPointerClass(UniqueType type)
+{
+	SYMBOLS_ASSERT(typeid(*type) == typeid(TypeElementGeneric<DeclaratorMemberPointer>));
+	return *(static_cast<const TypeElementGeneric<DeclaratorMemberPointer>*>(type)->value.classDeclaration);
+}
 
 inline bool operator==(const DeclaratorMemberPointer& left, const DeclaratorMemberPointer& right)
 {
@@ -1497,6 +1522,12 @@ inline bool isEnumerator(const Type& type)
 	return type.declaration == &gEnumerator;
 }
 
+inline bool isEnumeration(const Type& type)
+{
+	return isEnum(*type.declaration)
+		|| isEnumerator(type); // TODO: remove when enumerators are correctly typed
+}
+
 
 
 
@@ -1692,90 +1723,6 @@ inline void makeUniqueTypeId(const TypeId& type, UniqueTypeId& result)
 	UniqueType uniqueType = UNIQUETYPE_NULL;
 	*static_cast<Type*>(&result) = makeUniqueType(type, uniqueType);
 	result.uniqueType.value = uniqueType;
-}
-
-struct TypeIterator
-{
-	DeclarationHistory::const_reverse_iterator i;
-	TypeSequence::Node* p;
-
-	TypeIterator(DeclarationHistory::const_reverse_iterator i)
-		: i(i), p(0)
-	{
-	}
-
-	TypeSequence::Node* evaluate() const
-	{
-		// defer dereference of 'i' until we know 'i' is valid
-		return (p == 0) ? (*i)->type.typeSequence.head.next.get() : p;
-	}
-
-	const TypeSequence::Node& operator*() const
-	{
-		return *evaluate();
-	}
-
-	TypeIterator& operator++()
-	{
-		p = evaluate()->next.get();
-		if(p == 0)
-		{
-			p = 0;
-			++i;
-		}
-		return *this;
-	}
-};
-
-inline bool operator==(const TypeIterator& left, const TypeIterator& right)
-{
-	return left.i == right.i
-		&& left.p == right.p;
-}
-
-inline bool operator!=(const TypeIterator& left, const TypeIterator& right)
-{
-	return !(left == right);
-}
-
-struct TypeContainer
-{
-	DeclarationHistory history;
-	TypeContainer(const Declaration& declaration)
-	{
-		GetTypeHistory::apply(declaration, history);
-	}
-	typedef TypeIterator const_iterator;
-	const_iterator begin() const
-	{
-		return const_iterator(history.rbegin());
-	}
-	const_iterator end() const
-	{
-		return const_iterator(history.rend());
-	}
-};
-
-inline bool isEqual(const TypeContainer& left, const TypeContainer& right)
-{
-	TypeIterator l = left.begin();
-	TypeIterator r = right.begin();
-	for(;; ++l, ++r)
-	{
-		if(l == left.end())
-		{
-			return r == right.end();
-		}
-		if(r == right.end())
-		{
-			return false;
-		}
-		if(!(*l == *r))
-		{
-			return false;
-		}
-	}
-	return true;
 }
 
 
