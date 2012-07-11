@@ -1569,75 +1569,87 @@ struct PostfixExpressionWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
-		if(type.declaration == 0) // if the prefix expression has no type (i.e. names an overloadable function)
+		if(id != 0 // the prefix contains an id-expression
+			&& id->dec.p != 0 // the identifier is a non-dependent name
+			&& isFunction(*id->dec.p)) // the identifier names an overloadable function
 		{
-			if(id != 0) // if the prefix contains an id-expression
+			// TODO: 13.3.1.1.1  Call to named function
+			size_t count = std::distance(walker.arguments.begin(), walker.arguments.end());
+			CandidateFunction best(0);
+			best.conversions.resize(count, ImplicitConversion(ICSRANK_INVALID));
+			Declaration* ambiguous = 0;
+			for(Declaration* p = id->dec.p; p != 0; p = p->overloaded)
 			{
-				// TODO: 13.3.1.1.1  Call to named function
-				size_t count = std::distance(walker.arguments.begin(), walker.arguments.end());
-				CandidateFunction best(0);
-				best.conversions.resize(count, ImplicitConversion(ICSRANK_INVALID));
-				for(Declaration* p = id->dec.p; p != 0; p = p->overloaded)
+				// TODO
+				// Gather all the functions in the current scope that have the same name as the function called.
+				// Exclude those that don't have the right number of parameters to match the arguments in the call. (be careful about parameters with default values; void f(int x, int y = 0) is a candidate for the call f(25);)
+				// If no function matches, the compiler reports an error.
+				// If there is more than one match, select the 'best match'.
+				// If there is no clear winner of the best matches, the compiler reports an error - ambiguous function call.
+				if(p->enclosed == 0)
 				{
-					// TODO
-					// Gather all the functions in the current scope that have the same name as the function called.
-					// Exclude those that don't have the right number of parameters to match the arguments in the call. (be careful about parameters with default values; void f(int x, int y = 0) is a candidate for the call f(25);)
-					// If no function matches, the compiler reports an error.
-					// If there is more than one match, select the 'best match'.
-					// If there is no clear winner of the best matches, the compiler reports an error - ambiguous function call.
-					if(p->enclosed != 0)
+					continue;
+				}
+
+				CandidateFunction candidate(p);
+				candidate.conversions.reserve(count);
+
+				TypeIds::const_iterator a = walker.arguments.begin();
+				for(Scope::DeclarationList::iterator i = p->enclosed->declarationList.begin(); i != p->enclosed->declarationList.end(); ++i)
+				{
+					const Declaration& parameter = *(*i);
+					UniqueTypeId type(0, context);
+					makeUniqueTypeId(parameter.type, type);
+					if(a != walker.arguments.end())
 					{
-						CandidateFunction candidate(p);
-						candidate.conversions.reserve(count);
-
-						TypeIds::const_iterator a = walker.arguments.begin();
-						for(Scope::DeclarationList::iterator i = p->enclosed->declarationList.begin(); i != p->enclosed->declarationList.end(); ++i)
-						{
-							const Declaration& parameter = *(*i);
-							UniqueTypeId type(0, context);
-							makeUniqueTypeId(parameter.type, type);
-							if(a != walker.arguments.end())
-							{
-								candidate.conversions.push_back(getIcsRank(type, *a));
-								++a;
-							}
-							else
-							{
-								break; // TODO: default parameter values
-							}
-						}
-
-						if(candidate.conversions.size() != count)
-						{
-							continue; // TODO: early-out for functions with not enough params
-						}
-
-						if(isBetter(candidate, best))
-						{
-							best = candidate;
-						}
-						else if(!isBetter(best, candidate))
-						{
-							best.declaration = 0;
-							break; // ambiguous overload resolution!
-						}
+						candidate.conversions.push_back(getIcsRank(type, *a));
+						++a;
+					}
+					else
+					{
+						break; // TODO: default parameter values
 					}
 				}
 
-				if(best.declaration != 0)
+				if(candidate.conversions.size() != count)
 				{
-					makeUniqueTypeId(best.declaration->type, type);
+					continue; // TODO: early-out for functions with not enough params
+				}
+
+				if(isBetter(candidate, best))
+				{
+					best = candidate;
+					ambiguous = 0;
+				}
+				else if(!isBetter(best, candidate)) // the best candidate is an equally good match
+				{
+					ambiguous = candidate.declaration;
 				}
 			}
-			else
+
+			if(ambiguous != 0)
 			{
-				// ill-formed?
+				std::cout << "overload resolution failed:" << std::endl;
+				std::cout << "  ";
+				printPosition(ambiguous->getName().position);
+				printName(ambiguous);
+				std::cout << std::endl;
+				if(best.declaration != 0)
+				{
+					std::cout << "  ";
+					printPosition(best.declaration->getName().position);
+					printName(best.declaration);
+					std::cout << std::endl;
+				}
+			}
+			else if(best.declaration != 0)
+			{
+				makeUniqueTypeId(best.declaration->type, type);
+				id->dec.p = best.declaration;
 			}
 		}
-		else
-		{
-			// TODO: 13.3.1.1.2  Call to object of class type
-		}
+		// TODO: 13.3.1.1.2  Call to object of class type
+		// TODO: set of pointers-to-function
 		id = 0;
 	}
 	void visit(cpp::postfix_expression_member* symbol)

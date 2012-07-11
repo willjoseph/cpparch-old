@@ -86,7 +86,7 @@ not consider any scopes outside the innermost enclosing namespace.
 	- fails to report error gracefully if lookup fails.
 
 
-- clean up duplicated html string escape in SymbolPrinter/ParseTreePrinter
+- clean up duplicated html string escape in SourcePrinter/ParseTreePrinter
 	
 - refactor mingled stuff
 	- combine WalkerContext and ParserContext?

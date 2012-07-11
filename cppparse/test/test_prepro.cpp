@@ -1,15 +1,4 @@
 
-namespace N48
-{
-	void f(int a);
-
-	void (*pf(int a)) (int hidden)
-	{
-		int i = a;
-		return f;
-	}
-}
-
 
 typedef int* P;
 P* pp;
@@ -17,6 +6,15 @@ P* pp;
 struct S
 {
 } s;
+
+S* f(S);
+double* f(double);
+float* f(float);
+int* f(int);
+char* f(char);
+wchar_t* f(wchar_t);
+char** f(const char*);
+wchar_t** f(const wchar_t*);
 
 void f()
 {

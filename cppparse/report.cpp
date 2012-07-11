@@ -98,262 +98,7 @@ struct TreePrinter // TODO: better name
 	}
 };
 
-typedef TokenPrinter<std::ofstream> FileTokenPrinter;
 
-struct TypeElementOpaque
-{
-	const void* p;
-	typedef void (*VisitCallback)(TypeElementVisitor& visitor, const void* p);
-	VisitCallback callback;
-	void accept(TypeElementVisitor& visitor)
-	{
-		callback(visitor, p);
-	}
-};
-
-template<typename ElementType>
-struct TypeElementThunk
-{
-	static void thunk(TypeElementVisitor& visitor, const void* p)
-	{
-		visitor.visit(*static_cast<const ElementType*>(p));
-	}
-};
-
-template<typename ElementType>
-TypeElementOpaque makeTypeElementOpaque(const ElementType& element)
-{
-	TypeElementOpaque result = { &element, &TypeElementThunk<ElementType>::thunk };
-	return result;
-}
-
-typedef std::list<TypeElementOpaque> TypeElements;
-
-struct TypeElementsAppend : TypeElementVisitor
-{
-	TypeElements& typeElements;
-	TypeElementsAppend(TypeElements& typeElements)
-		: typeElements(typeElements)
-	{
-	}
-
-	template<typename T>
-	void visitGeneric(const T& element)
-	{
-		typeElements.push_back(makeTypeElementOpaque(element));
-	}
-	void visit(const DeclaratorPointer& element)
-	{
-		visitGeneric(element);
-	}
-	void visit(const DeclaratorArray& element)
-	{
-		visitGeneric(element);
-	}
-	void visit(const DeclaratorMemberPointer& element)
-	{
-		visitGeneric(element);
-	}
-	void visit(const DeclaratorFunction& element)
-	{
-		visitGeneric(element);
-	}
-};
-
-struct PrintingWalker : TypeElementVisitor
-{
-	FileTokenPrinter& printer;
-	PrintingWalker(FileTokenPrinter& printer)
-		: printer(printer)
-	{
-		typeStack.push_back(false);
-	}
-#if 0
-	template<typename T>
-	void printSymbol(T* symbol)
-	{
-		SymbolPrinter walker(getState());
-		TREEWALKER_WALK(walker, symbol);
-	}
-#endif
-	void printName(const Scope* scope)
-	{
-		if(scope != 0
-			&& scope->parent != 0)
-		{
-			printName(scope->parent);
-			printer.out << getValue(scope->name) << ".";
-		}
-	}
-
-	std::vector<bool> typeStack;
-
-	void pushType(bool isPointer)
-	{
-		bool wasPointer = typeStack.back();
-		bool parenthesise = typeStack.size() != 1 && !wasPointer && isPointer;
-		if(parenthesise)
-		{
-			printer.out << "(";
-		}
-		typeStack.back() = parenthesise;
-		typeStack.push_back(isPointer);
-	}
-	void popType()
-	{
-		typeStack.pop_back();
-		if(typeStack.back())
-		{
-			printer.out << ")";
-		}
-	}
-
-	const TypeSequence::Node* nextElement;
-
-	void visit(const DeclaratorPointer& pointer)
-	{
-		pushType(true);
-		printer.out << (pointer.isReference ? "&" : "*");
-		visitTypeElement();
-		popType();
-	}
-	void visit(const DeclaratorArray&)
-	{
-		pushType(false);
-		visitTypeElement();
-		printer.out << "[]";
-		popType();
-	}
-	void visit(const DeclaratorMemberPointer&)
-	{
-		pushType(true);
-		printer.out << "::*";
-		visitTypeElement();
-		popType();
-	}
-	void visit(const DeclaratorFunction& function)
-	{
-		pushType(false);
-		visitTypeElement();
-		printParameters(function.paramScope->declarationList);
-		popType();
-	}
-
-	TypeElements typeElements;
-
-	void visitTypeElement()
-	{
-		if(!typeElements.empty())
-		{
-			TypeElementOpaque element = typeElements.front();
-			typeElements.pop_front();
-			element.accept(*this);
-		}
-	}
-
-	void visitTypeHistory(const DeclarationHistory& typeHistory)
-	{
-		for(DeclarationHistory::const_reverse_iterator i = typeHistory.rbegin(); i != typeHistory.rend(); ++i)
-		{
-			const Declaration& declaration = *(*i);
-			for(const TypeSequence::Node* node = declaration.type.typeSequence.get(); node != 0; node = node->get())
-			{
-				TypeElementsAppend visitor(typeElements);
-				node->accept(visitor);
-			}
-		}
-	}
-
-	void printTypeSequence(const Type& type)
-	{
-		DeclarationHistory typeHistory;
-		GetTypeHistory::apply(type, typeHistory);
-		visitTypeHistory(typeHistory);
-		visitTypeElement();
-	}
-
-	void printTypeSequence(const Declaration& declaration)
-	{
-		DeclarationHistory typeHistory;
-		GetTypeHistory::apply(declaration, typeHistory);
-		visitTypeHistory(typeHistory);
-		visitTypeElement();
-	}
-
-	void printType(const Type& type)
-	{
-		printName(getInstantiatedType(type).declaration);
-		printTypeSequence(type);
-	}
-
-	void printType(const Declaration& declaration)
-	{
-		printName(getInstantiatedType(declaration.type).declaration);
-		printTypeSequence(declaration);
-	}
-
-	void printType(const UniqueTypeId& type)
-	{
-		printName(getInstantiatedType(type).declaration);
-		for(UniqueType i = type.uniqueType.value; i != UNIQUETYPE_NULL; i = i->next)
-		{
-			TypeElementsAppend visitor(typeElements);
-			i->accept(visitor);
-		}
-		typeElements.reverse();
-		visitTypeElement();
-	}
-
-	void printParameters(const Scope::DeclarationList& parameters)
-	{
-		printer.out << "(";
-		bool separator = false;
-		for(Scope::DeclarationList::const_iterator i = parameters.begin(); i != parameters.end(); ++i)
-		{
-			const Declaration* declaration = *i;
-			if(declaration->templateParameter == INDEX_INVALID)
-			{
-				if(separator)
-				{
-					printer.out << ",";
-				}
-				PrintingWalker walker(printer);
-				walker.printType(*declaration);
-				separator = true;
-			}
-		}
-		printer.out << ")";
-	}
-
-	void printName(const Declaration* name)
-	{
-		if(name == 0)
-		{
-			printer.out << "<unknown>";
-		}
-		else
-		{
-			printName(name->scope);
-			printer.out << getValue(name->getName());
-			if(name->enclosed != 0
-				&& name->enclosed->type == SCOPETYPE_PROTOTYPE)
-			{
-				printParameters(name->enclosed->declarationList);
-			}
-		}
-	}
-
-	void printName(const char* caption, Declaration* type, Declaration* name)
-	{
-		printer.out << "/* ";
-		printer.out << caption;
-		printName(type);
-		printer.out << ": ";
-		printName(name);
-		printer.out << " */";
-	}
-
-};
 
 const char* escapeTerminal(LexTokenId id, const char* value)
 {
@@ -545,7 +290,7 @@ struct EscapedPath : public Concatenate
 };
 
 
-struct SymbolPrinter : PrintingWalker
+struct SourcePrinter : SymbolPrinter
 {
 	std::ofstream out;
 	FileTokenPrinter printer;
@@ -562,8 +307,8 @@ struct SymbolPrinter : PrintingWalker
 		}
 	};
 
-	SymbolPrinter(const PrintSymbolArgs& args, ModuleDependencyMap& dependencies)
-		: PrintingWalker(printer),
+	SourcePrinter(const PrintSymbolArgs& args, ModuleDependencyMap& dependencies)
+		: SymbolPrinter(printer),
 		printer(out),
 		inputRoot(args.inputRoot),
 		outputRoot(args.outputRoot),
@@ -573,7 +318,7 @@ struct SymbolPrinter : PrintingWalker
 		includeStack.push(Source(Name(""), Name("$outer")));
 		open(includeStack.top().c_str());
 	}
-	~SymbolPrinter()
+	~SourcePrinter()
 	{
 		while(!includeStack.empty())
 		{
@@ -997,12 +742,12 @@ struct SymbolPrinter : PrintingWalker
 	}
 };
 
-struct ParseTreePrinter : PrintingWalker
+struct ParseTreePrinter : SymbolPrinter
 {
 	std::ofstream out;
 	FileTokenPrinter printer;
 	ParseTreePrinter(const char* outputRoot)
-		: PrintingWalker(printer), out(OutPath(outputRoot).c_str()), printer(out)
+		: SymbolPrinter(printer), out(OutPath(outputRoot).c_str()), printer(out)
 	{
 		out << "<html>\n"
 			"<head>\n"
@@ -1113,7 +858,7 @@ void printSymbol(cpp::declaration_seq* p, const PrintSymbolArgs& args)
 			printer.visit(makeSymbol(p));
 		}
 		{
-			SymbolPrinter printer(args, builder.moduleDependencies);
+			SourcePrinter printer(args, builder.moduleDependencies);
 			printer.visit(makeSymbol(p));
 		}
 	}
@@ -1133,7 +878,7 @@ void printSymbol(cpp::statement_seq* p, const PrintSymbolArgs& args)
 			printer.visit(makeSymbol(p));
 		}
 		{
-			SymbolPrinter printer(args, builder.moduleDependencies);
+			SourcePrinter printer(args, builder.moduleDependencies);
 			printer.visit(makeSymbol(p));
 		}
 	}
