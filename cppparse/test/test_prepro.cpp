@@ -1,5 +1,12 @@
 
 
+void overloaded(void*);
+
+void bleh()
+{
+	overloaded(float(0));
+}
+
 typedef int* P;
 P* pp;
 

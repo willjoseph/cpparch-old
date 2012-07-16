@@ -575,6 +575,8 @@ not consider any scopes outside the innermost enclosing namespace.
 			- ranked as exact, promotion or conversion
 		- user-defined
 		- ellipsis
+	- testing framework
+		- generate unique-type from C++ type
 - argument-dependent-lookup
 - name-lookup for overloaded-operators
 

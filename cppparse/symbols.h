@@ -1174,8 +1174,8 @@ extern Declaration gEnum;
 // types
 struct BuiltInTypeDeclaration : Declaration
 {
-	BuiltInTypeDeclaration(Identifier& name)
-		: Declaration(TREEALLOCATOR_NULL, 0, name, TYPE_ARITHMETIC, 0)
+	BuiltInTypeDeclaration(Identifier& name, const TypeId& type = TYPE_ARITHMETIC)
+		: Declaration(TREEALLOCATOR_NULL, 0, name, type, 0)
 	{
 	}
 };
@@ -1195,7 +1195,6 @@ extern Declaration gUnknown;
 
 // fundamental types
 extern UniqueTypeId gChar;
-extern UniqueTypeId gCharType;
 extern UniqueTypeId gSignedChar;
 extern UniqueTypeId gUnsignedChar;
 extern UniqueTypeId gSignedShortInt;
@@ -1723,6 +1722,187 @@ inline void makeUniqueTypeId(const TypeId& type, UniqueTypeId& result)
 	UniqueType uniqueType = UNIQUETYPE_NULL;
 	*static_cast<Type*>(&result) = makeUniqueType(type, uniqueType);
 	result.uniqueType.value = uniqueType;
+}
+
+
+
+enum IcsRank
+{
+	ICSRANK_STANDARDEXACT,
+	ICSRANK_STANDARDPROMOTION,
+	ICSRANK_STANDARDCONVERSION,
+	ICSRANK_USERDEFINED,
+	ICSRANK_ELLIPSIS,
+	ICSRANK_INVALID,
+};
+
+inline bool isBaseOf(const Declaration& declaration, const Declaration& other)
+{
+	return false; // TODO: return true if 'declaration' is base of 'other'
+}
+
+// 4.5 Integral Promotions
+// TODO: handle bitfield types?
+inline const UniqueTypeId& promoteToIntegralType(const UniqueTypeId& type)
+{
+	if(type.declaration == gChar.declaration
+		|| type.declaration == gSignedChar.declaration
+		|| type.declaration == gUnsignedChar.declaration
+		|| type.declaration == gSignedShortInt.declaration
+		|| type.declaration == gUnsignedShortInt.declaration)
+	{
+		return gSignedInt;
+	}
+	if(type.declaration == gWCharT.declaration
+		|| type.declaration == &gEnum)
+	{
+		return gSignedInt;
+	}
+	if(type.declaration == gBool.declaration)
+	{
+		return gSignedInt;
+	}
+	return type;
+}
+
+inline bool isPromotion(const UniqueTypeId& to, const UniqueTypeId& from)
+{
+	if(from.declaration == 0)
+	{
+		return false; // TODO: assert
+	}
+	if(isArithmetic(from) && isSimple(from)
+		&& isArithmetic(to) && isSimple(to))
+	{
+		return (from.declaration == gFloat.declaration && to.declaration == gDouble.declaration)
+			|| (promoteToIntegralType(from).declaration == to.declaration);
+	}
+	return false;
+}
+
+inline bool isConversion(const UniqueTypeId& to, const UniqueTypeId& from, bool isNullPointerConstant = false) // TODO: detect null pointer constant
+{
+	if(from.declaration == 0)
+	{
+		return false; // TODO: assert
+	}
+	if((isArithmetic(from) || isEnumeration(from)) && isSimple(from)
+		&& isArithmetic(to) && isSimple(to))
+	{
+		// can convert from enumeration to integer/floating/bool, but not in reverse
+		return true;
+	}
+	if((to.isPointer() || to.isMemberPointer())
+		&& isIntegral(from)
+		&& isNullPointerConstant)
+	{
+		return true; // 0 -> T*
+	}
+	if(to.isSimplePointer()
+		&& from.isSimplePointer()
+		&& to.declaration == gVoid.declaration)
+	{
+		return true; // T* -> void*
+	}
+	if(to.isSimplePointer()
+		&& from.isSimplePointer()
+		&& isBaseOf(*to.declaration, *from.declaration))
+	{
+		return true; // D* -> B*
+	}
+	if(to.isMemberPointer()
+		&& from.isMemberPointer()
+		&& isBaseOf(getMemberPointerClass(to.uniqueType.value), getMemberPointerClass(from.uniqueType.value)))
+	{
+		return true; // D::* -> B::*
+	}
+	if(isSimple(to)
+		&& to.declaration == gBool.declaration
+		&& (from.isPointer() || from.isMemberPointer()))
+	{
+		return true; // T* -> bool, T::* -> bool
+	}
+	if(isSimple(to)
+		&& isSimple(from)
+		&& isBaseOf(*to.declaration, *from.declaration))
+	{
+		return true; // D -> B
+	}
+	return false;
+}
+
+inline IcsRank getIcsRank(const UniqueTypeId& to, const UniqueTypeId& from, bool isNullPointerConstant = false)
+{
+	// TODO: user-defined conversion
+	if(isEqual(to, from))
+	{
+		return ICSRANK_STANDARDEXACT;
+	}
+	if(isPromotion(to, from))
+	{
+		return ICSRANK_STANDARDPROMOTION;
+	}
+	if(isConversion(to, from, isNullPointerConstant))
+	{
+		return ICSRANK_STANDARDCONVERSION; // TODO: ordering of conversions by inheritance distance
+	}
+	// TODO: user-defined
+	// TODO: ellipsis
+	return ICSRANK_INVALID;
+}
+
+struct ImplicitConversion
+{
+	IcsRank rank;
+	ImplicitConversion(IcsRank rank)
+		: rank(rank)
+	{
+	}
+};
+
+inline bool isBetter(const ImplicitConversion& l, const ImplicitConversion& r)
+{
+	return l.rank < r.rank;
+}
+
+
+
+typedef std::vector<ImplicitConversion> ArgumentConversions;
+struct CandidateFunction
+{
+	Declaration* declaration;
+	ArgumentConversions conversions;
+	bool isTemplate;
+	CandidateFunction(Declaration* declaration)
+		: declaration(declaration), isTemplate(false)
+	{
+	}
+};
+
+inline bool isBetter(const CandidateFunction& l, const CandidateFunction& r)
+{
+	SYMBOLS_ASSERT(l.conversions.size() == r.conversions.size());
+	for(size_t i = 0; i != l.conversions.size(); ++i)
+	{
+		if(isBetter(r.conversions[i], l.conversions[i]))
+		{
+			return false; // at least one argument is not a better conversion sequence
+		}
+	}
+	for(size_t i = 0; i != l.conversions.size(); ++i)
+	{
+		if(isBetter(l.conversions[i], r.conversions[i]))
+		{
+			return true; // at least one argument is a better conversion sequence
+		}
+	}
+	if(!l.isTemplate && r.isTemplate)
+	{
+		return true; // non-template better than template
+	}
+	// TODO: ordering of template specialisations
+	// TODO: in context of initialisation by user defined conversion, consider return type
+	return false;
 }
 
 
@@ -2681,6 +2861,82 @@ inline void printName(const Declaration* name)
 	SymbolPrinter printer(tokenPrinter);
 	printer.printName(name);
 }
+
+
+inline Declaration* findBestMatch(Declaration* declaration, const TypeIds& arguments)
+{
+	size_t count = std::distance(arguments.begin(), arguments.end());
+	CandidateFunction best(0);
+	best.conversions.resize(count, ImplicitConversion(ICSRANK_INVALID));
+	Declaration* ambiguous = 0;
+	for(Declaration* p = declaration; p != 0; p = p->overloaded)
+	{
+		// TODO
+		// Gather all the functions in the current scope that have the same name as the function called.
+		// Exclude those that don't have the right number of parameters to match the arguments in the call. (be careful about parameters with default values; void f(int x, int y = 0) is a candidate for the call f(25);)
+		// If no function matches, the compiler reports an error.
+		// If there is more than one match, select the 'best match'.
+		// If there is no clear winner of the best matches, the compiler reports an error - ambiguous function call.
+		if(p->enclosed == 0)
+		{
+			continue;
+		}
+
+		CandidateFunction candidate(p);
+		candidate.conversions.reserve(count);
+
+		TypeIds::const_iterator a = arguments.begin();
+		for(Scope::DeclarationList::iterator i = p->enclosed->declarationList.begin(); i != p->enclosed->declarationList.end(); ++i)
+		{
+			const Declaration& parameter = *(*i);
+			UniqueTypeId type(0, TREEALLOCATOR_NULL);
+			makeUniqueTypeId(parameter.type, type);
+			if(a != arguments.end())
+			{
+				candidate.conversions.push_back(getIcsRank(type, *a));
+				++a;
+			}
+			else
+			{
+				break; // TODO: default parameter values
+			}
+		}
+
+		if(candidate.conversions.size() != count)
+		{
+			continue; // TODO: early-out for functions with not enough params
+		}
+
+		if(isBetter(candidate, best))
+		{
+			best = candidate;
+			ambiguous = 0;
+		}
+		else if(!isBetter(best, candidate)) // the best candidate is an equally good match
+		{
+			ambiguous = candidate.declaration;
+		}
+	}
+
+	if(ambiguous != 0)
+	{
+		std::cout << "overload resolution failed:" << std::endl;
+		std::cout << "  ";
+		printPosition(ambiguous->getName().position);
+		printName(ambiguous);
+		std::cout << std::endl;
+		if(best.declaration != 0)
+		{
+			std::cout << "  ";
+			printPosition(best.declaration->getName().position);
+			printName(best.declaration);
+			std::cout << std::endl;
+		}
+		return 0;
+	}
+	return best.declaration;
+}
+
 
 #endif
 

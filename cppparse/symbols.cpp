@@ -84,7 +84,7 @@ Identifier gLongDoubleId = makeIdentifier("$long-double");
 BuiltInTypeDeclaration gLongDoubleDeclaration(gLongDoubleId);
 UniqueTypeId gLongDouble(&gLongDoubleDeclaration, TREEALLOCATOR_NULL);
 Identifier gVoidId = makeIdentifier("$void");
-BuiltInTypeDeclaration gVoidDeclaration(gVoidId);
+BuiltInTypeDeclaration gVoidDeclaration(gVoidId, TYPE_SPECIAL);
 UniqueTypeId gVoid(&gVoidDeclaration, TREEALLOCATOR_NULL);
 
 StringLiteralTypeId gStringLiteral(&gCharDeclaration, TREEALLOCATOR_NULL);
@@ -109,3 +109,142 @@ Identifier gConversionFunctionId = makeIdentifier("operator T");
 Identifier gOperatorFunctionTemplateId = makeIdentifier("operator () <>");
 // TODO: don't declare if id is anonymous?
 Identifier gAnonymousId = makeIdentifier("$anonymous");
+
+struct PointerTypeId : UniqueTypeId
+{
+	PointerTypeId(Declaration* declaration, const TreeAllocator<int>& allocator)
+		: UniqueTypeId(declaration, allocator)
+	{
+		uniqueType.push_front(DeclaratorPointer(false));
+	}
+};
+
+PointerTypeId gVoidPointer(&gVoidDeclaration, TREEALLOCATOR_NULL);
+
+
+typedef const UniqueTypeId* UniqueTypeIdConstPointer;
+UniqueTypeIdConstPointer gArithmeticTypes[] = {
+	&gChar,
+	&gSignedChar,
+	&gUnsignedChar,
+	&gSignedShortInt,
+	&gUnsignedShortInt,
+	&gSignedInt,
+	&gUnsignedInt,
+	&gSignedLongInt,
+	&gUnsignedLongInt,
+	&gSignedLongLongInt,
+	&gUnsignedLongLongInt,
+	&gWCharT,
+	&gBool,
+	&gFloat,
+	&gDouble,
+	&gLongDouble,
+};
+
+UniqueTypeIdConstPointer gFloatingTypes[] = {
+	&gFloat,
+	&gDouble,
+	&gLongDouble,
+};
+
+UniqueTypeIdConstPointer gIntegerTypes[] = {
+	&gChar,
+	&gSignedChar,
+	&gUnsignedChar,
+	&gSignedShortInt,
+	&gUnsignedShortInt,
+	&gSignedInt,
+	&gUnsignedInt,
+	&gSignedLongInt,
+	&gUnsignedLongInt,
+	&gSignedLongLongInt,
+	&gUnsignedLongLongInt,
+	&gWCharT,
+	&gBool,
+};
+
+IcsRank getArithmeticIcsRank(const UniqueTypeId& to, const UniqueTypeId& from)
+{
+	if(&to == &from)
+	{
+		return ICSRANK_STANDARDEXACT;
+	}
+	if(&to == &gSignedInt)
+	{
+		if(&from == &gChar
+			|| &from == &gSignedChar
+			|| &from == &gUnsignedChar
+			|| &from == &gSignedShortInt
+			|| &from == &gUnsignedShortInt
+			|| &from == &gWCharT
+			|| &from == &gBool)
+		{
+			return ICSRANK_STANDARDPROMOTION;
+		}
+	}
+	// TODO bitfield -> integer
+	if(&to == &gDouble)
+	{
+		if(&from == &gFloat)
+		{
+			return ICSRANK_STANDARDPROMOTION;
+		}
+	}
+	return ICSRANK_STANDARDCONVERSION;
+}
+
+inline void testIcsRank()
+{
+	for(const UniqueTypeIdConstPointer* i = gArithmeticTypes; i != ARRAY_END(gArithmeticTypes); ++i)
+	{
+		UniqueTypeIdConstPointer to = *i;
+		for(const UniqueTypeIdConstPointer* i = gArithmeticTypes; i != ARRAY_END(gArithmeticTypes); ++i)
+		{
+			UniqueTypeIdConstPointer from = *i;
+			IcsRank expected = getArithmeticIcsRank(*to, *from);
+			IcsRank rank = getIcsRank(*to, *from);
+			SYMBOLS_ASSERT(expected == rank);
+		}
+	}
+
+	for(const UniqueTypeIdConstPointer* i = gIntegerTypes; i != ARRAY_END(gIntegerTypes); ++i)
+	{
+		UniqueTypeIdConstPointer type = *i;
+		{
+			IcsRank rank = getIcsRank(gVoidPointer, *type, true);
+			SYMBOLS_ASSERT(rank == ICSRANK_STANDARDCONVERSION);
+		}
+		{
+			IcsRank rank = getIcsRank(gVoidPointer, *type, false);
+			SYMBOLS_ASSERT(rank == ICSRANK_INVALID);
+		}
+		{
+			IcsRank rank = getIcsRank(*type, gVoidPointer);
+			SYMBOLS_ASSERT(rank == (type == &gBool ? ICSRANK_STANDARDCONVERSION : ICSRANK_INVALID));
+		}
+	}
+
+	for(const UniqueTypeIdConstPointer* i = gFloatingTypes; i != ARRAY_END(gFloatingTypes); ++i)
+	{
+		UniqueTypeIdConstPointer type = *i;
+		{
+			IcsRank rank = getIcsRank(gVoidPointer, *type, true);
+			SYMBOLS_ASSERT(rank == ICSRANK_INVALID);
+		}
+		{
+			IcsRank rank = getIcsRank(*type, gVoidPointer, true);
+			SYMBOLS_ASSERT(rank == ICSRANK_INVALID);
+		}
+	}
+
+	// TODO: D* -> B*
+}
+
+struct TestIcsRank
+{
+	TestIcsRank()
+	{
+		testIcsRank();
+	}
+} gTestIcsRank;
