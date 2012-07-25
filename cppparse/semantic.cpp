@@ -409,6 +409,10 @@ struct WalkerState
 		return ::isDependent(qualifying.get(), DependentContext(*enclosing, templateParams != 0 ? *templateParams : SCOPE_NULL));
 	}
 
+	bool isDependent(Dependent& dependent)
+	{
+		return ::evaluateDependent(dependent, DependentContext(*enclosing, templateParams != 0 ? *templateParams : SCOPE_NULL));
+	}
 
 	void addDependent(Dependent& dependent, const DependencyCallback& callback)
 	{
@@ -422,11 +426,13 @@ struct WalkerState
 	void addDependentType(Dependent& dependent, Declaration* declaration)
 	{
 		static DependencyCallbacks<const Type> callbacks = makeDependencyCallbacks(isDependentType);
+		SEMANTIC_ASSERT(declaration->type.declaration != 0);
 		addDependent(dependent, makeDependencyCallback(static_cast<const Type*>(&declaration->type), &callbacks));
 	}
 	void addDependent(Dependent& dependent, const Type& type)
 	{
 		TypeRef tmp(type, context);
+		SEMANTIC_ASSERT(type.declaration != 0);
 		static DependencyCallbacks<TypePtr::Value> callbacks = makeDependencyCallbacks(isDependentTypeRef, ReferenceCallbacks<const Type>::increment, ReferenceCallbacks<const Type>::decrement);
 		addDependent(dependent, makeDependencyCallback(tmp.get_ref().p, &callbacks));
 	}
@@ -913,6 +919,7 @@ struct UnqualifiedIdWalker : public WalkerBase
 	{
 		TemplateIdWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
+		// TODO
 	}
 	void visit(cpp::operator_function_id* symbol) 
 	{
@@ -1046,21 +1053,25 @@ struct ExplicitTypeExpressionWalker : public WalkerBase
 		TypeSpecifierWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		type.swap(walker.type);
-		addDependent(typeDependent, walker.type);
+		if(type.declaration == 0)
+		{
+			type = getFundamentalType(walker.fundamental);
+		}
+		addDependent(typeDependent, type);
 	}
 	void visit(cpp::typename_specifier* symbol)
 	{
 		TypenameSpecifierWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		type.swap(walker.type);
-		addDependent(typeDependent, walker.type);
+		addDependent(typeDependent, type);
 	}
 	void visit(cpp::type_id* symbol)
 	{
 		TypeIdWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		type.swap(walker.type);
-		addDependent(typeDependent, walker.type);
+		addDependent(typeDependent, type);
 		addDependent(typeDependent, walker.valueDependent);
 	}
 	void visit(cpp::new_type* symbol)
@@ -1068,7 +1079,7 @@ struct ExplicitTypeExpressionWalker : public WalkerBase
 		TypeIdWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		type.swap(walker.type);
-		addDependent(typeDependent, walker.type);
+		addDependent(typeDependent, type);
 		addDependent(typeDependent, walker.valueDependent);
 	}
 	void visit(cpp::assignment_expression* symbol)
@@ -1218,7 +1229,7 @@ struct DependentPostfixExpressionWalker : public WalkerBase
 		addDependent(typeDependent, walker.typeDependent);
 		if(id != 0)
 		{
-			if(typeDependent.empty())
+			if(!isDependent(walker.typeDependent))
 			{
 				if(declaration != 0)
 				{
@@ -1402,7 +1413,9 @@ struct PostfixExpressionWalker : public WalkerBase
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
 		if(id != 0 // the prefix contains an id-expression
-			&& id->dec.p != 0 // the identifier is a non-dependent name
+			&& id->dec.p != &gDependentObject // the id-expression was not dependent
+			&& !isDependent(walker.typeDependent) // the expressions in the argument list are not dependent
+			&& id->dec.p != 0 // TODO: assert!
 			&& isFunction(*id->dec.p)) // the identifier names an overloadable function
 		{
 			// TODO: 13.3.1.1.1  Call to named function
@@ -1997,7 +2010,7 @@ struct TypeSpecifierWalker : public WalkerQualified
 	void visit(cpp::simple_type_specifier_builtin* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		fundamental = symbol->id;
+		fundamental = combineFundamental(0, symbol->id);
 	}
 };
 
@@ -2923,7 +2936,7 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 		type.swap(walker.type);
 		if(type.declaration == 0)
 		{
-			fundamental = combineFundamental(0, walker.fundamental);
+			fundamental = walker.fundamental;
 			type = getFundamentalType(fundamental);
 		}
 	}

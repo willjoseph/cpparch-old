@@ -118,9 +118,65 @@ struct PointerTypeId : UniqueTypeId
 		uniqueType.push_front(DeclaratorPointer(false));
 	}
 };
+struct PointerPointerTypeId : UniqueTypeId
+{
+	PointerPointerTypeId(Declaration* declaration, const TreeAllocator<int>& allocator)
+		: UniqueTypeId(declaration, allocator)
+	{
+		uniqueType.push_front(DeclaratorPointer(false));
+		uniqueType.push_front(DeclaratorPointer(false));
+	}
+};
+struct ArrayTypeId : UniqueTypeId
+{
+	ArrayTypeId(Declaration* declaration, const TreeAllocator<int>& allocator)
+		: UniqueTypeId(declaration, allocator)
+	{
+		uniqueType.push_front(DeclaratorArray());
+	}
+};
+struct MemberPointerTypeId : UniqueTypeId
+{
+	MemberPointerTypeId(Declaration* declaration, const TreeAllocator<int>& allocator)
+		: UniqueTypeId(declaration, allocator)
+	{
+		uniqueType.push_front(DeclaratorMemberPointer(0));
+	}
+};
 
 PointerTypeId gVoidPointer(&gVoidDeclaration, TREEALLOCATOR_NULL);
+PointerTypeId gSignedIntPointer(&gSignedIntDeclaration, TREEALLOCATOR_NULL);
+PointerTypeId gSignedCharPointer(&gSignedCharDeclaration, TREEALLOCATOR_NULL);
+PointerTypeId gWCharTPointer(&gWCharTDeclaration, TREEALLOCATOR_NULL);
+PointerPointerTypeId gSignedIntPointerPointer(&gSignedIntDeclaration, TREEALLOCATOR_NULL);
+ArrayTypeId gSignedIntArray(&gSignedIntDeclaration, TREEALLOCATOR_NULL);
+ArrayTypeId gFloatArray(&gFloatDeclaration, TREEALLOCATOR_NULL);
+MemberPointerTypeId gSignedIntMemberPointer(&gSignedIntDeclaration, TREEALLOCATOR_NULL);
 
+
+Identifier gBaseClassId = makeIdentifier("$base");
+Scope gBaseClassScope(TREEALLOCATOR_NULL, gBaseClassId, SCOPETYPE_CLASS);
+Declaration gBaseClassDeclaration(TREEALLOCATOR_NULL, 0, gBaseClassId, TYPE_CLASS, &gBaseClassScope);
+UniqueTypeId gBaseClass(&gBaseClassDeclaration, TREEALLOCATOR_NULL);
+
+Types2::Pointer::Value gBaseClassNode = Types2::Node(gBaseClass);
+
+struct DerivedClassTypeId : UniqueTypeId
+{
+	DerivedClassTypeId(Declaration* declaration, const TreeAllocator<int>& allocator)
+		: UniqueTypeId(declaration, allocator)
+	{
+		declaration->enclosed->bases.head.next = &gBaseClassNode;
+	}
+};
+
+Identifier gDerivedClassId = makeIdentifier("$derived");
+Scope gDerivedClassScope(TREEALLOCATOR_NULL, gDerivedClassId, SCOPETYPE_CLASS);
+Declaration gDerivedClassDeclaration(TREEALLOCATOR_NULL, 0, gDerivedClassId, TYPE_CLASS, &gDerivedClassScope);
+DerivedClassTypeId gDerivedClass(&gDerivedClassDeclaration, TREEALLOCATOR_NULL);
+
+PointerTypeId gBaseClassPointer(&gBaseClassDeclaration, TREEALLOCATOR_NULL);
+PointerTypeId gDerivedClassPointer(&gDerivedClassDeclaration, TREEALLOCATOR_NULL);
 
 typedef const UniqueTypeId* UniqueTypeIdConstPointer;
 UniqueTypeIdConstPointer gArithmeticTypes[] = {
@@ -162,6 +218,28 @@ UniqueTypeIdConstPointer gIntegerTypes[] = {
 	&gUnsignedLongLongInt,
 	&gWCharT,
 	&gBool,
+};
+
+UniqueTypeIdConstPointer gPointerTypes[] = {
+	&gVoidPointer,
+	&gSignedIntPointer,
+	&gSignedIntPointerPointer,
+	&gSignedCharPointer,
+	&gWCharTPointer,
+	&gBaseClassPointer,
+	&gDerivedClassPointer,
+};
+
+UniqueTypeIdConstPointer gSimplePointerTypes[] = {
+	&gSignedIntPointer,
+	&gSignedCharPointer,
+	&gWCharTPointer,
+	&gBaseClassPointer,
+	&gDerivedClassPointer,
+};
+
+UniqueTypeIdConstPointer gMemberPointerTypes[] = {
+	&gSignedIntMemberPointer,
 };
 
 IcsRank getArithmeticIcsRank(const UniqueTypeId& to, const UniqueTypeId& from)
@@ -208,23 +286,51 @@ inline void testIcsRank()
 		}
 	}
 
+	// 0 -> T*
 	for(const UniqueTypeIdConstPointer* i = gIntegerTypes; i != ARRAY_END(gIntegerTypes); ++i)
 	{
 		UniqueTypeIdConstPointer type = *i;
+		for(const UniqueTypeIdConstPointer* i = gPointerTypes; i != ARRAY_END(gPointerTypes); ++i)
 		{
-			IcsRank rank = getIcsRank(gVoidPointer, *type, true);
-			SYMBOLS_ASSERT(rank == ICSRANK_STANDARDCONVERSION);
+			UniqueTypeIdConstPointer other = *i;
+			{
+				IcsRank rank = getIcsRank(*other, *type, true);
+				SYMBOLS_ASSERT(rank == ICSRANK_STANDARDCONVERSION);
+			}
+			{
+				IcsRank rank = getIcsRank(*other, *type, false);
+				SYMBOLS_ASSERT(rank == ICSRANK_INVALID);
+			}
 		}
+	}
+
+	// T* -> bool, T::* -> bool
+	for(const UniqueTypeIdConstPointer* i = gIntegerTypes; i != ARRAY_END(gIntegerTypes); ++i)
+	{
+		UniqueTypeIdConstPointer type = *i;
+		for(const UniqueTypeIdConstPointer* i = gPointerTypes; i != ARRAY_END(gPointerTypes); ++i)
 		{
-			IcsRank rank = getIcsRank(gVoidPointer, *type, false);
-			SYMBOLS_ASSERT(rank == ICSRANK_INVALID);
+			UniqueTypeIdConstPointer other = *i;
+			IcsRank rank = getIcsRank(*type, *other);
+			SYMBOLS_ASSERT(rank == (type == &gBool ? ICSRANK_STANDARDCONVERSION : ICSRANK_INVALID));
 		}
+		for(const UniqueTypeIdConstPointer* i = gMemberPointerTypes; i != ARRAY_END(gMemberPointerTypes); ++i)
 		{
-			IcsRank rank = getIcsRank(*type, gVoidPointer);
+			UniqueTypeIdConstPointer other = *i;
+			IcsRank rank = getIcsRank(*type, *other);
 			SYMBOLS_ASSERT(rank == (type == &gBool ? ICSRANK_STANDARDCONVERSION : ICSRANK_INVALID));
 		}
 	}
 
+	// T* -> void* (where T is an object type)
+	for(const UniqueTypeIdConstPointer* i = gSimplePointerTypes; i != ARRAY_END(gSimplePointerTypes); ++i)
+	{
+		UniqueTypeIdConstPointer type = *i;
+		{
+			IcsRank rank = getIcsRank(gVoidPointer, *type);
+			SYMBOLS_ASSERT(rank == ICSRANK_STANDARDCONVERSION);
+		}
+	}
 	for(const UniqueTypeIdConstPointer* i = gFloatingTypes; i != ARRAY_END(gFloatingTypes); ++i)
 	{
 		UniqueTypeIdConstPointer type = *i;
@@ -238,7 +344,42 @@ inline void testIcsRank()
 		}
 	}
 
-	// TODO: D* -> B*
+	// T[] -> T*
+	{
+		IcsRank rank = getIcsRank(gSignedIntPointer, gSignedIntArray);
+		SYMBOLS_ASSERT(rank == ICSRANK_STANDARDCONVERSION);
+	}
+	{
+		IcsRank rank = getIcsRank(gSignedIntPointer, gFloatArray);
+		SYMBOLS_ASSERT(rank == ICSRANK_INVALID);
+	}
+	{
+		IcsRank rank = getIcsRank(gSignedIntPointerPointer, gSignedIntArray);
+		SYMBOLS_ASSERT(rank == ICSRANK_INVALID);
+	}
+
+	// D -> B
+	{
+		IcsRank rank = getIcsRank(gBaseClass, gDerivedClass);
+		SYMBOLS_ASSERT(rank == ICSRANK_STANDARDCONVERSION);
+	}
+	{
+		IcsRank rank = getIcsRank(gDerivedClass, gBaseClass);
+		SYMBOLS_ASSERT(rank == ICSRANK_INVALID);
+	}
+
+	// D* -> B*
+	{
+		IcsRank rank = getIcsRank(gBaseClassPointer, gDerivedClassPointer);
+		SYMBOLS_ASSERT(rank == ICSRANK_STANDARDCONVERSION);
+	}
+	{
+		IcsRank rank = getIcsRank(gDerivedClassPointer, gBaseClassPointer);
+		SYMBOLS_ASSERT(rank == ICSRANK_INVALID);
+	}
+
+	// TODO: D::* -> B::*
+
 }
 
 struct TestIcsRank

@@ -1,10 +1,98 @@
 
+//----------
+// dependent base class
+
+struct Arg
+{
+	typedef Arg Type;
+};
+
+template<typename T1>
+struct Derived1 : T1::Type
+{
+	typedef T1 Type;
+};
+
+template<typename T2>
+struct Derived2 : Derived1<T2>
+{
+	typedef T2 Type;
+};
+
+template<typename T3>
+struct Derived3 : T3::Type::Type
+{
+	typedef T3 Type;
+};
+
+Derived2<Arg> d2;
+Derived3<Arg> d3;
+
+struct Arg2
+{
+	template<typename T1>
+	struct Derived : T1::Type
+	{
+	};
+	typedef Arg Type;
+	Derived<Arg> d;
+};
+
+//----------
+// illegal: violates ODR
+
+template<typename T>
+struct OneDefinition
+{
+};
+
+OneDefinition<int> o1;
+
+template<>
+struct OneDefinition<int>
+{
+};
+
+OneDefinition<int> o2;
+
+// -------
+
+// dependent base class
+//#include "boost\wave\util\time_conversion_helper.hpp"
+
+// -------
+template<class T>
+struct Traits
+{
+};
+
+template<>
+struct Traits<char>
+{
+};
+
+template<>
+struct Traits<wchar_t>
+{
+};
+
+template<>
+struct Traits<signed> // accept 'signed' as signed-int
+{
+};
+
+template<>
+struct Traits<short> // accept 'short' as short-int
+{
+};
+
+// ------
 
 void overloaded(void*);
 
 void bleh()
 {
-	overloaded(float(0));
+	overloaded(0);
 }
 
 typedef int* P;
@@ -18,10 +106,14 @@ S* f(S);
 double* f(double);
 float* f(float);
 int* f(int);
+long* f(long);
+unsigned* f(unsigned);
+unsigned long* f(unsigned long);
 char* f(char);
 wchar_t* f(wchar_t);
 char** f(const char*);
 wchar_t** f(const wchar_t*);
+long double* f(const long double);
 
 void f()
 {

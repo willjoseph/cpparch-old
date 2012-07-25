@@ -519,7 +519,16 @@ not consider any scopes outside the innermost enclosing namespace.
 - implement template-instantiation
 	- specializations are chosen at point of instantiation
 	- dependent-names/types are bound at point of instantiation-
+		- new member of Type: instantiation
+		- contains list of declarations, one for each dependent-name in the Type
 	- partial-ordering of class template specialisations
+	
+The point of definition of a template is located immediately before its definition. In this example, the point of definition of the template container is located immediately before the keyword template. Because the function call f(1) does not depend on a template parameter, the compiler considers names declared before the definition of the template container. Therefore, the function call f(1) calls f(double). Although f(int) is a better match, it is not in scope at the point of definition of container.
+The point of instantiation of a template is located immediately before the declaration that encloses its use. In this example, the point of instantiation of container<int> is the location of the explicit instantiation. Because the qualified function call ::h(arg) depends on the template argument arg, the compiler considers names declared before the instantiation of container<int>. Therefore, the function call h(arg) calls h(double). It does not consider h(int), because this function is not in scope at the point of instantiation of container<int>.
+Point of instantiation binding implies the following:
+A template parameter cannot depend on any local name or class member.
+An unqualified name in a template cannot depend on a local name or class member.
+	
 - perform type-deduction
 	- store function-type as R(A1, A2) rather than just R
 	- store member-function-type as R C::*(A1, A2) rather than just R
@@ -547,6 +556,7 @@ not consider any scopes outside the innermost enclosing namespace.
 		- print complex types
 			+ pointer, array, function
 			- member-ptr, const
+		- null-pointer-constant
 	- evaluate type of expression
 		- expression-list
 			- choose last
