@@ -581,22 +581,22 @@ struct SourcePrinter : SymbolPrinter
 		return true;
 	}
 
-	void printIdentifier(cpp::identifier* symbol)
+	void printIdentifier(const Identifier& identifier)
 	{
 		bool anchor = false;
-		if(isPrimary(symbol->value))
+		if(isPrimary(identifier))
 		{
 			printer.out << "<a name='";
-			printName(symbol->value.dec.p);
+			printName(identifier.dec.p);
 			printer.out << "'></a>";
 		}
 		else
 		{
-			anchor = printAnchorStart(symbol->value.dec.p);
+			anchor = printAnchorStart(identifier.dec.p);
 		}
-		const char* type = symbol->value.dec.p != 0 ? getDeclarationType(*symbol->value.dec.p) : "unknown";
+		const char* type = identifier.dec.p != 0 ? getDeclarationType(*identifier.dec.p) : "unknown";
 		printer.out << "<" << type << ">";
-		printer.out << getValue(symbol->value);
+		printer.out << getValue(identifier);
 		printer.out << "</" << type << ">";
 		if(anchor)
 		{
@@ -721,7 +721,18 @@ struct SourcePrinter : SymbolPrinter
 		REPORT_ASSERT(symbol->value.source == includeStack.top()); // identifiers within the current source file should be tagged with the same source path
 #endif
 
-		printIdentifier(symbol);
+		printIdentifier(symbol->value);
+	}
+
+	void visit(cpp::operator_function_id* symbol)
+	{
+		printer.formatToken(boost::wave::T_IDENTIFIER);
+
+#if 0 // this fails for mid-declaration includes
+		REPORT_ASSERT(symbol->value.source == includeStack.top()); // identifiers within the current source file should be tagged with the same source path
+#endif
+
+		printIdentifier(symbol->value); // TODO: format appropriately (handling 'new' or 'delete' differently to '*')
 	}
 
 	void visit(cpp::simple_type_specifier_builtin* symbol)

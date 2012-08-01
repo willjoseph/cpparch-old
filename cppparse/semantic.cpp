@@ -851,6 +851,42 @@ struct TemplateArgumentListWalker : public WalkerBase
 	}
 };
 
+struct OverloadableOperatorWalker : public WalkerBase
+{
+	Name name;
+	OverloadableOperatorWalker(const WalkerState& state)
+		: WalkerBase(state)
+	{
+	}
+	template<typename T>
+	void visit(T* symbol)
+	{
+		TREEWALKER_LEAF(symbol);
+		name = getOverloadableOperatorId(symbol);
+	}
+	template<LexTokenId id>
+	void visit(cpp::terminal<id> symbol)
+	{
+	}
+};
+
+struct OperatorFunctionIdWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	Name name;
+	OperatorFunctionIdWalker(const WalkerState& state)
+		: WalkerBase(state)
+	{
+	}
+	void visit(cpp::overloadable_operator* symbol)
+	{
+		OverloadableOperatorWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+		name = walker.name;
+	}
+};
+
 struct TemplateIdWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
@@ -866,6 +902,17 @@ struct TemplateIdWalker : public WalkerBase
 		TREEWALKER_LEAF_CACHED(symbol);
 		id = &symbol->value;
 	}
+	void visit(cpp::operator_function_id* symbol) 
+	{
+		Source source = parser->get_source();
+		FilePosition position = parser->get_position();
+		OperatorFunctionIdWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+		symbol->value.value = walker.name;
+		symbol->value.source = source.absolute;
+		symbol->value.position = position;
+		id = &symbol->value;
+	}
 	void visit(cpp::template_argument_clause* symbol)
 	{
 		clearQualifying();
@@ -874,7 +921,6 @@ struct TemplateIdWalker : public WalkerBase
 		arguments.swap(walker.arguments);
 	}
 };
-
 
 struct UnqualifiedIdWalker : public WalkerBase
 {
@@ -919,13 +965,31 @@ struct UnqualifiedIdWalker : public WalkerBase
 	{
 		TemplateIdWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		// TODO
+		id = walker.id;
+#if 0 // TODO: member lookup
+		if(!isTemplate // TODO: is this possible?
+			&& !isDependent(qualifying_p))
+		{
+			declaration = findDeclaration(*id);
+			if(declaration == &gUndeclared
+				|| !isTemplateName(*declaration))
+			{
+				return reportIdentifierMismatch(symbol, *id, declaration, "template-name");
+			}
+			declaration = findTemplateSpecialization(declaration, walker.arguments);
+		}
+#endif
 	}
 	void visit(cpp::operator_function_id* symbol) 
 	{
-		TREEWALKER_LEAF(symbol);
-		// TODO
-		id = &gOperatorFunctionId;
+		Source source = parser->get_source();
+		FilePosition position = parser->get_position();
+		OperatorFunctionIdWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+		symbol->value.value = walker.name;
+		symbol->value.source = source.absolute;
+		symbol->value.position = position;
+		id = &symbol->value;
 	}
 	void visit(cpp::conversion_function_id* symbol) 
 	{
@@ -2028,7 +2092,7 @@ struct UnqualifiedDeclaratorIdWalker : public WalkerBase
 		TREEWALKER_LEAF_CACHED(symbol);
 		id = &symbol->value;
 	}
-	void visit(cpp::simple_template_id* symbol) 
+	void visit(cpp::template_id* symbol) 
 	{
 		TemplateIdWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
@@ -2036,9 +2100,14 @@ struct UnqualifiedDeclaratorIdWalker : public WalkerBase
 	}
 	void visit(cpp::operator_function_id* symbol) 
 	{
-		TREEWALKER_LEAF(symbol);
-		// TODO
-		id = &gOperatorFunctionId;
+		Source source = parser->get_source();
+		FilePosition position = parser->get_position();
+		OperatorFunctionIdWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+		symbol->value.value = walker.name;
+		symbol->value.source = source.absolute;
+		symbol->value.position = position;
+		id = &symbol->value;
 	}
 	void visit(cpp::conversion_function_id* symbol) 
 	{
@@ -2051,12 +2120,6 @@ struct UnqualifiedDeclaratorIdWalker : public WalkerBase
 	{
 		TREEWALKER_LEAF(symbol);
 		id = &symbol->name->value;
-	}
-	void visit(cpp::template_id_operator_function* symbol) 
-	{
-		TREEWALKER_LEAF(symbol);
-		// TODO
-		id = &gOperatorFunctionTemplateId;
 	}
 };
 

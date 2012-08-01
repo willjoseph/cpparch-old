@@ -676,38 +676,37 @@ namespace cpp
 
 	struct overloadable_operator : public choice<overloadable_operator>
 	{
-		VISITABLE_BASE(TYPELIST17(
-			SYMBOLFWD(assignment_operator),
-			SYMBOLFWD(member_operator),
-			SYMBOLFWD(postfix_operator),
-			SYMBOLFWD(unary_operator),
-			SYMBOLFWD(pm_operator),
-			SYMBOLFWD(multiplicative_operator),
-			SYMBOLFWD(additive_operator),
-			SYMBOLFWD(shift_operator),
-			SYMBOLFWD(relational_operator),
-			SYMBOLFWD(equality_operator),
+		VISITABLE_BASE(TYPELIST5(
+			SYMBOLFWD(overloadable_operator_default),
 			SYMBOLFWD(new_operator),
 			SYMBOLFWD(delete_operator),
-			SYMBOLFWD(comma_operator),
 			SYMBOLFWD(function_operator),
-			SYMBOLFWD(array_operator),
-			SYMBOLFWD(bitwise_operator),
-			SYMBOLFWD(logical_operator)
+			SYMBOLFWD(array_operator)
 		));
 	};
 
-	struct bitwise_operator : public terminal_choice, public overloadable_operator
+	struct overloadable_operator_default : public terminal_choice, public overloadable_operator
 	{
 		VISITABLE_DERIVED(overloadable_operator);
+		enum { ASSIGN, STARASSIGN, DIVIDEASSIGN, PERCENTASSIGN, PLUSASSIGN, MINUSASSIGN, SHIFTRIGHTASSIGN, SHIFTLEFTASSIGN, ANDASSIGN, XORASSIGN, ORASSIGN,
+			EQUAL, NOTEQUAL, LESS, GREATER, LESSEQUAL, GREATEREQUAL, ANDAND, OROR,
+			PLUSPLUS, MINUSMINUS, STAR, DIVIDE, PERCENT, PLUS, MINUS,
+			SHIFTLEFT, SHIFTRIGHT, AND, OR, XOR, NOT, COMPL, 
+			ARROW, ARROWSTAR, COMMA
+		} id;
+		terminal_choice2 value;
+		FOREACH1(value);
+	};
+
+	struct bitwise_operator : public terminal_choice
+	{
 		enum { AND, OR, XOR, NOT } id;
 		terminal_choice2 value;
 		FOREACH1(value);
 	};
 
-	struct logical_operator : public terminal_choice, public overloadable_operator
+	struct logical_operator : public terminal_choice
 	{
-		VISITABLE_DERIVED(overloadable_operator);
 		enum { AND, OR } id;
 		terminal_choice2 value;
 		FOREACH1(value);
@@ -727,13 +726,6 @@ namespace cpp
 		terminal<boost::wave::T_LEFTPAREN> lp;
 		terminal<boost::wave::T_RIGHTPAREN> rp;
 		FOREACH2(lp, rp);
-	};
-
-	struct comma_operator : public overloadable_operator
-	{
-		VISITABLE_DERIVED(overloadable_operator);
-		terminal<boost::wave::T_COMMA> key;
-		FOREACH1(key);
 	};
 
 	struct new_operator : public overloadable_operator
@@ -759,6 +751,7 @@ namespace cpp
 		terminal<boost::wave::T_OPERATOR> key;
 		symbol<overloadable_operator> op;
 		FOREACH2(key, op);
+		terminal_identifier value;
 	};
 
 	struct template_id_operator_function : public template_id
@@ -1169,9 +1162,8 @@ namespace cpp
 		FOREACH2(left, right);
 	};
 
-	struct member_operator : public terminal_choice, public overloadable_operator
+	struct member_operator : public terminal_choice
 	{
-		VISITABLE_DERIVED(overloadable_operator);
 		enum { DOT, ARROW } id;
 		terminal_choice2 value;
 		FOREACH1(value);
@@ -1196,10 +1188,9 @@ namespace cpp
 		FOREACH4(isGlobal, context, compl_, type);
 	};
 
-	struct postfix_operator : public terminal_choice, public postfix_expression_suffix, public overloadable_operator
+	struct postfix_operator : public terminal_choice, public postfix_expression_suffix
 	{
 		VISITABLE_DERIVED(postfix_expression_suffix);
-		VISITABLE_DERIVED(overloadable_operator);
 		enum { PLUSPLUS, MINUSMINUS } id;
 		terminal_choice2 value;
 		FOREACH1(value);
@@ -1365,9 +1356,8 @@ namespace cpp
 		FOREACH4(isGlobal, key, op, expr);
 	};
 
-	struct unary_operator : public terminal_choice, public overloadable_operator
+	struct unary_operator : public terminal_choice
 	{
-		VISITABLE_DERIVED(overloadable_operator);
 		enum { PLUSPLUS, MINUSMINUS, STAR, AND, PLUS, MINUS, NOT, COMPL } id;
 		terminal_choice2 value;
 		FOREACH1(value);
@@ -1409,9 +1399,8 @@ namespace cpp
 		FOREACH4(lp, id, rp, expr);
 	};
 
-	struct pm_operator : public terminal_choice, public overloadable_operator
+	struct pm_operator : public terminal_choice
 	{
-		VISITABLE_DERIVED(overloadable_operator);
 		enum { DOTSTAR, ARROWSTAR } id;
 		terminal_choice2 value;
 		FOREACH1(value);
@@ -1426,9 +1415,8 @@ namespace cpp
 		FOREACH3(left, op, right);
 	};
 
-	struct multiplicative_operator : public terminal_choice, public overloadable_operator
+	struct multiplicative_operator : public terminal_choice
 	{
-		VISITABLE_DERIVED(overloadable_operator);
 		enum { STAR, DIVIDE, PERCENT } id;
 		terminal_choice2 value;
 		FOREACH1(value);
@@ -1461,9 +1449,8 @@ namespace cpp
 	};
 #endif
 
-	struct additive_operator : public terminal_choice, public overloadable_operator
+	struct additive_operator : public terminal_choice
 	{
-		VISITABLE_DERIVED(overloadable_operator);
 		enum { PLUS, MINUS } id;
 		terminal_choice2 value;
 		FOREACH1(value);
@@ -1478,9 +1465,8 @@ namespace cpp
 		FOREACH3(left, op, right);
 	};
 
-	struct shift_operator : public terminal_choice, public overloadable_operator
+	struct shift_operator : public terminal_choice
 	{
-		VISITABLE_DERIVED(overloadable_operator);
 		enum { SHIFTLEFT, SHIFTRIGHT } id;
 		terminal_choice2 value;
 		FOREACH1(value);
@@ -1495,9 +1481,8 @@ namespace cpp
 		FOREACH3(left, op, right);
 	};
 
-	struct relational_operator : public terminal_choice, public overloadable_operator
+	struct relational_operator : public terminal_choice
 	{
-		VISITABLE_DERIVED(overloadable_operator);
 		enum { LESS, GREATER, LESSEQUAL, GREATEREQUAL } id;
 		terminal_choice2 value;
 		FOREACH1(value);
@@ -1512,9 +1497,8 @@ namespace cpp
 		FOREACH3(left, op, right);
 	};
 
-	struct equality_operator : public terminal_choice, public overloadable_operator
+	struct equality_operator : public terminal_choice
 	{
-		VISITABLE_DERIVED(overloadable_operator);
 		enum { EQUAL, NOTEQUAL } id;
 		terminal_choice2 value;
 		FOREACH1(value);
@@ -1608,9 +1592,8 @@ namespace cpp
 		FOREACH2(left, right);
 	};
 
-	struct assignment_operator : public terminal_choice, public overloadable_operator
+	struct assignment_operator : public terminal_choice
 	{
-		VISITABLE_DERIVED(overloadable_operator);
 		enum { ASSIGN, STAR, DIVIDE, PERCENT, PLUS, MINUS, SHIFTRIGHT, SHIFTLEFT, AND, XOR, OR } id;
 		terminal_choice2 value;
 		FOREACH1(value);

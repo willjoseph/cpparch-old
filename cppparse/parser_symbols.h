@@ -270,25 +270,57 @@ inline cpp::jump_statement_key* parseSymbol(ParserType& parser, cpp::jump_statem
 }
 
 template<typename ParserType>
+inline cpp::overloadable_operator_default* parseSymbol(ParserType& parser, cpp::overloadable_operator_default* result)
+{
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_ASSIGN, cpp::overloadable_operator_default::ASSIGN);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_STARASSIGN, cpp::overloadable_operator_default::STARASSIGN);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_DIVIDEASSIGN, cpp::overloadable_operator_default::DIVIDEASSIGN);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_PERCENTASSIGN, cpp::overloadable_operator_default::PERCENTASSIGN);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_PLUSASSIGN, cpp::overloadable_operator_default::PLUSASSIGN);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_MINUSASSIGN, cpp::overloadable_operator_default::MINUSASSIGN);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_SHIFTRIGHTASSIGN, cpp::overloadable_operator_default::SHIFTRIGHTASSIGN);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_SHIFTLEFTASSIGN, cpp::overloadable_operator_default::SHIFTLEFTASSIGN);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_ANDASSIGN, cpp::overloadable_operator_default::ANDASSIGN);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_XORASSIGN, cpp::overloadable_operator_default::XORASSIGN);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_ORASSIGN, cpp::overloadable_operator_default::ORASSIGN);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_EQUAL, cpp::overloadable_operator_default::EQUAL);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_NOTEQUAL, cpp::overloadable_operator_default::NOTEQUAL);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_LESS, cpp::overloadable_operator_default::LESS);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_GREATER, cpp::overloadable_operator_default::GREATER);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_LESSEQUAL, cpp::overloadable_operator_default::LESSEQUAL);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_GREATEREQUAL, cpp::overloadable_operator_default::GREATEREQUAL);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_SHIFTLEFT, cpp::overloadable_operator_default::SHIFTLEFT);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_SHIFTRIGHT, cpp::overloadable_operator_default::SHIFTRIGHT);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_ARROWSTAR, cpp::overloadable_operator_default::ARROWSTAR);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_ARROW, cpp::overloadable_operator_default::ARROW);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_PLUSPLUS, cpp::overloadable_operator_default::PLUSPLUS);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_MINUSMINUS, cpp::overloadable_operator_default::MINUSMINUS);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_STAR, cpp::overloadable_operator_default::STAR);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_DIVIDE, cpp::overloadable_operator_default::DIVIDE);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_PERCENT, cpp::overloadable_operator_default::PERCENT);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_AND, cpp::overloadable_operator_default::AND);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_PLUS, cpp::overloadable_operator_default::PLUS);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_MINUS, cpp::overloadable_operator_default::MINUS);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_NOT, cpp::overloadable_operator_default::NOT);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_COMPL, cpp::overloadable_operator_default::COMPL);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_AND, cpp::overloadable_operator_default::AND);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_OR, cpp::overloadable_operator_default::OR);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_XOR, cpp::overloadable_operator_default::XOR);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_NOT, cpp::overloadable_operator_default::NOT);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_ANDAND, cpp::overloadable_operator_default::ANDAND);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_OROR, cpp::overloadable_operator_default::OROR);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_COMMA, cpp::overloadable_operator_default::COMMA);
+	return result;
+};
+
+template<typename ParserType>
 inline cpp::overloadable_operator* parseSymbol(ParserType& parser, cpp::overloadable_operator* result)
 {
-	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::assignment_operator);
-	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::member_operator);
-	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::postfix_operator);
-	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::unary_operator);
-	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::pm_operator);
-	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::multiplicative_operator);
-	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::additive_operator);
-	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::shift_operator);
-	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::relational_operator);
-	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::equality_operator);
+	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::overloadable_operator_default);
 	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::new_operator);
 	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::delete_operator);
-	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::comma_operator);
 	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::function_operator);
 	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::array_operator);
-	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::bitwise_operator);
-	PARSE_SELECT_UNAMBIGUOUS(parser, cpp::logical_operator);
 	return result;
 };
 

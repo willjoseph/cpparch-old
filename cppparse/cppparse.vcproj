@@ -366,6 +366,10 @@
 			</File>
 		</Filter>
 		<File
+			RelativePath=".\cppparse.rsp"
+			>
+		</File>
+		<File
 			RelativePath=".\DONE.txt"
 			>
 		</File>

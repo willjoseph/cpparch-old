@@ -348,7 +348,7 @@ not consider any scopes outside the innermost enclosing namespace.
 	- module dependency graph not built until after .html
 		- two pass
 	- show dependencies that are indirect
-- in each output file, add link to original source file
++ in each output file, add link to original source file
 - show point-of-declaration for macros?
 - improve formatting of output html
 	- enum members on separate line
