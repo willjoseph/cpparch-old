@@ -1181,11 +1181,12 @@ namespace cpp
 	struct postfix_expression_destructor : public postfix_expression_suffix
 	{
 		VISITABLE_DERIVED(postfix_expression_suffix);
+		symbol<member_operator> op;
 		terminal_optional<boost::wave::T_COLON_COLON> isGlobal;
 		symbol_optional<nested_name_specifier> context;
 		terminal<boost::wave::T_COMPL> compl_;
 		symbol<type_name> type;
-		FOREACH4(isGlobal, context, compl_, type);
+		FOREACH5(op, isGlobal, context, compl_, type);
 	};
 
 	struct postfix_operator : public terminal_choice, public postfix_expression_suffix

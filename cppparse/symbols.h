@@ -869,17 +869,20 @@ inline const Type& getTemplateArgument(const Type& type, size_t index)
 			}
 			++a;
 		}
-		SYMBOLS_ASSERT(p != type.declaration->templateParamDefaults.end());
-		if(index == 0)
+		else
 		{
-			SYMBOLS_ASSERT((*p).declaration != 0);
-			return *p;
+			SYMBOLS_ASSERT(p != type.declaration->templateParamDefaults.end());
+			if(index == 0)
+			{
+				SYMBOLS_ASSERT((*p).declaration != 0);
+				return *p;
+			}
+			++p;
 		}
-		++p;
 	}
 }
 
-inline const Type& getInstantiatedSimpleType(const Type& type);
+inline const Type& getInstantiatedSimpleType(const Type& type, const Qualifying& context);
 
 inline bool isTypedef(const Type& type)
 {
@@ -887,35 +890,44 @@ inline bool isTypedef(const Type& type)
 		&& type.declaration->templateParameter == INDEX_INVALID; // .. and not a template-parameter
 }
 
-template<typename Inner>
-inline const Type& getInstantiatedTypeGeneric(const Type& type, Inner inner)
+// resolve Template<T>::Type -> T
+inline const Type& getInstantiatedTypeInternal(const Type& original, const Qualifying& qualifying, const Qualifying& context = Qualifying(TREEALLOCATOR_NULL))
 {
-	if(isTypedef(type))
+	size_t index = original.declaration->templateParameter;
+	if(index != INDEX_INVALID) // if the original type is a template-parameter.
 	{
-		const Type& original = inner(type.declaration->type);
-
-		size_t index = original.declaration->templateParameter;
-		if(index != INDEX_INVALID) // if the original type is a template-parameter.
+		// Find the template-specialisation it belongs to:
+		for(const Type* i = qualifying.get(); i != 0; i = (*i).qualifying.get())
 		{
-			// Find the template-specialisation it belongs to:
-			for(const Type* i = type.qualifying.get(); i != 0; i = (*i).qualifying.get())
+			const Type& instantiated = getInstantiatedSimpleType(*i, context); // qualifying types should always be simple
+			if(instantiated.declaration->enclosed == original.declaration->scope)
 			{
-				const Type& instantiated = getInstantiatedSimpleType(*i);
-				if(instantiated.declaration->enclosed == original.declaration->scope)
-				{
-					return getTemplateArgument(instantiated, index);
-				}
+				return getTemplateArgument(instantiated, index); // TODO: instantiate the argument?
 			}
 		}
+	}
 
-		return original;
+	return original;
+}
+
+template<typename Inner>
+inline const Type& getInstantiatedTypeGeneric(const Type& type, const Qualifying& context, Inner inner)
+{
+	if(type.declaration->specifiers.isTypedef)
+	{ 
+		// template<typename T> struct Template { typedef T Type; }; Template<int>::Type -> int
+		const Type& instantiated = type.declaration->templateParameter == INDEX_INVALID // if type is not a template-parameter
+			? getInstantiatedTypeInternal(inner(type.declaration->type, context), type.qualifying, context)
+			: type;
+		// template<typename T> struct Template { T m; }; Template<int> m; m.m -> int
+		return getInstantiatedTypeInternal(instantiated, context);
 	}
 	return type;
 }
 
-inline const Type& getInstantiatedType(const Type& type)
+inline const Type& getInstantiatedType(const Type& type, const Qualifying& context = Qualifying(TREEALLOCATOR_NULL))
 {
-	return getInstantiatedTypeGeneric(type, getInstantiatedType);
+	return getInstantiatedTypeGeneric(type, context, getInstantiatedType);
 }
 
 inline bool isSimple(const TypeId& type)
@@ -934,10 +946,10 @@ inline bool isSimple(const Type& type)
 }
 
 // asserts that the resulting type is not a complex type. e.g. type-id found in nested-name-specifier
-inline const Type& getInstantiatedSimpleType(const Type& type)
+inline const Type& getInstantiatedSimpleType(const Type& type, const Qualifying& context)
 {
 	SYMBOLS_ASSERT(isSimple(type));
-	return getInstantiatedTypeGeneric(type, getInstantiatedSimpleType);
+	return getInstantiatedTypeGeneric(type, context, getInstantiatedSimpleType);
 }
 
 
@@ -1226,14 +1238,14 @@ const UniqueTypeId gUniqueTypeNull = UniqueTypeId(0, TREEALLOCATOR_NULL);
 
 inline bool isEqual(const UniqueTypeId& l, const UniqueTypeId& r)
 {
-	return isInstantiatedTypeEqual(l, r)
-		&& l.uniqueType.value == r.uniqueType.value;
+	return l.uniqueType.value == r.uniqueType.value // compare declarator first!
+		&& isInstantiatedTypeEqual(l, r); // this comparison is valid only if the types have the same declarator
 }
 
 inline bool isEqualInner(const UniqueTypeId& l, const UniqueTypeId& r)
 {
-	return isInstantiatedTypeEqual(l, r)
-		&& l.uniqueType.value->next == r.uniqueType.value->next;
+	return l.uniqueType.value->next == r.uniqueType.value->next // compare declarator first!
+		&& isInstantiatedTypeEqual(l, r); // this comparison is valid only if the types have the same declarator
 }
 
 struct DeclaratorPointer
@@ -1326,25 +1338,25 @@ struct GetTypeHistory
 		: history(history)
 	{
 	}
-	const Type& operator()(const Type& type) const
+	const Type& operator()(const Type& type, const Qualifying& context) const
 	{
-		return apply(type, history);
+		return apply(type, context, history);
 	}
-	static const Type& apply(const Type& type, DeclarationHistory& history)
+	static const Type& apply(const Type& type, const Qualifying& context, DeclarationHistory& history)
 	{
 		if(!isSimple(type))
 		{
 			history.push_back(type.declaration);
 		}
-		return getInstantiatedTypeGeneric(type, GetTypeHistory(history));
+		return getInstantiatedTypeGeneric(type, context, GetTypeHistory(history));
 	}
-	static const Type& apply(const Declaration& declaration, DeclarationHistory& history)
+	static const Type& apply(const Declaration& declaration, const Qualifying& context, DeclarationHistory& history)
 	{
 		if(!isSimple(declaration))
 		{
 			history.push_back(&declaration);
 		}
-		return apply(declaration.type, history);
+		return apply(declaration.type, context, history);
 	}
 };
 
@@ -1381,25 +1393,25 @@ struct GetUniqueTypeSequence
 		: uniqueType(uniqueType)
 	{
 	}
-	const Type& operator()(const TypeId& type) const
+	const Type& operator()(const TypeId& type, const Qualifying& context) const
 	{
-		const Type& result = getInstantiatedTypeGeneric(type, *this);
+		const Type& result = getInstantiatedTypeGeneric(type, context, *this);
 		TypeSequenceReverseCopy copier(uniqueType);
 		type.typeSequence.accept(copier);
 		return result;
 	}
 };
 
-inline const Type& makeUniqueType(const TypeId& type, UniqueType& uniqueType)
+inline const Type& makeUniqueType(const TypeId& type, const Qualifying& context, UniqueType& uniqueType)
 {
 	GetUniqueTypeSequence visitor(uniqueType);
-	return visitor(type);
+	return visitor(type, context);
 }
 
-inline void makeUniqueTypeId(const TypeId& type, UniqueTypeId& result)
+inline void makeUniqueTypeId(const TypeId& type, const Qualifying& context, UniqueTypeId& result)
 {
 	UniqueType uniqueType = UNIQUETYPE_NULL;
-	*static_cast<Type*>(&result) = makeUniqueType(type, uniqueType); // TODO: avoid copy of T
+	*static_cast<Type*>(&result) = makeUniqueType(type, context, uniqueType); // TODO: avoid copy of T
 	result.uniqueType.value = uniqueType;
 }
 
@@ -1887,6 +1899,11 @@ inline bool isClass(const Declaration& declaration)
 inline bool isEnum(const Declaration& declaration)
 {
 	return declaration.type.declaration == &gEnum;
+}
+
+inline bool isComplete(const Declaration& declaration)
+{
+	return declaration.enclosed != 0;
 }
 
 inline bool isIncomplete(const Declaration& declaration)
@@ -2973,7 +2990,7 @@ struct SymbolPrinter : TypeElementVisitor
 	void printTypeSequence(const Type& type)
 	{
 		DeclarationHistory typeHistory;
-		GetTypeHistory::apply(type, typeHistory);
+		GetTypeHistory::apply(type, Qualifying(TREEALLOCATOR_NULL), typeHistory);
 		visitTypeHistory(typeHistory);
 		visitTypeElement();
 	}
@@ -2981,7 +2998,7 @@ struct SymbolPrinter : TypeElementVisitor
 	void printTypeSequence(const Declaration& declaration)
 	{
 		DeclarationHistory typeHistory;
-		GetTypeHistory::apply(declaration, typeHistory);
+		GetTypeHistory::apply(declaration, Qualifying(TREEALLOCATOR_NULL), typeHistory);
 		visitTypeHistory(typeHistory);
 		visitTypeElement();
 	}
@@ -3096,7 +3113,7 @@ inline Declaration* findBestMatch(Declaration* declaration, const TypeIds& argum
 		{
 			const Declaration& parameter = *(*i);
 			UniqueTypeId type(0, TREEALLOCATOR_NULL);
-			makeUniqueTypeId(parameter.type, type);
+			makeUniqueTypeId(parameter.type, Qualifying(TREEALLOCATOR_NULL), type); // TODO: template argument deduction
 			if(a != arguments.end())
 			{
 				candidate.conversions.push_back(getIcsRank(type, *a));
@@ -3126,6 +3143,7 @@ inline Declaration* findBestMatch(Declaration* declaration, const TypeIds& argum
 
 	if(ambiguous != 0)
 	{
+#if 0
 		std::cout << "overload resolution failed:" << std::endl;
 		std::cout << "  ";
 		printPosition(ambiguous->getName().position);
@@ -3138,6 +3156,7 @@ inline Declaration* findBestMatch(Declaration* declaration, const TypeIds& argum
 			printName(best.declaration);
 			std::cout << std::endl;
 		}
+#endif
 		return 0;
 	}
 	return best.declaration;

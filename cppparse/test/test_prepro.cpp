@@ -1,4 +1,217 @@
 
+
+
+
+// anonymous template type param
+template<class>
+class TmplFwd;
+
+// non-type template param
+template<int _SizeFIXED>
+void f()
+{
+}
+
+
+
+// deferred name lookup
+namespace N504
+{
+	template<class T>
+	struct Iterator
+	{
+		typedef typename T::Ref Ref; // cannot be looked up without instantiating
+
+		Ref operator*()const
+		{
+		}
+	};
+
+	struct Value
+	{
+		int v;
+		typedef Value& Ref;
+	};
+
+	void f()
+	{
+		Iterator<Value> i;
+		(*i).v=0;
+	}
+}
+
+
+
+//----------
+// default template params
+namespace N502
+{
+	template<typename T, typename Ref = T&>
+	struct Tmpl
+	{
+		Ref operator*() const
+		{
+		}
+		void f(T& t)
+		{
+			Ref tmp = **this;
+		}
+	};
+}
+
+//----------
+// member type instantiation
+namespace N503
+{
+
+struct Value
+{
+	int v;
+};
+
+template<typename T>
+struct Iterator
+{
+	T operator*()
+	{
+	}
+};
+
+void f()
+{
+	Iterator<Value> i;
+	(*i).v = 0; // v not dependent in context of i
+}
+
+struct Value2
+{
+	int v2;
+};
+
+template<typename T>
+struct Tmpl
+{
+	T m;
+	typedef T Type;
+
+#if 0
+	template<typename T2>
+	struct Tmpl2
+	{
+		typedef T2 Type;
+	};
+
+	typename Tmpl2<Value2>::Type m2;
+	typename Tmpl<T>::Type m3;
+	typename Tmpl2<Value>::Type m4;
+#endif
+};
+
+void f()
+{
+	Tmpl<Value> i;
+	i.m.v = 0; // v not dependent in context of i
+#if 0
+	// i.m -> Tmpl<Value>:T -> Value
+	i.m2.v2 = 0; // v2 not dependent in context of i
+	// i.m2 -> Tmpl<Value>:Tmpl<Value2>::Type -> Tmpl<Value>::Tmpl<Value2>::T -> Value2
+	i.m3.v = 0; // v not dependent in context of i
+	// i.m3 -> Tmpl<Value>:Tmpl<T>::Type -> Tmpl<Value>:Tmpl<T>::T -> Tmpl<Value>:T -> Value
+#endif
+}
+
+void f()
+{
+	Tmpl< Tmpl<Value> > i;
+	i.m.m.v = 0; // v not dependent in context of i
+	// i.m -> T -> Tmpl<Value>
+	// i.m.m -> T -> Value
+}
+
+void f()
+{
+	Tmpl< Tmpl<Value>::Type > i;
+	i.m.v = 0; // v not dependent in context of i
+	// i.m -> Tmpl<Value>::Type -> T -> Value
+}
+
+} // N503
+
+//----------
+// dependent member (via arguments)
+namespace N501
+{
+	template<class T>
+	class Tmpl
+	{
+		int f(T t)
+		{
+			return (f(t).dependent);
+		}
+	};
+}
+
+
+#if 0 //TODO: crash (pair not defined)
+template<class _Traits>
+class _Tree
+{
+public:
+	typedef typename _Traits::value_type value_type;
+
+	class iterator
+	{
+	};
+	typedef pair<iterator, bool>_Pairib;
+
+	_Pairib insert(const value_type&_Val)
+	{
+	}
+	iterator insert(iterator _Where, const value_type&_Val)
+	{
+		return (insert(_Val).first);
+	}
+	template<class _Iter>
+	void insert(_Iter _First, _Iter _Last)
+	{
+	}
+};
+
+#endif
+
+
+
+
+//----------
+// dependent member (via base class)
+
+template<typename T>
+struct C2 : T
+{
+	void f()
+	{
+		T::dependent.dependent();
+	}
+};
+
+struct C
+{
+	int m;
+	void f()
+	{
+		int m;
+		m = 0;
+		this->m = 0;
+	}
+};
+
+void f(int a)
+{
+	//(a.x == a);
+	C c;
+	c.m = a;
+}
+
 //----------
 // dependent base class
 
