@@ -142,17 +142,32 @@ struct WalkerState
 	WalkerContext& context;
 	ScopePtr enclosing;
 	TypePtr qualifying_p;
+	ScopePtr memberObject;
 	ScopePtr templateParams;
 	ScopePtr templateEnclosing;
 	DeferredSymbols* deferred;
 
 	WalkerState(WalkerContext& context)
-		: context(context), enclosing(0), qualifying_p(0), templateParams(0), templateEnclosing(0), deferred(0)
+		: context(context), enclosing(0), qualifying_p(0), memberObject(0), templateParams(0), templateEnclosing(0), deferred(0)
 	{
 	}
 	const WalkerState& getState() const
 	{ 
 		return *this;
+	}
+
+	LookupResult findDeclarationWithin(Scope& scope, const Identifier& id, LookupFilter filter = IsAny())
+	{
+		LookupResult result;
+		if(result.append(::findDeclaration(scope.declarations, scope.bases, id, filter)))
+		{
+			return result;
+		}
+		if(result.append(::findDeclaration(scope.usingDirectives, id, filter)))
+		{
+			return result;
+		}
+		return result;
 	}
 
 	LookupResult findDeclaration(const Identifier& id, LookupFilter filter = IsAny())
@@ -162,9 +177,11 @@ struct WalkerState
 		std::cout << "lookup: " << getValue(id) << " (" << getIdentifierType(filter) << ")" << std::endl;
 #endif
 		LookupResult result;
-		if(getQualifyingScope() != 0)
+		Scope* qualifying = getQualifyingScope();
+		if(qualifying != 0)
 		{
-			if(result.append(::findDeclaration(*getQualifyingScope(), id, filter)))
+			// 3.4.3: qualified name lookup
+			if(result.append(findDeclarationWithin(*qualifying, id, filter)))
 			{
 #ifdef LOOKUP_DEBUG
 				std::cout << "HIT: qualified" << std::endl;
@@ -175,6 +192,18 @@ struct WalkerState
 		else
 		{
 #if 1
+			if(memberObject != 0)
+			{
+				// 3.4.5 class member acess
+				if(result.append(findDeclarationWithin(*memberObject, id, filter)))
+				{
+#ifdef LOOKUP_DEBUG
+					std::cout << "HIT: member" << std::endl;
+#endif
+					return result;
+				}
+			}
+
 			if(templateParams != 0)
 			{
 				if(result.append(::findDeclaration(*templateParams, id, filter)))
@@ -314,7 +343,7 @@ struct WalkerState
 
 	Scope* getQualifyingScope()
 	{
-		if(!qualifying_p)
+		if(qualifying_p == TypePtr(0))
 		{
 			return 0;
 		}
@@ -402,7 +431,7 @@ struct WalkerState
 
 	bool isDependent(const TypePtr& qualifying)
 	{
-		if(qualifying != 0)
+		if(qualifying != TypePtr(0))
 		{
 			//std::cout << "isDependent(Type*)" << std::endl;
 		}
@@ -465,6 +494,65 @@ struct WalkerState
 #endif
 };
 
+
+bool isTypeName(const Declaration& declaration)
+{
+	return isType(declaration);
+}
+
+typedef LookupFilterDefault<isTypeName> IsTypeName;
+
+bool isNamespaceName(const Declaration& declaration)
+{
+	return isNamespace(declaration);
+}
+
+typedef LookupFilterDefault<isNamespaceName> IsNamespaceName;
+
+
+bool isTemplateName(const Declaration& declaration)
+{
+	// returns true if \p declaration is a template class, function or template-parameter
+	return declaration.isTemplate && (isClass(declaration) || isFunction(declaration) || isTypedef(declaration));
+}
+
+bool isNestedName(const Declaration& declaration)
+{
+	return isTypeName(declaration)
+		|| isNamespaceName(declaration);
+}
+
+typedef LookupFilterDefault<isNestedName> IsNestedName;
+
+
+bool isNonMemberName(const Declaration& declaration)
+{
+	return isNonMember(declaration);
+}
+
+typedef LookupFilterDefault<isNonMemberName> IsNonMemberName;
+
+
+const char* getIdentifierType(IdentifierFunc func)
+{
+	if(func == isTypeName)
+	{
+		return "type-name";
+	}
+	if(func == isNamespaceName)
+	{
+		return "namespace-name";
+	}
+	if(func == isTemplateName)
+	{
+		return "template-name";
+	}
+	if(func == isNestedName)
+	{
+		return "nested-name";
+	}
+	return "<unknown>";
+}
 
 struct WalkerBase : public WalkerState
 {
@@ -556,6 +644,45 @@ struct WalkerBase : public WalkerState
 		return &gDependentTemplate;
 	}
 
+	Declaration* findBestOverloadedOperator(const Identifier& id, const UniqueTypeId& type)
+	{
+		if((isClass(*type.declaration) || isEnum(*type.declaration)) // if the operand has class or enum type
+			&& (type.isSimple() || type.isReference())) // and is a simple object or reference
+		{
+			TypeIds::Pointer::Value value = TypeIds::Pointer::Value(TypeIds::Node(type));
+			TypeIds arguments = TypeIds(TREEALLOCATOR_NULL);
+			arguments.head.next = &value;
+			OverloadResolver resolver(arguments);
+
+			if(isClass(*type.declaration))
+			{
+				SEMANTIC_ASSERT(isComplete(*type.declaration)); // TODO: non-fatal parse error
+				Scope* scope = type.declaration->enclosed;
+				Declaration* declaration = ::findDeclaration(scope->declarations, scope->bases, id);
+				if(declaration != 0)
+				{
+					resolver.add(declaration);
+				}
+			}
+			// TODO: ignore non-member candidates if no operand has a class type, unless one or more params has enum (ref) type
+			Declaration* declaration = findDeclaration(id, IsNonMemberName()); // look up non-member candidates in this context (ignoring members)
+			if(declaration != &gUndeclared)
+			{
+				resolver.add(declaration);
+			}
+			{
+				// TODO: 13.3.1.2: built-in operators for overload resolution
+				// These are relevant either when the operand has a user-defined conversion to a non-class type, or is an enum that can be converted to an arithmetic type
+				CandidateFunction candidate(&gUnknown);
+				candidate.conversions.reserve(1);
+				candidate.conversions.push_back(ICSRANK_USERDEFINED);//getIcsRank(???, type)); // TODO: cv-qualified overloads
+				resolver.add(candidate); // TODO: ignore built-in overloads that have same signature as a non-member
+			}
+			return resolver.get();
+		}
+		return &gUnknown;
+	}
+
 	// 5 Expressions
 	// paragraph 9: usual arithmetic conversions
 	static const UniqueTypeId& binaryOperatorIntegralType(const UniqueTypeId& left, const UniqueTypeId& right)
@@ -641,6 +768,45 @@ struct WalkerBase : public WalkerState
 		}
 		return binaryOperatorArithmeticType(left, right);
 	}
+	static UniqueTypeId getBuiltInUnaryOperatorReturnType(cpp::unary_operator* symbol, const UniqueTypeId& type)
+	{
+		if(symbol->id == cpp::unary_operator::AND) // address-of
+		{
+			UniqueTypeId result = type;
+			result.uniqueType.push_front(DeclaratorPointer());
+			return result;
+		}
+		else if(symbol->id == cpp::unary_operator::STAR) // dereference
+		{
+			UniqueTypeId result = type;
+			if(!result.uniqueType.empty()) // TODO: assert
+			{
+				result.uniqueType.pop_front();
+			}
+			return result;
+		}
+		else if(symbol->id == cpp::unary_operator::PLUS
+			|| symbol->id == cpp::unary_operator::MINUS)
+		{
+			if(!isFloating(type))
+			{
+				// TODO: check type is integral or enumeration
+				return promoteToIntegralType(type);
+			}
+			return type;
+		}
+		else if(symbol->id == cpp::unary_operator::NOT)
+		{
+			return gBool;
+		}
+		else if(symbol->id == cpp::unary_operator::COMPL)
+		{
+			// TODO: check type is integral or enumeration
+			return promoteToIntegralType(type);
+		}
+		SEMANTIC_ASSERT(symbol->id == cpp::unary_operator::PLUSPLUS || symbol->id == cpp::unary_operator::MINUSMINUS);
+		return type;
+	}
 	UniqueTypeId* newUniqueType(const UniqueTypeId& type)
 	{
 		return type.declaration == 0 ? 0 : allocatorNew(context, type);
@@ -684,57 +850,6 @@ struct WalkerQualified : public WalkerBase
 };
 
 
-
-bool isTypeName(const Declaration& declaration)
-{
-	return isType(declaration);
-}
-
-typedef LookupFilterDefault<isTypeName> IsTypeName;
-
-bool isNamespaceName(const Declaration& declaration)
-{
-	return isNamespace(declaration);
-}
-
-typedef LookupFilterDefault<isNamespaceName> IsNamespaceName;
-
-
-bool isTemplateName(const Declaration& declaration)
-{
-	// returns true if \p declaration is a template class, function or template-parameter
-	return declaration.isTemplate && (isClass(declaration) || isFunction(declaration) || isTypedef(declaration));
-}
-
-bool isNestedName(const Declaration& declaration)
-{
-	return isTypeName(declaration)
-		|| isNamespaceName(declaration);
-}
-
-typedef LookupFilterDefault<isNestedName> IsNestedName;
-
-
-const char* getIdentifierType(IdentifierFunc func)
-{
-	if(func == isTypeName)
-	{
-		return "type-name";
-	}
-	if(func == isNamespaceName)
-	{
-		return "namespace-name";
-	}
-	if(func == isTemplateName)
-	{
-		return "template-name";
-	}
-	if(func == isNestedName)
-	{
-		return "nested-name";
-	}
-	return "<unknown>";
-}
 
 
 #define TREEWALKER_WALK(walker, symbol) SYMBOL_WALK(walker, symbol)
@@ -1383,7 +1498,7 @@ struct PrimaryExpressionWalker : public WalkerBase
 		SEMANTIC_ASSERT(declaration != 0);
 		type = declaration;
 		type.isImplicitTemplateId = declaration->isTemplate;
-		type.uniqueType.push_front(DeclaratorPointer(false));
+		type.uniqueType.push_front(DeclaratorPointer());
 		/* 14.6.2.2-2
 		'this' is type-dependent if the class type of the enclosing member function is dependent
 		*/
@@ -1582,7 +1697,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		PostfixExpressionMemberWalker walker(getState());
 		if(type.declaration != 0) // TODO: assert
 		{
-			walker.swapQualifying(type); // TODO: assert that this is a class type
+			walker.memberObject = type.declaration->enclosed; // TODO: assert that this is a class type
 		}
 		TREEWALKER_WALK(walker, symbol);
 		type.swap(walker.type);
@@ -1739,64 +1854,28 @@ struct ExpressionWalker : public WalkerBase
 		Source source = parser->get_source();
 		FilePosition position = parser->get_position();
 		TREEWALKER_LEAF(symbol); 
-		if(symbol->op->id == cpp::unary_operator::AND) // address-of
+		if(type.declaration != 0 // TODO: assert
+			&& !isDependent(type))
 		{
-			type.uniqueType.push_front(DeclaratorPointer(false));
-		}
-		else if(symbol->op->id == cpp::unary_operator::STAR) // dereference
-		{
-			Declaration* declaration = 0;
-			if(type.declaration != 0 // TODO: assert
-				&& isClass(*type.declaration) // if the righthand side is of class type
-				&& type.uniqueType.empty()) // and is a simple object
+			Identifier id;
+			id.value = getUnaryOperatorName(symbol->op);
+			id.position = position;
+			id.source = source.absolute;
+			Declaration* declaration = findBestOverloadedOperator(id, type);
+			if(declaration == &gUnknown)
 			{
-				SEMANTIC_ASSERT(isComplete(*type.declaration)); // TODO: non-fatal parse error
-				Identifier id;
-				id.value = gOperatorStarId;
-				id.position = position;
-				id.source = source.absolute;
-				declaration = ::findDeclaration(*type.declaration->enclosed, id);
-				// TODO: look up non-member candidates in this context (ignoring members)
-				// TODO: perform overload resolution
-			}
-			if(declaration == 0) // TODO: 13.3.1.2: built-in operators for overload resolution
-			{
-				if(!type.uniqueType.empty()) // TODO: dependent types
-				{
-					type.uniqueType.pop_front();
-				}
+				type = getBuiltInUnaryOperatorReturnType(symbol->op, type);
 			}
 			else
 			{
-				if(isDependent(type))
-				{
-					type = gUniqueTypeNull;
-				}
-				else
-				{
-					Qualifying qualifying(type, context); // instantiate the type in the context of the member-declaration
-					makeUniqueTypeId(declaration->type, qualifying, type);
-					// TODO: decorate parse-tree with declaration
-				}
+				Qualifying qualifying(type, context); // instantiate the type in the context of the member-declaration
+				makeUniqueTypeId(declaration->type, qualifying, type);
 			}
+			// TODO: decorate parse-tree with declaration
 		}
-		else if(symbol->op->id == cpp::unary_operator::PLUS
-			|| symbol->op->id == cpp::unary_operator::MINUS)
+		else
 		{
-			if(!isFloating(type))
-			{
-				// TODO: check type is integral or enumeration
-				type = promoteToIntegralType(type);
-			}
-		}
-		else if(symbol->op->id == cpp::unary_operator::NOT)
-		{
-			type = gBool;
-		}
-		else if(symbol->op->id == cpp::unary_operator::COMPL)
-		{
-			// TODO: check type is integral or enumeration
-			type = promoteToIntegralType(type);
+			type = gUniqueTypeNull;
 		}
 		setExpressionType(symbol, newUniqueType(type));
 	}
@@ -1822,7 +1901,7 @@ struct ExpressionWalker : public WalkerBase
 		ExplicitTypeExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		makeUniqueTypeId(walker.type, Qualifying(TREEALLOCATOR_NULL), type);
-		type.uniqueType.push_front(DeclaratorPointer(false));
+		type.uniqueType.push_front(DeclaratorPointer());
 		addDependent(typeDependent, walker.typeDependent);
 		setExpressionType(symbol, newUniqueType(type));
 	}
@@ -1831,7 +1910,7 @@ struct ExpressionWalker : public WalkerBase
 		ExplicitTypeExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		makeUniqueTypeId(walker.type, Qualifying(TREEALLOCATOR_NULL), type);
-		type.uniqueType.push_front(DeclaratorPointer(false));
+		type.uniqueType.push_front(DeclaratorPointer());
 		addDependent(typeDependent, walker.typeDependent);
 		setExpressionType(symbol, newUniqueType(type));
 	}
@@ -2445,12 +2524,16 @@ struct DeclaratorWalker : public WalkerBase
 	void visit(cpp::declarator_ptr* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		typeSequence.push_front(DeclaratorPointer(symbol->op->key->id == cpp::ptr_operator_key::REF));
+		(symbol->op->key->id == cpp::ptr_operator_key::REF)
+			? typeSequence.push_front(DeclaratorReference())
+			: typeSequence.push_front(DeclaratorPointer());
 	}
 	void visit(cpp::abstract_declarator_ptr* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		typeSequence.push_front(DeclaratorPointer(symbol->op->key->id == cpp::ptr_operator_key::REF));
+		(symbol->op->key->id == cpp::ptr_operator_key::REF)
+			? typeSequence.push_front(DeclaratorReference())
+			: typeSequence.push_front(DeclaratorPointer());
 	}
 	void visit(cpp::declarator_id* symbol)
 	{
@@ -3490,6 +3573,10 @@ struct TypeIdWalker : public WalkerBase
 	TypeIdWalker(const WalkerState& state)
 		: WalkerBase(state), type(0, context), valueDependent(context)
 	{
+	}
+	void visit(cpp::terminal<boost::wave::T_OPERATOR> symbol) 
+	{
+		 // for debugging purposes
 	}
 	void visit(cpp::type_specifier_seq* symbol)
 	{

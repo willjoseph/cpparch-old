@@ -2210,7 +2210,7 @@ namespace N
 		template<typename X>
 		void f()
 		{
-			const N::undeclared<X> x; // compiles in msvc, but should be error
+			const ::N::undeclared<X> x; // compiles in msvc, but should be error
 			/* 14.6-10
 			If a name does not depend on a template-parameter (as defined in 14.6.2), a declaration (or set of declarations)
 			for that name shall be in scope at the point where the name appears in the template definition; the name is

@@ -1,6 +1,118 @@
 
 
 
+template<typename Input>
+struct multi_pass_shared : Input
+{
+};
+template<typename Input>
+struct default_policy
+{
+	template<typename T>
+	struct shared : multi_pass_shared<T>
+	{
+		typedef typename Input::template DependentTmpl<T>::Dependent Type; // template parameter 'multi_pass_shared::Input' should not be found via base class
+		// TODO: crash when parse fails here!
+	};
+};
+
+namespace N508
+{
+	struct Type
+	{
+	};
+
+	struct S
+	{
+		operator Type()
+		{
+			return Type();
+		}
+	};
+	void f(S& s)
+	{
+		s.operator Type(); // Type should be looked up in context of entire postfix-expression
+	}
+}
+
+namespace N507
+{
+	struct S
+	{
+		struct Type
+		{
+		};
+		operator Type()
+		{
+			return Type();
+		}
+	};
+	void f(S& s)
+	{
+		s.operator Type(); // Type should be looked up in context of S
+	}
+}
+
+
+namespace N
+{
+	struct Base2
+	{
+		int m;
+		static int ms;
+	};
+}
+
+struct Base
+{
+	int m;
+	static int ms;
+};
+
+struct NotBase
+{
+	int m;
+	static int ms;
+};
+
+template<typename T>
+struct TmplBase
+{
+	int m;
+	static int ms;
+};
+
+struct Derived : Base, N::Base2, TmplBase<int>, TmplBase<float>
+{
+};
+
+void f()
+{
+
+	Derived derived;
+	Derived::Base::ms = 0;
+	//Derived::NotBase::ms = 0; // error!
+	//derived.NotBase::m = 0; // error!
+	derived.Base::m = 0; // Base looked up in Derived (also found in context of entire postfix-expression)
+	derived.Base2::m = 0; // Base2 looked up in Derived (not found in context of entire postfix-expression)
+	derived.N::Base2::m = 0; // N looked up in context of entire postfix-expression (not found in Derived)
+	derived.::N::Base2::m = 0; // N looked up in global scope
+	Derived::TmplBase<int>::ms = 0;
+	derived.TmplBase<int>::m = 0;
+	Derived::TmplBase<float>::ms = 0;
+	derived.TmplBase<float>::m = 0;
+}
+
+class C
+{
+};
+
+C& operator*(C& c)
+{
+	return *c;
+}
+
+
 #if 0 //TODO: crash (pair not defined)
 template<class _Traits>
 class _Tree

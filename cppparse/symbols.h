@@ -148,7 +148,7 @@ struct Sequence : A
 
 	bool empty() const
 	{
-		return head.next == 0;
+		return head.next == Pointer(0);
 	}
 	void clear()
 	{
@@ -248,6 +248,7 @@ const SequenceNode<Visitor>* findLast(const SequenceNode<Visitor>* node)
 struct TypeElementVisitor
 {
 	virtual void visit(const struct DeclaratorPointer&) = 0;
+	virtual void visit(const struct DeclaratorReference&) = 0;
 	virtual void visit(const struct DeclaratorArray&) = 0;
 	virtual void visit(const struct DeclaratorMemberPointer&) = 0;
 	virtual void visit(const struct DeclaratorFunction&) = 0;
@@ -1170,7 +1171,7 @@ struct UniqueTypeWrapper
 	{
 		std::swap(value, other.value);
 	}
-	bool empty()
+	bool empty() const
 	{
 		return value == UNIQUETYPE_NULL;
 	}
@@ -1208,11 +1209,15 @@ struct UniqueTypeId : Type
 
 	bool isSimple() const
 	{
-		return uniqueType.value == UNIQUETYPE_NULL;
+		return uniqueType.empty();
 	}
 	bool isPointer() const
 	{
 		return typeid(*uniqueType.value) == typeid(TypeElementGeneric<DeclaratorPointer>);
+	}
+	bool isReference() const
+	{
+		return typeid(*uniqueType.value) == typeid(TypeElementGeneric<DeclaratorReference>);
 	}
 	bool isArray() const
 	{
@@ -1250,21 +1255,30 @@ inline bool isEqualInner(const UniqueTypeId& l, const UniqueTypeId& r)
 
 struct DeclaratorPointer
 {
-	bool isReference;
-	DeclaratorPointer(bool isReference)
-		: isReference(isReference)
-	{
-	}
 };
 
 inline bool operator==(const DeclaratorPointer& left, const DeclaratorPointer& right)
 {
-	return left.isReference == right.isReference;
+	return true;
 }
 
 inline bool operator<(const DeclaratorPointer& left, const DeclaratorPointer& right)
 {
-	return left.isReference < right.isReference;
+	return false;
+}
+
+struct DeclaratorReference
+{
+};
+
+inline bool operator==(const DeclaratorReference& left, const DeclaratorReference& right)
+{
+	return true;
+}
+
+inline bool operator<(const DeclaratorReference& left, const DeclaratorReference& right)
+{
+	return false;
 }
 
 struct DeclaratorMemberPointer
@@ -1368,6 +1382,10 @@ struct TypeSequenceReverseCopy : TypeElementVisitor
 	{
 	}
 	void visit(const DeclaratorPointer& element)
+	{
+		pushUniqueType(type, element);
+	}
+	void visit(const DeclaratorReference& element)
 	{
 		pushUniqueType(type, element);
 	}
@@ -1819,6 +1837,22 @@ inline Name getOverloadableOperatorId(cpp::array_operator* symbol)
 	return gOperatorArrayId;
 }
 
+inline Name getUnaryOperatorName(cpp::unary_operator* symbol)
+{
+	switch(symbol->id)
+	{
+	case cpp::unary_operator::PLUSPLUS: return gOperatorPlusPlusId;
+	case cpp::unary_operator::MINUSMINUS: return gOperatorMinusMinusId;
+	case cpp::unary_operator::STAR: return gOperatorStarId;
+	case cpp::unary_operator::AND: return gOperatorAndId;
+	case cpp::unary_operator::PLUS: return gOperatorPlusId;
+	case cpp::unary_operator::MINUS: return gOperatorMinusId;
+	case cpp::unary_operator::NOT: return gOperatorNotId;
+	case cpp::unary_operator::COMPL: return gOperatorComplId;
+	default: break;
+	}
+	throw SymbolsError();
+}
 
 
 
@@ -1864,10 +1898,26 @@ inline bool isFunction(const Declaration& declaration)
 	return declaration.enclosed != 0 && declaration.enclosed->type == SCOPETYPE_PROTOTYPE;
 }
 
+inline bool isMember(const Declaration& declaration)
+{
+	return declaration.scope->type == SCOPETYPE_CLASS;
+}
+
+inline bool isNonMember(const Declaration& declaration)
+{
+	return !isMember(declaration);
+}
+
 inline bool isMemberObject(const Declaration& declaration)
 {
-	return declaration.scope->type == SCOPETYPE_CLASS
+	return isMember(declaration)
 		&& !isFunction(declaration);
+}
+
+inline bool isMemberFunction(const Declaration& declaration)
+{
+	return isMember(declaration)
+		&& isFunction(declaration);
 }
 
 inline bool isStatic(const Declaration& declaration)
@@ -2178,6 +2228,10 @@ struct CandidateFunction
 	Declaration* declaration;
 	ArgumentConversions conversions;
 	bool isTemplate;
+	CandidateFunction()
+		: declaration(0)
+	{
+	}
 	CandidateFunction(Declaration* declaration)
 		: declaration(declaration), isTemplate(false)
 	{
@@ -2702,7 +2756,6 @@ struct LookupResult
 	}
 };
 
-
 inline LookupResult findDeclaration(Scope::Declarations& declarations, const Identifier& id, LookupFilter filter = IsAny(), bool isBase = false)
 {
 	Scope::Declarations::iterator i = declarations.upper_bound(id.value);
@@ -2733,7 +2786,16 @@ inline LookupResult findDeclaration(Types& bases, const Identifier& id, LookupFi
 	LookupResult result;
 	for(Types::iterator i = bases.begin(); i != bases.end(); ++i)
 	{
-		Scope* scope = getInstantiatedType(*i).declaration->enclosed;
+		const Type& base = getInstantiatedType(*i);
+		// an identifier looked up in the context of a class may name a base class
+		if(base.declaration->templateParameter == INDEX_INVALID // TODO: don't look in dependent base classes!
+			&& base.declaration->getName().value == id.value
+			&& filter(*base.declaration))
+		{
+			result.filtered = base.declaration;
+			return result;
+		}
+		Scope* scope = base.declaration->enclosed;
 		if(scope != 0)
 		{
 			/* namespace.udir
@@ -2865,6 +2927,10 @@ struct TypeElementsAppend : TypeElementVisitor
 	{
 		typeElements.push_back(makeTypeElementOpaque(element));
 	}
+	void visit(const DeclaratorReference& element)
+	{
+		visitGeneric(element);
+	}
 	void visit(const DeclaratorPointer& element)
 	{
 		visitGeneric(element);
@@ -2933,10 +2999,17 @@ struct SymbolPrinter : TypeElementVisitor
 
 	const TypeSequence::Node* nextElement;
 
+	void visit(const DeclaratorReference& pointer)
+	{
+		pushType(true);
+		printer.out << "&";
+		visitTypeElement();
+		popType();
+	}
 	void visit(const DeclaratorPointer& pointer)
 	{
 		pushType(true);
-		printer.out << (pointer.isReference ? "&" : "*");
+		printer.out << "*";
 		visitTypeElement();
 		popType();
 	}
@@ -3086,30 +3159,52 @@ inline void printName(const Declaration* name)
 }
 
 
-inline Declaration* findBestMatch(Declaration* declaration, const TypeIds& arguments)
+struct OverloadResolver
 {
-	size_t count = std::distance(arguments.begin(), arguments.end());
-	CandidateFunction best(0);
-	best.conversions.resize(count, ImplicitConversion(ICSRANK_INVALID));
-	Declaration* ambiguous = 0;
-	for(Declaration* p = declaration; p != 0; p = p->overloaded)
+	const TypeIds& arguments;
+	CandidateFunction best;
+	Declaration* ambiguous;
+
+	OverloadResolver(const TypeIds& arguments)
+		: arguments(arguments), ambiguous(0)
 	{
-		// TODO
-		// Gather all the functions in the current scope that have the same name as the function called.
-		// Exclude those that don't have the right number of parameters to match the arguments in the call. (be careful about parameters with default values; void f(int x, int y = 0) is a candidate for the call f(25);)
-		// If no function matches, the compiler reports an error.
-		// If there is more than one match, select the 'best match'.
-		// If there is no clear winner of the best matches, the compiler reports an error - ambiguous function call.
-		if(p->enclosed == 0)
+		size_t count = std::distance(arguments.begin(), arguments.end());
+		best.conversions.resize(count, ImplicitConversion(ICSRANK_INVALID));
+	}
+	Declaration* get() const
+	{
+		return ambiguous != 0 ? 0 : best.declaration;
+	}
+	void add(const CandidateFunction& candidate)
+	{
+		if(best.declaration != 0
+			&& candidate.declaration->enclosed == best.declaration->enclosed)
 		{
-			continue;
+			return; // TODO: don't add multiple declarations of same signature
 		}
 
-		CandidateFunction candidate(p);
-		candidate.conversions.reserve(count);
+		if(candidate.conversions.size() != best.conversions.size())
+		{
+			return; // TODO: early-out for functions with not enough params
+		}
+
+		if(isBetter(candidate, best))
+		{
+			best = candidate;
+			ambiguous = 0;
+		}
+		else if(!isBetter(best, candidate)) // the best candidate is an equally good match
+		{
+			ambiguous = candidate.declaration;
+		}
+	}
+	void add(Declaration* declaration)
+	{
+		CandidateFunction candidate(declaration);
+		candidate.conversions.reserve(best.conversions.size());
 
 		TypeIds::const_iterator a = arguments.begin();
-		for(Scope::DeclarationList::iterator i = p->enclosed->declarationList.begin(); i != p->enclosed->declarationList.end(); ++i)
+		for(Scope::DeclarationList::iterator i = declaration->enclosed->declarationList.begin(); i != declaration->enclosed->declarationList.end(); ++i)
 		{
 			const Declaration& parameter = *(*i);
 			UniqueTypeId type(0, TREEALLOCATOR_NULL);
@@ -3125,41 +3220,49 @@ inline Declaration* findBestMatch(Declaration* declaration, const TypeIds& argum
 			}
 		}
 
-		if(candidate.conversions.size() != count)
-		{
-			continue; // TODO: early-out for functions with not enough params
-		}
-
-		if(isBetter(candidate, best))
-		{
-			best = candidate;
-			ambiguous = 0;
-		}
-		else if(!isBetter(best, candidate)) // the best candidate is an equally good match
-		{
-			ambiguous = candidate.declaration;
-		}
+		add(candidate);
 	}
 
-	if(ambiguous != 0)
+};
+
+inline Declaration* findBestMatch(Declaration* declaration, const TypeIds& arguments)
+{
+	OverloadResolver resolver(arguments);
+	for(Declaration* p = declaration; p != 0; p = p->overloaded) // note this list may contain multiple (forward) declarations of the same function
+	{
+		// TODO
+		// Gather all the functions in the current scope that have the same name as the function called.
+		// Exclude those that don't have the right number of parameters to match the arguments in the call. (be careful about parameters with default values; void f(int x, int y = 0) is a candidate for the call f(25);)
+		// If no function matches, the compiler reports an error.
+		// If there is more than one match, select the 'best match'.
+		// If there is no clear winner of the best matches, the compiler reports an error - ambiguous function call.
+		if(p->enclosed == 0)
+		{
+			continue;
+		}
+
+		resolver.add(p);
+	}
+
+	if(resolver.ambiguous != 0)
 	{
 #if 0
 		std::cout << "overload resolution failed:" << std::endl;
 		std::cout << "  ";
-		printPosition(ambiguous->getName().position);
-		printName(ambiguous);
+		printPosition(resolver.ambiguous->getName().position);
+		printName(resolver.ambiguous);
 		std::cout << std::endl;
 		if(best.declaration != 0)
 		{
 			std::cout << "  ";
-			printPosition(best.declaration->getName().position);
-			printName(best.declaration);
+			printPosition(resolver.best.declaration->getName().position);
+			printName(resolver.best.declaration);
 			std::cout << std::endl;
 		}
 #endif
-		return 0;
 	}
-	return best.declaration;
+
+	return resolver.get();
 }
 
 

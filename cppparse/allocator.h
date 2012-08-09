@@ -629,11 +629,19 @@ struct Reference
 	{
 		return p;
 	}
-	operator bool() const
-	{
-		return p != 0;
-	}
 };
+
+template<typename T, typename Other>
+inline bool operator==(const Reference<T>& l, const Reference<Other>& r)
+{
+	return l.p == r.p;
+}
+
+template<typename T, typename Other>
+inline bool operator!=(const Reference<T>& l, const Reference<Other>& r)
+{
+	return !(l == r);
+}
 
 #endif
 

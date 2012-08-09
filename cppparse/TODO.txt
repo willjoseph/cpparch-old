@@ -573,6 +573,9 @@ An unqualified name in a template cannot depend on a local name or class member.
 			- dereference
 		- ternary-operator
 		- overloaded-operator
+			+ star
+			- member vs non-member lookup
+			- overload resolution against built-in operators
 		- promotions
 		- numeric-literal: double, float, hex, oct, modifiers
 		- string-literal: wide
