@@ -649,8 +649,8 @@ struct WalkerBase : public WalkerState
 		if((isClass(*type.declaration) || isEnum(*type.declaration)) // if the operand has class or enum type
 			&& (type.isSimple() || type.isReference())) // and is a simple object or reference
 		{
-			TypeIds::Pointer::Value value = TypeIds::Pointer::Value(TypeIds::Node(type));
-			TypeIds arguments = TypeIds(TREEALLOCATOR_NULL);
+			UniqueTypeIds::Pointer::Value value = UniqueTypeIds::Pointer::Value(UniqueTypeIds::Node(type));
+			UniqueTypeIds arguments = UniqueTypeIds(TREEALLOCATOR_NULL);
 			arguments.head.next = &value;
 			OverloadResolver resolver(arguments);
 
@@ -773,15 +773,15 @@ struct WalkerBase : public WalkerState
 		if(symbol->id == cpp::unary_operator::AND) // address-of
 		{
 			UniqueTypeId result = type;
-			result.uniqueType.push_front(DeclaratorPointer());
+			result.push_front(DeclaratorPointer());
 			return result;
 		}
 		else if(symbol->id == cpp::unary_operator::STAR) // dereference
 		{
 			UniqueTypeId result = type;
-			if(!result.uniqueType.empty()) // TODO: assert
+			if(!result.empty()) // TODO: assert
 			{
-				result.uniqueType.pop_front();
+				result.pop_front();
 			}
 			return result;
 		}
@@ -1274,7 +1274,7 @@ struct ArgumentListWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	TypeIds arguments;
+	UniqueTypeIds arguments;
 	Dependent typeDependent;
 	Dependent valueDependent;
 	ArgumentListWalker(const WalkerState& state)
@@ -1498,7 +1498,7 @@ struct PrimaryExpressionWalker : public WalkerBase
 		SEMANTIC_ASSERT(declaration != 0);
 		type = declaration;
 		type.isImplicitTemplateId = declaration->isTemplate;
-		type.uniqueType.push_front(DeclaratorPointer());
+		type.push_front(DeclaratorPointer());
 		/* 14.6.2.2-2
 		'this' is type-dependent if the class type of the enclosing member function is dependent
 		*/
@@ -1524,10 +1524,10 @@ struct PostfixExpressionMemberWalker : public WalkerQualified
 		TREEWALKER_LEAF(symbol);
 		if(symbol->value.id == cpp::member_operator::ARROW) // dereference
 		{
-			if(!type.uniqueType.empty()) // TODO: assert
+			if(!type.empty()) // TODO: assert
 			{
 				// TODO: dependent types
-				type.uniqueType.pop_front();
+				type.pop_front();
 			}
 		}
 		if(type.declaration != 0) // TODO: dependent member name lookup
@@ -1901,7 +1901,7 @@ struct ExpressionWalker : public WalkerBase
 		ExplicitTypeExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		makeUniqueTypeId(walker.type, Qualifying(TREEALLOCATOR_NULL), type);
-		type.uniqueType.push_front(DeclaratorPointer());
+		type.push_front(DeclaratorPointer());
 		addDependent(typeDependent, walker.typeDependent);
 		setExpressionType(symbol, newUniqueType(type));
 	}
@@ -1910,7 +1910,7 @@ struct ExpressionWalker : public WalkerBase
 		ExplicitTypeExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		makeUniqueTypeId(walker.type, Qualifying(TREEALLOCATOR_NULL), type);
-		type.uniqueType.push_front(DeclaratorPointer());
+		type.push_front(DeclaratorPointer());
 		addDependent(typeDependent, walker.typeDependent);
 		setExpressionType(symbol, newUniqueType(type));
 	}
@@ -4022,8 +4022,8 @@ struct TypeParameterWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	DeclarationPtr declaration;
-	Type argument; // the default argument for this param
-	Types arguments; // the default arguments for this param's template-params (if template-template-param)
+	TypeId argument; // the default argument for this param
+	TypeIds arguments; // the default arguments for this param's template-params (if template-template-param)
 	size_t templateParameter;
 	TypeParameterWalker(const WalkerState& state, size_t templateParameter)
 		: WalkerBase(state), declaration(0), argument(0, context), arguments(context), templateParameter(templateParameter)
@@ -4075,8 +4075,8 @@ struct TemplateParameterListWalker : public WalkerBase
 
 	Type param;
 	Types params;
-	Type argument;
-	Types arguments;
+	TypeId argument;
+	TypeIds arguments;
 	size_t count;
 	TemplateParameterListWalker(const WalkerState& state, size_t count)
 		: WalkerBase(state), param(0, context), params(context), argument(0, context), arguments(context), count(count)
@@ -4127,7 +4127,7 @@ struct TemplateParameterClauseWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	Types params;
-	Types arguments;
+	TypeIds arguments;
 	TemplateParameterClauseWalker(const WalkerState& state)
 		: WalkerBase(state), params(context), arguments(context)
 	{
@@ -4153,7 +4153,7 @@ struct TemplateDeclarationWalker : public WalkerBase
 
 	DeclarationPtr declaration;
 	Types params;
-	Types arguments;
+	TypeIds arguments;
 	TemplateDeclarationWalker(const WalkerState& state)
 		: WalkerBase(state), declaration(0), params(context), arguments(context)
 	{

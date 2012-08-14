@@ -247,6 +247,7 @@ const SequenceNode<Visitor>* findLast(const SequenceNode<Visitor>* node)
 
 struct TypeElementVisitor
 {
+	virtual void visit(const struct DeclaratorObject&) = 0;
 	virtual void visit(const struct DeclaratorPointer&) = 0;
 	virtual void visit(const struct DeclaratorReference&) = 0;
 	virtual void visit(const struct DeclaratorArray&) = 0;
@@ -293,7 +294,7 @@ private:
 	}
 };
 
-typedef ListReference<struct UniqueTypeId, TreeAllocator<int> > TypeIds2;
+typedef ListReference<struct TypeId, TreeAllocator<int> > TypeIds2;
 
 // wrapper to disable default-constructor
 struct TypeIds : public TypeIds2
@@ -536,10 +537,10 @@ inline bool evaluateDependent(const Dependent& dependent, const DependentContext
 
 struct TemplateArgument
 {
-	Type type;
+	TypeId type;
 	Dependent dependent;
 #if 0
-	TemplateArgument(const Type& type) : type(type)
+	TemplateArgument(const TypeId& type) : type(type)
 	{
 	}
 #endif
@@ -601,7 +602,7 @@ public:
 	DeclSpecifiers specifiers;
 	size_t templateParameter;
 	Types templateParams;
-	Types templateParamDefaults;
+	TypeIds templateParamDefaults;
 	TemplateArguments templateArguments;
 	bool isTemplate;
 
@@ -855,10 +856,10 @@ inline bool enclosesEts(ScopeType type)
 
 // ----------------------------------------------------------------------------
 // template instantiation
-inline const Type& getTemplateArgument(const Type& type, size_t index)
+inline const TypeId& getTemplateArgument(const Type& type, size_t index)
 {
 	TemplateArguments::const_iterator a = type.templateArguments.begin();
-	Types::const_iterator p = type.declaration->templateParamDefaults.begin();
+	TypeIds::const_iterator p = type.declaration->templateParamDefaults.begin();
 	for(;; --index)
 	{
 		if(a != type.templateArguments.end())
@@ -955,101 +956,6 @@ inline const Type& getInstantiatedSimpleType(const Type& type, const Qualifying&
 
 
 // ----------------------------------------------------------------------------
-// instantiated type comparison
-inline Declaration* findPrimaryTemplate(Declaration* declaration)
-{
-	SYMBOLS_ASSERT(declaration->isTemplate);
-	for(;declaration != 0; declaration = declaration->overloaded)
-	{
-		if(declaration->templateArguments.empty())
-		{
-			SYMBOLS_ASSERT(declaration->isTemplate);
-			return declaration;
-		}
-	}
-	SYMBOLS_ASSERT(false); // primary template not declared!
-	return 0;
-}
-
-inline bool isEqual(const Types& params, const TemplateArguments& left, const TemplateArguments& right);
-
-inline bool isInstantiatedTypeEqual(const Type& left, const Type& right)
-{
-	SYMBOLS_ASSERT(!isTypedef(left));
-	SYMBOLS_ASSERT(!isTypedef(right));
-	if(left.declaration != right.declaration)
-	{
-		return false;
-	}
-	if(left.declaration->isTemplate)
-	{
-		Declaration* primary = findPrimaryTemplate(left.declaration);
-		return isEqual(primary->templateParamDefaults, left.templateArguments, right.templateArguments);
-	}
-	return true;
-}
-
-inline bool isEqual(const Type& l, const Type& r)
-{
-	if(l.declaration == 0
-		|| r.declaration == 0)
-	{
-		// TODO: non-type parameters
-		return l.declaration == r.declaration; // match any non-type param value
-	}
-	return isInstantiatedTypeEqual(getInstantiatedType(l), getInstantiatedType(r));
-}
-
-inline bool isLess(const Type& l, const Type& r)
-{
-	SYMBOLS_ASSERT(false); // TODO
-}
-
-
-inline bool isEqual(const Types& params, const TemplateArguments& left, const TemplateArguments& right)
-{
-	TemplateArguments::const_iterator l = left.begin();
-	TemplateArguments::const_iterator r = right.begin();
-	Types::const_iterator p = params.begin();
-	for(; p != params.end(); ++p)
-	{
-		if(!isEqual(
-			l != left.end() ? (*l).type : *p,
-			r != right.end() ? (*r).type : *p
-			))
-		{
-			return false;
-		}
-		if(l != left.end())
-		{
-			++l;
-		}
-		if(r != right.end())
-		{
-			++r;
-		}
-	}
-	return true;
-}
-
-inline Declaration* findTemplateSpecialization(Declaration* declaration, const TemplateArguments& arguments)
-{
-	SYMBOLS_ASSERT(declaration->isTemplate);
-	Declaration* primary = findPrimaryTemplate(declaration);
-	for(;declaration != 0; declaration = declaration->overloaded)
-	{
-		if(!declaration->templateArguments.empty()
-			&& isEqual(primary->templateParamDefaults, declaration->templateArguments, arguments))
-		{
-			return declaration;
-		}
-	}
-	return primary;
-}
-
-
-
-// ----------------------------------------------------------------------------
 // unique types
 // Representation of a declarator, with type-elements linked in 'normal' order.
 // e.g. int(*)[] == pointer to array of == DeclaratorPointer -> DeclaratorArray
@@ -1120,12 +1026,20 @@ struct UniqueTypeLess
 
 typedef std::set<UniqueType, UniqueTypeLess> UniqueTypes;
 
+extern UniqueTypes gBuiltInTypes;
 
 template<typename T>
 inline UniqueType pushUniqueType(UniqueTypes& types, UniqueType type, const T& value)
 {
 	TypeElementGeneric<T> node(value);
 	node.next = type;
+	{
+		UniqueTypes::iterator i = gBuiltInTypes.find(&node);
+		if(i != gBuiltInTypes.end())
+		{
+			return *i;
+		}
+	}
 	UniqueTypes::iterator i = types.lower_bound(&node); // first element not less than value
 	if(i != types.end()
 		&& !types.key_comp()(&node, *i)) // if value is not less than lower bound
@@ -1158,6 +1072,10 @@ struct UniqueTypeWrapper
 		: value(&gTypeElementEmpty)
 	{
 	}
+	explicit UniqueTypeWrapper(UniqueType value)
+		: value(value)
+	{
+	}
 	template<typename T>
 	void push_front(const T& t)
 	{
@@ -1175,67 +1093,69 @@ struct UniqueTypeWrapper
 	{
 		return value == UNIQUETYPE_NULL;
 	}
+	bool isSimple() const
+	{
+		return typeid(*value) == typeid(TypeElementGeneric<DeclaratorObject>);
+	}
+	bool isPointer() const
+	{
+		return typeid(*value) == typeid(TypeElementGeneric<DeclaratorPointer>);
+	}
+	bool isReference() const
+	{
+		return typeid(*value) == typeid(TypeElementGeneric<DeclaratorReference>);
+	}
+	bool isArray() const
+	{
+		return typeid(*value) == typeid(TypeElementGeneric<DeclaratorArray>);
+	}
+	bool isMemberPointer() const
+	{
+		return typeid(*value) == typeid(TypeElementGeneric<DeclaratorMemberPointer>);
+	}
+	bool isSimplePointer() const
+	{
+		return isPointer()
+			&& UniqueTypeWrapper(value->next).isSimple();
+	}
+	bool isSimpleArray() const
+	{
+		return isArray()
+			&& UniqueTypeWrapper(value->next).isSimple();
+	}
 };
 
-inline bool isEqual(UniqueTypeWrapper l, UniqueTypeWrapper r)
+inline bool operator==(UniqueTypeWrapper l, UniqueTypeWrapper r)
 {
 	return l.value == r.value;
 }
 
-struct UniqueTypeId : Type
+inline bool operator<(UniqueTypeWrapper l, UniqueTypeWrapper r)
 {
-	UniqueTypeWrapper uniqueType;
+	return l.value < r.value;
+}
 
+struct UniqueTypeId : Type, UniqueTypeWrapper
+{
 	UniqueTypeId(Declaration* declaration, const TreeAllocator<int>& allocator)
 		: Type(declaration, allocator)
 	{
 	}
 	UniqueTypeId& operator=(Declaration* declaration)
 	{
-		SYMBOLS_ASSERT(uniqueType.empty());
+		SYMBOLS_ASSERT(UniqueTypeWrapper::empty());
 		Type::operator=(declaration);
 		return *this;
 	}
 	void swap(UniqueTypeId& other)
 	{
 		Type::swap(other);
-		uniqueType.swap(other.uniqueType);
+		UniqueTypeWrapper::swap(other);
 	}
 	void swap(Type& other)
 	{
-		SYMBOLS_ASSERT(uniqueType.empty());
+		SYMBOLS_ASSERT(UniqueTypeWrapper::empty());
 		Type::swap(other);
-	}
-
-	bool isSimple() const
-	{
-		return uniqueType.empty();
-	}
-	bool isPointer() const
-	{
-		return typeid(*uniqueType.value) == typeid(TypeElementGeneric<DeclaratorPointer>);
-	}
-	bool isReference() const
-	{
-		return typeid(*uniqueType.value) == typeid(TypeElementGeneric<DeclaratorReference>);
-	}
-	bool isArray() const
-	{
-		return typeid(*uniqueType.value) == typeid(TypeElementGeneric<DeclaratorArray>);
-	}
-	bool isMemberPointer() const
-	{
-		return typeid(*uniqueType.value) == typeid(TypeElementGeneric<DeclaratorMemberPointer>);
-	}
-	bool isSimplePointer() const
-	{
-		return isPointer()
-			&& uniqueType.value->next == UNIQUETYPE_NULL;
-	}
-	bool isSimpleArray() const
-	{
-		return isArray()
-			&& uniqueType.value->next == UNIQUETYPE_NULL;
 	}
 };
 
@@ -1243,15 +1163,75 @@ const UniqueTypeId gUniqueTypeNull = UniqueTypeId(0, TREEALLOCATOR_NULL);
 
 inline bool isEqual(const UniqueTypeId& l, const UniqueTypeId& r)
 {
-	return l.uniqueType.value == r.uniqueType.value // compare declarator first!
-		&& isInstantiatedTypeEqual(l, r); // this comparison is valid only if the types have the same declarator
+	return l.value == r.value;
 }
 
 inline bool isEqualInner(const UniqueTypeId& l, const UniqueTypeId& r)
 {
-	return l.uniqueType.value->next == r.uniqueType.value->next // compare declarator first!
-		&& isInstantiatedTypeEqual(l, r); // this comparison is valid only if the types have the same declarator
+	return l.value->next == r.value->next;
 }
+
+typedef std::vector<UniqueTypeWrapper> TemplateArgumentsInstance;
+
+struct TypeInstance
+{
+	DeclarationPtr declaration;
+	TemplateArgumentsInstance templateArguments;
+	const TypeInstance* enclosing;
+	TypeInstance(Declaration* declaration, const TypeInstance* enclosing)
+		: declaration(declaration), enclosing(enclosing)
+	{
+	}
+};
+
+inline bool operator==(const TypeInstance& left, const TypeInstance& right)
+{
+	return left.declaration.p == right.declaration.p
+		&& left.enclosing == right.enclosing
+		&& left.templateArguments == right.templateArguments;
+}
+
+inline bool operator<(const TypeInstance& left, const TypeInstance& right)
+{
+	return left.declaration.p != right.declaration.p ? left.declaration.p < right.declaration.p
+		: left.enclosing != right.enclosing ? left.enclosing < right.enclosing
+		: left.templateArguments != right.templateArguments ? left.templateArguments < right.templateArguments
+		: false;
+}
+
+
+struct DeclaratorObject
+{
+	TypeInstance type;
+	DeclaratorObject(const TypeInstance& type)
+		: type(type)
+	{
+	}
+};
+
+inline bool operator==(const DeclaratorObject& left, const DeclaratorObject& right)
+{
+	return left.type == right.type;
+}
+
+inline bool operator<(const DeclaratorObject& left, const DeclaratorObject& right)
+{
+	return left.type < right.type;
+}
+
+inline const TypeInstance& getObjectType(UniqueType type)
+{
+	SYMBOLS_ASSERT(typeid(*type) == typeid(TypeElementGeneric<DeclaratorObject>));
+	return static_cast<const TypeElementGeneric<DeclaratorObject>*>(type)->value.type;
+}
+
+inline UniqueType getInner(UniqueType type)
+{
+	SYMBOLS_ASSERT(typeid(*type) != typeid(TypeElementGeneric<DeclaratorObject>));
+	return type->next;
+}
+
+
 
 struct DeclaratorPointer
 {
@@ -1283,14 +1263,14 @@ inline bool operator<(const DeclaratorReference& left, const DeclaratorReference
 
 struct DeclaratorMemberPointer
 {
-	TypePtr type;
-	DeclaratorMemberPointer(TypePtr type)
-		: type(type)
+	const TypeInstance* type;
+	DeclaratorMemberPointer()
+		: type(0)
 	{
 	}
 };
 
-inline const Type& getMemberPointerClass(UniqueType type)
+inline const TypeInstance& getMemberPointerClass(UniqueType type)
 {
 	SYMBOLS_ASSERT(typeid(*type) == typeid(TypeElementGeneric<DeclaratorMemberPointer>));
 	return *(static_cast<const TypeElementGeneric<DeclaratorMemberPointer>*>(type)->value.type);
@@ -1298,12 +1278,12 @@ inline const Type& getMemberPointerClass(UniqueType type)
 
 inline bool operator==(const DeclaratorMemberPointer& left, const DeclaratorMemberPointer& right)
 {
-	return isEqual(*left.type, *right.type);
+	return true; // TODO
 }
 
 inline bool operator<(const DeclaratorMemberPointer& left, const DeclaratorMemberPointer& right)
 {
-	return isLess(*left.type, *right.type);
+	return false; // TODO
 }
 
 struct DeclaratorArray
@@ -1332,12 +1312,12 @@ struct DeclaratorFunction
 
 inline bool operator==(const DeclaratorFunction& left, const DeclaratorFunction& right)
 {
-	return true;
+	return left.paramScope == right.paramScope; // TODO
 }
 
 inline bool operator<(const DeclaratorFunction& left, const DeclaratorFunction& right)
 {
-	return left.paramScope < right.paramScope; // TODO: deep compare
+	return left.paramScope < right.paramScope; // TODO
 }
 
 
@@ -1381,6 +1361,10 @@ struct TypeSequenceReverseCopy : TypeElementVisitor
 		: type(type)
 	{
 	}
+	void visit(const DeclaratorObject& element)
+	{
+		pushUniqueType(type, element);
+	}
 	void visit(const DeclaratorPointer& element)
 	{
 		pushUniqueType(type, element);
@@ -1404,6 +1388,50 @@ struct TypeSequenceReverseCopy : TypeElementVisitor
 	}
 };
 
+
+inline Declaration* findPrimaryTemplate(Declaration* declaration)
+{
+	SYMBOLS_ASSERT(declaration->isTemplate);
+	for(;declaration != 0; declaration = declaration->overloaded)
+	{
+		if(declaration->templateArguments.empty())
+		{
+			SYMBOLS_ASSERT(declaration->isTemplate);
+			return declaration;
+		}
+	}
+	SYMBOLS_ASSERT(false); // primary template not declared!
+	return 0;
+}
+
+inline void makeUniqueTypeId(const TypeId& type, const Qualifying& context, UniqueTypeId& result);
+
+inline void makeUniqueTemplateArguments(const TemplateArguments& arguments, const TypeIds& templateParamDefaults, TemplateArgumentsInstance& result)
+{
+	TemplateArguments::const_iterator a = arguments.begin();
+	for(TypeIds::const_iterator i = templateParamDefaults.begin(); i != templateParamDefaults.end(); ++i)
+	{
+		const TypeId& argument = a != arguments.end() ? (*a++).type : (*i);
+		UniqueTypeId type(0, TREEALLOCATOR_NULL);
+		if(argument.declaration != 0) // ignore non-type arguments
+		{
+			makeUniqueTypeId(argument, Qualifying(TREEALLOCATOR_NULL), type);
+		}
+		result.push_back(type);
+	}
+}
+
+inline UniqueType makeUniqueObjectType(Declaration* declaration, const TemplateArguments& arguments, const Type* enclosing)
+{
+	TypeInstance instance(declaration, enclosing == 0 ? 0 : &getObjectType(makeUniqueObjectType(enclosing->declaration, enclosing->templateArguments, enclosing->qualifying.get())));
+	if(declaration->isTemplate)
+	{
+		Declaration* primary = findPrimaryTemplate(declaration);
+		makeUniqueTemplateArguments(arguments, primary->templateParamDefaults, instance.templateArguments);
+	}
+	return pushUniqueType(gUniqueTypes, UNIQUETYPE_NULL, DeclaratorObject(instance));
+}
+
 struct GetUniqueTypeSequence
 {
 	UniqueType& uniqueType;
@@ -1415,6 +1443,10 @@ struct GetUniqueTypeSequence
 	{
 		const Type& result = getInstantiatedTypeGeneric(type, context, *this);
 		TypeSequenceReverseCopy copier(uniqueType);
+		if(uniqueType == UNIQUETYPE_NULL)
+		{
+			uniqueType = makeUniqueObjectType(result.declaration, result.templateArguments, type.qualifying.get());
+		}
 		type.typeSequence.accept(copier);
 		return result;
 	}
@@ -1430,9 +1462,32 @@ inline void makeUniqueTypeId(const TypeId& type, const Qualifying& context, Uniq
 {
 	UniqueType uniqueType = UNIQUETYPE_NULL;
 	*static_cast<Type*>(&result) = makeUniqueType(type, context, uniqueType); // TODO: avoid copy of T
-	result.uniqueType.value = uniqueType;
+	result.value = uniqueType;
 }
 
+// ----------------------------------------------------------------------------
+
+inline Declaration* findTemplateSpecialization(Declaration* declaration, const TemplateArguments& arguments)
+{
+	SYMBOLS_ASSERT(declaration->isTemplate);
+	Declaration* primary = findPrimaryTemplate(declaration);
+	TemplateArgumentsInstance instance;
+	makeUniqueTemplateArguments(arguments, primary->templateParamDefaults, instance);
+	for(;declaration != 0; declaration = declaration->overloaded)
+	{
+		if(declaration->templateArguments.empty())
+		{
+			continue;
+		}
+		TemplateArgumentsInstance other;
+		makeUniqueTemplateArguments(declaration->templateArguments, primary->templateParamDefaults, other);
+		if(instance == other)
+		{
+			return declaration;
+		}
+	}
+	return primary;
+}
 
 // ----------------------------------------------------------------------------
 // expression helper
@@ -1517,31 +1572,49 @@ extern Declaration gUnknown;
 #define TYPE_ENUMERATOR TypeId(&gEnumerator, TREEALLOCATOR_NULL)
 #define TYPE_UNKNOWN TypeId(&gUnknown, TREEALLOCATOR_NULL)
 
-// fundamental types
-extern UniqueTypeId gChar;
-extern UniqueTypeId gSignedChar;
-extern UniqueTypeId gUnsignedChar;
-extern UniqueTypeId gSignedShortInt;
-extern UniqueTypeId gUnsignedShortInt;
-extern UniqueTypeId gSignedInt;
-extern UniqueTypeId gUnsignedInt;
-extern UniqueTypeId gSignedLongInt;
-extern UniqueTypeId gUnsignedLongInt;
-extern UniqueTypeId gSignedLongLongInt;
-extern UniqueTypeId gUnsignedLongLongInt;
-extern UniqueTypeId gWCharT;
-extern UniqueTypeId gBool;
-extern UniqueTypeId gFloat;
-extern UniqueTypeId gDouble;
-extern UniqueTypeId gLongDouble;
-extern UniqueTypeId gVoid;
 
-struct StringLiteralTypeId : UniqueTypeId
+template<typename T>
+inline UniqueType pushBuiltInType(UniqueType type, const T& value)
 {
-	StringLiteralTypeId(Declaration* declaration, const TreeAllocator<int>& allocator)
+	TypeElementGeneric<T> node(value);
+	node.next = type;
+	return *gBuiltInTypes.insert(new TypeElementGeneric<T>(node)).first; // leaked deliberately
+}
+
+struct ObjectTypeId : UniqueTypeId
+{
+	ObjectTypeId(Declaration* declaration, const TreeAllocator<int>& allocator)
 		: UniqueTypeId(declaration, allocator)
 	{
-		uniqueType.push_front(DeclaratorArray());
+		value = pushBuiltInType(value, DeclaratorObject(TypeInstance(declaration, 0)));
+	}
+};
+
+// fundamental types
+extern ObjectTypeId gChar;
+extern ObjectTypeId gSignedChar;
+extern ObjectTypeId gUnsignedChar;
+extern ObjectTypeId gSignedShortInt;
+extern ObjectTypeId gUnsignedShortInt;
+extern ObjectTypeId gSignedInt;
+extern ObjectTypeId gUnsignedInt;
+extern ObjectTypeId gSignedLongInt;
+extern ObjectTypeId gUnsignedLongInt;
+extern ObjectTypeId gSignedLongLongInt;
+extern ObjectTypeId gUnsignedLongLongInt;
+extern ObjectTypeId gWCharT;
+extern ObjectTypeId gBool;
+extern ObjectTypeId gFloat;
+extern ObjectTypeId gDouble;
+extern ObjectTypeId gLongDouble;
+extern ObjectTypeId gVoid;
+
+struct StringLiteralTypeId : ObjectTypeId
+{
+	StringLiteralTypeId(Declaration* declaration, const TreeAllocator<int>& allocator)
+		: ObjectTypeId(declaration, allocator)
+	{
+		value = pushBuiltInType(value, DeclaratorArray());
 	}
 };
 
@@ -2049,7 +2122,7 @@ enum IcsRank
 	ICSRANK_INVALID,
 };
 
-inline bool findBase(const Type& other, const Type& type)
+inline bool findBase(const TypeInstance& other, const TypeInstance& type)
 {
 	SYMBOLS_ASSERT(other.declaration->enclosed != 0);
 	const Types& bases = other.declaration->enclosed->bases;
@@ -2064,11 +2137,12 @@ inline bool findBase(const Type& other, const Type& type)
 			continue; // TODO: dependent name lookup
 		}
 		SYMBOLS_ASSERT(isClass(*base.declaration));
-		if(isEqual(base, type))
+		const TypeInstance& instance = getObjectType(makeUniqueObjectType(base.declaration, base.templateArguments, (*i).qualifying.get()));
+		if(&instance == &type)
 		{
 			return true;
 		}
-		if(findBase(base, type))
+		if(findBase(instance, type))
 		{
 			return true;
 		}
@@ -2077,10 +2151,8 @@ inline bool findBase(const Type& other, const Type& type)
 }
 
 // Returns true if 'type' is a base of 'other'
-inline bool isBaseOf(const Type& type, const Type& other)
+inline bool isBaseOf(const TypeInstance& type, const TypeInstance& other)
 {
-	SYMBOLS_ASSERT(!isTypedef(type));
-	SYMBOLS_ASSERT(!isTypedef(other));
 	if(!isClass(*type.declaration)
 		|| !isClass(*other.declaration))
 	{
@@ -2151,13 +2223,13 @@ inline bool isConversion(const UniqueTypeId& to, const UniqueTypeId& from, bool 
 	}
 	if(to.isSimplePointer()
 		&& from.isSimplePointer()
-		&& isBaseOf(to, from))
+		&& isBaseOf(getObjectType(getInner(to.value)), getObjectType(getInner(from.value))))
 	{
 		return true; // D* -> B*
 	}
 	if(to.isMemberPointer()
 		&& from.isMemberPointer()
-		&& isBaseOf(getMemberPointerClass(to.uniqueType.value), getMemberPointerClass(from.uniqueType.value)))
+		&& isBaseOf(getMemberPointerClass(to.value), getMemberPointerClass(from.value)))
 	{
 		return true; // D::* -> B::*
 	}
@@ -2169,7 +2241,7 @@ inline bool isConversion(const UniqueTypeId& to, const UniqueTypeId& from, bool 
 	}
 	if(to.isSimple()
 		&& from.isSimple()
-		&& isBaseOf(to, from))
+		&& isBaseOf(getObjectType(to.value), getObjectType(from.value)))
 	{
 		return true; // D -> B
 	}
@@ -2927,6 +2999,10 @@ struct TypeElementsAppend : TypeElementVisitor
 	{
 		typeElements.push_back(makeTypeElementOpaque(element));
 	}
+	void visit(const DeclaratorObject& element)
+	{
+		visitGeneric(element);
+	}
 	void visit(const DeclaratorReference& element)
 	{
 		visitGeneric(element);
@@ -2999,6 +3075,10 @@ struct SymbolPrinter : TypeElementVisitor
 
 	const TypeSequence::Node* nextElement;
 
+	void visit(const DeclaratorObject&)
+	{
+		visitTypeElement();
+	}
 	void visit(const DeclaratorReference& pointer)
 	{
 		pushType(true);
@@ -3091,7 +3171,7 @@ struct SymbolPrinter : TypeElementVisitor
 	void printType(const UniqueTypeId& type)
 	{
 		printName(getInstantiatedType(type).declaration);
-		for(UniqueType i = type.uniqueType.value; i != UNIQUETYPE_NULL; i = i->next)
+		for(UniqueType i = type.value; i != UNIQUETYPE_NULL; i = i->next)
 		{
 			TypeElementsAppend visitor(typeElements);
 			i->accept(visitor);
@@ -3158,14 +3238,28 @@ inline void printName(const Declaration* name)
 	printer.printName(name);
 }
 
+typedef ListReference<struct UniqueTypeId, TreeAllocator<int> > UniqueTypeIds2;
+
+// wrapper to disable default-constructor
+struct UniqueTypeIds : public UniqueTypeIds2
+{
+	UniqueTypeIds(const TreeAllocator<int>& allocator)
+		: UniqueTypeIds2(allocator)
+	{
+	}
+private:
+	UniqueTypeIds()
+	{
+	}
+};
 
 struct OverloadResolver
 {
-	const TypeIds& arguments;
+	const UniqueTypeIds& arguments;
 	CandidateFunction best;
 	Declaration* ambiguous;
 
-	OverloadResolver(const TypeIds& arguments)
+	OverloadResolver(const UniqueTypeIds& arguments)
 		: arguments(arguments), ambiguous(0)
 	{
 		size_t count = std::distance(arguments.begin(), arguments.end());
@@ -3203,7 +3297,7 @@ struct OverloadResolver
 		CandidateFunction candidate(declaration);
 		candidate.conversions.reserve(best.conversions.size());
 
-		TypeIds::const_iterator a = arguments.begin();
+		UniqueTypeIds::const_iterator a = arguments.begin();
 		for(Scope::DeclarationList::iterator i = declaration->enclosed->declarationList.begin(); i != declaration->enclosed->declarationList.end(); ++i)
 		{
 			const Declaration& parameter = *(*i);
@@ -3225,7 +3319,7 @@ struct OverloadResolver
 
 };
 
-inline Declaration* findBestMatch(Declaration* declaration, const TypeIds& arguments)
+inline Declaration* findBestMatch(Declaration* declaration, const UniqueTypeIds& arguments)
 {
 	OverloadResolver resolver(arguments);
 	for(Declaration* p = declaration; p != 0; p = p->overloaded) // note this list may contain multiple (forward) declarations of the same function
@@ -3252,7 +3346,7 @@ inline Declaration* findBestMatch(Declaration* declaration, const TypeIds& argum
 		printPosition(resolver.ambiguous->getName().position);
 		printName(resolver.ambiguous);
 		std::cout << std::endl;
-		if(best.declaration != 0)
+		if(resolver.best.declaration != 0)
 		{
 			std::cout << "  ";
 			printPosition(resolver.best.declaration->getName().position);

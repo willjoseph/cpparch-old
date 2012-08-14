@@ -1,6 +1,18 @@
 
 
 
+void hidden(int)
+{
+}
+namespace N
+{
+	void hidden(void*)
+	{
+		hidden(1);
+	}
+}
+
+
 template<typename Input>
 struct multi_pass_shared : Input
 {
