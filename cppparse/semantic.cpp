@@ -173,14 +173,14 @@ struct WalkerState
 		return result;
 	}
 
-	LookupResult findDeclaration(const Identifier& id, LookupFilter filter = IsAny())
+	LookupResult findDeclaration(const Identifier& id, LookupFilter filter = IsAny(), bool isDeclarator = false)
 	{
 		ProfileScope profile(gProfileLookup);
 #ifdef LOOKUP_DEBUG
 		std::cout << "lookup: " << getValue(id) << " (" << getIdentifierType(filter) << ")" << std::endl;
 #endif
 		LookupResult result;
-		Scope* qualifying = getQualifyingScope();
+		Scope* qualifying = getQualifyingScope(isDeclarator);
 		if(qualifying != 0)
 		{
 			// 3.4.3: qualified name lookup
@@ -336,13 +336,24 @@ struct WalkerState
 		}
 	}
 
-	Scope* getQualifyingScope()
+	Scope* getQualifyingScope(bool isDeclarator = false)
 	{
 		if(qualifying_p == TypePtr(0))
 		{
 			return 0;
 		}
-		return getInstantiatedType(*qualifying_p).declaration->enclosed;
+		if(isDeclarator)
+		{
+			Declaration* declaration = (*qualifying_p).declaration;
+			SEMANTIC_ASSERT(isClass(*declaration) || isNamespace(*declaration));
+			return declaration->enclosed;
+		}
+		else
+		{
+			SEMANTIC_ASSERT(!isDependent(qualifying_p));
+			const Type& instantiated = getInstantiatedType(*qualifying_p);
+			return instantiated.declaration->enclosed;
+		}
 	}
 
 	void clearQualifying()
@@ -2225,10 +2236,10 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	Type type;
-	bool allowDependent;
+	bool isDeclarator;
 	bool isTemplate;
-	NestedNameSpecifierSuffixWalker(const WalkerState& state, bool allowDependent = false)
-		: WalkerBase(state), type(0, context), allowDependent(allowDependent), isTemplate(false)
+	NestedNameSpecifierSuffixWalker(const WalkerState& state, bool isDeclarator = false)
+		: WalkerBase(state), type(0, context), isDeclarator(isDeclarator), isTemplate(false)
 	{
 	}
 	void visit(cpp::terminal<boost::wave::T_TEMPLATE> symbol)
@@ -2239,10 +2250,10 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 	{
 		TREEWALKER_LEAF_CACHED(symbol);
 		Declaration* declaration = &gDependentNested;
-		if(allowDependent
+		if(isDeclarator
 			|| !isDependent(qualifying_p))
 		{
-			declaration = findDeclaration(symbol->value, IsNestedName());
+			declaration = findDeclaration(symbol->value, IsNestedName(), isDeclarator);
 			if(declaration == &gUndeclared)
 			{
 				return reportIdentifierMismatch(symbol, symbol->value, declaration, "nested-name");
@@ -2256,10 +2267,10 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 		TemplateIdWalker walker(getState());
 		TREEWALKER_WALK_CACHED(walker, symbol);
 		if(!isTemplate
-			&& (allowDependent
+			&& (isDeclarator
 				|| !isDependent(qualifying_p)))
 		{
-			Declaration* declaration = findDeclaration(*walker.id, IsNestedName());
+			Declaration* declaration = findDeclaration(*walker.id, IsNestedName(), isDeclarator);
 			if(declaration == &gUndeclared)
 			{
 				return reportIdentifierMismatch(symbol, *walker.id, declaration, "nested-name");
@@ -2278,16 +2289,16 @@ struct NestedNameSpecifierPrefixWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	Type type;
-	bool allowDependent;
-	NestedNameSpecifierPrefixWalker(const WalkerState& state, bool allowDependent = false)
-		: WalkerBase(state), type(0, context), allowDependent(allowDependent)
+	bool isDeclarator;
+	NestedNameSpecifierPrefixWalker(const WalkerState& state, bool isDeclarator = false)
+		: WalkerBase(state), type(0, context), isDeclarator(isDeclarator)
 	{
 	}
 
 #if 0 // for debugging parse-tree cache
 	void visit(cpp::nested_name* symbol)
 	{
-		NestedNameSpecifierPrefixWalker walker(getState(), allowDependent);
+		NestedNameSpecifierPrefixWalker walker(getState(), isDeclarator);
 		TREEWALKER_WALK_CACHED(walker, symbol);
 		type.swap(walker.type);
 	}
@@ -2310,7 +2321,13 @@ struct NestedNameSpecifierPrefixWalker : public WalkerBase
 		{
 			return reportIdentifierMismatch(symbol, walker.filter.hidingNamespace->getName(), walker.filter.hidingNamespace, "type-name");
 		}
-		if(allowDependent
+		if(isDeclarator
+			&& !isClass(*walker.type.declaration))
+		{
+			// the prefix of the nested-name-specifier in a qualified declarator-id must be a class-name (not a typedef)
+			return reportIdentifierMismatch(symbol, walker.type.declaration->getName(), walker.type.declaration, "class-name");
+		}
+		if(isDeclarator
 			|| !isDependent(qualifying_p))
 		{
 			type.swap(walker.type);
@@ -2322,14 +2339,14 @@ struct NestedNameSpecifierWalker : public WalkerQualified
 {
 	TREEWALKER_DEFAULT;
 
-	bool allowDependent;
-	NestedNameSpecifierWalker(const WalkerState& state, bool allowDependent = false)
-		: WalkerQualified(state), allowDependent(allowDependent)
+	bool isDeclarator;
+	NestedNameSpecifierWalker(const WalkerState& state, bool isDeclarator = false)
+		: WalkerQualified(state), isDeclarator(isDeclarator)
 	{
 	}
 	void visit(cpp::nested_name_specifier_prefix* symbol)
 	{
-		NestedNameSpecifierPrefixWalker walker(getState(), allowDependent);
+		NestedNameSpecifierPrefixWalker walker(getState(), isDeclarator);
 		TREEWALKER_WALK(walker, symbol);
 		if(walker.type.declaration != 0)
 		{
@@ -2338,7 +2355,7 @@ struct NestedNameSpecifierWalker : public WalkerQualified
 	}
 	void visit(cpp::nested_name_specifier_suffix_template* symbol)
 	{
-		NestedNameSpecifierSuffixWalker walker(getState(), allowDependent);
+		NestedNameSpecifierSuffixWalker walker(getState(), isDeclarator);
 		TREEWALKER_WALK(walker, symbol);
 		if(walker.type.declaration != 0)
 		{
@@ -2348,7 +2365,7 @@ struct NestedNameSpecifierWalker : public WalkerQualified
 	}
 	void visit(cpp::nested_name_specifier_suffix_default* symbol)
 	{
-		NestedNameSpecifierSuffixWalker walker(getState(), allowDependent);
+		NestedNameSpecifierSuffixWalker walker(getState(), isDeclarator);
 		TREEWALKER_WALK(walker, symbol);
 		if(walker.type.declaration != 0)
 		{
@@ -2496,7 +2513,7 @@ struct QualifiedDeclaratorIdWalker : public WalkerQualified
 	}
 	void visit(cpp::nested_name_specifier* symbol)
 	{
-		NestedNameSpecifierWalker walker(getState(), true); // the qualifying nested-name-specifier may be dependent on a template-parameter
+		NestedNameSpecifierWalker walker(getState(), true); // in a template member definition, the qualifying nested-name-specifier may be dependent on a template-parameter
 		TREEWALKER_WALK(walker, symbol); // no need to cache: the nested-name-specifier is not a shared-prefix
 		swapQualifying(walker.qualifying);
 	}
@@ -2702,10 +2719,10 @@ struct DeclaratorWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		id = walker.id;
 
-		if(walker.getQualifyingScope() != 0
+		if(walker.getQualifyingScope(true) != 0
 			&& enclosing->type != SCOPETYPE_CLASS) // in 'class C { friend Q::N(X); };' X should be looked up in the scope of C rather than Q
 		{
-			enclosing = walker.getQualifyingScope(); // names in declarator suffix (array-size, parameter-declaration) are looked up in declarator-id's qualifying scope
+			enclosing = walker.getQualifyingScope(true); // names in declarator suffix (array-size, parameter-declaration) are looked up in declarator-id's qualifying scope
 		}
 	}
 	void visit(cpp::declarator_suffix_array* symbol)
@@ -2825,13 +2842,13 @@ struct ClassHeadWalker : public WalkerBase
 		NestedNameSpecifierWalker walker(getState());
 		TREEWALKER_WALK_CACHED(walker, symbol);
 
-		if(walker.getQualifyingScope() != 0)
+		if(walker.getQualifyingScope(true) != 0)
 		{
 			if(enclosing == templateEnclosing)
 			{
-				templateEnclosing = walker.getQualifyingScope();
+				templateEnclosing = walker.getQualifyingScope(true);
 			}
-			enclosing = walker.getQualifyingScope(); // names in declaration of nested-class are looked up in scope of enclosing class
+			enclosing = walker.getQualifyingScope(true); // names in declaration of nested-class are looked up in scope of enclosing class
 		}
 	}
 	void visit(cpp::simple_template_id* symbol) // class_name

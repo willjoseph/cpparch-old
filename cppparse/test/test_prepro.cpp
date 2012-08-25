@@ -5,6 +5,8 @@ struct basic_path
 	basic_path root_path() const;
 	bool has_root_path() const;
 	bool empty() const;
+
+	struct inner;
 };
 
 template<class String, class Traits>
@@ -19,8 +21,24 @@ inline bool basic_path<String, Traits>::has_root_path()const
 	return !root_path().empty(); // should correctly determine the type of the left-hand side of the member-access expression
 }
 
+template<class String, class Traits>
+struct basic_path<String, Traits>::inner
+{
+};
 
+#if 0 // TODO: explicit specialization
+template<class String, class Traits
+struct basic_path<int, int>
+{
+	basic_path root_path() const;
+};
 
+template<class String, class Traits>
+basic_path<String, Traits>basic_path<int, int>::root_path()const
+{
+	return basic_path<String, Traits>();
+}
+#endif
 
 
 template<typename T>
