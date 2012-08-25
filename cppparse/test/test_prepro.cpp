@@ -1,4 +1,287 @@
 
+template<class String, class Traits>
+struct basic_path
+{
+	basic_path root_path() const;
+	bool has_root_path() const;
+	bool empty() const;
+};
+
+template<class String, class Traits>
+basic_path<String, Traits>basic_path<String, Traits>::root_path()const
+{
+	return basic_path<String, Traits>();
+}
+
+template<class String, class Traits>
+inline bool basic_path<String, Traits>::has_root_path()const
+{
+	return !root_path().empty(); // should correctly determine the type of the left-hand side of the member-access expression
+}
+
+
+
+
+
+template<typename T>
+class match
+{
+	match();
+	int val;
+};
+
+template<>
+class match<int>
+{
+};
+
+template<typename T>
+inline match<T>::match(): val() // 'val' should be looked up in match<T>, not match<int>
+{
+}
+
+
+
+
+
+
+namespace N66
+{
+	template<bool C>
+	struct Cond
+	{
+		typedef int type;
+	};
+
+	template<typename T>
+	struct A
+	{
+		static const T value=0;
+	};
+
+	struct B : public A<int>
+	{
+	};
+
+	typedef Cond<
+		B::value < 8 // look up specialization of 'value' in A<int>
+		>::type t1; 
+
+	struct C
+	{
+		typedef B Type;
+	};
+
+	typedef Cond<
+		C::Type::value < 8 // look up specialization of 'value' in A<int>
+		>::type t1; 
+}
+
+namespace std
+{
+	class locale;
+	template<class _Facet>
+	const _Facet& use_facet(const locale&);
+	template<class _Elem>
+	class ctype
+	{
+	};
+
+	template<class _Elem>
+	inline _Elem(tolower)(_Elem _Ch, const locale&_Loc)
+	{
+		return (use_facet<_Elem>(_Loc).tolower(_Ch)); // an explicit template argument list in a function call causes the expression to be dependent
+	}
+}
+
+
+
+
+
+
+
+
+
+
+namespace N001
+{
+	struct M
+	{
+		template<int i>
+		void dependent(int j)
+		{
+		}
+	};
+
+	template<typename A>
+	struct C
+	{
+		typedef M Type;
+	};
+
+	template<typename T1>
+	struct O0
+	{
+		typename T1::Type f()
+		{
+			return typename T1::Type();
+		}
+	};
+
+	void f(int)
+	{
+	}
+
+	void f()
+	{
+		O0< C<int> > o;
+		o.f().dependent<0>(0);
+	}
+}
+
+
+
+#if 0
+
+template<typename A, typename B = A>
+struct C
+{
+	typedef int I;
+};
+
+template<typename T1>
+struct O0
+{
+	struct S1
+	{
+		static void f()
+		{
+			O0<T1>::S1 a;
+		}
+	};
+
+	template<typename T2>
+	struct L1
+	{
+		typedef C<T1> D_O0; // depends on O0
+		typedef C<T2> D_L1; // depends on L1
+		typedef C<T1, T2> D_O0_L1; // depends on L1 and O0
+		static void f()
+		{
+			// C<int>::dependent();  // not dependent
+			C<T1>::dependent(); // depends on O0, instantiated with L1
+			C<T2>::dependent(); // depends on L1, instantiated with L1
+			C<T1, T2>::dependent(); // depends on L1 and O0, instantiated with L1
+
+			D_O0::dependent(); // depends on O0
+			D_L1::dependent(); // depends on L1
+			D_O0_L1::dependent(); // depends on L1 and O0
+		}
+	};
+
+	static void f()
+	{
+		//C<int>::dependent(); // not dependent
+		typename O0<T1>::S1::T a; // dependent
+		O0<T1>::S1::dependent(); // S1 is member of O0, causes it to depend on O0
+		L1<int>::dependent(); // L1 is member of O0, causes it to depend on O0
+
+		L1<int>::D_O0::dependent(); // depends on O0
+		L1<int>::D_L1::dependent(); // depends on L1
+		L1<int>::D_O0_L1::dependent(); // depends on L1 and O0
+	}
+};
+
+static int f()
+{
+	C<int>::I a; // not dependent
+	O0<int>::L1<int>::D_O0 x;
+	O0<int>::L1<int>::D_L1 y;
+	O0<int>::L1<int>::D_O0_L1 z;
+}
+
+
+template<typename U>
+struct Outer
+{
+	typedef U Type;
+
+	template<typename T>
+	struct First
+	{
+		typedef T Type; // 'Type' depends on First<>;
+		typedef typename First<Type>::Type Type2; // First<Type> is a dependent template-id'; First<Type>::Type is a dependent qualified-id
+		typedef U Type3; // 'Type3' depends on Outer<>;
+		typedef typename First<Type3>::Type Type4; // First<Type> is a dependent template-id'; First<Type>::Type is a dependent qualified-id
+
+
+		struct Inner : T
+		{
+		};
+	};
+
+	// can't instantiate First<int> because it is implicitly Outer<U>::First<int>
+	typedef First<int>::Type FirstType; // instantiate First<int>; 'Type' depends on First<>, so look it up in the instantiation
+	typedef First<int>::Type2 FirstType2; // instantiate First<int>; 'Type2' depends on First<>
+	typedef First<int>::Type3 FirstType3; // instantiate First<int>; 'Type3' depends on Outer<>, not instantiated at this point
+	typedef First<int>::Type4 FirstType4; // instantiate First<int>; 'Type4' depends on Outer<>, not instantiated at this point
+	typedef First<int>::Inner InnerT; // instantiate First<int>;
+	typedef typename First<U>::Type FirstType2; // instantiate First<U> - fails. Lookup of 'Type' deferred.
+
+	template<typename T>
+	struct Second
+	{
+		First<T>::Type m; // 'Type' depends on Second<> (via its qualified-id), but not First<> (because outside its definition)
+		// can't instantiate First<int> because it is implicitly Outer<U>::First<int>
+		First<int>::Type m; // 'Type' not dependent on First<> (because outside its definition)
+		First<int>::Type3 m; // 'Type3' depends on Outer<>
+		typedef First<T>::Type FirstType; // add 'FirstType' to type-instantiation set
+		FirstType m2; // add 'm2' to type-instantiation set
+	};
+};
+
+
+template<typename T>
+struct Tmpl
+{
+	typedef T Type;
+	typedef Tmpl<T> Self; // uses Tmpl::T
+
+	template<typename U> // .. T also is an inherited implicit template param
+	struct Inner
+	{
+		typedef Inner<U> Self; // uses Inner::U
+		typedef Inner<T> Self2; // uses Tmpl::T
+		typedef U Type; // uses Inner::U
+		typedef T OuterType; // uses Tmpl::T
+
+		void f()
+		{
+			Tmpl<int> m1; // not dependent
+			Tmpl<T> m2; // not dependent (is current instantiation)
+			Tmpl<U>::dependent(); // dependent (uses Inner::U)
+		}
+	};
+
+	void f()
+	{
+		Self::Type m; // not dependent (is current instantiation)
+		Type::dependent(); // dependent (uses Tmpl::T)
+		Inner<int>::dependent(); // uses Tmpl::T
+		Inner<int>::Self::dependent(); // dependent (uses Tmpl::T)
+		Inner<int>::Self2::dependent(); // dependent (uses Tmpl::T)
+	}
+};
+
+template<typename T>
+struct C
+{
+	Tmpl<T> dependent; // uses C::T
+	Tmpl<int>::Inner<T> dep2; // uses C::T (and Tmpl::T)
+	Tmpl<int>::Inner<T> dep3; // uses C::T (and Tmpl::Inner::U)
+};
+
+#endif
 
 
 void hidden(int)
@@ -12,108 +295,6 @@ namespace N
 	}
 }
 
-
-template<typename Input>
-struct multi_pass_shared : Input
-{
-};
-template<typename Input>
-struct default_policy
-{
-	template<typename T>
-	struct shared : multi_pass_shared<T>
-	{
-		typedef typename Input::template DependentTmpl<T>::Dependent Type; // template parameter 'multi_pass_shared::Input' should not be found via base class
-		// TODO: crash when parse fails here!
-	};
-};
-
-namespace N508
-{
-	struct Type
-	{
-	};
-
-	struct S
-	{
-		operator Type()
-		{
-			return Type();
-		}
-	};
-	void f(S& s)
-	{
-		s.operator Type(); // Type should be looked up in context of entire postfix-expression
-	}
-}
-
-namespace N507
-{
-	struct S
-	{
-		struct Type
-		{
-		};
-		operator Type()
-		{
-			return Type();
-		}
-	};
-	void f(S& s)
-	{
-		s.operator Type(); // Type should be looked up in context of S
-	}
-}
-
-
-namespace N
-{
-	struct Base2
-	{
-		int m;
-		static int ms;
-	};
-}
-
-struct Base
-{
-	int m;
-	static int ms;
-};
-
-struct NotBase
-{
-	int m;
-	static int ms;
-};
-
-template<typename T>
-struct TmplBase
-{
-	int m;
-	static int ms;
-};
-
-struct Derived : Base, N::Base2, TmplBase<int>, TmplBase<float>
-{
-};
-
-void f()
-{
-
-	Derived derived;
-	Derived::Base::ms = 0;
-	//Derived::NotBase::ms = 0; // error!
-	//derived.NotBase::m = 0; // error!
-	derived.Base::m = 0; // Base looked up in Derived (also found in context of entire postfix-expression)
-	derived.Base2::m = 0; // Base2 looked up in Derived (not found in context of entire postfix-expression)
-	derived.N::Base2::m = 0; // N looked up in context of entire postfix-expression (not found in Derived)
-	derived.::N::Base2::m = 0; // N looked up in global scope
-	Derived::TmplBase<int>::ms = 0;
-	derived.TmplBase<int>::m = 0;
-	Derived::TmplBase<float>::ms = 0;
-	derived.TmplBase<float>::m = 0;
-}
 
 class C
 {
@@ -345,4 +526,37 @@ struct C99
 int f(void (*)(void));
 
 
+
+
+namespace N004
+{
+	template<typename T>
+	struct Tmpl
+	{
+		static const T m = 0;
+	};
+
+	struct S : Tmpl<int>
+	{
+		union
+		{
+			int x[m]; // using 'Tmpl<int>::m' in an anonymous union.
+			// when searching for the enclosing class of this declaration, the anonymous union should be ignored.
+		};
+	};
+}
+
+
+namespace N005
+{
+	template<bool C>
+	struct if_c
+	{
+	};
+
+	template<bool C>
+	struct eval_if_c : if_c<C> // using a non-type template-parameter in a base-specifier
+	{
+	};
+}
 

@@ -12,7 +12,7 @@ typedef boost::wave::token_id LexTokenId;
 
 
 class Declaration;
-struct UniqueTypeId;
+typedef const struct TypeElement* UniqueType;
 
 namespace cpp
 {
@@ -126,7 +126,7 @@ namespace cpp
 
 	struct expression_decoration
 	{
-		SafePtr<UniqueTypeId> p;
+		UniqueType p;
 		expression_decoration() : p(0)
 		{
 		}
@@ -385,7 +385,7 @@ namespace cpp
 		VISITABLE_DERIVED(unary_expression);
 		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(postfix_expression_default),
-			SYMBOLFWD(postfix_expression_prefix)
+			SYMBOLFWD(postfix_expression_prefix) // TODO: unreachable? shares entire prefix with postfix_expression_default
 		));
 	};
 

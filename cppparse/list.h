@@ -436,6 +436,10 @@ struct ListReference : A
 	{
 		return begin() == end();
 	}
+	T& front()
+	{
+		return head.next->value;
+	}
 	T& back()
 	{
 		return tail->value;

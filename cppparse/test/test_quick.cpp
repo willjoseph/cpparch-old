@@ -1,4 +1,161 @@
 
+namespace N009
+{
+
+	namespace N
+	{
+		struct Base2
+		{
+			int m;
+			static int ms;
+		};
+	}
+
+	struct Base
+	{
+		int m;
+		static int ms;
+	};
+
+	struct NotBase
+	{
+		int m;
+		static int ms;
+	};
+
+	template<typename T>
+	struct TmplBase
+	{
+		int m;
+		static int ms;
+	};
+
+	struct Derived : Base, N::Base2, TmplBase<int>, TmplBase<float>
+	{
+	};
+
+	void f()
+	{
+
+		Derived derived;
+		Derived::Base::ms = 0;
+		//Derived::NotBase::ms = 0; // error!
+		//derived.NotBase::m = 0; // error!
+		derived.Base::m = 0; // Base looked up in Derived (also found in context of entire postfix-expression)
+		derived.Base2::m = 0; // Base2 looked up in Derived (not found in context of entire postfix-expression)
+		derived.N::Base2::m = 0; // N looked up in context of entire postfix-expression (not found in Derived)
+		derived.::N009::N::Base2::m = 0; // N looked up in global scope
+		Derived::TmplBase<int>::ms = 0;
+		derived.TmplBase<int>::m = 0;
+		Derived::TmplBase<float>::ms = 0;
+		derived.TmplBase<float>::m = 0;
+	}
+}
+
+namespace N507
+{
+	struct S
+	{
+		struct Type
+		{
+		};
+		operator Type()
+		{
+			return Type();
+		}
+	};
+	void f(S& s)
+	{
+		s.operator Type(); // Type should be looked up in context of S
+	}
+}
+
+namespace N508
+{
+	struct Type
+	{
+	};
+
+	struct S
+	{
+		operator Type()
+		{
+			return Type();
+		}
+	};
+	void f(S& s)
+	{
+		s.operator Type(); // Type should be looked up in context of entire postfix-expression
+	}
+}
+
+namespace N007
+{
+	template<class T>
+	struct Tmpl
+	{
+		friend T operator*(T lhs, T rhs) // friend function is declared in global namespace
+			// when deferring evaluation of 'T', must find enclosing template correctly
+		{
+			return lhs*=rhs;
+		}
+	};
+}
+
+namespace N008
+{
+	template<typename Input>
+	struct multi_pass_shared : Input
+	{
+	};
+	template<typename Input>
+	struct default_policy
+	{
+		template<typename T>
+		struct shared : multi_pass_shared<T>
+		{
+			typedef typename Input::template DependentTmpl<T>::Dependent Type; // template parameter 'multi_pass_shared::Input' should not be found via base class
+			// TODO: crash when parse fails here!
+		};
+	};
+}
+
+namespace N006
+{
+	namespace N
+	{
+		template<class T>
+		class Tmpl
+		{
+			typedef N::Tmpl<void(*)(T t)> F; // declaration of param 't' is removed by backtracking
+		};
+	}
+}
+
+
+
+
+namespace N002
+{
+	template<class T>
+	struct Tmpl
+	{
+		typedef T Type;
+		typedef Type Other; // typedef of typedef
+	};
+
+	void f()
+	{
+		Tmpl<int>::Type a; // lookup of 'Type' via Tmpl::T
+		a = 0;
+		Tmpl<int>::Other b; // lookup of 'Other' via Tmpl::T
+		b = 0;
+	}
+}
+
+
+
+
 
 
 
@@ -1110,8 +1267,41 @@ namespace N62
 }
 
 
-#if 1
 namespace N66
+{
+	template<bool C>
+	struct Cond
+	{
+		typedef int type;
+	};
+
+	template<typename T>
+	struct A
+	{
+		static const T value=0;
+	};
+
+	struct B : public A<int>
+	{
+	};
+
+	typedef Cond<
+		B::value < 8 // look up specialization of 'value' in A<int>
+		>::type t1; 
+
+	struct C
+	{
+		typedef B Type;
+	};
+
+	typedef Cond<
+		C::Type::value < 8 // look up specialization of 'value' in A<int>
+		>::type t1; 
+}
+
+
+#if 1
+namespace N668
 {
 	template<bool C>
 	struct Cond
@@ -1125,8 +1315,8 @@ namespace N66
 		static const T value=0;
 	};
 
-	template<class T, T val>
-	struct B : public A<T, val>
+	template<class U, U val>
+	struct B : public A<U, val>
 	{
 	};
 
@@ -1135,7 +1325,6 @@ namespace N66
 		>::type t1; 
 }
 #endif
-
 
 // template-template params
 template<template<typename X> class T>

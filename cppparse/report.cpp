@@ -834,12 +834,13 @@ struct ParseTreePrinter : SymbolPrinter
 		}
 		else
 		{
-			UniqueTypeId* type = ExpressionType<T>::get(symbol);
+			UniqueTypeId type = ExpressionType<T>::get(symbol);
 			out << "<span title=\"" << SYMBOL_NAME(T);
-			if(type != 0)
+			if(type.value != 0
+				&& type.value != UNIQUETYPE_NULL)
 			{
 				out << ":";
-				printType(*type);
+				printType(type);
 			}
 			out << "\">";
 			symbol->accept(*this);
