@@ -1796,7 +1796,7 @@ class Template7
 
 template<typename X>
 template<typename Y>
-void Template7::f(Y)
+void Template7<X>::f(Y)
 {
 }
 

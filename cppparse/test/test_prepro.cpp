@@ -1,4 +1,566 @@
 
+#if 1
+namespace N023
+{
+	template<typename T>
+	struct Wrapper
+	{
+	};
+
+	template<typename F, class A=Wrapper<F> >
+	struct Tmpl;
+
+	template<typename E, class A> // the default-argument for A should be merged from the forward-declaration
+	struct Tmpl
+	{
+		typedef A Type;
+	};
+
+	Tmpl<char>::Type x;
+}
+#endif
+
+namespace N031
+{
+	template<typename T>
+	struct Tmpl
+	{
+		Tmpl f(); // 'Tmpl' should resolve to 'Tmpl<T>'
+	};
+
+	template<>
+	struct Tmpl<int>
+	{
+		Tmpl f(); // 'Tmpl' should resolve to 'Tmpl<int>'
+	};
+
+	void f()
+	{
+		Tmpl<float> x;
+		x.f();
+		Tmpl<int> y;
+		y.f();
+	}
+}
+
+#if 0 // TODO: friend function in template
+namespace N030
+{
+	template<typename T>
+	struct S
+	{
+		friend void f(T);
+	};
+
+	template<typename T>
+	struct X : S<X<T> >
+	{
+	};
+
+	void f()
+	{
+		X<int> i;
+		f(i);
+	}
+}
+#endif
+
+#if 0
+namespace N028
+{
+	template<typename T>
+	struct Base
+	{
+		typedef T Type;
+		typedef Base<T> Nested;
+		T member;
+	};
+
+	struct Derived : Base<int> // test type-uniquing for names that are implicitly qualified by 'Base<int>'
+	{
+		Type g();
+		Nested::Type h();
+		void f()
+		{
+			member = 0;
+			int t = Type(0); // 'Type' should be resolved to 'int'
+			int u = (Type)0; // 'Type' should be resolved to 'int'
+		}
+	};
+}
+#endif
+
+namespace N027
+{
+
+	template<typename T>
+	class match
+	{
+		match();
+		int val;
+	};
+
+	template<>
+	class match<int>
+	{
+	};
+
+	template<typename T>
+	inline match<T>::match(): val() // 'val' should be looked up in match<T>, not match<int>
+	{
+	}
+}
+
+namespace N029
+{
+	struct nil_t {};
+
+	template<typename T=nil_t>
+	class match
+	{
+		match();
+		int len;
+		int val;
+	};
+	template<>
+	class match<nil_t>
+	{
+		match();
+		int len;
+	};
+
+	template<typename T>
+	inline match<T>::match(): len(-1), val() // 'val' should be looked up in match<T>, not match<nil_t>
+	{
+	}
+
+}
+
+namespace N025
+{
+	template<class _Elem, class _OutIt>
+	struct time_put
+	{
+		static int id;
+	};
+
+	template<class _Elem, class _OutIt>
+	int time_put<_Elem, _OutIt>::id;
+
+	template<class _OutIt>
+	struct time_put<wchar_t, _OutIt>
+	{
+		static int id;
+	};
+
+	template<class _OutIt>
+	int time_put<wchar_t, _OutIt>::id;
+}
+
+#if 0 // TODO!
+namespace N026
+{
+	template<typename T>
+	struct Outer
+	{
+		template<class _Elem, class _OutIt>
+		struct time_put
+		{
+			static int id;
+		};
+
+		template<class _OutIt>
+		struct time_put<T, _OutIt>
+		{
+			static int id;
+		};
+	};
+
+	template<typename T>
+	template<class _Elem, class _OutIt>
+	int Outer<T>::time_put<_Elem, _OutIt>::id;
+
+	template<typename T>
+	template<class _OutIt>
+	int Outer<T>::time_put<T, _OutIt>::id;
+}
+#endif
+
+namespace N024
+{
+	template<typename T>
+	struct Wrapper
+	{
+	};
+	
+	template<class _Ty, class _Ax=Wrapper<_Ty> >
+	struct vector;
+
+	template<class _Alloc>
+	struct vector<bool, _Alloc>
+	{
+		typedef bool Type;
+	};
+
+	template<class _Ty, class _Ax>
+	struct vector
+	{
+		typedef _Ty Type;
+	};
+
+	vector<char>::Type x;
+}
+
+namespace N020
+{
+	struct Wrapper
+	{
+		typedef int Int;
+	};
+
+	template<typename T> 
+	struct Tmpl;
+
+	template<typename T = Wrapper> 
+	struct Tmpl;
+
+	template<> 
+	struct Tmpl<int>
+	{
+	};
+
+	template<typename T>
+	struct Tmpl
+	{
+		typedef T Type;
+	};
+
+	Tmpl<>::Type::Int i; // T should default to 'Wrapper'
+}
+
+
+namespace N022
+{
+
+	template<class _Elem, class _Traits >
+	class basic_ostream;
+
+	typedef basic_ostream<char> ostream;
+
+	template<class _Elem, class _Traits = int> // default-argument specified after typedef
+	class basic_ostream
+	{
+		typedef basic_ostream<_Elem, _Traits> _Myt;
+
+		_Traits& f();
+	};
+
+	void f()
+	{
+		ostream o;
+		o.f(); // return-type should be correctly resolved to 'int'
+	}
+}
+
+namespace N021
+{
+
+	template<class _Elem, class _Traits=int >
+	class basic_ostream;
+
+	typedef basic_ostream<char, int> ostream; // typedef specified before definition
+
+	template<class _Elem, class _Traits>
+	class basic_ostream
+	{
+		typedef basic_ostream<_Elem, _Traits> _Myt;
+
+		_Myt& f();
+	};
+
+	void f()
+	{
+		ostream o;
+		o.f(); // return-type should be correctly resolved to 'basic_ostream'
+	}
+}
+
+
+
+template<class>
+struct get_info;
+template<>
+struct get_info<int>;
+
+
+namespace N66
+{
+	template<bool C>
+	struct Cond
+	{
+		typedef int type;
+	};
+
+	template<typename T>
+	struct A
+	{
+		static const T value=0;
+	};
+
+	struct B : public A<int>
+	{
+	};
+
+	typedef Cond<
+		B::value < 8 // look up specialization of 'value' in A<int>
+		>::type t1; 
+
+	struct C
+	{
+		typedef B Type;
+	};
+
+	typedef Cond<
+		C::Type::value < 8 // look up specialization of 'value' in A<int>
+		>::type t1; 
+}
+
+namespace N019
+{
+	struct Wrapper
+	{
+		typedef int Int;
+	};
+
+	template<typename T>
+	struct Tmpl
+	{
+		typedef T Type;
+	};
+
+	template<typename T = Wrapper> 
+	struct Tmpl;
+
+	Tmpl<>::Type::Int i; // T should default to 'Wrapper'
+}
+
+namespace N017
+{
+	struct Wrapper
+	{
+		typedef int Int;
+	};
+
+	template<typename T = Wrapper>
+	struct Tmpl;
+
+	template<typename T>
+	struct Tmpl
+	{
+		typedef T Type;
+	};
+
+	Tmpl<>::Type::Int i; // T should default to 'Wrapper'
+}
+
+namespace N018
+{
+	struct Wrapper
+	{
+		typedef int Int;
+	};
+
+	template<typename T>
+	struct Tmpl;
+
+	template<typename T = Wrapper>
+	struct Tmpl
+	{
+		typedef T Type;
+	};
+
+	Tmpl<>::Type::Int i; // T should default to 'Wrapper'
+}
+
+namespace N016
+{
+	template<typename X /*, typename Y = X*/> // the type of Y should be correctly resolved
+	struct Tmpl
+	{
+	};
+	template<>
+	struct Tmpl<char>
+	{
+		static const char VALUE = 0;
+	};
+
+	const char Tmpl<char>::VALUE;
+
+	template<>
+	struct Tmpl<int>
+	{
+		static const int VALUE = 0;
+	};
+	const int Tmpl<int>::VALUE; // Tmpl<int>::VALUE should be distinct from Tmpl<char>::VALUE
+
+	template<typename X>
+	struct Tmpl<X*>
+	{
+		static const X* VALUE = 0;
+	};
+	template<typename X>
+	const X* Tmpl<X*>::VALUE; // Tmpl<X*>::VALUE should be distinct from Tmpl<char>::VALUE
+}
+
+
+namespace N015
+{
+	template<typename T>
+	struct Wrapper
+	{
+	};
+
+	template<typename E, class A=Wrapper<E> > // the type of E should be correctly resolved
+	class Tmpl
+	{
+		typedef A Type;
+	};
+
+	Tmpl<char>::Type x;
+}
+
+
+
+namespace N014
+{
+	template<typename T>
+	struct Wrapper
+	{
+		typedef Wrapper<T> Type;
+	};
+
+	template<typename T>
+	struct Tmpl
+	{
+		typedef typename T::Type Type;
+		typedef typename Type::Type Type2;
+		static Type2 f();
+	};
+
+	void f()
+	{
+		int i = Tmpl<Wrapper<int> >::f();
+	}
+}
+
+namespace N013
+{
+	template<typename T>
+	struct Tmpl
+	{
+	};
+
+	template<class _InIt>
+	Tmpl<_InIt> _Copy_opt(_InIt _First)
+	{
+		return _Copy_opt(_First); // should correctly determine that the type of '_Copy_opt' is dependent
+	}
+}
+
+namespace N012
+{
+	template<class _InIt>
+	_InIt _Copy_opt(_InIt _First)
+	{
+		return _Copy_opt(_First); // should correctly determine that the type of '_Copy_opt' is dependent
+	}
+}
+
+namespace N013
+{
+	template<class _InIt>
+	_InIt _Copy_opt(_InIt _First)
+	{
+		return dependent(_First); // should correctly determine that the type of '_First' is dependent
+	}
+}
+
+namespace N011
+{
+	template<class _Iter>
+	struct iterator_traits
+	{
+	};
+
+	template<class _Ty>
+	struct iterator_traits<_Ty *>
+	{
+	};
+
+	template<class _Ty>
+	struct iterator_traits<const _Ty *>
+	{
+	};
+
+	template<> struct iterator_traits<bool>
+	{
+	};
+}
+
+namespace N001
+{
+	struct M
+	{
+		template<int i>
+		void dependent(int j)
+		{
+		}
+	};
+
+	template<typename A>
+	struct C
+	{
+		typedef M Type;
+	};
+
+	template<typename T1>
+	struct O0
+	{
+		typename T1::Type f()
+		{
+			return typename T1::Type();
+		}
+	};
+
+	void f(int)
+	{
+	}
+
+	void f()
+	{
+		O0< C<int> > o;
+		o.f().dependent<0>(0);
+	}
+}
+
+
+
+namespace N010
+{
+	struct Wrapper
+	{
+		typedef int Type;
+	};
+
+	template<typename T>
+	struct Tmpl
+	{
+		typedef typename T::Type Dependent;
+	};
+
+	Tmpl<Wrapper>::Dependent i;
+}
+
 template<class String, class Traits>
 struct basic_path
 {
@@ -41,59 +603,10 @@ basic_path<String, Traits>basic_path<int, int>::root_path()const
 #endif
 
 
-template<typename T>
-class match
-{
-	match();
-	int val;
-};
-
-template<>
-class match<int>
-{
-};
-
-template<typename T>
-inline match<T>::match(): val() // 'val' should be looked up in match<T>, not match<int>
-{
-}
 
 
 
 
-
-
-namespace N66
-{
-	template<bool C>
-	struct Cond
-	{
-		typedef int type;
-	};
-
-	template<typename T>
-	struct A
-	{
-		static const T value=0;
-	};
-
-	struct B : public A<int>
-	{
-	};
-
-	typedef Cond<
-		B::value < 8 // look up specialization of 'value' in A<int>
-		>::type t1; 
-
-	struct C
-	{
-		typedef B Type;
-	};
-
-	typedef Cond<
-		C::Type::value < 8 // look up specialization of 'value' in A<int>
-		>::type t1; 
-}
 
 namespace std
 {
@@ -118,44 +631,6 @@ namespace std
 
 
 
-
-
-
-namespace N001
-{
-	struct M
-	{
-		template<int i>
-		void dependent(int j)
-		{
-		}
-	};
-
-	template<typename A>
-	struct C
-	{
-		typedef M Type;
-	};
-
-	template<typename T1>
-	struct O0
-	{
-		typename T1::Type f()
-		{
-			return typename T1::Type();
-		}
-	};
-
-	void f(int)
-	{
-	}
-
-	void f()
-	{
-		O0< C<int> > o;
-		o.f().dependent<0>(0);
-	}
-}
 
 
 

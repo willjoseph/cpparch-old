@@ -103,6 +103,8 @@ Declaration gDependentNested(TREEALLOCATOR_NULL, 0, gDependentNestedId, TYPE_SPE
 
 Identifier gParamId = makeIdentifier("$param");
 Declaration gParam(TREEALLOCATOR_NULL, 0, gParamId, TYPE_CLASS, 0);
+Identifier gNonTypeId = makeIdentifier("$non-type");
+Declaration gNonType(TREEALLOCATOR_NULL, 0, gNonTypeId, TYPE_UNKNOWN, 0);
 
 // objects
 Name gOperatorNewId = Name("operator new");
