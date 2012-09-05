@@ -144,6 +144,7 @@ struct WalkerState
 
 	WalkerContext& context;
 	ScopePtr enclosing;
+	const TypeInstance* enclosingType;
 	TypePtr qualifying_p;
 	DeclarationPtr qualifyingScope;
 	ScopePtr memberObject;
@@ -152,7 +153,7 @@ struct WalkerState
 	DeferredSymbols* deferred;
 
 	WalkerState(WalkerContext& context)
-		: context(context), enclosing(0), qualifying_p(0), qualifyingScope(0), memberObject(0), templateParams(0), templateEnclosing(0), deferred(0)
+		: context(context), enclosing(0), enclosingType(0), qualifying_p(0), qualifyingScope(0), memberObject(0), templateParams(0), templateEnclosing(0), deferred(0)
 	{
 	}
 	const WalkerState& getState() const
@@ -341,7 +342,7 @@ struct WalkerState
 			{
 				return 0;
 			}
-			return getObjectType(makeUniqueType(*qualifying_p).value).declaration;
+			return getObjectType(makeUniqueType(*qualifying_p, enclosingType).value).declaration;
 		}
 		// only declarator names may be dependent
 		if(declaration->isTemplate) // TODO: template partial specialization
@@ -512,21 +513,6 @@ struct WalkerState
 		addDependent(dependent, makeDependencyCallback(tmp.get_ref().p, &callbacks));
 	}
 #endif
-
-	const TypeInstance* getThisType() const
-	{
-		// provide an enclosing template in which to look up template-params within the type of the id-expression
-		Scope* enclosingClass = getClassScope(); // 
-		Declaration* declaration = enclosingClass->name.dec.p;
-		SEMANTIC_ASSERT(declaration != 0);
-		Type type(declaration, context);
-		if(!isDependent(type)
-			&& !type.declaration->isTemplate) // treat enclosing template as dependent, for now
-		{
-			return &getObjectType(makeUniqueType(type).value);
-		}
-		return 0;
-	}
 };
 
 
@@ -1571,21 +1557,7 @@ struct PrimaryExpressionWalker : public WalkerBase
 				&& !isDependent(walker.arguments) // the id-expression may have an explicit template argument list
 				&& !isDependent(walker.qualifying.get_ref()))
 			{
-				if(walker.qualifying.empty() // if the scope of the id-expression is not explicitly qualified
-					&& getEnclosingClass(declaration->scope) != 0 // 10.2: name lookup for an unqualified-id that names a member begins in the class scope of 'this'
-					&& declaration->templateParameter == INDEX_INVALID) // unless the identifier names a non-type template parameter
-				{
-					const TypeInstance* enclosingClass = getThisType();
-					if(enclosingClass != 0)
-					{
-						type = makeUniqueType(declaration->type, enclosingClass);
-					}
-				}
-				else
-				{
-					type = makeUniqueType(declaration->type, makeUniqueEnclosing(walker.qualifying));
-				}
-
+				type = makeUniqueType(declaration->type, makeUniqueEnclosing(walker.qualifying, enclosingType));
 			}
 		}
 		else
@@ -1612,18 +1584,13 @@ struct PrimaryExpressionWalker : public WalkerBase
 	void visit(cpp::primary_expression_builtin* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		Scope* enclosingClass = getClassScope();
-		Declaration* declaration = enclosingClass->name.dec.p;
-		SEMANTIC_ASSERT(declaration != 0);
-		TypeId type(declaration, context);
-		type.isImplicitTemplateId = declaration->isTemplate;
-		type.typeSequence.push_front(DeclaratorPointer());
+		type = (enclosingType != 0) ? UniqueTypeWrapper(pushUniqueType(gUniqueTypes, makeUniqueType(*enclosingType).value, DeclaratorPointer())) : gUniqueTypeNull;
 		/* 14.6.2.2-2
 		'this' is type-dependent if the class type of the enclosing member function is dependent
 		*/
 		addDependent(typeDependent, getClassScope()); // TODO: use full type, not just scope
 		//setDependent(type, *declaration); // TODO: dependent if base classes are dependent
-		this->type = isDependent(type) ? gUniqueTypeNull : makeUniqueType(type);
+		setExpressionType(symbol, type);
 	}
 };
 
@@ -1704,21 +1671,9 @@ struct PostfixExpressionWalker : public WalkerBase
 		type = gUniqueTypeNull;
 		if(!isDependent(walker.type))
 		{
-			if(walker.type.qualifying.empty() // if the scope of the type is not explicitly qualified
-				&& getEnclosingClass(walker.type.declaration->scope) != 0 // 10.2: name lookup for an unqualified-id that names a member begins in the class scope of 'this'
-				&& walker.type.declaration->templateParameter == INDEX_INVALID) // unless the identifier names a template parameter
-			{
-				const TypeInstance* enclosingClass = getThisType();
-				if(enclosingClass != 0)
-				{
-					type = makeUniqueType(walker.type, enclosingClass);
-				}
-			}
-			else
-			{
-				type = makeUniqueType(walker.type);
-			}
+			type = makeUniqueType(walker.type, enclosingType);
 		}
+		setExpressionType(symbol, type);
 	}
 	void visit(cpp::postfix_expression_cast* symbol)
 	{
@@ -1727,20 +1682,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		type = gUniqueTypeNull;
 		if(!isDependent(walker.type))
 		{
-			if(walker.type.qualifying.empty() // if the scope of the type is not explicitly qualified
-				&& getEnclosingClass(walker.type.declaration->scope) != 0 // 10.2: name lookup for an unqualified-id that names a member begins in the class scope of 'this'
-				&& walker.type.declaration->templateParameter == INDEX_INVALID) // unless the identifier names a template parameter
-			{
-				const TypeInstance* enclosingClass = getThisType();
-				if(enclosingClass != 0)
-				{
-					type = makeUniqueType(walker.type, enclosingClass);
-				}
-			}
-			else
-			{
-				type = makeUniqueType(walker.type);
-			}
+			type = makeUniqueType(walker.type, enclosingType);
 		}
 		if(symbol->op->id != cpp::cast_operator::DYNAMIC)
 		{
@@ -1749,6 +1691,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		}
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
+		setExpressionType(symbol, type);
 	}
 	void visit(cpp::postfix_expression_typeid* symbol)
 	{
@@ -2076,7 +2019,7 @@ struct ExpressionWalker : public WalkerBase
 	{
 		ExplicitTypeExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		type = isDependent(walker.type) ? gUniqueTypeNull : makeUniqueType(walker.type);
+		type = isDependent(walker.type) ? gUniqueTypeNull : makeUniqueType(walker.type, enclosingType);
 		type.push_front(DeclaratorPointer());
 		addDependent(typeDependent, walker.typeDependent);
 		setDependent(dependent, walker.dependent);
@@ -2086,7 +2029,7 @@ struct ExpressionWalker : public WalkerBase
 	{
 		ExplicitTypeExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		type = isDependent(walker.type) ? gUniqueTypeNull : makeUniqueType(walker.type);
+		type = isDependent(walker.type) ? gUniqueTypeNull : makeUniqueType(walker.type, enclosingType);
 		type.push_front(DeclaratorPointer());
 		addDependent(typeDependent, walker.typeDependent);
 		setDependent(dependent, walker.dependent);
@@ -2096,7 +2039,7 @@ struct ExpressionWalker : public WalkerBase
 	{
 		ExplicitTypeExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		type = isDependent(walker.type) ? gUniqueTypeNull : makeUniqueType(walker.type);
+		type = isDependent(walker.type) ? gUniqueTypeNull : makeUniqueType(walker.type, enclosingType);
 		Dependent tmp(walker.typeDependent);
 		addDependent(valueDependent, tmp);
 		addDependent(typeDependent, walker.typeDependent);
@@ -3110,6 +3053,15 @@ struct ClassSpecifierWalker : public WalkerBase
 		if(declaration->enclosed != 0)
 		{
 			pushScope(declaration->enclosed);
+			if(!declaration->isTemplate)
+			{
+				Type type(declaration, context);
+				enclosingType = &getObjectType(makeUniqueType(type, enclosingType).value);
+			}
+			else
+			{
+				enclosingType = 0;
+			}
 		}
 		templateParams = 0;
 	}

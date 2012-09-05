@@ -1,4 +1,43 @@
 
+namespace N001
+{
+	struct M
+	{
+		template<int i>
+		float dependent(int j)
+		{
+		}
+	};
+
+	template<typename A>
+	struct C
+	{
+		typedef M Type;
+	};
+
+	template<typename T1>
+	struct O0
+	{
+		typename T1::Type f()
+		{
+			return typename T1::Type();
+		}
+	};
+
+	void f(int)
+	{
+	}
+
+	void f()
+	{
+		O0< C<int> > o;
+		o.f().dependent<0>(0); // type of expression should rsolve to 'float'
+	}
+}
+
+
+
+
 #if 1
 namespace N023
 {
@@ -65,7 +104,26 @@ namespace N030
 }
 #endif
 
-#if 0
+#if 1
+namespace N032
+{
+	template<typename T>
+	struct Base
+	{
+		typedef T Type;
+		typedef Base<T> Nested;
+		T member;
+	};
+
+	struct Derived : Base<int> // test type-uniquing for names that are implicitly qualified by 'Base<int>'
+	{
+		struct Inner
+		{
+			Nested::Type h();
+		};
+	};
+}
+
 namespace N028
 {
 	template<typename T>
@@ -506,43 +564,6 @@ namespace N011
 	{
 	};
 }
-
-namespace N001
-{
-	struct M
-	{
-		template<int i>
-		void dependent(int j)
-		{
-		}
-	};
-
-	template<typename A>
-	struct C
-	{
-		typedef M Type;
-	};
-
-	template<typename T1>
-	struct O0
-	{
-		typename T1::Type f()
-		{
-			return typename T1::Type();
-		}
-	};
-
-	void f(int)
-	{
-	}
-
-	void f()
-	{
-		O0< C<int> > o;
-		o.f().dependent<0>(0);
-	}
-}
-
 
 
 namespace N010

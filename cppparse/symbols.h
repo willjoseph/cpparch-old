@@ -1496,7 +1496,7 @@ struct TypeInstance
 	TypeInstance(Declaration* declaration, const TypeInstance* enclosing)
 		: declaration(declaration), enclosing(enclosing), evaluated(false)
 	{
-		SYMBOLS_ASSERT(enclosing == 0 || enclosing->declaration->isTemplate);
+		SYMBOLS_ASSERT(enclosing == 0 || isClass(*enclosing->declaration));
 	}
 };
 
@@ -1905,10 +1905,10 @@ inline void evaluateBases(const TypeInstance& enclosing)
 	}
 }
 
-inline const TypeInstance* findEnclosingTemplate(const TypeInstance& enclosing, Scope* enclosingTemplate)
+inline const TypeInstance* findEnclosingType(const TypeInstance& enclosing, Scope* enclosingType)
 {
-	SYMBOLS_ASSERT(enclosingTemplate != 0);
-	if(enclosing.declaration->enclosed == enclosingTemplate)
+	SYMBOLS_ASSERT(enclosingType != 0);
+	if(enclosing.declaration->enclosed == enclosingType)
 	{
 		return &enclosing;
 	}
@@ -1917,7 +1917,7 @@ inline const TypeInstance* findEnclosingTemplate(const TypeInstance& enclosing, 
 
 	for(UniqueBases::const_iterator i = enclosing.bases.begin(); i != enclosing.bases.end(); ++i)
 	{
-		const TypeInstance* result = findEnclosingTemplate(*(*i), enclosingTemplate);
+		const TypeInstance* result = findEnclosingType(*(*i), enclosingType);
 		if(result != 0)
 		{
 			return result;
@@ -1926,12 +1926,12 @@ inline const TypeInstance* findEnclosingTemplate(const TypeInstance& enclosing, 
 	return 0;
 }
 
-inline const TypeInstance* findEnclosingTemplate(const TypeInstance* enclosing, Scope* enclosingTemplate)
+inline const TypeInstance* findEnclosingType(const TypeInstance* enclosing, Scope* enclosingType)
 {
-	SYMBOLS_ASSERT(enclosingTemplate != 0);
+	SYMBOLS_ASSERT(enclosingType != 0);
 	for(const TypeInstance* i = enclosing; i != 0; i = (*i).enclosing)
 	{
-		const TypeInstance* result = findEnclosingTemplate(*i, enclosingTemplate);
+		const TypeInstance* result = findEnclosingType(*i, enclosingType);
 		if(result != 0)
 		{
 			return result;
@@ -1974,6 +1974,11 @@ inline LookupResult findDeclaration(const TypeInstance& instance, const Identifi
 	return result;
 }
 
+inline UniqueTypeWrapper makeUniqueType(const TypeInstance& type)
+{
+	return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, UNIQUETYPE_NULL, DeclaratorObject(type)));
+}
+
 
 // unqualified object name: int, Object,
 // qualified object name: Qualifying::Object
@@ -1981,7 +1986,7 @@ inline LookupResult findDeclaration(const TypeInstance& instance, const Identifi
 // qualified typedef: Qualifying::Type
 // /p type
 // /p enclosing The enclosing template, required when uniquing a template-argument: e.g. Enclosing<int>::Type
-inline UniqueTypeWrapper makeUniqueType(const Type& type, const TypeInstance* enclosingTemplate, std::size_t depth)
+inline UniqueTypeWrapper makeUniqueType(const Type& type, const TypeInstance* enclosingType, std::size_t depth)
 {
 	if(depth++ == 1024)
 	{
@@ -1989,8 +1994,8 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, const TypeInstance* en
 		extern ObjectTypeId gBaseClass;
 		return gBaseClass;
 	}
-	// the type in which template-arguments are looked up: returns qualifying type if specified, else returns enclosingTemplate
-	const TypeInstance* enclosing = makeUniqueEnclosing(type.qualifying, enclosingTemplate, depth);
+	// the type in which template-arguments are looked up: returns qualifying type if specified, else returns enclosingType
+	const TypeInstance* enclosing = makeUniqueEnclosing(type.qualifying, enclosingType, depth);
 	Declaration* declaration = type.declaration;
 	extern Declaration gDependentType;
 	extern Declaration gDependentTemplate;
@@ -2014,13 +2019,13 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, const TypeInstance* en
 	if(type.specialization != INDEX_INVALID)
 	{
 		SYMBOLS_ASSERT(enclosing != 0);
-		const TypeInstance* enclosingTemplate = findEnclosingTemplate(enclosing, type.enclosingTemplate);
-		if(enclosingTemplate != 0)
+		const TypeInstance* enclosingType = findEnclosingType(enclosing, type.enclosingTemplate);
+		if(enclosingType != 0)
 		{
 			// lazily evaluate the specializations for this type
 			{
-				TypeInstance& instance = *const_cast<TypeInstance*>(enclosingTemplate);
-				SYMBOLS_ASSERT(enclosingTemplate->declaration->isTemplate) // TODO: isImplicitTemplateId
+				TypeInstance& instance = *const_cast<TypeInstance*>(enclosingType);
+				SYMBOLS_ASSERT(enclosingType->declaration->isTemplate) // TODO: isImplicitTemplateId
 				if(instance.declaration->enclosed->deferredCount != 0
 					&& instance.specializations.empty())
 				{
@@ -2033,8 +2038,8 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, const TypeInstance* en
 				}
 				//SYMBOLS_ASSERT(instance.declaration->enclosed->deferredCount == instance.specializations.size());
 			}
-			SYMBOLS_ASSERT(type.specialization < (*enclosingTemplate).specializations.size());
-			UniqueTypeWrapper result = (*enclosingTemplate).specializations[type.specialization];
+			SYMBOLS_ASSERT(type.specialization < (*enclosingType).specializations.size());
+			UniqueTypeWrapper result = (*enclosingType).specializations[type.specialization];
 			// TODO: SYMBOLS_ASSERT(result.value != UNIQUETYPE_NULL);
 			return result;
 		}
@@ -2046,11 +2051,11 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, const TypeInstance* en
 	{
 		SYMBOLS_ASSERT(type.qualifying.empty());
 		// Find the template-specialisation it belongs to:
-		const TypeInstance* enclosingTemplate = findEnclosingTemplate(enclosing, declaration->scope);
-		if(enclosingTemplate != 0)
+		const TypeInstance* enclosingType = findEnclosingType(enclosing, declaration->scope);
+		if(enclosingType != 0)
 		{
-			SYMBOLS_ASSERT(index < enclosingTemplate->templateArguments.size());
-			UniqueTypeWrapper result = enclosingTemplate->templateArguments[index];
+			SYMBOLS_ASSERT(index < enclosingType->templateArguments.size());
+			UniqueTypeWrapper result = enclosingType->templateArguments[index];
 			// TODO: SYMBOLS_ASSERT(result.value != UNIQUETYPE_NULL); // fails for non-type template-argument
 			return result;
 		}
@@ -2061,7 +2066,7 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, const TypeInstance* en
 	{
 		return makeUniqueType(declaration->type, enclosing, depth);
 	}
-	TypeInstance tmp(declaration, declaration->scope == 0 || !declaration->scope->isTemplate ? 0 : findEnclosingTemplate(enclosing, declaration->scope));
+	TypeInstance tmp(declaration, declaration->scope == 0 || declaration->scope->type != SCOPETYPE_CLASS ? 0 : findEnclosingType(enclosing, declaration->scope));
 	SYMBOLS_ASSERT(declaration->type.declaration != &gArithmetic || tmp.enclosing == 0); // arithmetic types should not have an enclosing template!
 	if(declaration->isTemplate)
 	{
@@ -2079,7 +2084,7 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, const TypeInstance* en
 				UniqueTypeWrapper result;
 				if(isClass(*argument.declaration)) // ignore non-type arguments
 				{
-					result = makeUniqueType(argument, enclosingTemplate, depth);
+					result = makeUniqueType(argument, enclosingType, depth);
 					SYMBOLS_ASSERT(result.value != UNIQUETYPE_NULL);
 				}
 				tmp.templateArguments.push_back(result);
@@ -2100,7 +2105,7 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, const TypeInstance* en
 				extern Declaration gNonType;
 				if(argument.declaration != &gNonType) // ignore non-type arguments
 				{
-					result = makeUniqueType(argument, isTemplateParamDefault ? &tmp : enclosingTemplate, depth); // resolve dependent template-parameter-defaults in context of template class
+					result = makeUniqueType(argument, isTemplateParamDefault ? &tmp : enclosingType, depth); // resolve dependent template-parameter-defaults in context of template class
 					SYMBOLS_ASSERT(result.value != UNIQUETYPE_NULL);
 				}
 				tmp.templateArguments.push_back(result);
@@ -2116,7 +2121,7 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, const TypeInstance* en
 	}
 	SYMBOLS_ASSERT(tmp.bases.empty());
 	SYMBOLS_ASSERT(tmp.specializations.empty());
-	return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, UNIQUETYPE_NULL, DeclaratorObject(tmp)));
+	return makeUniqueType(tmp);
 }
 
 inline UniqueTypeWrapper makeUniqueType(const Type& type)
