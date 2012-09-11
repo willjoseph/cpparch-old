@@ -17,7 +17,34 @@
 #define SYMBOLS_ASSERT ALLOCATOR_ASSERT
 typedef AllocatorError SymbolsError;
 
-struct DeclSpecifiers
+struct CvQualifiers
+{
+	bool isConst;
+	bool isVolatile;
+	CvQualifiers()
+		: isConst(false), isVolatile(false)
+	{
+	}
+	CvQualifiers(bool isConst, bool isExtern)
+		: isConst(isConst), isVolatile(isVolatile)
+	{
+	}
+};
+
+inline bool operator==(const CvQualifiers& l, const CvQualifiers& r)
+{
+	return l.isConst == r.isConst
+		&& l.isVolatile == r.isVolatile;
+}
+
+inline bool operator<(const CvQualifiers& l, const CvQualifiers& r)
+{
+	return l.isConst != r.isConst ? l.isConst < r.isConst
+		: l.isVolatile != r.isVolatile ? l.isVolatile < r.isVolatile
+			: false;
+}
+
+struct DeclSpecifiers : CvQualifiers
 {
 	bool isTypedef;
 	bool isFriend;
@@ -1546,16 +1573,24 @@ inline const TypeInstance& getObjectType(UniqueType type)
 
 struct DeclaratorPointer
 {
+	CvQualifiers qualifiers;
+	DeclaratorPointer()
+	{
+	}
+	explicit DeclaratorPointer(CvQualifiers qualifiers)
+		: qualifiers(qualifiers)
+	{
+	}
 };
 
 inline bool operator==(const DeclaratorPointer& left, const DeclaratorPointer& right)
 {
-	return true;
+	return left.qualifiers == right.qualifiers;
 }
 
 inline bool operator<(const DeclaratorPointer& left, const DeclaratorPointer& right)
 {
-	return false;
+	return left.qualifiers < right.qualifiers;
 }
 
 struct DeclaratorReference
@@ -1575,8 +1610,13 @@ inline bool operator<(const DeclaratorReference& left, const DeclaratorReference
 struct DeclaratorMemberPointer
 {
 	const TypeInstance* type;
+	CvQualifiers qualifiers;
 	DeclaratorMemberPointer()
 		: type(0)
+	{
+	}
+	DeclaratorMemberPointer(CvQualifiers qualifiers)
+		: type(0), qualifiers(qualifiers)
 	{
 	}
 };
@@ -1615,8 +1655,9 @@ inline bool operator<(const DeclaratorArray& left, const DeclaratorArray& right)
 struct DeclaratorFunction
 {
 	ScopePtr paramScope;
-	DeclaratorFunction(Scope* scope)
-		: paramScope(scope)
+	CvQualifiers qualifiers;
+	DeclaratorFunction(Scope* scope, CvQualifiers qualifiers)
+		: paramScope(scope), qualifiers(qualifiers)
 	{
 	}
 };
@@ -3785,6 +3826,14 @@ struct SymbolPrinter : TypeElementVisitor
 	{
 		pushType(true);
 		printer.out << "*";
+		if(pointer.qualifiers.isConst)
+		{
+			printer.out << "const ";
+		}
+		if(pointer.qualifiers.isVolatile)
+		{
+			printer.out << "volatile ";
+		}
 		visitTypeElement();
 		popType();
 	}
@@ -3795,10 +3844,18 @@ struct SymbolPrinter : TypeElementVisitor
 		printer.out << "[]";
 		popType();
 	}
-	void visit(const DeclaratorMemberPointer&)
+	void visit(const DeclaratorMemberPointer& pointer)
 	{
 		pushType(true);
 		printer.out << "::*";
+		if(pointer.qualifiers.isConst)
+		{
+			printer.out << "const ";
+		}
+		if(pointer.qualifiers.isVolatile)
+		{
+			printer.out << "volatile ";
+		}
 		visitTypeElement();
 		popType();
 	}
@@ -3807,6 +3864,14 @@ struct SymbolPrinter : TypeElementVisitor
 		pushType(false);
 		visitTypeElement();
 		printParameters(function.paramScope->declarationList);
+		if(function.qualifiers.isConst)
+		{
+			printer.out << " const";
+		}
+		if(function.qualifiers.isVolatile)
+		{
+			printer.out << " volatile";
+		}
 		popType();
 	}
 

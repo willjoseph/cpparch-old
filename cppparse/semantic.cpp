@@ -822,7 +822,7 @@ struct WalkerBase : public WalkerState
 		if(symbol->id == cpp::unary_operator::AND) // address-of
 		{
 			UniqueTypeId result = type;
-			result.push_front(DeclaratorPointer());
+			result.push_front(DeclaratorPointer()); // produces a non-const pointer
 			return result;
 		}
 		else if(symbol->id == cpp::unary_operator::STAR) // dereference
@@ -2577,10 +2577,35 @@ struct ExceptionSpecificationWalker : public WalkerBase
 	}
 };
 
+struct CvQualifierSeqWalker : WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	CvQualifiers qualifiers;
+	CvQualifierSeqWalker(const WalkerState& state)
+		: WalkerBase(state)
+	{
+	}
+	void visit(cpp::cv_qualifier* symbol)
+	{
+		TREEWALKER_LEAF(symbol);
+		if(symbol->id == cpp::cv_qualifier::CONST)
+		{
+			qualifiers.isConst = true;
+		}
+		else if(symbol->id == cpp::cv_qualifier::VOLATILE)
+		{
+			qualifiers.isVolatile = true;
+		}
+	}
+
+};
+
 struct PtrOperatorWalker : public WalkerQualified
 {
 	TREEWALKER_DEFAULT;
 
+	CvQualifiers qualifiers;
 	PtrOperatorWalker(const WalkerState& state)
 		: WalkerQualified(state)
 	{
@@ -2591,6 +2616,12 @@ struct PtrOperatorWalker : public WalkerQualified
 		TREEWALKER_WALK_CACHED(walker, symbol);
 		swapQualifying(walker.qualifying);
 	}
+	void visit(cpp::cv_qualifier_seq* symbol)
+	{
+		CvQualifierSeqWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+		qualifiers = walker.qualifiers;
+	}
 };
 
 struct DeclaratorFunctionWalker : public WalkerBase
@@ -2598,6 +2629,7 @@ struct DeclaratorFunctionWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	ScopePtr paramScope;
+	CvQualifiers qualifiers;
 	DeclaratorFunctionWalker(const WalkerState& state)
 		: WalkerBase(state), paramScope(0)
 	{
@@ -2613,6 +2645,12 @@ struct DeclaratorFunctionWalker : public WalkerBase
 	{
 		ExceptionSpecificationWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
+	}
+	void visit(cpp::cv_qualifier_seq* symbol)
+	{
+		CvQualifierSeqWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+		qualifiers = walker.qualifiers;
 	}
 };
 
@@ -2642,6 +2680,7 @@ struct DeclaratorWalker : public WalkerBase
 	ScopePtr paramScope;
 	Dependent valueDependent;
 	TypeSequence typeSequence;
+	CvQualifiers qualifiers;
 	DeclaratorWalker(const WalkerState& state)
 		: WalkerBase(state), id(&gAnonymousId), paramScope(0), valueDependent(context), typeSequence(context)
 	{
@@ -2651,20 +2690,21 @@ struct DeclaratorWalker : public WalkerBase
 	{
 		PtrOperatorWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
+		qualifiers = walker.qualifiers;
 	}
 	void visit(cpp::declarator_ptr* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
 		(symbol->op->key->id == cpp::ptr_operator_key::REF)
 			? typeSequence.push_front(DeclaratorReference())
-			: typeSequence.push_front(DeclaratorPointer());
+			: typeSequence.push_front(DeclaratorPointer(qualifiers));
 	}
 	void visit(cpp::abstract_declarator_ptr* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
 		(symbol->op->key->id == cpp::ptr_operator_key::REF)
 			? typeSequence.push_front(DeclaratorReference())
-			: typeSequence.push_front(DeclaratorPointer());
+			: typeSequence.push_front(DeclaratorPointer(qualifiers));
 	}
 	void visit(cpp::declarator_id* symbol)
 	{
@@ -2693,7 +2733,7 @@ struct DeclaratorWalker : public WalkerBase
 		{
 			paramScope = walker.paramScope;
 		}
-		typeSequence.push_front(DeclaratorFunction(paramScope));
+		typeSequence.push_front(DeclaratorFunction(paramScope, walker.qualifiers));
 	}
 	void visit(cpp::direct_abstract_declarator* symbol)
 	{
@@ -3416,6 +3456,18 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 		else if(symbol->id == cpp::storage_class_specifier::EXTERN)
 		{
 			specifiers.isExtern = true;
+		}
+	}
+	void visit(cpp::cv_qualifier* symbol)
+	{
+		TREEWALKER_LEAF(symbol);
+		if(symbol->id == cpp::cv_qualifier::CONST)
+		{
+			specifiers.isConst = true;
+		}
+		else if(symbol->id == cpp::cv_qualifier::VOLATILE)
+		{
+			specifiers.isVolatile = true;
 		}
 	}
 };

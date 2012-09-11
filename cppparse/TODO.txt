@@ -562,6 +562,8 @@ An unqualified name in a template cannot depend on a local name or class member.
 	- issue: unique type reference to function-param-scope left dangling
 		- because gUniqueTypes not cleared between files!
 	- defer evaluation of dependent-type
+		- more optimal implementation of isDependent: each Type refers to the innermost enclosing template that it depends on
+	- cv-qualifiers
 - overload resolution
 	- across using-directive
 	- ( identifier ) ( expression-list )
@@ -607,6 +609,7 @@ An unqualified name in a template cannot depend on a local name or class member.
 		- ellipsis
 	- testing framework
 		- generate unique-type from C++ type
+	- consider redeclarations with same signature as a single candidate
 - argument-dependent-lookup
 - name-lookup for overloaded-operators
 
