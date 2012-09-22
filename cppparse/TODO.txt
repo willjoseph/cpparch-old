@@ -39,138 +39,193 @@
 + make using-declaration link to named declaration
 
 
-
-- crash: Release, lexer.h, IncludeDependencyNode already declared as non-type
-	- intermittent?
-
-- check that using-declaration is linked to correct definition: the one visible at point of using-declaration
-
-- overhead of multiple-inherited vtables in identifier: 34 vtable pointers, 136 bytes
-	- constructor calls are slow
-	- is there an alternative mechanism for visiting parse-tree?
-	- visiting is not required during parse!
-		- removing vtable reduces overhead to 1 byte per base-class, trivial constructor
-			- would be zero with empty-base-optimisation
-			- remove multiple-inheritance?
-				- need alternative method to enforce valid casting?
-
-- C++0x
-	- support '>>' in nested template-argument-list
-	- implement 'auto' 
+- to test:
+	- check that using-declaration is linked to correct definition: the one visible at point of using-declaration
+	- check that template-arguments are 'evaluated in the context in which the entire postfix-expression occurs'
+	- check that include-path search order is consistent with MSVC/GCC
+	- test that the simple-template-id in simple-type-specifier-template is looked up correctly
+	- test that template-arguments in a nested-name-specifier-suffix-template are considered when deciding that the NNS is dependent
+	- test that names introduced into namespace by using-directive correctly hide previously-declared names
+	- test parser for completeness and compliance
+	- test that a name found only in a friend-declaration can be found during argument-dependent name-lookup
 
 
-- document boost::wave modification: resolved_include_file
-
-- implement friend declaration?
-	- has no effect
-		- name-lookup:
-			- unqualified: innermost enclosing namespace only
-			- qualified (or template-id): 
-			- if not found by name lookup (first declaration) is a  member of innermost enclosing namespace, but cannot be found by name-lookup
-			- A function can be defined in a friend declaration of a class if and only if the class is a non-local class (9.8),
-				the function name is unqualified, and the function has namespace scope.
-			- A friend function defined in a class is in the (lexical) scope of the
-				class in which it is defined. A friend function defined outside the class is not (3.4.1).
-			- 7.3.1.2-3: If a friend declaration in a nonlocal
-class first declares a class or function the friend class or function is a member of the innermost enclosing
-namespace. The name of the friend is not found by unqualified lookup (3.4.1) or by qualified lookup (3.4.3)
-until a matching declaration is provided in that namespace scope (either before or after the class definition
-granting friendship). If a friend function is called, its name may be found by the name lookup that considers
-functions from namespaces and classes associated with the types of the function arguments (3.4.2). If the
-name in a friend declaration is neither qualified nor a template-id and the declaration is a function or
-an elaborated-type-specifier, the lookup to determine whether the entity has been previously declared shall
-not consider any scopes outside the innermost enclosing namespace.
-
-- bug: lookup skipped for name nominated by friend declaration, if called with parameters incorrectly determined to be type-dependent.
-	A name nominated by a friend declaration shall be accessible in the scope of the class containing the friend declaration.
-	- fails to report error gracefully if lookup fails.
-
-
-- clean up duplicated html string escape in SourcePrinter/ParseTreePrinter
-	
-- refactor mingled stuff
-	- combine WalkerContext and ParserContext?
-	- WALK macros
-
-
-- test-cases
+- test-cases:
 	- document existing tests
 	- ensure there are tests for:
 		- nested-name-specifier-prefix: name lookup ignores object/function/enumerator names
 		- type-name lookup hidden by constructor
-		
-- move Callback stuff into callback.h
-
-- fix leak of global WalkerContext in parseFile
-	- currently required so that parse-tree declarations can be used in reporting?
-
-- check that template-arguments are 'evaluated in the context in which the entire postfix-expression occurs'
-- test that the simple-template-id in simple-type-specifier-template is looked up correctly
-- test that template-arguments in a nested-name-specifier-suffix-template are considered when deciding that the NNS is dependent
-- test that names introduced into namespace by using-directive correctly hide previously-declared names
 
 
+- optimisation:
+	- overhead of multiple-inherited vtables in identifier: 34 vtable pointers, 136 bytes
+		- constructor calls are slow
+		- is there an alternative mechanism for visiting parse-tree?
+		- visiting is not required during parse!
+			- removing vtable reduces overhead to 1 byte per base-class, trivial constructor
+				- would be zero with empty-base-optimisation
+				- remove multiple-inheritance?
+					- need alternative method to enforce valid casting?
+	- avoid constructing complex *_NULL constants on the fly
+	- use custom list class for DeferredSymbols?
 
-- bug: with ALLOCATOR_DEBUG, if type_info is not defined, error parsing malloc.h?
 
-- avoid constructing complex *_NULL constants on the fly
-- use custom list class for DeferredSymbols?
+- features
+	- C++0x
+		- support '>>' in nested template-argument-list
+		- implement 'auto' 
+	- improve error messages
+		- e.g. detect when 'typename' keyword is missing
+		- on reportIdentifierMismatch, show the location of the mismatching identifier
+	- distinguish template locally-declared-names as not dependent - 14.6.1 (temp.local)
+		- where is this specified in the standard?
+	- better dependent-ness tracking
+		- rules
+			- a template parameter is dependent on its scope
+			- an unqualified typedef is always dependent on the dependent-scope of the target type
+			- a qualified typedef is dependent on the dependent-scope of its qualifying type, or of the target-type (only if the target type is dependent)
+			- an unqualified template-id is dependent on the dependent-scope of its template-arguments (or its scope if it names a template-parameter)
+		- implementation
+			- Type::dependent refers to the innermost dependent-scope at parse-time (or 0 if not dependent)
+				- parser maintains dependent-scope reference, persists in Declaration::type::dependent
+				- should this be property of Type?
+					- allows it to encode template-arguments/qualifying
+			- when querying..?
+	- handle all parse errors without crashing
+		- don't crash when backtracking after parse error!
+		- if member-initializer parse fails, member declaration is already committed
+			- committed declaration cannot be deallocated (unless forward-declaration), causes allocator check failure
+			- need to commit at point of declaration: failure to parse member-initializer is fatal
+			- detect that this is a fatal error and don't clean up symbols?
+			- for now, track all declarations and clean up if parse fails..
+				- doubles parse time, optimise!
+				- don't track declarations (except forward-decl) unless ALLOCATOR_DEBUG
+	- implement evaluation of integer-constant-expression
+		- required by is-null-pointer-constant check in overload resolution
+		- required by template-partial-specialization resolution
+	- implement template-instantiation
+		- specializations are chosen at point of instantiation
+		- dependent-names/types are bound at point of instantiation-
+			- TypeInstance: contains list of declarations, one for each dependent-name in the template
+				- including base classes
+		- partial-ordering of class template specialisations
+	- friend-declaration (currently behaves like MSVC8, which is broken)
+		- refers to name in namespace scope; should not be found by name-lookup (except argument-dependent) until a matching declaration is provided in that namespace scope
+			- name-lookup:
+				- unqualified: innermost enclosing namespace only
+				- qualified (or template-id): 
+				- if not found by name lookup (first declaration) is a  member of innermost enclosing namespace, but cannot be found by name-lookup (except argument-dependent?)
+				- A function can be defined in a friend declaration of a class if and only if the class is a non-local class (9.8),
+					the function name is unqualified, and the function has namespace scope.
+				- A friend function defined in a class is in the (lexical) scope of the
+					class in which it is defined. A friend function defined outside the class is not (3.4.1).
+				- 7.3.1.2-3: If a friend declaration in a nonlocal
+				class first declares a class or function the friend class or function is a member of the innermost enclosing
+				namespace. The name of the friend is not found by unqualified lookup (3.4.1) or by qualified lookup (3.4.3)
+				until a matching declaration is provided in that namespace scope (either before or after the class definition
+				granting friendship). If a friend function is called, its name may be found by the name lookup that considers
+				functions from namespaces and classes associated with the types of the function arguments (3.4.2). If the
+				name in a friend declaration is neither qualified nor a template-id and the declaration is a function or
+				an elaborated-type-specifier, the lookup to determine whether the entity has been previously declared shall
+				not consider any scopes outside the innermost enclosing namespace.
+	+ generalised solution for re-using failed parse-tree
+		+ requires that re-parsing a symbol in-place behaves the same way
+			+ make type-name parse behave the same way inside or outside a nested-name-specifier-prefix
+				+ defer rejection of type names hidden by non-type/namespace names
+		- pattern of swapping walker result values means only outermost walker is valid
+			- make walker results a weak-reference, except for outermost walker?
+				- replace Type::swap with non-copying assign?
+					- same for template-arguments/params
+				- splice dependents without removing from inner list?
+				- store types in template-argument-list by reference?
+				- DeferredSymbols?
+			- avoid calling inner walker destructors?
+				- walker destructors should only be called when debugging allocator?
+					- do walkers own global-allocator allocations?
+						- only OpaqueCopied
+					- do walker destructors have side effects?
+						- WalkerBase::declarations removes non-committed declarations on fail
+						- DeferredSymbols
+			- defer deletion of symbol-table data
+		- handle ETS declaration side-effects of failed parse tree
+			- defer modification of enclosing scope until..?
+				- completion of statement?
+			- when does ETS declaration modify enclosing scope?
+				- decl-specifier-seq or parameter-declaration-clause in namespace scope -> containing namespace
+				- else, smallest non-class non-function-prototype scope that contains the declaration
+		- handle scope creation side-effects of failed parse tree
+			- preserve allocated scopes
 
-- clean up caching and deferred destruction
-	- clean up CachedSymbols
-		+ enable caching at any point in parse
-		+ use linear-allocator
-		+ remove entry from cache when alternative parse succeeds
-			- otherwise, causes error when looking up template-id cached within nested-name-specifier-suffix?
-		+ treat cache as stack, only top item considered?
-			- handle X<Y>::Z<W>
-		+ cache more than just template-id
-		+ cache multiple symbols for each position
-			- e.g. declarator-id -> id-expression -> unqualified-id -> template-id -> identifier
-			- linear search?
-			- test case
-				- type-specifier -> nested-name-specifier -> nested-name -> type-name -> identifier
-				- type-specifier -> type-name -> identifier
-		- use custom list class
-		+ cache shared-prefix 'class-key'		
-			- type-specifier -> elaborated-type-specifier -> elaborated-type-specifier-key -> class-key
-			- type-specifier -> class-specifier -> class-head -> class-key
-	- clean up ParserAllocatorWrapper
-		- defer destruction at level of container
-			- need replacement for multimap?
-	- clean up BacktrackCallbacks
-		+ use linear-allocator
-		+ use custom list class
-		- store items grouped into frames, keyed off allocation-position stored in parser
-		- specialise list class for front-insertion
+- documentation:
+	- document boost::wave modification: resolved_include_file
+	- explain template_argument_clause_disambiguate
+		- disambiguates: < CONSTANT_EXPRESSION < 0 >
+		- how?
+		- only required when template-id appears in an expression
+	- explain postfix_expression_disambiguate
+		- required in the context of a template definition
+		- matches: unqualified-id ( expression-list )
+		- handles dependent names (somehow?)
+	
 
-- generalised solution for re-using failed parse-tree
-	- requires that re-parsing a symbol in-place behaves the same way
-		- make type-name parse behave the same way inside or outside a nested-name-specifier-prefix
-			- defer rejection of type names hidden by non-type/namespace names
-	- pattern of swapping walker result values means only outermost walker is valid
-		- make walker results a weak-reference, except for outermost walker?
-			- replace Type::swap with non-copying assign?
-				- same for template-arguments/params
-			- splice dependents without removing from inner list?
-			- store types in template-argument-list by reference?
-			- DeferredSymbols?
-		- avoid calling inner walker destructors?
-			- walker destructors should only be called when debugging allocator?
-				- do walkers own global-allocator allocations?
-					- only OpaqueCopied
-				- do walker destructors have side effects?
-					- WalkerBase::declarations removes non-committed declarations on fail
-					- DeferredSymbols
-		- defer deletion of symbol-table data
-	- handle ETS declaration side-effects of failed parse tree
-		- defer modification of enclosing scope until..?
-			- completion of statement?
-		- when does ETS declaration modify enclosing scope?
-			- decl-specifier-seq or parameter-declaration-clause in namespace scope -> containing namespace
-			- else, smallest non-class non-function-prototype scope that contains the declaration
-	- handle scope creation side-effects of failed parse tree
-		- preserve allocated scopes
+
+- refactoring:
+	+ replace UniqueTypeId with UniqueType
+		+ handle implicit-template-id flag when making unique type
+	- clean up duplicated html string escape in SourcePrinter/ParseTreePrinter
+	- clean up error handling - multiple assert exception types?
+	- clean up test code: ensure it compiles in LLVM
+	- rewrite template-parameter scope handling
+		- create 'under-construction' scope?
+			- when beginning template-declaration, class-declaration, function-declaration
+			- push/clear under-construction scope at point of declaration
+	- make gUniqueNames a member of Scope?
+	- move Callback stuff into callback.h
+	- parser is hard to work with - refactor?
+		+ remove unmingled parse
+		- combine WalkerContext and ParserContext?
+		- remove dead code
+		- replace Copied with a list?
+			- done mostly, except for addDependent(Dependent)?
+		- clean up SimpleDeclarationWalker::deferred
+		- naming:
+			- ParserContext is lexer?
+		- TREEWALKER macros
+	- generate remaining handwritten parseSymbol functions
+		- PARSE_SELECT_TOKEN
+		- PARSE_EXPRESSION_LEFTASSOCIATIVE
+		- inTemplateArgumentList
+		- overloadable_operator
+	- clean up caching and deferred destruction
+		- clean up CachedSymbols
+			+ enable caching at any point in parse
+			+ use linear-allocator
+			+ remove entry from cache when alternative parse succeeds
+				- otherwise, causes error when looking up template-id cached within nested-name-specifier-suffix?
+			+ treat cache as stack, only top item considered?
+				- handle X<Y>::Z<W>
+			+ cache more than just template-id
+			+ cache multiple symbols for each position
+				- e.g. declarator-id -> id-expression -> unqualified-id -> template-id -> identifier
+				- linear search?
+				- test case
+					- type-specifier -> nested-name-specifier -> nested-name -> type-name -> identifier
+					- type-specifier -> type-name -> identifier
+			- use custom list class
+			+ cache shared-prefix 'class-key'		
+				- type-specifier -> elaborated-type-specifier -> elaborated-type-specifier-key -> class-key
+				- type-specifier -> class-specifier -> class-head -> class-key
+		- clean up ParserAllocatorWrapper
+			- defer destruction at level of container
+				- need replacement for multimap?
+		- clean up BacktrackCallbacks
+			+ use linear-allocator
+			+ use custom list class
+			- store items grouped into frames, keyed off allocation-position stored in parser
+			- specialise list class for front-insertion
+
+
+
 		
 - slow parsing of cpptree.h
 	- profile parse, find out exactly what's taking so long
@@ -257,44 +312,6 @@ not consider any scopes outside the innermost enclosing namespace.
 				- fix !ALLOCATOR_DEBUG
 					- don't destroy scopes/declarations
 					- only undeclare ETS declarations
-		
-- make gUniqueNames a member of Scope?
-
-- clean up error handling - multiple assert exception types?
-
-
-- improve error messages
-	- e.g. detect when 'typename' keyword is missing
-	- on reportIdentifierMismatch, show the location of the mismatching identifier
-	
-- explain template_argument_clause_disambiguate
-	- disambiguates: < CONSTANT_EXPRESSION < 0 >
-	- how?
-	- only required when template-id appears in an expression
-	
-- explain postfix_expression_disambiguate
-	- required in the context of a template definition
-	- matches: unqualified-id ( expression-list )
-	- handles dependent names (somehow?)
-	
-- parser is hard to work with - refactor?
-	+ remove unmingled parse
-	- remove dead code
-	- replace Copied with a list?
-		- done mostly, except for addDependent(Dependent)?
-	- clean up SimpleDeclarationWalker::deferred
-	- naming:
-		- ParserContext is lexer?
-	- TREEWALKER macros
-	
-- generate remaining handwritten parseSymbol functions
-	- PARSE_SELECT_TOKEN
-	- PARSE_EXPRESSION_LEFTASSOCIATIVE
-	- inTemplateArgumentList
-	- overloadable_operator
-	
-- bug: using-declaration has wrong source path?
-	- std::size_t in <ctime>
 
 - add exclusions/suppression for warning messages
 	- specify source file, warning-type, identifier
@@ -352,6 +369,9 @@ not consider any scopes outside the innermost enclosing namespace.
 - show point-of-declaration for macros?
 - improve formatting of output html
 	- enum members on separate line
+- list declarations used by each include
+	- redeclarations may exist in multiple includes?
+		- consider dependency on all redeclarations
 
 
 - list symbols depended on by each module
@@ -366,8 +386,6 @@ not consider any scopes outside the innermost enclosing namespace.
 	- handle multiple identical typedef/forward-declaration in different modules
 	- if symbol is forward-declared, link to primary declaration if visible
 			
-
-- fix or remove macroPosition
 
 - use found-include-directive hook to build include-graph
 	- doesn't give full path, need to add resolved_include_file
@@ -410,10 +428,6 @@ not consider any scopes outside the innermost enclosing namespace.
 - macro dependencies
 	- associate macro definitions with source files
 	- for each macro expansion, add definition to list of dependencies
-
-- check that include-path search order is consistent with MSVC/GCC
-
-- test parser for completeness and compliance
 
 - profile wave
 	- run wave on its own to profile..
@@ -468,18 +482,7 @@ not consider any scopes outside the innermost enclosing namespace.
 		- how to sort scopes?
 	- trace name-lookup pattern
 	- went with a std::multimap
-	
-- handle errors
-	- if member-initializer parse fails, member declaration is already committed
-		- committed declaration cannot be deallocated (unless forward-declaration), causes allocator check failure
-		- need to commit at point of declaration: failure to parse member-initializer is fatal
-		- detect that this is a fatal error and don't clean up symbols?
-		- for now, track all declarations and clean up if parse fails..
-			- doubles parse time, optimise!
-			- don't track declarations (except forward-decl) unless ALLOCATOR_DEBUG
 			
-- clean up test code
-		
 - faster lexer
 	- optimise boost::wave?
 	- custom lexer/preprocessor?
@@ -488,12 +491,6 @@ not consider any scopes outside the innermost enclosing namespace.
 		- doesn't build easily on win32
 	- ucpp?
 		- only supports C99 tokens
-
-- fix printer bugs
-	- space between *= and &=
-	- space before and after =
-	- space between return and true/false
-	- space between nested > in template decl
 	
 - generate parser
 	- point of declaration
@@ -512,46 +509,21 @@ not consider any scopes outside the innermost enclosing namespace.
 		- type-parameter: after identifier in type-parameter-default, unless anonymous
 	- add context to hand-written parser
 
-- create 'under-construction' scope when beginning template-declaration, class-declaration, function-declaration
-- push/clear under-construction scope at point of declaration
-
-
-- don't crash when backtracking after parse error!
-
-- replace UniqueTypeId with UniqueType
-	- handle implicit-template-id flag when making unique type
-- implement template-instantiation
-	- specializations are chosen at point of instantiation
-	- dependent-names/types are bound at point of instantiation-
-		- TypeInstance: contains list of declarations, one for each dependent-name in the template
-			- including base classes
-	- partial-ordering of class template specialisations
-
-- better dependent-ness tracking
-	- rules
-		- a template parameter is dependent on its scope
-		- an unqualified typedef is always dependent on the dependent-scope of the target type
-		- a qualified typedef is dependent on the dependent-scope of its qualifying type, or of the target-type (only if the target type is dependent)
-		- an unqualified template-id is dependent on the dependent-scope of its template-arguments (or its scope if it names a template-parameter)
-	- implementation
-		- Type::dependent refers to the innermost dependent-scope at parse-time (or 0 if not dependent)
-			- parser maintains dependent-scope reference, persists in Declaration::type::dependent
-			- should this be property of Type?
-				- allows it to encode template-arguments/qualifying
-		- when querying 
-
-The point of definition of a template is located immediately before its definition. In this example, the point of definition of the template container is located immediately before the keyword template. Because the function call f(1) does not depend on a template parameter, the compiler considers names declared before the definition of the template container. Therefore, the function call f(1) calls f(double). Although f(int) is a better match, it is not in scope at the point of definition of container.
-The point of instantiation of a template is located immediately before the declaration that encloses its use. In this example, the point of instantiation of container<int> is the location of the explicit instantiation. Because the qualified function call ::h(arg) depends on the template argument arg, the compiler considers names declared before the instantiation of container<int>. Therefore, the function call h(arg) calls h(double). It does not consider h(int), because this function is not in scope at the point of instantiation of container<int>.
+http://publib.boulder.ibm.com/infocenter/zos/v1r12/index.jsp?topic=%2Fcom.ibm.zos.r12.cbclx01%2Fname_binding.htm
+http://publib.boulder.ibm.com/infocenter/comphelp/v7v91/index.jsp?topic=%2Fcom.ibm.vacpp7a.doc%2Flanguage%2Fref%2Fclrc16name_binding.htm
+The point of definition of a template is located immediately before its definition. In this example, the
+point of definition of the template container is located immediately before the keyword template. Because
+the function call f(1) does not depend on a template parameter, the compiler considers names declared before
+the definition of the template container. Therefore, the function call f(1) calls f(double). Although f(int)
+is a better match, it is not in scope at the point of definition of container.
+The point of instantiation of a template is located immediately before the declaration that encloses its use.
+In this example, the point of instantiation of container<int> is the location of the explicit instantiation.
+Because the qualified function call ::h(arg) depends on the template argument arg, the compiler considers names
+declared before the instantiation of container<int>. Therefore, the function call h(arg) calls h(double).
+It does not consider h(int), because this function is not in scope at the point of instantiation of container<int>.
 Point of instantiation binding implies the following:
 A template parameter cannot depend on any local name or class member.
 An unqualified name in a template cannot depend on a local name or class member.
-	
-- perform type-deduction
-	- store function-type as R(A1, A2) rather than just R
-	- store member-function-type as R C::*(A1, A2) rather than just R
-	- store member-pointer-type as R C::* rather than just R
-
-- distinguish names that refer to 'current instantiation' as not dependent - 14.6.2.1
 
 - specialised expression parsing
 	http://www.engr.mun.ca/~theo/Misc/exp_parsing.htm
@@ -559,6 +531,9 @@ An unqualified name in a template cannot depend on a local name or class member.
 	- for shared-prefix of assignment-expression/conditional-expression/constant-expression
 	- shared-prefix of expression/expression-list/assignment-expression
 - unique types
+	+ store function-type as R(A1, A2) rather than just R
+	+ store member-function-type as R C::*(A1, A2) rather than just R
+	+ store member-pointer-type as R C::* rather than just R
 	- issue: unique type reference to function-param-scope left dangling
 		- because gUniqueTypes not cleared between files!
 	- defer evaluation of dependent-type
@@ -610,6 +585,7 @@ An unqualified name in a template cannot depend on a local name or class member.
 	- testing framework
 		- generate unique-type from C++ type
 	- consider redeclarations with same signature as a single candidate
+	- perform template-argument type-deduction
 - argument-dependent-lookup
 - name-lookup for overloaded-operators
 

@@ -1,0 +1,32 @@
+
+- crash: Release, lexer.h, IncludeDependencyNode already declared as non-type
+	- intermittent?
+	- can't repro
+
+
+- bug: lookup skipped for name nominated by friend declaration, if called with parameters incorrectly determined to be type-dependent.
+	A name nominated by a friend declaration shall be accessible in the scope of the class containing the friend declaration.
+	- fails to report error gracefully if lookup fails.
+	- how to repro?
+	
+- leak of global WalkerContext in parseFile
+	- currently required so that parse-tree declarations can be used in reporting?
+	
+- bug: with ALLOCATOR_DEBUG, if type_info is not defined, error parsing malloc.h?
+	- attempt repro
+
+	
+- bug: using-declaration has wrong source path?
+	- std::size_t in <ctime>
+
+- macroPosition is unreliable?
+	- attempt repro
+	
+	
+- printer bugs
+	- space between *= and &=
+	- space before and after =
+	- space between return and true/false
+	- space between nested > in template decl
+
+

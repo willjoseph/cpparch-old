@@ -1,4 +1,38 @@
 
+#if _MSC_VER > 1400
+namespace N039
+{
+	// LLVM/Comeau allows this, but I can't see where the standard allows it
+	// Locally declared names (temp.local) are not dependent
+	template<typename T>
+	struct Template
+	{
+		typedef int I;
+		typedef Template::I Type; // 'Template' is NOT dependent
+		typedef Template<T>::I Type2; // 'Template<T>' is NOT dependent
+		Template<T>* m;
+		void f()
+		{
+			m->f(); // 'm' is NOT dependent
+		}
+	};
+}
+#endif
+
+namespace N038 // name first found in friend declaration, exists in innermost enclosing namespace
+{
+	namespace
+	{
+		int T;
+	}
+	struct S
+	{
+		friend class T;
+		friend void* f();
+	};
+	int t = T; // should find the definition of T in the anonymous namespace!
+}
+
 namespace N034
 {
 	struct S
@@ -8,140 +42,147 @@ namespace N034
 		}
 	};
 
-	void (S::*const p)(int) const;
+	void (S::*const p)(int) const = &S::m; // const-ptr to const-member
 }
 
 // ------
-
-void overloaded(void*);
-
-void bleh()
+namespace N035
 {
-	overloaded(0);
+	void overloaded(void*);
+
+	void bleh()
+	{
+		overloaded(0);
+	}
+
+	typedef int* P;
+	P* pp;
+
+	struct S
+	{
+	} s;
+
+	S* f(S);
+	double* f(double);
+	float* f(float);
+	int* f(int);
+	long* f(long);
+	unsigned* f(unsigned);
+	unsigned long* f(unsigned long);
+	char* f(char);
+	wchar_t* f(wchar_t);
+	char** f(char*);
+	const char** f(const char*);
+	wchar_t** f(const wchar_t*);
+	long double* f(const long double);
+
+	void f()
+	{
+		&s;
+		S* p;
+		*p;
+		p + 3;
+
+		int i;
+		-i;
+		+i;
+		~i;
+		!i;
+
+		s, 0;
+		f(s);
+		f(9 * (8.2));
+		f(9 * 8.2);
+		f(3 * (9 * 8.2));
+		f(1 * 2U * 3.0);
+
+		f('\0');
+		f(L'\0');
+		f("");
+		f(L"");
+		f(0.1);
+		f(0.1f);
+		f(0.1l);
+		f(1);
+		f(1L);
+		f(1U);
+		f(1UL);
+		f(1l);
+		f(1u);
+		f(1ul);
+
+	}
 }
 
-typedef int* P;
-P* pp;
-
-struct S
+namespace N036 // test parsing of type-id
 {
-} s;
+	struct S;
 
-S* f(S);
-double* f(double);
-float* f(float);
-int* f(int);
-long* f(long);
-unsigned* f(unsigned);
-unsigned long* f(unsigned long);
-char* f(char);
-wchar_t* f(wchar_t);
-char** f(char*);
-const char** f(const char*);
-wchar_t** f(const wchar_t*);
-long double* f(const long double);
+	typedef int* A[1]; // array of pointer to
 
-void f()
-{
-	&s;
-	S* p;
-	*p;
-	p + 3;
+	void f(A(*x)[1]) // pointer to array of
+	{
+	}
+	void g(int*(*x)[1][1])// pointer to array of array of pointer to
+	{
+	}
 
-	int i;
-	-i;
-	+i;
-	~i;
-	!i;
+	void f(int*(*x)[1]);
 
-	s, 0;
-	f(s);
-	f(9 * (8.2));
-	f(9 * 8.2);
-	f(3 * (9 * 8.2));
-	f(1 * 2U * 3.0);
+	typedef void (*Pf) (float hidden);
 
-	f('\0');
-	f(L'\0');
-	f("");
-	f(L"");
-	f(0.1);
-	f(0.1f);
-	f(0.1l);
-	f(1);
-	f(1L);
-	f(1U);
-	f(1UL);
-	f(1l);
-	f(1u);
-	f(1ul);
+	void f(Pf pf(int a));
 
+
+	void f(void (*pf(int a)) (float hidden))
+	{
+	}
+
+	void f(int*) // pointer to
+	{
+	}
+	void f(int**) // pointer to pointer to
+	{
+	}
+	void f(int*()) // function returning pointer to
+	{
+	}
+	void f(int**()) // function returning pointer to pointer to
+	{
+	}
+	void g(int*[]) // array of pointer to
+	{
+	}
+	void f(int(*)()) // pointer to function returning
+	{
+	}
+	void g(int*(*)()) // pointer to function returning pointer to
+	{
+	}
+	void f(int(*)[]) // pointer to array of
+	{
+	}
+
+	void f(int(*())[]) // function returning pointer to array of
+	{
+	}
+	void f(int(*[])()) // array of pointer to function returning
+	{
+	}
+
+	void f(int(S::*())[]) // function returning member-pointer to array of
+	{
+	}
+	void f(int(S::*[])()) // array of member-pointer to function returning
+	{
+	}
+
+	// not allowed:
+	// *[](): array of function returning pointer to
+	// (*)[](): pointer to array of function returning
+	// *()[]: function returning array of pointer to
+	// (*)()[]: pointer to function returning array of
 }
-
-typedef int* A[1]; // array of pointer to
-
-void f(A(*x)[1]) // pointer to array of
-{
-}
-void f(int*(*x)[1][1])// pointer to array of array of pointer to
-{
-}
-
-void f(int*(*x)[1]);
-
-typedef void (*Pf) (float hidden);
-
-void f(Pf pf(int a));
-
-
-void f(void (*pf(int a)) (float hidden))
-{
-}
-
-void f(int*) // pointer to
-{
-}
-void f(int**) // pointer to pointer to
-{
-}
-void f(int*()) // function returning pointer to
-{
-}
-void f(int**()) // function returning pointer to pointer to
-{
-}
-void f(int*[]) // array of pointer to
-{
-}
-void f(int(*)()) // pointer to function returning
-{
-}
-void f(int*(*)()) // pointer to function returning pointer to
-{
-}
-void f(int(*)[]) // pointer to array of
-{
-}
-
-void f(int(*())[]) // function returning pointer to array of
-{
-}
-void f(int(*[])()) // array of pointer to function returning
-{
-}
-
-void f(int(S::*())[]) // function returning member-pointer to array of
-{
-}
-void f(int(S::*[])()) // array of member-pointer to function returning
-{
-}
-
-// not allowed:
-// *[](): array of function returning pointer to
-// (*)[](): pointer to array of function returning
-// *()[]: function returning array of pointer to
-// (*)()[]: pointer to function returning array of
 
 namespace N001
 {
@@ -150,6 +191,7 @@ namespace N001
 		template<int i>
 		float dependent(int j)
 		{
+			return 0;
 		}
 	};
 
@@ -175,7 +217,7 @@ namespace N001
 	void f()
 	{
 		O0< C<int> > o;
-		o.f().dependent<0>(0); // type of expression should rsolve to 'float'
+		o.f().dependent<0>(0); // type of expression should resolve to 'float'
 	}
 }
 
@@ -189,7 +231,7 @@ namespace N023
 	{
 	};
 
-	template<typename F, class A=Wrapper<F> >
+	template<typename E, class A=Wrapper<E> >
 	struct Tmpl;
 
 	template<typename E, class A> // the default-argument for A should be merged from the forward-declaration
@@ -441,12 +483,12 @@ namespace N022
 {
 
 	template<class _Elem, class _Traits >
-	class basic_ostream;
+	struct basic_ostream;
 
-	typedef basic_ostream<char> ostream;
+	typedef basic_ostream<char, int> ostream;
 
 	template<class _Elem, class _Traits = int> // default-argument specified after typedef
-	class basic_ostream
+	struct basic_ostream
 	{
 		typedef basic_ostream<_Elem, _Traits> _Myt;
 
@@ -464,12 +506,12 @@ namespace N021
 {
 
 	template<class _Elem, class _Traits=int >
-	class basic_ostream;
+	struct basic_ostream;
 
 	typedef basic_ostream<char, int> ostream; // typedef specified before definition
 
 	template<class _Elem, class _Traits>
-	class basic_ostream
+	struct basic_ostream
 	{
 		typedef basic_ostream<_Elem, _Traits> _Myt;
 
@@ -523,6 +565,7 @@ namespace N66
 		>::type t1; 
 }
 
+#if(_MSC_VER > 1400) // 8.0
 namespace N019
 {
 	struct Wrapper
@@ -536,11 +579,12 @@ namespace N019
 		typedef T Type;
 	};
 
-	template<typename T = Wrapper> 
+	template<typename T = Wrapper> // bug in MSVC8, default-template-argument is not found correctly
 	struct Tmpl;
 
 	Tmpl<>::Type::Int i; // T should default to 'Wrapper'
 }
+#endif
 
 namespace N017
 {
@@ -589,25 +633,25 @@ namespace N016
 	template<>
 	struct Tmpl<char>
 	{
-		static const char VALUE = 0;
+		static const char VALUE;
 	};
 
-	const char Tmpl<char>::VALUE;
+	const char Tmpl<char>::VALUE = 0;
 
 	template<>
 	struct Tmpl<int>
 	{
-		static const int VALUE = 0;
+		static const int VALUE;
 	};
-	const int Tmpl<int>::VALUE; // Tmpl<int>::VALUE should be distinct from Tmpl<char>::VALUE
+	const int Tmpl<int>::VALUE = 0; // Tmpl<int>::VALUE should be distinct from Tmpl<char>::VALUE
 
 	template<typename X>
 	struct Tmpl<X*>
 	{
-		static const X* VALUE = 0;
+		static const X* VALUE;
 	};
 	template<typename X>
-	const X* Tmpl<X*>::VALUE; // Tmpl<X*>::VALUE should be distinct from Tmpl<char>::VALUE
+	const X* Tmpl<X*>::VALUE = 0; // Tmpl<X*>::VALUE should be distinct from Tmpl<char>::VALUE
 }
 
 
@@ -619,7 +663,7 @@ namespace N015
 	};
 
 	template<typename E, class A=Wrapper<E> > // the type of E should be correctly resolved
-	class Tmpl
+	struct Tmpl
 	{
 		typedef A Type;
 	};
@@ -647,7 +691,7 @@ namespace N014
 
 	void f()
 	{
-		int i = Tmpl<Wrapper<int> >::f();
+		Wrapper<int> i = Tmpl<Wrapper<int> >::f();
 	}
 }
 
@@ -937,7 +981,7 @@ struct C
 
 #endif
 
-
+#if 0
 void hidden(int)
 {
 }
@@ -945,20 +989,22 @@ namespace N
 {
 	void hidden(void*)
 	{
-		hidden(1);
+		hidden(1); // this should fail! Name lookup should NOT find '::hidden'
 	}
 }
+#endif
 
-
-class C
+namespace N037
 {
-};
+	class C
+	{
+	};
 
-C& operator*(C& c)
-{
-	return *c;
+	C& operator*(C& c)
+	{
+		return *c;
+	}
 }
-
 
 #if 0 //TODO: crash (pair not defined)
 template<class _Traits>
@@ -997,10 +1043,12 @@ struct OneDefinition
 
 OneDefinition<int> o1;
 
+#if 0 // This should NOT compile: an explicit-specialization of OneDefinition after its point of instantiation
 template<>
 struct OneDefinition<int>
 {
 };
+#endif
 
 OneDefinition<int> o2;
 
@@ -1057,7 +1105,7 @@ namespace N004
 	template<typename T>
 	struct Tmpl
 	{
-		static const T m = 0;
+		static const T m = 1;
 	};
 
 	struct S : Tmpl<int>
