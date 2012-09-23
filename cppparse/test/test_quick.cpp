@@ -1824,7 +1824,7 @@ typedef int I;
 struct S19
 {
 	I (*func)(I);
-	I (func)(I);
+	I (func2)(I);
 };
 
 namespace N15

@@ -1,4 +1,97 @@
 
+namespace N045
+{
+	struct S
+	{
+		typedef void* func_t();
+		func_t f; // member function declaration using typedef
+	};
+
+	void* S::f() // definition
+	{
+	}
+
+	template<typename T>
+	struct Tmpl
+	{
+		typedef T* func_t();
+		func_t f; // member function declaration using typedef
+	};
+
+	template<typename T>
+	T* Tmpl<T>::f() // definition
+	{
+	}
+}
+
+namespace N043
+{
+	struct S
+	{
+		template<bool b>
+		struct Tmpl;
+
+		friend struct Tmpl<true>; // friend declaration of explicit-specialization
+
+		template<typename T>
+		struct Tmpl // definition of explicit-specialization
+		{
+		};
+	};
+}
+
+
+namespace N044
+{
+	template<typename T = int>
+	struct Tmpl;
+
+	template<>
+	struct Tmpl<>; // forward-declaration of explicit-specialization
+
+	template<>
+	struct Tmpl<> // definition of explicit-specialization
+	{
+	};
+}
+namespace N042
+{
+	template<typename T>
+	struct Tmpl;
+
+	template<typename T>
+	struct Tmpl<T*>; // forward-declaration of partial-specialization
+
+	template<typename T>
+	struct Tmpl<T*> // definition of partial-specialization
+	{
+	};
+}
+
+namespace N041
+{
+	template<typename T = int>
+	struct Template
+	{
+	};
+	template<>
+	struct Template<> // <> is equivalent to <int>
+	{
+	};
+}
+
+namespace N040
+{
+	void f(int);
+	void f(int); // redeclaration of function
+
+	template<typename T>
+	void f(T);
+	template<typename U>
+	void f(U); // redeclaration of function-template
+}
+
+
 #if _MSC_VER > 1400
 namespace N039
 {

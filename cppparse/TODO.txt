@@ -77,8 +77,12 @@
 	- improve error messages
 		- e.g. detect when 'typename' keyword is missing
 		- on reportIdentifierMismatch, show the location of the mismatching identifier
-	- distinguish template locally-declared-names as not dependent - 14.6.1 (temp.local)
-		- where is this specified in the standard?
+	- distinguish name-of-template-itself as not dependent
+		- 14.6 (temp.res) Three kinds of names can be used within a template definition:
+			- The name of the template itself, and names declared within the template itself
+			- Names dependent on a template-parameter
+			- Names from scopes which are visible within the template-definition.
+	- handle template explicit/partial specialization with empty argument-list
 	- better dependent-ness tracking
 		- rules
 			- a template parameter is dependent on its scope
@@ -372,7 +376,26 @@
 - list declarations used by each include
 	- redeclarations may exist in multiple includes?
 		- consider dependency on all redeclarations
-
+		- currently: all overloads of name are listed, used by:
+			- findPrimaryTemplate: first non-explicit-specialization (should skip redeclarations)
+			- findTemplateSpecialization: specialization matching (should skip redeclarations)
+			- copyTemplateParams: after template-declaration, 'overloaded != 0' determines that the definition was previously forward-declared (should ignore explicit-specializations)
+			- findBestMatch: overload matching
+		- at point of declaration, determine if it's a redeclaration, add to redeclaration list
+			- or return original declaration?
+				- merge template-parameter defaults
+				- merge function-parameter defaults
+			- for class: if  template parameters (or explicit-specialization template arguments) match
+			- for function: if template parameters and function parameters match
+			- 13.1-3 [over.load]
+				- resolve typedefs
+				- array adjusted to pointer
+				- function adjusted to function-pointer
+				- const/volatile ignored
+			- use same comparison as when resolving template-specialization in a declarator-id?
+				- no, non-type params are not adjusted in the same way
+			- compare type of implicit-object parameter when comparing member function param list
+			- can this be determined at point of declaration?
 
 - list symbols depended on by each module
 	- use consistent path-separator/root in filenames

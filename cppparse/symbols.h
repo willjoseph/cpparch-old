@@ -656,6 +656,7 @@ public:
 	TypeId type;
 	Scope* enclosed;
 	Declaration* overloaded;
+	Declaration* redeclared;
 	Dependent valueDependent; // the dependent-types/names that are referred to in the declarator-suffix (array size)
 	DeclSpecifiers specifiers;
 	size_t templateParameter;
@@ -663,6 +664,7 @@ public:
 	TypeIds templateParamDefaults;
 	TemplateArguments templateArguments; // non-empty if this is an explicit (or partial) specialization
 	bool isTemplate;
+	bool isSpecialization;
 
 	Declaration(
 		const TreeAllocator<int>& allocator,
@@ -672,6 +674,7 @@ public:
 		Scope* enclosed,
 		DeclSpecifiers specifiers = DeclSpecifiers(),
 		bool isTemplate = false,
+		bool isSpecialization = false,
 		const TemplateArguments& templateArguments = TEMPLATEARGUMENTS_NULL,
 		size_t templateParameter = INDEX_INVALID,
 		const Dependent& valueDependent = DEPENDENT_NULL
@@ -686,7 +689,8 @@ public:
 		templateParams(allocator),
 		templateParamDefaults(allocator),
 		templateArguments(templateArguments),
-		isTemplate(isTemplate)
+		isTemplate(isTemplate),
+		isSpecialization(isSpecialization)
 	{
 	}
 	Declaration() :
@@ -711,6 +715,7 @@ public:
 		templateParamDefaults.swap(other.templateParamDefaults);
 		templateArguments.swap(other.templateArguments);
 		std::swap(isTemplate, other.isTemplate);
+		std::swap(isSpecialization, other.isSpecialization);
 	}
 
 
@@ -1150,6 +1155,10 @@ inline bool isExtern(const Declaration& declaration)
 	return declaration.specifiers.isExtern;
 }
 
+inline bool isSpecialization(const Declaration& declaration)
+{
+	return declaration.isSpecialization;
+}
 
 // ----------------------------------------------------------------------------
 
@@ -1764,7 +1773,7 @@ inline Declaration* findPrimaryTemplate(Declaration* declaration)
 	SYMBOLS_ASSERT(declaration->isTemplate);
 	for(;declaration != 0; declaration = declaration->overloaded)
 	{
-		if(declaration->templateArguments.empty())
+		if(!isSpecialization(*declaration))
 		{
 			SYMBOLS_ASSERT(declaration->isTemplate);
 			return declaration;
@@ -1915,7 +1924,7 @@ inline Declaration* findTemplateSpecialization(Declaration* declaration, const T
 {
 	for(; declaration != 0; declaration = declaration->overloaded)
 	{
-		if(declaration->templateArguments.empty()
+		if(!isSpecialization(*declaration)
 			|| ::isDependent(declaration->templateArguments, DependentContext(*declaration->enclosed, SCOPE_NULL))) // TODO: template partial specialization
 		{
 			continue;
@@ -2117,7 +2126,7 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, const TypeInstance* en
 		const TypeIds& defaults = tmp.declaration->templateParamDefaults;
 		SYMBOLS_ASSERT(!defaults.empty());
 		if(type.isImplicitTemplateId // TODO: check that 'declaration' refers to the enclosing template
-			&& type.declaration->templateArguments.empty())
+			&& !isSpecialization(*type.declaration))
 		{
 			for(Types::const_iterator i = declaration->templateParams.begin(); i != declaration->templateParams.end(); ++i)
 			{
@@ -2712,20 +2721,25 @@ inline const TypeId& getUnderlyingType(const TypeId& type)
 	return type;
 }
 
-inline bool isEqual(const TemplateArgument& l, const TemplateArgument& r)
+inline bool isEqual(const TypeId& l, const TypeId& r)
 {
 	// TODO: compare typeSequence
-	if(getUnderlyingType(l.type).declaration == getUnderlyingType(r.type).declaration)
+	if(getUnderlyingType(l).declaration == getUnderlyingType(r).declaration)
 	{
 		return true;
 	}
-	if(l.type.declaration->templateParameter != INDEX_INVALID
-		&& l.type.declaration->templateParameter != INDEX_INVALID
-		&& l.type.declaration->templateParameter == r.type.declaration->templateParameter)
+	if(l.declaration->templateParameter != INDEX_INVALID
+		&& l.declaration->templateParameter != INDEX_INVALID
+		&& l.declaration->templateParameter == r.declaration->templateParameter)
 	{
 		return true;
 	}
 	return false;
+}
+
+inline bool isEqual(const TemplateArgument& l, const TemplateArgument& r)
+{
+	return isEqual(l.type, r.type);
 }
 
 inline bool matchTemplateSpecialization(const Declaration& declaration, const TemplateArguments& arguments)
@@ -2750,7 +2764,7 @@ inline Declaration* findTemplateSpecialization(Declaration* declaration, const T
 {
 	for(; declaration != 0; declaration = declaration->overloaded)
 	{
-		if(declaration->templateArguments.empty())
+		if(!isSpecialization(*declaration))
 		{
 			continue;
 		}
@@ -3344,11 +3358,11 @@ inline const Declaration& getPrimaryDeclaration(const Declaration& first, const 
 		}
 		if(isClass(first))
 		{
-			if(!second.templateArguments.empty())
+			if(isSpecialization(second))
 			{
 				return second; // TODO: class template partial/explicit-specialization
 			}
-			if(!first.templateArguments.empty())
+			if(isSpecialization(first))
 			{
 				return second; // TODO: class template partial/explicit-specialization
 			}
