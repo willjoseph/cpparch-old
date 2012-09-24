@@ -1,3 +1,41 @@
+namespace N048
+{
+	template<typename T>
+	struct Tmpl
+	{
+		void f(Tmpl); // declaration
+		void f(int); // declaration
+	};
+}
+
+namespace N047
+{
+	template<typename T = int>
+	struct Tmpl
+	{
+		void f(Tmpl<>); // declaration
+	};
+
+	template<typename T>
+	void Tmpl<T>::f(Tmpl<>) // definition
+	{
+	}
+}
+
+namespace N046
+{
+	template<typename T>
+	struct Tmpl
+	{
+		typedef T* func_t();
+		func_t f; // member function declaration using typedef
+	};
+
+	template<typename T>
+	T* Tmpl<T>::f() // definition
+	{
+	}
+}
 
 namespace N045
 {
@@ -8,18 +46,6 @@ namespace N045
 	};
 
 	void* S::f() // definition
-	{
-	}
-
-	template<typename T>
-	struct Tmpl
-	{
-		typedef T* func_t();
-		func_t f; // member function declaration using typedef
-	};
-
-	template<typename T>
-	T* Tmpl<T>::f() // definition
 	{
 	}
 }

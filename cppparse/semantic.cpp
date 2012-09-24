@@ -137,10 +137,24 @@ typedef std::list< DeferredParse<struct WalkerBase, struct WalkerState> > Deferr
 typedef bool (*IdentifierFunc)(const Declaration& declaration);
 const char* getIdentifierType(IdentifierFunc func);
 
+Scope::DeclarationList::const_iterator getFirstFunctionParameter(const Scope::DeclarationList& declarations)
+{
+	Scope::DeclarationList::const_iterator i = declarations.begin();
+	// TODO: remove template-parameters from declarator scope
+	for(; i != declarations.end(); ++i)
+	{
+		if((*i)->templateParameter == INDEX_INVALID)
+		{
+			break;
+		}
+	}
+	return i;
+}
+
 inline bool isEquivalent(const Scope::DeclarationList& left, const Scope::DeclarationList& right)
 {
-	Scope::DeclarationList::const_iterator l = left.begin();
-	Scope::DeclarationList::const_iterator r = right.begin();
+	Scope::DeclarationList::const_iterator l = getFirstFunctionParameter(left);
+	Scope::DeclarationList::const_iterator r = getFirstFunctionParameter(right);
 	for(;; ++l, ++r)
 	{
 		if(l == left.end())
@@ -228,7 +242,8 @@ inline bool isEquivalent(const Declaration& declaration, const Declaration& othe
 		// 13.2 [over.dcl] Two functions of the same name refer to the same function
 		// if they are in the same scope and have equivalent parameter declarations.
 		SYMBOLS_ASSERT(isDeclaratorFunction(other.type)); // TODO: non-fatal error: 'id' previously declared as non-function, second declaration is a function
-		return isEquivalent(getDeclaratorFunction(declaration.type)->paramScope->declarationList, getDeclaratorFunction(other.type)->paramScope->declarationList);
+		return isEqual(declaration.type, other.type) // return-types match
+			&& isEquivalent(getDeclaratorFunction(declaration.type)->paramScope->declarationList, getDeclaratorFunction(other.type)->paramScope->declarationList); // and parameter-types match
 	}
 	return false;
 }
@@ -260,12 +275,12 @@ struct WalkerState
 	TypePtr qualifying_p;
 	DeclarationPtr qualifyingScope;
 	ScopePtr memberObject;
-	ScopePtr templateParams;
+	ScopePtr templateParamScope;
 	ScopePtr templateEnclosing;
 	DeferredSymbols* deferred;
 
 	WalkerState(WalkerContext& context)
-		: context(context), enclosing(0), enclosingType(0), qualifying_p(0), qualifyingScope(0), memberObject(0), templateParams(0), templateEnclosing(0), deferred(0)
+		: context(context), enclosing(0), enclosingType(0), qualifying_p(0), qualifyingScope(0), memberObject(0), templateParamScope(0), templateEnclosing(0), deferred(0)
 	{
 	}
 	const WalkerState& getState() const
@@ -307,12 +322,12 @@ struct WalkerState
 				}
 			}
 
-			if(templateParams != 0)
+			if(templateParamScope != 0)
 			{
-				if(result.append(::findDeclaration(*templateParams, id, filter)))
+				if(result.append(::findDeclaration(*templateParamScope, id, filter)))
 				{
 #ifdef LOOKUP_DEBUG
-					std::cout << "HIT: templateParams" << std::endl;
+					std::cout << "HIT: templateParamScope" << std::endl;
 #endif
 					return result;
 				}
@@ -401,6 +416,10 @@ struct WalkerState
 				}
 				other.overloaded = declaration;
 				other.redeclared = findRedeclared(other);
+				if(other.redeclared != 0)
+				{
+					return declaration;
+				}
 			}
 		}
 
@@ -528,10 +547,10 @@ struct WalkerState
 	void printScope()
 	{
 #if 1
-		if(templateParams != 0)
+		if(templateParamScope != 0)
 		{
 			std::cout << "template-params:" << std::endl;
-			::printScope(*templateParams);
+			::printScope(*templateParamScope);
 		}
 #endif
 		if(getQualifyingScope() != 0)
@@ -549,19 +568,19 @@ struct WalkerState
 	bool isDependent(const Type& type) const
 	{
 		//std::cout << "isDependent(Type)" << std::endl;
-		return ::isDependent(type, DependentContext(*enclosing, templateParams != 0 ? *templateParams : SCOPE_NULL));
+		return ::isDependent(type, DependentContext(*enclosing, templateParamScope != 0 ? *templateParamScope : SCOPE_NULL));
 	}
 
 	bool isDependent(const TemplateArguments& arguments) const
 	{
 		//std::cout << "isDependent(TemplateArguments)" << std::endl;
-		return ::isDependent(arguments, DependentContext(*enclosing, templateParams != 0 ? *templateParams : SCOPE_NULL));
+		return ::isDependent(arguments, DependentContext(*enclosing, templateParamScope != 0 ? *templateParamScope : SCOPE_NULL));
 	}
 
 	bool isDependent(const Types& bases) const
 	{
 		//std::cout << "isDependent(Types)" << std::endl;
-		return ::isDependent(bases, DependentContext(*enclosing, templateParams != 0 ? *templateParams : SCOPE_NULL));
+		return ::isDependent(bases, DependentContext(*enclosing, templateParamScope != 0 ? *templateParamScope : SCOPE_NULL));
 	}
 
 	bool isDependent(const TypePtr& qualifying) const
@@ -570,12 +589,12 @@ struct WalkerState
 		{
 			//std::cout << "isDependent(Type*)" << std::endl;
 		}
-		return ::isDependent(qualifying.get(), DependentContext(*enclosing, templateParams != 0 ? *templateParams : SCOPE_NULL));
+		return ::isDependent(qualifying.get(), DependentContext(*enclosing, templateParamScope != 0 ? *templateParamScope : SCOPE_NULL));
 	}
 
 	bool isDependent(Dependent& dependent) const
 	{
-		return ::evaluateDependent(dependent, DependentContext(*enclosing, templateParams != 0 ? *templateParams : SCOPE_NULL));
+		return ::evaluateDependent(dependent, DependentContext(*enclosing, templateParamScope != 0 ? *templateParamScope : SCOPE_NULL));
 	}
 
 	void addDependent(Dependent& dependent, const DependencyCallback& callback)
@@ -677,7 +696,7 @@ struct WalkerBase : public WalkerState
 
 	Declaration* declareClass(Identifier* id, bool isSpecialization, TemplateArguments& arguments)
 	{
-		Scope* enclosed = templateParams != 0 ? static_cast<Scope*>(templateParams) : newScope(makeIdentifier("$class"));
+		Scope* enclosed = templateParamScope != 0 ? static_cast<Scope*>(templateParamScope) : newScope(makeIdentifier("$class"));
 		enclosed->type = SCOPETYPE_CLASS; // convert template-param-scope to class-scope if present
 		Declaration* declaration = pointOfDeclaration(context, enclosing, id == 0 ? enclosing->getUniqueName() : *id, TYPE_CLASS, enclosed, DeclSpecifiers(), enclosing == templateEnclosing, isSpecialization, arguments);
 #ifdef ALLOCATOR_DEBUG
@@ -2629,16 +2648,16 @@ struct ParameterDeclarationClauseWalker : public WalkerBase
 	ParameterDeclarationClauseWalker(const WalkerState& state)
 		: WalkerBase(state)
 	{
-#if 0 // TODO: this causes error if parse fails after templateParams is modified
-		pushScope(templateParams != 0 ? templateParams : newScope(makeIdentifier("$declarator")));
+#if 0 // TODO: this causes error if parse fails after templateParamScope is modified
+		pushScope(templateParamScope != 0 ? templateParamScope : newScope(makeIdentifier("$declarator")));
 		enclosing->type = SCOPETYPE_PROTOTYPE;
 #else
 		pushScope(newScope(makeIdentifier("$declarator"), SCOPETYPE_PROTOTYPE));
-		if(templateParams != 0)
+		if(templateParamScope != 0)
 		{
 			enclosing->isTemplate = true;
 #if 0
-			enclosing->declarations = templateParams->declarations;
+			enclosing->declarations = templateParamScope->declarations;
 			for(Scope::Declarations::iterator i = enclosing->declarations.begin(); i != enclosing->declarations.end(); ++i)
 			{
 				Declaration* declaration = &(*i).second;
@@ -2648,7 +2667,7 @@ struct ParameterDeclarationClauseWalker : public WalkerBase
 			}
 #else
 			// issue: the return-type of the function being declared may point to a declaration in this list
-			for(Scope::DeclarationList::iterator i = templateParams->declarationList.begin(); i != templateParams->declarationList.end(); ++i)
+			for(Scope::DeclarationList::iterator i = templateParamScope->declarationList.begin(); i != templateParamScope->declarationList.end(); ++i)
 			{
 				Declaration tmp(*(*i)); // copy because insert() will swap
 				Declaration* declaration = enclosing->declarations.insert(tmp);
@@ -2666,7 +2685,7 @@ struct ParameterDeclarationClauseWalker : public WalkerBase
 #endif
 		}
 #endif	
-		templateParams = 0;
+		templateParamScope = 0;
 	}
 
 	void visit(cpp::parameter_declaration* symbol)
@@ -3033,7 +3052,7 @@ struct UsingDeclarationWalker : public WalkerQualified
 				TEMPLATEARGUMENTS_NULL, // the name in a using-declaration may not have template-arguments ...
 				INDEX_INVALID, // ... or be a template-argument
 				declaration->valueDependent);
-			redeclaration->templateParamDefaults = declaration->templateParamDefaults;
+			redeclaration->templateParams.defaults = declaration->templateParams.defaults;
 #ifdef ALLOCATOR_DEBUG
 			trackDeclaration(redeclaration);
 #endif
@@ -3227,7 +3246,7 @@ struct ClassSpecifierWalker : public WalkerBase
 				enclosingType = 0;
 			}
 		}
-		templateParams = 0;
+		templateParamScope = 0;
 	}
 	void visit(cpp::member_declaration* symbol)
 	{
@@ -3979,10 +3998,10 @@ struct SimpleDeclarationWalker : public WalkerBase
 		if(id != 0)
 		{
 			if(enclosed == 0
-				&& templateParams != 0)
+				&& templateParamScope != 0)
 			{
-				templateParams->parent = parent;
-				enclosed = templateParams; // for a static-member-variable definition, store template-params with different names than those in the class definition
+				templateParamScope->parent = parent;
+				enclosed = templateParamScope; // for a static-member-variable definition, store template-params with different names than those in the class definition
 			}
 			declaration = declareObject(parent, id, type, enclosed, specifiers, templateParameter, valueDependent);
 
@@ -3993,7 +4012,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 				enclosed->name = declaration->getName();
 				enclosing = enclosed; // subsequent declarations are contained by the parameter-scope - see 3.3.2-1: parameter scope
 			}
-			templateParams = 0;
+			templateParamScope = 0;
 
 			id = 0;
 		}
@@ -4357,7 +4376,7 @@ struct TypeParameterWalker : public WalkerBase
 		trackDeclaration(declaration);
 #endif
 		symbol->value.dec.p = declaration;
-		declaration->templateParamDefaults.swap(arguments);
+		declaration->templateParams.defaults.swap(arguments);
 	}
 	void visit(cpp::type_id* symbol)
 	{
@@ -4370,7 +4389,7 @@ struct TypeParameterWalker : public WalkerBase
 	{
 		TemplateParameterClauseWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		arguments.swap(walker.arguments);
+		arguments.swap(walker.params.defaults);
 	}
 	void visit(cpp::id_expression* symbol)
 	{
@@ -4393,13 +4412,11 @@ struct TemplateParameterListWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Type param;
-	Types params;
-	TypeId argument;
-	TypeIds arguments;
+	TemplateParameter param;
+	TemplateParameters params;
 	size_t count;
 	TemplateParameterListWalker(const WalkerState& state, size_t count)
-		: WalkerBase(state), param(0, context), params(context), argument(0, context), arguments(context), count(count)
+		: WalkerBase(state), param(context), params(context), count(count)
 	{
 	}
 	void visit(cpp::type_parameter_default* symbol)
@@ -4409,7 +4426,7 @@ struct TemplateParameterListWalker : public WalkerBase
 		param = walker.declaration == 0
 			? &gUnknown // anonymous type param
 			: walker.declaration;
-		argument.swap(walker.argument);
+		param.argument.swap(walker.argument);
 		++count;
 	}
 	void visit(cpp::type_parameter_template* symbol)
@@ -4419,7 +4436,7 @@ struct TemplateParameterListWalker : public WalkerBase
 		param = walker.declaration == 0
 			? &gUnknown // anonymous type param
 			: walker.declaration;
-		argument.swap(walker.argument);
+		param.argument.swap(walker.argument);
 		++count;
 	}
 	void visit(cpp::parameter_declaration* symbol)
@@ -4431,7 +4448,7 @@ struct TemplateParameterListWalker : public WalkerBase
 		// TODO: default value for non-type template-param
 		if(walker.isDefault)
 		{
-			argument = &gNonType;
+			param.argument = &gNonType;
 		}
 		++count;
 	}
@@ -4440,9 +4457,7 @@ struct TemplateParameterListWalker : public WalkerBase
 		TemplateParameterListWalker walker(getState(), count);
 		TREEWALKER_WALK(walker, symbol);
 		params.swap(walker.params);
-		arguments.swap(walker.arguments);
 		params.push_front(walker.param);
-		arguments.push_front(walker.argument);
 	}
 };
 
@@ -4450,14 +4465,13 @@ struct TemplateParameterClauseWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	Types params;
-	TypeIds arguments;
+	TemplateParameters params;
 	TemplateParameterClauseWalker(const WalkerState& state)
-		: WalkerBase(state), params(context), arguments(context)
+		: WalkerBase(state), params(context)
 	{
 		// collect template-params into a new scope
-		Scope* scope = templateParams != 0 ? static_cast<Scope*>(templateParams) : newScope(makeIdentifier("$template"), SCOPETYPE_TEMPLATE);
-		templateParams = 0;
+		Scope* scope = templateParamScope != 0 ? static_cast<Scope*>(templateParamScope) : newScope(makeIdentifier("$template"), SCOPETYPE_TEMPLATE);
+		templateParamScope = 0;
 		pushScope(scope);
 		enclosing->isTemplate = true;
 	}
@@ -4466,9 +4480,7 @@ struct TemplateParameterClauseWalker : public WalkerBase
 		TemplateParameterListWalker walker(getState(), 0);
 		TREEWALKER_WALK(walker, symbol);
 		params.swap(walker.params);
-		arguments.swap(walker.arguments);
 		params.push_front(walker.param);
-		arguments.push_front(walker.argument);
 	}
 };
 
@@ -4477,10 +4489,9 @@ struct TemplateDeclarationWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	DeclarationPtr declaration;
-	Types params;
-	TypeIds arguments;
+	TemplateParameters params;
 	TemplateDeclarationWalker(const WalkerState& state)
-		: WalkerBase(state), declaration(0), params(context), arguments(context)
+		: WalkerBase(state), declaration(0), params(context)
 	{
 		templateEnclosing = enclosing;
 	}
@@ -4488,10 +4499,9 @@ struct TemplateDeclarationWalker : public WalkerBase
 	{
 		TemplateParameterClauseWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		templateParams = walker.enclosing;
+		templateParamScope = walker.enclosing;
 		enclosing = walker.enclosing->parent;
 		params.swap(walker.params);
-		arguments.swap(walker.arguments);
 	}
 	void visit(cpp::declaration* symbol)
 	{
@@ -4500,7 +4510,7 @@ struct TemplateDeclarationWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		symbol->source = source;
 		declaration = walker.declaration;
-		copyTemplateParams(*declaration, params, arguments); // TODO: these may be accessed within class declaration parse
+		copyTemplateParams(*declaration, params); // TODO: these may be accessed within class declaration parse
 		SEMANTIC_ASSERT(declaration != 0);
 	}
 	void visit(cpp::member_declaration* symbol)
@@ -4508,7 +4518,7 @@ struct TemplateDeclarationWalker : public WalkerBase
 		MemberDeclarationWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		declaration = walker.declaration;
-		copyTemplateParams(*declaration, params, arguments);
+		copyTemplateParams(*declaration, params);
 		SEMANTIC_ASSERT(declaration != 0);
 	}
 };

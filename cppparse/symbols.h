@@ -638,6 +638,44 @@ inline TemplateArguments& nullTemplateArguments()
 #define TEMPLATEARGUMENTS_NULL nullTemplateArguments()
 
 
+struct TemplateParameter : Type
+{
+	TypeId argument;
+	TemplateParameter(const TreeAllocator<int>& allocator)
+		: Type(0, allocator), argument(0, allocator)
+	{
+	}
+	void swap(TemplateParameter& other)
+	{
+		Type::swap(other);
+		argument.swap(other.argument);
+	}
+	Type& operator=(Declaration* declaration)
+	{
+		return Type::operator=(declaration);
+	}
+};
+
+struct TemplateParameters : Types
+{
+	TypeIds defaults;
+	TemplateParameters(const TreeAllocator<int>& allocator)
+		: Types(allocator), defaults(allocator)
+	{
+	}
+	void swap(TemplateParameters& other)
+	{
+		Types::swap(other);
+		defaults.swap(other.defaults);
+	}
+	void push_front(const TemplateParameter& other)
+	{
+		Types::push_front(other);
+		defaults.push_front(other.argument);
+	}
+};
+
+
 
 // ----------------------------------------------------------------------------
 // declaration
@@ -660,8 +698,7 @@ public:
 	Dependent valueDependent; // the dependent-types/names that are referred to in the declarator-suffix (array size)
 	DeclSpecifiers specifiers;
 	size_t templateParameter;
-	Types templateParams;
-	TypeIds templateParamDefaults;
+	TemplateParameters templateParams;
 	TemplateArguments templateArguments; // non-empty if this is an explicit (or partial) specialization
 	bool isTemplate;
 	bool isSpecialization;
@@ -687,7 +724,6 @@ public:
 		specifiers(specifiers),
 		templateParameter(templateParameter),
 		templateParams(allocator),
-		templateParamDefaults(allocator),
 		templateArguments(templateArguments),
 		isTemplate(isTemplate),
 		isSpecialization(isSpecialization)
@@ -697,7 +733,6 @@ public:
 		type(0, TREEALLOCATOR_NULL),
 		valueDependent(TREEALLOCATOR_NULL),
 		templateParams(TREEALLOCATOR_NULL),
-		templateParamDefaults(TREEALLOCATOR_NULL),
 		templateArguments(TREEALLOCATOR_NULL)
 	{
 	}
@@ -712,7 +747,6 @@ public:
 		std::swap(specifiers, other.specifiers);
 		std::swap(templateParameter, other.templateParameter);
 		templateParams.swap(other.templateParams);
-		templateParamDefaults.swap(other.templateParamDefaults);
 		templateArguments.swap(other.templateArguments);
 		std::swap(isTemplate, other.isTemplate);
 		std::swap(isSpecialization, other.isSpecialization);
@@ -850,6 +884,9 @@ struct Scope : public ScopeCounter
 
 	{
 	}
+	~Scope()
+	{
+	}
 
 	Identifier& getUniqueName()
 	{
@@ -938,7 +975,7 @@ inline Scope* getEnclosingClass(Scope* scope)
 inline const TypeId& getTemplateArgument(const Type& type, size_t index)
 {
 	TemplateArguments::const_iterator a = type.templateArguments.begin();
-	TypeIds::const_iterator p = type.declaration->templateParamDefaults.begin();
+	TypeIds::const_iterator p = type.declaration->templateParams.defaults.begin();
 	for(;; --index)
 	{
 		if(a != type.templateArguments.end())
@@ -952,7 +989,7 @@ inline const TypeId& getTemplateArgument(const Type& type, size_t index)
 		}
 		else
 		{
-			SYMBOLS_ASSERT(p != type.declaration->templateParamDefaults.end());
+			SYMBOLS_ASSERT(p != type.declaration->templateParams.defaults.end());
 			if(index == 0)
 			{
 				SYMBOLS_ASSERT((*p).declaration != 0);
@@ -1733,10 +1770,10 @@ struct GetTypeHistory
 	}
 };
 
-struct TypeSequenceReverseCopy : TypeElementVisitor
+struct TypeSequenceMakeUnique : TypeElementVisitor
 {
 	UniqueType& type;
-	TypeSequenceReverseCopy(UniqueType& type)
+	TypeSequenceMakeUnique(UniqueType& type)
 		: type(type)
 	{
 	}
@@ -2011,6 +2048,7 @@ inline LookupResult findDeclaration(const UniqueBases& bases, const Identifier& 
 
 inline LookupResult findDeclaration(const TypeInstance& instance, const Identifier& id, LookupFilter filter, bool isBase = false)
 {
+	SYMBOLS_ASSERT(instance.declaration->enclosed != 0);
 	LookupResult result;
 	if(result.append(findDeclaration(instance.declaration->enclosed->declarations, id, filter, isBase)))
 	{
@@ -2057,7 +2095,9 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, const TypeInstance* en
 		SYMBOLS_ASSERT(!type.qualifying.empty()); // the type-name must be qualified
 		SYMBOLS_ASSERT(type.id != IdentifierPtr(0));
 		SYMBOLS_ASSERT(enclosing != 0);
-		declaration = findDeclaration(*enclosing, *type.id, declaration == &gDependentNested ? LookupFilter(IsNestedName()) : LookupFilter(IsAny()));
+		declaration = enclosing->declaration->enclosed != 0 
+			? findDeclaration(*enclosing, *type.id, declaration == &gDependentNested ? LookupFilter(IsNestedName()) : LookupFilter(IsAny()))
+			: static_cast<Declaration*>(0);
 		// SYMBOLS_ASSERT(declaration != 0); // TODO: assert
 		if(declaration == 0)
 		{
@@ -2109,8 +2149,16 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, const TypeInstance* en
 			// TODO: SYMBOLS_ASSERT(result.value != UNIQUETYPE_NULL); // fails for non-type template-argument
 			return result;
 		}
+#if 1
+		if(enclosing == 0)
+		{
+			TypeInstance tmp(declaration, 0);
+			return makeUniqueType(tmp);
+		}
+#else
 		throw SymbolsError();
-		return gUniqueTypeNull; // error?
+		return gUniqueTypeNull; // error: can't find template specialisation for this template parameter
+#endif
 	}
 	if(declaration->specifiers.isTypedef)
 	{
@@ -2123,7 +2171,7 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, const TypeInstance* en
 		tmp.declaration = findPrimaryTemplate(declaration); // TODO: look up explicit specialization
 
 		// 14.6.1: when the name of a template is used without arguments, substitute the parameters (in case of an explicit/partial-specialization, substitute the arguments
-		const TypeIds& defaults = tmp.declaration->templateParamDefaults;
+		const TypeIds& defaults = tmp.declaration->templateParams.defaults;
 		SYMBOLS_ASSERT(!defaults.empty());
 		if(type.isImplicitTemplateId // TODO: check that 'declaration' refers to the enclosing template
 			&& !isSpecialization(*type.declaration))
@@ -2182,8 +2230,8 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type)
 inline UniqueTypeWrapper makeUniqueType(const TypeId& type, const TypeInstance* enclosing, std::size_t depth)
 {
 	UniqueTypeWrapper result = makeUniqueType(*static_cast<const Type*>(&type), enclosing, depth);
-	TypeSequenceReverseCopy copier(result.value);
-	type.typeSequence.accept(copier);
+	TypeSequenceMakeUnique visitor(result.value);
+	type.typeSequence.accept(visitor);
 	return result;
 }
 
@@ -2723,6 +2771,10 @@ inline const TypeId& getUnderlyingType(const TypeId& type)
 
 inline bool isEqual(const TypeId& l, const TypeId& r)
 {
+#if 0
+	makeUniqueType(l);
+	makeUniqueType(r);
+#endif
 	// TODO: compare typeSequence
 	if(getUnderlyingType(l).declaration == getUnderlyingType(r).declaration)
 	{
@@ -3412,7 +3464,7 @@ inline const Declaration& getPrimaryDeclaration(const Declaration& first, const 
 		return first; // multiple declarations allowed
 	}
 	// HACK: ignore multiple declarations for members of template - e.g. const char Tmpl<char>::VALUE; const int Tmpl<int>::VALUE;
-	if(!first.templateParamDefaults.empty())
+	if(!first.templateParams.defaults.empty())
 	{
 		// if enclosing is a template
 		return first;
@@ -3563,10 +3615,9 @@ inline LookupResult findDeclarationWithin(Scope& scope, const Identifier& id, Lo
 	return result;
 }
 
-
-inline bool hasTemplateParamDefaults(TypeIds& defaults)
+inline bool hasTemplateParamDefaults(const TemplateParameters& params)
 {
-	for(TypeIds::iterator i = defaults.begin(); i != defaults.end(); ++i)
+	for(TypeIds::const_iterator i = params.defaults.begin(); i != params.defaults.end(); ++i)
 	{
 		if((*i).declaration != 0)
 		{
@@ -3577,7 +3628,7 @@ inline bool hasTemplateParamDefaults(TypeIds& defaults)
 }
 
 // substitute references to template-parameters of 'otherParams' for template-parameters of 'params'
-inline void fixTemplateParamDefault(TypeId& type, const Types& params, const Types& otherParams)
+inline void fixTemplateParamDefault(TypeId& type, const TemplateParameters& params, const TemplateParameters& otherParams)
 {
 	if(type.declaration == 0)
 	{
@@ -3602,39 +3653,39 @@ inline void fixTemplateParamDefault(TypeId& type, const Types& params, const Typ
 	}
 }
 
-inline void copyTemplateParamDefault(TypeId& type, const TypeId& otherType, const Types& params, const Types& otherParams)
+inline void copyTemplateParamDefault(TypeId& type, const TypeId& otherType, const TemplateParameters& params, const TemplateParameters& otherParams)
 {
 	type = otherType;
 	fixTemplateParamDefault(type, params, otherParams);
 }
 
-inline void copyTemplateParamDefaults(TypeIds& defaults, TypeIds& otherDefaults, const Types& params, const Types& otherParams)
+inline void copyTemplateParamDefaults(TemplateParameters& params, const TemplateParameters& otherParams)
 {
-	SYMBOLS_ASSERT(defaults.empty());
-	for(TypeIds::iterator i = otherDefaults.begin(); i != otherDefaults.end(); ++i)
+	SYMBOLS_ASSERT(params.defaults.empty());
+	for(TypeIds::const_iterator i = otherParams.defaults.begin(); i != otherParams.defaults.end(); ++i)
 	{
-		defaults.push_back(TYPE_NULL);
-		copyTemplateParamDefault(defaults.back(), *i, params, otherParams);
+		params.defaults.push_back(TYPE_NULL);
+		copyTemplateParamDefault(params.defaults.back(), *i, params, otherParams);
 	}
 }
 
 /// 14.1-10: the set of template param defaults is obtained by merging those from the definition and all declarations currently in scope (excluding explicit-specializations)
-inline void mergeTemplateParamDefaults(TypeIds& defaults, TypeIds& otherDefaults, const Types& params, const Types& otherParams)
+inline void mergeTemplateParamDefaults(TemplateParameters& params, const TemplateParameters& otherParams)
 {
-	if(defaults.empty())
+	if(params.defaults.empty())
 	{
-		copyTemplateParamDefaults(defaults, otherDefaults, params, otherParams);
+		copyTemplateParamDefaults(params, otherParams);
 		return;
 	}
-	if(!hasTemplateParamDefaults(otherDefaults)) // ignore declarations with no default-arguments, e.g. explicit/partial-specializations
+	if(!hasTemplateParamDefaults(otherParams)) // ignore declarations with no default-arguments, e.g. explicit/partial-specializations
 	{
 		return;
 	}
-	SYMBOLS_ASSERT(!otherDefaults.empty());
-	TypeIds::iterator d = defaults.begin();
-	for(TypeIds::iterator i = otherDefaults.begin(); i != otherDefaults.end(); ++i)
+	SYMBOLS_ASSERT(!otherParams.defaults.empty());
+	TypeIds::iterator d = params.defaults.begin();
+	for(TypeIds::const_iterator i = otherParams.defaults.begin(); i != otherParams.defaults.end(); ++i)
 	{
-		SYMBOLS_ASSERT(d != defaults.end());
+		SYMBOLS_ASSERT(d != params.defaults.end());
 		SYMBOLS_ASSERT((*d).declaration == 0 || (*i).declaration == 0); // TODO: non-fatal error: default param defined more than once
 		if((*d).declaration == 0)
 		{
@@ -3642,19 +3693,19 @@ inline void mergeTemplateParamDefaults(TypeIds& defaults, TypeIds& otherDefaults
 		}
 		++d;
 	}
-	SYMBOLS_ASSERT(d == defaults.end());
+	SYMBOLS_ASSERT(d == params.defaults.end());
 }
 
-inline void mergeTemplateParamDefaults(Declaration& declaration, TypeIds& otherDefaults, const Types& templateParams)
+inline void mergeTemplateParamDefaults(Declaration& declaration, const TemplateParameters& templateParams)
 {
 	SYMBOLS_ASSERT(declaration.isTemplate);
 	SYMBOLS_ASSERT(isClass(declaration));
 	SYMBOLS_ASSERT(declaration.templateArguments.empty()); // explicit/partial-specializations cannot have default-arguments
-	mergeTemplateParamDefaults(declaration.templateParamDefaults, otherDefaults, declaration.templateParams, templateParams);
-	SYMBOLS_ASSERT(!declaration.templateParamDefaults.empty());
+	mergeTemplateParamDefaults(declaration.templateParams, templateParams);
+	SYMBOLS_ASSERT(!declaration.templateParams.defaults.empty());
 }
 
-inline void copyTemplateParams(Declaration& declaration, const Types& templateParams, TypeIds& templateParamDefaults)
+inline void copyTemplateParams(Declaration& declaration, const TemplateParameters& templateParams)
 {
 	if(declaration.isTemplate) // handle case where template-params are for qualifying class: e.g. template<class T> int Class<T>::member;
 	{
@@ -3666,7 +3717,7 @@ inline void copyTemplateParams(Declaration& declaration, const Types& templatePa
 		//   merge defaults from this redeclaration, copy result to preceding forward-declaration
 		if(declaration.templateParams.empty()) // avoid overwriting template-params of primary template with those of a forward-declared explicit/partial-specialization
 		{
-			declaration.templateParams = templateParams;
+			*static_cast<Types*>(&declaration.templateParams) = templateParams;
 		}
 		SYMBOLS_ASSERT(declaration.isTemplate);
 		if(!isClass(declaration)) // 14.1-9: a default template-arguments may be specified in a class template declaration/definition (not for a function or class-member)
@@ -3675,19 +3726,19 @@ inline void copyTemplateParams(Declaration& declaration, const Types& templatePa
 		}
 		if(findPrimaryTemplate(&declaration) != &declaration) // this is a partial/explicit-specialization
 		{
-			SYMBOLS_ASSERT(!hasTemplateParamDefaults(templateParamDefaults)); // TODO: non-fatal error: partial/explicit-specialization may not have default template-arguments
-			declaration.templateParamDefaults = templateParamDefaults;
+			SYMBOLS_ASSERT(!hasTemplateParamDefaults(templateParams)); // TODO: non-fatal error: partial/explicit-specialization may not have default template-arguments
+			declaration.templateParams.defaults = templateParams.defaults;
 			return;
 		}
 
-		bool isFirstDeclaration = declaration.templateParamDefaults.empty();
+		bool isFirstDeclaration = declaration.templateParams.defaults.empty();
 		if(isFirstDeclaration)
 		{
-			copyTemplateParamDefaults(declaration.templateParamDefaults, templateParamDefaults, declaration.templateParams, templateParams);
+			copyTemplateParamDefaults(declaration.templateParams, templateParams);
 		}
 		else
 		{
-			mergeTemplateParamDefaults(declaration, templateParamDefaults, templateParams);
+			mergeTemplateParamDefaults(declaration, templateParams);
 		}
 		if(declaration.overloaded != 0) // this is a definition and was previously forward-declared
 		{
@@ -3696,10 +3747,9 @@ inline void copyTemplateParams(Declaration& declaration, const Types& templatePa
 			if(isFirstDeclaration)
 			{
 				// merge defaults from preceding forward-declaration
-				mergeTemplateParamDefaults(declaration, forward->templateParamDefaults, forward->templateParams);
+				mergeTemplateParamDefaults(declaration, forward->templateParams);
 			}
 			forward->templateParams = declaration.templateParams;
-			forward->templateParamDefaults = declaration.templateParamDefaults;
 		}
 	}
 }
