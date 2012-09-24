@@ -242,7 +242,8 @@ inline bool isEquivalent(const Declaration& declaration, const Declaration& othe
 		// 13.2 [over.dcl] Two functions of the same name refer to the same function
 		// if they are in the same scope and have equivalent parameter declarations.
 		SYMBOLS_ASSERT(isDeclaratorFunction(other.type)); // TODO: non-fatal error: 'id' previously declared as non-function, second declaration is a function
-		return isEqual(declaration.type, other.type) // return-types match
+		return declaration.isTemplate == other.isTemplate // early out
+			&& isEqual(declaration.type, other.type) // return-types match
 			&& isEquivalent(getDeclaratorFunction(declaration.type)->paramScope->declarationList, getDeclaratorFunction(other.type)->paramScope->declarationList); // and parameter-types match
 	}
 	return false;
@@ -275,12 +276,13 @@ struct WalkerState
 	TypePtr qualifying_p;
 	DeclarationPtr qualifyingScope;
 	ScopePtr memberObject;
+	SafePtr<TemplateParameters> templateParams;
 	ScopePtr templateParamScope;
 	ScopePtr templateEnclosing;
 	DeferredSymbols* deferred;
 
 	WalkerState(WalkerContext& context)
-		: context(context), enclosing(0), enclosingType(0), qualifying_p(0), qualifyingScope(0), memberObject(0), templateParamScope(0), templateEnclosing(0), deferred(0)
+		: context(context), enclosing(0), enclosingType(0), qualifying_p(0), qualifyingScope(0), memberObject(0), templateParams(0), templateParamScope(0), templateEnclosing(0), deferred(0)
 	{
 	}
 	const WalkerState& getState() const
@@ -507,6 +509,12 @@ struct WalkerState
 		memberObject = 0;
 	}
 
+	void clearTemplateParams()
+	{
+		templateParamScope = 0;
+		templateParams = 0;
+	}
+
 	template<typename T>
 	void reportIdentifierMismatch(T* symbol, const Identifier& id, Declaration* declaration, const char* expected)
 	{
@@ -707,6 +715,12 @@ struct WalkerBase : public WalkerState
 			id->dec.p = declaration;
 		}
 		enclosed->name = declaration->getName();
+		if(templateParams != 0) // if not an explicit-specialization
+		{
+			// case 1: declaration is newly declared and is definition (possibly partial/explicit-specialization)
+			//   copy new defaults, merge defaults from preceding forward-declaration, copy result to preceding forward-declaration
+			copyTemplateParams(*declaration, *templateParams);
+		}
 		return declaration;
 	}
 
@@ -790,6 +804,12 @@ struct WalkerBase : public WalkerState
 		if(id != &gAnonymousId)
 		{
 			id->dec.p = declaration;
+		}
+		if(templateParams != 0)
+		{
+			SYMBOLS_ASSERT(declaration->isTemplate);
+			SYMBOLS_ASSERT(!hasTemplateParamDefaults(*templateParams)); // 14.1-9: a default template-arguments may be specified in a class template declaration/definition (not for a function or class-member)
+			declaration->templateParams = *templateParams;
 		}
 
 		return declaration;
@@ -2685,7 +2705,7 @@ struct ParameterDeclarationClauseWalker : public WalkerBase
 #endif
 		}
 #endif	
-		templateParamScope = 0;
+		clearTemplateParams();
 	}
 
 	void visit(cpp::parameter_declaration* symbol)
@@ -3246,7 +3266,7 @@ struct ClassSpecifierWalker : public WalkerBase
 				enclosingType = 0;
 			}
 		}
-		templateParamScope = 0;
+		clearTemplateParams();
 	}
 	void visit(cpp::member_declaration* symbol)
 	{
@@ -3561,6 +3581,7 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 		ClassSpecifierWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		type = walker.declaration;
+		templateParams = walker.templateParams;
 		isUnion = walker.isUnion;
 	}
 	void visit(cpp::enum_specifier* symbol)
@@ -4012,7 +4033,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 				enclosed->name = declaration->getName();
 				enclosing = enclosed; // subsequent declarations are contained by the parameter-scope - see 3.3.2-1: parameter scope
 			}
-			templateParamScope = 0;
+			clearTemplateParams();
 
 			id = 0;
 		}
@@ -4033,6 +4054,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		declaration = type.declaration; // if no declarator is specified later, this is probably a class-declaration
 		specifiers = walker.specifiers;
 		forward = walker.forward;
+		templateParams = walker.templateParams;
 		isUnion = walker.isUnion;
 	}
 	void visit(cpp::type_specifier_seq* symbol)
@@ -4042,6 +4064,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		type.swap(walker.type);
 		declaration = type.declaration; // if no declarator is specified later, this is probably a class-declaration
 		forward = walker.forward;
+		templateParams = walker.templateParams;
 		isUnion = walker.isUnion;
 	}
 
@@ -4280,6 +4303,14 @@ struct SimpleDeclarationWalker : public WalkerBase
 			forward->dec.p = declaration;
 			type = TypeId(declaration, context);
 		}
+		if(templateParams != 0) // if not an explicit-specialization
+		{
+			// case 2: declaration is newly declared and is forward-declaration (possibly partial/explicit-specialization)
+			//   copy new defaults
+			// case 3: declaration redeclares existing forward-declaration or definition (possibly partial/explicit-specialization)
+			//   merge defaults from this redeclaration, copy result to preceding forward-declaration
+			copyTemplateParams(*declaration, *templateParams);
+		}
 
 		if(isUnion
 			&& isAnonymous(*declaration))
@@ -4471,7 +4502,7 @@ struct TemplateParameterClauseWalker : public WalkerBase
 	{
 		// collect template-params into a new scope
 		Scope* scope = templateParamScope != 0 ? static_cast<Scope*>(templateParamScope) : newScope(makeIdentifier("$template"), SCOPETYPE_TEMPLATE);
-		templateParamScope = 0;
+		clearTemplateParams();
 		pushScope(scope);
 		enclosing->isTemplate = true;
 	}
@@ -4502,6 +4533,7 @@ struct TemplateDeclarationWalker : public WalkerBase
 		templateParamScope = walker.enclosing;
 		enclosing = walker.enclosing->parent;
 		params.swap(walker.params);
+		templateParams = &params;
 	}
 	void visit(cpp::declaration* symbol)
 	{
@@ -4510,7 +4542,6 @@ struct TemplateDeclarationWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		symbol->source = source;
 		declaration = walker.declaration;
-		copyTemplateParams(*declaration, params); // TODO: these may be accessed within class declaration parse
 		SEMANTIC_ASSERT(declaration != 0);
 	}
 	void visit(cpp::member_declaration* symbol)
@@ -4518,7 +4549,6 @@ struct TemplateDeclarationWalker : public WalkerBase
 		MemberDeclarationWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		declaration = walker.declaration;
-		copyTemplateParams(*declaration, params);
 		SEMANTIC_ASSERT(declaration != 0);
 	}
 };

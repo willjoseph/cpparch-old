@@ -1,10 +1,16 @@
-namespace N048
+
+namespace N050
 {
 	template<typename T>
 	struct Tmpl
 	{
-		void f(Tmpl); // declaration
-		void f(int); // declaration
+		void f(Tmpl const&r)
+		{
+		}
+		template<class Y>
+		void f(Tmpl<Y>const&r)
+		{
+		}
 	};
 }
 
@@ -20,6 +26,68 @@ namespace N047
 	void Tmpl<T>::f(Tmpl<>) // definition
 	{
 	}
+}
+
+namespace N020
+{
+	struct Wrapper
+	{
+		typedef int Int;
+	};
+
+	template<typename T> 
+	struct Tmpl;
+
+	template<typename T = Wrapper> 
+	struct Tmpl;
+
+	template<> 
+	struct Tmpl<int>
+	{
+	};
+
+	template<typename T>
+	struct Tmpl
+	{
+		typedef T Type;
+	};
+
+	Tmpl<>::Type::Int i; // T should default to 'Wrapper'
+}
+
+
+
+
+namespace N049
+{
+	template<typename T>
+	struct Tmpl
+	{
+	};
+
+	template<>
+	struct Tmpl<int>
+	{
+		template<typename T>
+		void f(); // declaration
+	};
+
+	// omitting optional 'template<>'
+	template<typename T>
+	void Tmpl<int>::f() // definition
+	{
+	}
+}
+
+
+namespace N048
+{
+	template<typename T>
+	struct Tmpl
+	{
+		void f(Tmpl); // declaration
+		void f(int); // declaration
+	};
 }
 
 namespace N046
@@ -569,34 +637,6 @@ namespace N024
 
 	vector<char>::Type x;
 }
-
-namespace N020
-{
-	struct Wrapper
-	{
-		typedef int Int;
-	};
-
-	template<typename T> 
-	struct Tmpl;
-
-	template<typename T = Wrapper> 
-	struct Tmpl;
-
-	template<> 
-	struct Tmpl<int>
-	{
-	};
-
-	template<typename T>
-	struct Tmpl
-	{
-		typedef T Type;
-	};
-
-	Tmpl<>::Type::Int i; // T should default to 'Wrapper'
-}
-
 
 namespace N022
 {
