@@ -629,13 +629,7 @@ struct TemplateArgument
 	}
 };
 
-inline TemplateArguments& nullTemplateArguments()
-{
-	const TreeAllocator<int> allocator = TREEALLOCATOR_NULL;
-	static TemplateArguments null(allocator);
-	return null;
-}
-#define TEMPLATEARGUMENTS_NULL nullTemplateArguments()
+const TemplateArguments TEMPLATEARGUMENTS_NULL = TemplateArguments(TREEALLOCATOR_NULL);
 
 
 struct TemplateParameter : Type
@@ -675,6 +669,7 @@ struct TemplateParameters : Types
 	}
 };
 
+const TemplateParameters TEMPLATEPARAMETERS_NULL = TemplateParameters(TREEALLOCATOR_NULL);
 
 
 // ----------------------------------------------------------------------------
@@ -711,6 +706,7 @@ public:
 		Scope* enclosed,
 		DeclSpecifiers specifiers = DeclSpecifiers(),
 		bool isTemplate = false,
+		const TemplateParameters& templateParams = TEMPLATEPARAMETERS_NULL,
 		bool isSpecialization = false,
 		const TemplateArguments& templateArguments = TEMPLATEARGUMENTS_NULL,
 		size_t templateParameter = INDEX_INVALID,
@@ -720,10 +716,11 @@ public:
 		type(type),
 		enclosed(enclosed),
 		overloaded(0),
+		redeclared(0),
 		valueDependent(valueDependent),
 		specifiers(specifiers),
 		templateParameter(templateParameter),
-		templateParams(allocator),
+		templateParams(templateParams),
 		templateArguments(templateArguments),
 		isTemplate(isTemplate),
 		isSpecialization(isSpecialization)
@@ -3700,11 +3697,12 @@ inline void mergeTemplateParamDefaults(Declaration& declaration, const TemplateP
 {
 	SYMBOLS_ASSERT(declaration.isTemplate);
 	SYMBOLS_ASSERT(isClass(declaration));
-	SYMBOLS_ASSERT(declaration.templateArguments.empty()); // explicit/partial-specializations cannot have default-arguments
+	SYMBOLS_ASSERT(!isSpecialization(declaration)); // explicit/partial-specializations cannot have default-arguments
 	mergeTemplateParamDefaults(declaration.templateParams, templateParams);
 	SYMBOLS_ASSERT(!declaration.templateParams.defaults.empty());
 }
 
+#if 0 // replaced by changes to pointOfDeclaration()
 inline void copyTemplateParams(Declaration& declaration, const TemplateParameters& templateParams)
 {
 	if(declaration.isTemplate) // handle case where template-params are for qualifying class: e.g. template<class T> int Class<T>::member;
@@ -3753,6 +3751,7 @@ inline void copyTemplateParams(Declaration& declaration, const TemplateParameter
 		}
 	}
 }
+#endif
 
 typedef TokenPrinter<std::ostream> FileTokenPrinter;
 

@@ -1,4 +1,87 @@
 
+namespace N053
+{
+	namespace exception_detail
+	{
+		template<class>
+		struct get_info;
+		template<>
+		struct get_info<int>;
+	}
+	class exception
+	{
+		template<class>
+		friend struct exception_detail::get_info;
+	};
+}
+
+namespace N052
+{
+	template<typename T>
+	struct Tmpl
+	{
+	};
+
+	template class Tmpl<char>; // explicit instantiation
+}
+
+namespace N051
+{
+	struct S
+	{
+		template<bool _Secure_validation>
+		class _Const_iterator; // declaration
+		friend class _Const_iterator<true>; // should not declare anything!
+
+		template<bool _Secure_validation>
+		class _Const_iterator // definition
+		{
+		};
+		typedef _Const_iterator<true> const_iterator; // should refer to definition, not friend-declaration
+	};
+}
+
+namespace N042
+{
+	template<typename T>
+	struct Tmpl;
+
+	template<typename T>
+	struct Tmpl<T*>; // forward-declaration of partial-specialization
+
+	template<typename T>
+	struct Tmpl<T*> // definition of partial-specialization
+	{
+	};
+}
+
+namespace N020
+{
+	struct Wrapper
+	{
+		typedef int Int;
+	};
+
+	template<typename T> 
+	struct Tmpl;
+
+	template<typename T = Wrapper> 
+	struct Tmpl;
+
+	template<> 
+	struct Tmpl<int>
+	{
+	};
+
+	template<typename T>
+	struct Tmpl
+	{
+		typedef T Type;
+	};
+
+	Tmpl<>::Type::Int i; // T should default to 'Wrapper'
+}
+
 namespace N050
 {
 	template<typename T>
@@ -28,32 +111,6 @@ namespace N047
 	}
 }
 
-namespace N020
-{
-	struct Wrapper
-	{
-		typedef int Int;
-	};
-
-	template<typename T> 
-	struct Tmpl;
-
-	template<typename T = Wrapper> 
-	struct Tmpl;
-
-	template<> 
-	struct Tmpl<int>
-	{
-	};
-
-	template<typename T>
-	struct Tmpl
-	{
-		typedef T Type;
-	};
-
-	Tmpl<>::Type::Int i; // T should default to 'Wrapper'
-}
 
 
 
@@ -145,19 +202,6 @@ namespace N044
 
 	template<>
 	struct Tmpl<> // definition of explicit-specialization
-	{
-	};
-}
-namespace N042
-{
-	template<typename T>
-	struct Tmpl;
-
-	template<typename T>
-	struct Tmpl<T*>; // forward-declaration of partial-specialization
-
-	template<typename T>
-	struct Tmpl<T*> // definition of partial-specialization
 	{
 	};
 }

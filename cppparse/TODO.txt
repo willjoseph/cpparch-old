@@ -77,12 +77,14 @@
 	- improve error messages
 		- e.g. detect when 'typename' keyword is missing
 		- on reportIdentifierMismatch, show the location of the mismatching identifier
+	- include partial-specialization template-params in anchor, to distinguish from primary template
 	- distinguish name-of-template-itself as not dependent
 		- 14.6 (temp.res) Three kinds of names can be used within a template definition:
 			- The name of the template itself, and names declared within the template itself
 			- Names dependent on a template-parameter
 			- Names from scopes which are visible within the template-definition.
 	- handle template explicit/partial specialization with empty argument-list
+	- on redeclaration (or in a using-declaration), redeclare reference to original declaration rather than a copy
 	- better dependent-ness tracking
 		- rules
 			- a template parameter is dependent on its scope

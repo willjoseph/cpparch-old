@@ -230,12 +230,22 @@ inline bool isDeclaratorFunction(const TypeId& type)
 	return getDeclaratorFunction(type) != 0;
 }
 
+inline bool isEquivalentSpecialization(const Declaration& declaration, const Declaration& other)
+{
+	return !(isComplete(declaration) && isComplete(other)) // if both are complete, assume that they have different argument lists!
+		&& matchTemplateSpecialization(declaration, other.templateArguments);
+}
+
 inline bool isEquivalent(const Declaration& declaration, const Declaration& other)
 {
 	if(isClass(declaration))
 	{
 		SYMBOLS_ASSERT(isClass(other));
 		// TODO: compare template-argument-lists of partial specializations
+		return isSpecialization(declaration) == isSpecialization(other)
+			&& (!isSpecialization(declaration) // both are not explicit/partial specializations
+				|| isEquivalentSpecialization(declaration, other)); // both are specializations and have matching arguments
+
 	}
 	else if(isDeclaratorFunction(declaration.type))
 	{
@@ -253,10 +263,6 @@ inline Declaration* findRedeclared(const Declaration& declaration)
 {
 	for(Declaration* p = declaration.overloaded; p != 0; p = p->overloaded)
 	{
-		if(isEquivalent(declaration, *p))
-		{
-			return p;
-		}
 		if(isEquivalent(declaration, *p))
 		{
 			return p;
@@ -280,9 +286,10 @@ struct WalkerState
 	ScopePtr templateParamScope;
 	ScopePtr templateEnclosing;
 	DeferredSymbols* deferred;
+	bool isExplicitInstantiation;
 
 	WalkerState(WalkerContext& context)
-		: context(context), enclosing(0), enclosingType(0), qualifying_p(0), qualifyingScope(0), memberObject(0), templateParams(0), templateParamScope(0), templateEnclosing(0), deferred(0)
+		: context(context), enclosing(0), enclosingType(0), qualifying_p(0), qualifyingScope(0), memberObject(0), templateParams(0), templateParamScope(0), templateEnclosing(0), deferred(0), isExplicitInstantiation(false)
 	{
 	}
 	const WalkerState& getState() const
@@ -358,18 +365,21 @@ struct WalkerState
 		Scope* enclosed,
 		DeclSpecifiers specifiers = DeclSpecifiers(),
 		bool isTemplate = false,
+		const TemplateParameters& params = TEMPLATEPARAMETERS_NULL,
 		bool isSpecialization = false,
-		TemplateArguments& arguments = TEMPLATEARGUMENTS_NULL,
+		const TemplateArguments& arguments = TEMPLATEARGUMENTS_NULL,
 		size_t templateParameter = INDEX_INVALID,
 		const Dependent& valueDependent = DEPENDENT_NULL)
 	{
 		SEMANTIC_ASSERT(parent != 0);
 		SEMANTIC_ASSERT(templateParameter == INDEX_INVALID || parent->isTemplate);
+		SEMANTIC_ASSERT(isTemplate || params.empty());
+		SEMANTIC_ASSERT(isClassKey(*type.declaration) || !hasTemplateParamDefaults(params)); // 14.1-9: a default template-arguments may be specified in a class template declaration/definition (not for a function or class-member)
 
 		parser->context.allocator.deferredBacktrack(); // flush cached parse-tree
 
 		SEMANTIC_ASSERT(!name.value.empty());
-		Declaration other(allocator, parent, name, type, enclosed, specifiers, isTemplate, isSpecialization, arguments, templateParameter, valueDependent);
+		Declaration other(allocator, parent, name, type, enclosed, specifiers, isTemplate, params, isSpecialization, arguments, templateParameter, valueDependent);
 		if(!isAnonymous(other)) // unnamed class/struct/union/enum
 		{
 			/* 3.4.4-1
@@ -395,6 +405,7 @@ struct WalkerState
 					throw SemanticError();
 				}
 
+#if 0
 				if(isClass(other)
 					&& isClass(*declaration)
 					&& isIncomplete(*declaration)) // if this class-declaration was previously forward-declared
@@ -405,6 +416,7 @@ struct WalkerState
 						p->enclosed = other.enclosed;
 					}
 				}
+#endif
 
 				if(!isNamespace(other)
 					&& !isType(other)
@@ -420,7 +432,28 @@ struct WalkerState
 				other.redeclared = findRedeclared(other);
 				if(other.redeclared != 0)
 				{
-					return declaration;
+					if(isClass(other)
+						&& other.isTemplate)
+					{
+						TemplateParameters tmp(context);
+						tmp.swap(other.redeclared->templateParams);
+						other.redeclared->templateParams = other.templateParams;
+						if(other.isSpecialization) // this is a partial-specialization
+						{
+							SEMANTIC_ASSERT(!hasTemplateParamDefaults(other.templateParams)); // TODO: non-fatal error: partial-specialization may not have default template-arguments
+						}
+						else
+						{
+							SEMANTIC_ASSERT(!other.templateParams.empty());
+							mergeTemplateParamDefaults(*other.redeclared, tmp);
+						}
+					}
+					if(isClass(other)
+						&& isIncomplete(*other.redeclared)) // if this class-declaration was previously forward-declared
+					{
+						other.redeclared->enclosed = other.enclosed; // complete it
+					}
+					return other.redeclared;
 				}
 			}
 		}
@@ -507,6 +540,11 @@ struct WalkerState
 		qualifying_p = 0;
 		qualifyingScope = 0;
 		memberObject = 0;
+	}
+
+	const TemplateParameters& getTemplateParams() const
+	{
+		return templateParams != 0 && enclosing == templateEnclosing ? *templateParams : TEMPLATEPARAMETERS_NULL;
 	}
 
 	void clearTemplateParams()
@@ -706,7 +744,7 @@ struct WalkerBase : public WalkerState
 	{
 		Scope* enclosed = templateParamScope != 0 ? static_cast<Scope*>(templateParamScope) : newScope(makeIdentifier("$class"));
 		enclosed->type = SCOPETYPE_CLASS; // convert template-param-scope to class-scope if present
-		Declaration* declaration = pointOfDeclaration(context, enclosing, id == 0 ? enclosing->getUniqueName() : *id, TYPE_CLASS, enclosed, DeclSpecifiers(), enclosing == templateEnclosing, isSpecialization, arguments);
+		Declaration* declaration = pointOfDeclaration(context, enclosing, id == 0 ? enclosing->getUniqueName() : *id, TYPE_CLASS, enclosed, DeclSpecifiers(), enclosing == templateEnclosing, getTemplateParams(), isSpecialization, arguments);
 #ifdef ALLOCATOR_DEBUG
 		trackDeclaration(declaration);
 #endif
@@ -715,12 +753,6 @@ struct WalkerBase : public WalkerState
 			id->dec.p = declaration;
 		}
 		enclosed->name = declaration->getName();
-		if(templateParams != 0) // if not an explicit-specialization
-		{
-			// case 1: declaration is newly declared and is definition (possibly partial/explicit-specialization)
-			//   copy new defaults, merge defaults from preceding forward-declaration, copy result to preceding forward-declaration
-			copyTemplateParams(*declaration, *templateParams);
-		}
 		return declaration;
 	}
 
@@ -797,19 +829,13 @@ struct WalkerBase : public WalkerState
 		{
 			parent = getFriendScope();
 		}
-		Declaration* declaration = pointOfDeclaration(context, parent, *id, type, enclosed, specifiers, enclosing == templateEnclosing, false, TEMPLATEARGUMENTS_NULL, templateParameter, valueDependent); // 3.3.1.1
+		Declaration* declaration = pointOfDeclaration(context, parent, *id, type, enclosed, specifiers, enclosing == templateEnclosing, getTemplateParams(), false, TEMPLATEARGUMENTS_NULL, templateParameter, valueDependent); // 3.3.1.1
 #ifdef ALLOCATOR_DEBUG
 		trackDeclaration(declaration);
 #endif
 		if(id != &gAnonymousId)
 		{
 			id->dec.p = declaration;
-		}
-		if(templateParams != 0)
-		{
-			SYMBOLS_ASSERT(declaration->isTemplate);
-			SYMBOLS_ASSERT(!hasTemplateParamDefaults(*templateParams)); // 14.1-9: a default template-arguments may be specified in a class template declaration/definition (not for a function or class-member)
-			declaration->templateParams = *templateParams;
 		}
 
 		return declaration;
@@ -3068,6 +3094,7 @@ struct UsingDeclarationWalker : public WalkerQualified
 			Scope* enclosed = isFunction(*declaration) ? declaration->enclosed : 0;
 			Declaration* redeclaration = pointOfDeclaration(context, enclosing, *walker.id, declaration->type, enclosed, declaration->specifiers,
 				declaration->isTemplate,
+				declaration->templateParams,
 				declaration->isSpecialization,
 				TEMPLATEARGUMENTS_NULL, // the name in a using-declaration may not have template-arguments ...
 				INDEX_INVALID, // ... or be a template-argument
@@ -3445,6 +3472,11 @@ struct ElaboratedTypeSpecifierWalker : public WalkerQualified
 		if(declaration != &gUndeclared
 			&& !isTypedef(*declaration))
 		{
+			if(declaration->isSpecialization) // if the lookup found a template explicit/partial-specialization
+			{
+				SEMANTIC_ASSERT(declaration->isTemplate);
+				declaration = findPrimaryTemplate(declaration); // the name is a plain identifier, not a template-id, therefore the name refers to the primary template
+			}
 			symbol->value.dec.p = declaration;
 			/* 7.1.6.3-2
 			3.4.4 describes how name lookup proceeds for the identifier in an elaborated-type-specifier. If the identifier
@@ -4296,20 +4328,39 @@ struct SimpleDeclarationWalker : public WalkerBase
 		if(forward != 0)
 		{
 			bool isSpecialization = !isClassKey(*type.declaration);
-			declaration = pointOfDeclaration(context, enclosing, *forward, TYPE_CLASS, 0, DeclSpecifiers(), isSpecialization || enclosing == templateEnclosing, isSpecialization, type.templateArguments);
+			if(isSpecialization
+				&& (specifiers.isFriend
+					|| isExplicitInstantiation))
+			{
+				// friend class C<int>; // friend
+				// template class C<int>; // explicit instantiation
+			}
+			else
+			{
+				if(isSpecialization)
+				{
+					SEMANTIC_ASSERT(enclosing == templateEnclosing);
+				}
+				// class C;
+				// template<class T> class C;
+				// template<> class C<int>;
+				// template<class T> class C<T*>;
+				// friend class C;
+				declaration = pointOfDeclaration(context, enclosing, *forward, TYPE_CLASS, 0, DeclSpecifiers(), isSpecialization || enclosing == templateEnclosing, getTemplateParams(), isSpecialization, type.templateArguments);
 #ifdef ALLOCATOR_DEBUG
-			trackDeclaration(declaration);
+				trackDeclaration(declaration);
 #endif
+			}
 			forward->dec.p = declaration;
-			type = TypeId(declaration, context);
+			type = TypeId(declaration, context); // TODO: is this necessary?
 		}
-		if(templateParams != 0) // if not an explicit-specialization
+		else if(declaration != 0
+			&& declaration->isTemplate
+			&& templateParams != 0) // if not an explicit-specialization
 		{
-			// case 2: declaration is newly declared and is forward-declaration (possibly partial/explicit-specialization)
-			//   copy new defaults
-			// case 3: declaration redeclares existing forward-declaration or definition (possibly partial/explicit-specialization)
-			//   merge defaults from this redeclaration, copy result to preceding forward-declaration
-			copyTemplateParams(*declaration, *templateParams);
+			// template<class T> class C;
+			SEMANTIC_ASSERT(!declaration->isSpecialization);
+			mergeTemplateParamDefaults(*declaration, *templateParams);
 		}
 
 		if(isUnion
@@ -4402,7 +4453,7 @@ struct TypeParameterWalker : public WalkerBase
 	void visit(cpp::identifier* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		declaration = pointOfDeclaration(context, enclosing, symbol->value, TYPE_PARAM, 0, DECLSPEC_TYPEDEF, !arguments.empty(), false, TEMPLATEARGUMENTS_NULL, templateParameter);
+		declaration = pointOfDeclaration(context, enclosing, symbol->value, TYPE_PARAM, 0, DECLSPEC_TYPEDEF, !arguments.empty(), TEMPLATEPARAMETERS_NULL, false, TEMPLATEARGUMENTS_NULL, templateParameter);
 #ifdef ALLOCATOR_DEBUG
 		trackDeclaration(declaration);
 #endif
@@ -4553,6 +4604,27 @@ struct TemplateDeclarationWalker : public WalkerBase
 	}
 };
 
+struct ExplicitInstantiationWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	DeclarationPtr declaration;
+	ExplicitInstantiationWalker(const WalkerState& state)
+		: WalkerBase(state), declaration(0)
+	{
+	}
+	void visit(cpp::terminal<boost::wave::T_TEMPLATE> symbol)
+	{
+		isExplicitInstantiation = true;
+	}
+	void visit(cpp::declaration* symbol)
+	{
+		DeclarationWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+		declaration = walker.declaration;
+	}
+};
+
 struct DeclarationWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
@@ -4604,6 +4676,12 @@ struct DeclarationWalker : public WalkerBase
 	void visit(cpp::template_declaration* symbol)
 	{
 		TemplateDeclarationWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+		declaration = walker.declaration;
+	}
+	void visit(cpp::explicit_instantiation* symbol)
+	{
+		ExplicitInstantiationWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		declaration = walker.declaration;
 	}
