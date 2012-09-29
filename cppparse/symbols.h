@@ -2144,7 +2144,7 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, const TypeInstance* en
 			// TODO: SYMBOLS_ASSERT(result.value != UNIQUETYPE_NULL); // fails for non-type template-argument
 			return result;
 		}
-#if 1
+#if 0
 		if(enclosing == 0)
 		{
 			TypeInstance tmp(declaration, 0);
@@ -2767,7 +2767,7 @@ inline const TypeId& getUnderlyingType(const TypeId& type)
 
 inline bool isEqual(const TypeId& l, const TypeId& r)
 {
-#if 1
+#if 0
 	makeUniqueType(l);
 	makeUniqueType(r);
 #endif
