@@ -689,7 +689,6 @@ public:
 	TypeId type;
 	Scope* enclosed;
 	Declaration* overloaded;
-	Declaration* redeclared;
 	Dependent valueDependent; // the dependent-types/names that are referred to in the declarator-suffix (array size)
 	DeclSpecifiers specifiers;
 	size_t templateParameter;
@@ -716,7 +715,6 @@ public:
 		type(type),
 		enclosed(enclosed),
 		overloaded(0),
-		redeclared(0),
 		valueDependent(valueDependent),
 		specifiers(specifiers),
 		templateParameter(templateParameter),
@@ -2177,7 +2175,8 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, const TypeInstance* en
 			{
 				const Type& argument = (*i);
 				UniqueTypeWrapper result;
-				if(isClass(*argument.declaration)) // ignore non-type arguments
+				extern Declaration gParam;
+				if(argument.declaration->type.declaration == &gParam) // ignore non-type arguments
 				{
 					result = makeUniqueType(argument, enclosingType, depth);
 					SYMBOLS_ASSERT(result.value != UNIQUETYPE_NULL);
@@ -2768,7 +2767,7 @@ inline const TypeId& getUnderlyingType(const TypeId& type)
 
 inline bool isEqual(const TypeId& l, const TypeId& r)
 {
-#if 0
+#if 1
 	makeUniqueType(l);
 	makeUniqueType(r);
 #endif

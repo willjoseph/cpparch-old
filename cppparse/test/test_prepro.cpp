@@ -1,4 +1,17 @@
 
+namespace N054
+{
+	template<bool C_>
+	struct bool_;
+
+	template<bool C_>
+	struct bool_
+	{
+		typedef bool_ type;
+	};
+
+	bool_<false>::type x;
+}
 namespace N053
 {
 	namespace exception_detail

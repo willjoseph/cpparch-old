@@ -429,15 +429,15 @@ struct WalkerState
 					}
 				}
 				other.overloaded = declaration;
-				other.redeclared = findRedeclared(other);
-				if(other.redeclared != 0)
+				Declaration* redeclared = findRedeclared(other);
+				if(redeclared != 0)
 				{
 					if(isClass(other)
 						&& other.isTemplate)
 					{
 						TemplateParameters tmp(context);
-						tmp.swap(other.redeclared->templateParams);
-						other.redeclared->templateParams = other.templateParams;
+						tmp.swap(redeclared->templateParams);
+						redeclared->templateParams = other.templateParams;
 						if(other.isSpecialization) // this is a partial-specialization
 						{
 							SEMANTIC_ASSERT(!hasTemplateParamDefaults(other.templateParams)); // TODO: non-fatal error: partial-specialization may not have default template-arguments
@@ -445,15 +445,15 @@ struct WalkerState
 						else
 						{
 							SEMANTIC_ASSERT(!other.templateParams.empty());
-							mergeTemplateParamDefaults(*other.redeclared, tmp);
+							mergeTemplateParamDefaults(*redeclared, tmp);
 						}
 					}
 					if(isClass(other)
-						&& isIncomplete(*other.redeclared)) // if this class-declaration was previously forward-declared
+						&& isIncomplete(*redeclared)) // if this class-declaration was previously forward-declared
 					{
-						other.redeclared->enclosed = other.enclosed; // complete it
+						redeclared->enclosed = other.enclosed; // complete it
 					}
-					return other.redeclared;
+					return redeclared;
 				}
 			}
 		}
