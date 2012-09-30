@@ -543,14 +543,20 @@ typedef ListReference<DependencyCallback, TreeAllocator<int> > Dependent2;
 
 struct Dependent : public Dependent2
 {
-	Dependent(const TreeAllocator<int>& allocator) : Dependent2(allocator)
+	DeclarationPtr enclosingTemplate;
+	Dependent(const TreeAllocator<int>& allocator) : Dependent2(allocator), enclosingTemplate(0)
 	{
 	}
+	void swap(Dependent& other)
+	{
+		Dependent2::swap(other);
+		std::swap(enclosingTemplate, other.enclosingTemplate);
+	}
+private:
 	void splice(Dependent& other)
 	{
 		Dependent2::splice(begin(), other);
 	}
-private:
 	Dependent();
 };
 
@@ -3355,12 +3361,14 @@ inline bool isDependentNonRecursive(const Type& type, const DependentContext& co
 	}
 	if(original.isImplicitTemplateId)
 	{
+#if 0
 		if(original.declaration->templateParams.empty())
 		{
 			// we haven't finished parsing the class-declaration.
 			// we can assume 'original' refers to the current-instantation.
 			return true;
 		}
+#endif
 	}
 	else
 	{

@@ -1,4 +1,436 @@
 
+
+namespace N081
+{
+	template<class T>
+	struct Tmpl;
+
+	template<class T>
+	struct Base
+	{
+		typedef Tmpl<T> Derived;
+		static Derived* derived()
+		{
+			return 0;
+		}
+	};
+
+	template<class T>
+	struct Tmpl : Base<T>
+	{
+		typedef Tmpl<T> Self;
+
+		void f(Self& self)
+		{
+			self.derived()->dependent(); // name-lookup of 'derived' should be deferred!
+		}
+	};
+}
+
+
+namespace N080
+{
+	template<class T>
+	struct C
+	{
+		typedef int Type;
+	};
+	template<class T>
+	struct Tmpl
+	{
+		typedef typename ::N080::C<T>::Type X;
+	};
+
+}
+
+namespace N078
+{
+	template<typename T>
+	class Tmpl
+	{
+		class DependentNested : public T
+		{
+		};
+
+		typedef DependentNested D;
+	};
+}
+
+namespace N077
+{
+	template<bool VALUE>
+	struct ValTmpl
+	{
+		typedef char P[VALUE];
+		typedef typename ValTmpl<sizeof(P)>::Type Q;
+	};
+}
+
+namespace N076
+{
+	template<bool b>
+	struct Tmpl
+	{
+		typedef int I;
+	};
+
+	template<typename T>
+	struct S
+	{
+		template<typename U>
+		struct Q
+		{
+			enum { value = sizeof(T) + sizeof(U) };
+		};
+
+		typedef typename Tmpl<Q<int>::value>::I I;
+	};
+}
+
+namespace N075
+{
+	template<bool b>
+	struct Tmpl
+	{
+		typedef int I;
+	};
+
+	template<typename T>
+	struct S
+	{
+		enum { value = sizeof(T) };
+
+		typedef typename Tmpl<value>::I I; // 'I' is dependent
+	};
+}
+
+namespace N074
+{
+	template<typename T>
+	class DependentTmpl
+	{
+	};
+
+	template<typename T>
+	void f()
+	{
+		int i = (typename DependentTmpl<T>::dependent)1; // 'dependent' is, unsurprisingly, dependent
+	}
+}
+
+namespace N073
+{
+	template<class T>
+	inline T f(T t)
+	{
+		return (t.f(t)); // the return-type of f(t) should be determined to be dependent
+	}
+}
+
+namespace N031
+{
+	template<typename T>
+	struct Tmpl
+	{
+		Tmpl f(); // 'Tmpl' should resolve to 'Tmpl<T>'
+	};
+
+	template<>
+	struct Tmpl<int>
+	{
+		Tmpl f(); // 'Tmpl' should resolve to 'Tmpl<int>'
+	};
+
+	template<typename T>
+	struct Tmpl<T*>
+	{
+		Tmpl f(); // 'Tmpl' should resolve to 'Tmpl<T*>'
+	};
+
+	void f()
+	{
+		Tmpl<float> x;
+		x.f();
+		Tmpl<int> y;
+		y.f();
+	}
+}
+
+
+namespace N072
+{
+	template<typename T1>
+	struct O0
+	{
+		typename T1::Type f() // should determine that T1::Type is dependent
+		{
+		}
+	};
+}
+
+namespace N071
+{
+	template<typename T>
+	struct Tmpl
+	{
+		typedef Tmpl Type; // implicit template-id
+	};
+	void f()
+	{
+		Tmpl<int>::Type t;
+	}
+}
+
+namespace N068
+{
+	template<typename T>
+	struct Tmpl
+	{
+		typedef Tmpl<T> Type;
+		void f()
+		{
+			Type t; // not dependent
+		}
+	};
+	void f()
+	{
+		Tmpl<int>::Type t;
+	}
+}
+
+namespace N067 // simple test for determining if name is dependent
+{
+	template<typename T>
+	struct Tmpl
+	{
+		typedef T Type;
+		void f()
+		{
+			Type::dependent();
+		}
+	};
+	void f()
+	{
+		Tmpl<int>::Type t;
+	}
+}
+
+
+#if 0
+
+namespace N064
+{
+	template<typename A, typename B = A>
+	struct C
+	{
+		typedef int I;
+	};
+
+	template<typename T1>
+	struct O0
+	{
+		template<typename T2>
+		struct L1
+		{
+			typedef C<T1> D_O0; // depends on O0
+			typedef C<T2> D_L1; // depends on L1
+			typedef C<T1, T2> D_O0_L1; // depends on L1 and O0
+			static void f()
+			{
+				C<int>::I i1;  // not dependent
+				C<T1>::dependent(); // depends on O0
+				C<T2>::dependent(); // depends on L1
+				C<T1, T2>::dependent(); // depends on L1 and O0
+
+				D_O0::dependent(); // depends on O0
+				D_L1::dependent(); // depends on L1
+				D_O0_L1::dependent(); // depends on L1 and O0
+			}
+		};
+
+		static void f()
+		{
+			C<int>::I i1; // not dependent
+
+			L1<int>::D_O0::dependent(); // depends on O0
+			L1<int>::D_L1::dependent(); // depends on L1 (which may be explicitly specialised?)
+			L1<int>::D_O0_L1::dependent(); // depends on O0
+		}
+	};
+
+	static int f()
+	{
+		C<int>::I a; // not dependent
+		O0<int>::L1<int>::D_O0 x;
+		O0<int>::L1<int>::D_L1 y;
+		O0<int>::L1<int>::D_O0_L1 z;
+	}
+}
+#endif
+
+
+#if 0 // TODO
+
+namespace N070
+{
+	template<typename T>
+	struct Tmpl
+	{
+		Tmpl<T>* a; // TODO: 14.6 [temp.res] 'name of template itself' Tmpl<T> is NOT dependent!
+	};
+}
+
+namespace N066
+{
+	template<typename T>
+	struct Tmpl
+	{
+		struct S
+		{
+		};
+		void f()
+		{
+			Tmpl<T>::S::dependent(); // 'S' may be explicitly specialized later
+		}
+	};
+
+	template<>
+	struct Tmpl<int>::S // explicit specialization of Tmpl<T>::S for T=int
+	{
+		static void dependent()
+		{
+		}
+	};
+
+	Tmpl<int>::S s;
+}
+
+
+namespace N069
+{
+	template<typename A>
+	struct C
+	{
+	};
+
+	template<typename T>
+	struct Tmpl
+	{
+		template<typename U>
+		struct Inner
+		{
+			typedef C<U> Type;
+		};
+
+		static void f()
+		{
+			Inner<int>::Type::dependent(); // Inner<int> is dependent because Tmpl<T>::Inner<int> may be specialized later
+		}
+	};
+
+	template<>
+	template<typename U>
+	struct Tmpl<int>::Inner // explicit specialization of Tmpl<T>::Inner for T=int
+	{
+		static void dependent()
+		{
+		}
+	};
+
+	Tmpl<int>::Inner<int> s;
+}
+
+#endif
+
+#if 0
+namespace N065
+{
+
+	template<typename U>
+	struct Outer
+	{
+		typedef U Type;
+
+		template<typename T>
+		struct First
+		{
+			typedef T Type; // 'Type' depends on First<>;
+			typedef typename First<Type>::Type Type2; // First<Type> is a dependent template-id'; First<Type>::Type is a dependent qualified-id
+			typedef U Type3; // 'Type3' depends on Outer<>;
+			typedef typename First<Type3>::Type Type4; // First<Type> is a dependent template-id'; First<Type>::Type is a dependent qualified-id
+
+
+			struct Inner : T
+			{
+			};
+		};
+
+		// can't instantiate First<int> because it is implicitly Outer<U>::First<int>
+		typedef typename First<int>::Type FirstType; // instantiate First<int>; 'Type' depends on First<>, so look it up in the instantiation
+		typedef typename First<int>::Type2 FirstType2; // instantiate First<int>; 'Type2' depends on First<>
+		typedef typename First<int>::Type3 FirstType3; // instantiate First<int>; 'Type3' depends on Outer<>, not instantiated at this point
+		typedef typename First<int>::Type4 FirstType4; // instantiate First<int>; 'Type4' depends on Outer<>, not instantiated at this point
+		typedef typename First<int>::Inner InnerT; // instantiate First<int>;
+		typedef typename First<U>::Type FirstType2; // instantiate First<U> - fails. Lookup of 'Type' deferred.
+
+		template<typename T>
+		struct Second
+		{
+			First<T>::Type m; // 'Type' depends on Second<> (via its qualified-id), but not First<> (because outside its definition)
+			// can't instantiate First<int> because it is implicitly Outer<U>::First<int>
+			First<int>::Type m; // 'Type' not dependent on First<> (because outside its definition)
+			First<int>::Type3 m; // 'Type3' depends on Outer<>
+			typedef First<T>::Type FirstType; // add 'FirstType' to type-instantiation set
+			FirstType m2; // add 'm2' to type-instantiation set
+		};
+	};
+
+
+	template<typename T>
+	struct Tmpl
+	{
+		typedef T Type;
+		typedef Tmpl<T> Self; // uses Tmpl::T
+
+		template<typename U> // .. T also is an inherited implicit template param
+		struct Inner
+		{
+			typedef Inner<U> Self; // uses Inner::U
+			typedef Inner<T> Self2; // uses Tmpl::T
+			typedef U Type; // uses Inner::U
+			typedef T OuterType; // uses Tmpl::T
+
+			void f()
+			{
+				Tmpl<int> m1; // not dependent
+				Tmpl<T> m2; // not dependent (is current instantiation)
+				Tmpl<U>::dependent(); // dependent (uses Inner::U)
+			}
+		};
+
+		void f()
+		{
+			Self::Type m; // not dependent (is current instantiation)
+			Type::dependent(); // dependent (uses Tmpl::T)
+			Inner<int>::dependent(); // uses Tmpl::T
+			Inner<int>::Self::dependent(); // dependent (uses Tmpl::T)
+			Inner<int>::Self2::dependent(); // dependent (uses Tmpl::T)
+		}
+	};
+
+	template<typename T>
+	struct C
+	{
+		Tmpl<T> dependent; // uses C::T
+		Tmpl<int>::Inner<T> dep2; // uses C::T (and Tmpl::T)
+		Tmpl<int>::Inner<T> dep3; // uses C::T (and Tmpl::Inner::U)
+	};
+}
+
+#endif
+
+
+
 namespace N063
 {
 	template<typename T>
@@ -583,29 +1015,6 @@ namespace N023
 	Tmpl<char>::Type x;
 }
 
-namespace N031
-{
-	template<typename T>
-	struct Tmpl
-	{
-		Tmpl f(); // 'Tmpl' should resolve to 'Tmpl<T>'
-	};
-
-	template<>
-	struct Tmpl<int>
-	{
-		Tmpl f(); // 'Tmpl' should resolve to 'Tmpl<int>'
-	};
-
-	void f()
-	{
-		Tmpl<float> x;
-		x.f();
-		Tmpl<int> y;
-		y.f();
-	}
-}
-
 #if 0 // TODO: friend function in template
 namespace N030
 {
@@ -1146,152 +1555,6 @@ namespace std
 
 
 
-
-
-
-
-
-#if 0
-
-template<typename A, typename B = A>
-struct C
-{
-	typedef int I;
-};
-
-template<typename T1>
-struct O0
-{
-	struct S1
-	{
-		static void f()
-		{
-			O0<T1>::S1 a;
-		}
-	};
-
-	template<typename T2>
-	struct L1
-	{
-		typedef C<T1> D_O0; // depends on O0
-		typedef C<T2> D_L1; // depends on L1
-		typedef C<T1, T2> D_O0_L1; // depends on L1 and O0
-		static void f()
-		{
-			// C<int>::dependent();  // not dependent
-			C<T1>::dependent(); // depends on O0, instantiated with L1
-			C<T2>::dependent(); // depends on L1, instantiated with L1
-			C<T1, T2>::dependent(); // depends on L1 and O0, instantiated with L1
-
-			D_O0::dependent(); // depends on O0
-			D_L1::dependent(); // depends on L1
-			D_O0_L1::dependent(); // depends on L1 and O0
-		}
-	};
-
-	static void f()
-	{
-		//C<int>::dependent(); // not dependent
-		typename O0<T1>::S1::T a; // dependent
-		O0<T1>::S1::dependent(); // S1 is member of O0, causes it to depend on O0
-		L1<int>::dependent(); // L1 is member of O0, causes it to depend on O0
-
-		L1<int>::D_O0::dependent(); // depends on O0
-		L1<int>::D_L1::dependent(); // depends on L1
-		L1<int>::D_O0_L1::dependent(); // depends on L1 and O0
-	}
-};
-
-static int f()
-{
-	C<int>::I a; // not dependent
-	O0<int>::L1<int>::D_O0 x;
-	O0<int>::L1<int>::D_L1 y;
-	O0<int>::L1<int>::D_O0_L1 z;
-}
-
-
-template<typename U>
-struct Outer
-{
-	typedef U Type;
-
-	template<typename T>
-	struct First
-	{
-		typedef T Type; // 'Type' depends on First<>;
-		typedef typename First<Type>::Type Type2; // First<Type> is a dependent template-id'; First<Type>::Type is a dependent qualified-id
-		typedef U Type3; // 'Type3' depends on Outer<>;
-		typedef typename First<Type3>::Type Type4; // First<Type> is a dependent template-id'; First<Type>::Type is a dependent qualified-id
-
-
-		struct Inner : T
-		{
-		};
-	};
-
-	// can't instantiate First<int> because it is implicitly Outer<U>::First<int>
-	typedef First<int>::Type FirstType; // instantiate First<int>; 'Type' depends on First<>, so look it up in the instantiation
-	typedef First<int>::Type2 FirstType2; // instantiate First<int>; 'Type2' depends on First<>
-	typedef First<int>::Type3 FirstType3; // instantiate First<int>; 'Type3' depends on Outer<>, not instantiated at this point
-	typedef First<int>::Type4 FirstType4; // instantiate First<int>; 'Type4' depends on Outer<>, not instantiated at this point
-	typedef First<int>::Inner InnerT; // instantiate First<int>;
-	typedef typename First<U>::Type FirstType2; // instantiate First<U> - fails. Lookup of 'Type' deferred.
-
-	template<typename T>
-	struct Second
-	{
-		First<T>::Type m; // 'Type' depends on Second<> (via its qualified-id), but not First<> (because outside its definition)
-		// can't instantiate First<int> because it is implicitly Outer<U>::First<int>
-		First<int>::Type m; // 'Type' not dependent on First<> (because outside its definition)
-		First<int>::Type3 m; // 'Type3' depends on Outer<>
-		typedef First<T>::Type FirstType; // add 'FirstType' to type-instantiation set
-		FirstType m2; // add 'm2' to type-instantiation set
-	};
-};
-
-
-template<typename T>
-struct Tmpl
-{
-	typedef T Type;
-	typedef Tmpl<T> Self; // uses Tmpl::T
-
-	template<typename U> // .. T also is an inherited implicit template param
-	struct Inner
-	{
-		typedef Inner<U> Self; // uses Inner::U
-		typedef Inner<T> Self2; // uses Tmpl::T
-		typedef U Type; // uses Inner::U
-		typedef T OuterType; // uses Tmpl::T
-
-		void f()
-		{
-			Tmpl<int> m1; // not dependent
-			Tmpl<T> m2; // not dependent (is current instantiation)
-			Tmpl<U>::dependent(); // dependent (uses Inner::U)
-		}
-	};
-
-	void f()
-	{
-		Self::Type m; // not dependent (is current instantiation)
-		Type::dependent(); // dependent (uses Tmpl::T)
-		Inner<int>::dependent(); // uses Tmpl::T
-		Inner<int>::Self::dependent(); // dependent (uses Tmpl::T)
-		Inner<int>::Self2::dependent(); // dependent (uses Tmpl::T)
-	}
-};
-
-template<typename T>
-struct C
-{
-	Tmpl<T> dependent; // uses C::T
-	Tmpl<int>::Inner<T> dep2; // uses C::T (and Tmpl::T)
-	Tmpl<int>::Inner<T> dep3; // uses C::T (and Tmpl::Inner::U)
-};
-
-#endif
 
 #if 0
 void hidden(int)

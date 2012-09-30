@@ -710,8 +710,11 @@ struct WalkerState
 
 	bool isDependent(const Type& type) const
 	{
+
 		//std::cout << "isDependent(Type)" << std::endl;
-		return ::isDependent(type, DependentContext(*enclosing, templateParamScope != 0 ? *templateParamScope : SCOPE_NULL));
+		bool result = ::isDependent(type, DependentContext(*enclosing, templateParamScope != 0 ? *templateParamScope : SCOPE_NULL));
+		SEMANTIC_ASSERT(result == isDependent(type.dependent));
+		return result;
 	}
 
 	bool isDependent(const TemplateArguments& arguments) const
@@ -740,23 +743,104 @@ struct WalkerState
 		return ::evaluateDependent(dependent, DependentContext(*enclosing, templateParamScope != 0 ? *templateParamScope : SCOPE_NULL));
 	}
 
+
+
+	bool isDependent(Declaration* dependent) const
+	{
+		return dependent != 0
+			&& (dependent->scope->type == SCOPETYPE_TEMPLATE // hack, workaround for template-scope being copied
+				|| findScope(enclosing, dependent->scope) != 0
+				|| findScope(templateParamScope, dependent->scope) != 0); // if we are within the candidate template-parameter's template-definition
+	}
+	// the dependent-scope is the outermost template-definition
+	void setDependent(DeclarationPtr& dependent, Declaration* candidate)
+	{
+		if(!isDependent(candidate))
+		{
+			return;
+		}
+		SEMANTIC_ASSERT(candidate->scope->type != SCOPETYPE_NAMESPACE);
+		if(dependent != 0
+			&& findScope(candidate->scope, dependent->scope)) // if the candidate template-parameter's template-definition is within the current dependent-scope
+		{
+			return; // already dependent on outer template
+		}
+		dependent = candidate; // the candidate template-parameter is within the current dependent-scope
+	}
+	void setDependent(DeclarationPtr& dependent, Declaration& declaration)
+	{
+		if(declaration.templateParameter != INDEX_INVALID)
+		{
+			setDependent(dependent, &declaration);
+		}
+		else if(declaration.specifiers.isTypedef)
+		{
+			setDependent(dependent, declaration.type.dependent);
+		}
+		else if(isClass(declaration)
+			&& isComplete(declaration))
+		{
+			setDependent(dependent, declaration.enclosed->bases);
+		}
+
+		setDependent(dependent, declaration.valueDependent.enclosingTemplate);
+	}
+	void setDependent(DeclarationPtr& dependent, const Qualifying& qualifying)
+	{
+		if(!qualifying.empty())
+		{
+			const Type& type = qualifying.back();
+			setDependent(dependent, type.dependent);
+			setDependent(dependent, type.qualifying);
+		}
+	}
+	void setDependent(DeclarationPtr& dependent, const Types& bases)
+	{
+		for(Types::const_iterator i = bases.begin(); i != bases.end(); ++i)
+		{
+			setDependent(dependent, (*i).dependent);
+		}
+	}
+	void setDependent(Type& type, const TemplateArguments& arguments)
+	{
+		for(TemplateArguments::const_iterator i = arguments.begin(); i != arguments.end(); ++i)
+		{
+			setDependent(type.dependent, (*i).type.dependent);
+			setDependent(type.dependent, (*i).dependent.enclosingTemplate);
+		}
+	}
+	void setDependent(Type& type, Declaration* declaration)
+	{
+		setDependent(type.dependent, declaration);
+	}
+	void setDependent(Type& type, Declaration& declaration)
+	{
+		setDependent(type.dependent, declaration);
+	}
+
 	void addDependent(Dependent& dependent, const DependencyCallback& callback)
 	{
 		dependent.push_front(callback);
 	}
 	void addDependentName(Dependent& dependent, Declaration* declaration)
 	{
+		setDependent(dependent.enclosingTemplate, *declaration);
+
 		static DependencyCallbacks<Declaration> callbacks = makeDependencyCallbacks(isDependentName);
 		addDependent(dependent, makeDependencyCallback(declaration, &callbacks));
 	}
 	void addDependentType(Dependent& dependent, Declaration* declaration)
 	{
+		setDependent(dependent.enclosingTemplate, *declaration);
+
 		static DependencyCallbacks<const Type> callbacks = makeDependencyCallbacks(isDependentType);
 		SEMANTIC_ASSERT(declaration->type.declaration != 0);
 		addDependent(dependent, makeDependencyCallback(static_cast<const Type*>(&declaration->type), &callbacks));
 	}
 	void addDependent(Dependent& dependent, const Type& type)
 	{
+		setDependent(dependent.enclosingTemplate, type.dependent);
+
 		TypeRef tmp(type, context);
 		SEMANTIC_ASSERT(type.declaration != 0);
 		static DependencyCallbacks<TypePtr::Value> callbacks = makeDependencyCallbacks(isDependentTypeRef, ReferenceCallbacks<const Type>::increment, ReferenceCallbacks<const Type>::decrement);
@@ -764,6 +848,8 @@ struct WalkerState
 	}
 	void addDependent(Dependent& dependent, Scope* scope)
 	{
+		setDependent(dependent.enclosingTemplate, scope->bases);
+
 		static DependencyCallbacks<Scope> callbacks = makeDependencyCallbacks(isDependentClass);
 		addDependent(dependent, makeDependencyCallback(scope, &callbacks));
 	}
@@ -775,6 +861,8 @@ struct WalkerState
 #else
 	void addDependent(Dependent& dependent, Dependent& other)
 	{
+		setDependent(dependent.enclosingTemplate, other.enclosingTemplate);
+
 		if(other.empty())
 		{
 			return;
@@ -851,54 +939,6 @@ struct WalkerBase : public WalkerState
 		}
 		enclosed->name = declaration->getName();
 		return declaration;
-	}
-
-
-	// the dependent-scope is the innermost template-definition
-	void setDependent(DeclarationPtr& dependent, Declaration* candidate)
-	{
-		if(candidate == 0)
-		{
-			return;
-		}
-		if(!findScope(enclosing, candidate->scope)) // if we are not within the candidate template-parameter's template-definition
-		{
-			return; // cannot be dependent on it
-		}
-		if(dependent != 0
-			&& findScope(dependent->scope, candidate->scope)) // if the current dependent-scope is within the candidate template-parameter's template-definition
-		{
-			return; // already dependent on inner template
-		}
-		dependent = candidate; // the candidate template-parameter is within the current dependent-scope
-	}
-	void setDependent(DeclarationPtr& dependent, Declaration& declaration)
-	{
-		if(declaration.templateParameter != INDEX_INVALID)
-		{
-			setDependent(dependent, &declaration);
-		}
-		else if(declaration.specifiers.isTypedef)
-		{
-			setDependent(dependent, declaration.type.dependent);
-		}
-	}
-	void setDependent(DeclarationPtr& dependent, const Qualifying& qualifying)
-	{
-		if(!qualifying.empty())
-		{
-			const Type& type = qualifying.back();
-			setDependent(dependent, *type.declaration);
-			setDependent(dependent, type.qualifying);
-		}
-	}
-	void setDependent(Type& type, Declaration* declaration)
-	{
-		setDependent(type.dependent, declaration);
-	}
-	void setDependent(Type& type, Declaration& declaration)
-	{
-		setDependent(type.dependent, declaration);
 	}
 
 	void addDeferredLookupType(Declaration& declaration)
@@ -1261,10 +1301,9 @@ struct TemplateArgumentListWalker : public WalkerBase
 
 	TemplateArgument argument;
 	TemplateArguments arguments;
-	DeclarationPtr dependent;
 
 	TemplateArgumentListWalker(const WalkerState& state)
-		: WalkerBase(state), argument(context), arguments(context), dependent(0)
+		: WalkerBase(state), argument(context), arguments(context)
 	{
 	}
 	void visit(cpp::type_id* symbol)
@@ -1272,8 +1311,7 @@ struct TemplateArgumentListWalker : public WalkerBase
 		TypeIdWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		argument.type.swap(walker.type);
-		argument.dependent.swap(walker.valueDependent);
-		setDependent(dependent, argument.type.dependent);
+		addDependent(argument.dependent, walker.valueDependent);
 	}
 	void visit(cpp::assignment_expression* symbol)
 	{
@@ -1282,7 +1320,6 @@ struct TemplateArgumentListWalker : public WalkerBase
 		argument.dependent.swap(walker.typeDependent);
 		argument.type = &gNonType;
 		addDependent(argument.dependent, walker.valueDependent);
-		setDependent(dependent, walker.dependent);
 	}
 	void visit(cpp::template_argument_list* symbol)
 	{
@@ -1290,7 +1327,6 @@ struct TemplateArgumentListWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		arguments.swap(walker.arguments);
 		arguments.push_front(walker.argument); // allocates last element first!
-		setDependent(dependent, walker.dependent);
 	}
 };
 
@@ -1336,9 +1372,8 @@ struct TemplateIdWalker : public WalkerBase
 
 	IdentifierPtr id;
 	TemplateArguments arguments;
-	DeclarationPtr dependent;
 	TemplateIdWalker(const WalkerState& state)
-		: WalkerBase(state), id(0), arguments(context), dependent(0)
+		: WalkerBase(state), id(0), arguments(context)
 	{
 	}
 	void visit(cpp::identifier* symbol)
@@ -1363,7 +1398,6 @@ struct TemplateIdWalker : public WalkerBase
 		TemplateArgumentListWalker walker(getState());
 		TREEWALKER_WALK_CACHED(walker, symbol);
 		arguments.swap(walker.arguments);
-		dependent = walker.dependent;
 	}
 };
 
@@ -1513,11 +1547,10 @@ struct IdExpressionWalker : public WalkerQualified
 	DeclarationPtr declaration;
 	IdentifierPtr id;
 	TemplateArguments arguments; // only used if the identifier is a template-name
-	DeclarationPtr dependent;
 	bool isIdentifier;
 	bool isTemplate;
 	IdExpressionWalker(const WalkerState& state, bool isTemplate = false)
-		: WalkerQualified(state), declaration(0), id(0), arguments(context), dependent(0), isIdentifier(false), isTemplate(isTemplate)
+		: WalkerQualified(state), declaration(0), id(0), arguments(context), isIdentifier(false), isTemplate(isTemplate)
 	{
 	}
 	void visit(cpp::qualified_id_default* symbol)
@@ -1529,7 +1562,6 @@ struct IdExpressionWalker : public WalkerQualified
 		id = walker.id;
 		arguments.swap(walker.arguments);
 		swapQualifying(walker.qualifying);
-		setDependent(dependent, walker.qualifying);
 	}
 	void visit(cpp::qualified_id_global* symbol)
 	{
@@ -1540,7 +1572,6 @@ struct IdExpressionWalker : public WalkerQualified
 		id = walker.id;
 		arguments.swap(walker.arguments);
 		swapQualifying(walker.qualifying);
-		setDependent(dependent, walker.qualifying);
 	}
 	void visit(cpp::unqualified_id* symbol)
 	{
@@ -1551,10 +1582,6 @@ struct IdExpressionWalker : public WalkerQualified
 		id = walker.id;
 		arguments.swap(walker.arguments);
 		isIdentifier = walker.isIdentifier;
-		if(declaration != 0) // TODO: assert
-		{
-			setDependent(dependent, *declaration);
-		}
 	}
 };
 
@@ -1565,9 +1592,8 @@ struct ExplicitTypeExpressionWalker : public WalkerBase
 	TypeId type;
 	Dependent typeDependent;
 	Dependent valueDependent;
-	DeclarationPtr dependent;
 	ExplicitTypeExpressionWalker(const WalkerState& state)
-		: WalkerBase(state), type(0, context), typeDependent(context), valueDependent(context), dependent(0)
+		: WalkerBase(state), type(0, context), typeDependent(context), valueDependent(context)
 	{
 	}
 	void visit(cpp::simple_type_specifier* symbol)
@@ -1580,7 +1606,6 @@ struct ExplicitTypeExpressionWalker : public WalkerBase
 			type = getFundamentalType(walker.fundamental);
 		}
 		addDependent(typeDependent, type);
-		setDependent(dependent, type.dependent);
 	}
 	void visit(cpp::typename_specifier* symbol)
 	{
@@ -1588,7 +1613,6 @@ struct ExplicitTypeExpressionWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		type.swap(walker.type);
 		addDependent(typeDependent, type);
-		setDependent(dependent, type.dependent);
 	}
 	void visit(cpp::type_id* symbol)
 	{
@@ -1597,7 +1621,6 @@ struct ExplicitTypeExpressionWalker : public WalkerBase
 		type.swap(walker.type);
 		addDependent(typeDependent, type);
 		addDependent(typeDependent, walker.valueDependent);
-		setDependent(dependent, type.dependent);
 	}
 	void visit(cpp::new_type* symbol)
 	{
@@ -1606,21 +1629,18 @@ struct ExplicitTypeExpressionWalker : public WalkerBase
 		type.swap(walker.type);
 		addDependent(typeDependent, type);
 		addDependent(typeDependent, walker.valueDependent);
-		setDependent(dependent, type.dependent);
 	}
 	void visit(cpp::assignment_expression* symbol)
 	{
 		ExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		addDependent(valueDependent, walker.valueDependent);
-		setDependent(dependent, walker.dependent);
 	}
 	void visit(cpp::cast_expression* symbol)
 	{
 		ExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		addDependent(valueDependent, walker.valueDependent);
-		setDependent(dependent, walker.dependent);
 	}
 };
 
@@ -1631,9 +1651,8 @@ struct ArgumentListWalker : public WalkerBase
 	UniqueTypeIds arguments;
 	Dependent typeDependent;
 	Dependent valueDependent;
-	DeclarationPtr dependent;
 	ArgumentListWalker(const WalkerState& state)
-		: WalkerBase(state), arguments(context), typeDependent(context), valueDependent(context), dependent(0)
+		: WalkerBase(state), arguments(context), typeDependent(context), valueDependent(context)
 	{
 	}
 	void visit(cpp::assignment_expression* symbol)
@@ -1643,7 +1662,6 @@ struct ArgumentListWalker : public WalkerBase
 		arguments.push_front(walker.type);
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
-		setDependent(dependent, walker.dependent);
 	}
 };
 
@@ -1679,9 +1697,8 @@ struct DependentPrimaryExpressionWalker : public WalkerBase
 	DeclarationPtr declaration;
 	IdentifierPtr id;
 	Dependent typeDependent;
-	DeclarationPtr dependent;
 	DependentPrimaryExpressionWalker(const WalkerState& state)
-		: WalkerBase(state), declaration(0), id(0), typeDependent(context), dependent(0)
+		: WalkerBase(state), declaration(0), id(0), typeDependent(context)
 	{
 	}
 	void visit(cpp::id_expression* symbol)
@@ -1713,8 +1730,7 @@ struct DependentPrimaryExpressionWalker : public WalkerBase
 					return reportIdentifierMismatch(symbol, *walker.id, declaration, "object-name");
 				}
 				walker.id->dec.p = declaration;
-				addDependentType(typeDependent, declaration);
-				setDependent(dependent, *declaration); // an id-expression is type-dependent if it contains an identifier that was declared with a dependent type
+				addDependentType(typeDependent, declaration); // an id-expression is type-dependent if it contains an identifier that was declared with a dependent type
 			}
 			else if(walker.id != 0)
 			{
@@ -1722,7 +1738,6 @@ struct DependentPrimaryExpressionWalker : public WalkerBase
 				if(!walker.qualifying.empty())
 				{
 					addDependent(typeDependent, walker.qualifying.back());
-					setDependent(dependent, walker.qualifying.back().dependent); // TODO: necessary?
 				}
 			}
 		}
@@ -1732,7 +1747,6 @@ struct DependentPrimaryExpressionWalker : public WalkerBase
 		ExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		addDependent(typeDependent, walker.typeDependent);
-		setDependent(dependent, walker.dependent);
 	}
 };
 
@@ -1867,7 +1881,6 @@ struct PrimaryExpressionWalker : public WalkerBase
 		'this' is type-dependent if the class type of the enclosing member function is dependent
 		*/
 		addDependent(typeDependent, getClassScope()); // TODO: use full type, not just scope
-		//setDependent(type, *declaration); // TODO: dependent if base classes are dependent
 		setExpressionType(symbol, type);
 	}
 };
@@ -2059,10 +2072,10 @@ struct PostfixExpressionWalker : public WalkerBase
 			addDependentName(valueDependent, declaration);
 			id->dec.p = declaration;
 
-			if(!isDependent(declaration->type)
+			if(type.value != UNIQUETYPE_NULL // TODO: dependent member name lookup
+				&& !isDependent(declaration->type)
 				&& !isDependent(walker.qualifying.get_ref())
-				&& !declaration->type.isImplicitTemplateId // TODO: 
-				&& type.value != UNIQUETYPE_NULL) // TODO: dependent member name lookup
+				&& !declaration->type.isImplicitTemplateId) // TODO: 
 			{
 				if(walker.isArrow) // dereference
 				{
@@ -2121,9 +2134,8 @@ struct ExpressionWalker : public WalkerBase
 	*/
 	Dependent typeDependent;
 	Dependent valueDependent;
-	DeclarationPtr dependent;
 	ExpressionWalker(const WalkerState& state)
-		: WalkerBase(state), id(0), typeDependent(context), valueDependent(context), dependent(0)
+		: WalkerBase(state), id(0), typeDependent(context), valueDependent(context)
 	{
 	}
 	// this path handles the right-hand side of a binary expression
@@ -2137,7 +2149,6 @@ struct ExpressionWalker : public WalkerBase
 		id = walker.id;
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
-		setDependent(dependent, walker.dependent);
 		// TODO: SEMANTIC_ASSERT(type.declaration != 0 && walker.type.declaration != 0);
 		type = select(type, walker.type);
 		ExpressionType<T>::set(symbol, type);
@@ -2300,7 +2311,6 @@ struct ExpressionWalker : public WalkerBase
 		type = isDependent(walker.type) ? gUniqueTypeNull : makeUniqueType(walker.type, enclosingType);
 		type.push_front(DeclaratorPointer());
 		addDependent(typeDependent, walker.typeDependent);
-		setDependent(dependent, walker.dependent);
 		setExpressionType(symbol, type);
 	}
 	void visit(cpp::new_expression_default* symbol)
@@ -2310,7 +2320,6 @@ struct ExpressionWalker : public WalkerBase
 		type = isDependent(walker.type) ? gUniqueTypeNull : makeUniqueType(walker.type, enclosingType);
 		type.push_front(DeclaratorPointer());
 		addDependent(typeDependent, walker.typeDependent);
-		setDependent(dependent, walker.dependent);
 		setExpressionType(symbol, type);
 	}
 	void visit(cpp::cast_expression_default* symbol)
@@ -2322,7 +2331,6 @@ struct ExpressionWalker : public WalkerBase
 		addDependent(valueDependent, tmp);
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
-		setDependent(dependent, walker.dependent);
 		setExpressionType(symbol, type);
 	}
 	/* 14.6.2.2-4
@@ -2438,6 +2446,21 @@ struct TypeNameWalker : public WalkerBase
 		type.isImplicitTemplateId = declaration->isTemplate;
 		symbol->value.dec.p = declaration;
 		setDependent(type, *declaration);
+#if 1 // temp hack, imitate previous isDependent behaviour
+		if(declaration->isTemplate
+			&& declaration->templateParameter == INDEX_INVALID) // ignore template-template-parameter
+		{
+			if(declaration->isSpecialization)
+			{
+				setDependent(type, declaration->templateArguments);
+			}
+			else
+			{
+				SEMANTIC_ASSERT(!declaration->templateParams.empty());
+				setDependent(type, *declaration->templateParams.front().declaration); // depend on first template param
+			}
+		}
+#endif
 	}
 
 	void visit(cpp::simple_template_id* symbol)
@@ -2463,7 +2486,7 @@ struct TypeNameWalker : public WalkerBase
 		type.declaration = declaration;
 		type.templateArguments.swap(walker.arguments);
 		setDependent(type, *declaration); // a template-id is dependent if the 'identifier' is a template-parameter
-		setDependent(type, walker.dependent); // a template-id is dependent if any of its arguments are dependent
+		setDependent(type, type.templateArguments); // a template-id is dependent if any of its arguments are dependent
 	}
 };
 
@@ -2498,6 +2521,10 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 		type = declaration;
 		type.id = &symbol->value;
 		symbol->value.dec.p = declaration;
+		if(declaration != &gDependentNested)
+		{
+			setDependent(type, *type.declaration); // a template-id is dependent if the 'identifier' is a template-parameter
+		}
 	}
 	void visit(cpp::simple_template_id* symbol)
 	{
@@ -2517,6 +2544,11 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 		type = declaration;
 		type.id = walker.id;
 		type.templateArguments.swap(walker.arguments);
+		if(declaration != &gDependentNested)
+		{
+			setDependent(type, *type.declaration); // a template-id is dependent if the 'identifier' is a template-parameter
+			setDependent(type, type.templateArguments); // a template-id is dependent if any of its arguments are dependent
+		}
 	}
 };
 
@@ -2639,6 +2671,7 @@ struct TypeSpecifierWalker : public WalkerQualified
 		SEMANTIC_ASSERT(walker.type.declaration != 0);
 		type.swap(walker.type);
 		type.qualifying.swap(qualifying);
+		setDependent(type.dependent, type.qualifying);
 	}
 	void visit(cpp::terminal<boost::wave::T_COLON_COLON> symbol)
 	{
@@ -2671,10 +2704,12 @@ struct TypeSpecifierWalker : public WalkerQualified
 			return reportIdentifierMismatch(symbol, filter.nonType->getName(), filter.nonType, "type-name");
 		}
 		walker.id->dec.p = declaration;
-		setDependent(type, *declaration); // a template-id is dependent if the template-name is a template-parameter
 		type.declaration = declaration;
 		type.templateArguments.swap(walker.arguments);
 		type.qualifying.swap(qualifying);
+		setDependent(type, *type.declaration); // a template-id is dependent if the template-name is a template-parameter
+		setDependent(type, type.templateArguments); // a template-id is dependent if any of the template arguments are dependent
+		setDependent(type.dependent, type.qualifying);
 	}
 	void visit(cpp::simple_type_specifier_builtin* symbol)
 	{
@@ -3086,6 +3121,7 @@ struct BaseSpecifierWalker : public WalkerQualified
 		TREEWALKER_WALK(walker, symbol);
 		type.swap(walker.type);
 		type.qualifying.swap(qualifying);
+		setDependent(type.dependent, type.qualifying);
 	}
 };
 
@@ -3659,6 +3695,7 @@ struct TypenameSpecifierWalker : public WalkerQualified
 		}
 		type.swap(walker.type);
 		type.qualifying.swap(qualifying);
+		setDependent(type.dependent, type.qualifying);
 	}
 };
 
