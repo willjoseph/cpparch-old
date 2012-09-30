@@ -151,6 +151,11 @@ Scope::DeclarationList::const_iterator getFirstFunctionParameter(const Scope::De
 	return i;
 }
 
+inline bool isFunctionParameterEquivalent(const Declaration& left, const Declaration& right)
+{
+	return isEqual(left.type, right.type); // TODO: cv-qualifiers
+}
+
 inline bool isEquivalent(const Scope::DeclarationList& left, const Scope::DeclarationList& right)
 {
 	Scope::DeclarationList::const_iterator l = getFirstFunctionParameter(left);
@@ -165,12 +170,21 @@ inline bool isEquivalent(const Scope::DeclarationList& left, const Scope::Declar
 		{
 			return false;
 		}
-		if(!isEqual((*l)->type, (*r)->type))
+		if(!isFunctionParameterEquivalent(**l, **r))
 		{
 			return false;
 		}
 	}
 	return true;
+}
+
+inline bool isReturnTypeEqual(const TypeId& left, const TypeId& right)
+{
+	UniqueTypeWrapper l = makeUniqueType(left, 0, true);
+	UniqueTypeWrapper r = makeUniqueType(right, 0, true);
+	return l.isFunction()
+		&& r.isFunction()
+		&& isEqualInner(l, r);
 }
 
 struct TypeSequenceGetDeclaratorFunction : TypeElementVisitor
@@ -179,6 +193,10 @@ struct TypeSequenceGetDeclaratorFunction : TypeElementVisitor
 	TypeSequenceGetDeclaratorFunction()
 		: result(0)
 	{
+	}
+	void visit(const DeclaratorDependent& element)
+	{
+		result = 0;
 	}
 	void visit(const DeclaratorObject& element)
 	{
@@ -253,7 +271,7 @@ inline bool isEquivalent(const Declaration& declaration, const Declaration& othe
 		// if they are in the same scope and have equivalent parameter declarations.
 		SYMBOLS_ASSERT(isDeclaratorFunction(other.type)); // TODO: non-fatal error: 'id' previously declared as non-function, second declaration is a function
 		return declaration.isTemplate == other.isTemplate // early out
-			&& isEqual(declaration.type, other.type) // return-types match
+			&& isReturnTypeEqual(declaration.type, other.type) // return-types match
 			&& isEquivalent(getDeclaratorFunction(declaration.type)->paramScope->declarationList, getDeclaratorFunction(other.type)->paramScope->declarationList); // and parameter-types match
 	}
 	return false;

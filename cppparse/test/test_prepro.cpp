@@ -1,4 +1,58 @@
 
+namespace N057
+{
+	typedef const int ConstInt;
+	ConstInt i;
+	void f()
+	{
+		i + 1;
+	}
+
+	typedef ConstInt* PtrToConstInt;
+	typedef int* PtrToInt;
+	typedef const PtrToInt ConstPtrToInt;
+	typedef int const* ConstPtrToInt2;
+
+	typedef int FuncRetInt();
+	typedef const FuncRetInt ConstFuncRetInt; // unspecified behaviour!
+
+	struct S
+	{
+		typedef int MemFuncRetInt();
+		typedef const MemFuncRetInt ConstMemFuncRetInt; // unspecified behaviour!
+	};
+}
+
+namespace N056
+{
+	void f(int);
+	void f(const int); // redeclaration
+}
+
+namespace N055
+{
+	void f()
+	{
+		try
+		{
+		}
+		catch(int) // abstract declarator
+		{
+		}
+	}
+}
+
+namespace N048
+{
+	template<typename T>
+	struct Tmpl
+	{
+		void f(Tmpl); // declaration
+		void f(int); // declaration
+	};
+}
+
+
 namespace N054
 {
 	template<bool C_>
@@ -149,16 +203,6 @@ namespace N049
 	}
 }
 
-
-namespace N048
-{
-	template<typename T>
-	struct Tmpl
-	{
-		void f(Tmpl); // declaration
-		void f(int); // declaration
-	};
-}
 
 namespace N046
 {

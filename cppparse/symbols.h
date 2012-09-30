@@ -274,6 +274,7 @@ const SequenceNode<Visitor>* findLast(const SequenceNode<Visitor>* node)
 
 struct TypeElementVisitor
 {
+	virtual void visit(const struct DeclaratorDependent&) = 0;
 	virtual void visit(const struct DeclaratorObject&) = 0;
 	virtual void visit(const struct DeclaratorPointer&) = 0;
 	virtual void visit(const struct DeclaratorReference&) = 0;
@@ -1469,6 +1470,10 @@ struct UniqueTypeWrapper
 	{
 		return typeid(*value) == typeid(TypeElementGeneric<DeclaratorFunction>);
 	}
+	bool isDependent() const
+	{
+		return typeid(*value) == typeid(TypeElementGeneric<DeclaratorDependent>);
+	}
 	bool isSimplePointer() const
 	{
 		return isPointer()
@@ -1609,7 +1614,25 @@ inline const TypeInstance& getObjectType(UniqueType type)
 	return static_cast<const TypeElementGeneric<DeclaratorObject>*>(type)->value.type;
 }
 
+// TODO: consider template-template-parameter
+struct DeclaratorDependent
+{
+	DeclarationPtr type; // the declaration of the template parameter
+	DeclaratorDependent(Declaration* type)
+		: type(type)
+	{
+	}
+};
 
+inline bool operator==(const DeclaratorDependent& left, const DeclaratorDependent& right)
+{
+	return left.type->templateParameter == right.type->templateParameter; // TODO: don't compare equal unless same template nesting depth
+}
+
+inline bool operator<(const DeclaratorDependent& left, const DeclaratorDependent& right)
+{
+	return left.type->templateParameter < right.type->templateParameter; // TODO: don't compare equal unless same template nesting depth
+}
 
 
 struct DeclaratorPointer
@@ -1772,6 +1795,10 @@ struct TypeSequenceMakeUnique : TypeElementVisitor
 		: type(type)
 	{
 	}
+	void visit(const DeclaratorDependent& element)
+	{
+		throw SymbolsError(); // error!
+	}
 	void visit(const DeclaratorObject& element)
 	{
 		pushUniqueType(type, element);
@@ -1817,8 +1844,44 @@ inline Declaration* findPrimaryTemplate(Declaration* declaration)
 
 
 inline UniqueTypeWrapper makeUniqueType(const TypeId& type);
-inline UniqueTypeWrapper makeUniqueType(const TypeId& type, const TypeInstance* enclosing, std::size_t depth = 0);
-inline UniqueTypeWrapper makeUniqueType(const Type& type, const TypeInstance* enclosing, std::size_t depth = 0);
+inline UniqueTypeWrapper makeUniqueType(const TypeId& type, const TypeInstance* enclosing, bool allowDependent, std::size_t depth);
+inline UniqueTypeWrapper makeUniqueType(const Type& type, const TypeInstance* enclosing, bool allowDependent, std::size_t depth);
+
+struct TypeError
+{
+	TypeError()
+	{
+	}
+};
+
+inline UniqueTypeWrapper makeUniqueType(const TypeId& type, const TypeInstance* enclosing, bool allowDependent = false)
+{
+	try
+	{
+		return makeUniqueType(type, enclosing, allowDependent, 0);
+	}
+	catch(TypeError)
+	{
+		std::cout << "makeUniqueType failed!" << std::endl;
+		extern ObjectTypeId gBaseClass;
+		return gBaseClass;
+	}
+}
+
+inline UniqueTypeWrapper makeUniqueType(const Type& type, const TypeInstance* enclosing, bool allowDependent = false)
+{
+	try
+	{
+		return makeUniqueType(type, enclosing, allowDependent, 0);
+	}
+	catch(TypeError)
+	{
+		std::cout << "makeUniqueType failed!" << std::endl;
+		extern ObjectTypeId gBaseClass;
+		return gBaseClass;
+	}
+}
+
 
 struct DeferredLookupCallback
 {
@@ -1914,18 +1977,32 @@ inline bool isDependent(const Type& type, Scope* enclosing)
 		&& findScope(enclosing, type.dependent->scope);
 }
 
-inline const TypeInstance* makeUniqueEnclosing(const Qualifying& qualifying, const TypeInstance* enclosing, std::size_t depth = 0)
+inline const TypeInstance* makeUniqueEnclosing(const Qualifying& qualifying, const TypeInstance* enclosing, bool allowDependent, std::size_t depth)
 {
 	if(!qualifying.empty())
 	{
-		return &getObjectType(makeUniqueType(*qualifying.get(), enclosing, depth).value);
+		UniqueTypeWrapper result = makeUniqueType(*qualifying.get(), enclosing, allowDependent, depth);
+		if(allowDependent
+			&& result.isDependent())
+		{
+			return 0;
+		}
+		return &getObjectType(result.value);
 	}
 	return enclosing;
 }
 
-inline const TypeInstance* makeUniqueEnclosing(const Qualifying& qualifying)
+inline const TypeInstance* makeUniqueEnclosing(const Qualifying& qualifying, const TypeInstance* enclosing, bool allowDependent = false)
 {
-	return makeUniqueEnclosing(qualifying, 0);
+	try
+	{
+		return makeUniqueEnclosing(qualifying, enclosing, allowDependent, 0);
+	}
+	catch(TypeError)
+	{
+		std::cout << "makeUniqueEnclosing failed!" << std::endl;
+		return 0;
+	}
 }
 
 inline bool matchTemplateSpecialization(const Declaration& declaration, const TemplateArgumentsInstance& arguments, const TypeInstance* enclosing)
@@ -2062,23 +2139,21 @@ inline UniqueTypeWrapper makeUniqueType(const TypeInstance& type)
 	return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, UNIQUETYPE_NULL, DeclaratorObject(type)));
 }
 
-
 // unqualified object name: int, Object,
 // qualified object name: Qualifying::Object
 // unqualified typedef: Typedef, TemplateParam
 // qualified typedef: Qualifying::Type
 // /p type
 // /p enclosing The enclosing template, required when uniquing a template-argument: e.g. Enclosing<int>::Type
-inline UniqueTypeWrapper makeUniqueType(const Type& type, const TypeInstance* enclosingType, std::size_t depth)
+inline UniqueTypeWrapper makeUniqueType(const Type& type, const TypeInstance* enclosingType, bool allowDependent, std::size_t depth)
 {
-	if(depth++ == 1024)
+	if(depth++ == 256)
 	{
 		std::cout << "makeUniqueType reached maximum recursion depth!" << std::endl;
-		extern ObjectTypeId gBaseClass;
-		return gBaseClass;
+		throw TypeError();
 	}
 	// the type in which template-arguments are looked up: returns qualifying type if specified, else returns enclosingType
-	const TypeInstance* enclosing = makeUniqueEnclosing(type.qualifying, enclosingType, depth);
+	const TypeInstance* enclosing = makeUniqueEnclosing(type.qualifying, enclosingType, allowDependent, depth);
 	Declaration* declaration = type.declaration;
 	extern Declaration gDependentType;
 	extern Declaration gDependentTemplate;
@@ -2089,14 +2164,17 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, const TypeInstance* en
 	{
 		SYMBOLS_ASSERT(!type.qualifying.empty()); // the type-name must be qualified
 		SYMBOLS_ASSERT(type.id != IdentifierPtr(0));
-		SYMBOLS_ASSERT(enclosing != 0);
-		declaration = enclosing->declaration->enclosed != 0 
+		declaration = !allowDependent // the qualifying/enclosing type is not dependent
+				&& enclosing->declaration->enclosed != 0 // the qualifying/enclosing type is complete
 			? findDeclaration(*enclosing, *type.id, declaration == &gDependentNested ? LookupFilter(IsNestedName()) : LookupFilter(IsAny()))
 			: static_cast<Declaration*>(0);
 		// SYMBOLS_ASSERT(declaration != 0); // TODO: assert
 		if(declaration == 0)
 		{
-			std::cout << "lookup failed!" << std::endl;
+			if(!allowDependent)
+			{
+				std::cout << "lookup failed!" << std::endl;
+			}
 			extern ObjectTypeId gBaseClass;
 			return gBaseClass;
 		}
@@ -2144,20 +2222,19 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, const TypeInstance* en
 			// TODO: SYMBOLS_ASSERT(result.value != UNIQUETYPE_NULL); // fails for non-type template-argument
 			return result;
 		}
-#if 0
-		if(enclosing == 0)
+
+		if(allowDependent
+			/*&& enclosing == 0*/)
 		{
-			TypeInstance tmp(declaration, 0);
-			return makeUniqueType(tmp);
+			return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, UNIQUETYPE_NULL, DeclaratorDependent(declaration)));
 		}
-#else
+
 		throw SymbolsError();
 		return gUniqueTypeNull; // error: can't find template specialisation for this template parameter
-#endif
 	}
 	if(declaration->specifiers.isTypedef)
 	{
-		return makeUniqueType(declaration->type, enclosing, depth);
+		return makeUniqueType(declaration->type, enclosing, allowDependent, depth);
 	}
 	TypeInstance tmp(declaration, declaration->scope == 0 || declaration->scope->type != SCOPETYPE_CLASS ? 0 : findEnclosingType(enclosing, declaration->scope));
 	SYMBOLS_ASSERT(declaration->type.declaration != &gArithmetic || tmp.enclosing == 0); // arithmetic types should not have an enclosing template!
@@ -2178,7 +2255,7 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, const TypeInstance* en
 				extern Declaration gParam;
 				if(argument.declaration->type.declaration == &gParam) // ignore non-type arguments
 				{
-					result = makeUniqueType(argument, enclosingType, depth);
+					result = makeUniqueType(argument, enclosingType, allowDependent, depth);
 					SYMBOLS_ASSERT(result.value != UNIQUETYPE_NULL);
 				}
 				tmp.templateArguments.push_back(result);
@@ -2199,7 +2276,7 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, const TypeInstance* en
 				extern Declaration gNonType;
 				if(argument.declaration != &gNonType) // ignore non-type arguments
 				{
-					result = makeUniqueType(argument, isTemplateParamDefault ? &tmp : enclosingType, depth); // resolve dependent template-parameter-defaults in context of template class
+					result = makeUniqueType(argument, isTemplateParamDefault ? &tmp : enclosingType, allowDependent, depth); // resolve dependent template-parameter-defaults in context of template class
 					SYMBOLS_ASSERT(result.value != UNIQUETYPE_NULL);
 				}
 				tmp.templateArguments.push_back(result);
@@ -2223,9 +2300,9 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type)
 	return makeUniqueType(type, 0);
 }
 
-inline UniqueTypeWrapper makeUniqueType(const TypeId& type, const TypeInstance* enclosing, std::size_t depth)
+inline UniqueTypeWrapper makeUniqueType(const TypeId& type, const TypeInstance* enclosing, bool allowDependent, std::size_t depth)
 {
-	UniqueTypeWrapper result = makeUniqueType(*static_cast<const Type*>(&type), enclosing, depth);
+	UniqueTypeWrapper result = makeUniqueType(*static_cast<const Type*>(&type), enclosing, allowDependent, depth);
 	TypeSequenceMakeUnique visitor(result.value);
 	type.typeSequence.accept(visitor);
 	return result;
@@ -2767,9 +2844,10 @@ inline const TypeId& getUnderlyingType(const TypeId& type)
 
 inline bool isEqual(const TypeId& l, const TypeId& r)
 {
-#if 0
-	makeUniqueType(l);
-	makeUniqueType(r);
+#if 1
+	UniqueTypeWrapper left = makeUniqueType(l, 0, true);
+	UniqueTypeWrapper right = makeUniqueType(r, 0, true);
+	return left == right;
 #endif
 	// TODO: compare typeSequence
 	if(getUnderlyingType(l).declaration == getUnderlyingType(r).declaration)
@@ -3796,6 +3874,10 @@ struct TypeElementsAppend : TypeElementVisitor
 	{
 		typeElements.push_back(makeTypeElementOpaque(element));
 	}
+	void visit(const DeclaratorDependent& element)
+	{
+		throw SymbolsError(); // error!
+	}
 	void visit(const DeclaratorObject& element)
 	{
 		visitGeneric(element);
@@ -3872,6 +3954,11 @@ struct SymbolPrinter : TypeElementVisitor
 
 	const TypeSequence::Node* nextElement;
 
+	void visit(const DeclaratorDependent& dependent)
+	{
+		printName(dependent.type);
+		visitTypeElement();
+	}
 	void visit(const DeclaratorObject& object)
 	{
 		printName(object.type.declaration);

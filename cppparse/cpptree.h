@@ -1783,7 +1783,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(exception_declaration);
 		symbol<type_specifier_seq> type;
-		symbol<exception_declarator> decl;
+		symbol_optional<exception_declarator> decl;
 		FOREACH2(type, decl);
 	};
 
