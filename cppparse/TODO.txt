@@ -389,11 +389,11 @@
 				- merge function-parameter defaults
 			- for class: if  template parameters (or explicit-specialization template arguments) match
 			- for function: if template parameters and function parameters match
-			- 13.1-3 [over.load]
-				- resolve typedefs
+			- 13.1-3 [over.load] equivalent parameter list
+				+ resolve typedefs
+				+ const/volatile ignored
 				- array adjusted to pointer
 				- function adjusted to function-pointer
-				- const/volatile ignored
 			- use same comparison as when resolving template-specialization in a declarator-id?
 				- no, non-type params are not adjusted in the same way
 			- compare type of implicit-object parameter when comparing member function param list

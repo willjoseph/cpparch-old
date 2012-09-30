@@ -12,7 +12,118 @@ typedef boost::wave::token_id LexTokenId;
 
 
 class Declaration;
-typedef const struct TypeElement* UniqueType;
+struct TypeElement;
+
+struct CvQualifiers
+{
+	bool isConst;
+	bool isVolatile;
+	CvQualifiers()
+		: isConst(false), isVolatile(false)
+	{
+	}
+	CvQualifiers(bool isConst, bool isExtern)
+		: isConst(isConst), isVolatile(isVolatile)
+	{
+	}
+};
+
+inline bool operator==(const CvQualifiers& l, const CvQualifiers& r)
+{
+	return l.isConst == r.isConst
+		&& l.isVolatile == r.isVolatile;
+}
+
+inline bool operator<(const CvQualifiers& l, const CvQualifiers& r)
+{
+	return l.isConst != r.isConst ? l.isConst < r.isConst
+		: l.isVolatile != r.isVolatile ? l.isVolatile < r.isVolatile
+		: false;
+}
+
+#if 1
+struct UniqueType : CvQualifiers
+{
+#if 1
+	const TypeElement* p;
+	UniqueType()
+	{
+	}
+	UniqueType(const TypeElement* p)
+		: p(p)
+	{
+	}
+	const TypeElement* getPointer() const
+	{
+		return p;
+	}
+	void setQualifiers(CvQualifiers qualifiers)
+	{
+		*static_cast<CvQualifiers*>(this) = qualifiers;
+	}
+	CvQualifiers getQualifiers() const
+	{
+		return *this;
+	}
+	uintptr_t getBits() const
+	{
+		return uintptr_t(p)
+			| (uintptr_t(isConst) << 0)
+			| (uintptr_t(isVolatile) << 1);
+	}
+	bool operator<(const UniqueType& other) const
+	{
+		return getBits() < other.getBits();
+	}
+	bool operator==(const UniqueType& other) const
+	{
+		return getBits() == other.getBits();
+	}
+	const TypeElement& operator*() const
+	{
+		return *getPointer();
+	}
+	const TypeElement* operator->() const
+	{
+		return getPointer();
+	}
+#else // TODO
+	const uintptr_t FLAG0 = 1 << 0;
+	const uintptr_t FLAG1 = 1 << 1;
+	const uintptr_t FLAGS = FLAG0 | FLAG1;
+	const uintptr_t POINTER = ~FLAGS;
+	uintptr_t p;
+
+	UniqueType(const TypeElement* p)
+		: p(p)
+	{
+	}
+	const TypeElement* getPointer() const
+	{
+		return reinterpret_cast<const TypeElement*>(uintptr_t(p) & POINTER);
+	}
+	bool getFlag(uintptr_t flag) const
+	{
+		return (uintptr_t(p) & flag) != 0;
+	}
+	const TypeElement& operator*() const
+	{
+		return *getPointer();
+	}
+	const TypeElement* operator->() const
+	{
+		return getPointer();
+	}
+#endif
+};
+#else
+typedef const TypeElement* UniqueType;
+#endif
+
+inline bool operator!=(const UniqueType& left, const UniqueType& right)
+{
+	return !left.operator==(right);
+}
 
 namespace cpp
 {

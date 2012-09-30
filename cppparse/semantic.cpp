@@ -151,9 +151,53 @@ Scope::DeclarationList::const_iterator getFirstFunctionParameter(const Scope::De
 	return i;
 }
 
+inline UniqueTypeWrapper adjustFunctionParameter(UniqueTypeWrapper type)
+{
+	UniqueTypeWrapper result(type.value.getPointer());  // ignore cv-qualifiers
+	if(type.isFunction()) // T() becomes T(*)()
+	{
+		pushUniqueType(result.value, DeclaratorPointer());
+	}
+	else if(type.isArray()) // T[] becomes T*
+	{
+		popUniqueType(result.value);
+		pushUniqueType(result.value, DeclaratorPointer());
+	}
+	return result;
+}
+
+inline bool isFunctionParameterEquivalent(UniqueTypeWrapper left, UniqueTypeWrapper right)
+{
+	return adjustFunctionParameter(left) == adjustFunctionParameter(right);
+}
+
 inline bool isFunctionParameterEquivalent(const Declaration& left, const Declaration& right)
 {
-	return isEqual(left.type, right.type); // TODO: cv-qualifiers
+	UniqueTypeWrapper l = makeUniqueType(left.type, 0, true);
+	UniqueTypeWrapper r = makeUniqueType(right.type, 0, true);
+	return isFunctionParameterEquivalent(l, r);
+}
+
+inline bool isEquivalent(const ParameterTypes& left, const ParameterTypes& right)
+{
+	ParameterTypes::const_iterator l = left.begin();
+	ParameterTypes::const_iterator r = right.begin();
+	for(;; ++l, ++r)
+	{
+		if(l == left.end())
+		{
+			return r == right.end();
+		}
+		if(r == right.end())
+		{
+			return false;
+		}
+		if(!isFunctionParameterEquivalent(*l, *r))
+		{
+			return false;
+		}
+	}
+	return true;
 }
 
 inline bool isEquivalent(const Scope::DeclarationList& left, const Scope::DeclarationList& right)
@@ -178,13 +222,20 @@ inline bool isEquivalent(const Scope::DeclarationList& left, const Scope::Declar
 	return true;
 }
 
+inline bool isReturnTypeEqual(UniqueTypeWrapper left, UniqueTypeWrapper right)
+{
+	SYMBOLS_ASSERT(left.isFunction());
+	SYMBOLS_ASSERT(right.isFunction());
+	return isEqualInner(left, right);
+}
+
 inline bool isReturnTypeEqual(const TypeId& left, const TypeId& right)
 {
 	UniqueTypeWrapper l = makeUniqueType(left, 0, true);
 	UniqueTypeWrapper r = makeUniqueType(right, 0, true);
 	return l.isFunction()
 		&& r.isFunction()
-		&& isEqualInner(l, r);
+		&& isReturnTypeEqual(l, r);
 }
 
 struct TypeSequenceGetDeclaratorFunction : TypeElementVisitor
@@ -265,20 +316,48 @@ inline bool isEquivalent(const Declaration& declaration, const Declaration& othe
 				|| isEquivalentSpecialization(declaration, other)); // both are specializations and have matching arguments
 
 	}
-	else if(isDeclaratorFunction(declaration.type))
+	else
+#if 0
+	{
+		SYMBOLS_ASSERT(!isMember(declaration));
+		SYMBOLS_ASSERT(!isMember(other));
+		// enclosing type is always null: member functions cannot be redeclared
+		UniqueTypeWrapper l = makeUniqueType(declaration.type, 0, true);
+		UniqueTypeWrapper r = makeUniqueType(other.type, 0, true);
+		if(l.isFunction())
+		{
+			// 13.2 [over.dcl] Two functions of the same name refer to the same function
+			// if they are in the same scope and have equivalent parameter declarations.
+			// TODO: also compare template parameter lists: <class, int> is not equivalent to <class, float>
+			SYMBOLS_ASSERT(r.isFunction()); // TODO: non-fatal error: 'id' previously declared as non-function, second declaration is a function
+			return declaration.isTemplate == other.isTemplate // early out
+				&& isReturnTypeEqual(l, r) // return-types match
+				&& isEquivalent(getParameterTypes(l.value), getParameterTypes(r.value)); // and parameter-types match
+		}
+	}
+#else
+	if(isDeclaratorFunction(declaration.type))
 	{
 		// 13.2 [over.dcl] Two functions of the same name refer to the same function
 		// if they are in the same scope and have equivalent parameter declarations.
+		// TODO: also compare template parameter lists: <class, int> is not equivalent to <class, float>
+		// TODO: member functions cannot be redeclared (illegal)
 		SYMBOLS_ASSERT(isDeclaratorFunction(other.type)); // TODO: non-fatal error: 'id' previously declared as non-function, second declaration is a function
 		return declaration.isTemplate == other.isTemplate // early out
 			&& isReturnTypeEqual(declaration.type, other.type) // return-types match
 			&& isEquivalent(getDeclaratorFunction(declaration.type)->paramScope->declarationList, getDeclaratorFunction(other.type)->paramScope->declarationList); // and parameter-types match
 	}
+#endif
 	return false;
 }
 
 inline Declaration* findRedeclared(const Declaration& declaration)
 {
+	if(isMember(declaration) // a member may not be redeclared
+		&& !isType(declaration)) // unless it's a type
+	{
+		return 0;
+	}
 	for(Declaration* p = declaration.overloaded; p != 0; p = p->overloaded)
 	{
 		if(isEquivalent(declaration, *p))
@@ -1749,7 +1828,8 @@ struct PrimaryExpressionWalker : public WalkerBase
 			id->dec.p = declaration;
 
 			type = gUniqueTypeNull;
-			if(declaration->type.declaration != &gDependentType
+			if(!isFunction(*declaration) // if the id-expression refers to a function, the function parameters may be dependent; defer evaluation of type
+				&& declaration->type.declaration != &gDependentType
 				&& !isDependent(declaration->type)
 				&& !isDependent(walker.arguments) // the id-expression may have an explicit template argument list
 				&& !isDependent(walker.qualifying.get_ref()))
@@ -1781,7 +1861,8 @@ struct PrimaryExpressionWalker : public WalkerBase
 	void visit(cpp::primary_expression_builtin* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		type = (enclosingType != 0) ? UniqueTypeWrapper(pushUniqueType(gUniqueTypes, makeUniqueType(*enclosingType).value, DeclaratorPointer())) : gUniqueTypeNull;
+		// TODO: cv-qualifiers: change enclosingType to a UniqueType<DeclaratorObject>
+		type = (enclosingType != 0) ? UniqueTypeWrapper(pushUniqueType(gUniqueTypes, makeUniqueObjectType(*enclosingType).value, DeclaratorPointer())) : gUniqueTypeNull;
 		/* 14.6.2.2-2
 		'this' is type-dependent if the class type of the enclosing member function is dependent
 		*/
@@ -3588,6 +3669,7 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 	Type type;
 	unsigned fundamental;
 	DeclSpecifiers specifiers;
+	CvQualifiers qualifiers;
 	IdentifierPtr forward;
 	bool isUnion;
 	bool isTemplateParameter;
@@ -3669,11 +3751,11 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 		TREEWALKER_LEAF(symbol);
 		if(symbol->id == cpp::cv_qualifier::CONST)
 		{
-			specifiers.isConst = true;
+			qualifiers.isConst = true;
 		}
 		else if(symbol->id == cpp::cv_qualifier::VOLATILE)
 		{
-			specifiers.isVolatile = true;
+			qualifiers.isVolatile = true;
 		}
 	}
 };
@@ -4101,6 +4183,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		DeclSpecifierSeqWalker walker(getState(), templateParameter != INDEX_INVALID);
 		TREEWALKER_WALK(walker, symbol);
 		type.swap(walker.type);
+		type.qualifiers = walker.qualifiers;
 		declaration = type.declaration; // if no declarator is specified later, this is probably a class-declaration
 		specifiers = walker.specifiers;
 		forward = walker.forward;
@@ -4112,6 +4195,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		DeclSpecifierSeqWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		type.swap(walker.type);
+		type.qualifiers = walker.qualifiers;
 		declaration = type.declaration; // if no declarator is specified later, this is probably a class-declaration
 		forward = walker.forward;
 		templateParams = walker.templateParams;

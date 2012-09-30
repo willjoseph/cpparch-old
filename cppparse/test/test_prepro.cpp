@@ -1,4 +1,62 @@
 
+namespace N063
+{
+	template<typename T>
+	struct Tmpl
+	{
+		typedef void(*Function)(T);
+		void f(Function)
+		{
+			Function function;
+			f(function);
+		}
+	};
+}
+
+namespace N062
+{
+	void f(int()); // declaration
+	void f(int(*)()); // redeclaration
+}
+
+namespace N061
+{
+	void f(int[]); // declaration
+	void f(int*); // redeclaration
+}
+
+namespace N056
+{
+	void f(const int); // declaration
+	void f(int); // redeclaration
+}
+
+namespace N058
+{
+	void f(const int*); // declaration
+	void f(int*); // declaration
+}
+
+namespace N060
+{
+	template<typename T>
+	void f(T); // declaration
+	template<typename U>
+	void f(U); // redeclaration
+}
+
+namespace N059
+{
+	template<typename T, typename U>
+	struct Tmpl
+	{
+		void f(T); // declaration
+		void f(U); // redeclaration (illegal)
+	};
+
+	Tmpl<int, const int> t;
+}
+
 namespace N057
 {
 	typedef const int ConstInt;
@@ -21,12 +79,6 @@ namespace N057
 		typedef int MemFuncRetInt();
 		typedef const MemFuncRetInt ConstMemFuncRetInt; // unspecified behaviour!
 	};
-}
-
-namespace N056
-{
-	void f(int);
-	void f(const int); // redeclaration
 }
 
 namespace N055

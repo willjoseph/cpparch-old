@@ -17,34 +17,7 @@
 #define SYMBOLS_ASSERT ALLOCATOR_ASSERT
 typedef AllocatorError SymbolsError;
 
-struct CvQualifiers
-{
-	bool isConst;
-	bool isVolatile;
-	CvQualifiers()
-		: isConst(false), isVolatile(false)
-	{
-	}
-	CvQualifiers(bool isConst, bool isExtern)
-		: isConst(isConst), isVolatile(isVolatile)
-	{
-	}
-};
-
-inline bool operator==(const CvQualifiers& l, const CvQualifiers& r)
-{
-	return l.isConst == r.isConst
-		&& l.isVolatile == r.isVolatile;
-}
-
-inline bool operator<(const CvQualifiers& l, const CvQualifiers& r)
-{
-	return l.isConst != r.isConst ? l.isConst < r.isConst
-		: l.isVolatile != r.isVolatile ? l.isVolatile < r.isVolatile
-			: false;
-}
-
-struct DeclSpecifiers : CvQualifiers
+struct DeclSpecifiers
 {
 	bool isTypedef;
 	bool isFriend;
@@ -89,7 +62,7 @@ struct SequenceNode
 	{
 	}
 	virtual void accept(Visitor& visitor) const = 0;
-	virtual bool operator==(const SequenceNode& other) const = 0;
+	//virtual bool operator==(const SequenceNode& other) const = 0;
 
 	const SequenceNode* get() const
 	{
@@ -415,7 +388,8 @@ private:
 struct TypeId : Type
 {
 	TypeSequence typeSequence;
-
+	CvQualifiers qualifiers;
+ 
 	TypeId(Declaration* declaration, const TreeAllocator<int>& allocator)
 		: Type(declaration, allocator), typeSequence(allocator)
 	{
@@ -430,6 +404,7 @@ struct TypeId : Type
 	{
 		Type::swap(other);
 		typeSequence.swap(other.typeSequence);
+		std::swap(qualifiers, other.qualifiers);
 	}
 	void swap(Type& other)
 	{
@@ -1315,10 +1290,14 @@ typedef LookupFilterDefault<isNonMemberName> IsNonMemberName;
 // Note that this is the reverse of the order that the declarator is parsed in.
 // This means a given unique type sub-sequence need only be stored once.
 // This allows fast comparison of types and simplifies printing of declarators.
+
 struct TypeElement
 {
-	const TypeElement* next;
+	UniqueType next;
 
+	TypeElement()
+	{
+	}
 	virtual ~TypeElement()
 	{
 	}
@@ -1362,8 +1341,6 @@ struct TypeElementGeneric : TypeElement
 			!(typeid(other).before(typeid(*this))) && value < static_cast<const TypeElementGeneric*>(&other)->value);
 	}
 };
-
-typedef const TypeElement* UniqueType;
 
 const UniqueType UNIQUETYPE_NULL = &gTypeElementEmpty;
 
@@ -1413,7 +1390,7 @@ inline void pushUniqueType(UniqueType& type, const T& value)
 
 inline void popUniqueType(UniqueType& type)
 {
-	SYMBOLS_ASSERT(type != 0);
+	SYMBOLS_ASSERT(type.getBits() != 0);
 	type = type->next;
 }
 
@@ -1498,7 +1475,7 @@ inline bool operator==(UniqueTypeWrapper l, UniqueTypeWrapper r)
 
 inline bool operator!=(UniqueTypeWrapper l, UniqueTypeWrapper r)
 {
-	return l.value != r.value;
+	return !operator==(l, r);
 }
 
 inline bool operator<(UniqueTypeWrapper l, UniqueTypeWrapper r)
@@ -1611,7 +1588,7 @@ inline bool operator<(const DeclaratorObject& left, const DeclaratorObject& righ
 inline const TypeInstance& getObjectType(UniqueType type)
 {
 	SYMBOLS_ASSERT(typeid(*type) == typeid(TypeElementGeneric<DeclaratorObject>));
-	return static_cast<const TypeElementGeneric<DeclaratorObject>*>(type)->value.type;
+	return static_cast<const TypeElementGeneric<DeclaratorObject>*>(type.getPointer())->value.type;
 }
 
 // TODO: consider template-template-parameter
@@ -1649,12 +1626,12 @@ struct DeclaratorPointer
 
 inline bool operator==(const DeclaratorPointer& left, const DeclaratorPointer& right)
 {
-	return left.qualifiers == right.qualifiers;
+	return true;
 }
 
 inline bool operator<(const DeclaratorPointer& left, const DeclaratorPointer& right)
 {
-	return left.qualifiers < right.qualifiers;
+	return false;
 }
 
 struct DeclaratorReference
@@ -1688,7 +1665,7 @@ struct DeclaratorMemberPointer
 inline const TypeInstance& getMemberPointerClass(UniqueType type)
 {
 	SYMBOLS_ASSERT(typeid(*type) == typeid(TypeElementGeneric<DeclaratorMemberPointer>));
-	return *(static_cast<const TypeElementGeneric<DeclaratorMemberPointer>*>(type)->value.type);
+	return *(static_cast<const TypeElementGeneric<DeclaratorMemberPointer>*>(type.getPointer())->value.type);
 }
 
 inline bool operator==(const DeclaratorMemberPointer& left, const DeclaratorMemberPointer& right)
@@ -1716,10 +1693,15 @@ inline bool operator<(const DeclaratorArray& left, const DeclaratorArray& right)
 	return false;
 }
 
+typedef std::vector<UniqueTypeWrapper> ParameterTypes;
+
 struct DeclaratorFunction
 {
 	ScopePtr paramScope;
 	CvQualifiers qualifiers;
+#if 0
+	ParameterTypes parameters;
+#endif
 	DeclaratorFunction(Scope* scope, CvQualifiers qualifiers)
 		: paramScope(scope), qualifiers(qualifiers)
 	{
@@ -1728,14 +1710,29 @@ struct DeclaratorFunction
 
 inline bool operator==(const DeclaratorFunction& left, const DeclaratorFunction& right)
 {
-	return left.paramScope == right.paramScope; // TODO
+#if 1
+	return true;
+#else
+	return left.parameters == right.parameters;
+#endif
 }
 
 inline bool operator<(const DeclaratorFunction& left, const DeclaratorFunction& right)
 {
-	return left.paramScope < right.paramScope; // TODO
+#if 1
+	return false;
+#else
+	return left.parameters < right.parameters;
+#endif
 }
 
+#if 0
+inline const ParameterTypes& getParameterTypes(UniqueType type)
+{
+	SYMBOLS_ASSERT(typeid(*type) == typeid(TypeElementGeneric<DeclaratorFunction>));
+	return static_cast<const TypeElementGeneric<DeclaratorFunction>*>(type.getPointer())->value.parameters;
+}
+#endif
 
 
 
@@ -1787,45 +1784,6 @@ struct GetTypeHistory
 		return apply(declaration.type, history);
 	}
 };
-
-struct TypeSequenceMakeUnique : TypeElementVisitor
-{
-	UniqueType& type;
-	TypeSequenceMakeUnique(UniqueType& type)
-		: type(type)
-	{
-	}
-	void visit(const DeclaratorDependent& element)
-	{
-		throw SymbolsError(); // error!
-	}
-	void visit(const DeclaratorObject& element)
-	{
-		pushUniqueType(type, element);
-	}
-	void visit(const DeclaratorPointer& element)
-	{
-		pushUniqueType(type, element);
-	}
-	void visit(const DeclaratorReference& element)
-	{
-		pushUniqueType(type, element);
-	}
-	void visit(const DeclaratorArray& element)
-	{
-		pushUniqueType(type, element);
-	}
-	void visit(const DeclaratorMemberPointer& element)
-	{
-		pushUniqueType(type, element);
-	}
-	void visit(const DeclaratorFunction& element)
-	{
-		SYMBOLS_ASSERT(element.paramScope != 0);
-		pushUniqueType(type, element);
-	}
-};
-
 
 inline Declaration* findPrimaryTemplate(Declaration* declaration)
 {
@@ -2134,7 +2092,7 @@ inline LookupResult findDeclaration(const TypeInstance& instance, const Identifi
 	return result;
 }
 
-inline UniqueTypeWrapper makeUniqueType(const TypeInstance& type)
+inline UniqueTypeWrapper makeUniqueObjectType(const TypeInstance& type)
 {
 	return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, UNIQUETYPE_NULL, DeclaratorObject(type)));
 }
@@ -2292,7 +2250,7 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, const TypeInstance* en
 	}
 	SYMBOLS_ASSERT(tmp.bases.empty());
 	SYMBOLS_ASSERT(tmp.specializations.empty());
-	return makeUniqueType(tmp);
+	return makeUniqueObjectType(tmp);
 }
 
 inline UniqueTypeWrapper makeUniqueType(const Type& type)
@@ -2300,10 +2258,62 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type)
 	return makeUniqueType(type, 0);
 }
 
+
+struct TypeSequenceMakeUnique : TypeElementVisitor
+{
+	UniqueType& type;
+	const TypeInstance* enclosing;
+	bool allowDependent;
+	TypeSequenceMakeUnique(UniqueType& type, const TypeInstance* enclosing, bool allowDependent)
+		: type(type), enclosing(enclosing), allowDependent(allowDependent)
+	{
+	}
+	void visit(const DeclaratorDependent& element)
+	{
+		throw SymbolsError(); // error!
+	}
+	void visit(const DeclaratorObject& element)
+	{
+		pushUniqueType(type, element);
+	}
+	void visit(const DeclaratorPointer& element)
+	{
+		pushUniqueType(type, element);
+		type.setQualifiers(element.qualifiers);
+	}
+	void visit(const DeclaratorReference& element)
+	{
+		pushUniqueType(type, element);
+	}
+	void visit(const DeclaratorArray& element)
+	{
+		pushUniqueType(type, element);
+	}
+	void visit(const DeclaratorMemberPointer& element)
+	{
+		pushUniqueType(type, element);
+		type.setQualifiers(element.qualifiers);
+	}
+	void visit(const DeclaratorFunction& element)
+	{
+		SYMBOLS_ASSERT(element.paramScope != 0);
+		DeclaratorFunction result(element);
+#if 0
+		for(Scope::DeclarationList::const_iterator i = element.paramScope->declarationList.begin(); i != element.paramScope->declarationList.end(); ++i)
+		{
+			result.parameters.push_back(makeUniqueType((*i)->type, enclosing, allowDependent));
+		}
+#endif
+		pushUniqueType(type, result);
+		type.setQualifiers(element.qualifiers);
+	}
+};
+
 inline UniqueTypeWrapper makeUniqueType(const TypeId& type, const TypeInstance* enclosing, bool allowDependent, std::size_t depth)
 {
 	UniqueTypeWrapper result = makeUniqueType(*static_cast<const Type*>(&type), enclosing, allowDependent, depth);
-	TypeSequenceMakeUnique visitor(result.value);
+	result.value.setQualifiers(type.qualifiers);
+	TypeSequenceMakeUnique visitor(result.value, enclosing, allowDependent);
 	type.typeSequence.accept(visitor);
 	return result;
 }
