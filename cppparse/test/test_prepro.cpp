@@ -1,4 +1,30 @@
 
+namespace N082
+{
+	template<typename T>
+	struct C
+	{
+	};
+
+	struct S
+	{
+		template<typename T>
+		struct Inner
+		{
+		};
+	};
+
+	template<typename T>
+	struct Tmpl
+	{
+		typedef C<T> Type;
+
+		void f()
+		{
+			this->S::template Inner<Type>::dependent(); // 'template Inner<Type>' should be determined to be dependent
+		}
+	};
+}
 
 namespace N081
 {
