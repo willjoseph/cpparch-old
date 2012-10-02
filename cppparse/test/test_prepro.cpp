@@ -1,4 +1,93 @@
 
+
+
+namespace N063
+{
+	template<typename T>
+	struct Tmpl
+	{
+		typedef void(*Function)(T);
+		void f(Function)
+		{
+			Function function;
+			dependent(function);
+		}
+	};
+}
+
+#if 0 // TODO
+
+namespace N070
+{
+	template<typename T>
+	struct Tmpl
+	{
+		Tmpl<T>* a; // TODO: 14.6 [temp.res] 'name of template itself' Tmpl<T> is NOT dependent!
+	};
+}
+
+namespace N066
+{
+	template<typename T>
+	struct Tmpl
+	{
+		struct S
+		{
+		};
+		void f()
+		{
+			Tmpl<T>::S::dependent(); // 'S' may be explicitly specialized later
+		}
+	};
+
+	template<>
+	struct Tmpl<int>::S // explicit specialization of Tmpl<T>::S for T=int
+	{
+		static void dependent()
+		{
+		}
+	};
+
+	Tmpl<int>::S s;
+}
+
+
+namespace N069
+{
+	template<typename A>
+	struct C
+	{
+	};
+
+	template<typename T>
+	struct Tmpl
+	{
+		template<typename U>
+		struct Inner
+		{
+			typedef C<U> Type;
+		};
+
+		static void f()
+		{
+			Inner<int>::Type::dependent(); // Inner<int> is dependent because Tmpl<T>::Inner<int> may be specialized later
+		}
+	};
+
+	template<>
+	template<typename U>
+	struct Tmpl<int>::Inner // explicit specialization of Tmpl<T>::Inner for T=int
+	{
+		static void dependent()
+		{
+		}
+	};
+
+	Tmpl<int>::Inner<int> s;
+}
+
+#endif
+
 namespace N083
 {
 	template<class T>
@@ -307,78 +396,6 @@ namespace N064
 #endif
 
 
-#if 0 // TODO
-
-namespace N070
-{
-	template<typename T>
-	struct Tmpl
-	{
-		Tmpl<T>* a; // TODO: 14.6 [temp.res] 'name of template itself' Tmpl<T> is NOT dependent!
-	};
-}
-
-namespace N066
-{
-	template<typename T>
-	struct Tmpl
-	{
-		struct S
-		{
-		};
-		void f()
-		{
-			Tmpl<T>::S::dependent(); // 'S' may be explicitly specialized later
-		}
-	};
-
-	template<>
-	struct Tmpl<int>::S // explicit specialization of Tmpl<T>::S for T=int
-	{
-		static void dependent()
-		{
-		}
-	};
-
-	Tmpl<int>::S s;
-}
-
-
-namespace N069
-{
-	template<typename A>
-	struct C
-	{
-	};
-
-	template<typename T>
-	struct Tmpl
-	{
-		template<typename U>
-		struct Inner
-		{
-			typedef C<U> Type;
-		};
-
-		static void f()
-		{
-			Inner<int>::Type::dependent(); // Inner<int> is dependent because Tmpl<T>::Inner<int> may be specialized later
-		}
-	};
-
-	template<>
-	template<typename U>
-	struct Tmpl<int>::Inner // explicit specialization of Tmpl<T>::Inner for T=int
-	{
-		static void dependent()
-		{
-		}
-	};
-
-	Tmpl<int>::Inner<int> s;
-}
-
-#endif
 
 #if 0
 namespace N065
@@ -466,22 +483,6 @@ namespace N065
 }
 
 #endif
-
-
-
-namespace N063
-{
-	template<typename T>
-	struct Tmpl
-	{
-		typedef void(*Function)(T);
-		void f(Function)
-		{
-			Function function;
-			f(function);
-		}
-	};
-}
 
 namespace N062
 {
