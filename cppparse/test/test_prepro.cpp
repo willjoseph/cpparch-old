@@ -1,4 +1,16 @@
 
+namespace N083
+{
+	template<class T>
+	struct Tmpl
+	{
+		void f(T& self)
+		{
+			self.dependent();
+		}
+	};
+}
+
 namespace N082
 {
 	template<typename T>

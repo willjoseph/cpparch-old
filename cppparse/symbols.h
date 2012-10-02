@@ -1935,7 +1935,7 @@ inline bool findScope(Scope* scope, Scope* other)
 }
 
 // Returns true if /p type is dependent.
-inline bool isDependent(const Type& type, Scope* enclosing)
+inline bool isDependentOld(const Type& type, Scope* enclosing)
 {
 	return type.dependent != DeclarationPtr(0)
 		&& findScope(enclosing, type.dependent->scope);
@@ -1981,7 +1981,7 @@ inline bool matchTemplateSpecialization(const Declaration& declaration, const Te
 		extern Declaration gNonType;
 		if((*i).type.declaration != &gNonType) // ignore non-type arguments
 		{
-			type = makeUniqueType((*i).type, enclosing);
+			type = makeUniqueType((*i).type, enclosing, true); // a partial-specialization may have dependent template-arguments: template<class T> class C<T*>
 		}
 		if(type != *a)
 		{
@@ -1991,14 +1991,13 @@ inline bool matchTemplateSpecialization(const Declaration& declaration, const Te
 	return true;
 }
 
-inline bool isDependent(const TemplateArguments& arguments, const DependentContext& context);
+inline bool isDependentOld(const TemplateArguments& arguments, const DependentContext& context);
 
 inline Declaration* findTemplateSpecialization(Declaration* declaration, const TemplateArgumentsInstance& arguments, const TypeInstance* enclosing)
 {
 	for(; declaration != 0; declaration = declaration->overloaded)
 	{
-		if(!isSpecialization(*declaration)
-			|| ::isDependent(declaration->templateArguments, DependentContext(*declaration->enclosed, SCOPE_NULL))) // TODO: template partial specialization
+		if(!isSpecialization(*declaration))
 		{
 			continue;
 		}
@@ -3161,23 +3160,23 @@ inline bool isTemplateParameter(Declaration* declaration, const DependentContext
 }
 
 
-inline bool isDependent(const Type& type, const DependentContext& context);
+inline bool isDependentOld(const Type& type, const DependentContext& context);
 
-inline bool isDependent(const Type* qualifying, const DependentContext& context)
+inline bool isDependentOld(const Type* qualifying, const DependentContext& context)
 {
 	if(qualifying == 0)
 	{
 		return false;
 	}
 	const Type& instantiated = getInstantiatedType(*qualifying);
-	if(isDependent(instantiated.qualifying.get(), context))
+	if(isDependentOld(instantiated.qualifying.get(), context))
 	{
 		return true;
 	}
-	return isDependent(instantiated, context);
+	return isDependentOld(instantiated, context);
 }
 
-inline bool isDependent(const Types& bases, const DependentContext& context)
+inline bool isDependentOld(const Types& bases, const DependentContext& context)
 {
 	for(Types::const_iterator i = bases.begin(); i != bases.end(); ++i)
 	{
@@ -3185,7 +3184,7 @@ inline bool isDependent(const Types& bases, const DependentContext& context)
 		{
 			continue;
 		}
-		if(isDependent(*i, context))
+		if(isDependentOld(*i, context))
 		{
 			return true;
 		}
@@ -3204,7 +3203,7 @@ inline bool isValueDependent(const Type& type, const DependentContext& context)
 	return false;
 }
 
-inline bool isDependent(const TemplateArguments& arguments, const DependentContext& context)
+inline bool isDependentOld(const TemplateArguments& arguments, const DependentContext& context)
 {
 	for(TemplateArguments::const_iterator i = arguments.begin(); i != arguments.end(); ++i)
 	{
@@ -3214,7 +3213,7 @@ inline bool isDependent(const TemplateArguments& arguments, const DependentConte
 		}
 		if(evaluateDependent((*i).dependent, context) // array-size or constant-initializer
 			|| ((*i).type.declaration != 0
-				&& isDependent((*i).type, context)))
+				&& isDependentOld((*i).type, context)))
 		{
 			return true;
 		}
@@ -3232,7 +3231,7 @@ inline bool isDependentInternal(const Type& type, const DependentContext& contex
 	if(original.declaration == &gDependentType
 		|| original.declaration == &gDependentTemplate)
 	{
-		return isDependent(original.qualifying.get(), context);
+		return isDependentOld(original.qualifying.get(), context);
 	}
 	if(isTemplateParameter(original.declaration, context))
 	{
@@ -3248,7 +3247,7 @@ inline bool isDependentInternal(const Type& type, const DependentContext& contex
 		}
 		for(Types::const_iterator i = original.declaration->templateParams.begin(); i != original.declaration->templateParams.end(); ++i)
 		{
-			if(isDependent(*i, context))
+			if(isDependentOld(*i, context))
 			{
 				return true;
 			}
@@ -3256,7 +3255,7 @@ inline bool isDependentInternal(const Type& type, const DependentContext& contex
 	}
 	else
 	{
-		if(isDependent(original.templateArguments, context))
+		if(isDependentOld(original.templateArguments, context))
 		{
 			return true;
 		}
@@ -3264,7 +3263,7 @@ inline bool isDependentInternal(const Type& type, const DependentContext& contex
 	Scope* enclosed = original.declaration->enclosed;
 	if(enclosed != 0)
 	{
-		bool result = isDependent(enclosed->bases, context);
+		bool result = isDependentOld(enclosed->bases, context);
 		if(!result)
 		{
 			//std::cout << "not dependent: " << &type << " " << getValue(type.declaration->getName()) << std::endl;
@@ -3399,7 +3398,7 @@ inline bool isDependentFast(const Type& type, const DependentContext& context)
 
 
 
-inline bool isDependent(const Type& type, const DependentContext& context)
+inline bool isDependentOld(const Type& type, const DependentContext& context)
 {
 	if(type.visited)
 	{
@@ -3422,13 +3421,13 @@ inline bool isDependent(const Type& type, const DependentContext& context)
 inline bool isDependentName(Declaration* declaration, const DependentContext& context)
 {
 	return isTemplateParameter(declaration, context)
-		|| isDependent(declaration->type, context)
+		|| isDependentOld(declaration->type, context)
 		|| evaluateDependent(declaration->valueDependent, context);
 }
 
 inline bool isDependentType(const Type* type, const DependentContext& context)
 {
-	return isDependent(*type, context);
+	return isDependentOld(*type, context);
 }
 
 inline bool isDependentTypeRef(TypePtr::Value* type, const DependentContext& context)
@@ -3438,7 +3437,7 @@ inline bool isDependentTypeRef(TypePtr::Value* type, const DependentContext& con
 
 inline bool isDependentClass(Scope* scope, const DependentContext& context)
 {
-	return isDependent(scope->bases, context);
+	return isDependentOld(scope->bases, context);
 }
 
 inline bool isDependentListRef(Reference<Dependent>::Value* dependent, const DependentContext& context)

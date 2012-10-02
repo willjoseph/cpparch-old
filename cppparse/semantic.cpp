@@ -583,7 +583,7 @@ struct WalkerState
 			return; // TODO: implement template-instantiation, and disallow inheriting from current-instantiation
 		}
 		declaration->enclosed->bases.push_front(base);
-		if(::isDependent(base, enclosing))
+		if(isDependent(base))
 		{
 			::addDeferredLookupType(&declaration->enclosed->bases.front(), getEnclosingTemplate(declaration->scope));
 		}
@@ -711,7 +711,7 @@ struct WalkerState
 	bool isDependent(const Type& type) const
 	{
 		//std::cout << "isDependent(Type)" << std::endl;
-		bool result = ::isDependent(type, DependentContext(*enclosing, templateParamScope != 0 ? *templateParamScope : SCOPE_NULL));
+		bool result = ::isDependentOld(type, DependentContext(*enclosing, templateParamScope != 0 ? *templateParamScope : SCOPE_NULL));
 		SEMANTIC_ASSERT(result == isDependentNew(type));
 		return result;
 	}
@@ -719,7 +719,7 @@ struct WalkerState
 	bool isDependent(const TemplateArguments& arguments) const
 	{
 		//std::cout << "isDependent(TemplateArguments)" << std::endl;
-		bool result = ::isDependent(arguments, DependentContext(*enclosing, templateParamScope != 0 ? *templateParamScope : SCOPE_NULL));
+		bool result = ::isDependentOld(arguments, DependentContext(*enclosing, templateParamScope != 0 ? *templateParamScope : SCOPE_NULL));
 		SEMANTIC_ASSERT(result == isDependentNew(arguments));
 		return result;
 	}
@@ -727,7 +727,7 @@ struct WalkerState
 	bool isDependent(const Types& bases) const
 	{
 		//std::cout << "isDependent(Types)" << std::endl;
-		bool result = ::isDependent(bases, DependentContext(*enclosing, templateParamScope != 0 ? *templateParamScope : SCOPE_NULL));
+		bool result = ::isDependentOld(bases, DependentContext(*enclosing, templateParamScope != 0 ? *templateParamScope : SCOPE_NULL));
 		SEMANTIC_ASSERT(result == isDependentNew(bases));
 		return result;
 	}
@@ -738,17 +738,17 @@ struct WalkerState
 		{
 			//std::cout << "isDependent(Type*)" << std::endl;
 		}
-		bool result = ::isDependent(qualifying.get(), DependentContext(*enclosing, templateParamScope != 0 ? *templateParamScope : SCOPE_NULL));
+		bool result = ::isDependentOld(qualifying.get(), DependentContext(*enclosing, templateParamScope != 0 ? *templateParamScope : SCOPE_NULL));
 		SEMANTIC_ASSERT(result == isDependentNew(qualifying));
 		return result;
 	}
 
-#if 1 // TODO: replace with isDependentNew
 	bool isDependent(Dependent& dependent) const
 	{
-		return ::evaluateDependent(dependent, DependentContext(*enclosing, templateParamScope != 0 ? *templateParamScope : SCOPE_NULL));
+		bool result = ::evaluateDependent(dependent, DependentContext(*enclosing, templateParamScope != 0 ? *templateParamScope : SCOPE_NULL));
+		SEMANTIC_ASSERT(result == isDependentNew(dependent));
+		return result;
 	}
-#endif
 
 
 	bool isDependentNew(Declaration* dependent) const
@@ -867,7 +867,7 @@ struct WalkerState
 	}
 	void addDependentType(Dependent& dependent, Declaration* declaration)
 	{
-		setDependent(dependent.enclosingTemplate, *declaration);
+		setDependent(dependent.enclosingTemplate, declaration->type.dependent);
 
 		static DependencyCallbacks<const Type> callbacks = makeDependencyCallbacks(isDependentType);
 		SEMANTIC_ASSERT(declaration->type.declaration != 0);
@@ -979,11 +979,7 @@ struct WalkerBase : public WalkerState
 
 	void addDeferredLookupType(Declaration& declaration)
 	{
-#if 1
 		if(!isDependent(declaration.type))
-#else
-		if(!::isDependent(declaration.type, enclosing))
-#endif
 		{
 			return;
 		}
@@ -2567,7 +2563,7 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 		TemplateIdWalker walker(getState());
 		TREEWALKER_WALK_CACHED(walker, symbol);
 		Declaration* declaration = &gDependentNested;
-		if(!isTemplate // TODO: should perform name lookup anyway, even if 'qualifying_p' not dependent?
+		if(!isTemplate // TODO: should perform name lookup anyway, even if 'qualifying_p' not dependent!
 			&& (isDeclarator
 				|| !isDependent(qualifying_p)))
 		{
