@@ -1656,14 +1656,11 @@ inline bool operator<(const DeclaratorReference& left, const DeclaratorReference
 
 struct DeclaratorMemberPointer
 {
-	const TypeInstance* type;
+	Type type;
 	CvQualifiers qualifiers;
-	DeclaratorMemberPointer()
-		: type(0)
-	{
-	}
-	DeclaratorMemberPointer(CvQualifiers qualifiers)
-		: type(0), qualifiers(qualifiers)
+	const TypeInstance* instance;
+	DeclaratorMemberPointer(const Type& type, CvQualifiers qualifiers)
+		: type(type), qualifiers(qualifiers), instance(0)
 	{
 	}
 };
@@ -1671,17 +1668,17 @@ struct DeclaratorMemberPointer
 inline const TypeInstance& getMemberPointerClass(UniqueType type)
 {
 	SYMBOLS_ASSERT(typeid(*type) == typeid(TypeElementGeneric<DeclaratorMemberPointer>));
-	return *(static_cast<const TypeElementGeneric<DeclaratorMemberPointer>*>(type.getPointer())->value.type);
+	return *(static_cast<const TypeElementGeneric<DeclaratorMemberPointer>*>(type.getPointer())->value.instance);
 }
 
 inline bool operator==(const DeclaratorMemberPointer& left, const DeclaratorMemberPointer& right)
 {
-	return true; // TODO
+	return left.instance == right.instance;
 }
 
 inline bool operator<(const DeclaratorMemberPointer& left, const DeclaratorMemberPointer& right)
 {
-	return false; // TODO
+	return left.instance < right.instance;
 }
 
 struct DeclaratorArray
@@ -1705,9 +1702,7 @@ struct DeclaratorFunction
 {
 	ScopePtr paramScope;
 	CvQualifiers qualifiers;
-#if 0
 	ParameterTypes parameters;
-#endif
 	DeclaratorFunction(Scope* scope, CvQualifiers qualifiers)
 		: paramScope(scope), qualifiers(qualifiers)
 	{
@@ -1716,29 +1711,19 @@ struct DeclaratorFunction
 
 inline bool operator==(const DeclaratorFunction& left, const DeclaratorFunction& right)
 {
-#if 1
-	return true;
-#else
 	return left.parameters == right.parameters;
-#endif
 }
 
 inline bool operator<(const DeclaratorFunction& left, const DeclaratorFunction& right)
 {
-#if 1
-	return false;
-#else
 	return left.parameters < right.parameters;
-#endif
 }
 
-#if 0
 inline const ParameterTypes& getParameterTypes(UniqueType type)
 {
 	SYMBOLS_ASSERT(typeid(*type) == typeid(TypeElementGeneric<DeclaratorFunction>));
 	return static_cast<const TypeElementGeneric<DeclaratorFunction>*>(type.getPointer())->value.parameters;
 }
-#endif
 
 
 
@@ -1945,13 +1930,8 @@ inline const TypeInstance* makeUniqueEnclosing(const Qualifying& qualifying, con
 {
 	if(!qualifying.empty())
 	{
-		UniqueTypeWrapper result = makeUniqueType(*qualifying.get(), enclosing, allowDependent, depth);
-		if(allowDependent
-			&& result.isDependent())
-		{
-			return 0;
-		}
-		return &getObjectType(result.value);
+		UniqueTypeWrapper tmp = makeUniqueType(*qualifying.get(), enclosing, allowDependent, depth);
+		return allowDependent && tmp.isDependent() ? 0 : &getObjectType(tmp.value);
 	}
 	return enclosing;
 }
@@ -2296,19 +2276,20 @@ struct TypeSequenceMakeUnique : TypeElementVisitor
 	}
 	void visit(const DeclaratorMemberPointer& element)
 	{
-		pushUniqueType(type, element);
+		DeclaratorMemberPointer result(element);
+		UniqueTypeWrapper tmp = makeUniqueType(element.type, enclosing, allowDependent);
+		result.instance = allowDependent && tmp.isDependent() ? 0 : &getObjectType(tmp.value); // TODO: should be non-null even if dependent
+		pushUniqueType(type, result);
 		type.setQualifiers(element.qualifiers);
 	}
 	void visit(const DeclaratorFunction& element)
 	{
 		SYMBOLS_ASSERT(element.paramScope != 0);
 		DeclaratorFunction result(element);
-#if 0
 		for(Scope::DeclarationList::const_iterator i = element.paramScope->declarationList.begin(); i != element.paramScope->declarationList.end(); ++i)
 		{
 			result.parameters.push_back(makeUniqueType((*i)->type, enclosing, allowDependent));
 		}
-#endif
 		pushUniqueType(type, result);
 		type.setQualifiers(element.qualifiers);
 	}

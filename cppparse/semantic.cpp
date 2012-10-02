@@ -317,7 +317,7 @@ inline bool isEquivalent(const Declaration& declaration, const Declaration& othe
 
 	}
 	else
-#if 0
+#if 1
 	{
 		SYMBOLS_ASSERT(!isMember(declaration));
 		SYMBOLS_ASSERT(!isMember(other));
@@ -354,7 +354,7 @@ inline bool isEquivalent(const Declaration& declaration, const Declaration& othe
 inline Declaration* findRedeclared(const Declaration& declaration)
 {
 	if(isMember(declaration) // a member may not be redeclared
-		&& !isType(declaration)) // unless it's a type
+		&& !isClass(declaration)) // unless it's a forward-declaration
 	{
 		return 0;
 	}
@@ -854,6 +854,48 @@ struct WalkerState
 			setDependent(dependent, (*i).type.dependent);
 			setDependent(dependent, (*i).dependent.enclosingTemplate);
 		}
+	}
+	struct TypeSequenceSetDependent : TypeElementVisitor
+	{
+		const WalkerState& walker;
+		DeclarationPtr& dependent;
+		TypeSequenceSetDependent(const WalkerState& walker, DeclarationPtr& dependent)
+			: walker(walker), dependent(dependent)
+		{
+		}
+		virtual void visit(const DeclaratorDependent&)
+		{
+			throw SemanticError(); // not reachable
+		}
+		virtual void visit(const DeclaratorObject&)
+		{
+			throw SemanticError(); // not reachable
+		}
+		virtual void visit(const DeclaratorPointer&)
+		{
+		}
+		virtual void visit(const DeclaratorReference&)
+		{
+		}
+		virtual void visit(const DeclaratorArray&)
+		{
+		}
+		virtual void visit(const DeclaratorMemberPointer& element)
+		{
+			walker.setDependent(dependent, element.type.dependent);
+		}
+		virtual void visit(const DeclaratorFunction& element)
+		{
+			for(Scope::DeclarationList::const_iterator i = getFirstFunctionParameter(element.paramScope->declarationList); i != element.paramScope->declarationList.end(); ++i)
+			{
+				walker.setDependent(dependent, (*i)->type.dependent);
+			}
+		}
+	};
+	void setDependent(DeclarationPtr& dependent, const TypeSequence& typeSequence) const
+	{
+		TypeSequenceSetDependent visitor(*this, dependent);
+		typeSequence.accept(visitor);
 	}
 	void setDependent(Type& type, Declaration* declaration) const
 	{
@@ -2124,6 +2166,7 @@ struct PostfixExpressionWalker : public WalkerBase
 			if(type.value != UNIQUETYPE_NULL // TODO: dependent member name lookup
 				&& !isDependent(declaration->type)
 				&& !isDependent(walker.qualifying.get_ref())
+				&& !declaration->isTemplate // TODO: member template
 				&& !declaration->type.isImplicitTemplateId) // TODO: 
 			{
 				if(walker.isArrow) // dereference
@@ -3043,9 +3086,18 @@ struct DeclaratorWalker : public WalkerBase
 	Dependent valueDependent;
 	TypeSequence typeSequence;
 	CvQualifiers qualifiers;
+	Qualifying memberPointer;
 	DeclaratorWalker(const WalkerState& state)
-		: WalkerBase(state), id(&gAnonymousId), paramScope(0), valueDependent(context), typeSequence(context)
+		: WalkerBase(state), id(&gAnonymousId), paramScope(0), valueDependent(context), typeSequence(context), memberPointer(context)
 	{
+	}
+	void pushPointerType(cpp::ptr_operator* op)
+	{
+		(op->key->id == cpp::ptr_operator_key::REF)
+			? typeSequence.push_front(DeclaratorReference())
+			: memberPointer.empty()
+				? typeSequence.push_front(DeclaratorPointer(qualifiers))
+				: typeSequence.push_front(DeclaratorMemberPointer(*memberPointer.get(), qualifiers));
 	}
 
 	void visit(cpp::ptr_operator* symbol)
@@ -3053,20 +3105,35 @@ struct DeclaratorWalker : public WalkerBase
 		PtrOperatorWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		qualifiers = walker.qualifiers;
+		memberPointer.swap(walker.qualifying);
 	}
 	void visit(cpp::declarator_ptr* symbol)
 	{
-		TREEWALKER_LEAF(symbol);
-		(symbol->op->key->id == cpp::ptr_operator_key::REF)
-			? typeSequence.push_front(DeclaratorReference())
-			: typeSequence.push_front(DeclaratorPointer(qualifiers));
+		DeclaratorWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol); // if parse fails, state of typeSeqence is not modified.
+		id = walker.id;
+		enclosing = walker.enclosing;
+		paramScope = walker.paramScope;
+		addDependent(valueDependent, walker.valueDependent);
+		SYMBOLS_ASSERT(typeSequence.empty());
+		typeSequence = walker.typeSequence;
+
+		memberPointer.swap(walker.memberPointer);
+		pushPointerType(symbol->op);
 	}
 	void visit(cpp::abstract_declarator_ptr* symbol)
 	{
-		TREEWALKER_LEAF(symbol);
-		(symbol->op->key->id == cpp::ptr_operator_key::REF)
-			? typeSequence.push_front(DeclaratorReference())
-			: typeSequence.push_front(DeclaratorPointer(qualifiers));
+		DeclaratorWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol); // if parse fails, state of typeSeqence is not modified.
+		id = walker.id;
+		enclosing = walker.enclosing;
+		paramScope = walker.paramScope;
+		addDependent(valueDependent, walker.valueDependent);
+		SYMBOLS_ASSERT(typeSequence.empty());
+		typeSequence = walker.typeSequence;
+
+		memberPointer.swap(walker.memberPointer);
+		pushPointerType(symbol->op);
 	}
 	void visit(cpp::declarator_id* symbol)
 	{
@@ -4166,6 +4233,7 @@ struct TypeIdWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		addDependent(valueDependent, walker.valueDependent);
 		type.typeSequence = walker.typeSequence;
+		setDependent(type.dependent, type.typeSequence);
 	}
 };
 
@@ -4309,6 +4377,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		id = walker.id;
 		enclosed = walker.paramScope;
 		type.typeSequence = walker.typeSequence;
+		setDependent(type.dependent, type.typeSequence);
 		/* temp.dep.constexpr
 		An identifier is value-dependent if it is:
 			— a name declared with a dependent type,
@@ -4327,6 +4396,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		enclosed = walker.paramScope;
 		type.typeSequence = walker.typeSequence;
+		setDependent(type.dependent, type.typeSequence);
 	}
 	void visit(cpp::member_declarator_bitfield* symbol)
 	{

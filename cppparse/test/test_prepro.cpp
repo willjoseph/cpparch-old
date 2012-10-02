@@ -1,5 +1,53 @@
 
+namespace N087
+{
+	template<typename T>
+	struct Tmpl
+	{
+		template<class U>
+		void f(U)
+		{
+		}
+	};
 
+	Tmpl<int> t;
+	void f()
+	{
+		t.f(0); // the type of 'f(0)' should be determined to be 'void(int)'
+	}
+}
+
+namespace N084
+{
+	template<typename T>
+	struct Tmpl
+	{
+		typedef void(T::*Function)();
+		void f(Function)
+		{
+			Function function;
+			dependent(function); // 'function' should be determined to be dependent
+		}
+	};
+}
+
+namespace N085
+{
+	template<typename T>
+	struct Tmpl
+	{
+		typedef void(T::C::*Function)(); // lookup of 'C' should be deferred
+	};
+}
+
+namespace N086
+{
+	template<typename T>
+	struct Tmpl
+	{
+		typedef void(T::template C<T>::*Function)(); // lookup of 'C' should be deferred
+	};
+}
 
 namespace N063
 {
@@ -10,7 +58,7 @@ namespace N063
 		void f(Function)
 		{
 			Function function;
-			dependent(function);
+			dependent(function); // 'function' should be determined to be dependent
 		}
 	};
 }

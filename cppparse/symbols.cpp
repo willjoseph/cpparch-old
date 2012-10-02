@@ -185,7 +185,7 @@ struct MemberPointerTypeId : ObjectTypeId
 	MemberPointerTypeId(Declaration* declaration, const TreeAllocator<int>& allocator)
 		: ObjectTypeId(declaration, allocator)
 	{
-		value = pushBuiltInType(value, DeclaratorMemberPointer());
+		value = pushBuiltInType(value, DeclaratorMemberPointer(Type(&gDependentType, TREEALLOCATOR_NULL), CvQualifiers())); // TODO
 	}
 };
 
