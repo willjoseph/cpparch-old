@@ -854,10 +854,10 @@ struct Scope : public ScopeCounter
 
 	DeferredLookup deferred;
 	size_t deferredCount;
-	bool isTemplate;
+	size_t templateDepth;
 
 	Scope(const TreeAllocator<int>& allocator, const Identifier& name, ScopeType type = SCOPETYPE_UNKNOWN)
-		: parent(0), name(name), enclosedScopeCount(0), declarations(allocator), type(type), bases(allocator), usingDirectives(allocator), declarationList(allocator), deferred(allocator), deferredCount(0), isTemplate(false)
+		: parent(0), name(name), enclosedScopeCount(0), declarations(allocator), type(type), bases(allocator), usingDirectives(allocator), declarationList(allocator), deferred(allocator), deferredCount(0), templateDepth(0)
 
 	{
 	}
@@ -1062,7 +1062,7 @@ extern Declaration gUnknown;
 
 inline bool isTemplate(const Scope& scope)
 {
-	return scope.isTemplate;
+	return scope.templateDepth != 0;
 }
 
 
@@ -1609,12 +1609,15 @@ struct DeclaratorDependent
 
 inline bool operator==(const DeclaratorDependent& left, const DeclaratorDependent& right)
 {
-	return left.type->templateParameter == right.type->templateParameter; // TODO: don't compare equal unless same template nesting depth
+	return left.type->scope->templateDepth == right.type->scope->templateDepth
+		&& left.type->templateParameter == right.type->templateParameter;
 }
 
 inline bool operator<(const DeclaratorDependent& left, const DeclaratorDependent& right)
 {
-	return left.type->templateParameter < right.type->templateParameter; // TODO: don't compare equal unless same template nesting depth
+	return left.type->scope->templateDepth != right.type->scope->templateDepth
+		? left.type->scope->templateDepth < right.type->scope->templateDepth
+		: left.type->templateParameter < right.type->templateParameter;
 }
 
 

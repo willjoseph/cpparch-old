@@ -383,10 +383,11 @@ struct WalkerState
 	ScopePtr templateParamScope;
 	ScopePtr templateEnclosing;
 	DeferredSymbols* deferred;
+	size_t templateDepth;
 	bool isExplicitInstantiation;
 
 	WalkerState(WalkerContext& context)
-		: context(context), enclosing(0), enclosingType(0), qualifying_p(0), qualifyingScope(0), memberObject(0), templateParams(0), templateParamScope(0), templateEnclosing(0), deferred(0), isExplicitInstantiation(false)
+		: context(context), enclosing(0), enclosingType(0), qualifying_p(0), qualifyingScope(0), memberObject(0), templateParams(0), templateParamScope(0), templateEnclosing(0), deferred(0), templateDepth(0), isExplicitInstantiation(false)
 	{
 	}
 	const WalkerState& getState() const
@@ -469,7 +470,7 @@ struct WalkerState
 		const Dependent& valueDependent = DEPENDENT_NULL)
 	{
 		SEMANTIC_ASSERT(parent != 0);
-		SEMANTIC_ASSERT(templateParameter == INDEX_INVALID || parent->isTemplate);
+		SEMANTIC_ASSERT(templateParameter == INDEX_INVALID || ::isTemplate(*parent));
 		SEMANTIC_ASSERT(isTemplate || params.empty());
 		SEMANTIC_ASSERT(isClassKey(*type.declaration) || !hasTemplateParamDefaults(params)); // 14.1-9: a default template-arguments may be specified in a class template declaration/definition (not for a function or class-member)
 
@@ -797,6 +798,7 @@ struct WalkerState
 	// the dependent-scope is the outermost template-definition
 	void setDependent(DeclarationPtr& dependent, Declaration* candidate) const
 	{
+		SEMANTIC_ASSERT(dependent == DeclarationPtr(0) || isDependentNew(dependent));
 		if(!isDependentNew(candidate))
 		{
 			return;
@@ -2927,7 +2929,7 @@ struct ParameterDeclarationClauseWalker : public WalkerBase
 		pushScope(newScope(makeIdentifier("$declarator"), SCOPETYPE_PROTOTYPE));
 		if(templateParamScope != 0)
 		{
-			enclosing->isTemplate = true;
+			enclosing->templateDepth = templateParamScope->templateDepth;
 #if 0
 			enclosing->declarations = templateParamScope->declarations;
 			for(Scope::Declarations::iterator i = enclosing->declarations.begin(); i != enclosing->declarations.end(); ++i)
@@ -4813,7 +4815,7 @@ struct TemplateParameterClauseWalker : public WalkerBase
 		Scope* scope = templateParamScope != 0 ? static_cast<Scope*>(templateParamScope) : newScope(makeIdentifier("$template"), SCOPETYPE_TEMPLATE);
 		clearTemplateParams();
 		pushScope(scope);
-		enclosing->isTemplate = true;
+		enclosing->templateDepth = templateDepth;
 	}
 	void visit(cpp::template_parameter_list* symbol)
 	{
@@ -4834,6 +4836,7 @@ struct TemplateDeclarationWalker : public WalkerBase
 		: WalkerBase(state), declaration(0), params(context)
 	{
 		templateEnclosing = enclosing;
+		++templateDepth;
 	}
 	void visit(cpp::template_parameter_clause* symbol)
 	{
