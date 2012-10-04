@@ -1,4 +1,13 @@
 
+namespace N088
+{
+	void f(const wchar_t*);
+	void f()
+	{
+		f(L""); /// overload resolution should pick 'f(const wchar_t*)'
+	}
+}
+
 namespace N087
 {
 	template<typename T>

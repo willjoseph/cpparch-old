@@ -1472,6 +1472,11 @@ struct UniqueTypeWrapper
 		return isArray()
 			&& UniqueTypeWrapper(value->next).isSimple();
 	}
+	bool isFunctionPointer() const
+	{
+		return isPointer()
+			&& UniqueTypeWrapper(value->next).isFunction();
+	}
 };
 
 inline bool operator==(UniqueTypeWrapper l, UniqueTypeWrapper r)
@@ -1686,17 +1691,21 @@ inline bool operator<(const DeclaratorMemberPointer& left, const DeclaratorMembe
 
 struct DeclaratorArray
 {
-	// TODO: size
+	std::size_t size;
+	DeclaratorArray(std::size_t size)
+		: size(size)
+	{
+	}
 };
 
 inline bool operator==(const DeclaratorArray& left, const DeclaratorArray& right)
 {
-	return true;
+	return left.size == right.size;
 }
 
 inline bool operator<(const DeclaratorArray& left, const DeclaratorArray& right)
 {
-	return false;
+	return left.size < right.size;
 }
 
 typedef std::vector<UniqueTypeWrapper> ParameterTypes;
@@ -2424,7 +2433,7 @@ struct StringLiteralTypeId : ObjectTypeId
 	StringLiteralTypeId(Declaration* declaration, const TreeAllocator<int>& allocator)
 		: ObjectTypeId(declaration, allocator)
 	{
-		value = pushBuiltInType(value, DeclaratorArray());
+		value = pushBuiltInType(value, DeclaratorArray(0));
 	}
 };
 
@@ -2979,6 +2988,26 @@ inline const UniqueTypeId& promoteToIntegralType(const UniqueTypeId& type)
 	return type;
 }
 
+inline UniqueTypeWrapper applyLvalueTransformation(UniqueTypeWrapper to, UniqueTypeWrapper from)
+{
+	if(!to.isReference()
+		&& from.isReference())
+	{
+		from = UniqueTypeWrapper(getInner(from.value)); // T& -> T
+	}
+	if(to.isPointer()
+		&& from.isArray())
+	{
+		return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, getInner(from.value), DeclaratorPointer())); // T[] -> T*
+	}
+	if(to.isFunctionPointer()
+		&& from.isFunction())
+	{
+		return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, from.value, DeclaratorPointer())); // T() -> T(*)()
+	}
+	return from;
+}
+
 inline bool isPromotion(const UniqueTypeId& to, const UniqueTypeId& from)
 {
 	if(isArithmetic(from) && from.isSimple()
@@ -3033,37 +3062,140 @@ inline bool isConversion(const UniqueTypeId& to, const UniqueTypeId& from, bool 
 	{
 		return true; // D -> B
 	}
-	if(to.isPointer()
-		&& from.isArray()
-		&& isEqualInner(to, from))
-	{
-		return true; // T[] -> T*
-	}
 	return false;
 }
 
-inline IcsRank getIcsRank(const UniqueTypeId& to, const UniqueTypeId& from, bool isNullPointerConstant = false)
+inline bool isGreaterCvQualification(const UniqueTypeId& to, const UniqueTypeId& from)
+{
+	return to.value.getQualifiers().isConst > from.value.getQualifiers().isConst
+		|| to.value.getQualifiers().isVolatile > from.value.getQualifiers().isVolatile;
+}
+
+inline bool isEqualCvQualification(const UniqueTypeId& to, const UniqueTypeId& from)
+{
+	return to.value.getQualifiers() == from.value.getQualifiers();
+}
+
+// exact
+// T& <- T
+// T& <- T&
+// const T& <- T
+// const T& <- T&
+// derived to base conversion
+// B& <- D
+// B& <- D&
+// const B& <- D
+// const B& <- D&
+// invalid
+// T& <- const T
+// T& <- const T&
+// B& <- const D
+// B& <- const D&
+
+// [conv]
+// exact
+// T <- T
+// T* <- T[]
+// T(*)() <- T()
+// const T* <- T*
+// T C::const*  <- T C::*
+// multi-level pointer / member-pointer
+// derived to base conversion
+// B <- D
+
+inline bool isSimilar(UniqueTypeWrapper to, UniqueTypeWrapper from)
+{
+	for(;;)
+	{
+		if(to == from)
+		{
+			break;
+		}
+		if(to.isPointer()
+			&& from.isPointer())
+		{
+		}
+		else if(to.isMemberPointer()
+			&& from.isMemberPointer()
+				&& &getMemberPointerClass(to.value) == &getMemberPointerClass(from.value))
+		{
+		}
+		else
+		{
+			return false;
+		}
+		to = UniqueTypeWrapper(getInner(to.value));
+		from = UniqueTypeWrapper(getInner(from.value));
+	}
+	return true;
+}
+
+// 13.3.3.1 [over.best.ics]
+inline IcsRank getIcsRank(UniqueTypeWrapper to, UniqueTypeWrapper from, bool isNullPointerConstant = false, bool isLvalue = false)
 {
 	// TODO: user-defined conversion
 	if(from.value == UNIQUETYPE_NULL)
 	{
 		return ICSRANK_INVALID; // TODO: assert
 	}
-	if(isEqual(to, from))
+	if(to.isReference())
 	{
-		return ICSRANK_STANDARDEXACT;
+		to = UniqueTypeWrapper(getInner(to.value));
+		if(from.isReference())
+		{
+			isLvalue = true;
+			from = UniqueTypeWrapper(getInner(from.value)); // TODO: removal of reference won't be detected later
+		}
+		// does it directly bind?
+		if(isLvalue
+			&& (isEqualCvQualification(to, from)
+				|| isGreaterCvQualification(to, from))) // TODO: track 'added qualification' if qualification is greater
+		{
+			if(to.value.getPointer() == from.value.getPointer())
+			{
+				return ICSRANK_STANDARDEXACT;
+			}
+			if(to.isSimple()
+				&& from.isSimple()
+				&& isBaseOf(getObjectType(to.value), getObjectType(from.value)))
+			{
+				return ICSRANK_STANDARDCONVERSION;
+			}
+		}
+		// if not bound directly, standard conversion required (which produces rvalue)
+		if(!to.value.getQualifiers().isConst
+			&& !isLvalue)
+		{
+			// can't bind rvalue to a non-const reference
+			return ICSRANK_INVALID;
+		}
 	}
-	if(isPromotion(to, from))
+
+	from = applyLvalueTransformation(to, from);
+	// ignore top level cv-qualifiers
+	to.value.setQualifiers(CvQualifiers());
+	from.value.setQualifiers(CvQualifiers());
+
+	IcsRank rank = ICSRANK_INVALID;
+	// 13.3.3.1.4 [over.ics.ref]: reference binding
+	if(isSimilar(to, from))
 	{
-		return ICSRANK_STANDARDPROMOTION;
+		rank = ICSRANK_STANDARDEXACT;
 	}
-	if(isConversion(to, from, isNullPointerConstant))
+	else if(isPromotion(to, from))
 	{
-		return ICSRANK_STANDARDCONVERSION; // TODO: ordering of conversions by inheritance distance
+		rank = ICSRANK_STANDARDPROMOTION;
 	}
+	else if(isConversion(to, from, isNullPointerConstant))
+	{
+		rank = ICSRANK_STANDARDCONVERSION; // TODO: ordering of conversions by inheritance distance
+	}
+
+	// TODO: qualification adjustment
+
 	// TODO: user-defined
 	// TODO: ellipsis
-	return ICSRANK_INVALID;
+	return rank;
 }
 
 struct ImplicitConversion

@@ -571,11 +571,14 @@ An unqualified name in a template cannot depend on a local name or class member.
 	- record argument types for function-call
 		- record complex types
 			+ pointer, array, function
-			- member-ptr, const
+			+ member-ptr, const
 		- print complex types
 			+ pointer, array, function
 			- member-ptr, const
 		- null-pointer-constant
+		- implicit object argument
+			- const
+		- ellipsis
 	- evaluate type of expression
 		- expression-list
 			- choose last

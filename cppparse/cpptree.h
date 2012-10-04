@@ -22,7 +22,7 @@ struct CvQualifiers
 		: isConst(false), isVolatile(false)
 	{
 	}
-	CvQualifiers(bool isConst, bool isExtern)
+	CvQualifiers(bool isConst, bool isVolatile)
 		: isConst(isConst), isVolatile(isVolatile)
 	{
 	}

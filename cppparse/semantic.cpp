@@ -3154,7 +3154,7 @@ struct DeclaratorWalker : public WalkerBase
 		DeclaratorArrayWalker walker(getState());
 		TREEWALKER_WALK_CACHED(walker, symbol);
 		addDependent(valueDependent, walker.valueDependent);
-		typeSequence.push_front(DeclaratorArray()); // TODO: how many dimensions, array size
+		typeSequence.push_front(DeclaratorArray(0)); // TODO: how many dimensions, array size
 	}
 	void visit(cpp::declarator_suffix_function* symbol)
 	{

@@ -155,6 +155,9 @@ Identifier gOperatorFunctionTemplateId = makeIdentifier("operator () <>");
 // TODO: don't declare if id is anonymous?
 Identifier gAnonymousId = makeIdentifier("$anonymous");
 
+Identifier gFunctionParamsId = makeIdentifier("$params");
+Scope gFunctionParamsScope(TREEALLOCATOR_NULL, gFunctionParamsId, SCOPETYPE_PROTOTYPE);
+
 struct PointerTypeId : ObjectTypeId
 {
 	PointerTypeId(Declaration* declaration, const TreeAllocator<int>& allocator)
@@ -163,6 +166,7 @@ struct PointerTypeId : ObjectTypeId
 		value = pushBuiltInType(value, DeclaratorPointer());
 	}
 };
+
 struct PointerPointerTypeId : ObjectTypeId
 {
 	PointerPointerTypeId(Declaration* declaration, const TreeAllocator<int>& allocator)
@@ -172,31 +176,12 @@ struct PointerPointerTypeId : ObjectTypeId
 		value = pushBuiltInType(value, DeclaratorPointer());
 	}
 };
-struct ArrayTypeId : ObjectTypeId
-{
-	ArrayTypeId(Declaration* declaration, const TreeAllocator<int>& allocator)
-		: ObjectTypeId(declaration, allocator)
-	{
-		value = pushBuiltInType(value, DeclaratorArray());
-	}
-};
-struct MemberPointerTypeId : ObjectTypeId
-{
-	MemberPointerTypeId(Declaration* declaration, const TreeAllocator<int>& allocator)
-		: ObjectTypeId(declaration, allocator)
-	{
-		value = pushBuiltInType(value, DeclaratorMemberPointer(Type(&gDependentType, TREEALLOCATOR_NULL), CvQualifiers())); // TODO
-	}
-};
 
 PointerTypeId gVoidPointer(&gVoidDeclaration, TREEALLOCATOR_NULL);
 PointerTypeId gSignedIntPointer(&gSignedIntDeclaration, TREEALLOCATOR_NULL);
 PointerTypeId gSignedCharPointer(&gSignedCharDeclaration, TREEALLOCATOR_NULL);
 PointerTypeId gWCharTPointer(&gWCharTDeclaration, TREEALLOCATOR_NULL);
 PointerPointerTypeId gSignedIntPointerPointer(&gSignedIntDeclaration, TREEALLOCATOR_NULL);
-ArrayTypeId gSignedIntArray(&gSignedIntDeclaration, TREEALLOCATOR_NULL);
-ArrayTypeId gFloatArray(&gFloatDeclaration, TREEALLOCATOR_NULL);
-MemberPointerTypeId gSignedIntMemberPointer(&gSignedIntDeclaration, TREEALLOCATOR_NULL);
 
 
 Identifier gBaseClassId = makeIdentifier("$base");
@@ -222,6 +207,252 @@ DerivedClassTypeId gDerivedClass(&gDerivedClassDeclaration, TREEALLOCATOR_NULL);
 
 PointerTypeId gBaseClassPointer(&gBaseClassDeclaration, TREEALLOCATOR_NULL);
 PointerTypeId gDerivedClassPointer(&gDerivedClassDeclaration, TREEALLOCATOR_NULL);
+
+
+struct Base
+{
+};
+struct Derived : Base
+{
+};
+
+template<typename T>
+struct MakeType
+{
+private:
+	static UniqueTypeWrapper apply();
+};
+
+template<>
+struct MakeType<bool>
+{
+	static UniqueTypeWrapper apply()
+	{
+		return gBool;
+	}
+};
+
+template<>
+struct MakeType<int>
+{
+	static UniqueTypeWrapper apply()
+	{
+		return gSignedInt;
+	}
+};
+
+template<>
+struct MakeType<float>
+{
+	static UniqueTypeWrapper apply()
+	{
+		return gFloat;
+	}
+};
+
+template<>
+struct MakeType<char>
+{
+	static UniqueTypeWrapper apply()
+	{
+		return gChar;
+	}
+};
+
+template<>
+struct MakeType<wchar_t>
+{
+	static UniqueTypeWrapper apply()
+	{
+		return gWCharT;
+	}
+};
+
+template<>
+struct MakeType<void>
+{
+	static UniqueTypeWrapper apply()
+	{
+		return gVoid;
+	}
+};
+
+template<>
+struct MakeType<Base>
+{
+	static UniqueTypeWrapper apply()
+	{
+		return gBaseClass;
+	}
+};
+
+template<>
+struct MakeType<Derived>
+{
+	static UniqueTypeWrapper apply()
+	{
+		return gDerivedClass;
+	}
+};
+
+struct MakeConst
+{
+	static UniqueTypeWrapper apply(UniqueTypeWrapper inner)
+	{
+		inner.value.setQualifiers(CvQualifiers(true, false));
+		return inner;
+	}
+};
+
+template<typename T>
+struct MakeType<const T>
+{
+	static UniqueTypeWrapper apply()
+	{
+		return MakeConst::apply(MakeType<T>::apply());
+	}
+};
+
+struct MakeVolatile
+{
+	static UniqueTypeWrapper apply(UniqueTypeWrapper inner)
+	{
+		inner.value.setQualifiers(CvQualifiers(false, true));
+		return inner;
+	}
+};
+
+template<typename T>
+struct MakeType<volatile T>
+{
+	static UniqueTypeWrapper apply()
+	{
+		return MakeVolatile::apply(MakeType<T>::apply());
+	}
+};
+
+struct MakeConstVolatile
+{
+	static UniqueTypeWrapper apply(UniqueTypeWrapper inner)
+	{
+		inner.value.setQualifiers(CvQualifiers(true, true));
+		return inner;
+	}
+};
+
+template<typename T>
+struct MakeType<const volatile T>
+{
+	static UniqueTypeWrapper apply()
+	{
+		return MakeConstVolatile::apply(MakeType<T>::apply());
+	}
+};
+
+template<typename T>
+struct MakeType<T*>
+{
+	static UniqueTypeWrapper apply()
+	{
+		return UniqueTypeWrapper(pushBuiltInType(MakeType<T>::apply().value, DeclaratorPointer()));
+	}
+};
+
+template<typename T>
+struct MakeType<T&>
+{
+	static UniqueTypeWrapper apply()
+	{
+		return UniqueTypeWrapper(pushBuiltInType(MakeType<T>::apply().value, DeclaratorReference()));
+	}
+};
+
+template<std::size_t size>
+struct MakeArray
+{
+	static UniqueTypeWrapper apply(UniqueTypeWrapper inner)
+	{
+		return UniqueTypeWrapper(pushBuiltInType(inner.value, DeclaratorArray(size)));
+	}
+};
+
+template<typename T>
+struct MakeType<T[]>
+{
+	static UniqueTypeWrapper apply()
+	{
+		return MakeArray<0>::apply(MakeType<T>::apply());
+	}
+};
+
+template<typename T, std::size_t size>
+struct MakeType<T[size]>
+{
+	static UniqueTypeWrapper apply()
+	{
+		return MakeArray<size>::apply(MakeType<T>::apply());
+	}
+};
+
+struct MakeFunction
+{
+	static UniqueTypeWrapper apply(UniqueTypeWrapper inner)
+	{
+		return UniqueTypeWrapper(pushBuiltInType(inner.value, DeclaratorFunction(&gFunctionParamsScope, CvQualifiers())));
+	}
+};
+
+template<typename T>
+struct MakeType<T()>
+{
+	static UniqueTypeWrapper apply()
+	{
+		return MakeFunction::apply(MakeType<T>::apply());
+	}
+};
+
+template<typename C>
+struct MakeMemberPointer
+{
+	static UniqueTypeWrapper apply(UniqueTypeWrapper inner)
+	{
+		const TypeInstance& instance = getObjectType(MakeType<C>::apply().value);
+		DeclaratorMemberPointer element(Type(instance.declaration, TREEALLOCATOR_NULL), CvQualifiers());
+		element.instance = &instance;
+		return UniqueTypeWrapper(pushBuiltInType(inner.value, element));
+	}
+};
+
+template<typename T, typename C>
+struct MakeType<T C::*>
+{
+	static UniqueTypeWrapper apply()
+	{
+		return MakeMemberPointer<C>::apply(MakeType<T>::apply());
+	}
+};
+
+template<typename T, typename C>
+struct MakeType<T (C::*)()>
+{
+	static UniqueTypeWrapper apply()
+	{
+		return MakeMemberPointer<C>::apply(MakeFunction::apply(MakeType<T>::apply()));
+	}
+};
+
+template<typename T, typename C>
+struct MakeType<T (C::*)() const>
+{
+	static UniqueTypeWrapper apply()
+	{
+		return MakeMemberPointer<C>::apply(MakeConst::apply(MakeFunction::apply(MakeType<T>::apply())));
+	}
+};
+
+
+UniqueTypeWrapper gSignedIntMemberPointer = MakeType<int Base::*>::apply();
+
 
 typedef const UniqueTypeId* UniqueTypeIdConstPointer;
 UniqueTypeIdConstPointer gArithmeticTypes[] = {
@@ -317,8 +548,36 @@ IcsRank getArithmeticIcsRank(const UniqueTypeId& to, const UniqueTypeId& from)
 	return ICSRANK_STANDARDCONVERSION;
 }
 
+template<typename To, typename From>
+struct TestIcsRank
+{
+	static void apply(IcsRank expected, bool isNullPointerConstant = false, bool isLvalue = false)
+	{
+		IcsRank rank = getIcsRank(MakeType<To>::apply(), MakeType<From>::apply(), isNullPointerConstant, isLvalue);
+		SYMBOLS_ASSERT(rank == expected);
+	}
+};
+
 inline void testIcsRank()
 {
+	typedef const int ConstInt;
+	typedef ConstInt* PtrToConstInt;
+	typedef int* PtrToInt;
+	typedef const PtrToInt ConstPtrToInt;
+	typedef const PtrToConstInt ConstPtrToConstInt;
+	UniqueTypeWrapper test1 = MakeType<ConstInt>::apply();
+	UniqueTypeWrapper test2 = MakeType<PtrToConstInt>::apply();
+	UniqueTypeWrapper test3 = MakeType<ConstPtrToInt>::apply();
+	UniqueTypeWrapper test4 = MakeType<ConstPtrToConstInt>::apply();
+
+	UniqueTypeWrapper test5 = MakeType<int (*)()>::apply();
+	UniqueTypeWrapper test6 = MakeType<int (Base::*)()>::apply();
+	UniqueTypeWrapper test7 = MakeType<int (Base::*)() const>::apply();
+	UniqueTypeWrapper test8 = MakeType<int (Base::*const)()>::apply();
+
+	UniqueTypeWrapper test9 = MakeType<int[]>::apply();
+	UniqueTypeWrapper test10 = MakeType<int[1]>::apply();
+
 	for(const UniqueTypeIdConstPointer* i = gArithmeticTypes; i != ARRAY_END(gArithmeticTypes); ++i)
 	{
 		UniqueTypeIdConstPointer to = *i;
@@ -390,47 +649,142 @@ inline void testIcsRank()
 	}
 
 	// T[] -> T*
-	{
-		IcsRank rank = getIcsRank(gSignedIntPointer, gSignedIntArray);
-		SYMBOLS_ASSERT(rank == ICSRANK_STANDARDCONVERSION);
-	}
-	{
-		IcsRank rank = getIcsRank(gSignedIntPointer, gFloatArray);
-		SYMBOLS_ASSERT(rank == ICSRANK_INVALID);
-	}
-	{
-		IcsRank rank = getIcsRank(gSignedIntPointerPointer, gSignedIntArray);
-		SYMBOLS_ASSERT(rank == ICSRANK_INVALID);
-	}
+	TestIcsRank<int*, int[]>::apply(ICSRANK_STANDARDEXACT);
+	TestIcsRank<int*, int[1]>::apply(ICSRANK_STANDARDEXACT);
+	TestIcsRank<int*, float[1]>::apply(ICSRANK_INVALID);
+	TestIcsRank<int**, int[1]>::apply(ICSRANK_INVALID);
+	TestIcsRank<int[], int*>::apply(ICSRANK_INVALID);
+
+	// T() -> T(*)()
+	TestIcsRank<int(*)(), int()>::apply(ICSRANK_STANDARDEXACT);
+	TestIcsRank<int(), int(*)()>::apply(ICSRANK_INVALID);
 
 	// D -> B
-	{
-		IcsRank rank = getIcsRank(gBaseClass, gDerivedClass);
-		SYMBOLS_ASSERT(rank == ICSRANK_STANDARDCONVERSION);
-	}
-	{
-		IcsRank rank = getIcsRank(gDerivedClass, gBaseClass);
-		SYMBOLS_ASSERT(rank == ICSRANK_INVALID);
-	}
+	TestIcsRank<Base, Derived>::apply(ICSRANK_STANDARDCONVERSION);
+	TestIcsRank<Derived, Base>::apply(ICSRANK_INVALID);
 
 	// D* -> B*
-	{
-		IcsRank rank = getIcsRank(gBaseClassPointer, gDerivedClassPointer);
-		SYMBOLS_ASSERT(rank == ICSRANK_STANDARDCONVERSION);
-	}
-	{
-		IcsRank rank = getIcsRank(gDerivedClassPointer, gBaseClassPointer);
-		SYMBOLS_ASSERT(rank == ICSRANK_INVALID);
-	}
+	TestIcsRank<Base*, Derived*>::apply(ICSRANK_STANDARDCONVERSION);
+	TestIcsRank<Derived*, Base*>::apply(ICSRANK_INVALID);
 
-	// TODO: D::* -> B::*
+	// T D::* -> T B::*
+	TestIcsRank<int Base::*, int Derived::*>::apply(ICSRANK_STANDARDCONVERSION);
+	TestIcsRank<int Derived::*, int Base::*>::apply(ICSRANK_INVALID);
 
+	// D& -> B&
+	TestIcsRank<Base&, Derived&>::apply(ICSRANK_STANDARDCONVERSION);
+	TestIcsRank<Derived&, Base&>::apply(ICSRANK_INVALID);
+
+	// T& -> T&
+	TestIcsRank<Base&, Base&>::apply(ICSRANK_STANDARDEXACT);
+
+	// bind to reference
+	TestIcsRank<const int&, int&>::apply(ICSRANK_STANDARDEXACT);
+	TestIcsRank<const int&, char>::apply(ICSRANK_STANDARDPROMOTION);
+	TestIcsRank<const float&, int>::apply(ICSRANK_STANDARDCONVERSION);
+	TestIcsRank<const int&, float>::apply(ICSRANK_STANDARDCONVERSION);
+	TestIcsRank<const bool&, Base*>::apply(ICSRANK_STANDARDCONVERSION);
+
+	// convert from reference 
+	TestIcsRank<int, int&>::apply(ICSRANK_STANDARDEXACT);
+	TestIcsRank<int, char&>::apply(ICSRANK_STANDARDPROMOTION);
+	TestIcsRank<int, float&>::apply(ICSRANK_STANDARDCONVERSION);
+	TestIcsRank<Base, Derived&>::apply(ICSRANK_STANDARDCONVERSION);
+	TestIcsRank<int*, int(&)[1]>::apply(ICSRANK_STANDARDEXACT);
+
+	// lvalue T -> T&
+	TestIcsRank<Base&, Base>::apply(ICSRANK_STANDARDEXACT, false, true);
+	// rvalue T -> T&
+	TestIcsRank<Base&, Base>::apply(ICSRANK_INVALID, false, false);
 }
 
-struct TestIcsRank
+struct IcsRankTest
 {
-	TestIcsRank()
+	IcsRankTest()
 	{
 		testIcsRank();
 	}
-} gTestIcsRank;
+} gIcsRankTest;
+
+
+#if 0
+
+namespace Test
+{
+	struct Base
+	{
+		int m();
+	};
+
+	template<typename T>
+	struct MakeType
+	{
+	};
+
+	template<>
+	struct MakeType<int>
+	{
+		static void apply()
+		{
+		}
+	};
+
+	template<>
+	struct MakeType<Base>
+	{
+		static void apply()
+		{
+		}
+	};
+
+	template<typename T>
+	struct MakeType<const T>
+	{
+		static void apply()
+		{
+			return MakeType<T>::apply();
+		}
+	};
+
+	template<typename T>
+	struct MakeType<T*>
+	{
+		static void apply()
+		{
+			return MakeType<T>::apply();
+		}
+	};
+
+	template<typename T>
+	struct MakeType<T&>
+	{
+		static void apply()
+		{
+			return MakeType<T>::apply();
+		}
+	};
+
+	template<typename T>
+	struct MakeType<T()>
+	{
+		static void apply()
+		{
+			return MakeType<T>::apply();
+		}
+	};
+
+	template<typename T, typename C>
+	struct MakeType<T C::*>
+	{
+		static void apply()
+		{
+			return MakeType<T>::apply();
+		}
+	};
+
+	void f()
+	{
+		MakeType<int (Base::*)()>::apply();
+	}
+}
+#endif
