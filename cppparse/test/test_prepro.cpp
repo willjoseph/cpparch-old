@@ -1,4 +1,14 @@
 
+namespace N092
+{
+	struct S
+	{
+		// parsing type of default-argument should be deferred 
+		void f1(int i = 0);
+		void f2(int i = 0) {} // test backtracking after shared-prefix declarator
+		void f3(int i = 0), f4(int j = 0);
+	};
+}
 
 namespace N091
 {

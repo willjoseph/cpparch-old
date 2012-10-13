@@ -114,28 +114,6 @@ void printIdentifierMismatch(const IdentifierMismatch& e)
 	}
 }
 
-Identifier gGlobalId = makeIdentifier("$global");
-
-
-struct WalkerContext : public TreeAllocator<int>
-{
-	Scope global;
-	Declaration globalDecl;
-	TypeRef globalType;
-
-	WalkerContext(const TreeAllocator<int>& allocator) :
-		TreeAllocator<int>(allocator),
-		global(allocator, gGlobalId, SCOPETYPE_NAMESPACE),
-		globalDecl(allocator, 0, gGlobalId, TYPE_NULL, &global),
-		globalType(Type(&globalDecl, allocator), allocator)
-	{
-	}
-};
-
-typedef std::list< DeferredParse<struct WalkerBase, struct WalkerState> > DeferredSymbols;
-
-typedef bool (*IdentifierFunc)(const Declaration& declaration);
-const char* getIdentifierType(IdentifierFunc func);
 
 Scope::DeclarationList::const_iterator getFirstFunctionParameter(const Scope::DeclarationList& declarations)
 {
@@ -313,7 +291,7 @@ inline bool isEquivalent(const Declaration& declaration, const Declaration& othe
 		// TODO: compare template-argument-lists of partial specializations
 		return isSpecialization(declaration) == isSpecialization(other)
 			&& (!isSpecialization(declaration) // both are not explicit/partial specializations
-				|| isEquivalentSpecialization(declaration, other)); // both are specializations and have matching arguments
+			|| isEquivalentSpecialization(declaration, other)); // both are specializations and have matching arguments
 
 	}
 	else
@@ -336,19 +314,19 @@ inline bool isEquivalent(const Declaration& declaration, const Declaration& othe
 		}
 	}
 #else
-	if(isDeclaratorFunction(declaration.type))
-	{
-		// 13.2 [over.dcl] Two functions of the same name refer to the same function
-		// if they are in the same scope and have equivalent parameter declarations.
-		// TODO: also compare template parameter lists: <class, int> is not equivalent to <class, float>
-		// TODO: member functions cannot be redeclared (illegal)
-		SYMBOLS_ASSERT(isDeclaratorFunction(other.type)); // TODO: non-fatal error: 'id' previously declared as non-function, second declaration is a function
-		return declaration.isTemplate == other.isTemplate // early out
-			&& isReturnTypeEqual(declaration.type, other.type) // return-types match
-			&& isEquivalent(getDeclaratorFunction(declaration.type)->paramScope->declarationList, getDeclaratorFunction(other.type)->paramScope->declarationList); // and parameter-types match
-	}
+		if(isDeclaratorFunction(declaration.type))
+		{
+			// 13.2 [over.dcl] Two functions of the same name refer to the same function
+			// if they are in the same scope and have equivalent parameter declarations.
+			// TODO: also compare template parameter lists: <class, int> is not equivalent to <class, float>
+			// TODO: member functions cannot be redeclared (illegal)
+			SYMBOLS_ASSERT(isDeclaratorFunction(other.type)); // TODO: non-fatal error: 'id' previously declared as non-function, second declaration is a function
+			return declaration.isTemplate == other.isTemplate // early out
+				&& isReturnTypeEqual(declaration.type, other.type) // return-types match
+				&& isEquivalent(getDeclaratorFunction(declaration.type)->paramScope->declarationList, getDeclaratorFunction(other.type)->paramScope->declarationList); // and parameter-types match
+		}
 #endif
-	return false;
+		return false;
 }
 
 inline Declaration* findRedeclared(const Declaration& declaration)
@@ -367,6 +345,31 @@ inline Declaration* findRedeclared(const Declaration& declaration)
 	}
 	return 0;
 }
+
+
+Identifier gGlobalId = makeIdentifier("$global");
+
+
+struct WalkerContext : public TreeAllocator<int>
+{
+	Scope global;
+	Declaration globalDecl;
+	TypeRef globalType;
+
+	WalkerContext(const TreeAllocator<int>& allocator) :
+		TreeAllocator<int>(allocator),
+		global(allocator, gGlobalId, SCOPETYPE_NAMESPACE),
+		globalDecl(allocator, 0, gGlobalId, TYPE_NULL, &global),
+		globalType(Type(&globalDecl, allocator), allocator)
+	{
+	}
+};
+
+typedef std::list< DeferredParse<struct WalkerBase, struct WalkerState> > DeferredSymbols;
+
+typedef bool (*IdentifierFunc)(const Declaration& declaration);
+const char* getIdentifierType(IdentifierFunc func);
+
 
 struct WalkerState
 	: public ContextBase
@@ -4285,7 +4288,6 @@ struct SimpleDeclarationWalker : public WalkerBase
 	IdentifierPtr forward;
 
 	DeferredSymbols deferred;
-	DeferredSymbols deferred2;
 
 	Dependent valueDependent;
 	size_t templateParameter;
@@ -4332,13 +4334,6 @@ struct SimpleDeclarationWalker : public WalkerBase
 
 			id = 0;
 		}
-#ifdef MINGLE
-		if(WalkerState::deferred != 0
-			&& !deferred.empty())
-		{
-			WalkerState::deferred->splice(WalkerState::deferred->end(), deferred);
-		}
-#endif
 	}
 
 	void visit(cpp::decl_specifier_seq* symbol)
@@ -4377,8 +4372,8 @@ struct SimpleDeclarationWalker : public WalkerBase
 		{
 			// while parsing simple-declaration-named declarator which contains deferred default-argument expression,
 			// on finding '{', we rewind and try parsing function-definition.
-			// In this situation, 'deferred2' contains the reference to the deferred expression.
-			walker.deferred = &deferred2;
+			// In this situation, 'deferred' contains the reference to the deferred expression.
+			walker.deferred = &deferred;
 		}
 
 		TREEWALKER_WALK_CACHED(walker, symbol);
@@ -4431,6 +4426,14 @@ struct SimpleDeclarationWalker : public WalkerBase
 	void visit(cpp::terminal<boost::wave::T_LEFTBRACE> symbol)
 	{
 		commit();
+
+		// symbols may be deferred during attempt to parse shared-prefix declarator: f(int i = j)
+		// first parsed as member_declaration_named, backtracks on reaching '{'
+		if(WalkerState::deferred != 0
+			&& !deferred.empty())
+		{
+			WalkerState::deferred->splice(WalkerState::deferred->end(), deferred);
+		}
 	}
 	void visit(cpp::terminal<boost::wave::T_COMMA> symbol)
 	{
@@ -4439,6 +4442,14 @@ struct SimpleDeclarationWalker : public WalkerBase
 	void visit(cpp::terminal<boost::wave::T_SEMICOLON> symbol)
 	{
 		commit();
+
+		// symbols may be deferred during attempt to parse shared-prefix declarator: f(int i = j)
+		// first parsed as member_declaration_named, backtracks on reaching '{'
+		if(WalkerState::deferred != 0
+			&& !deferred.empty())
+		{
+			WalkerState::deferred->splice(WalkerState::deferred->end(), deferred);
+		}
 	}
 	void visit(cpp::terminal<boost::wave::T_COLON> symbol)
 	{
@@ -4450,7 +4461,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		// We cannot correctly skip a template-id in a default-argument if it refers to a template declared later in the class.
 		// This is considered to be correct: http://www.open-std.org/jtc1/sc22/wg21/docs/cwg_active.html#325
 		if(WalkerState::deferred != 0
-			&& templateParameter == INDEX_INVALID) // don't defer parse of default for non-type template-argument
+			&& templateParameter == INDEX_INVALID) // don't defer parse of default-argument for non-type template-parameter
 		{
 			result = defer(*WalkerState::deferred, *this, makeSkipDefaultArgument(IsTemplateName(*this)), symbol);
 		}
@@ -4568,26 +4579,12 @@ struct SimpleDeclarationWalker : public WalkerBase
 		DeclareEtsGuard guard(*this);
 		TREEWALKER_LEAF(symbol);
 		guard.hit();
-
-		// symbols may be deferred during attempt to parse void f(int i = j) {}
-		// first parsed as member_declaration_named, fails on reaching '{'
-		if(WalkerState::deferred != 0
-			&& !deferred2.empty())
-		{
-			deferred.splice(deferred.end(), deferred2);
-		}
 	}
 	void visit(cpp::function_definition* symbol)
 	{
 		DeclareEtsGuard guard(*this);
 		TREEWALKER_LEAF(symbol);
 		guard.hit();
-
-		if(WalkerState::deferred != 0
-			&& !deferred2.empty())
-		{
-			deferred.splice(deferred.end(), deferred2);
-		}
 	}
 	void visit(cpp::type_declaration_suffix* symbol)
 	{
