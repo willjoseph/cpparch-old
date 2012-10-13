@@ -654,6 +654,9 @@ inline void testIcsRank()
 	TestIcsRank<int*, float[1]>::apply(ICSRANK_INVALID);
 	TestIcsRank<int**, int[1]>::apply(ICSRANK_INVALID);
 	TestIcsRank<int[], int*>::apply(ICSRANK_INVALID);
+	TestIcsRank<const int*, int[]>::apply(ICSRANK_STANDARDEXACT);
+	TestIcsRank<const int*, const int[]>::apply(ICSRANK_STANDARDEXACT);
+	TestIcsRank<int*, const int[]>::apply(ICSRANK_INVALID);
 
 	// T() -> T(*)()
 	TestIcsRank<int(*)(), int()>::apply(ICSRANK_STANDARDEXACT);
@@ -666,17 +669,26 @@ inline void testIcsRank()
 	// D* -> B*
 	TestIcsRank<Base*, Derived*>::apply(ICSRANK_STANDARDCONVERSION);
 	TestIcsRank<Derived*, Base*>::apply(ICSRANK_INVALID);
+	TestIcsRank<const Base*, Derived*>::apply(ICSRANK_STANDARDCONVERSION);
+	TestIcsRank<const Base*, const Derived*>::apply(ICSRANK_STANDARDCONVERSION);
+	TestIcsRank<Base*, const Derived*>::apply(ICSRANK_INVALID);
 
 	// T D::* -> T B::*
 	TestIcsRank<int Base::*, int Derived::*>::apply(ICSRANK_STANDARDCONVERSION);
 	TestIcsRank<int Derived::*, int Base::*>::apply(ICSRANK_INVALID);
 
+	// T& -> T&
+	TestIcsRank<Base&, Base&>::apply(ICSRANK_STANDARDEXACT);
+	TestIcsRank<const Base&, Base&>::apply(ICSRANK_STANDARDEXACT);
+	TestIcsRank<const Base&, const Base&>::apply(ICSRANK_STANDARDEXACT);
+	TestIcsRank<Base&, const Base&>::apply(ICSRANK_INVALID);
+
 	// D& -> B&
 	TestIcsRank<Base&, Derived&>::apply(ICSRANK_STANDARDCONVERSION);
 	TestIcsRank<Derived&, Base&>::apply(ICSRANK_INVALID);
-
-	// T& -> T&
-	TestIcsRank<Base&, Base&>::apply(ICSRANK_STANDARDEXACT);
+	TestIcsRank<const Base&, Derived&>::apply(ICSRANK_STANDARDCONVERSION);
+	TestIcsRank<const Base&, const Derived&>::apply(ICSRANK_STANDARDCONVERSION);
+	TestIcsRank<Base&, const Derived&>::apply(ICSRANK_INVALID);
 
 	// bind to reference
 	TestIcsRank<const int&, int&>::apply(ICSRANK_STANDARDEXACT);

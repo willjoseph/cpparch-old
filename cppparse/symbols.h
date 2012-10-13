@@ -3008,6 +3008,18 @@ inline UniqueTypeWrapper applyLvalueTransformation(UniqueTypeWrapper to, UniqueT
 	return from;
 }
 
+inline bool isGreaterCvQualification(const UniqueTypeId& to, const UniqueTypeId& from)
+{
+	return to.value.getQualifiers().isConst > from.value.getQualifiers().isConst
+		|| to.value.getQualifiers().isVolatile > from.value.getQualifiers().isVolatile;
+}
+
+inline bool isEqualCvQualification(const UniqueTypeId& to, const UniqueTypeId& from)
+{
+	return to.value.getQualifiers() == from.value.getQualifiers();
+}
+
+
 inline bool isPromotion(const UniqueTypeId& to, const UniqueTypeId& from)
 {
 	if(isArithmetic(from) && from.isSimple()
@@ -3019,8 +3031,10 @@ inline bool isPromotion(const UniqueTypeId& to, const UniqueTypeId& from)
 	return false;
 }
 
-inline bool isConversion(const UniqueTypeId& to, const UniqueTypeId& from, bool isNullPointerConstant = false) // TODO: detect null pointer constant
+inline bool isConversion(UniqueTypeId to, UniqueTypeId from, bool isNullPointerConstant = false) // TODO: detect null pointer constant
 {
+	SYMBOLS_ASSERT(to.value.getQualifiers() == CvQualifiers());
+	SYMBOLS_ASSERT(from.value.getQualifiers() == CvQualifiers());
 	if((isArithmetic(from) || isEnumeration(from)) && from.isSimple()
 		&& isArithmetic(to) && to.isSimple())
 	{
@@ -3037,13 +3051,19 @@ inline bool isConversion(const UniqueTypeId& to, const UniqueTypeId& from, bool 
 		&& from.isSimplePointer()
 		&& getInner(to.value) == gVoid.value)
 	{
-		return true; // T* -> void*
+		to = UniqueTypeWrapper(getInner(to.value));
+		from = UniqueTypeWrapper(getInner(from.value));
+		return isEqualCvQualification(to, from)
+			|| isGreaterCvQualification(to, from); // T* -> void*
 	}
 	if(to.isSimplePointer()
 		&& from.isSimplePointer()
 		&& isBaseOf(getObjectType(getInner(to.value)), getObjectType(getInner(from.value))))
 	{
-		return true; // D* -> B*
+		to = UniqueTypeWrapper(getInner(to.value));
+		from = UniqueTypeWrapper(getInner(from.value));
+		return isEqualCvQualification(to, from)
+			|| isGreaterCvQualification(to, from); // D* -> B*
 	}
 	if(to.isMemberPointer()
 		&& from.isMemberPointer()
@@ -3063,17 +3083,6 @@ inline bool isConversion(const UniqueTypeId& to, const UniqueTypeId& from, bool 
 		return true; // D -> B
 	}
 	return false;
-}
-
-inline bool isGreaterCvQualification(const UniqueTypeId& to, const UniqueTypeId& from)
-{
-	return to.value.getQualifiers().isConst > from.value.getQualifiers().isConst
-		|| to.value.getQualifiers().isVolatile > from.value.getQualifiers().isVolatile;
-}
-
-inline bool isEqualCvQualification(const UniqueTypeId& to, const UniqueTypeId& from)
-{
-	return to.value.getQualifiers() == from.value.getQualifiers();
 }
 
 // exact
@@ -3107,9 +3116,10 @@ inline bool isSimilar(UniqueTypeWrapper to, UniqueTypeWrapper from)
 {
 	for(;;)
 	{
-		if(to == from)
+		if(to.value.getPointer() == from.value.getPointer())
 		{
-			break;
+			return isEqualCvQualification(to, from)
+				|| isGreaterCvQualification(to, from);
 		}
 		if(to.isPointer()
 			&& from.isPointer())
@@ -3117,7 +3127,7 @@ inline bool isSimilar(UniqueTypeWrapper to, UniqueTypeWrapper from)
 		}
 		else if(to.isMemberPointer()
 			&& from.isMemberPointer()
-				&& &getMemberPointerClass(to.value) == &getMemberPointerClass(from.value))
+			&& &getMemberPointerClass(to.value) == &getMemberPointerClass(from.value))
 		{
 		}
 		else
@@ -3162,9 +3172,9 @@ inline IcsRank getIcsRank(UniqueTypeWrapper to, UniqueTypeWrapper from, bool isN
 				return ICSRANK_STANDARDCONVERSION;
 			}
 		}
-		// if not bound directly, standard conversion required (which produces rvalue)
+		// if not bound directly, a standard conversion is required (which produces an rvalue)
 		if(!to.value.getQualifiers().isConst
-			&& !isLvalue)
+			|| to.value.getQualifiers().isVolatile) // 8.5.3-5: otherwise, the reference shall be to a non-volatile const type
 		{
 			// can't bind rvalue to a non-const reference
 			return ICSRANK_INVALID;
