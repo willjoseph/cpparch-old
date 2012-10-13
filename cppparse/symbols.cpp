@@ -155,8 +155,6 @@ Identifier gOperatorFunctionTemplateId = makeIdentifier("operator () <>");
 // TODO: don't declare if id is anonymous?
 Identifier gAnonymousId = makeIdentifier("$anonymous");
 
-Identifier gFunctionParamsId = makeIdentifier("$params");
-Scope gFunctionParamsScope(TREEALLOCATOR_NULL, gFunctionParamsId, SCOPETYPE_PROTOTYPE);
 
 struct PointerTypeId : ObjectTypeId
 {
@@ -398,7 +396,7 @@ struct MakeFunction
 {
 	static UniqueTypeWrapper apply(UniqueTypeWrapper inner)
 	{
-		return UniqueTypeWrapper(pushBuiltInType(inner.value, DeclaratorFunction(&gFunctionParamsScope, CvQualifiers())));
+		return UniqueTypeWrapper(pushBuiltInType(inner.value, DeclaratorFunction(Parameters(), CvQualifiers())));
 	}
 };
 

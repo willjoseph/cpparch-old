@@ -1,4 +1,55 @@
 
+
+namespace N091
+{
+
+	namespace N
+	{
+		template<class T>
+		struct Tmpl
+		{
+		};
+	}
+	inline void f()
+	{
+		// parsing shared-prefix template-id: tries nested-name-specifier-suffix first, backtracks and tries type-name (should re-use cached parse-tree of template-id?)
+		// ensure that parsing a declarator can be undone safely during backtrack.
+		N::Tmpl<void(int a, int b)> t;
+	}
+}
+
+namespace N089
+{
+	void f(int, bool = false);
+	void f(int = 0);
+
+	void f()
+	{
+		f(0); // should call f(int)
+	}
+}
+
+namespace N090
+{
+	struct S
+	{
+		template<int i, int j>
+		struct M
+		{
+			M(int)
+			{
+			}
+			operator int()
+			{
+				return 0;
+			}
+		};
+		void f(bool b = M<0, 0>(0)) // Clang fails to parse this
+		{
+		}
+	};
+}
+
 namespace N088
 {
 	void f(const wchar_t*);

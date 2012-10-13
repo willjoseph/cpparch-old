@@ -73,7 +73,10 @@
 - features
 	- C++0x
 		- support '>>' in nested template-argument-list
-		- implement 'auto' 
+		- implement 'auto'
+	- print cv-qualifiers
+	- store declarations by reference, not by value
+		- on redeclaration (or in a using-declaration), redeclare reference to original declaration rather than a copy
 	- improve error messages
 		- e.g. detect when 'typename' keyword is missing
 		- on reportIdentifierMismatch, show the location of the mismatching identifier
@@ -84,7 +87,6 @@
 			- Names dependent on a template-parameter
 			- Names from scopes which are visible within the template-definition.
 	- handle template explicit/partial specialization with empty argument-list
-	- on redeclaration (or in a using-declaration), redeclare reference to original declaration rather than a copy
 	- better dependent-ness tracking
 		- rules
 			- a template parameter is dependent on its scope
@@ -231,6 +233,11 @@
 			- specialise list class for front-insertion
 
 
+- default argument parsing
+	- template-id with comma allowed, if template was already declared: http://www.open-std.org/jtc1/sc22/wg21/docs/cwg_active.html#325
+	- not allowed to refer to default arguments of not-yet-declared functions: http://www.open-std.org/jtc1/sc22/wg21/docs/cwg_active.html#361
+	+ store default-argument types
+	- store default-argument types for deferred parse (member function declaration)
 
 		
 - slow parsing of cpptree.h
@@ -608,6 +615,8 @@ An unqualified name in a template cannot depend on a local name or class member.
 		- standard
 			- up to one of each of lvalue transform, promotion/conversion, qualification adjustment, applied in order
 			- ranked as exact, promotion or conversion
+				- T&->T vs T->T = ambiguous
+				- 0->T* vs 0->float ?
 		- user-defined
 		- ellipsis
 	- testing framework

@@ -888,9 +888,9 @@ struct WalkerState
 		}
 		virtual void visit(const DeclaratorFunction& element)
 		{
-			for(Scope::DeclarationList::const_iterator i = getFirstFunctionParameter(element.paramScope->declarationList); i != element.paramScope->declarationList.end(); ++i)
+			for(Parameters::const_iterator i = element.parameters.begin(); i != element.parameters.end(); ++i)
 			{
-				walker.setDependent(dependent, (*i)->type.dependent);
+				walker.setDependent(dependent, (*i).declaration->type.dependent);
 			}
 		}
 	};
@@ -1133,7 +1133,7 @@ struct WalkerBase : public WalkerState
 				// These are relevant either when the operand has a user-defined conversion to a non-class type, or is an enum that can be converted to an arithmetic type
 				CandidateFunction candidate(&gUnknown);
 				candidate.conversions.reserve(1);
-				candidate.conversions.push_back(ICSRANK_USERDEFINED);//getIcsRank(???, type)); // TODO: cv-qualified overloads
+				candidate.conversions.push_back(IMPLICITCONVERSION_USERDEFINED);//getIcsRank(???, type)); // TODO: cv-qualified overloads
 				resolver.add(candidate); // TODO: ignore built-in overloads that have same signature as a non-member
 			}
 			return resolver.get();
@@ -2371,6 +2371,7 @@ struct ExpressionWalker : public WalkerBase
 			}
 			else
 			{
+				SEMANTIC_ASSERT(declaration != 0);
 				type = makeUniqueType(declaration->type, &getObjectType(type.value));
 			}
 			// TODO: decorate parse-tree with declaration
@@ -2919,6 +2920,8 @@ struct ParameterDeclarationClauseWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
+	Parameters parameters;
+
 	ParameterDeclarationClauseWalker(const WalkerState& state)
 		: WalkerBase(state)
 	{
@@ -2966,6 +2969,7 @@ struct ParameterDeclarationClauseWalker : public WalkerBase
 	{
 		ParameterDeclarationWalker walker(getState(), true);
 		TREEWALKER_WALK(walker, symbol);
+		parameters.push_back(Parameter(walker.declaration, walker.initializerType));
 	}
 };
 
@@ -3036,6 +3040,7 @@ struct DeclaratorFunctionWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	ScopePtr paramScope;
+	Parameters parameters;
 	CvQualifiers qualifiers;
 	DeclaratorFunctionWalker(const WalkerState& state)
 		: WalkerBase(state), paramScope(0)
@@ -3047,6 +3052,7 @@ struct DeclaratorFunctionWalker : public WalkerBase
 		ParameterDeclarationClauseWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		paramScope = walker.enclosing; // store reference for later resumption
+		parameters = walker.parameters;
 	}
 	void visit(cpp::exception_specification* symbol)
 	{
@@ -3164,7 +3170,7 @@ struct DeclaratorWalker : public WalkerBase
 		{
 			paramScope = walker.paramScope;
 		}
-		typeSequence.push_front(DeclaratorFunction(paramScope, walker.qualifiers));
+		typeSequence.push_front(DeclaratorFunction(walker.parameters, walker.qualifiers));
 	}
 	void visit(cpp::direct_abstract_declarator* symbol)
 	{
@@ -4283,6 +4289,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 
 	Dependent valueDependent;
 	size_t templateParameter;
+	UniqueTypeId initializerType;
 	bool isParameter;
 	bool isUnion;
 
@@ -4438,11 +4445,10 @@ struct SimpleDeclarationWalker : public WalkerBase
 		commit();
 	}
 
-	// handle assignment-expression(s) in initializer
-	void visit(cpp::default_parameter* symbol)
+	void visit(cpp::default_argument* symbol)
 	{
-		// todo: we cannot skip a default-argument if it contains a template-name that is declared later in the class.
-		// Comeau fails in this case too..
+		// We cannot correctly skip a template-id in a default-argument if it refers to a template declared later in the class.
+		// This is considered to be correct: http://www.open-std.org/jtc1/sc22/wg21/docs/cwg_active.html#325
 		if(WalkerState::deferred != 0
 			&& templateParameter == INDEX_INVALID) // don't defer parse of default for non-type template-argument
 		{
@@ -4458,6 +4464,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 	{
 		ExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
+		initializerType = walker.type;
 	}
 	// handle initializer in separate context to avoid ',' confusing recognition of declaration
 	void visit(cpp::initializer_clause* symbol)
@@ -4671,6 +4678,7 @@ struct ParameterDeclarationWalker : public WalkerBase
 
 	DeclarationPtr declaration;
 	size_t templateParameter;
+	UniqueTypeId initializerType;
 	bool isParameter;
 	bool isDefault;
 
@@ -4684,6 +4692,7 @@ struct ParameterDeclarationWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		walker.commit();
 		declaration = walker.declaration;
+		initializerType = walker.initializerType;
 		isDefault = symbol->init != 0;
 	}
 	void visit(cpp::parameter_declaration_abstract* symbol)
@@ -4694,6 +4703,7 @@ struct ParameterDeclarationWalker : public WalkerBase
 		walker.id = &gAnonymousId;
 		walker.commit();
 		declaration = walker.declaration;
+		initializerType = walker.initializerType;
 		isDefault = symbol->init != 0;
 	}
 };

@@ -2352,7 +2352,7 @@ namespace cpp
 		FOREACH6(key, params, key2, id, assign, init);
 	};
 
-	struct default_parameter
+	struct default_argument
 	{
 		symbol<assignment_expression> expr;
 		FOREACH1(expr);
@@ -2364,7 +2364,7 @@ namespace cpp
 		symbol<decl_specifier_seq> spec;
 		symbol<declarator> decl;
 		terminal_suffix<boost::wave::T_ASSIGN> assign;
-		symbol<default_parameter> init;
+		symbol<default_argument> init;
 		FOREACH4(spec, decl, assign, init);
 	};
 
@@ -2374,7 +2374,7 @@ namespace cpp
 		symbol<decl_specifier_seq> spec;
 		symbol_optional<abstract_declarator> decl;
 		terminal_suffix<boost::wave::T_ASSIGN> assign;
-		symbol<default_parameter> init;
+		symbol<default_argument> init;
 		FOREACH4(spec, decl, assign, init);
 	};
 

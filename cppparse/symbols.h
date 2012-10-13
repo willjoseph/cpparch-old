@@ -1494,6 +1494,21 @@ inline bool operator<(UniqueTypeWrapper l, UniqueTypeWrapper r)
 	return l.value < r.value;
 }
 
+// ----------------------------------------------------------------------------
+struct Parameter
+{
+	DeclarationPtr declaration;
+	UniqueTypeWrapper argument;
+	Parameter(Declaration* declaration, UniqueTypeWrapper argument)
+		: declaration(declaration), argument(argument)
+	{
+	}
+};
+
+typedef std::vector<Parameter> Parameters;
+
+// ----------------------------------------------------------------------------
+
 #if 1
 typedef UniqueTypeWrapper UniqueTypeId;
 
@@ -1712,29 +1727,29 @@ typedef std::vector<UniqueTypeWrapper> ParameterTypes;
 
 struct DeclaratorFunction
 {
-	ScopePtr paramScope;
+	Parameters parameters;
 	CvQualifiers qualifiers;
-	ParameterTypes parameters;
-	DeclaratorFunction(Scope* scope, CvQualifiers qualifiers)
-		: paramScope(scope), qualifiers(qualifiers)
+	ParameterTypes parameterTypes;
+	DeclaratorFunction(const Parameters& parameters, CvQualifiers qualifiers)
+		: parameters(parameters), qualifiers(qualifiers)
 	{
 	}
 };
 
 inline bool operator==(const DeclaratorFunction& left, const DeclaratorFunction& right)
 {
-	return left.parameters == right.parameters;
+	return left.parameterTypes == right.parameterTypes;
 }
 
 inline bool operator<(const DeclaratorFunction& left, const DeclaratorFunction& right)
 {
-	return left.parameters < right.parameters;
+	return left.parameterTypes < right.parameterTypes;
 }
 
 inline const ParameterTypes& getParameterTypes(UniqueType type)
 {
 	SYMBOLS_ASSERT(typeid(*type) == typeid(TypeElementGeneric<DeclaratorFunction>));
-	return static_cast<const TypeElementGeneric<DeclaratorFunction>*>(type.getPointer())->value.parameters;
+	return static_cast<const TypeElementGeneric<DeclaratorFunction>*>(type.getPointer())->value.parameterTypes;
 }
 
 
@@ -2296,11 +2311,10 @@ struct TypeSequenceMakeUnique : TypeElementVisitor
 	}
 	void visit(const DeclaratorFunction& element)
 	{
-		SYMBOLS_ASSERT(element.paramScope != 0);
 		DeclaratorFunction result(element);
-		for(Scope::DeclarationList::const_iterator i = element.paramScope->declarationList.begin(); i != element.paramScope->declarationList.end(); ++i)
+		for(Parameters::const_iterator i = element.parameters.begin(); i != element.parameters.end(); ++i)
 		{
-			result.parameters.push_back(makeUniqueType((*i)->type, enclosing, allowDependent));
+			result.parameterTypes.push_back(makeUniqueType((*i).declaration->type, enclosing, allowDependent));
 		}
 		pushUniqueType(type, result);
 		type.setQualifiers(element.qualifiers);
@@ -2923,6 +2937,28 @@ enum IcsRank
 	ICSRANK_INVALID,
 };
 
+// [over.ics.scs]
+enum ScsRank
+{
+	SCSRANK_IDENTITY, // no conversion
+	SCSRANK_EXACT,
+	SCSRANK_PROMOTION,
+	SCSRANK_CONVERSION,
+	SCSRANK_INVALID,
+};
+
+struct StandardConversionSequence
+{
+	ScsRank rank;
+	CvQualifiers adjustment; // TODO: cv-qualification signature for multi-level pointer type
+	StandardConversionSequence(ScsRank rank, CvQualifiers adjustment)
+		: rank(rank), adjustment(adjustment)
+	{
+	}
+};
+
+const StandardConversionSequence STANDARDCONVERSIONSEQUENCE_INVALID = StandardConversionSequence(SCSRANK_INVALID, CvQualifiers());
+
 inline bool findBase(const TypeInstance& other, const TypeInstance& type)
 {
 	if(other.declaration == &gParam)
@@ -2990,11 +3026,6 @@ inline const UniqueTypeId& promoteToIntegralType(const UniqueTypeId& type)
 
 inline UniqueTypeWrapper applyLvalueTransformation(UniqueTypeWrapper to, UniqueTypeWrapper from)
 {
-	if(!to.isReference()
-		&& from.isReference())
-	{
-		from = UniqueTypeWrapper(getInner(from.value)); // T& -> T
-	}
 	if(to.isPointer()
 		&& from.isArray())
 	{
@@ -3008,30 +3039,38 @@ inline UniqueTypeWrapper applyLvalueTransformation(UniqueTypeWrapper to, UniqueT
 	return from;
 }
 
-inline bool isGreaterCvQualification(const UniqueTypeId& to, const UniqueTypeId& from)
+inline CvQualifiers makeQualificationAdjustment(UniqueTypeId to, UniqueTypeId from)
+{
+	return CvQualifiers(to.value.getQualifiers().isConst > from.value.getQualifiers().isConst,
+		to.value.getQualifiers().isVolatile > from.value.getQualifiers().isVolatile);
+}
+
+inline bool isGreaterCvQualification(UniqueTypeId to, UniqueTypeId from)
 {
 	return to.value.getQualifiers().isConst > from.value.getQualifiers().isConst
 		|| to.value.getQualifiers().isVolatile > from.value.getQualifiers().isVolatile;
 }
 
-inline bool isEqualCvQualification(const UniqueTypeId& to, const UniqueTypeId& from)
+inline bool isEqualCvQualification(UniqueTypeId to, UniqueTypeId from)
 {
 	return to.value.getQualifiers() == from.value.getQualifiers();
 }
 
 
-inline bool isPromotion(const UniqueTypeId& to, const UniqueTypeId& from)
+
+inline StandardConversionSequence makeScsPromotion(UniqueTypeId to, UniqueTypeId from)
 {
 	if(isArithmetic(from) && from.isSimple()
-		&& isArithmetic(to) && to.isSimple())
+		&& isArithmetic(to) && to.isSimple()
+		&& (isEqual(from, gFloat) && isEqual(to, gDouble))
+			|| (isEqual(promoteToIntegralType(from), to)))
 	{
-		return (isEqual(from, gFloat) && isEqual(to, gDouble))
-			|| (isEqual(promoteToIntegralType(from), to));
+		return StandardConversionSequence(SCSRANK_PROMOTION, CvQualifiers());
 	}
-	return false;
+	return STANDARDCONVERSIONSEQUENCE_INVALID;
 }
 
-inline bool isConversion(UniqueTypeId to, UniqueTypeId from, bool isNullPointerConstant = false) // TODO: detect null pointer constant
+inline StandardConversionSequence makeScsConversion(UniqueTypeId to, UniqueTypeId from, bool isNullPointerConstant = false) // TODO: detect null pointer constant
 {
 	SYMBOLS_ASSERT(to.value.getQualifiers() == CvQualifiers());
 	SYMBOLS_ASSERT(from.value.getQualifiers() == CvQualifiers());
@@ -3039,13 +3078,13 @@ inline bool isConversion(UniqueTypeId to, UniqueTypeId from, bool isNullPointerC
 		&& isArithmetic(to) && to.isSimple())
 	{
 		// can convert from enumeration to integer/floating/bool, but not in reverse
-		return true;
+		return StandardConversionSequence(SCSRANK_CONVERSION, CvQualifiers());
 	}
 	if((to.isPointer() || to.isMemberPointer())
 		&& isIntegral(from)
 		&& isNullPointerConstant)
 	{
-		return true; // 0 -> T*
+		return StandardConversionSequence(SCSRANK_CONVERSION, CvQualifiers()); // 0 -> T*
 	}
 	if(to.isSimplePointer()
 		&& from.isSimplePointer()
@@ -3053,8 +3092,9 @@ inline bool isConversion(UniqueTypeId to, UniqueTypeId from, bool isNullPointerC
 	{
 		to = UniqueTypeWrapper(getInner(to.value));
 		from = UniqueTypeWrapper(getInner(from.value));
-		return isEqualCvQualification(to, from)
-			|| isGreaterCvQualification(to, from); // T* -> void*
+		return isEqualCvQualification(to, from) || isGreaterCvQualification(to, from)
+			? StandardConversionSequence(SCSRANK_CONVERSION, makeQualificationAdjustment(to, from))
+			: STANDARDCONVERSIONSEQUENCE_INVALID; // T* -> void*
 	}
 	if(to.isSimplePointer()
 		&& from.isSimplePointer()
@@ -3062,27 +3102,28 @@ inline bool isConversion(UniqueTypeId to, UniqueTypeId from, bool isNullPointerC
 	{
 		to = UniqueTypeWrapper(getInner(to.value));
 		from = UniqueTypeWrapper(getInner(from.value));
-		return isEqualCvQualification(to, from)
-			|| isGreaterCvQualification(to, from); // D* -> B*
+		return isEqualCvQualification(to, from) || isGreaterCvQualification(to, from)
+			? StandardConversionSequence(SCSRANK_CONVERSION, makeQualificationAdjustment(to, from))
+			: STANDARDCONVERSIONSEQUENCE_INVALID; // D* -> B*
 	}
 	if(to.isMemberPointer()
 		&& from.isMemberPointer()
 		&& isBaseOf(getMemberPointerClass(to.value), getMemberPointerClass(from.value)))
 	{
-		return true; // D::* -> B::*
+		return StandardConversionSequence(SCSRANK_CONVERSION, CvQualifiers()); // D::* -> B::*
 	}
 	if(isEqual(to, gBool)
 		&& (from.isPointer() || from.isMemberPointer()))
 	{
-		return true; // T* -> bool, T::* -> bool
+		return StandardConversionSequence(SCSRANK_CONVERSION, CvQualifiers()); // T* -> bool, T::* -> bool
 	}
 	if(to.isSimple()
 		&& from.isSimple()
 		&& isBaseOf(getObjectType(to.value), getObjectType(from.value)))
 	{
-		return true; // D -> B
+		return StandardConversionSequence(SCSRANK_CONVERSION, CvQualifiers()); // D -> B
 	}
-	return false;
+	return STANDARDCONVERSIONSEQUENCE_INVALID;
 }
 
 // exact
@@ -3112,14 +3153,15 @@ inline bool isConversion(UniqueTypeId to, UniqueTypeId from, bool isNullPointerC
 // derived to base conversion
 // B <- D
 
-inline bool isSimilar(UniqueTypeWrapper to, UniqueTypeWrapper from)
+inline StandardConversionSequence makeScsExactMatch(UniqueTypeWrapper to, UniqueTypeWrapper from)
 {
 	for(;;)
 	{
 		if(to.value.getPointer() == from.value.getPointer())
 		{
-			return isEqualCvQualification(to, from)
-				|| isGreaterCvQualification(to, from);
+			return isEqualCvQualification(to, from) || isGreaterCvQualification(to, from)
+				? StandardConversionSequence(SCSRANK_EXACT, makeQualificationAdjustment(to, from))
+				: STANDARDCONVERSIONSEQUENCE_INVALID;
 		}
 		if(to.isPointer()
 			&& from.isPointer())
@@ -3132,23 +3174,24 @@ inline bool isSimilar(UniqueTypeWrapper to, UniqueTypeWrapper from)
 		}
 		else
 		{
-			return false;
+			break;
 		}
 		to = UniqueTypeWrapper(getInner(to.value));
 		from = UniqueTypeWrapper(getInner(from.value));
 	}
-	return true;
+	return STANDARDCONVERSIONSEQUENCE_INVALID;
 }
 
 // 13.3.3.1 [over.best.ics]
-inline IcsRank getIcsRank(UniqueTypeWrapper to, UniqueTypeWrapper from, bool isNullPointerConstant = false, bool isLvalue = false)
+inline StandardConversionSequence makeStandardConversionSequence(UniqueTypeWrapper to, UniqueTypeWrapper from, bool isNullPointerConstant = false, bool isLvalue = false)
 {
 	// TODO: user-defined conversion
 	if(from.value == UNIQUETYPE_NULL)
 	{
-		return ICSRANK_INVALID; // TODO: assert
+		return STANDARDCONVERSIONSEQUENCE_INVALID; // TODO: assert
 	}
-	if(to.isReference())
+	// 13.3.3.1.4 [over.ics.ref]: reference binding
+	if(to.isReference()) 
 	{
 		to = UniqueTypeWrapper(getInner(to.value));
 		if(from.isReference())
@@ -3156,6 +3199,7 @@ inline IcsRank getIcsRank(UniqueTypeWrapper to, UniqueTypeWrapper from, bool isN
 			isLvalue = true;
 			from = UniqueTypeWrapper(getInner(from.value)); // TODO: removal of reference won't be detected later
 		}
+		// 8.5.3 [dcl.init.ref]
 		// does it directly bind?
 		if(isLvalue
 			&& (isEqualCvQualification(to, from)
@@ -3163,13 +3207,13 @@ inline IcsRank getIcsRank(UniqueTypeWrapper to, UniqueTypeWrapper from, bool isN
 		{
 			if(to.value.getPointer() == from.value.getPointer())
 			{
-				return ICSRANK_STANDARDEXACT;
+				return StandardConversionSequence(SCSRANK_EXACT, makeQualificationAdjustment(to, from));
 			}
 			if(to.isSimple()
 				&& from.isSimple()
 				&& isBaseOf(getObjectType(to.value), getObjectType(from.value)))
 			{
-				return ICSRANK_STANDARDCONVERSION;
+				return StandardConversionSequence(SCSRANK_CONVERSION, makeQualificationAdjustment(to, from));
 			}
 		}
 		// if not bound directly, a standard conversion is required (which produces an rvalue)
@@ -3177,51 +3221,131 @@ inline IcsRank getIcsRank(UniqueTypeWrapper to, UniqueTypeWrapper from, bool isN
 			|| to.value.getQualifiers().isVolatile) // 8.5.3-5: otherwise, the reference shall be to a non-volatile const type
 		{
 			// can't bind rvalue to a non-const reference
-			return ICSRANK_INVALID;
+			return STANDARDCONVERSIONSEQUENCE_INVALID;
 		}
 	}
 
-	from = applyLvalueTransformation(to, from);
+	if(!to.isReference()
+		&& from.isReference())
+	{
+		from = UniqueTypeWrapper(getInner(from.value)); // T& -> T
+	}
+
 	// ignore top level cv-qualifiers
 	to.value.setQualifiers(CvQualifiers());
 	from.value.setQualifiers(CvQualifiers());
 
-	IcsRank rank = ICSRANK_INVALID;
-	// 13.3.3.1.4 [over.ics.ref]: reference binding
-	if(isSimilar(to, from))
+	UniqueTypeWrapper tmp = from;
+	from = applyLvalueTransformation(to, from);
+
+	if(tmp == from // no l-value transformation
+		&& to == from) // no other conversions required
 	{
-		rank = ICSRANK_STANDARDEXACT;
-	}
-	else if(isPromotion(to, from))
-	{
-		rank = ICSRANK_STANDARDPROMOTION;
-	}
-	else if(isConversion(to, from, isNullPointerConstant))
-	{
-		rank = ICSRANK_STANDARDCONVERSION; // TODO: ordering of conversions by inheritance distance
+		return StandardConversionSequence(SCSRANK_IDENTITY, CvQualifiers());
 	}
 
-	// TODO: qualification adjustment
+	{
+		StandardConversionSequence result = makeScsExactMatch(to, from);
+		if(result.rank != SCSRANK_INVALID)
+		{
+			return result;
+		}
+	}
+	{
+		StandardConversionSequence result = makeScsPromotion(to, from);
+		if(result.rank != SCSRANK_INVALID)
+		{
+			return result;
+		}
+	}
+	{
+		StandardConversionSequence result = makeScsConversion(to, from, isNullPointerConstant); // TODO: ordering of conversions by inheritance distance
+		if(result.rank != SCSRANK_INVALID)
+		{
+			return result;
+		}
+	}
 
 	// TODO: user-defined
 	// TODO: ellipsis
-	return rank;
+	return STANDARDCONVERSIONSEQUENCE_INVALID;
 }
+
+inline IcsRank getIcsRank(UniqueTypeWrapper to, UniqueTypeWrapper from, bool isNullPointerConstant = false, bool isLvalue = false)
+{
+	StandardConversionSequence sequence = makeStandardConversionSequence(to, from, isNullPointerConstant, isLvalue);
+	switch(sequence.rank)
+	{
+	case SCSRANK_IDENTITY:
+	case SCSRANK_EXACT: return ICSRANK_STANDARDEXACT;
+	case SCSRANK_PROMOTION: return ICSRANK_STANDARDPROMOTION;
+	case SCSRANK_CONVERSION: return ICSRANK_STANDARDCONVERSION;
+	}
+	return ICSRANK_INVALID;
+}
+
+inline bool isProperSubsequence(CvQualifiers l, CvQualifiers r)
+{
+	return (!l.isConst && r.isConst)
+		|| (!l.isVolatile && r.isVolatile);
+}
+
+inline bool isProperSubsequence(const StandardConversionSequence& l, const StandardConversionSequence& r)
+{
+	return (l.rank == SCSRANK_IDENTITY && r.rank != SCSRANK_IDENTITY)
+		|| isProperSubsequence(l.adjustment, r.adjustment);
+}
+
+// [over.ics.rank]
+inline bool isBetter(const StandardConversionSequence& l, const StandardConversionSequence& r)
+{
+	// TODO: assert rank not INVALID
+	if(isProperSubsequence(l, r))
+	{
+		return true;
+	}
+	if(l.rank < r.rank) // TODO: ranking derived->base conversions by inheritance distance
+	{
+		return true;
+	}
+	// TODO: both sequences are similar references, but differ only in cv-qualification
+	// TODO: user-defined conversion sequence ranking
+	return false;
+}
+
+enum IcsType
+{
+	ICSTYPE_STANDARD,
+	ICSTYPE_USERDEFINED,
+	ICSTYPE_ELLIPSIS,
+};
 
 struct ImplicitConversion
 {
-	IcsRank rank;
-	ImplicitConversion(IcsRank rank)
-		: rank(rank)
+	StandardConversionSequence sequence;
+	IcsType type;
+	ImplicitConversion(StandardConversionSequence sequence, IcsType type = ICSTYPE_STANDARD)
+		: sequence(sequence), type(type)
 	{
 	}
 };
 
+const ImplicitConversion IMPLICITCONVERSION_USERDEFINED = ImplicitConversion(StandardConversionSequence(SCSRANK_IDENTITY, CvQualifiers()), ICSTYPE_USERDEFINED); // TODO
+
+// [over.ics.rank]
 inline bool isBetter(const ImplicitConversion& l, const ImplicitConversion& r)
 {
-	return l.rank < r.rank;
+	if(l.type < r.type)
+	{
+		return true;
+	}
+	return isBetter(l.sequence, r.sequence);
 }
 
+inline bool isValid(const ImplicitConversion& conversion)
+{
+	return conversion.sequence.rank != SCSRANK_INVALID;
+}
 
 
 typedef std::vector<ImplicitConversion> ArgumentConversions;
@@ -4155,7 +4279,7 @@ struct SymbolPrinter : TypeElementVisitor
 	{
 		pushType(false);
 		visitTypeElement();
-		printParameters(function.paramScope->declarationList);
+		printParameters(function.parameters);
 		if(function.qualifiers.isConst)
 		{
 			printer.out << " const";
@@ -4251,6 +4375,26 @@ struct SymbolPrinter : TypeElementVisitor
 		}
 		printer.out << ")";
 	}
+	void printParameters(const Parameters& parameters)
+	{
+		printer.out << "(";
+		bool separator = false;
+		for(Parameters::const_iterator i = parameters.begin(); i != parameters.end(); ++i)
+		{
+			const Declaration* declaration = (*i).declaration;
+			if(declaration->templateParameter == INDEX_INVALID)
+			{
+				if(separator)
+				{
+					printer.out << ",";
+				}
+				SymbolPrinter walker(printer);
+				walker.printType(*declaration);
+				separator = true;
+			}
+		}
+		printer.out << ")";
+	}
 
 	void printName(const Declaration* name)
 	{
@@ -4314,11 +4458,28 @@ struct OverloadResolver
 		: arguments(arguments), ambiguous(0)
 	{
 		size_t count = std::distance(arguments.begin(), arguments.end());
-		best.conversions.resize(count, ImplicitConversion(ICSRANK_INVALID));
+		best.conversions.resize(count, ImplicitConversion(STANDARDCONVERSIONSEQUENCE_INVALID));
 	}
 	Declaration* get() const
 	{
 		return ambiguous != 0 ? 0 : best.declaration;
+	}
+	bool isViable(const CandidateFunction& candidate)
+	{
+		if(candidate.conversions.size() != best.conversions.size())
+		{
+			return false; // TODO: early-out for functions with not enough params
+		}
+
+		for(ArgumentConversions::const_iterator i = candidate.conversions.begin(); i != candidate.conversions.end();  ++i)
+		{
+			if(!isValid(*i))
+			{
+				return false;
+			}
+		}
+
+		return true;
 	}
 	void add(const CandidateFunction& candidate)
 	{
@@ -4328,12 +4489,13 @@ struct OverloadResolver
 			return; // TODO: don't add multiple declarations of same signature
 		}
 
-		if(candidate.conversions.size() != best.conversions.size())
+		if(!isViable(candidate))
 		{
-			return; // TODO: early-out for functions with not enough params
+			return;
 		}
 
-		if(isBetter(candidate, best))
+		if(best.declaration == 0
+			|| isBetter(candidate, best))
 		{
 			best = candidate;
 			ambiguous = 0;
@@ -4355,7 +4517,7 @@ struct OverloadResolver
 			UniqueTypeId type = makeUniqueType(parameter.type); // TODO: template argument deduction
 			if(a != arguments.end())
 			{
-				candidate.conversions.push_back(getIcsRank(type, *a));
+				candidate.conversions.push_back(makeStandardConversionSequence(type, *a)); // TODO: null-pointer-constant, l-value
 				++a;
 			}
 			else
