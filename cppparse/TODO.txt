@@ -566,26 +566,25 @@ An unqualified name in a template cannot depend on a local name or class member.
 	+ store function-type as R(A1, A2) rather than just R
 	+ store member-function-type as R C::*(A1, A2) rather than just R
 	+ store member-pointer-type as R C::* rather than just R
-	- issue: unique type reference to function-param-scope left dangling
-		- because gUniqueTypes not cleared between files!
+	+ issue: unique type reference to function-param-scope left dangling: because gUniqueTypes not cleared between files!
+	+ more optimal implementation of isDependent: each Type refers to the outermost enclosing template that it depends on
+	+ cv-qualifiers
 	- defer evaluation of dependent-type
-		- more optimal implementation of isDependent: each Type refers to the innermost enclosing template that it depends on
-	- cv-qualifiers
 - overload resolution
 	- across using-directive
 	- ( identifier ) ( expression-list )
 	- object-of-class-type ( expression-list )
 	- record argument types for function-call
-		- record complex types
+		+ record complex types
 			+ pointer, array, function
 			+ member-ptr, const
+		- implicit object argument
+			- const
 		- print complex types
 			+ pointer, array, function
 			- member-ptr, const
-		- null-pointer-constant
-		- implicit object argument
-			- const
 		- ellipsis
+		- null-pointer-constant
 	- evaluate type of expression
 		- expression-list
 			- choose last
@@ -615,7 +614,7 @@ An unqualified name in a template cannot depend on a local name or class member.
 		- standard
 			- up to one of each of lvalue transform, promotion/conversion, qualification adjustment, applied in order
 			- ranked as exact, promotion or conversion
-				- T&->T vs T->T = ambiguous
+				- T&->T vs T->T is ambiguous
 				- 0->T* vs 0->float ?
 		- user-defined
 		- ellipsis

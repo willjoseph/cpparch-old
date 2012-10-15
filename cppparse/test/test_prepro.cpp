@@ -1,3 +1,22 @@
+namespace N094
+{
+	void f(float, ...);
+	void f(float, float);
+	void f(int, float)
+	{
+		f(0.f, 0.f); // overload resolution should choose f(float, float)
+	}
+}
+
+namespace N093
+{
+	void f(float, float);
+	void f(float, int = 0);
+	void f(int)
+	{
+		f(0.f); // overload resolution should choose f(float, int)
+	}
+}
 
 namespace N092
 {
@@ -30,7 +49,7 @@ namespace N091
 
 namespace N089
 {
-	void f(int, bool = false);
+	void f(bool, bool = false);
 	void f(int = 0);
 
 	void f()

@@ -1498,8 +1498,8 @@ inline bool operator<(UniqueTypeWrapper l, UniqueTypeWrapper r)
 struct Parameter
 {
 	DeclarationPtr declaration;
-	UniqueTypeWrapper argument;
-	Parameter(Declaration* declaration, UniqueTypeWrapper argument)
+	cpp::default_argument* argument;
+	Parameter(Declaration* declaration, cpp::default_argument* argument)
 		: declaration(declaration), argument(argument)
 	{
 	}
@@ -1724,6 +1724,7 @@ inline bool operator<(const DeclaratorArray& left, const DeclaratorArray& right)
 }
 
 typedef std::vector<UniqueTypeWrapper> ParameterTypes;
+typedef std::vector<UniqueTypeWrapper> ArgumentTypes;
 
 struct DeclaratorFunction
 {
@@ -1744,6 +1745,12 @@ inline bool operator==(const DeclaratorFunction& left, const DeclaratorFunction&
 inline bool operator<(const DeclaratorFunction& left, const DeclaratorFunction& right)
 {
 	return left.parameterTypes < right.parameterTypes;
+}
+
+inline const Parameters& getParameters(UniqueType type)
+{
+	SYMBOLS_ASSERT(typeid(*type) == typeid(TypeElementGeneric<DeclaratorFunction>));
+	return static_cast<const TypeElementGeneric<DeclaratorFunction>*>(type.getPointer())->value.parameters;
 }
 
 inline const ParameterTypes& getParameterTypes(UniqueType type)
@@ -2441,6 +2448,13 @@ extern ObjectTypeId gFloat;
 extern ObjectTypeId gDouble;
 extern ObjectTypeId gLongDouble;
 extern ObjectTypeId gVoid;
+
+inline bool isVoidParameter(const TypeId& type)
+{
+	return type.declaration == &gVoidDeclaration
+		&& type.typeSequence.empty();
+}
+
 
 struct StringLiteralTypeId : ObjectTypeId
 {
@@ -4510,6 +4524,36 @@ struct OverloadResolver
 		CandidateFunction candidate(declaration);
 		candidate.conversions.reserve(best.conversions.size());
 
+#if 1
+		UniqueTypeWrapper type = makeUniqueType(declaration->type, 0, true); // TODO: dependent types, template argument deduction
+		if(!type.isFunction())
+		{
+			return; // TODO: invoke operator() on object of class-type
+		}
+		const ParameterTypes& parameters = getParameterTypes(type.value);
+		UniqueTypeIds::const_iterator a = arguments.begin();
+		Parameters::const_iterator p = getParameters(type.value).begin();
+		// TODO: ellipsis
+		for(ParameterTypes::const_iterator i = parameters.begin(); i != parameters.end(); ++i)
+		{
+			UniqueTypeId to = (*i);
+			UniqueTypeId from;
+			if(a != arguments.end())
+			{
+				candidate.conversions.push_back(makeStandardConversionSequence(to, *a)); // TODO: null-pointer-constant, l-value
+				++a;
+			}
+			else if((*p).argument == 0) // TODO: catch this earlier
+			{
+				return; // [over.match.viable] no default-argument available, this candidate is not viable
+			}
+			else
+			{
+				SYMBOLS_ASSERT((*p).argument->expr != 0); // TODO: non-fatal error: trying to use a default-argument before it has been declared. 
+			}
+			++p;
+		}
+#else
 		UniqueTypeIds::const_iterator a = arguments.begin();
 		for(Scope::DeclarationList::iterator i = declaration->enclosed->declarationList.begin(); i != declaration->enclosed->declarationList.end(); ++i)
 		{
@@ -4525,6 +4569,7 @@ struct OverloadResolver
 				break; // TODO: default parameter values
 			}
 		}
+#endif
 
 		add(candidate);
 	}
