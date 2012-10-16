@@ -202,13 +202,6 @@ inline bool isEquivalent(const Declaration& declaration, const Declaration& othe
 
 inline Declaration* findRedeclared(const Declaration& declaration)
 {
-#if 0
-	if(isMember(declaration) // a member may not be redeclared
-		&& !isClass(declaration)) // unless it's a forward-declaration
-	{
-		return 0;
-	}
-#endif
 	for(Declaration* p = declaration.overloaded; p != 0; p = p->overloaded)
 	{
 		if(isEquivalent(declaration, *p))
@@ -516,9 +509,9 @@ struct WalkerState
 		memberObject = 0;
 	}
 
-	const TemplateParameters& getTemplateParams() const
+	const TemplateParameters& getTemplateParams(Scope* parent) const
 	{
-		return templateParams != 0 && enclosing == templateEnclosing ? *templateParams : TEMPLATEPARAMETERS_NULL;
+		return templateParams != 0 && parent == templateEnclosing ? *templateParams : TEMPLATEPARAMETERS_NULL;
 	}
 
 	void clearTemplateParams()
@@ -902,7 +895,7 @@ struct WalkerBase : public WalkerState
 	{
 		Scope* enclosed = templateParamScope != 0 ? static_cast<Scope*>(templateParamScope) : newScope(makeIdentifier("$class"));
 		enclosed->type = SCOPETYPE_CLASS; // convert template-param-scope to class-scope if present
-		Declaration* declaration = pointOfDeclaration(context, enclosing, id == 0 ? enclosing->getUniqueName() : *id, TYPE_CLASS, enclosed, DeclSpecifiers(), enclosing == templateEnclosing, getTemplateParams(), isSpecialization, arguments);
+		Declaration* declaration = pointOfDeclaration(context, enclosing, id == 0 ? enclosing->getUniqueName() : *id, TYPE_CLASS, enclosed, DeclSpecifiers(), enclosing == templateEnclosing, getTemplateParams(enclosing), isSpecialization, arguments);
 #ifdef ALLOCATOR_DEBUG
 		trackDeclaration(declaration);
 #endif
@@ -935,7 +928,7 @@ struct WalkerBase : public WalkerState
 		{
 			parent = getFriendScope();
 		}
-		Declaration* declaration = pointOfDeclaration(context, parent, *id, type, enclosed, specifiers, enclosing == templateEnclosing, getTemplateParams(), false, TEMPLATEARGUMENTS_NULL, templateParameter, valueDependent); // 3.3.1.1
+		Declaration* declaration = pointOfDeclaration(context, parent, *id, type, enclosed, specifiers, parent == templateEnclosing, getTemplateParams(parent), false, TEMPLATEARGUMENTS_NULL, templateParameter, valueDependent); // 3.3.1.1
 #ifdef ALLOCATOR_DEBUG
 		trackDeclaration(declaration);
 #endif
@@ -4484,7 +4477,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 				// template<> class C<int>;
 				// template<class T> class C<T*>;
 				// friend class C;
-				declaration = pointOfDeclaration(context, enclosing, *forward, TYPE_CLASS, 0, DeclSpecifiers(), isSpecialization || enclosing == templateEnclosing, getTemplateParams(), isSpecialization, type.templateArguments);
+				declaration = pointOfDeclaration(context, enclosing, *forward, TYPE_CLASS, 0, DeclSpecifiers(), isSpecialization || enclosing == templateEnclosing, getTemplateParams(enclosing), isSpecialization, type.templateArguments);
 #ifdef ALLOCATOR_DEBUG
 				trackDeclaration(declaration);
 #endif

@@ -77,6 +77,7 @@
 	+ findRedeclared should allow member functions, when defining a previously declared member
 		- complete original declaration: not necessary unless accessing enclosed scope of function via declaration?
 		- look up argument types in context of enclosing template: not required to disambiguate member function declaration?
+	- track when a class is required to be complete
 	- print cv-qualifiers
 	- store declarations by reference, not by value
 		- on redeclaration (or in a using-declaration), redeclare reference to original declaration rather than a copy

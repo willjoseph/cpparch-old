@@ -1,4 +1,18 @@
-
+namespace N053
+{
+	namespace exception_detail
+	{
+		template<class>
+		struct get_info;
+		template<>
+		struct get_info<int>;
+	}
+	class exception
+	{
+		template<class>
+		friend struct exception_detail::get_info;
+	};
+}
 namespace N096
 {
 	template<typename T>
@@ -765,21 +779,7 @@ namespace N054
 
 	bool_<false>::type x;
 }
-namespace N053
-{
-	namespace exception_detail
-	{
-		template<class>
-		struct get_info;
-		template<>
-		struct get_info<int>;
-	}
-	class exception
-	{
-		template<class>
-		friend struct exception_detail::get_info;
-	};
-}
+
 
 namespace N052
 {
