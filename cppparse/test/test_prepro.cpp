@@ -1,3 +1,42 @@
+
+namespace N096
+{
+	template<typename T>
+	struct S
+	{
+		void f(T); // declaration
+	};
+
+	template<typename T>
+	inline void S<T>::f(T) // definition of previous declaration
+	{
+	}
+
+	void f()
+	{
+		S<int> s;
+		s.f();
+	}
+}
+
+namespace N095
+{
+	struct S
+	{
+		void f(); // declaration
+	};
+
+	inline void S::f() // definition of previous declaration
+	{
+	}
+
+	void f()
+	{
+		S s;
+		s.f();
+	}
+}
+
 namespace N094
 {
 	void f(float, ...);

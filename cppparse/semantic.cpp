@@ -183,9 +183,7 @@ inline bool isEquivalent(const Declaration& declaration, const Declaration& othe
 	}
 	else
 	{
-		SYMBOLS_ASSERT(!isMember(declaration));
-		SYMBOLS_ASSERT(!isMember(other));
-		// enclosing type is always null: member functions cannot be redeclared
+		// TODO: is enclosing type required to differentiate between member functions?
 		UniqueTypeWrapper l = makeUniqueType(declaration.type, 0, true);
 		UniqueTypeWrapper r = makeUniqueType(other.type, 0, true);
 		if(l.isFunction())
@@ -204,11 +202,13 @@ inline bool isEquivalent(const Declaration& declaration, const Declaration& othe
 
 inline Declaration* findRedeclared(const Declaration& declaration)
 {
+#if 0
 	if(isMember(declaration) // a member may not be redeclared
 		&& !isClass(declaration)) // unless it's a forward-declaration
 	{
 		return 0;
 	}
+#endif
 	for(Declaration* p = declaration.overloaded; p != 0; p = p->overloaded)
 	{
 		if(isEquivalent(declaration, *p))

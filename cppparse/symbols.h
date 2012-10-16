@@ -4602,7 +4602,7 @@ inline Declaration* findBestMatch(Declaration* declaration, const UniqueTypeIds&
 
 	if(resolver.ambiguous != 0)
 	{
-#if 0
+#if 1
 		std::cout << "overload resolution failed:" << std::endl;
 		std::cout << "  ";
 		printPosition(resolver.ambiguous->getName().position);

@@ -74,6 +74,9 @@
 	- C++0x
 		- support '>>' in nested template-argument-list
 		- implement 'auto'
+	+ findRedeclared should allow member functions, when defining a previously declared member
+		- complete original declaration: not necessary unless accessing enclosed scope of function via declaration?
+		- look up argument types in context of enclosing template: not required to disambiguate member function declaration?
 	- print cv-qualifiers
 	- store declarations by reference, not by value
 		- on redeclaration (or in a using-declaration), redeclare reference to original declaration rather than a copy
@@ -180,6 +183,7 @@
 - refactoring:
 	+ replace UniqueTypeId with UniqueType
 		+ handle implicit-template-id flag when making unique type
+	- replace getInstantiatedType with makeUniqueType
 	- clean up duplicated html string escape in SourcePrinter/ParseTreePrinter
 	- clean up error handling - multiple assert exception types?
 	- clean up test code: ensure it compiles in LLVM
@@ -234,8 +238,8 @@
 
 
 - default argument parsing
-	- template-id with comma allowed, if template was already declared: http://www.open-std.org/jtc1/sc22/wg21/docs/cwg_active.html#325
-	- not allowed to refer to default arguments of not-yet-declared functions: http://www.open-std.org/jtc1/sc22/wg21/docs/cwg_active.html#361
+	- template-id with comma is valid, if template was already declared: http://www.open-std.org/jtc1/sc22/wg21/docs/cwg_active.html#325
+	- cannot refer to default arguments of not-yet-declared functions: http://www.open-std.org/jtc1/sc22/wg21/docs/cwg_active.html#361
 	+ store default-argument types
 	- store default-argument types for deferred parse (member function declaration)
 
