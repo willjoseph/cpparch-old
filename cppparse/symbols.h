@@ -746,11 +746,6 @@ public:
 
 typedef SafePtr<Declaration> DeclarationPtr;
 
-inline cpp::terminal_identifier& getDeclarationId(Declaration* declaration)
-{
-	return declaration->getName();
-}
-
 // ----------------------------------------------------------------------------
 // scope
 
@@ -794,19 +789,43 @@ struct ScopeCounter
 	}
 };
 
-#if 1
-#define DeclarationHolder Declaration
-#else
-struct DeclarationHolder : Declaration
+struct DeclarationInstance : DeclarationPtr
 {
-	DeclarationHolder()
+	Identifier* name;
+	const DeclarationInstance* overloaded;
+	const DeclarationInstance* redeclared;
+	DeclarationInstance()
+		: DeclarationPtr(0), name(0), overloaded(0), redeclared(0)
 	{
 	}
-	DeclarationHolder(const DeclarationHolder&)
+	explicit DeclarationInstance(Declaration* declaration)
+		: DeclarationPtr(declaration), name(declaration != 0 ? &declaration->getName() : 0), overloaded(0), redeclared(0)
 	{
+		SYMBOLS_ASSERT(name != 0);
+	}
+	explicit DeclarationInstance(DeclarationPtr declaration)
+		: DeclarationPtr(declaration), name(declaration != 0 ? &declaration->getName() : 0), overloaded(0), redeclared(0)
+	{
+		SYMBOLS_ASSERT(name != 0);
 	}
 };
-#endif
+
+inline cpp::terminal_identifier& getDeclarationId(const DeclarationInstance* declaration)
+{
+	return (*declaration)->getName();
+}
+
+inline bool isDecorated(const Identifier& id)
+{
+	return id.dec.p != 0;
+}
+
+inline Declaration& getDeclaration(const Identifier& id)
+{
+	SYMBOLS_ASSERT(isDecorated(id));
+	return *(*id.dec.p);
+}
+
 
 struct Scope : public ScopeCounter
 {
@@ -815,7 +834,7 @@ struct Scope : public ScopeCounter
 	size_t enclosedScopeCount; // number of scopes directly enclosed by this scope
 	typedef std::less<TokenValue> IdentifierLess;
 
-	typedef std::multimap<TokenValue, DeclarationHolder, IdentifierLess, TreeAllocator<int> > Declarations2;
+	typedef std::multimap<TokenValue, DeclarationInstance, IdentifierLess, TreeAllocator<int> > Declarations2;
 
 	struct Declarations : public Declarations2
 	{
@@ -835,11 +854,11 @@ struct Scope : public ScopeCounter
 			new(static_cast<Declarations2*>(this)) Declarations2(IdentifierLess(), TREEALLOCATOR_NULL);
 		}
 
-		Declaration* insert(Declaration& other)
+		const DeclarationInstance& insert(const DeclarationInstance& declaration)
 		{
-			Scope::Declarations::iterator result = Declarations2::insert(Scope::Declarations::value_type(other.getName().value, DeclarationHolder()));
-			(*result).second.swap(other);
-			return &(*result).second;
+			SYMBOLS_ASSERT(declaration.name != 0);
+			Declarations2::iterator result = Declarations2::insert(Declarations2::value_type(declaration.name->value, declaration));
+			return (*result).second;
 		}
 	};
 
@@ -887,7 +906,7 @@ inline Scope::Declarations::iterator findDeclaration(Scope::Declarations& declar
 	for(; i != declarations.begin()
 		&& (*--i).first == id.value;)
 	{
-		if(&(*i).second == declaration)
+		if((*i).second == declaration)
 		{
 			return i;
 		}
@@ -896,9 +915,10 @@ inline Scope::Declarations::iterator findDeclaration(Scope::Declarations& declar
 	return declarations.end();
 }
 
-inline void undeclare(Declaration* declaration, LexerAllocator& allocator)
+inline void undeclare(const DeclarationInstance* p, LexerAllocator& allocator)
 {
-	SYMBOLS_ASSERT(declaration->getName().dec.p == 0 || declaration->getName().dec.p == declaration);
+	Declaration* declaration = *p;
+	SYMBOLS_ASSERT(declaration->getName().dec.p == 0 || declaration->getName().dec.p == p);
 	declaration->getName().dec.p = 0;
 
 	SYMBOLS_ASSERT(!declaration->scope->declarations.empty());
@@ -913,9 +933,9 @@ inline void undeclare(Declaration* declaration, LexerAllocator& allocator)
 
 }
 
-inline BacktrackCallback makeUndeclareCallback(Declaration* p)
+inline BacktrackCallback makeUndeclareCallback(const DeclarationInstance* p)
 {
-	BacktrackCallback result = { BacktrackCallbackThunk<Declaration, undeclare>::thunk, p };
+	BacktrackCallback result = { BacktrackCallbackThunk<const DeclarationInstance, undeclare>::thunk, const_cast<DeclarationInstance*>(p) };
 	return result;
 }
 
@@ -1231,13 +1251,13 @@ LookupFilter makeLookupFilter(T& filter)
 
 struct LookupResult
 {
-	Declaration* filtered; // the declaration found by the name-lookup, using the filter
+	const DeclarationInstance* filtered; // the declaration found by the name-lookup, using the filter
 
 	LookupResult()
 		: filtered(0)
 	{
 	}
-	operator Declaration*() const
+	operator const DeclarationInstance*() const
 	{
 		return filtered;
 	}
@@ -1245,10 +1265,53 @@ struct LookupResult
 	// Combines the result of a subsequent lookup, returns true if lookup succeeded
 	bool append(const LookupResult& other)
 	{
-		filtered = other.filtered;
+		return append(other.filtered);
+	}
+	bool append(const DeclarationInstance* other)
+	{
+		filtered = other;
 		return filtered != 0;
 	}
 };
+
+struct DeclarationInstanceRef
+{
+	const DeclarationInstance* p;
+	DeclarationInstanceRef()
+		: p(0)
+	{
+	}
+	DeclarationInstanceRef(const DeclarationInstance& p)
+		: p(&p)
+	{
+		checkAllocated(this->p);
+	}
+	DeclarationInstanceRef(const LookupResult& result)
+		: p(result.filtered)
+	{
+	}
+	Declaration& operator*() const
+	{
+		checkAllocated(p);
+		return p->operator*();
+	}
+	Declaration* operator->() const
+	{
+		checkAllocated(p);
+		return p->operator->();
+	}
+	operator const DeclarationInstance&() const
+	{
+		checkAllocated(p);
+		return *p;
+	}
+	operator Declaration*() const
+	{
+		checkAllocated(p);
+		return p == 0 ? 0 : static_cast<Declaration*>(*p);
+	}
+};
+
 
 
 inline bool isTypeName(const Declaration& declaration)
@@ -1825,6 +1888,23 @@ inline Declaration* findPrimaryTemplate(Declaration* declaration)
 	return 0;
 }
 
+inline const DeclarationInstance& findLastDeclaration(const DeclarationInstance& instance, Declaration* declaration)
+{
+	for(const DeclarationInstance* p = &instance; p != 0; p = p->overloaded)
+	{
+		if(*p == declaration)
+		{
+			return *p;
+		}
+	}
+	throw SymbolsError();
+}
+
+
+inline const DeclarationInstance& findPrimaryTemplateLastDeclaration(const DeclarationInstance& instance)
+{
+	return findLastDeclaration(instance, findPrimaryTemplate(instance));
+}
 
 inline UniqueTypeWrapper makeUniqueType(const TypeId& type);
 inline UniqueTypeWrapper makeUniqueType(const TypeId& type, const TypeInstance* enclosing, bool allowDependent, std::size_t depth);
@@ -2076,7 +2156,7 @@ inline const TypeInstance* findEnclosingType(const TypeInstance* enclosing, Scop
 	return 0;
 }
 
-inline LookupResult findDeclaration(Scope::Declarations& declarations, const Identifier& id, LookupFilter filter, bool isBase);
+inline const DeclarationInstance* findDeclaration(Scope::Declarations& declarations, const Identifier& id, LookupFilter filter, bool isBase);
 inline LookupResult findDeclaration(const TypeInstance& instance, const Identifier& id, LookupFilter filter, bool isBase);
 
 inline LookupResult findDeclaration(const UniqueBases& bases, const Identifier& id, LookupFilter filter)
@@ -2141,12 +2221,14 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, const TypeInstance* en
 	{
 		SYMBOLS_ASSERT(!type.qualifying.empty()); // the type-name must be qualified
 		SYMBOLS_ASSERT(type.id != IdentifierPtr(0));
-		declaration = !allowDependent // the qualifying/enclosing type is not dependent
-				&& enclosing->declaration->enclosed != 0 // the qualifying/enclosing type is complete
-			? findDeclaration(*enclosing, *type.id, declaration == &gDependentNested ? LookupFilter(IsNestedName()) : LookupFilter(IsAny()))
-			: static_cast<Declaration*>(0);
+		const DeclarationInstance* instance = 0;
+		if(!allowDependent // the qualifying/enclosing type is not dependent
+			&& enclosing->declaration->enclosed != 0) // the qualifying/enclosing type is complete
+		{
+			instance = findDeclaration(*enclosing, *type.id, declaration == &gDependentNested ? LookupFilter(IsNestedName()) : LookupFilter(IsAny()));
+		}
 		// SYMBOLS_ASSERT(declaration != 0); // TODO: assert
-		if(declaration == 0)
+		if(instance == 0)
 		{
 			if(!allowDependent)
 			{
@@ -2155,6 +2237,7 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, const TypeInstance* en
 			extern ObjectTypeId gBaseClass;
 			return gBaseClass;
 		}
+		declaration = *instance;
 	}
 	if(type.specialization != INDEX_INVALID)
 	{
@@ -2391,6 +2474,7 @@ struct ExpressionType<T, true>
 
 // special-case
 extern Declaration gUndeclared;
+extern const DeclarationInstance gUndeclaredInstance;
 
 #define TYPE_ARITHMETIC TypeId(&gArithmetic, TREEALLOCATOR_NULL)
 #define TYPE_SPECIAL TypeId(&gSpecial, TREEALLOCATOR_NULL)
@@ -2631,9 +2715,13 @@ inline const UniqueTypeId& getStringLiteralType(cpp::string_literal* symbol)
 
 
 extern Declaration gDependentType;
+extern const DeclarationInstance gDependentTypeInstance;
 extern Declaration gDependentObject;
+extern const DeclarationInstance gDependentObjectInstance;
 extern Declaration gDependentTemplate;
+extern const DeclarationInstance gDependentTemplateInstance;
 extern Declaration gDependentNested;
+extern const DeclarationInstance gDependentNestedInstance;
 
 extern Declaration gParam;
 extern Declaration gNonType;
@@ -3830,27 +3918,24 @@ inline const Declaration& getPrimaryDeclaration(const Declaration& first, const 
 
 
 
-inline LookupResult findDeclaration(Scope::Declarations& declarations, const Identifier& id, LookupFilter filter = IsAny(), bool isBase = false)
+inline const DeclarationInstance* findDeclaration(Scope::Declarations& declarations, const Identifier& id, LookupFilter filter = IsAny(), bool isBase = false)
 {
 	Scope::Declarations::iterator i = declarations.upper_bound(id.value);
 
-	LookupResult result;
-	
 	for(; i != declarations.begin()
 		&& (*--i).first == id.value;)
 	{
 		if(!isBase
-			|| (*i).second.templateParameter == INDEX_INVALID) // template-params of base-class are not visible outside the class
+			|| (*i).second->templateParameter == INDEX_INVALID) // template-params of base-class are not visible outside the class
 		{
-			if(filter((*i).second))
+			if(filter(*(*i).second))
 			{
-				result.filtered = &(*i).second;
-				break;
+				return &(*i).second;
 			}
 		}
 	}
 
-	return result;
+	return 0;
 }
 
 inline LookupResult findDeclaration(Scope::Declarations& declarations, Types& bases, const Identifier& id, LookupFilter filter = IsAny(), bool isBase = false);
@@ -3863,10 +3948,10 @@ inline LookupResult findDeclaration(Types& bases, const Identifier& id, LookupFi
 		const Type& base = getInstantiatedType(*i);
 		// an identifier looked up in the context of a class may name a base class
 		if(base.declaration->templateParameter == INDEX_INVALID // TODO: don't look in dependent base classes!
-			&& base.declaration->getName().value == id.value
+			&& base.id->value == id.value
 			&& filter(*base.declaration))
 		{
-			result.filtered = base.declaration;
+			result.filtered = base.id->dec.p;
 			return result;
 		}
 		Scope* scope = base.declaration->enclosed;
@@ -4060,56 +4145,6 @@ inline void mergeTemplateParamDefaults(Declaration& declaration, const TemplateP
 	SYMBOLS_ASSERT(!declaration.templateParams.defaults.empty());
 }
 
-#if 0 // replaced by changes to pointOfDeclaration()
-inline void copyTemplateParams(Declaration& declaration, const TemplateParameters& templateParams)
-{
-	if(declaration.isTemplate) // handle case where template-params are for qualifying class: e.g. template<class T> int Class<T>::member;
-	{
-		// case 1: declaration is newly declared and is definition (possibly partial/explicit-specialization)
-		//   copy new defaults, merge defaults from preceding forward-declaration, copy result to preceding forward-declaration
-		// case 2: declaration is newly declared and is forward-declaration (possibly partial/explicit-specialization)
-		//   copy new defaults
-		// case 3: declaration redeclares existing forward-declaration or definition (possibly partial/explicit-specialization)
-		//   merge defaults from this redeclaration, copy result to preceding forward-declaration
-		if(declaration.templateParams.empty()) // avoid overwriting template-params of primary template with those of a forward-declared explicit/partial-specialization
-		{
-			*static_cast<Types*>(&declaration.templateParams) = templateParams;
-		}
-		SYMBOLS_ASSERT(declaration.isTemplate);
-		if(!isClass(declaration)) // 14.1-9: a default template-arguments may be specified in a class template declaration/definition (not for a function or class-member)
-		{
-			return;
-		}
-		if(findPrimaryTemplate(&declaration) != &declaration) // this is a partial/explicit-specialization
-		{
-			SYMBOLS_ASSERT(!hasTemplateParamDefaults(templateParams)); // TODO: non-fatal error: partial/explicit-specialization may not have default template-arguments
-			declaration.templateParams.defaults = templateParams.defaults;
-			return;
-		}
-
-		bool isFirstDeclaration = declaration.templateParams.defaults.empty();
-		if(isFirstDeclaration)
-		{
-			copyTemplateParamDefaults(declaration.templateParams, templateParams);
-		}
-		else
-		{
-			mergeTemplateParamDefaults(declaration, templateParams);
-		}
-		if(declaration.overloaded != 0) // this is a definition and was previously forward-declared
-		{
-			Declaration* forward = findPrimaryTemplate(declaration.overloaded);
-			SYMBOLS_ASSERT(forward != 0);
-			if(isFirstDeclaration)
-			{
-				// merge defaults from preceding forward-declaration
-				mergeTemplateParamDefaults(declaration, forward->templateParams);
-			}
-			forward->templateParams = declaration.templateParams;
-		}
-	}
-}
-#endif
 
 typedef TokenPrinter<std::ostream> FileTokenPrinter;
 
@@ -4519,7 +4554,7 @@ struct OverloadResolver
 			ambiguous = candidate.declaration;
 		}
 	}
-	void add(Declaration* declaration)
+	void addSingle(Declaration* declaration)
 	{
 		CandidateFunction candidate(declaration);
 		candidate.conversions.reserve(best.conversions.size());
@@ -4573,36 +4608,33 @@ struct OverloadResolver
 
 		add(candidate);
 	}
+	void add(Declaration* declaration)
+	{
+		for(Declaration* p = declaration; p != 0; p = p->overloaded)
+		{
+			if(p->enclosed == 0)
+			{
+				continue;
+			}
 
+			if(p->isTemplate)
+			{
+				continue; // TODO: template argument deduction
+			}
+
+			addSingle(p);
+		}
+	}
 };
 
 inline Declaration* findBestMatch(Declaration* declaration, const UniqueTypeIds& arguments)
 {
 	OverloadResolver resolver(arguments);
-	for(Declaration* p = declaration; p != 0; p = p->overloaded) // note this list may contain multiple (forward) declarations of the same function
-	{
-		// TODO
-		// Gather all the functions in the current scope that have the same name as the function called.
-		// Exclude those that don't have the right number of parameters to match the arguments in the call. (be careful about parameters with default values; void f(int x, int y = 0) is a candidate for the call f(25);)
-		// If no function matches, the compiler reports an error.
-		// If there is more than one match, select the 'best match'.
-		// If there is no clear winner of the best matches, the compiler reports an error - ambiguous function call.
-		if(p->enclosed == 0)
-		{
-			continue;
-		}
-
-		if(p->isTemplate)
-		{
-			continue; // TODO: template argument deduction
-		}
-
-		resolver.add(p);
-	}
+	resolver.add(declaration);
 
 	if(resolver.ambiguous != 0)
 	{
-#if 1
+#if 0
 		std::cout << "overload resolution failed:" << std::endl;
 		std::cout << "  ";
 		printPosition(resolver.ambiguous->getName().position);
@@ -4620,7 +4652,6 @@ inline Declaration* findBestMatch(Declaration* declaration, const UniqueTypeIds&
 
 	return resolver.get();
 }
-
 
 #endif
 

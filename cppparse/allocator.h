@@ -154,6 +154,14 @@ inline bool isDeallocated(const T* p)
 }
 
 template<typename T>
+inline void checkAllocated(const T* p)
+{
+#ifdef ALLOCATOR_DEBUG
+	ALLOCATOR_ASSERT(!isDeallocated(p));
+#endif
+}
+
+template<typename T>
 struct SafePtr
 {
 	typedef T Type;
@@ -168,45 +176,33 @@ struct SafePtr
 	SafePtr(const SafePtr<T>& other)
 		: p(other.p)
 	{
-#ifdef ALLOCATOR_DEBUG
-		ALLOCATOR_ASSERT(!isDeallocated(p));
-#endif
+		checkAllocated(p);
 	}
 	SafePtr<T>& operator=(const SafePtr<T>& other)
 	{
 		p = other;
-#ifdef ALLOCATOR_DEBUG
-		ALLOCATOR_ASSERT(!isDeallocated(p));
-#endif
+		checkAllocated(p);
 		return *this;
 	}
 	SafePtr<T>& operator=(T* other)
 	{
 		p = other;
-#ifdef ALLOCATOR_DEBUG
-		ALLOCATOR_ASSERT(!isDeallocated(p));
-#endif
+		checkAllocated(p);
 		return *this;
 	}
 	T& operator*() const
 	{
-#ifdef ALLOCATOR_DEBUG
-		ALLOCATOR_ASSERT(!isDeallocated(p));
-#endif
+		checkAllocated(p);
 		return *p;
 	}
 	T* operator->() const
 	{
-#ifdef ALLOCATOR_DEBUG
-		ALLOCATOR_ASSERT(!isDeallocated(p));
-#endif
+		checkAllocated(p);
 		return p;
 	}
 	operator T*() const
 	{
-#ifdef ALLOCATOR_DEBUG
-		ALLOCATOR_ASSERT(!isDeallocated(p));
-#endif
+		checkAllocated(p);
 		return p;
 	}
 };

@@ -13,6 +13,7 @@ size_t gScopeCount = 0;
 // special-case
 Identifier gUndeclaredId = makeIdentifier("$undeclared");
 Declaration gUndeclared(TREEALLOCATOR_NULL, 0, gUndeclaredId, TYPE_NULL, 0);
+const DeclarationInstance gUndeclaredInstance(&gUndeclared);
 
 // meta types
 Identifier gArithmeticId = makeIdentifier("$arithmetic");
@@ -94,12 +95,16 @@ StringLiteralTypeId gWideStringLiteral(&gWCharTDeclaration, TREEALLOCATOR_NULL);
 // template placeholders
 Identifier gDependentTypeId = makeIdentifier("$type");
 Declaration gDependentType(TREEALLOCATOR_NULL, 0, gDependentTypeId, TYPE_SPECIAL, 0);
+const DeclarationInstance gDependentTypeInstance(&gDependentType);
 Identifier gDependentObjectId = makeIdentifier("$object");
 Declaration gDependentObject(TREEALLOCATOR_NULL, 0, gDependentObjectId, TYPE_UNKNOWN, 0);
+const DeclarationInstance gDependentObjectInstance(&gDependentObject);
 Identifier gDependentTemplateId = makeIdentifier("$template");
 Declaration gDependentTemplate(TREEALLOCATOR_NULL, 0, gDependentTemplateId, TYPE_SPECIAL, 0, DeclSpecifiers(), true);
+const DeclarationInstance gDependentTemplateInstance(&gDependentTemplate);
 Identifier gDependentNestedId = makeIdentifier("$nested");
 Declaration gDependentNested(TREEALLOCATOR_NULL, 0, gDependentNestedId, TYPE_SPECIAL, 0);
+const DeclarationInstance gDependentNestedInstance(&gDependentNested);
 
 Identifier gParamId = makeIdentifier("$param");
 Declaration gParam(TREEALLOCATOR_NULL, 0, gParamId, TYPE_CLASS, 0);

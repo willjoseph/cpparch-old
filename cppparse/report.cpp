@@ -132,11 +132,10 @@ const char* escapeTerminal(cpp::terminal_choice2 symbol)
 	return escapeTerminal(symbol.id, symbol.value.c_str());
 }
 
-
 bool isPrimary(const Identifier& id)
 {
 	// TODO: optimise
-	return id.dec.p != 0 && id.position == id.dec.p->getName().position;
+	return isDecorated(id) && id.position == id.dec.p->name->position;
 }
 
 typedef std::pair<Name, Declaration*> ModuleDeclaration; // first=source, second=declaration
@@ -205,14 +204,22 @@ struct DependencyBuilder
 
 	void visit(cpp::identifier* symbol)
 	{
-		if(!isPrimary(symbol->value))
+		if(!isPrimary(symbol->value)) // if this symbol refers to a declaration
 		{
-			if(symbol->value.dec.p != 0
-				&& !isNamespace(*symbol->value.dec.p)
-				&& symbol->value.dec.p->getName().source != NAME_NULL // refers to a symbol declared in a module
-				&& symbol->value.source != symbol->value.dec.p->getName().source) // refers to a symbol not declared in the current module
+			if(isDecorated(symbol->value)
+				&& !isNamespace(getDeclaration(symbol->value)))
 			{
-				moduleDependencies[symbol->value.source].insert(ModuleDeclarationSet::value_type(symbol->value.dec.p->getName().source, symbol->value.dec.p));
+				// the source file containing this symbol depends on all the redeclarations (of the declaration chosen by name resolution) that were visible
+				// e.g. function redeclarations (excluding unchosen overloads), class forward-declarations (excluding unchosen explicit/partial-specializations)
+				for(const DeclarationInstance* p = symbol->value.dec.p; p != 0; p = p->redeclared)
+				{
+					Declaration* declaration = *p;
+					if(p->name->source != NAME_NULL // refers to a symbol declared in a module
+						&& symbol->value.source != p->name->source) // refers to a symbol not declared in the current module
+					{
+						moduleDependencies[symbol->value.source].insert(ModuleDeclarationSet::value_type(p->name->source, &getDeclaration(symbol->value)));
+					}
+				}
 			}
 		}
 	}
@@ -584,17 +591,18 @@ struct SourcePrinter : SymbolPrinter
 	void printIdentifier(const Identifier& identifier)
 	{
 		bool anchor = false;
+		Declaration* declaration = isDecorated(identifier) ? &getDeclaration(identifier) : 0;
 		if(isPrimary(identifier))
 		{
 			printer.out << "<a name='";
-			printName(identifier.dec.p);
+			printName(declaration);
 			printer.out << "'></a>";
 		}
 		else
 		{
-			anchor = printAnchorStart(identifier.dec.p);
+			anchor = printAnchorStart(declaration);
 		}
-		const char* type = identifier.dec.p != 0 ? getDeclarationType(*identifier.dec.p) : "unknown";
+		const char* type = declaration != 0 ? getDeclarationType(*declaration) : "unknown";
 		printer.out << "<" << type << ">";
 		printer.out << getValue(identifier);
 		printer.out << "</" << type << ">";

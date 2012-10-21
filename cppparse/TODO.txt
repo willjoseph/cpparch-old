@@ -81,6 +81,12 @@
 	- print cv-qualifiers
 	- store declarations by reference, not by value
 		- on redeclaration (or in a using-declaration), redeclare reference to original declaration rather than a copy
+			- adding to scope not enough, would also need to track list of redeclarations: each redeclaration has pointer to previous?
+		- need to preserve information about declarations found during name lookup: required when determining dependencies
+			- for each declaration (or redeclaration) store pointer to previous matching declaration, AND to previous with same name
+			- when finding list of overloads: gather all with same name that do not have a previous matching declaration
+			- don't overwrite name lookup result with result of overload resolution
+			- using-declaration: store pointer to previous matching declaration (from specified scope!)
 	- improve error messages
 		- e.g. detect when 'typename' keyword is missing
 		- on reportIdentifierMismatch, show the location of the mismatching identifier
@@ -371,6 +377,8 @@
 				- determine all tagged declarations to be present within any file containing #ifndef X
 		- confused by #ifdef X X() #endif
 			- ignore dependency on X when wrapped in #ifdef X
+	- warn if declaration of overloaded function (that would have been selected) occurs after resolution
+		- or if similar overload declaration occurs after using-declaration that refers to function name
 - detect cyclic includes
 - detect unused includes
 	- if directly included and not used

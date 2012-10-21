@@ -87,7 +87,7 @@ struct VisualiserNode
 	const char* name;
 	size_t allocation;
 	BacktrackBuffer::const_iterator position;
-	Declaration* declaration;
+	const DeclarationInstance* declaration;
 };
 
 inline void printIndent(VisualiserNode* node)
@@ -103,7 +103,7 @@ inline void printIndent(VisualiserNode* node)
 	}
 }
 
-cpp::terminal_identifier& getDeclarationId(Declaration* declaration);
+cpp::terminal_identifier& getDeclarationId(const DeclarationInstance* declaration);
 
 #ifdef _DEBUG
 //#define PARSER_DEBUG

@@ -1,3 +1,48 @@
+namespace N099
+{
+	template<typename T>
+	struct C
+	{
+	};
+	// friend struct C<int>; // friend
+	template struct C<int>; // explicit instantiation
+}
+
+namespace N098
+{
+	template<typename T>
+	struct Base
+	{
+	};
+
+	template<typename T>
+	struct Tmpl : Base<T> // type of base class is not resolved at this point
+	{	
+	};
+
+	template<>
+	struct Base<int>
+	{
+	};
+
+	Tmpl<int> woot; // type of base-class should be resolved to specialization Base<int>
+};
+
+
+namespace N097
+{
+	void f(float); // 1a
+	void f(int); // 2a: overloads 1a
+	void f(float); // 1b: overloads 2a, redeclares 1a
+	void f(int); // 2b: overloads 1b: redeclares 2a
+
+	void g()
+	{
+		f(0); // sees 1b, 2b
+	}
+};
+
+
 namespace N053
 {
 	namespace exception_detail
@@ -940,7 +985,7 @@ namespace N043
 
 		friend struct Tmpl<true>; // friend declaration of explicit-specialization
 
-		template<typename T>
+		template<bool b>
 		struct Tmpl // definition of explicit-specialization
 		{
 		};

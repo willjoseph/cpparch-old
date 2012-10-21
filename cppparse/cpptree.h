@@ -11,7 +11,7 @@ typedef boost::wave::token_id LexTokenId;
 
 
 
-class Declaration;
+struct DeclarationInstance;
 struct TypeElement;
 
 struct CvQualifiers
@@ -229,7 +229,7 @@ namespace cpp
 
 	struct decoration
 	{
-		SafePtr<Declaration> p;
+		SafePtr<const DeclarationInstance> p;
 		decoration() : p(0)
 		{
 		}

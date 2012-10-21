@@ -31,7 +31,7 @@ void printDeclarations(const Scope::Declarations& declarations)
 	std::cout << "{ ";
 	for(Scope::Declarations::const_iterator i = declarations.begin(); i != declarations.end();)
 	{
-		std::cout << getValue((*i).second.getName());
+		std::cout << getValue((*i).second->getName());
 		if(++i != declarations.end())
 		{
 			std::cout << ", ";
@@ -130,6 +130,12 @@ inline UniqueTypeWrapper adjustFunctionParameter(UniqueTypeWrapper type)
 	return result;
 }
 
+inline void setDecoration(Identifier* id, const DeclarationInstance& declaration)
+{
+	SEMANTIC_ASSERT(declaration.name != 0);
+	id->dec.p = &declaration;
+}
+
 inline bool isFunctionParameterEquivalent(UniqueTypeWrapper left, UniqueTypeWrapper right)
 {
 	return adjustFunctionParameter(left) == adjustFunctionParameter(right);
@@ -200,11 +206,11 @@ inline bool isEquivalent(const Declaration& declaration, const Declaration& othe
 	return false;
 }
 
-inline Declaration* findRedeclared(const Declaration& declaration)
+inline const DeclarationInstance* findRedeclared(const Declaration& declaration, const DeclarationInstance* overloaded)
 {
-	for(Declaration* p = declaration.overloaded; p != 0; p = p->overloaded)
+	for(const DeclarationInstance* p = overloaded; p != 0; p = p->overloaded)
 	{
-		if(isEquivalent(declaration, *p))
+		if(isEquivalent(declaration, *(*p)))
 		{
 			return p;
 		}
@@ -320,11 +326,11 @@ struct WalkerState
 #ifdef LOOKUP_DEBUG
 		std::cout << "FAIL" << std::endl;
 #endif
-		result.filtered = &gUndeclared;
+		result.filtered = &gUndeclaredInstance;
 		return result;
 	}
 
-	Declaration* pointOfDeclaration(
+	const DeclarationInstance& pointOfDeclaration(
 		const TreeAllocator<int>& allocator,
 		Scope* parent,
 		Identifier& name,
@@ -347,86 +353,84 @@ struct WalkerState
 
 		SEMANTIC_ASSERT(!name.value.empty());
 		Declaration other(allocator, parent, name, type, enclosed, specifiers, isTemplate, params, isSpecialization, arguments, templateParameter, valueDependent);
+		DeclarationInstance declaration;
+		const DeclarationInstance* overloaded = 0;
 		if(!isAnonymous(other)) // unnamed class/struct/union/enum
 		{
-			/* 3.4.4-1
-			An elaborated-type-specifier (7.1.6.3) may be used to refer to a previously declared class-name or enum-name
-			even though the name has been hidden by a non-type declaration (3.3.10).
-			*/
-			Declaration* declaration = ::findDeclaration(parent->declarations, name);
-			if(declaration != 0)
+			overloaded = ::findDeclaration(parent->declarations, name);
+		}
+		/* 3.4.4-1
+		An elaborated-type-specifier (7.1.6.3) may be used to refer to a previously declared class-name or enum-name
+		even though the name has been hidden by a non-type declaration (3.3.10).
+		*/
+		if(overloaded != 0)
+		{
+			declaration = *overloaded;
+			try
 			{
-				try
+				const Declaration& primary = getPrimaryDeclaration(*declaration, other);
+				if(&primary == declaration)
 				{
-					const Declaration& primary = getPrimaryDeclaration(*declaration, other);
-					if(&primary == declaration)
+					return *overloaded;
+				}
+			}
+			catch(DeclarationError& e)
+			{
+				printPosition(name.position);
+				std::cout << "'" << name.value.c_str() << "': " << e.description << std::endl;
+				printPosition(declaration->getName().position);
+				throw SemanticError();
+			}
+
+			if(!isNamespace(other)
+				&& !isType(other)
+				&& isFunction(other))
+			{
+				// quick hack - if any template overload of a function has been declared, all subsequent declarations are template functions
+				if(declaration->isTemplate)
+				{
+					other.isTemplate = true;
+				}
+			}
+			other.overloaded = declaration;
+			declaration.p = 0;
+			declaration.overloaded = overloaded;
+			declaration.redeclared = findRedeclared(other, overloaded);
+			if(declaration.redeclared != 0)
+			{
+				declaration.p = *declaration.redeclared;
+				if(isClass(other)
+					&& other.isTemplate)
+				{
+					TemplateParameters tmp(context);
+					tmp.swap(declaration->templateParams);
+					declaration->templateParams = other.templateParams;
+					if(other.isSpecialization) // this is a partial-specialization
 					{
-						return declaration;
+						SEMANTIC_ASSERT(!hasTemplateParamDefaults(other.templateParams)); // TODO: non-fatal error: partial-specialization may not have default template-arguments
+					}
+					else
+					{
+						SEMANTIC_ASSERT(!other.templateParams.empty());
+						mergeTemplateParamDefaults(*declaration, tmp);
 					}
 				}
-				catch(DeclarationError& e)
-				{
-					printPosition(name.position);
-					std::cout << "'" << name.value.c_str() << "': " << e.description << std::endl;
-					printPosition(declaration->getName().position);
-					throw SemanticError();
-				}
-
-#if 0
 				if(isClass(other)
-					&& isClass(*declaration)
 					&& isIncomplete(*declaration)) // if this class-declaration was previously forward-declared
 				{
-					// quick hack - complete all previous forward-declarations, in case they are referenced by typedefs
-					for(Declaration* p = declaration; p != 0; p = p->overloaded)
-					{
-						p->enclosed = other.enclosed;
-					}
-				}
-#endif
-
-				if(!isNamespace(other)
-					&& !isType(other)
-					&& isFunction(other))
-				{
-					// quick hack - if any template overload of a function has been declared, all subsequent declarations are template functions
-					if(declaration->isTemplate)
-					{
-						other.isTemplate = true;
-					}
-				}
-				other.overloaded = declaration;
-				Declaration* redeclared = findRedeclared(other);
-				if(redeclared != 0)
-				{
-					if(isClass(other)
-						&& other.isTemplate)
-					{
-						TemplateParameters tmp(context);
-						tmp.swap(redeclared->templateParams);
-						redeclared->templateParams = other.templateParams;
-						if(other.isSpecialization) // this is a partial-specialization
-						{
-							SEMANTIC_ASSERT(!hasTemplateParamDefaults(other.templateParams)); // TODO: non-fatal error: partial-specialization may not have default template-arguments
-						}
-						else
-						{
-							SEMANTIC_ASSERT(!other.templateParams.empty());
-							mergeTemplateParamDefaults(*redeclared, tmp);
-						}
-					}
-					if(isClass(other)
-						&& isIncomplete(*redeclared)) // if this class-declaration was previously forward-declared
-					{
-						redeclared->enclosed = other.enclosed; // complete it
-					}
-					return redeclared;
+					declaration->enclosed = other.enclosed; // complete it
 				}
 			}
 		}
+		if(declaration.p == 0)
+		{
+			declaration.p = allocatorNew(context, Declaration());
+			declaration->swap(other);
+		}
 
-		Declaration* result = parent->declarations.insert(other);
-		parent->declarationList.push_back(result);
+		declaration.name = &name;
+		const DeclarationInstance& result = parent->declarations.insert(declaration);
+		parent->declarationList.push_back(declaration);
 		return result;
 	}
 
@@ -886,22 +890,22 @@ struct WalkerBase : public WalkerState
 
 	// Causes /p declaration to be undeclared when backtracking.
 	// In practice this only happens for the declaration in an elaborated-type-specifier.
-	void trackDeclaration(Declaration* declaration)
+	void trackDeclaration(const DeclarationInstance& declaration)
 	{
-		parser->addBacktrackCallback(makeUndeclareCallback(declaration));
+		parser->addBacktrackCallback(makeUndeclareCallback(&declaration));
 	}
 
 	Declaration* declareClass(Identifier* id, bool isSpecialization, TemplateArguments& arguments)
 	{
 		Scope* enclosed = templateParamScope != 0 ? static_cast<Scope*>(templateParamScope) : newScope(makeIdentifier("$class"));
 		enclosed->type = SCOPETYPE_CLASS; // convert template-param-scope to class-scope if present
-		Declaration* declaration = pointOfDeclaration(context, enclosing, id == 0 ? enclosing->getUniqueName() : *id, TYPE_CLASS, enclosed, DeclSpecifiers(), enclosing == templateEnclosing, getTemplateParams(enclosing), isSpecialization, arguments);
+		DeclarationInstanceRef declaration = pointOfDeclaration(context, enclosing, id == 0 ? enclosing->getUniqueName() : *id, TYPE_CLASS, enclosed, DeclSpecifiers(), enclosing == templateEnclosing, getTemplateParams(enclosing), isSpecialization, arguments);
 #ifdef ALLOCATOR_DEBUG
 		trackDeclaration(declaration);
 #endif
 		if(id != 0)
 		{
-			id->dec.p = declaration;
+			setDecoration(id, declaration);
 		}
 		enclosed->name = declaration->getName();
 		return declaration;
@@ -928,13 +932,13 @@ struct WalkerBase : public WalkerState
 		{
 			parent = getFriendScope();
 		}
-		Declaration* declaration = pointOfDeclaration(context, parent, *id, type, enclosed, specifiers, parent == templateEnclosing, getTemplateParams(parent), false, TEMPLATEARGUMENTS_NULL, templateParameter, valueDependent); // 3.3.1.1
+		DeclarationInstanceRef declaration = pointOfDeclaration(context, parent, *id, type, enclosed, specifiers, parent == templateEnclosing, getTemplateParams(parent), false, TEMPLATEARGUMENTS_NULL, templateParameter, valueDependent); // 3.3.1.1
 #ifdef ALLOCATOR_DEBUG
 		trackDeclaration(declaration);
 #endif
 		if(id != &gAnonymousId)
 		{
-			id->dec.p = declaration;
+			setDecoration(id, declaration);
 		}
 
 		return declaration;
@@ -951,22 +955,22 @@ struct WalkerBase : public WalkerState
 			contains the declaration; otherwise, except as a friend declaration, the identifier is declared in the
 			smallest non-class, non-function-prototype scope that contains the declaration.
 			*/
-			Declaration* declaration = pointOfDeclaration(context, getEtsScope(), *forward, TYPE_CLASS, 0, DeclSpecifiers(), enclosing == templateEnclosing);
+			DeclarationInstanceRef declaration = pointOfDeclaration(context, getEtsScope(), *forward, TYPE_CLASS, 0, DeclSpecifiers(), enclosing == templateEnclosing);
 			trackDeclaration(declaration);
-			forward->dec.p = declaration;
+			setDecoration(forward, declaration);
 			type = declaration;
 			return true;
 		}
 		return false;
 	}
 
-	Declaration* lookupTemplate(const Identifier& id, LookupFilter filter)
+	DeclarationInstanceRef lookupTemplate(const Identifier& id, LookupFilter filter)
 	{
 		if(!isDependent(qualifying_p))
 		{
-			return findDeclaration(id, filter);
+			return DeclarationInstanceRef(findDeclaration(id, filter));
 		}
-		return &gDependentTemplate;
+		return gDependentTemplateInstance;
 	}
 
 	Declaration* findBestOverloadedOperator(const Identifier& id, const UniqueTypeId& type)
@@ -983,14 +987,14 @@ struct WalkerBase : public WalkerState
 			{
 				SEMANTIC_ASSERT(isComplete(type)); // TODO: non-fatal parse error
 				Scope* scope = getObjectType(type.value).declaration->enclosed;
-				Declaration* declaration = ::findDeclaration(scope->declarations, scope->bases, id);
+				DeclarationInstanceRef declaration = ::findDeclaration(scope->declarations, scope->bases, id);
 				if(declaration != 0)
 				{
 					resolver.add(declaration);
 				}
 			}
 			// TODO: ignore non-member candidates if no operand has a class type, unless one or more params has enum (ref) type
-			Declaration* declaration = findDeclaration(id, IsNonMemberName()); // look up non-member candidates in this context (ignoring members)
+			DeclarationInstanceRef declaration = findDeclaration(id, IsNonMemberName()); // look up non-member candidates in this context (ignoring members)
 			if(declaration != &gUndeclared
 				&& !declaration->isTemplate // TODO: template argument deduction for overloaded operator
 				&& !declaration->specifiers.isFriend) // TODO: 14.5.3: friend function as member of a template-class, which depends on template arguments
@@ -1239,10 +1243,10 @@ struct NamespaceNameWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	DeclarationPtr declaration;
+	DeclarationInstanceRef declaration;
 	IsHiddenNamespaceName filter;
 	NamespaceNameWalker(const WalkerState& state)
-		: WalkerBase(state), declaration(0)
+		: WalkerBase(state)
 	{
 	}
 	void visit(cpp::identifier* symbol)
@@ -1253,7 +1257,7 @@ struct NamespaceNameWalker : public WalkerBase
 		{
 			return reportIdentifierMismatch(symbol, symbol->value, declaration, "namespace-name");
 		}
-		symbol->value.dec.p = declaration;
+		setDecoration(&symbol->value, declaration);
 	}
 };
 
@@ -1367,13 +1371,13 @@ struct UnqualifiedIdWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	DeclarationPtr declaration;
+	DeclarationInstanceRef declaration;
 	IdentifierPtr id;
 	TemplateArguments arguments; // only used if the identifier is a template-name
 	bool isIdentifier;
 	bool isTemplate;
 	UnqualifiedIdWalker(const WalkerState& state, bool isTemplate = false)
-		: WalkerBase(state), declaration(0), id(0), arguments(context), isIdentifier(false), isTemplate(isTemplate)
+		: WalkerBase(state), id(0), arguments(context), isIdentifier(false), isTemplate(isTemplate)
 	{
 	}
 	void visit(cpp::identifier* symbol)
@@ -1393,7 +1397,7 @@ struct UnqualifiedIdWalker : public WalkerBase
 		if(!isTemplate
 			&& !isDependent(qualifying_p))
 		{
-			Declaration* declaration = findDeclaration(*walker.id);
+			DeclarationInstanceRef declaration = findDeclaration(*walker.id);
 			if(declaration == &gUndeclared
 				|| !isTemplateName(*declaration))
 			{
@@ -1412,7 +1416,7 @@ struct UnqualifiedIdWalker : public WalkerBase
 		if(!isTemplate // TODO: is this possible?
 			&& !isDependent(qualifying_p))
 		{
-			Declaration* declaration = findDeclaration(*walker.id);
+			DeclarationInstanceRef declaration = findDeclaration(*walker.id);
 			if(declaration == &gUndeclared
 				|| !isTemplateName(*declaration))
 			{
@@ -1454,12 +1458,12 @@ struct QualifiedIdWalker : public WalkerQualified
 {
 	TREEWALKER_DEFAULT;
 
-	DeclarationPtr declaration;
+	DeclarationInstanceRef declaration;
 	IdentifierPtr id;
 	TemplateArguments arguments; // only used if the identifier is a template-name
 	bool isTemplate;
 	QualifiedIdWalker(const WalkerState& state)
-		: WalkerQualified(state), declaration(0), id(0), arguments(context), isTemplate(false)
+		: WalkerQualified(state), id(0), arguments(context), isTemplate(false)
 	{
 	}
 
@@ -1506,13 +1510,13 @@ struct IdExpressionWalker : public WalkerQualified
 	— a conversion-function-id that specifies a dependent type,
 	— a nested-name-specifier or a qualified-id that names a member of an unknown specialization
 	*/
-	DeclarationPtr declaration;
+	DeclarationInstanceRef declaration;
 	IdentifierPtr id;
 	TemplateArguments arguments; // only used if the identifier is a template-name
 	bool isIdentifier;
 	bool isTemplate;
 	IdExpressionWalker(const WalkerState& state, bool isTemplate = false)
-		: WalkerQualified(state), declaration(0), id(0), arguments(context), isIdentifier(false), isTemplate(isTemplate)
+		: WalkerQualified(state), id(0), arguments(context), isIdentifier(false), isTemplate(isTemplate)
 	{
 	}
 	void visit(cpp::qualified_id_default* symbol)
@@ -1656,11 +1660,11 @@ struct DependentPrimaryExpressionWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	DeclarationPtr declaration;
+	DeclarationInstanceRef declaration;
 	IdentifierPtr id;
 	Dependent typeDependent;
 	DependentPrimaryExpressionWalker(const WalkerState& state)
-		: WalkerBase(state), declaration(0), id(0), typeDependent(context)
+		: WalkerBase(state), id(0), typeDependent(context)
 	{
 	}
 	void visit(cpp::id_expression* symbol)
@@ -1691,12 +1695,12 @@ struct DependentPrimaryExpressionWalker : public WalkerBase
 				{
 					return reportIdentifierMismatch(symbol, *walker.id, declaration, "object-name");
 				}
-				walker.id->dec.p = declaration;
+				setDecoration(walker.id, declaration);
 				addDependentType(typeDependent, declaration); // an id-expression is type-dependent if it contains an identifier that was declared with a dependent type
 			}
 			else if(walker.id != 0)
 			{
-				walker.id->dec.p = &gDependentObject;
+				setDecoration(walker.id, gDependentObjectInstance);
 				if(!walker.qualifying.empty())
 				{
 					addDependent(typeDependent, walker.qualifying.back());
@@ -1717,11 +1721,11 @@ struct DependentPostfixExpressionWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	DeclarationPtr declaration;
+	DeclarationInstanceRef declaration;
 	IdentifierPtr id;
 	Dependent typeDependent;
 	DependentPostfixExpressionWalker(const WalkerState& state)
-		: WalkerBase(state), declaration(0), id(0), typeDependent(context)
+		: WalkerBase(state), id(0), typeDependent(context)
 	{
 	}
 	void visit(cpp::primary_expression* symbol)
@@ -1749,12 +1753,12 @@ struct DependentPostfixExpressionWalker : public WalkerBase
 						return reportIdentifierMismatch(symbol, *id, declaration, "object-name");
 					}
 					addDependentType(typeDependent, declaration);
-					id->dec.p = declaration;
+					setDecoration(id, declaration);
 				}
 			}
 			else
 			{
-				id->dec.p = &gDependentObject;
+				setDecoration(id, gDependentObjectInstance);
 			}
 		}
 	}
@@ -1790,7 +1794,7 @@ struct PrimaryExpressionWalker : public WalkerBase
 		IdExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		id = walker.id;
-		Declaration* declaration = walker.declaration;
+		DeclarationInstanceRef declaration = walker.declaration;
 		if(declaration != 0)
 		{
 			if(declaration == &gUndeclared
@@ -1801,7 +1805,7 @@ struct PrimaryExpressionWalker : public WalkerBase
 			addDependentType(typeDependent, declaration);
 			addDependentType(valueDependent, declaration);
 			addDependentName(valueDependent, declaration);
-			id->dec.p = declaration;
+			setDecoration(id, declaration);
 
 			type = gUniqueTypeNull;
 			if(!isFunction(*declaration) // if the id-expression refers to a function, the function parameters may be dependent; defer evaluation of type
@@ -1817,7 +1821,7 @@ struct PrimaryExpressionWalker : public WalkerBase
 		{
 			if(isDependent(walker.qualifying.get_ref()))
 			{
-				id->dec.p = &gDependentObject;
+				setDecoration(id, gDependentObjectInstance);
 			}
 			if(!walker.qualifying.empty())
 			{
@@ -1851,12 +1855,12 @@ struct PostfixExpressionMemberWalker : public WalkerQualified
 {
 	TREEWALKER_DEFAULT;
 
-	DeclarationPtr declaration;
+	DeclarationInstanceRef declaration;
 	IdentifierPtr id; // only valid when the expression is a (parenthesised) id-expression
 	bool isTemplate;
 	bool isArrow;
 	PostfixExpressionMemberWalker(const WalkerState& state)
-		: WalkerQualified(state), declaration(0), id(0), isTemplate(false), isArrow(false)
+		: WalkerQualified(state), id(0), isTemplate(false), isArrow(false)
 	{
 	}
 	void visit(cpp::member_operator* symbol)
@@ -1980,17 +1984,18 @@ struct PostfixExpressionWalker : public WalkerBase
 			// TODO: check valueDependent too?
 		{
 			if(id != 0 // the prefix contains an id-expression
-				&& id->dec.p != &gDependentObject // the id-expression was not dependent
-				&& id->dec.p != 0 // TODO: assert!
-				&& isFunction(*id->dec.p) // the identifier names an overloadable function
-				&& !isMemberOfTemplate(*id->dec.p)) // the name of a member function of a template may be dependent: TODO: determine exactly when!
+				&& isDecorated(*id) // TODO: assert!
+				&& &getDeclaration(*id) != &gDependentObject // the id-expression was not dependent
+				&& isFunction(getDeclaration(*id)) // the identifier names an overloadable function
+				&& !isMemberOfTemplate(getDeclaration(*id))) // the name of a member function of a template may be dependent: TODO: determine exactly when!
 			{
 				// TODO: 13.3.1.1.1  Call to named function
-				Declaration* declaration = findBestMatch(id->dec.p, walker.arguments);
+				Declaration* declaration = findBestMatch(*id->dec.p, walker.arguments);
 				if(declaration != 0)
 				{
+					DeclarationInstanceRef instance = findLastDeclaration(*id->dec.p, declaration);
+					setDecoration(id, instance);
 					type = isDependent(declaration->type) ? gUniqueTypeNull : makeUniqueType(declaration->type);
-					id->dec.p = declaration;
 				}
 			}
 		}
@@ -2019,7 +2024,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		}
 		TREEWALKER_WALK(walker, symbol);
 		id = walker.id; // perform overload resolution for a.m(x);
-		Declaration* declaration = walker.declaration;
+		DeclarationInstanceRef declaration = walker.declaration;
 		if(declaration != 0)
 		{
 			if(declaration == &gUndeclared
@@ -2032,7 +2037,7 @@ struct PostfixExpressionWalker : public WalkerBase
 			addDependentType(typeDependent, declaration);
 			addDependentType(valueDependent, declaration);
 			addDependentName(valueDependent, declaration);
-			id->dec.p = declaration;
+			setDecoration(id, declaration);
 
 			if(type.value != UNIQUETYPE_NULL // TODO: dependent member name lookup
 				&& !isDependent(declaration->type)
@@ -2069,7 +2074,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		{
 			if(isDependent(walker.qualifying.get_ref()))
 			{
-				id->dec.p = &gDependentObject;
+				setDecoration(id, gDependentObjectInstance);
 			}
 			if(!walker.qualifying.empty())
 			{
@@ -2391,7 +2396,7 @@ struct TypeNameWalker : public WalkerBase
 	void visit(cpp::identifier* symbol)
 	{
 		TREEWALKER_LEAF_CACHED(symbol);
-		Declaration* declaration = &gDependentType;
+		DeclarationInstanceRef declaration = gDependentTypeInstance;
 		if(!isDependent(qualifying_p))
 		{
 			declaration = findDeclaration(symbol->value, makeLookupFilter(filter));
@@ -2408,7 +2413,7 @@ struct TypeNameWalker : public WalkerBase
 		type.id = &symbol->value;
 		type.declaration = declaration;
 		type.isImplicitTemplateId = declaration->isTemplate;
-		symbol->value.dec.p = declaration;
+		setDecoration(&symbol->value, declaration);
 		setDependent(type);
 #if 1 // temp hack, imitate previous isDependent behaviour
 		if(declaration->isTemplate
@@ -2433,7 +2438,7 @@ struct TypeNameWalker : public WalkerBase
 
 		TemplateIdWalker walker(getState());
 		TREEWALKER_WALK_CACHED(walker, symbol);
-		Declaration* declaration = lookupTemplate(*walker.id, makeLookupFilter(filter));
+		DeclarationInstanceRef declaration = lookupTemplate(*walker.id, makeLookupFilter(filter));
 		if(declaration == &gUndeclared)
 		{
 			return reportIdentifierMismatch(symbol, *walker.id, &gUndeclared, "type-name");
@@ -2445,7 +2450,7 @@ struct TypeNameWalker : public WalkerBase
 			return reportIdentifierMismatch(symbol, *walker.id, &gUndeclared, "typename");
 		}
 
-		walker.id->dec.p = declaration;
+		setDecoration(walker.id, declaration);
 		type.id = walker.id;
 		type.declaration = declaration;
 		type.templateArguments.swap(walker.arguments);
@@ -2472,7 +2477,7 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 	void visit(cpp::identifier* symbol)
 	{
 		TREEWALKER_LEAF_CACHED(symbol);
-		Declaration* declaration = &gDependentNested;
+		DeclarationInstanceRef declaration = gDependentNestedInstance;
 		if(isDeclarator
 			|| !isDependent(qualifying_p))
 		{
@@ -2484,7 +2489,7 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 		}
 		type = declaration;
 		type.id = &symbol->value;
-		symbol->value.dec.p = declaration;
+		setDecoration(&symbol->value, declaration);
 		if(declaration != &gDependentNested)
 		{
 			setDependent(type); // a template-id is dependent if the 'identifier' is a template-parameter
@@ -2494,7 +2499,7 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 	{
 		TemplateIdWalker walker(getState());
 		TREEWALKER_WALK_CACHED(walker, symbol);
-		Declaration* declaration = &gDependentNested;
+		DeclarationInstanceRef declaration = gDependentNestedInstance;
 		if(!isTemplate // TODO: should perform name lookup anyway, even if 'qualifying_p' not dependent!
 			&& (isDeclarator
 				|| !isDependent(qualifying_p)))
@@ -2652,7 +2657,7 @@ struct TypeSpecifierWalker : public WalkerQualified
 		TemplateIdWalker walker(getState());
 		TREEWALKER_WALK_CACHED(walker, symbol);
 		IsHiddenTypeName filter;
-		Declaration* declaration = lookupTemplate(*walker.id, makeLookupFilter(filter));
+		DeclarationInstanceRef declaration = lookupTemplate(*walker.id, makeLookupFilter(filter));
 		if(declaration == &gUndeclared)
 		{
 			return reportIdentifierMismatch(symbol, *walker.id, declaration, "type-name");
@@ -2667,7 +2672,7 @@ struct TypeSpecifierWalker : public WalkerQualified
 			// 3.3.7: a type-name can be hidden by a non-type name in the same scope (this rule applies to a type-specifier)
 			return reportIdentifierMismatch(symbol, filter.nonType->getName(), filter.nonType, "type-name");
 		}
-		walker.id->dec.p = declaration;
+		setDecoration(walker.id, declaration);
 		type.declaration = declaration;
 		type.templateArguments.swap(walker.arguments);
 		type.qualifying.swap(qualifying);
@@ -2807,7 +2812,7 @@ struct ParameterDeclarationClauseWalker : public WalkerBase
 			for(Scope::Declarations::iterator i = enclosing->declarations.begin(); i != enclosing->declarations.end(); ++i)
 			{
 				Declaration* declaration = &(*i).second;
-				declaration->getName().dec.p = declaration;
+				setDecoration(&declaration->getName(), declaration);
 				declaration->scope = enclosing;
 				trackDeclaration(declaration);
 			}
@@ -2815,17 +2820,17 @@ struct ParameterDeclarationClauseWalker : public WalkerBase
 			// issue: the return-type of the function being declared may point to a declaration in this list
 			for(Scope::DeclarationList::iterator i = templateParamScope->declarationList.begin(); i != templateParamScope->declarationList.end(); ++i)
 			{
-				Declaration tmp(*(*i)); // copy because insert() will swap
-				Declaration* declaration = enclosing->declarations.insert(tmp);
+				Declaration* declaration = allocatorNew(context, *(*i));
+				const DeclarationInstance& instance = enclosing->declarations.insert(DeclarationInstance(declaration));
 				enclosing->declarationList.push_back(declaration);
 				if(!isAnonymous(*declaration))
 				{
-					declaration->getName().dec.p = declaration;
+					setDecoration(&declaration->getName(), instance);
 				}
 				declaration->scope = enclosing;
 				SEMANTIC_ASSERT(declaration->enclosed == 0 || declaration->enclosed->type != SCOPETYPE_CLASS); // can't copy class-declaration!
 #ifdef ALLOCATOR_DEBUG
-				trackDeclaration(declaration);
+				trackDeclaration(instance);
 #endif
 			}
 #endif
@@ -3213,17 +3218,17 @@ struct UsingDeclarationWalker : public WalkerQualified
 		if(!isTypename
 			&& !isDependent(qualifying_p))
 		{
-			Declaration* declaration = walker.declaration;
+			DeclarationInstanceRef declaration = walker.declaration;
 			if(declaration == &gUndeclared
 				|| !(isObject(*declaration) || isTypeName(*declaration)))
 			{
 				return reportIdentifierMismatch(symbol, *walker.id, declaration, "object-name or type-name");
 			}
 
-			walker.id->dec.p = declaration; // refer to the primary declaration of this name, rather than the one declared by this using-declaration
+			setDecoration(walker.id, declaration); // refer to the primary declaration of this name, rather than the one declared by this using-declaration
 			
 			Scope* enclosed = isFunction(*declaration) ? declaration->enclosed : 0;
-			Declaration* redeclaration = pointOfDeclaration(context, enclosing, *walker.id, declaration->type, enclosed, declaration->specifiers,
+			DeclarationInstanceRef redeclaration = pointOfDeclaration(context, enclosing, *walker.id, declaration->type, enclosed, declaration->specifiers,
 				declaration->isTemplate,
 				declaration->templateParams,
 				declaration->isSpecialization,
@@ -3239,7 +3244,7 @@ struct UsingDeclarationWalker : public WalkerQualified
 		else
 		{
 			// TODO: introduce typename into enclosing namespace
-			walker.id->dec.p = &gDependentType;
+			setDecoration(walker.id, gDependentTypeInstance);
 		}
 	}
 	void visit(cpp::terminal<boost::wave::T_TYPENAME> symbol)
@@ -3309,7 +3314,7 @@ struct NamespaceAliasDefinitionWalker : public WalkerQualified
 		}
 		else // second identifier
 		{
-			Declaration* declaration = findDeclaration(symbol->value, IsNamespaceName());
+			DeclarationInstanceRef declaration = findDeclaration(symbol->value, IsNamespaceName());
 			if(declaration == &gUndeclared)
 			{
 				return reportIdentifierMismatch(symbol, symbol->value, declaration, "namespace-name");
@@ -3320,7 +3325,7 @@ struct NamespaceAliasDefinitionWalker : public WalkerQualified
 #ifdef ALLOCATOR_DEBUG
 			trackDeclaration(declaration);
 #endif
-			id->dec.p = declaration;
+			setDecoration(id, declaration);
 		}
 	}
 };
@@ -3458,11 +3463,12 @@ struct EnumeratorDefinitionWalker : public WalkerBase
 		The point of declaration for an enumerator is immediately after its enumerator-definition.
 		*/
 		// TODO: give enumerators a type
-		declaration = pointOfDeclaration(context, enclosing, symbol->value, TYPE_ENUMERATOR, 0, DeclSpecifiers());
+		DeclarationInstanceRef instance = pointOfDeclaration(context, enclosing, symbol->value, TYPE_ENUMERATOR, 0, DeclSpecifiers());
 #ifdef ALLOCATOR_DEBUG
-		trackDeclaration(declaration);
+		trackDeclaration(instance);
 #endif
-		symbol->value.dec.p = declaration;
+		setDecoration(&symbol->value, instance);
+		declaration = instance;
 	}
 	void visit(cpp::constant_expression* symbol)
 	{
@@ -3494,8 +3500,9 @@ struct EnumSpecifierWalker : public WalkerBase
 		// defer declaration until '{' resolves ambiguity between enum-specifier and elaborated-type-specifier
 		if(id != 0)
 		{
-			declaration = pointOfDeclaration(context, enclosing, *id, TYPE_ENUM, 0);
-			id->dec.p = declaration;
+			DeclarationInstanceRef instance = pointOfDeclaration(context, enclosing, *id, TYPE_ENUM, 0);
+			setDecoration(id, instance);
+			declaration = instance;
 		}
 	}
 
@@ -3504,10 +3511,11 @@ struct EnumSpecifierWalker : public WalkerBase
 		if(declaration == 0)
 		{
 			// unnamed enum
-			declaration = pointOfDeclaration(context, enclosing, enclosing->getUniqueName(), TYPE_ENUM, 0);
+			DeclarationInstanceRef instance = pointOfDeclaration(context, enclosing, enclosing->getUniqueName(), TYPE_ENUM, 0);
 #ifdef ALLOCATOR_DEBUG
-			trackDeclaration(declaration);
+			trackDeclaration(instance);
 #endif
+			declaration = instance;
 		}
 		EnumeratorDefinitionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
@@ -3571,7 +3579,7 @@ struct ElaboratedTypeSpecifierWalker : public WalkerQualified
 		TemplateIdWalker walker(getState());
 		TREEWALKER_WALK_CACHED(walker, symbol);
 		// 3.4.4-2: when looking up 'identifier' in elaborated-type-specifier, ignore any non-type names that have been declared. 
-		Declaration* declaration = lookupTemplate(*walker.id, IsTypeName());
+		DeclarationInstanceRef declaration = lookupTemplate(*walker.id, IsTypeName());
 		if(declaration == &gUndeclared)
 		{
 			return reportIdentifierMismatch(symbol, *walker.id, &gUndeclared, "type-name");
@@ -3581,7 +3589,7 @@ struct ElaboratedTypeSpecifierWalker : public WalkerQualified
 			// dependent type, are you missing a 'typename' keyword?
 			return reportIdentifierMismatch(symbol, *walker.id, &gUndeclared, "typename");
 		}
-		walker.id->dec.p = declaration;
+		setDecoration(walker.id, declaration);
 		id = walker.id;
 		type.declaration = declaration;
 		type.templateArguments.swap(walker.arguments);
@@ -3599,16 +3607,17 @@ struct ElaboratedTypeSpecifierWalker : public WalkerQualified
 		the elaborated-type-specifier is a declaration that introduces the class-name as described in 3.3.1.
 		*/
 		id = &symbol->value;
-		Declaration* declaration = findDeclaration(symbol->value, IsTypeName());
+		DeclarationInstanceRef declaration = findDeclaration(symbol->value, IsTypeName());
 		if(declaration != &gUndeclared
 			&& !isTypedef(*declaration))
 		{
+			// template<typename T> class C
 			if(declaration->isSpecialization) // if the lookup found a template explicit/partial-specialization
 			{
 				SEMANTIC_ASSERT(declaration->isTemplate);
-				declaration = findPrimaryTemplate(declaration); // the name is a plain identifier, not a template-id, therefore the name refers to the primary template
+				declaration = findPrimaryTemplateLastDeclaration(declaration); // the name is a plain identifier, not a template-id, therefore the name refers to the primary template
 			}
-			symbol->value.dec.p = declaration;
+			setDecoration(&symbol->value, declaration);
 			/* 7.1.6.3-2
 			3.4.4 describes how name lookup proceeds for the identifier in an elaborated-type-specifier. If the identifier
 			resolves to a class-name or enum-name, the elaborated-type-specifier introduces it into the declaration the
@@ -4050,13 +4059,13 @@ struct MemInitializerWalker : public WalkerBase
 	void visit(cpp::identifier* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		Declaration* declaration = findDeclaration(symbol->value);
+		DeclarationInstanceRef declaration = findDeclaration(symbol->value);
 		if(declaration == &gUndeclared
 			|| !isObject(*declaration))
 		{
 			return reportIdentifierMismatch(symbol, symbol->value, declaration, "object-name");
 		}
-		symbol->value.dec.p = declaration;
+		setDecoration(&symbol->value, declaration);
 	}
 	void visit(cpp::expression_list* symbol)
 	{
@@ -4125,7 +4134,7 @@ struct IsTemplateName
 	}
 	bool operator()(Identifier& id) const
 	{
-		Declaration* declaration = context.findDeclaration(id);
+		DeclarationInstanceRef declaration = context.findDeclaration(id);
 		return declaration != &gUndeclared && isTemplateName(*declaration);
 	}
 };
@@ -4276,11 +4285,12 @@ struct SimpleDeclarationWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		if(walker.id != 0)
 		{
-			declaration = pointOfDeclaration(context, enclosing, *walker.id, type, 0, specifiers); // 3.3.1.1
+			DeclarationInstanceRef instance = pointOfDeclaration(context, enclosing, *walker.id, type, 0, specifiers); // 3.3.1.1
 #ifdef ALLOCATOR_DEBUG
-			trackDeclaration(declaration);
+			trackDeclaration(instance);
 #endif
-			walker.id->dec.p = declaration;
+			setDecoration(walker.id, instance);
+			declaration = instance;
 		}
 	}
 	void visit(cpp::terminal<boost::wave::T_ASSIGN> symbol)
@@ -4477,12 +4487,13 @@ struct SimpleDeclarationWalker : public WalkerBase
 				// template<> class C<int>;
 				// template<class T> class C<T*>;
 				// friend class C;
-				declaration = pointOfDeclaration(context, enclosing, *forward, TYPE_CLASS, 0, DeclSpecifiers(), isSpecialization || enclosing == templateEnclosing, getTemplateParams(enclosing), isSpecialization, type.templateArguments);
+				DeclarationInstanceRef instance = pointOfDeclaration(context, enclosing, *forward, TYPE_CLASS, 0, DeclSpecifiers(), isSpecialization || enclosing == templateEnclosing, getTemplateParams(enclosing), isSpecialization, type.templateArguments);
 #ifdef ALLOCATOR_DEBUG
-				trackDeclaration(declaration);
+				trackDeclaration(instance);
 #endif
+				setDecoration(forward, instance);
+				declaration = instance;
 			}
-			forward->dec.p = declaration;
 			type = TypeId(declaration, context); // TODO: is this necessary?
 		}
 		else if(declaration != 0
@@ -4506,7 +4517,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 			// TODO: verify that member names are distinct
 			for(Scope::Declarations::iterator i = declaration->enclosed->declarations.begin(); i != declaration->enclosed->declarations.end(); ++i)
 			{
-				Declaration& member = (*i).second;
+				Declaration& member = *(*i).second;
 				if(isAnonymous(member))
 				{
 					member.setName(enclosing->getUniqueName());
@@ -4517,9 +4528,10 @@ struct SimpleDeclarationWalker : public WalkerBase
 				}
 				else
 				{
-					Declaration* declaration = ::findDeclaration(enclosing->declarations, member.getName());
-					if(declaration != 0)
+					const DeclarationInstance* holder = ::findDeclaration(enclosing->declarations, member.getName());
+					if(holder != 0)
 					{
+						Declaration* declaration = *holder;
 						printPosition(member.getName().position);
 						std::cout << "'" << member.getName().value.c_str() << "': anonymous union member already declared" << std::endl;
 						printPosition(declaration->getName().position);
@@ -4528,8 +4540,8 @@ struct SimpleDeclarationWalker : public WalkerBase
 				}
 				member.scope = enclosing;
 				Identifier* id = &member.getName();
-				id->dec.p = enclosing->declarations.insert(member);
-				enclosing->declarationList.push_back(id->dec.p);
+				enclosing->declarations.insert(DeclarationInstance(&member));
+				enclosing->declarationList.push_back(&member);
 			}
 			declaration->enclosed = 0;
 		}
@@ -4584,11 +4596,12 @@ struct TypeParameterWalker : public WalkerBase
 	void visit(cpp::identifier* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		declaration = pointOfDeclaration(context, enclosing, symbol->value, TYPE_PARAM, 0, DECLSPEC_TYPEDEF, !arguments.empty(), TEMPLATEPARAMETERS_NULL, false, TEMPLATEARGUMENTS_NULL, templateParameter);
+		DeclarationInstanceRef instance = pointOfDeclaration(context, enclosing, symbol->value, TYPE_PARAM, 0, DECLSPEC_TYPEDEF, !arguments.empty(), TEMPLATEPARAMETERS_NULL, false, TEMPLATEARGUMENTS_NULL, templateParameter);
 #ifdef ALLOCATOR_DEBUG
-		trackDeclaration(declaration);
+		trackDeclaration(instance);
 #endif
-		symbol->value.dec.p = declaration;
+		setDecoration(&symbol->value, instance);
+		declaration = instance;
 		declaration->templateParams.defaults.swap(arguments);
 	}
 	void visit(cpp::type_id* symbol)
@@ -4608,7 +4621,7 @@ struct TypeParameterWalker : public WalkerBase
 	{
 		IdExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		Declaration* declaration = walker.declaration;
+		DeclarationInstanceRef declaration = walker.declaration;
 		if(declaration != 0)
 		{
 			if(declaration == &gUndeclared
@@ -4616,7 +4629,7 @@ struct TypeParameterWalker : public WalkerBase
 			{
 				return reportIdentifierMismatch(symbol, *walker.id, declaration, "template-name");
 			}
-			walker.id->dec.p = declaration;
+			setDecoration(walker.id, declaration);
 		}
 	}
 };
@@ -4861,11 +4874,12 @@ struct NamespaceWalker : public WalkerBase
 	{
 		if(id != 0)
 		{
-			declaration = pointOfDeclaration(context, enclosing, *id, TYPE_NAMESPACE, 0);
+			DeclarationInstanceRef instance = pointOfDeclaration(context, enclosing, *id, TYPE_NAMESPACE, 0);
 #ifdef ALLOCATOR_DEBUG
-			trackDeclaration(declaration);
+			trackDeclaration(instance);
 #endif
-			id->dec.p = declaration;
+			setDecoration(id, instance);
+			declaration = instance;
 			if(declaration->enclosed == 0)
 			{
 				declaration->enclosed = newScope(*id, SCOPETYPE_NAMESPACE);
