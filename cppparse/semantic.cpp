@@ -3227,15 +3227,12 @@ struct UsingDeclarationWalker : public WalkerQualified
 
 			setDecoration(walker.id, declaration); // refer to the primary declaration of this name, rather than the one declared by this using-declaration
 			
-			Scope* enclosed = isFunction(*declaration) ? declaration->enclosed : 0;
-			DeclarationInstanceRef redeclaration = pointOfDeclaration(context, enclosing, *walker.id, declaration->type, enclosed, declaration->specifiers,
-				declaration->isTemplate,
-				declaration->templateParams,
-				declaration->isSpecialization,
-				TEMPLATEARGUMENTS_NULL, // the name in a using-declaration may not have template-arguments ...
-				INDEX_INVALID, // ... or be a template-argument
-				declaration->valueDependent);
-			redeclaration->templateParams.defaults = declaration->templateParams.defaults;
+			DeclarationInstance instance(declaration);
+			instance.name = walker.id;
+			instance.overloaded = declaration.p;
+			instance.redeclared = declaration.p;
+			DeclarationInstanceRef redeclaration = enclosing->declarations.insert(instance);
+			enclosing->declarationList.push_back(instance);
 #ifdef ALLOCATOR_DEBUG
 			trackDeclaration(redeclaration);
 #endif

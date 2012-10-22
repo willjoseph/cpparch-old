@@ -1,3 +1,20 @@
+namespace N100
+{
+	namespace A
+	{
+		void f(int);
+	}
+
+	namespace B
+	{
+		using A::f;
+		void f(float);
+		void g()
+		{
+			f(0); // overload resolution should choose A::f(int)
+		}
+	}
+}
 namespace N099
 {
 	template<typename T>
