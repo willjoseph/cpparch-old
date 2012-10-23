@@ -77,16 +77,15 @@
 	+ findRedeclared should allow member functions, when defining a previously declared member
 		- complete original declaration: not necessary unless accessing enclosed scope of function via declaration?
 		- look up argument types in context of enclosing template: not required to disambiguate member function declaration?
+	+ store declarations by reference, not by value
+		+ on redeclaration (or in a using-declaration), redeclare reference to original declaration rather than a copy
+	+ preserve information about declarations found during name lookup: required when determining dependencies
+		+ for each declaration (or redeclaration) store pointer to previous matching declaration, AND to previous with same name (aka overload)
+		+ when finding list of overloads: use list in original declaration
+		+ don't overwrite name lookup result with chosen declaration after overload resolution: use last-visible-redeclaration of chosen declaration
+		+ using-declaration: store pointer to previous matching declaration (from specified scope!)
 	- track when a class is required to be complete
 	- print cv-qualifiers
-	- store declarations by reference, not by value
-		- on redeclaration (or in a using-declaration), redeclare reference to original declaration rather than a copy
-			- adding to scope not enough, would also need to track list of redeclarations: each redeclaration has pointer to previous?
-		- need to preserve information about declarations found during name lookup: required when determining dependencies
-			- for each declaration (or redeclaration) store pointer to previous matching declaration, AND to previous with same name
-			- when finding list of overloads: gather all with same name that do not have a previous matching declaration
-			- don't overwrite name lookup result with result of overload resolution
-			- using-declaration: store pointer to previous matching declaration (from specified scope!)
 	- improve error messages
 		- e.g. detect when 'typename' keyword is missing
 		- on reportIdentifierMismatch, show the location of the mismatching identifier
@@ -191,6 +190,11 @@
 	+ replace UniqueTypeId with UniqueType
 		+ handle implicit-template-id flag when making unique type
 	- replace getInstantiatedType with makeUniqueType
+		+ isDependent
+		+ printType/printTypeSequence
+		+ addBase
+		- findDeclaration(Bases)
+	- get rid of old printParameters
 	- clean up duplicated html string escape in SourcePrinter/ParseTreePrinter
 	- clean up error handling - multiple assert exception types?
 	- clean up test code: ensure it compiles in LLVM

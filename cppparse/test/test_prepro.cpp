@@ -1,3 +1,35 @@
+
+
+namespace N101
+{
+	template<typename T>
+	struct Base
+	{
+		typedef int I;
+		static void f();
+	};
+
+	template<typename T>
+	struct Tmpl : Base<T>
+	{
+#if 0
+		I m; // should fail
+		void g()
+		{
+			f(); // should fail
+		}
+#endif
+	};
+
+	Tmpl<int>::I i; // OK
+	void g()
+	{
+		Tmpl<int>::f(); // OK
+		Tmpl<int>().f(); //OK
+		Tmpl<int>().Base<int>::f(); //OK
+	}
+}
+
 namespace N100
 {
 	namespace A

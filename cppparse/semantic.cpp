@@ -315,7 +315,7 @@ struct WalkerState
 				}
 			}
 #endif
-			if(result.append(::findDeclaration(*enclosing, id, filter)))
+			if(result.append(::findDeclaration(*enclosing, id, filter, true)))
 			{
 #ifdef LOOKUP_DEBUG
 				std::cout << "HIT: unqualified" << std::endl;
@@ -452,7 +452,11 @@ struct WalkerState
 
 	void addBase(Declaration* declaration, const Type& base)
 	{
+#if 1
+		if(getUnderlyingType(base).declaration == declaration)
+#else
 		if(getInstantiatedType(base).declaration == declaration)
+#endif
 		{
 			return; // TODO: implement template-instantiation, and disallow inheriting from current-instantiation
 		}
@@ -637,10 +641,7 @@ struct WalkerState
 
 	bool isDependentNew(Declaration* dependent) const
 	{
-		return dependent != 0
-			&& (dependent->scope->type == SCOPETYPE_TEMPLATE // hack, workaround for template-scope being copied
-				|| findScope(enclosing, dependent->scope) != 0
-				|| findScope(templateParamScope, dependent->scope) != 0); // if we are within the candidate template-parameter's template-definition
+		return ::isDependentNew(dependent, enclosing, templateParamScope);
 	}
 	bool isDependentNew(const Type& type) const
 	{
@@ -987,7 +988,7 @@ struct WalkerBase : public WalkerState
 			{
 				SEMANTIC_ASSERT(isComplete(type)); // TODO: non-fatal parse error
 				Scope* scope = getObjectType(type.value).declaration->enclosed;
-				DeclarationInstanceRef declaration = ::findDeclaration(scope->declarations, scope->bases, id);
+				DeclarationInstanceRef declaration = ::findMemberDeclaration(*scope, id);
 				if(declaration != 0)
 				{
 					resolver.add(declaration);
