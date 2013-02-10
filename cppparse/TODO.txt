@@ -252,7 +252,9 @@
 	- template-id with comma is valid, if template was already declared: http://www.open-std.org/jtc1/sc22/wg21/docs/cwg_active.html#325
 	- cannot refer to default arguments of not-yet-declared functions: http://www.open-std.org/jtc1/sc22/wg21/docs/cwg_active.html#361
 	+ store default-argument types
-	- store default-argument types for deferred parse (member function declaration)
+	+ store default-argument types for deferred parse (member function declaration)
+	- merge default-arguments across multiple declarations
+		- watch out for types that refer to local template-param declaration
 
 		
 - slow parsing of cpptree.h
