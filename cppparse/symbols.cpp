@@ -166,7 +166,7 @@ struct PointerTypeId : ObjectTypeId
 	PointerTypeId(Declaration* declaration, const TreeAllocator<int>& allocator)
 		: ObjectTypeId(declaration, allocator)
 	{
-		value = pushBuiltInType(value, DeclaratorPointerType());
+		value = pushBuiltInType(value, PointerType());
 	}
 };
 
@@ -175,8 +175,8 @@ struct PointerPointerTypeId : ObjectTypeId
 	PointerPointerTypeId(Declaration* declaration, const TreeAllocator<int>& allocator)
 		: ObjectTypeId(declaration, allocator)
 	{
-		value = pushBuiltInType(value, DeclaratorPointerType());
-		value = pushBuiltInType(value, DeclaratorPointerType());
+		value = pushBuiltInType(value, PointerType());
+		value = pushBuiltInType(value, PointerType());
 	}
 };
 
@@ -357,7 +357,7 @@ struct MakeType<T*>
 {
 	static UniqueTypeWrapper apply()
 	{
-		return UniqueTypeWrapper(pushBuiltInType(MakeType<T>::apply().value, DeclaratorPointerType()));
+		return UniqueTypeWrapper(pushBuiltInType(MakeType<T>::apply().value, PointerType()));
 	}
 };
 
@@ -366,7 +366,7 @@ struct MakeType<T&>
 {
 	static UniqueTypeWrapper apply()
 	{
-		return UniqueTypeWrapper(pushBuiltInType(MakeType<T>::apply().value, DeclaratorReferenceType()));
+		return UniqueTypeWrapper(pushBuiltInType(MakeType<T>::apply().value, ReferenceType()));
 	}
 };
 
@@ -375,7 +375,7 @@ struct MakeArray
 {
 	static UniqueTypeWrapper apply(UniqueTypeWrapper inner)
 	{
-		return UniqueTypeWrapper(pushBuiltInType(inner.value, DeclaratorArrayType(size)));
+		return UniqueTypeWrapper(pushBuiltInType(inner.value, ArrayType(size)));
 	}
 };
 
@@ -401,7 +401,7 @@ struct MakeFunction
 {
 	static UniqueTypeWrapper apply(UniqueTypeWrapper inner)
 	{
-		return UniqueTypeWrapper(pushBuiltInType(inner.value, DeclaratorFunctionType(Parameters(), CvQualifiers())));
+		return UniqueTypeWrapper(pushBuiltInType(inner.value, FunctionType(Parameters())));
 	}
 };
 
@@ -420,9 +420,7 @@ struct MakeMemberPointer
 	static UniqueTypeWrapper apply(UniqueTypeWrapper inner)
 	{
 		const TypeInstance& instance = getObjectType(MakeType<C>::apply().value);
-		DeclaratorMemberPointerType element(Type(instance.declaration, TREEALLOCATOR_NULL), CvQualifiers());
-		element.instance = &instance;
-		return UniqueTypeWrapper(pushBuiltInType(inner.value, element));
+		return UniqueTypeWrapper(pushBuiltInType(inner.value, MemberPointerType(&instance)));
 	}
 };
 

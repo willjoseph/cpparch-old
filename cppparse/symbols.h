@@ -62,7 +62,9 @@ struct SequenceNode
 	{
 	}
 	virtual void accept(Visitor& visitor) const = 0;
-	//virtual bool operator==(const SequenceNode& other) const = 0;
+#if 0
+	virtual bool operator==(const SequenceNode& other) const = 0;
+#endif
 
 	const SequenceNode* get() const
 	{
@@ -77,10 +79,12 @@ struct SequenceNodeEmpty : SequenceNode<Visitor>
 	{
 		throw SymbolsError();
 	}
+#if 0
 	virtual bool operator==(const SequenceNode<Visitor>& other) const
 	{
 		throw SymbolsError();
 	}
+#endif
 	virtual bool operator<(const SequenceNode<Visitor>& other) const
 	{
 		throw SymbolsError();
@@ -99,11 +103,13 @@ struct SequenceNodeGeneric : Reference< SequenceNode<Visitor> >::Value
 	{
 		visitor.visit(value);
 	}
+#if 0
 	bool operator==(const SequenceNode<Visitor>& other) const
 	{
 		return typeid(*this) == typeid(other)
 			&& value == static_cast<const SequenceNodeGeneric*>(&other)->value;
 	}
+#endif
 	bool operator<(const SequenceNode<Visitor>& other) const
 	{
 		return (typeid(*this).before(typeid(other)) ||
@@ -1362,13 +1368,13 @@ typedef LookupFilterDefault<isNonMemberName> IsNonMemberName;
 
 struct TypeElementVisitor
 {
-	virtual void visit(const struct DeclaratorDependentType&) = 0;
-	virtual void visit(const struct DeclaratorObjectType&) = 0;
-	virtual void visit(const struct DeclaratorPointerType&) = 0;
-	virtual void visit(const struct DeclaratorReferenceType&) = 0;
-	virtual void visit(const struct DeclaratorArrayType&) = 0;
-	virtual void visit(const struct DeclaratorMemberPointerType&) = 0;
-	virtual void visit(const struct DeclaratorFunctionType&) = 0;
+	virtual void visit(const struct DependentType&) = 0;
+	virtual void visit(const struct ObjectType&) = 0;
+	virtual void visit(const struct PointerType&) = 0;
+	virtual void visit(const struct ReferenceType&) = 0;
+	virtual void visit(const struct ArrayType&) = 0;
+	virtual void visit(const struct MemberPointerType&) = 0;
+	virtual void visit(const struct FunctionType&) = 0;
 };
 
 struct TypeElement
@@ -1505,31 +1511,31 @@ struct UniqueTypeWrapper
 	}
 	bool isSimple() const
 	{
-		return typeid(*value) == typeid(TypeElementGeneric<DeclaratorObjectType>);
+		return typeid(*value) == typeid(TypeElementGeneric<ObjectType>);
 	}
 	bool isPointer() const
 	{
-		return typeid(*value) == typeid(TypeElementGeneric<DeclaratorPointerType>);
+		return typeid(*value) == typeid(TypeElementGeneric<PointerType>);
 	}
 	bool isReference() const
 	{
-		return typeid(*value) == typeid(TypeElementGeneric<DeclaratorReferenceType>);
+		return typeid(*value) == typeid(TypeElementGeneric<ReferenceType>);
 	}
 	bool isArray() const
 	{
-		return typeid(*value) == typeid(TypeElementGeneric<DeclaratorArrayType>);
+		return typeid(*value) == typeid(TypeElementGeneric<ArrayType>);
 	}
 	bool isMemberPointer() const
 	{
-		return typeid(*value) == typeid(TypeElementGeneric<DeclaratorMemberPointerType>);
+		return typeid(*value) == typeid(TypeElementGeneric<MemberPointerType>);
 	}
 	bool isFunction() const
 	{
-		return typeid(*value) == typeid(TypeElementGeneric<DeclaratorFunctionType>);
+		return typeid(*value) == typeid(TypeElementGeneric<FunctionType>);
 	}
 	bool isDependent() const
 	{
-		return typeid(*value) == typeid(TypeElementGeneric<DeclaratorDependentType>);
+		return typeid(*value) == typeid(TypeElementGeneric<DependentType>);
 	}
 	bool isSimplePointer() const
 	{
@@ -1621,7 +1627,7 @@ inline bool isEqual(const UniqueTypeId& l, const UniqueTypeId& r)
 
 inline UniqueType getInner(UniqueType type)
 {
-	SYMBOLS_ASSERT(typeid(*type) != typeid(TypeElementGeneric<struct DeclaratorObjectType>));
+	SYMBOLS_ASSERT(typeid(*type) != typeid(TypeElementGeneric<struct ObjectType>));
 	return type->next;
 }
 
@@ -1675,20 +1681,31 @@ struct DeclaratorObjectType
 	}
 };
 
+#if 0
 inline bool operator==(const DeclaratorObjectType& left, const DeclaratorObjectType& right)
 {
 	return left.type == right.type;
 }
+#endif
 
-inline bool operator<(const DeclaratorObjectType& left, const DeclaratorObjectType& right)
+struct ObjectType
+{
+	TypeInstance type;
+	ObjectType(const TypeInstance& type)
+		: type(type)
+	{
+	}
+};
+
+inline bool operator<(const ObjectType& left, const ObjectType& right)
 {
 	return left.type < right.type;
 }
 
 inline const TypeInstance& getObjectType(UniqueType type)
 {
-	SYMBOLS_ASSERT(typeid(*type) == typeid(TypeElementGeneric<DeclaratorObjectType>));
-	return static_cast<const TypeElementGeneric<DeclaratorObjectType>*>(type.getPointer())->value.type;
+	SYMBOLS_ASSERT(typeid(*type) == typeid(TypeElementGeneric<ObjectType>));
+	return static_cast<const TypeElementGeneric<ObjectType>*>(type.getPointer())->value.type;
 }
 
 // TODO: consider template-template-parameter
@@ -1701,13 +1718,24 @@ struct DeclaratorDependentType
 	}
 };
 
+#if 0
 inline bool operator==(const DeclaratorDependentType& left, const DeclaratorDependentType& right)
 {
 	return left.type->scope->templateDepth == right.type->scope->templateDepth
 		&& left.type->templateParameter == right.type->templateParameter;
 }
+#endif
 
-inline bool operator<(const DeclaratorDependentType& left, const DeclaratorDependentType& right)
+struct DependentType
+{
+	DeclarationPtr type; // the declaration of the template parameter
+	DependentType(Declaration* type)
+		: type(type)
+	{
+	}
+};
+
+inline bool operator<(const DependentType& left, const DependentType& right)
 {
 	return left.type->scope->templateDepth != right.type->scope->templateDepth
 		? left.type->scope->templateDepth < right.type->scope->templateDepth
@@ -1727,12 +1755,21 @@ struct DeclaratorPointerType
 	}
 };
 
+#if 0
 inline bool operator==(const DeclaratorPointerType& left, const DeclaratorPointerType& right)
 {
 	return true;
 }
+#endif
 
-inline bool operator<(const DeclaratorPointerType& left, const DeclaratorPointerType& right)
+struct PointerType
+{
+	PointerType()
+	{
+	}
+};
+
+inline bool operator<(const PointerType& left, const PointerType& right)
 {
 	return false;
 }
@@ -1741,12 +1778,18 @@ struct DeclaratorReferenceType
 {
 };
 
+#if 0
 inline bool operator==(const DeclaratorReferenceType& left, const DeclaratorReferenceType& right)
 {
 	return true;
 }
+#endif
 
-inline bool operator<(const DeclaratorReferenceType& left, const DeclaratorReferenceType& right)
+struct ReferenceType
+{
+};
+
+inline bool operator<(const ReferenceType& left, const ReferenceType& right)
 {
 	return false;
 }
@@ -1755,25 +1798,35 @@ struct DeclaratorMemberPointerType
 {
 	Type type;
 	CvQualifiers qualifiers;
-	const TypeInstance* instance;
 	DeclaratorMemberPointerType(const Type& type, CvQualifiers qualifiers)
-		: type(type), qualifiers(qualifiers), instance(0)
+		: type(type), qualifiers(qualifiers)
+	{
+	}
+};
+
+#if 0
+inline bool operator==(const DeclaratorMemberPointerType& left, const DeclaratorMemberPointerType& right)
+{
+	return left.instance == right.instance;
+}
+#endif
+
+struct MemberPointerType
+{
+	const TypeInstance* instance;
+	MemberPointerType(const TypeInstance* instance)
+		: instance(instance)
 	{
 	}
 };
 
 inline const TypeInstance& getMemberPointerClass(UniqueType type)
 {
-	SYMBOLS_ASSERT(typeid(*type) == typeid(TypeElementGeneric<DeclaratorMemberPointerType>));
-	return *(static_cast<const TypeElementGeneric<DeclaratorMemberPointerType>*>(type.getPointer())->value.instance);
+	SYMBOLS_ASSERT(typeid(*type) == typeid(TypeElementGeneric<MemberPointerType>));
+	return *(static_cast<const TypeElementGeneric<MemberPointerType>*>(type.getPointer())->value.instance);
 }
 
-inline bool operator==(const DeclaratorMemberPointerType& left, const DeclaratorMemberPointerType& right)
-{
-	return left.instance == right.instance;
-}
-
-inline bool operator<(const DeclaratorMemberPointerType& left, const DeclaratorMemberPointerType& right)
+inline bool operator<(const MemberPointerType& left, const MemberPointerType& right)
 {
 	return left.instance < right.instance;
 }
@@ -1787,12 +1840,23 @@ struct DeclaratorArrayType
 	}
 };
 
+#if 0
 inline bool operator==(const DeclaratorArrayType& left, const DeclaratorArrayType& right)
 {
 	return left.size == right.size;
 }
+#endif
 
-inline bool operator<(const DeclaratorArrayType& left, const DeclaratorArrayType& right)
+struct ArrayType
+{
+	std::size_t size;
+	ArrayType(std::size_t size)
+		: size(size)
+	{
+	}
+};
+
+inline bool operator<(const ArrayType& left, const ArrayType& right)
 {
 	return left.size < right.size;
 }
@@ -1804,33 +1868,44 @@ struct DeclaratorFunctionType
 {
 	Parameters parameters;
 	CvQualifiers qualifiers;
-	ParameterTypes parameterTypes;
 	DeclaratorFunctionType(const Parameters& parameters, CvQualifiers qualifiers)
 		: parameters(parameters), qualifiers(qualifiers)
 	{
 	}
 };
 
+#if 0
 inline bool operator==(const DeclaratorFunctionType& left, const DeclaratorFunctionType& right)
 {
 	return left.parameterTypes == right.parameterTypes;
 }
+#endif
 
-inline bool operator<(const DeclaratorFunctionType& left, const DeclaratorFunctionType& right)
+struct FunctionType
+{
+	Parameters parameters; // TODO: used only to obtain default_argument pointers?
+	ParameterTypes parameterTypes;
+	FunctionType(const Parameters& parameters)
+		: parameters(parameters)
+	{
+	}
+};
+
+inline bool operator<(const FunctionType& left, const FunctionType& right)
 {
 	return left.parameterTypes < right.parameterTypes;
 }
 
 inline const Parameters& getParameters(UniqueType type)
 {
-	SYMBOLS_ASSERT(typeid(*type) == typeid(TypeElementGeneric<DeclaratorFunctionType>));
-	return static_cast<const TypeElementGeneric<DeclaratorFunctionType>*>(type.getPointer())->value.parameters;
+	SYMBOLS_ASSERT(typeid(*type) == typeid(TypeElementGeneric<FunctionType>));
+	return static_cast<const TypeElementGeneric<FunctionType>*>(type.getPointer())->value.parameters;
 }
 
 inline const ParameterTypes& getParameterTypes(UniqueType type)
 {
-	SYMBOLS_ASSERT(typeid(*type) == typeid(TypeElementGeneric<DeclaratorFunctionType>));
-	return static_cast<const TypeElementGeneric<DeclaratorFunctionType>*>(type.getPointer())->value.parameterTypes;
+	SYMBOLS_ASSERT(typeid(*type) == typeid(TypeElementGeneric<FunctionType>));
+	return static_cast<const TypeElementGeneric<FunctionType>*>(type.getPointer())->value.parameterTypes;
 }
 
 
@@ -1847,7 +1922,7 @@ struct ObjectTypeId : UniqueTypeId
 {
 	ObjectTypeId(Declaration* declaration, const TreeAllocator<int>& allocator)
 	{
-		value = pushBuiltInType(value, DeclaratorObjectType(TypeInstance(declaration, 0)));
+		value = pushBuiltInType(value, ObjectType(TypeInstance(declaration, 0)));
 	}
 };
 
@@ -2205,7 +2280,7 @@ inline LookupResult findDeclaration(const TypeInstance& instance, const Identifi
 
 inline UniqueTypeWrapper makeUniqueObjectType(const TypeInstance& type)
 {
-	return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, UNIQUETYPE_NULL, DeclaratorObjectType(type)));
+	return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, UNIQUETYPE_NULL, ObjectType(type)));
 }
 
 // unqualified object name: int, Object,
@@ -2298,7 +2373,7 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, const TypeInstance* en
 		if(allowDependent
 			/*&& enclosing == 0*/)
 		{
-			return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, UNIQUETYPE_NULL, DeclaratorDependentType(declaration)));
+			return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, UNIQUETYPE_NULL, DependentType(declaration)));
 		}
 
 		throw SymbolsError();
@@ -2388,32 +2463,31 @@ struct TypeSequenceMakeUnique : TypeSequenceVisitor
 	}
 	void visit(const DeclaratorObjectType& element)
 	{
-		pushUniqueType(type, element);
+		pushUniqueType(type, ObjectType(element.type));
 	}
 	void visit(const DeclaratorPointerType& element)
 	{
-		pushUniqueType(type, element);
+		pushUniqueType(type, PointerType());
 		type.setQualifiers(element.qualifiers);
 	}
 	void visit(const DeclaratorReferenceType& element)
 	{
-		pushUniqueType(type, element);
+		pushUniqueType(type, ReferenceType());
 	}
 	void visit(const DeclaratorArrayType& element)
 	{
-		pushUniqueType(type, element);
+		pushUniqueType(type, ArrayType(element.size));
 	}
 	void visit(const DeclaratorMemberPointerType& element)
 	{
-		DeclaratorMemberPointerType result(element);
 		UniqueTypeWrapper tmp = makeUniqueType(element.type, enclosing, allowDependent);
-		result.instance = allowDependent && tmp.isDependent() ? 0 : &getObjectType(tmp.value); // TODO: should be non-null even if dependent
-		pushUniqueType(type, result);
+		const TypeInstance* instance = allowDependent && tmp.isDependent() ? 0 : &getObjectType(tmp.value); // TODO: should be non-null even if dependent
+		pushUniqueType(type, MemberPointerType(instance));
 		type.setQualifiers(element.qualifiers);
 	}
 	void visit(const DeclaratorFunctionType& element)
 	{
-		DeclaratorFunctionType result(element);
+		FunctionType result(element.parameters);
 		for(Parameters::const_iterator i = element.parameters.begin(); i != element.parameters.end(); ++i)
 		{
 			result.parameterTypes.push_back(makeUniqueType((*i).declaration->type, enclosing, allowDependent));
@@ -2557,7 +2631,7 @@ struct StringLiteralTypeId : ObjectTypeId
 	StringLiteralTypeId(Declaration* declaration, const TreeAllocator<int>& allocator)
 		: ObjectTypeId(declaration, allocator)
 	{
-		value = pushBuiltInType(value, DeclaratorArrayType(0));
+		value = pushBuiltInType(value, ArrayType(0));
 	}
 };
 
@@ -3155,12 +3229,12 @@ inline UniqueTypeWrapper applyLvalueTransformation(UniqueTypeWrapper to, UniqueT
 	if(to.isPointer()
 		&& from.isArray())
 	{
-		return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, getInner(from.value), DeclaratorPointerType())); // T[] -> T*
+		return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, getInner(from.value), PointerType())); // T[] -> T*
 	}
 	if(to.isFunctionPointer()
 		&& from.isFunction())
 	{
-		return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, from.value, DeclaratorPointerType())); // T() -> T(*)()
+		return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, from.value, PointerType())); // T() -> T(*)()
 	}
 	return from;
 }
@@ -4213,31 +4287,31 @@ struct TypeElementsAppend : TypeElementVisitor
 	{
 		typeElements.push_back(makeTypeElementOpaque(element));
 	}
-	void visit(const DeclaratorDependentType& element)
+	void visit(const DependentType& element)
 	{
 		visitGeneric(element);
 	}
-	void visit(const DeclaratorObjectType& element)
+	void visit(const ObjectType& element)
 	{
 		visitGeneric(element);
 	}
-	void visit(const DeclaratorReferenceType& element)
+	void visit(const ReferenceType& element)
 	{
 		visitGeneric(element);
 	}
-	void visit(const DeclaratorPointerType& element)
+	void visit(const PointerType& element)
 	{
 		visitGeneric(element);
 	}
-	void visit(const DeclaratorArrayType& element)
+	void visit(const ArrayType& element)
 	{
 		visitGeneric(element);
 	}
-	void visit(const DeclaratorMemberPointerType& element)
+	void visit(const MemberPointerType& element)
 	{
 		visitGeneric(element);
 	}
-	void visit(const DeclaratorFunctionType& element)
+	void visit(const FunctionType& element)
 	{
 		visitGeneric(element);
 	}
@@ -4300,12 +4374,12 @@ struct SymbolPrinter : TypeElementVisitor
 
 	std::vector<CvQualifiers> qualifierStack;
 
-	void visit(const DeclaratorDependentType& dependent)
+	void visit(const DependentType& dependent)
 	{
 		printName(dependent.type);
 		visitTypeElement();
 	}
-	void visit(const DeclaratorObjectType& object)
+	void visit(const ObjectType& object)
 	{
 		if(qualifierStack.back().isConst)
 		{
@@ -4318,14 +4392,14 @@ struct SymbolPrinter : TypeElementVisitor
 		printName(object.type.declaration);
 		visitTypeElement();
 	}
-	void visit(const DeclaratorReferenceType& pointer)
+	void visit(const ReferenceType& pointer)
 	{
 		pushType(true);
 		printer.out << "&";
 		visitTypeElement();
 		popType();
 	}
-	void visit(const DeclaratorPointerType& pointer)
+	void visit(const PointerType& pointer)
 	{
 		pushType(true);
 		printer.out << "*";
@@ -4340,14 +4414,14 @@ struct SymbolPrinter : TypeElementVisitor
 		visitTypeElement();
 		popType();
 	}
-	void visit(const DeclaratorArrayType&)
+	void visit(const ArrayType&)
 	{
 		pushType(false);
 		visitTypeElement();
 		printer.out << "[]";
 		popType();
 	}
-	void visit(const DeclaratorMemberPointerType& pointer)
+	void visit(const MemberPointerType& pointer)
 	{
 		pushType(true);
 		printer.out << "::*";
@@ -4362,11 +4436,11 @@ struct SymbolPrinter : TypeElementVisitor
 		visitTypeElement();
 		popType();
 	}
-	void visit(const DeclaratorFunctionType& function)
+	void visit(const FunctionType& function)
 	{
 		pushType(false);
 		visitTypeElement();
-		printParameters(function.parameters);
+		printParameters(function.parameterTypes);
 		if(qualifierStack.back().isConst)
 		{
 			printer.out << " const";
@@ -4504,6 +4578,22 @@ struct SymbolPrinter : TypeElementVisitor
 				walker.printType(*declaration);
 				separator = true;
 			}
+		}
+		printer.out << ")";
+	}
+	void printParameters(const ParameterTypes& parameters)
+	{
+		printer.out << "(";
+		bool separator = false;
+		for(ParameterTypes::const_iterator i = parameters.begin(); i != parameters.end(); ++i)
+		{
+			if(separator)
+			{
+				printer.out << ",";
+			}
+			SymbolPrinter walker(printer);
+			walker.printType(*i);
+			separator = true;
 		}
 		printer.out << ")";
 	}

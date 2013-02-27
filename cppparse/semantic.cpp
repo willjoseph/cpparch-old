@@ -120,12 +120,12 @@ inline UniqueTypeWrapper adjustFunctionParameter(UniqueTypeWrapper type)
 	UniqueTypeWrapper result(type.value.getPointer());  // ignore cv-qualifiers
 	if(type.isFunction()) // T() becomes T(*)()
 	{
-		pushUniqueType(result.value, DeclaratorPointerType());
+		pushUniqueType(result.value, PointerType());
 	}
 	else if(type.isArray()) // T[] becomes T*
 	{
 		popUniqueType(result.value);
-		pushUniqueType(result.value, DeclaratorPointerType());
+		pushUniqueType(result.value, PointerType());
 	}
 	return result;
 }
@@ -1105,7 +1105,7 @@ struct WalkerBase : public WalkerState
 		if(symbol->id == cpp::unary_operator::AND) // address-of
 		{
 			UniqueTypeId result = type;
-			result.push_front(DeclaratorPointerType()); // produces a non-const pointer
+			result.push_front(PointerType()); // produces a non-const pointer
 			return result;
 		}
 		else if(symbol->id == cpp::unary_operator::STAR) // dereference
@@ -1843,7 +1843,7 @@ struct PrimaryExpressionWalker : public WalkerBase
 	{
 		TREEWALKER_LEAF(symbol);
 		// TODO: cv-qualifiers: change enclosingType to a UniqueType<DeclaratorObjectType>
-		type = (enclosingType != 0) ? UniqueTypeWrapper(pushUniqueType(gUniqueTypes, makeUniqueObjectType(*enclosingType).value, DeclaratorPointerType())) : gUniqueTypeNull;
+		type = (enclosingType != 0) ? UniqueTypeWrapper(pushUniqueType(gUniqueTypes, makeUniqueObjectType(*enclosingType).value, PointerType())) : gUniqueTypeNull;
 		/* 14.6.2.2-2
 		'this' is type-dependent if the class type of the enclosing member function is dependent
 		*/
@@ -2279,7 +2279,7 @@ struct ExpressionWalker : public WalkerBase
 		ExplicitTypeExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		type = isDependent(walker.type) ? gUniqueTypeNull : makeUniqueType(walker.type, enclosingType);
-		type.push_front(DeclaratorPointerType());
+		type.push_front(PointerType());
 		addDependent(typeDependent, walker.typeDependent);
 		setExpressionType(symbol, type);
 	}
@@ -2288,7 +2288,7 @@ struct ExpressionWalker : public WalkerBase
 		ExplicitTypeExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		type = isDependent(walker.type) ? gUniqueTypeNull : makeUniqueType(walker.type, enclosingType);
-		type.push_front(DeclaratorPointerType());
+		type.push_front(PointerType());
 		addDependent(typeDependent, walker.typeDependent);
 		setExpressionType(symbol, type);
 	}
