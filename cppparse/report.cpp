@@ -847,7 +847,7 @@ struct ParseTreePrinter : SymbolPrinter
 			if(type.value != 0
 				&& type.value != UNIQUETYPE_NULL)
 			{
-				out << ":";
+				out << "|";
 				printType(type);
 			}
 			out << "\">";

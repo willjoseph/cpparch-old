@@ -84,7 +84,7 @@
 		+ when finding list of overloads: use list in original declaration
 		+ don't overwrite name lookup result with chosen declaration after overload resolution: use last-visible-redeclaration of chosen declaration
 		+ using-declaration: store pointer to previous matching declaration (from specified scope!)
-	- track when a class is required to be complete
+	- track/report points source when a class is required to be complete: e.g. sizeof, member access
 	- print cv-qualifiers
 	- improve error messages
 		- e.g. detect when 'typename' keyword is missing

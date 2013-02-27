@@ -120,12 +120,12 @@ inline UniqueTypeWrapper adjustFunctionParameter(UniqueTypeWrapper type)
 	UniqueTypeWrapper result(type.value.getPointer());  // ignore cv-qualifiers
 	if(type.isFunction()) // T() becomes T(*)()
 	{
-		pushUniqueType(result.value, DeclaratorPointer());
+		pushUniqueType(result.value, DeclaratorPointerType());
 	}
 	else if(type.isArray()) // T[] becomes T*
 	{
 		popUniqueType(result.value);
-		pushUniqueType(result.value, DeclaratorPointer());
+		pushUniqueType(result.value, DeclaratorPointerType());
 	}
 	return result;
 }
@@ -731,7 +731,7 @@ struct WalkerState
 			setDependent(dependent, (*i).dependent.enclosingTemplate);
 		}
 	}
-	struct TypeSequenceSetDependent : TypeElementVisitor
+	struct TypeSequenceSetDependent : TypeSequenceVisitor
 	{
 		const WalkerState& walker;
 		DeclarationPtr& dependent;
@@ -739,28 +739,28 @@ struct WalkerState
 			: walker(walker), dependent(dependent)
 		{
 		}
-		virtual void visit(const DeclaratorDependent&)
+		virtual void visit(const DeclaratorDependentType&)
 		{
 			throw SemanticError(); // not reachable
 		}
-		virtual void visit(const DeclaratorObject&)
+		virtual void visit(const DeclaratorObjectType&)
 		{
 			throw SemanticError(); // not reachable
 		}
-		virtual void visit(const DeclaratorPointer&)
+		virtual void visit(const DeclaratorPointerType&)
 		{
 		}
-		virtual void visit(const DeclaratorReference&)
+		virtual void visit(const DeclaratorReferenceType&)
 		{
 		}
-		virtual void visit(const DeclaratorArray&)
+		virtual void visit(const DeclaratorArrayType&)
 		{
 		}
-		virtual void visit(const DeclaratorMemberPointer& element)
+		virtual void visit(const DeclaratorMemberPointerType& element)
 		{
 			walker.setDependent(dependent, element.type.dependent);
 		}
-		virtual void visit(const DeclaratorFunction& element)
+		virtual void visit(const DeclaratorFunctionType& element)
 		{
 			for(Parameters::const_iterator i = element.parameters.begin(); i != element.parameters.end(); ++i)
 			{
@@ -1105,7 +1105,7 @@ struct WalkerBase : public WalkerState
 		if(symbol->id == cpp::unary_operator::AND) // address-of
 		{
 			UniqueTypeId result = type;
-			result.push_front(DeclaratorPointer()); // produces a non-const pointer
+			result.push_front(DeclaratorPointerType()); // produces a non-const pointer
 			return result;
 		}
 		else if(symbol->id == cpp::unary_operator::STAR) // dereference
@@ -1842,8 +1842,8 @@ struct PrimaryExpressionWalker : public WalkerBase
 	void visit(cpp::primary_expression_builtin* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		// TODO: cv-qualifiers: change enclosingType to a UniqueType<DeclaratorObject>
-		type = (enclosingType != 0) ? UniqueTypeWrapper(pushUniqueType(gUniqueTypes, makeUniqueObjectType(*enclosingType).value, DeclaratorPointer())) : gUniqueTypeNull;
+		// TODO: cv-qualifiers: change enclosingType to a UniqueType<DeclaratorObjectType>
+		type = (enclosingType != 0) ? UniqueTypeWrapper(pushUniqueType(gUniqueTypes, makeUniqueObjectType(*enclosingType).value, DeclaratorPointerType())) : gUniqueTypeNull;
 		/* 14.6.2.2-2
 		'this' is type-dependent if the class type of the enclosing member function is dependent
 		*/
@@ -2279,7 +2279,7 @@ struct ExpressionWalker : public WalkerBase
 		ExplicitTypeExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		type = isDependent(walker.type) ? gUniqueTypeNull : makeUniqueType(walker.type, enclosingType);
-		type.push_front(DeclaratorPointer());
+		type.push_front(DeclaratorPointerType());
 		addDependent(typeDependent, walker.typeDependent);
 		setExpressionType(symbol, type);
 	}
@@ -2288,7 +2288,7 @@ struct ExpressionWalker : public WalkerBase
 		ExplicitTypeExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		type = isDependent(walker.type) ? gUniqueTypeNull : makeUniqueType(walker.type, enclosingType);
-		type.push_front(DeclaratorPointer());
+		type.push_front(DeclaratorPointerType());
 		addDependent(typeDependent, walker.typeDependent);
 		setExpressionType(symbol, type);
 	}
@@ -2980,10 +2980,10 @@ struct DeclaratorWalker : public WalkerBase
 	void pushPointerType(cpp::ptr_operator* op)
 	{
 		(op->key->id == cpp::ptr_operator_key::REF)
-			? typeSequence.push_front(DeclaratorReference())
+			? typeSequence.push_front(DeclaratorReferenceType())
 			: memberPointer.empty()
-				? typeSequence.push_front(DeclaratorPointer(qualifiers))
-				: typeSequence.push_front(DeclaratorMemberPointer(*memberPointer.get(), qualifiers));
+				? typeSequence.push_front(DeclaratorPointerType(qualifiers))
+				: typeSequence.push_front(DeclaratorMemberPointerType(*memberPointer.get(), qualifiers));
 	}
 
 	void visit(cpp::ptr_operator* symbol)
@@ -3004,6 +3004,7 @@ struct DeclaratorWalker : public WalkerBase
 		SYMBOLS_ASSERT(typeSequence.empty());
 		typeSequence = walker.typeSequence;
 
+		qualifiers = walker.qualifiers;
 		memberPointer.swap(walker.memberPointer);
 		pushPointerType(symbol->op);
 	}
@@ -3018,6 +3019,7 @@ struct DeclaratorWalker : public WalkerBase
 		SYMBOLS_ASSERT(typeSequence.empty());
 		typeSequence = walker.typeSequence;
 
+		qualifiers = walker.qualifiers;
 		memberPointer.swap(walker.memberPointer);
 		pushPointerType(symbol->op);
 	}
@@ -3038,7 +3040,7 @@ struct DeclaratorWalker : public WalkerBase
 		DeclaratorArrayWalker walker(getState());
 		TREEWALKER_WALK_CACHED(walker, symbol);
 		addDependent(valueDependent, walker.valueDependent);
-		typeSequence.push_front(DeclaratorArray(0)); // TODO: how many dimensions, array size
+		typeSequence.push_front(DeclaratorArrayType(0)); // TODO: how many dimensions, array size
 	}
 	void visit(cpp::declarator_suffix_function* symbol)
 	{
@@ -3048,7 +3050,7 @@ struct DeclaratorWalker : public WalkerBase
 		{
 			paramScope = walker.paramScope;
 		}
-		typeSequence.push_front(DeclaratorFunction(walker.parameters, walker.qualifiers));
+		typeSequence.push_front(DeclaratorFunctionType(walker.parameters, walker.qualifiers));
 	}
 	void visit(cpp::direct_abstract_declarator* symbol)
 	{

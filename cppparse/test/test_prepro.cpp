@@ -1,4 +1,20 @@
 
+namespace N104 // quick test of expression type reporting
+{
+	const int*const f();
+	int i = f; // type of expression should be  'const int*const()'
+}
+namespace N103 // quick test of expression type reporting
+{
+	const int*const f();
+	int i = f(); // type of expression should be  'const int*const'
+}
+namespace N102 // quick test of expression type reporting
+{
+	const int& f();
+	int i = f(); // type of expression should be  'const int&'
+}
+
 
 namespace N101
 {
