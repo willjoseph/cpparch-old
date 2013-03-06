@@ -401,7 +401,18 @@ struct MakeFunction
 {
 	static UniqueTypeWrapper apply(UniqueTypeWrapper inner)
 	{
-		return UniqueTypeWrapper(pushBuiltInType(inner.value, FunctionType(Parameters())));
+		return UniqueTypeWrapper(pushBuiltInType(inner.value, FunctionType()));
+	}
+};
+
+template<typename A1>
+struct MakeFunction1
+{
+	static UniqueTypeWrapper apply(UniqueTypeWrapper inner)
+	{
+		FunctionType function;
+		function.parameterTypes.push_back(MakeType<A1>::apply());
+		return UniqueTypeWrapper(pushBuiltInType(inner.value, function));
 	}
 };
 
@@ -411,6 +422,15 @@ struct MakeType<T()>
 	static UniqueTypeWrapper apply()
 	{
 		return MakeFunction::apply(MakeType<T>::apply());
+	}
+};
+
+template<typename T, typename A1>
+struct MakeType<T(A1)>
+{
+	static UniqueTypeWrapper apply()
+	{
+		return MakeFunction1<A1>::apply(MakeType<T>::apply());
 	}
 };
 
@@ -442,6 +462,15 @@ struct MakeType<T (C::*)()>
 	}
 };
 
+template<typename T, typename C, typename A1>
+struct MakeType<T (C::*)(A1)>
+{
+	static UniqueTypeWrapper apply()
+	{
+		return MakeMemberPointer<C>::apply(MakeFunction1<A1>::apply(MakeType<T>::apply()));
+	}
+};
+
 template<typename T, typename C>
 struct MakeType<T (C::*)() const>
 {
@@ -450,6 +479,85 @@ struct MakeType<T (C::*)() const>
 		return MakeMemberPointer<C>::apply(MakeConst::apply(MakeFunction::apply(MakeType<T>::apply())));
 	}
 };
+
+template<typename T, typename C, typename A1>
+struct MakeType<T (C::*)(A1) const>
+{
+	static UniqueTypeWrapper apply()
+	{
+		return MakeMemberPointer<C>::apply(MakeConst::apply(MakeFunction1<A1>::apply(MakeType<T>::apply())));
+	}
+};
+
+inline void testTypeGen()
+{
+	typedef const int ConstInt;
+	typedef ConstInt* PtrToConstInt;
+	typedef int* PtrToInt;
+	typedef const PtrToInt ConstPtrToInt;
+	typedef const PtrToConstInt ConstPtrToConstInt;
+	UniqueTypeWrapper test1 = MakeType<ConstInt>::apply();
+	UniqueTypeWrapper test2 = MakeType<PtrToConstInt>::apply();
+	UniqueTypeWrapper test3 = MakeType<ConstPtrToInt>::apply();
+	UniqueTypeWrapper test4 = MakeType<ConstPtrToConstInt>::apply();
+
+	UniqueTypeWrapper test5 = MakeType<int (*)()>::apply();
+	UniqueTypeWrapper test6 = MakeType<int (Base::*)()>::apply();
+	UniqueTypeWrapper test7 = MakeType<int (Base::*)() const>::apply();
+	UniqueTypeWrapper test8 = MakeType<int (Base::*const)()>::apply();
+
+	UniqueTypeWrapper test9 = MakeType<int[]>::apply();
+	UniqueTypeWrapper test10 = MakeType<int[1]>::apply();
+
+	UniqueTypeWrapper test11 = MakeType<int(int)>::apply();
+	UniqueTypeWrapper test12 = MakeType<int (*)(int)>::apply();
+	UniqueTypeWrapper test13 = MakeType<int (Base::*)(int)>::apply();
+	UniqueTypeWrapper test14 = MakeType<int (Base::*)(int) const>::apply();
+	UniqueTypeWrapper test15 = MakeType<int (Base::*const)(int)>::apply();
+
+
+	FileTokenPrinter tokenPrinter(std::cout);
+	SymbolPrinter symbolPrinter(tokenPrinter);
+
+	symbolPrinter.printType(test1);
+	std::cout << std::endl;
+	symbolPrinter.printType(test2);
+	std::cout << std::endl;
+	symbolPrinter.printType(test3);
+	std::cout << std::endl;
+	symbolPrinter.printType(test4);
+	std::cout << std::endl;
+	symbolPrinter.printType(test5);
+	std::cout << std::endl;
+	symbolPrinter.printType(test6);
+	std::cout << std::endl;
+	symbolPrinter.printType(test7);
+	std::cout << std::endl;
+	symbolPrinter.printType(test8);
+	std::cout << std::endl;
+	symbolPrinter.printType(test9);
+	std::cout << std::endl;
+	symbolPrinter.printType(test10);
+	std::cout << std::endl;
+	symbolPrinter.printType(test11);
+	std::cout << std::endl;
+	symbolPrinter.printType(test12);
+	std::cout << std::endl;
+	symbolPrinter.printType(test13);
+	std::cout << std::endl;
+	symbolPrinter.printType(test14);
+	std::cout << std::endl;
+	symbolPrinter.printType(test15);
+	std::cout << std::endl;
+}
+
+struct TypeGenTest
+{
+	TypeGenTest()
+	{
+		testTypeGen();
+	}
+} gTypeGenTest;
 
 
 UniqueTypeWrapper gSignedIntMemberPointer = MakeType<int Base::*>::apply();
@@ -561,24 +669,6 @@ struct TestIcsRank
 
 inline void testIcsRank()
 {
-	typedef const int ConstInt;
-	typedef ConstInt* PtrToConstInt;
-	typedef int* PtrToInt;
-	typedef const PtrToInt ConstPtrToInt;
-	typedef const PtrToConstInt ConstPtrToConstInt;
-	UniqueTypeWrapper test1 = MakeType<ConstInt>::apply();
-	UniqueTypeWrapper test2 = MakeType<PtrToConstInt>::apply();
-	UniqueTypeWrapper test3 = MakeType<ConstPtrToInt>::apply();
-	UniqueTypeWrapper test4 = MakeType<ConstPtrToConstInt>::apply();
-
-	UniqueTypeWrapper test5 = MakeType<int (*)()>::apply();
-	UniqueTypeWrapper test6 = MakeType<int (Base::*)()>::apply();
-	UniqueTypeWrapper test7 = MakeType<int (Base::*)() const>::apply();
-	UniqueTypeWrapper test8 = MakeType<int (Base::*const)()>::apply();
-
-	UniqueTypeWrapper test9 = MakeType<int[]>::apply();
-	UniqueTypeWrapper test10 = MakeType<int[1]>::apply();
-
 	for(const UniqueTypeIdConstPointer* i = gArithmeticTypes; i != ARRAY_END(gArithmeticTypes); ++i)
 	{
 		UniqueTypeIdConstPointer to = *i;

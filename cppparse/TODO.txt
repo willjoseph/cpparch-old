@@ -86,6 +86,9 @@
 		+ using-declaration: store pointer to previous matching declaration (from specified scope!)
 	- track/report points source when a class is required to be complete: e.g. sizeof, member access
 	- use preprocessed source for tests
+	- remove legacy parameters from FunctionType
+		- contains information about default-arguments
+		- should disregard default-arguments when comparing function types?
 	- print cv-qualifiers
 	- improve error messages
 		- e.g. detect when 'typename' keyword is missing

@@ -1,4 +1,11 @@
 
+namespace N105
+{
+	void f();
+	void f(int);
+	void (*p)() = f; // TODO: [over.over]
+}
+
 namespace N104 // quick test of expression type reporting
 {
 	const int*const f();

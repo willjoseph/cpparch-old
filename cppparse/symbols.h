@@ -110,11 +110,13 @@ struct SequenceNodeGeneric : Reference< SequenceNode<Visitor> >::Value
 			&& value == static_cast<const SequenceNodeGeneric*>(&other)->value;
 	}
 #endif
+#if 0
 	bool operator<(const SequenceNode<Visitor>& other) const
 	{
 		return (typeid(*this).before(typeid(other)) ||
 			!(typeid(other).before(typeid(*this))) && value < static_cast<const SequenceNodeGeneric*>(&other)->value);
 	}
+#endif
 };
 
 template<typename A, typename Visitor>
@@ -1883,12 +1885,7 @@ inline bool operator==(const DeclaratorFunctionType& left, const DeclaratorFunct
 
 struct FunctionType
 {
-	Parameters parameters; // TODO: used only to obtain default_argument pointers?
 	ParameterTypes parameterTypes;
-	FunctionType(const Parameters& parameters)
-		: parameters(parameters)
-	{
-	}
 };
 
 inline bool operator<(const FunctionType& left, const FunctionType& right)
@@ -1896,11 +1893,30 @@ inline bool operator<(const FunctionType& left, const FunctionType& right)
 	return left.parameterTypes < right.parameterTypes;
 }
 
+#if 0
 inline const Parameters& getParameters(UniqueType type)
 {
 	SYMBOLS_ASSERT(typeid(*type) == typeid(TypeElementGeneric<FunctionType>));
 	return static_cast<const TypeElementGeneric<FunctionType>*>(type.getPointer())->value.parameters;
 }
+#else
+inline const TypeSequence::Node* getLastNode(const TypeSequence& typeSequence)
+{
+	const TypeSequence::Node* result = 0;
+	for(const TypeSequence::Node* node = typeSequence.get(); node != 0; node = node->get())
+	{
+		result = node;
+	}
+	return result;
+}
+inline const Parameters& getParameters(const TypeId& type)
+{
+	const TypeSequence::Node* node = getLastNode(type.typeSequence);
+	SYMBOLS_ASSERT(node != 0);
+	SYMBOLS_ASSERT(typeid(*node) == typeid(SequenceNodeGeneric<DeclaratorFunctionType, TypeSequenceVisitor>));
+	return static_cast<const SequenceNodeGeneric<DeclaratorFunctionType, TypeSequenceVisitor>*>(node)->value.parameters;
+}
+#endif
 
 inline const ParameterTypes& getParameterTypes(UniqueType type)
 {
@@ -2487,7 +2503,7 @@ struct TypeSequenceMakeUnique : TypeSequenceVisitor
 	}
 	void visit(const DeclaratorFunctionType& element)
 	{
-		FunctionType result(element.parameters);
+		FunctionType result;
 		for(Parameters::const_iterator i = element.parameters.begin(); i != element.parameters.end(); ++i)
 		{
 			result.parameterTypes.push_back(makeUniqueType((*i).declaration->type, enclosing, allowDependent));
@@ -4405,11 +4421,11 @@ struct SymbolPrinter : TypeElementVisitor
 		printer.out << "*";
 		if(qualifierStack.back().isConst)
 		{
-			printer.out << "const ";
+			printer.out << " const";
 		}
 		if(qualifierStack.back().isVolatile)
 		{
-			printer.out << "volatile ";
+			printer.out << " volatile";
 		}
 		visitTypeElement();
 		popType();
@@ -4424,14 +4440,22 @@ struct SymbolPrinter : TypeElementVisitor
 	void visit(const MemberPointerType& pointer)
 	{
 		pushType(true);
+		if(pointer.instance == 0)
+		{
+			printer.out << "$dependent";
+		}
+		else
+		{
+			printName(pointer.instance->declaration);
+		}
 		printer.out << "::*";
 		if(qualifierStack.back().isConst)
 		{
-			printer.out << "const ";
+			printer.out << " const";
 		}
 		if(qualifierStack.back().isVolatile)
 		{
-			printer.out << "volatile ";
+			printer.out << " volatile";
 		}
 		visitTypeElement();
 		popType();
@@ -4720,7 +4744,7 @@ struct OverloadResolver
 		}
 		const ParameterTypes& parameters = getParameterTypes(type.value);
 		UniqueTypeIds::const_iterator a = arguments.begin();
-		Parameters::const_iterator p = getParameters(type.value).begin();
+		Parameters::const_iterator p = getParameters(declaration->type).begin();
 		// TODO: ellipsis
 		for(ParameterTypes::const_iterator i = parameters.begin(); i != parameters.end(); ++i)
 		{
