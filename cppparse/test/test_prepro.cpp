@@ -1,4 +1,180 @@
 
+
+template<class String, class Traits>
+struct basic_path
+{
+	basic_path root_path() const;
+	bool has_root_path() const;
+	bool empty() const;
+
+	struct inner;
+};
+
+template<class String, class Traits>
+basic_path<String, Traits>basic_path<String, Traits>::root_path()const
+{
+	return basic_path<String, Traits>();
+}
+
+template<class String, class Traits>
+inline bool basic_path<String, Traits>::has_root_path()const
+{
+	return !root_path().empty(); // should correctly determine the type of the left-hand side of the member-access expression
+}
+
+template<class String, class Traits>
+struct basic_path<String, Traits>::inner
+{
+};
+
+#if 0 // TODO: explicit specialization
+template<class String, class Traits
+struct basic_path<int, int>
+{
+	basic_path root_path() const;
+};
+
+template<class String, class Traits>
+basic_path<String, Traits>basic_path<int, int>::root_path()const
+{
+	return basic_path<String, Traits>();
+}
+#endif
+
+namespace N110
+{
+	template<bool C>
+	struct if_c
+	{
+		typedef int type;
+	};
+
+	template<typename T>
+	struct integral_c
+	{
+		static const T value=8;
+	};
+	template<typename T>
+	T const integral_c<T>::value; // presence of this line causes parse fail?
+
+	typedef if_c< integral_c<int>::value<8 >::type t1;
+}
+
+namespace N108
+{
+	template<typename T>
+	struct B
+	{
+	};
+
+	template<typename T>
+	struct Tmpl : B<T>
+	{
+		static int m;
+	};
+
+	template<typename T>
+	int Tmpl<T>::m = -1; // lookup of 'm' should not attempt to access B<T> because it is dependent
+}
+
+namespace N109
+{
+	template<typename T>
+	struct B
+	{
+	};
+
+	template<typename T>
+	struct Tmpl
+	{
+		struct Inner : B<T>
+		{
+			void f()
+			{
+				this->dependent(); // 'this' should be determined to be dependent
+			}
+		};
+	};
+}
+
+namespace N110
+{
+	template<typename T>
+	struct B
+	{
+	};
+
+	template<typename T>
+	struct Tmpl : B<T>
+	{
+		void f()
+		{
+			this->dependent(); // 'this' should be determined to be dependent
+		}
+	};
+}
+
+#if 1
+// default-template-parameter
+namespace N67
+{
+	struct S
+	{
+		typedef int I;
+	};
+
+	template<typename T = S>
+	struct Tmpl
+	{
+		typedef T type;
+	};
+
+	typedef Tmpl<>::type T;
+	T::I i;
+
+	struct D : public T
+	{
+		I m;
+	};
+}
+#endif
+
+
+namespace N107
+{
+	template<typename T>
+	class DependentTmpl
+	{
+	};
+
+	template<typename T>
+	class DependentMemInit : public T, public DependentTmpl<T>
+	{
+		typename T::M m;
+		DependentMemInit() : T(0), DependentTmpl<T>(0), m(0)
+		{
+		}
+	};
+}
+
+namespace N106
+{
+	template<typename T>
+	class B
+	{
+		typedef T Type;
+	};
+
+	template<typename T>
+	struct D : public B<T>
+	{
+	};
+
+	D<int>::Type i;
+}
+
+
+
 namespace N105
 {
 	void f();
@@ -1818,47 +1994,6 @@ namespace N010
 
 	Tmpl<Wrapper>::Dependent i;
 }
-
-template<class String, class Traits>
-struct basic_path
-{
-	basic_path root_path() const;
-	bool has_root_path() const;
-	bool empty() const;
-
-	struct inner;
-};
-
-template<class String, class Traits>
-basic_path<String, Traits>basic_path<String, Traits>::root_path()const
-{
-	return basic_path<String, Traits>();
-}
-
-template<class String, class Traits>
-inline bool basic_path<String, Traits>::has_root_path()const
-{
-	return !root_path().empty(); // should correctly determine the type of the left-hand side of the member-access expression
-}
-
-template<class String, class Traits>
-struct basic_path<String, Traits>::inner
-{
-};
-
-#if 0 // TODO: explicit specialization
-template<class String, class Traits
-struct basic_path<int, int>
-{
-	basic_path root_path() const;
-};
-
-template<class String, class Traits>
-basic_path<String, Traits>basic_path<int, int>::root_path()const
-{
-	return basic_path<String, Traits>();
-}
-#endif
 
 
 

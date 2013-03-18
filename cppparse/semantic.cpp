@@ -202,6 +202,7 @@ inline bool isEquivalent(const Declaration& declaration, const Declaration& othe
 				&& isReturnTypeEqual(l, r) // return-types match
 				&& isEquivalent(getParameterTypes(l.value), getParameterTypes(r.value)); // and parameter-types match
 		}
+		return true; // redeclaring an object (cannot be overloaded)
 	}
 	return false;
 }
@@ -253,7 +254,9 @@ struct WalkerState
 	const TypeInstance* enclosingType;
 	TypePtr qualifying_p;
 	DeclarationPtr qualifyingScope;
+	const TypeInstance* qualifyingType;
 	ScopePtr memberObject;
+	const TypeInstance* memberType;
 	SafePtr<TemplateParameters> templateParams;
 	ScopePtr templateParamScope;
 	ScopePtr templateEnclosing;
@@ -262,7 +265,20 @@ struct WalkerState
 	bool isExplicitInstantiation;
 
 	WalkerState(WalkerContext& context)
-		: context(context), enclosing(0), enclosingType(0), qualifying_p(0), qualifyingScope(0), memberObject(0), templateParams(0), templateParamScope(0), templateEnclosing(0), deferred(0), templateDepth(0), isExplicitInstantiation(false)
+		: context(context)
+		, enclosing(0)
+		, enclosingType(0)
+		, qualifying_p(0)
+		, qualifyingScope(0)
+		, qualifyingType(0)
+		, memberObject(0)
+		, memberType(0)
+		, templateParams(0)
+		, templateParamScope(0)
+		, templateEnclosing(0)
+		, deferred(0)
+		, templateDepth(0)
+		, isExplicitInstantiation(false)
 	{
 	}
 	const WalkerState& getState() const
@@ -270,6 +286,22 @@ struct WalkerState
 		return *this;
 	}
 
+	LookupResult findDeclaration(const Identifier& id, bool isDeclarator, LookupFilter filter = IsAny())
+	{
+		return isDeclarator
+			? findDeclaratorDeclaration(id, filter)
+			: findDeclaration(id, filter);
+	}
+	LookupResult findDeclaratorDeclaration(const Identifier& id, LookupFilter filter = IsAny())
+	{
+		LookupResult result;
+		if(result.append(::findDeclaration(*getQualifyingScope(), id, filter)))
+		{
+			return result;
+		}
+		result.filtered = &gUndeclaredInstance;
+		return result;
+	}
 	LookupResult findDeclaration(const Identifier& id, LookupFilter filter = IsAny())
 	{
 		ProfileScope profile(gProfileLookup);
@@ -281,7 +313,7 @@ struct WalkerState
 		if(qualifying != 0)
 		{
 			// 3.4.3: qualified name lookup
-			if(result.append(::findDeclarationWithin(*qualifying, id, filter)))
+			if(result.append(::findQualifiedDeclaration(*qualifying, id, filter, qualifyingType)))
 			{
 #ifdef LOOKUP_DEBUG
 				std::cout << "HIT: qualified" << std::endl;
@@ -295,7 +327,7 @@ struct WalkerState
 			if(memberObject != 0)
 			{
 				// 3.4.5 class member acess
-				if(result.append(::findDeclarationWithin(*memberObject, id, filter)))
+				if(result.append(::findQualifiedDeclaration(*memberObject, id, filter, memberType)))
 				{
 #ifdef LOOKUP_DEBUG
 					std::cout << "HIT: member" << std::endl;
@@ -306,7 +338,7 @@ struct WalkerState
 
 			if(templateParamScope != 0)
 			{
-				if(result.append(::findDeclaration(*templateParamScope, id, filter)))
+				if(result.append(::findTemplateParameterDeclaration(*templateParamScope, id, filter)))
 				{
 #ifdef LOOKUP_DEBUG
 					std::cout << "HIT: templateParamScope" << std::endl;
@@ -315,7 +347,7 @@ struct WalkerState
 				}
 			}
 #endif
-			if(result.append(::findDeclaration(*enclosing, id, filter, true)))
+			if(result.append(::findClassOrNamespaceMemberDeclaration(*enclosing, id, filter, true, enclosingType)))
 			{
 #ifdef LOOKUP_DEBUG
 				std::cout << "HIT: unqualified" << std::endl;
@@ -467,7 +499,7 @@ struct WalkerState
 		}
 	}
 
-	Declaration* getQualifying(bool isDeclarator)
+	Declaration* getDeclaratorQualifying()
 	{
 		if(qualifying_p == TypePtr(0))
 		{
@@ -478,15 +510,7 @@ struct WalkerState
 		{
 			return declaration;
 		}
-		SEMANTIC_ASSERT(!isDeclarator || isClass(*declaration)); // TODO: non-fatal error: declarator names must not be typedef names
-		if(!isDeclarator)
-		{
-			if(isDependent(qualifying_p))
-			{
-				return 0;
-			}
-			return getObjectType(makeUniqueType(*qualifying_p, enclosingType).value).declaration;
-		}
+		SEMANTIC_ASSERT(isClass(*declaration)); // TODO: non-fatal error: declarator names must not be typedef names
 		// only declarator names may be dependent
 		if(declaration->isTemplate) // TODO: template partial specialization
 		{
@@ -515,6 +539,7 @@ struct WalkerState
 		qualifying_p = 0;
 		qualifyingScope = 0;
 		memberObject = 0;
+		memberType = 0;
 	}
 
 	const TemplateParameters& getTemplateParams(Scope* parent) const
@@ -987,8 +1012,9 @@ struct WalkerBase : public WalkerState
 			if(isClass(type))
 			{
 				SEMANTIC_ASSERT(isComplete(type)); // TODO: non-fatal parse error
-				Scope* scope = getObjectType(type.value).declaration->enclosed;
-				DeclarationInstanceRef declaration = ::findMemberDeclaration(*scope, id);
+				const TypeInstance* enclosing = &getObjectType(type.value);
+				Scope* scope = enclosing->declaration->enclosed;
+				DeclarationInstanceRef declaration = ::findMemberDeclaration(*scope, id, IsAny(), false, false, enclosing);
 				if(declaration != 0)
 				{
 					resolver.add(declaration);
@@ -1154,6 +1180,7 @@ struct WalkerQualified : public WalkerBase
 		SEMANTIC_ASSERT(qualifying.empty());
 		qualifying_p = context.globalType.get_ref();
 		qualifyingScope = qualifying_p->declaration;
+		qualifyingType = 0;
 	}
 
 	void swapQualifying(const Type& type, bool isDeclarator = false)
@@ -1175,7 +1202,27 @@ struct WalkerQualified : public WalkerBase
 	{
 		qualifying.swap(other);
 		qualifying_p = qualifying.get_ref();
-		qualifyingScope = getQualifying(isDeclarator);
+		if(isDeclarator)
+		{
+			qualifyingScope = getDeclaratorQualifying();
+		}
+		else if(qualifying_p != TypePtr(0))
+		{
+			Declaration* declaration = qualifying_p->declaration;
+			if(isNamespace(*declaration))
+			{
+				qualifyingScope = declaration;
+			}
+			else if(isDependent(qualifying_p))
+			{
+				qualifyingScope = 0;
+			}
+			else
+			{
+				qualifyingType = &getObjectType(makeUniqueType(*qualifying_p, enclosingType).value);
+				qualifyingScope = qualifyingType->declaration;
+			}
+		}
 	}
 };
 
@@ -2021,7 +2068,8 @@ struct PostfixExpressionWalker : public WalkerBase
 				? getInner(type.value) : UNIQUETYPE_NULL;
 		if(object != UNIQUETYPE_NULL) // if the left-hand side is an object type (or pointer/reference-to-object)
 		{
-			walker.memberObject = getObjectType(object).declaration->enclosed; // TODO: assert that this is a class type
+			walker.memberType = &getObjectType(object);
+			walker.memberObject = walker.memberType->declaration->enclosed; // TODO: assert that this is a class type
 		}
 		TREEWALKER_WALK(walker, symbol);
 		id = walker.id; // perform overload resolution for a.m(x);
@@ -2482,7 +2530,7 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 		if(isDeclarator
 			|| !isDependent(qualifying_p))
 		{
-			declaration = findDeclaration(symbol->value, IsNestedName());
+			declaration = findDeclaration(symbol->value, isDeclarator, IsNestedName());
 			if(declaration == &gUndeclared)
 			{
 				return reportIdentifierMismatch(symbol, symbol->value, declaration, "nested-name");
@@ -2505,7 +2553,7 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 			&& (isDeclarator
 				|| !isDependent(qualifying_p)))
 		{
-			declaration = findDeclaration(*walker.id, IsNestedName());
+			declaration = findDeclaration(*walker.id, isDeclarator, IsNestedName());
 			if(declaration == &gUndeclared)
 			{
 				return reportIdentifierMismatch(symbol, *walker.id, declaration, "nested-name");
@@ -3159,13 +3207,13 @@ struct ClassHeadWalker : public WalkerBase
 		TREEWALKER_WALK_CACHED(walker, symbol);
 
 		// resolve the (possibly dependent) qualifying scope
-		if(walker.getQualifying(true) != 0)
+		if(walker.getDeclaratorQualifying() != 0)
 		{
 			if(enclosing == templateEnclosing)
 			{
-				templateEnclosing = walker.getQualifying(true)->enclosed;
+				templateEnclosing = walker.getDeclaratorQualifying()->enclosed;
 			}
-			enclosing = walker.getQualifying(true)->enclosed; // names in declaration of nested-class are looked up in scope of enclosing class
+			enclosing = walker.getDeclaratorQualifying()->enclosed; // names in declaration of nested-class are looked up in scope of enclosing class
 		}
 	}
 	void visit(cpp::simple_template_id* symbol) // class_name
@@ -3422,7 +3470,8 @@ struct ClassSpecifierWalker : public WalkerBase
 			if(!declaration->isTemplate)
 			{
 				Type type(declaration, context);
-				enclosingType = &getObjectType(makeUniqueType(type, enclosingType).value);
+				setDependent(type);
+				enclosingType = isDependent(type) ? 0 : &getObjectType(makeUniqueType(type, enclosingType).value);
 			}
 			else
 			{

@@ -797,25 +797,30 @@ struct ScopeCounter
 	}
 };
 
+// An instance of a declaration - multiple declarations may refer to the same entity.
+// e.g. definition, forward declaration, redeclaration
 struct DeclarationInstance : DeclarationPtr
 {
-	Identifier* name;
-	const DeclarationInstance* overloaded;
-	const DeclarationInstance* redeclared;
+	Identifier* name; // the identifier used in this declaration.
+	const DeclarationInstance* overloaded; // the previously declared overload of this name.
+	const DeclarationInstance* redeclared; // the previous declaration that refers to the same entity.
 	DeclarationInstance()
 		: DeclarationPtr(0), name(0), overloaded(0), redeclared(0)
 	{
 	}
+	// used when cloning an existing declaration, in the process of copying declarations from one scope to another.
 	explicit DeclarationInstance(Declaration* declaration)
 		: DeclarationPtr(declaration), name(declaration != 0 ? &declaration->getName() : 0), overloaded(0), redeclared(0)
 	{
 		SYMBOLS_ASSERT(name != 0);
 	}
+#if 0
 	explicit DeclarationInstance(DeclarationPtr declaration)
 		: DeclarationPtr(declaration), name(declaration != 0 ? &declaration->getName() : 0), overloaded(0), redeclared(0)
 	{
 		SYMBOLS_ASSERT(name != 0);
 	}
+#endif
 };
 
 inline cpp::terminal_identifier& getDeclarationId(const DeclarationInstance* declaration)
@@ -1005,13 +1010,14 @@ inline const TypeId& getTemplateArgument(const Type& type, size_t index)
 	}
 }
 
-inline const Type& getInstantiatedSimpleType(const Type& type);
-
 inline bool isTypedef(const Type& type)
 {
 	return type.declaration->specifiers.isTypedef // if this is a typedef..
 		&& type.declaration->templateParameter == INDEX_INVALID; // .. and not a template-parameter
 }
+
+#if 0
+inline const Type& getInstantiatedSimpleType(const Type& type);
 
 // resolve Template<T>::Type -> T
 inline const Type& getInstantiatedTypeInternal(const Type& original, const Qualifying& qualifying)
@@ -1073,6 +1079,7 @@ inline const Type& getInstantiatedSimpleType(const Type& type)
 	SYMBOLS_ASSERT(isSimple(type));
 	return getInstantiatedTypeGeneric(type, getInstantiatedSimpleType);
 }
+#endif
 
 // ----------------------------------------------------------------------------
 
@@ -1943,7 +1950,7 @@ struct ObjectTypeId : UniqueTypeId
 };
 
 
-
+#if 0
 typedef std::vector<const Declaration*> DeclarationHistory;
 
 struct GetTypeHistory
@@ -1974,6 +1981,7 @@ struct GetTypeHistory
 		return apply(declaration.type, history);
 	}
 };
+#endif
 
 inline Declaration* findPrimaryTemplate(Declaration* declaration)
 {
@@ -2213,12 +2221,19 @@ inline void evaluateBases(const TypeInstance& enclosing)
 	{
 		TypeInstance& instance = const_cast<TypeInstance&>(enclosing);
 		instance.evaluated = true; // prevent recursion
+		if(enclosing.declaration->enclosed == 0)
+		{
+			std::cout << "evaluateBases failed!" << std::endl;
+			return; // TODO: this can occur when the primary template is incomplete, and a specialization was not chosen
+		}
+		SYMBOLS_ASSERT(enclosing.declaration->enclosed != 0);
 		Types& bases = enclosing.declaration->enclosed->bases;
 		UniqueBases uniqueBases;
 		uniqueBases.reserve(std::distance(bases.begin(), bases.end()));
 		for(Types::const_iterator i = bases.begin(); i != bases.end(); ++i)
 		{
 			uniqueBases.push_back(&getObjectType(makeUniqueType(*i, &enclosing).value));
+			//SYMBOLS_ASSERT(uniqueBases.back()->declaration->enclosed != 0); // TODO: this can occur when the primary template is incomplete, and a specialization was not chosen
 		}
 		instance.bases.swap(uniqueBases); // prevent searching a partially evaluated set of base classes inside 'makeUniqueType'
 	}
@@ -4053,8 +4068,9 @@ inline const DeclarationInstance* findDeclaration(Scope::Declarations& declarati
 	return 0;
 }
 
-inline LookupResult findMemberDeclaration(Scope& scope, const Identifier& id, LookupFilter filter = IsAny(), bool isEnclosing = false, bool isBase = false);
+inline LookupResult findMemberDeclaration(Scope& scope, const Identifier& id, LookupFilter filter = IsAny(), bool isEnclosing = false, bool isBase = false, const TypeInstance* enclosing = 0);
 
+// find a declaration within the set of using-directives present in a namespace
 inline LookupResult findDeclaration(Scope::Scopes& scopes, const Identifier& id, LookupFilter filter = IsAny())
 {
 	LookupResult result;
@@ -4081,20 +4097,44 @@ inline LookupResult findDeclaration(Scope::Scopes& scopes, const Identifier& id,
 	return result;
 }
 
-inline LookupResult findMemberDeclaration(Scope& scope, const Identifier& id, LookupFilter filter, bool isEnclosing, bool isBase)
+// find a declaration within a scope.
+inline LookupResult findDeclaration(Scope& scope, const Identifier& id, LookupFilter filter = IsAny(), bool isBase = false)
 {
 	LookupResult result;
-	if(result.append(findDeclaration(scope.declarations, id, filter, isBase)))
+	result.append(::findDeclaration(scope.declarations, id, filter, isBase));
+	return result;
+}
+
+inline LookupResult findMemberDeclaration(Scope& scope, const Identifier& id, LookupFilter filter, bool isEnclosing, bool isBase, const TypeInstance* enclosing)
+{
+	LookupResult result;
+	if(result.append(findDeclaration(scope, id, filter, isBase)))
+	{
+		return result;
+	}
+	if(scope.type != SCOPETYPE_CLASS)
 	{
 		return result;
 	}
 	for(Types::iterator i = scope.bases.begin(); i != scope.bases.end(); ++i)
 	{
-#if 0
-		const Type& base = getUnderlyingType(*i);
+#if 1
+		if(isEnclosing // if the lookup occurs within the enclosing class
+			&& isDependentNew((*i).dependent, &scope, 0)) // and the base class is dependent
+		{
+			continue; // do not examine it
+		}
+		const TypeInstance& base = getObjectType(makeUniqueType(*i, enclosing).value);
+		// an identifier looked up in the context of a class may name a base class
+		if(base.declaration->getName().value == id.value
+			&& filter(*base.declaration))
+		{
+			result.filtered = base.declaration->getName().dec.p;
+			return result;
+		}
+		Scope* scope = base.declaration->enclosed;
 #else
 		const Type& base = getInstantiatedType(*i);
-#endif
 		if(isEnclosing // if the lookup occurs within the enclosing class
 			&& isDependentNew(base.dependent, &scope, 0)) // and the base class is dependent
 		{
@@ -4109,11 +4149,12 @@ inline LookupResult findMemberDeclaration(Scope& scope, const Identifier& id, Lo
 			return result;
 		}
 		Scope* scope = base.declaration->enclosed;
+#endif
 		if(scope != 0)
 		{
 			// [namespace.udir] A using-directive shall not appear in class scope, but may appear in namespace scope or in block scope.
 			SYMBOLS_ASSERT(scope->usingDirectives.empty());
-			if(result.append(findMemberDeclaration(*scope, id, filter, false, true)))
+			if(result.append(findMemberDeclaration(*scope, id, filter, false, true, &base)))
 			{
 				return result;
 			}
@@ -4122,7 +4163,8 @@ inline LookupResult findMemberDeclaration(Scope& scope, const Identifier& id, Lo
 	return result;
 }
 
-inline LookupResult findDeclaration(Scope& scope, const Identifier& id, LookupFilter filter = IsAny(), bool isEnclosing = false)
+// find a declaration within a class or namespace
+inline LookupResult findClassOrNamespaceMemberDeclaration(Scope& scope, const Identifier& id, LookupFilter filter = IsAny(), bool isEnclosing = false, const TypeInstance* enclosing = 0)
 {
 #ifdef LOOKUP_DEBUG
 	std::cout << "searching '";
@@ -4131,13 +4173,18 @@ inline LookupResult findDeclaration(Scope& scope, const Identifier& id, LookupFi
 #endif
 
 	LookupResult result;
-	if(result.append(findMemberDeclaration(scope, id, filter, isEnclosing)))
+	if(result.append(findMemberDeclaration(scope, id, filter, isEnclosing, false, enclosing)))
 	{
 		return result;
 	}
+	if(scope.type == SCOPETYPE_TEMPLATE // when searching template-parameter scopes 
+		&& !isEnclosing) // unless searching an enclosing scope
+	{
+		return result; // This prevents issues caused by searching in the parent-scope when explicitly searching templateParamScope.
+	}
 	if(scope.parent != 0)
 	{
-		if(result.append(findDeclaration(*scope.parent, id, filter, isEnclosing)))
+		if(result.append(findClassOrNamespaceMemberDeclaration(*scope.parent, id, filter, isEnclosing, enclosing ? enclosing->enclosing : 0)))
 		{
 			return result;
 		}
@@ -4152,10 +4199,23 @@ inline LookupResult findDeclaration(Scope& scope, const Identifier& id, LookupFi
 	return result;
 }
 
-inline LookupResult findDeclarationWithin(Scope& scope, const Identifier& id, LookupFilter filter = IsAny())
+inline LookupResult findTemplateParameterDeclaration(Scope& scope, const Identifier& id, LookupFilter filter = IsAny())
+{
+	// HACK: prevent looking in base-class list when looking up template parameter.
+	// temporary workaround for templateParamScope being converted into enclosed scope of class declaration.
+	ScopeType tmp = scope.type;
+	scope.type = SCOPETYPE_TEMPLATE;
+	LookupResult result = findClassOrNamespaceMemberDeclaration(scope, id, filter);
+	scope.type = tmp;
+	return result;
+}
+
+// find a declaration within an explicit qualifying class or namespace scope.
+// e.g. Class::member, Namespace::member, object.member
+inline LookupResult findQualifiedDeclaration(Scope& scope, const Identifier& id, LookupFilter filter = IsAny(), const TypeInstance* enclosing = 0)
 {
 	LookupResult result;
-	if(result.append(::findMemberDeclaration(scope, id, filter)))
+	if(result.append(::findMemberDeclaration(scope, id, filter, false, false, enclosing)))
 	{
 		return result;
 	}

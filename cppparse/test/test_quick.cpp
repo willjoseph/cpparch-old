@@ -550,7 +550,7 @@ namespace N113
 	{
 	};
 
-	class Derived : Base
+	class Derived : Base<float>
 	{
 		typedef int T;
 		void f(T t)
