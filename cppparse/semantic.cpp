@@ -115,6 +115,12 @@ void printIdentifierMismatch(const IdentifierMismatch& e)
 }
 
 
+inline void setDecoration(Identifier* id, const DeclarationInstance& declaration)
+{
+	SEMANTIC_ASSERT(declaration.name != 0);
+	id->dec.p = &declaration;
+}
+
 inline UniqueTypeWrapper adjustFunctionParameter(UniqueTypeWrapper type)
 {
 	UniqueTypeWrapper result(type.value.getPointer());  // ignore cv-qualifiers
@@ -128,12 +134,6 @@ inline UniqueTypeWrapper adjustFunctionParameter(UniqueTypeWrapper type)
 		pushUniqueType(result.value, PointerType());
 	}
 	return result;
-}
-
-inline void setDecoration(Identifier* id, const DeclarationInstance& declaration)
-{
-	SEMANTIC_ASSERT(declaration.name != 0);
-	id->dec.p = &declaration;
 }
 
 inline bool isFunctionParameterEquivalent(UniqueTypeWrapper left, UniqueTypeWrapper right)
@@ -323,7 +323,6 @@ struct WalkerState
 		}
 		else
 		{
-#if 1
 			if(memberObject != 0)
 			{
 				// 3.4.5 class member acess
@@ -346,7 +345,6 @@ struct WalkerState
 					return result;
 				}
 			}
-#endif
 			if(result.append(::findClassOrNamespaceMemberDeclaration(*enclosing, id, filter, true, enclosingType)))
 			{
 #ifdef LOOKUP_DEBUG
@@ -374,7 +372,7 @@ struct WalkerState
 		bool isSpecialization = false,
 		const TemplateArguments& arguments = TEMPLATEARGUMENTS_NULL,
 		size_t templateParameter = INDEX_INVALID,
-		const Dependent& valueDependent = DEPENDENT_NULL)
+		const Dependent& valueDependent = Dependent())
 	{
 		SEMANTIC_ASSERT(parent != 0);
 		SEMANTIC_ASSERT(templateParameter == INDEX_INVALID || ::isTemplate(*parent));
@@ -484,11 +482,7 @@ struct WalkerState
 
 	void addBase(Declaration* declaration, const Type& base)
 	{
-#if 1
 		if(getUnderlyingType(base).declaration == declaration)
-#else
-		if(getInstantiatedType(base).declaration == declaration)
-#endif
 		{
 			return; // TODO: implement template-instantiation, and disallow inheriting from current-instantiation
 		}
@@ -611,94 +605,42 @@ struct WalkerState
 		}
 	}
 
+
+	bool isDependent(Declaration* dependent) const
+	{
+		return ::isDependent(dependent, enclosing, templateParamScope);
+	}
 	bool isDependent(const Type& type) const
 	{
-		//std::cout << "isDependent(Type)" << std::endl;
-		bool result = isDependentNew(type);
-#ifdef DEPENDENT_OLD
-		SEMANTIC_ASSERT(result == ::isDependentOld(type, DependentContext(*enclosing, templateParamScope != 0 ? *templateParamScope : SCOPE_NULL)));
-#endif
-		return result;
+		return isDependent(type.dependent);
 	}
-
-	bool isDependent(const TemplateArguments& arguments) const
-	{
-		//std::cout << "isDependent(TemplateArguments)" << std::endl;
-		bool result = isDependentNew(arguments);
-#ifdef DEPENDENT_OLD
-		SEMANTIC_ASSERT(result == ::isDependentOld(arguments, DependentContext(*enclosing, templateParamScope != 0 ? *templateParamScope : SCOPE_NULL)));
-#endif
-		return result;
-	}
-
 	bool isDependent(const Types& bases) const
-	{
-		//std::cout << "isDependent(Types)" << std::endl;
-		bool result = isDependentNew(bases);
-#ifdef DEPENDENT_OLD
-		SEMANTIC_ASSERT(result == ::isDependentOld(bases, DependentContext(*enclosing, templateParamScope != 0 ? *templateParamScope : SCOPE_NULL)));
-#endif
-		return result;
-	}
-
-	bool isDependent(const TypePtr& qualifying) const
-	{
-		if(qualifying != TypePtr(0))
-		{
-			//std::cout << "isDependent(Type*)" << std::endl;
-		}
-		bool result = isDependentNew(qualifying);
-#ifdef DEPENDENT_OLD
-		SEMANTIC_ASSERT(result == ::isDependentOld(qualifying.get(), DependentContext(*enclosing, templateParamScope != 0 ? *templateParamScope : SCOPE_NULL)));
-#endif
-		return result;
-	}
-
-	bool isDependent(Dependent& dependent) const
-	{
-		bool result = isDependentNew(dependent);
-#ifdef DEPENDENT_OLD
-		SEMANTIC_ASSERT(result == ::evaluateDependent(dependent, DependentContext(*enclosing, templateParamScope != 0 ? *templateParamScope : SCOPE_NULL)));
-#endif
-		return result;
-	}
-
-
-	bool isDependentNew(Declaration* dependent) const
-	{
-		return ::isDependentNew(dependent, enclosing, templateParamScope);
-	}
-	bool isDependentNew(const Type& type) const
-	{
-		return isDependentNew(type.dependent);
-	}
-	bool isDependentNew(const Types& bases) const
 	{
 		DeclarationPtr dependent(0);
 		setDependent(dependent, bases);
-		return isDependentNew(dependent);
+		return isDependent(dependent);
 	}
-	bool isDependentNew(const TypePtr& qualifying) const
+	bool isDependent(const TypePtr& qualifying) const
 	{
 		DeclarationPtr dependent(0);
 		setDependent(dependent, qualifying.get());
-		return isDependentNew(dependent);
+		return isDependent(dependent);
 	}
-	bool isDependentNew(const TemplateArguments& arguments) const
+	bool isDependent(const TemplateArguments& arguments) const
 	{
 		DeclarationPtr dependent(0);
 		setDependent(dependent, arguments);
-		return isDependentNew(dependent);
+		return isDependent(dependent);
 	}
-	bool isDependentNew(const Dependent& dependent) const
+	bool isDependent(const Dependent& dependent) const
 	{
-		return isDependentNew(dependent.enclosingTemplate);
+		return isDependent(static_cast<Declaration*>(dependent));
 	}
 	// the dependent-scope is the outermost template-definition
 	void setDependent(DeclarationPtr& dependent, Declaration* candidate) const
 	{
-		SEMANTIC_ASSERT(dependent == DeclarationPtr(0) || isDependentNew(dependent));
-		if(!isDependentNew(candidate))
+		SEMANTIC_ASSERT(dependent == DeclarationPtr(0) || isDependent(dependent));
+		if(!isDependent(candidate))
 		{
 			return;
 		}
@@ -726,7 +668,7 @@ struct WalkerState
 			setDependent(dependent, declaration.enclosed->bases);
 		}
 
-		setDependent(dependent, declaration.valueDependent.enclosingTemplate);
+		setDependent(dependent, declaration.valueDependent);
 	}
 	void setDependent(DeclarationPtr& dependent, const Type* qualifying) const
 	{
@@ -753,7 +695,7 @@ struct WalkerState
 		for(TemplateArguments::const_iterator i = arguments.begin(); i != arguments.end(); ++i)
 		{
 			setDependent(dependent, (*i).type.dependent);
-			setDependent(dependent, (*i).dependent.enclosingTemplate);
+			setDependent(dependent, (*i).dependent);
 		}
 	}
 	struct TypeSequenceSetDependent : TypeSequenceVisitor
@@ -763,14 +705,6 @@ struct WalkerState
 		TypeSequenceSetDependent(const WalkerState& walker, DeclarationPtr& dependent)
 			: walker(walker), dependent(dependent)
 		{
-		}
-		virtual void visit(const DeclaratorDependentType&)
-		{
-			throw SemanticError(); // not reachable
-		}
-		virtual void visit(const DeclaratorObjectType&)
-		{
-			throw SemanticError(); // not reachable
 		}
 		virtual void visit(const DeclaratorPointerType&)
 		{
@@ -807,72 +741,26 @@ struct WalkerState
 		setDependent(type.dependent, *type.declaration);
 	}
 
-#ifdef DEPENDENT_OLD
-	void addDependent(Dependent& dependent, const DependencyCallback& callback)
-	{
-		dependent.push_front(callback);
-	}
-#endif
 	void addDependentName(Dependent& dependent, Declaration* declaration)
 	{
-		setDependent(dependent.enclosingTemplate, *declaration);
-#ifdef DEPENDENT_OLD
-		static DependencyCallbacks<Declaration> callbacks = makeDependencyCallbacks(isDependentName);
-		addDependent(dependent, makeDependencyCallback(declaration, &callbacks));
-#endif
+		setDependent(dependent, *declaration);
 	}
 	void addDependentType(Dependent& dependent, Declaration* declaration)
 	{
-		setDependent(dependent.enclosingTemplate, declaration->type.dependent);
-#ifdef DEPENDENT_OLD
-		static DependencyCallbacks<const Type> callbacks = makeDependencyCallbacks(isDependentType);
-		SEMANTIC_ASSERT(declaration->type.declaration != 0);
-		addDependent(dependent, makeDependencyCallback(static_cast<const Type*>(&declaration->type), &callbacks));
-#endif
+		setDependent(dependent, declaration->type.dependent);
 	}
 	void addDependent(Dependent& dependent, const Type& type)
 	{
-		setDependent(dependent.enclosingTemplate, type.dependent);
-#ifdef DEPENDENT_OLD
-		TypeRef tmp(type, context);
-		SEMANTIC_ASSERT(type.declaration != 0);
-		static DependencyCallbacks<TypePtr::Value> callbacks = makeDependencyCallbacks(isDependentTypeRef, ReferenceCallbacks<const Type>::increment, ReferenceCallbacks<const Type>::decrement);
-		addDependent(dependent, makeDependencyCallback(tmp.get_ref().p, &callbacks));
-#endif
+		setDependent(dependent, type.dependent);
 	}
 	void addDependent(Dependent& dependent, Scope* scope)
 	{
-		setDependent(dependent.enclosingTemplate, scope->bases);
-#ifdef DEPENDENT_OLD
-		static DependencyCallbacks<Scope> callbacks = makeDependencyCallbacks(isDependentClass);
-		addDependent(dependent, makeDependencyCallback(scope, &callbacks));
-#endif
+		setDependent(dependent, scope->bases);
 	}
-#if 0
 	void addDependent(Dependent& dependent, Dependent& other)
 	{
-		dependent.splice(other);
+		setDependent(dependent, other);
 	}
-#else
-	void addDependent(Dependent& dependent, Dependent& other)
-	{
-		setDependent(dependent.enclosingTemplate, other.enclosingTemplate);
-#ifdef DEPENDENT_OLD
-		if(other.empty())
-		{
-			return;
-		}
-		if(dependent.empty())
-		{
-			dependent = other;
-			return;
-		}
-		CopiedReference<Dependent, TreeAllocator<int> > tmp(other, context);
-		static DependencyCallbacks<Reference<Dependent>::Value> callbacks = makeDependencyCallbacks(isDependentListRef, ReferenceCallbacks<Dependent>::increment, ReferenceCallbacks<Dependent>::decrement);
-		addDependent(dependent, makeDependencyCallback(tmp.get_ref().p, &callbacks));
-#endif
-	}
-#endif
 };
 
 
@@ -1331,7 +1219,7 @@ struct TemplateArgumentListWalker : public WalkerBase
 	{
 		ExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		argument.dependent.swap(walker.typeDependent);
+		std::swap(argument.dependent, walker.typeDependent);
 		argument.type = &gNonType;
 		addDependent(argument.dependent, walker.valueDependent);
 	}
@@ -1607,7 +1495,7 @@ struct ExplicitTypeExpressionWalker : public WalkerBase
 	Dependent typeDependent;
 	Dependent valueDependent;
 	ExplicitTypeExpressionWalker(const WalkerState& state)
-		: WalkerBase(state), type(0, context), typeDependent(context), valueDependent(context)
+		: WalkerBase(state), type(0, context)
 	{
 	}
 	void visit(cpp::simple_type_specifier* symbol)
@@ -1666,7 +1554,7 @@ struct ArgumentListWalker : public WalkerBase
 	Dependent typeDependent;
 	Dependent valueDependent;
 	ArgumentListWalker(const WalkerState& state)
-		: WalkerBase(state), arguments(context), typeDependent(context), valueDependent(context)
+		: WalkerBase(state), arguments(context)
 	{
 	}
 	void visit(cpp::assignment_expression* symbol)
@@ -1712,7 +1600,7 @@ struct DependentPrimaryExpressionWalker : public WalkerBase
 	IdentifierPtr id;
 	Dependent typeDependent;
 	DependentPrimaryExpressionWalker(const WalkerState& state)
-		: WalkerBase(state), id(0), typeDependent(context)
+		: WalkerBase(state), id(0)
 	{
 	}
 	void visit(cpp::id_expression* symbol)
@@ -1773,7 +1661,7 @@ struct DependentPostfixExpressionWalker : public WalkerBase
 	IdentifierPtr id;
 	Dependent typeDependent;
 	DependentPostfixExpressionWalker(const WalkerState& state)
-		: WalkerBase(state), id(0), typeDependent(context)
+		: WalkerBase(state), id(0)
 	{
 	}
 	void visit(cpp::primary_expression* symbol)
@@ -1821,7 +1709,7 @@ struct PrimaryExpressionWalker : public WalkerBase
 	Dependent typeDependent;
 	Dependent valueDependent;
 	PrimaryExpressionWalker(const WalkerState& state)
-		: WalkerBase(state), id(0), typeDependent(context), valueDependent(context)
+		: WalkerBase(state), id(0)
 	{
 	}
 	void visit(cpp::literal* symbol)
@@ -1889,7 +1777,7 @@ struct PrimaryExpressionWalker : public WalkerBase
 	void visit(cpp::primary_expression_builtin* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		// TODO: cv-qualifiers: change enclosingType to a UniqueType<DeclaratorObjectType>
+		// TODO: cv-qualifiers: change enclosingType to a UniqueType<ObjectType>
 		type = (enclosingType != 0) ? UniqueTypeWrapper(pushUniqueType(gUniqueTypes, makeUniqueObjectType(*enclosingType).value, PointerType())) : gUniqueTypeNull;
 		/* 14.6.2.2-2
 		'this' is type-dependent if the class type of the enclosing member function is dependent
@@ -1939,7 +1827,7 @@ struct PostfixExpressionWalker : public WalkerBase
 	Dependent typeDependent;
 	Dependent valueDependent;
 	PostfixExpressionWalker(const WalkerState& state)
-		: WalkerBase(state), id(0), typeDependent(context), valueDependent(context)
+		: WalkerBase(state), id(0)
 	{
 	}
 	void visit(cpp::primary_expression* symbol)
@@ -2109,7 +1997,7 @@ struct PostfixExpressionWalker : public WalkerBase
 
 				SEMANTIC_ASSERT(type.isSimple() || type.isSimpleReference()); // TODO: non-fatal error
 				const TypeInstance* enclosing = &getObjectType(type.value);
-#if 0
+#if 0 // TODO: can this be removed?
 				if(!enclosing->declaration->isTemplate) // if the left-hand side is not a template instantiation
 				{
 					SEMANTIC_ASSERT(enclosing->enclosing != 0);
@@ -2152,7 +2040,7 @@ struct ExpressionWalker : public WalkerBase
 	Dependent typeDependent;
 	Dependent valueDependent;
 	ExpressionWalker(const WalkerState& state)
-		: WalkerBase(state), id(0), typeDependent(context), valueDependent(context)
+		: WalkerBase(state), id(0)
 	{
 	}
 	// this path handles the right-hand side of a binary expression
@@ -2999,7 +2887,7 @@ struct DeclaratorArrayWalker : public WalkerBase
 
 	Dependent valueDependent;
 	DeclaratorArrayWalker(const WalkerState& state)
-		: WalkerBase(state), valueDependent(context)
+		: WalkerBase(state)
 	{
 	}
 
@@ -3022,7 +2910,7 @@ struct DeclaratorWalker : public WalkerBase
 	CvQualifiers qualifiers;
 	Qualifying memberPointer;
 	DeclaratorWalker(const WalkerState& state)
-		: WalkerBase(state), id(&gAnonymousId), paramScope(0), valueDependent(context), typeSequence(context), memberPointer(context)
+		: WalkerBase(state), id(&gAnonymousId), paramScope(0), typeSequence(context), memberPointer(context)
 	{
 	}
 	void pushPointerType(cpp::ptr_operator* op)
@@ -4151,7 +4039,7 @@ struct TypeIdWalker : public WalkerBase
 	TypeId type;
 	Dependent valueDependent;
 	TypeIdWalker(const WalkerState& state)
-		: WalkerBase(state), type(0, context), valueDependent(context)
+		: WalkerBase(state), type(0, context)
 	{
 	}
 	void visit(cpp::terminal<boost::wave::T_OPERATOR> symbol) 
@@ -4228,7 +4116,6 @@ struct SimpleDeclarationWalker : public WalkerBase
 		type(&gCtor, context),
 		enclosed(0),
 		forward(0),
-		valueDependent(context),
 		templateParameter(templateParameter),
 		isParameter(isParameter),
 		isUnion(false)

@@ -255,8 +255,6 @@ const SequenceNode<Visitor>* findLast(const SequenceNode<Visitor>* node)
 
 struct TypeSequenceVisitor
 {
-	virtual void visit(const struct DeclaratorDependentType&) = 0;
-	virtual void visit(const struct DeclaratorObjectType&) = 0;
 	virtual void visit(const struct DeclaratorPointerType&) = 0;
 	virtual void visit(const struct DeclaratorReferenceType&) = 0;
 	virtual void visit(const struct DeclaratorArrayType&) = 0;
@@ -426,162 +424,13 @@ struct TypeId : Type
 // ----------------------------------------------------------------------------
 // dependent-name
 
-struct Scope;
-
-struct DependentContext
+// refers to the innermost template scope that a name/type/expression depends on
+struct Dependent : DeclarationPtr
 {
-	const Scope& enclosing;
-	const Scope& templateParams;
-	DependentContext(const Scope& enclosing, const Scope& templateParams)
-		: enclosing(enclosing), templateParams(templateParams)
+	Dependent() : DeclarationPtr(0)
 	{
 	}
 };
-
-struct ReferenceCallbacksOpaque
-{
-	typedef void (*Function0)(void*);
-	Function0 increment;
-	Function0 decrement;
-};
-
-struct DependencyCallbacksOpaque : ReferenceCallbacksOpaque
-{
-	typedef bool (*IsDependent)(void*, const DependentContext&);
-	IsDependent isDependent;
-};
-
-template<typename T>
-struct DependencyCallbacks : DependencyCallbacksOpaque
-{
-};
-
-template<typename T>
-struct ReferenceCallbacksDefault
-{
-	static void increment(T*)
-	{
-	}
-	static void decrement(T*)
-	{
-	}
-};
-
-template<typename T>
-struct ReferenceCallbacks
-{
-	static void increment(typename Reference<T>::Value* p)
-	{
-#ifdef ALLOCATOR_DEBUG
-		++p->count;
-#endif
-	}
-	static void decrement(typename Reference<T>::Value* p)
-	{
-#ifdef ALLOCATOR_DEBUG
-		--p->count;
-#endif
-	}
-};
-
-template<typename T>
-DependencyCallbacks<T> makeDependencyCallbacks(
-	bool (*isDependent)(T*, const DependentContext&),
-	void (*increment)(T*) = ReferenceCallbacksDefault<T>::increment,
-	void (*decrement)(T*) = ReferenceCallbacksDefault<T>::decrement
-)
-{
-	DependencyCallbacks<T> result;
-	result.isDependent = DependencyCallbacksOpaque::IsDependent(isDependent);
-	result.increment = DependencyCallbacksOpaque::Function0(increment);
-	result.decrement = DependencyCallbacksOpaque::Function0(decrement);
-	return result;
-}
-
-struct DependencyCallback
-{
-	void* context;
-	DependencyCallbacksOpaque* callbacks;
-
-	DependencyCallback(void* context, DependencyCallbacksOpaque* callbacks)
-		: context(context), callbacks(callbacks)
-	{
-		increment();
-	}
-	DependencyCallback(const DependencyCallback& other)
-		: context(other.context), callbacks(other.callbacks)
-	{
-		increment();
-	}
-	~DependencyCallback()
-	{
-		decrement();
-	}
-	void swap(DependencyCallback& other)
-	{
-		std::swap(context, other.context);
-		std::swap(callbacks, other.callbacks);
-	}
-
-	bool isDependent(const DependentContext& args) const
-	{
-		return callbacks->isDependent(context, args);
-	}
-	void increment()
-	{
-#ifdef ALLOCATOR_DEBUG
-		callbacks->increment(context);
-#endif
-	}
-	void decrement()
-	{
-#ifdef ALLOCATOR_DEBUG
-		callbacks->decrement(context);
-#endif
-	}
-};
-
-template<typename T>
-DependencyCallback makeDependencyCallback(T* context, DependencyCallbacks<T>* callbacks)
-{
-	return DependencyCallback(const_cast<typename TypeTraits<T>::Value*>(context), callbacks);
-}
-
-typedef ListReference<DependencyCallback, TreeAllocator<int> > Dependent2;
-
-struct Dependent : public Dependent2
-{
-	DeclarationPtr enclosingTemplate;
-	Dependent(const TreeAllocator<int>& allocator) : Dependent2(allocator), enclosingTemplate(0)
-	{
-	}
-	void swap(Dependent& other)
-	{
-		Dependent2::swap(other);
-		std::swap(enclosingTemplate, other.enclosingTemplate);
-	}
-private:
-	void splice(Dependent& other)
-	{
-		Dependent2::splice(begin(), other);
-	}
-	Dependent();
-};
-
-#define DEPENDENT_NULL Dependent(TREEALLOCATOR_NULL)
-
-inline bool evaluateDependent(const Dependent& dependent, const DependentContext& context)
-{
-	for(Dependent::const_iterator i = dependent.begin(); i != dependent.end(); ++i)
-	{
-		if((*i).isDependent(context))
-		{
-			return true;
-		}
-	}
-	return false;
-}
-
 
 // ----------------------------------------------------------------------------
 // deferred lookup of dependent names
@@ -614,7 +463,7 @@ struct TemplateArgument
 	}
 #endif
 	TemplateArgument(const TreeAllocator<int>& allocator)
-		: type(0, allocator), dependent(allocator)
+		: type(0, allocator)
 	{
 	}
 };
@@ -699,7 +548,7 @@ public:
 		bool isSpecialization = false,
 		const TemplateArguments& templateArguments = TEMPLATEARGUMENTS_NULL,
 		size_t templateParameter = INDEX_INVALID,
-		const Dependent& valueDependent = DEPENDENT_NULL
+		const Dependent& valueDependent = Dependent()
 	) : scope(scope),
 		name(&name),
 		type(type),
@@ -716,7 +565,6 @@ public:
 	}
 	Declaration() :
 		type(0, TREEALLOCATOR_NULL),
-		valueDependent(TREEALLOCATOR_NULL),
 		templateParams(TREEALLOCATOR_NULL),
 		templateArguments(TREEALLOCATOR_NULL)
 	{
@@ -728,7 +576,7 @@ public:
 		type.swap(other.type);
 		std::swap(enclosed, other.enclosed);
 		std::swap(overloaded, other.overloaded);
-		valueDependent.swap(other.valueDependent);
+		std::swap(valueDependent, other.valueDependent);
 		std::swap(specifiers, other.specifiers);
 		std::swap(templateParameter, other.templateParameter);
 		templateParams.swap(other.templateParams);
@@ -981,108 +829,6 @@ inline Scope* getEnclosingClass(Scope* scope)
 
 
 // ----------------------------------------------------------------------------
-// template instantiation
-inline const TypeId& getTemplateArgument(const Type& type, size_t index)
-{
-	TemplateArguments::const_iterator a = type.templateArguments.begin();
-	TypeIds::const_iterator p = type.declaration->templateParams.defaults.begin();
-	for(;; --index)
-	{
-		if(a != type.templateArguments.end())
-		{
-			if(index == 0)
-			{
-				SYMBOLS_ASSERT((*a).type.declaration != 0);
-				return (*a).type;
-			}
-			++a;
-		}
-		else
-		{
-			SYMBOLS_ASSERT(p != type.declaration->templateParams.defaults.end());
-			if(index == 0)
-			{
-				SYMBOLS_ASSERT((*p).declaration != 0);
-				return *p;
-			}
-			++p;
-		}
-	}
-}
-
-inline bool isTypedef(const Type& type)
-{
-	return type.declaration->specifiers.isTypedef // if this is a typedef..
-		&& type.declaration->templateParameter == INDEX_INVALID; // .. and not a template-parameter
-}
-
-#if 0
-inline const Type& getInstantiatedSimpleType(const Type& type);
-
-// resolve Template<T>::Type -> T
-inline const Type& getInstantiatedTypeInternal(const Type& original, const Qualifying& qualifying)
-{
-	size_t index = original.declaration->templateParameter;
-	if(index != INDEX_INVALID) // if the original type is a template-parameter.
-	{
-		// Find the template-specialisation it belongs to:
-		for(const Type* i = qualifying.get(); i != 0; i = (*i).qualifying.get())
-		{
-			const Type& instantiated = getInstantiatedSimpleType(*i); // qualifying types should always be simple
-			if(instantiated.declaration->enclosed == original.declaration->scope)
-			{
-				return getTemplateArgument(instantiated, index); // TODO: instantiate the argument?
-			}
-		}
-	}
-
-	return original;
-}
-
-template<typename Inner>
-inline const Type& getInstantiatedTypeGeneric(const Type& type, Inner inner)
-{
-	if(type.declaration->specifiers.isTypedef)
-	{ 
-		// template<typename T> struct Template { typedef T Type; }; Template<int>::Type -> int
-		const Type& instantiated = type.declaration->templateParameter == INDEX_INVALID // if type is not a template-parameter
-			? getInstantiatedTypeInternal(inner(type.declaration->type), type.qualifying)
-			: type;
-		return instantiated;
-	}
-	return type;
-}
-
-inline const Type& getInstantiatedType(const Type& type)
-{
-	return getInstantiatedTypeGeneric(type, getInstantiatedType);
-}
-
-inline bool isSimple(const TypeId& type)
-{
-	return type.typeSequence.empty();
-}
-
-inline bool isSimple(const Declaration& declaration)
-{
-	return isSimple(declaration.type);
-}
-
-inline bool isSimple(const Type& type)
-{
-	return isSimple(*type.declaration);
-}
-
-// asserts that the resulting type is not a complex type. e.g. type-id found in nested-name-specifier
-inline const Type& getInstantiatedSimpleType(const Type& type)
-{
-	SYMBOLS_ASSERT(isSimple(type));
-	return getInstantiatedTypeGeneric(type, getInstantiatedSimpleType);
-}
-#endif
-
-// ----------------------------------------------------------------------------
-
 // meta types
 extern Declaration gArithmetic;
 extern Declaration gSpecial;
@@ -1598,34 +1344,7 @@ typedef std::vector<Parameter> Parameters;
 
 // ----------------------------------------------------------------------------
 
-#if 1
 typedef UniqueTypeWrapper UniqueTypeId;
-
-#else
-struct UniqueTypeId : Type, UniqueTypeWrapper
-{
-	UniqueTypeId(Declaration* declaration, const TreeAllocator<int>& allocator)
-		: Type(declaration, allocator)
-	{
-	}
-	UniqueTypeId& operator=(Declaration* declaration)
-	{
-		SYMBOLS_ASSERT(UniqueTypeWrapper::empty());
-		Type::operator=(declaration);
-		return *this;
-	}
-	void swap(UniqueTypeId& other)
-	{
-		Type::swap(other);
-		UniqueTypeWrapper::swap(other);
-	}
-	void swap(Type& other)
-	{
-		SYMBOLS_ASSERT(UniqueTypeWrapper::empty());
-		Type::swap(other);
-	}
-};
-#endif
 
 const UniqueTypeId gUniqueTypeNull = UniqueTypeId(UNIQUETYPE_NULL);
 
@@ -1680,23 +1399,6 @@ inline bool operator<(const TypeInstance& left, const TypeInstance& right)
 		: false;
 }
 
-
-struct DeclaratorObjectType
-{
-	TypeInstance type;
-	DeclaratorObjectType(const TypeInstance& type)
-		: type(type)
-	{
-	}
-};
-
-#if 0
-inline bool operator==(const DeclaratorObjectType& left, const DeclaratorObjectType& right)
-{
-	return left.type == right.type;
-}
-#endif
-
 struct ObjectType
 {
 	TypeInstance type;
@@ -1716,24 +1418,6 @@ inline const TypeInstance& getObjectType(UniqueType type)
 	SYMBOLS_ASSERT(typeid(*type) == typeid(TypeElementGeneric<ObjectType>));
 	return static_cast<const TypeElementGeneric<ObjectType>*>(type.getPointer())->value.type;
 }
-
-// TODO: consider template-template-parameter
-struct DeclaratorDependentType
-{
-	DeclarationPtr type; // the declaration of the template parameter
-	DeclaratorDependentType(Declaration* type)
-		: type(type)
-	{
-	}
-};
-
-#if 0
-inline bool operator==(const DeclaratorDependentType& left, const DeclaratorDependentType& right)
-{
-	return left.type->scope->templateDepth == right.type->scope->templateDepth
-		&& left.type->templateParameter == right.type->templateParameter;
-}
-#endif
 
 struct DependentType
 {
@@ -1764,13 +1448,6 @@ struct DeclaratorPointerType
 	}
 };
 
-#if 0
-inline bool operator==(const DeclaratorPointerType& left, const DeclaratorPointerType& right)
-{
-	return true;
-}
-#endif
-
 struct PointerType
 {
 	PointerType()
@@ -1786,13 +1463,6 @@ inline bool operator<(const PointerType& left, const PointerType& right)
 struct DeclaratorReferenceType
 {
 };
-
-#if 0
-inline bool operator==(const DeclaratorReferenceType& left, const DeclaratorReferenceType& right)
-{
-	return true;
-}
-#endif
 
 struct ReferenceType
 {
@@ -1812,13 +1482,6 @@ struct DeclaratorMemberPointerType
 	{
 	}
 };
-
-#if 0
-inline bool operator==(const DeclaratorMemberPointerType& left, const DeclaratorMemberPointerType& right)
-{
-	return left.instance == right.instance;
-}
-#endif
 
 struct MemberPointerType
 {
@@ -1842,19 +1505,12 @@ inline bool operator<(const MemberPointerType& left, const MemberPointerType& ri
 
 struct DeclaratorArrayType
 {
-	std::size_t size;
+	std::size_t size; // TODO: store expression to be evaluated when template-params are known
 	DeclaratorArrayType(std::size_t size)
 		: size(size)
 	{
 	}
 };
-
-#if 0
-inline bool operator==(const DeclaratorArrayType& left, const DeclaratorArrayType& right)
-{
-	return left.size == right.size;
-}
-#endif
 
 struct ArrayType
 {
@@ -1870,8 +1526,6 @@ inline bool operator<(const ArrayType& left, const ArrayType& right)
 	return left.size < right.size;
 }
 
-typedef std::vector<UniqueTypeWrapper> ParameterTypes;
-typedef std::vector<UniqueTypeWrapper> ArgumentTypes;
 
 struct DeclaratorFunctionType
 {
@@ -1883,12 +1537,7 @@ struct DeclaratorFunctionType
 	}
 };
 
-#if 0
-inline bool operator==(const DeclaratorFunctionType& left, const DeclaratorFunctionType& right)
-{
-	return left.parameterTypes == right.parameterTypes;
-}
-#endif
+typedef std::vector<UniqueTypeWrapper> ParameterTypes;
 
 struct FunctionType
 {
@@ -1900,13 +1549,6 @@ inline bool operator<(const FunctionType& left, const FunctionType& right)
 	return left.parameterTypes < right.parameterTypes;
 }
 
-#if 0
-inline const Parameters& getParameters(UniqueType type)
-{
-	SYMBOLS_ASSERT(typeid(*type) == typeid(TypeElementGeneric<FunctionType>));
-	return static_cast<const TypeElementGeneric<FunctionType>*>(type.getPointer())->value.parameters;
-}
-#else
 inline const TypeSequence::Node* getLastNode(const TypeSequence& typeSequence)
 {
 	const TypeSequence::Node* result = 0;
@@ -1923,7 +1565,6 @@ inline const Parameters& getParameters(const TypeId& type)
 	SYMBOLS_ASSERT(typeid(*node) == typeid(SequenceNodeGeneric<DeclaratorFunctionType, TypeSequenceVisitor>));
 	return static_cast<const SequenceNodeGeneric<DeclaratorFunctionType, TypeSequenceVisitor>*>(node)->value.parameters;
 }
-#endif
 
 inline const ParameterTypes& getParameterTypes(UniqueType type)
 {
@@ -1950,38 +1591,6 @@ struct ObjectTypeId : UniqueTypeId
 };
 
 
-#if 0
-typedef std::vector<const Declaration*> DeclarationHistory;
-
-struct GetTypeHistory
-{
-	DeclarationHistory& history;
-	GetTypeHistory(DeclarationHistory& history)
-		: history(history)
-	{
-	}
-	const Type& operator()(const Type& type) const
-	{
-		return apply(type, history);
-	}
-	static const Type& apply(const Type& type, DeclarationHistory& history)
-	{
-		if(!isSimple(type))
-		{
-			history.push_back(type.declaration);
-		}
-		return getInstantiatedTypeGeneric(type, GetTypeHistory(history));
-	}
-	static const Type& apply(const Declaration& declaration, DeclarationHistory& history)
-	{
-		if(!isSimple(declaration))
-		{
-			history.push_back(&declaration);
-		}
-		return apply(declaration.type, history);
-	}
-};
-#endif
 
 inline Declaration* findPrimaryTemplate(Declaration* declaration)
 {
@@ -2015,6 +1624,9 @@ inline const DeclarationInstance& findPrimaryTemplateLastDeclaration(const Decla
 {
 	return findLastDeclaration(instance, findPrimaryTemplate(instance));
 }
+
+// ----------------------------------------------------------------------------
+// template instantiation
 
 inline UniqueTypeWrapper makeUniqueType(const TypeId& type);
 inline UniqueTypeWrapper makeUniqueType(const TypeId& type, const TypeInstance* enclosing, bool allowDependent, std::size_t depth);
@@ -2143,7 +1755,7 @@ inline bool findScope(Scope* scope, Scope* other)
 	return findScope(scope->parent, other);
 }
 
-inline bool isDependentNew(Declaration* dependent, Scope* enclosing, Scope* templateParamScope)
+inline bool isDependent(Declaration* dependent, Scope* enclosing, Scope* templateParamScope)
 {
 	return dependent != 0
 		&& (dependent->scope->type == SCOPETYPE_TEMPLATE // hack, workaround for template-scope being copied
@@ -2195,8 +1807,6 @@ inline bool matchTemplateSpecialization(const Declaration& declaration, const Te
 	}
 	return true;
 }
-
-inline bool isDependentOld(const TemplateArguments& arguments, const DependentContext& context);
 
 inline Declaration* findTemplateSpecialization(Declaration* declaration, const TemplateArgumentsInstance& arguments, const TypeInstance* enclosing)
 {
@@ -2488,14 +2098,6 @@ struct TypeSequenceMakeUnique : TypeSequenceVisitor
 		: type(type), enclosing(enclosing), allowDependent(allowDependent)
 	{
 	}
-	void visit(const DeclaratorDependentType& element)
-	{
-		throw SymbolsError(); // error!
-	}
-	void visit(const DeclaratorObjectType& element)
-	{
-		pushUniqueType(type, ObjectType(element.type));
-	}
 	void visit(const DeclaratorPointerType& element)
 	{
 		pushUniqueType(type, PointerType());
@@ -2519,6 +2121,7 @@ struct TypeSequenceMakeUnique : TypeSequenceVisitor
 	void visit(const DeclaratorFunctionType& element)
 	{
 		FunctionType result;
+		result.parameterTypes.reserve(element.parameters.size());
 		for(Parameters::const_iterator i = element.parameters.begin(); i != element.parameters.end(); ++i)
 		{
 			result.parameterTypes.push_back(makeUniqueType((*i).declaration->type, enclosing, allowDependent));
@@ -3074,16 +2677,6 @@ inline const Declaration* getType(const Declaration& declaration)
 	return declaration.type.declaration;
 }
 
-inline const TypeId& getUnderlyingType(const TypeId& type)
-{
-	if(type.declaration->specifiers.isTypedef
-		&& type.declaration->templateParameter == INDEX_INVALID)
-	{
-		return getUnderlyingType(type.declaration->type);
-	}
-	return type;
-}
-
 inline const Type& getUnderlyingType(const Type& type)
 {
 	if(type.declaration->specifiers.isTypedef
@@ -3097,23 +2690,9 @@ inline const Type& getUnderlyingType(const Type& type)
 
 inline bool isEqual(const TypeId& l, const TypeId& r)
 {
-#if 1
 	UniqueTypeWrapper left = makeUniqueType(l, 0, true);
 	UniqueTypeWrapper right = makeUniqueType(r, 0, true);
 	return left == right;
-#endif
-	// TODO: compare typeSequence
-	if(getUnderlyingType(l).declaration == getUnderlyingType(r).declaration)
-	{
-		return true;
-	}
-	if(l.declaration->templateParameter != INDEX_INVALID
-		&& l.declaration->templateParameter != INDEX_INVALID
-		&& l.declaration->templateParameter == r.declaration->templateParameter)
-	{
-		return true;
-	}
-	return false;
 }
 
 inline bool isEqual(const TemplateArgument& l, const TemplateArgument& r)
@@ -3156,7 +2735,8 @@ inline Declaration* findTemplateSpecialization(Declaration* declaration, const T
 	return 0;
 }
 
-
+// ----------------------------------------------------------------------------
+// implicit conversion sequence
 
 enum IcsRank
 {
@@ -3621,311 +3201,6 @@ inline bool isBetter(const CandidateFunction& l, const CandidateFunction& r)
 	return false;
 }
 
-#if 0
-inline bool isVisible(Declaration* declaration, const Scope& scope)
-{
-	if(declaration->scope == &scope)
-	{
-		return true;
-	}
-	if(scope.parent != 0)
-	{
-		return isVisible(declaration, *scope.parent);
-	}
-	return false;
-}
-
-inline bool isTemplateParameter(Declaration* declaration, const DependentContext& context)
-{
-	return declaration->templateParameter != INDEX_INVALID && (isVisible(declaration, context.templateParams) || isVisible(declaration, context.enclosing));
-}
-
-
-inline bool isDependentOld(const Type& type, const DependentContext& context);
-
-inline bool isDependentOld(const Type* qualifying, const DependentContext& context)
-{
-	if(qualifying == 0)
-	{
-		return false;
-	}
-	const Type& instantiated = getInstantiatedType(*qualifying);
-	if(isDependentOld(instantiated.qualifying.get(), context))
-	{
-		return true;
-	}
-	return isDependentOld(instantiated, context);
-}
-
-inline bool isDependentOld(const Types& bases, const DependentContext& context)
-{
-	for(Types::const_iterator i = bases.begin(); i != bases.end(); ++i)
-	{
-		if((*i).visited)
-		{
-			continue;
-		}
-		if(isDependentOld(*i, context))
-		{
-			return true;
-		}
-	}
-	return false;
-}
-
-// returns true if \p type is an array typedef with a value-dependent size
-inline bool isValueDependent(const Type& type, const DependentContext& context)
-{
-	if(type.declaration->specifiers.isTypedef)
-	{
-		return evaluateDependent(type.declaration->valueDependent, context)
-			|| isValueDependent(type.declaration->type, context);
-	}
-	return false;
-}
-
-inline bool isDependentOld(const TemplateArguments& arguments, const DependentContext& context)
-{
-	for(TemplateArguments::const_iterator i = arguments.begin(); i != arguments.end(); ++i)
-	{
-		if((*i).type.visited)
-		{
-			continue;
-		}
-		if(evaluateDependent((*i).dependent, context) // array-size or constant-initializer
-			|| ((*i).type.declaration != 0
-				&& isDependentOld((*i).type, context)))
-		{
-			return true;
-		}
-	}
-	return false;
-}
-
-inline bool isDependentInternal(const Type& type, const DependentContext& context)
-{
-	if(isValueDependent(type, context))
-	{
-		return true;
-	}
-	const Type& original = getInstantiatedType(type);
-	if(original.declaration == &gDependentType
-		|| original.declaration == &gDependentTemplate)
-	{
-		return isDependentOld(original.qualifying.get(), context);
-	}
-	if(isTemplateParameter(original.declaration, context))
-	{
-		return true;
-	}
-	if(original.isImplicitTemplateId)
-	{
-		if(original.declaration->templateParams.empty())
-		{
-			// we haven't finished parsing the class-declaration.
-			// we can assume 'original' refers to the current-instantation.
-			return true;
-		}
-		for(Types::const_iterator i = original.declaration->templateParams.begin(); i != original.declaration->templateParams.end(); ++i)
-		{
-			if(isDependentOld(*i, context))
-			{
-				return true;
-			}
-		}
-	}
-	else
-	{
-		if(isDependentOld(original.templateArguments, context))
-		{
-			return true;
-		}
-	}
-	Scope* enclosed = original.declaration->enclosed;
-	if(enclosed != 0)
-	{
-		bool result = isDependentOld(enclosed->bases, context);
-		if(!result)
-		{
-			//std::cout << "not dependent: " << &type << " " << getValue(type.declaration->getName()) << std::endl;
-		}
-		return result;
-	}
-	//std::cout << "not dependent: " << &type << " " << getValue(type.declaration->getName()) << std::endl;
-	return false;
-}
-
-typedef std::set<const Type*> TypeSet;
-
-inline void findTypes(const Type& type, TypeSet& result);
-
-inline void findTypes(const Type* qualifying, TypeSet& result)
-{
-	if(qualifying == 0)
-	{
-		return;
-	}
-	const Type& instantiated = getInstantiatedType(*qualifying);
-	findTypes(instantiated.qualifying.get(), result);
-	findTypes(instantiated, result);
-}
-
-inline void findTypes(const Types& bases, TypeSet& result)
-{
-	for(Types::const_iterator i = bases.begin(); i != bases.end(); ++i)
-	{
-		findTypes(*i, result);
-	}
-}
-
-inline void findTypes(const TemplateArguments& arguments, TypeSet& result)
-{
-	for(TemplateArguments::const_iterator i = arguments.begin(); i != arguments.end(); ++i)
-	{
-		if((*i).type.declaration != 0)
-		{
-			findTypes((*i).type, result);
-		}
-	}
-}
-
-inline void findTypes(const Type& type, TypeSet& result)
-{
-	if(!result.insert(&type).second)
-	{
-		return;
-	}
-
-	const Type& original = getInstantiatedType(type);
-	if(original.declaration == &gDependentType
-		|| original.declaration == &gDependentTemplate)
-	{
-		findTypes(original.qualifying.get(), result);
-	}
-	if(original.isImplicitTemplateId)
-	{
-		for(Types::const_iterator i = original.declaration->templateParams.begin(); i != original.declaration->templateParams.end(); ++i)
-		{
-			findTypes(*i, result);
-		}
-	}
-	else
-	{
-		findTypes(original.templateArguments, result);
-	}
-	Scope* enclosed = original.declaration->enclosed;
-	if(enclosed != 0)
-	{
-		findTypes(enclosed->bases, result);
-	}
-}
-
-inline bool isDependentNonRecursive(const Type& type, const DependentContext& context)
-{
-#if 1 // TEMPORARY HACK: workaround for issue with copying of template-params scope
-	if(type.declaration->scope != 0
-		&& type.declaration->scope->type == SCOPETYPE_TEMPLATE)
-	{
-		return true;
-	}
-#endif
-
-	if(isValueDependent(type, context))
-	{
-		return true;
-	}
-	const Type& original = getInstantiatedType(type);
-	if(isTemplateParameter(original.declaration, context))
-	{
-		return true;
-	}
-	if(original.isImplicitTemplateId)
-	{
-#if 0
-		if(original.declaration->templateParams.empty())
-		{
-			// we haven't finished parsing the class-declaration.
-			// we can assume 'original' refers to the current-instantation.
-			return true;
-		}
-#endif
-	}
-	else
-	{
-		for(TemplateArguments::const_iterator i = original.templateArguments.begin(); i != original.templateArguments.end(); ++i)
-		{
-			if(evaluateDependent((*i).dependent, context)) // array-size or constant-initializer
-			{
-				return true;
-			}
-		}
-	}	
-	return false;
-}
-
-inline bool isDependentFast(const Type& type, const DependentContext& context)
-{
-	TypeSet types;
-	findTypes(type, types);
-	for(TypeSet::const_iterator i = types.begin(); i != types.end(); ++i)
-	{
-		if(isDependentNonRecursive(*(*i), context))
-		{
-			return true;
-		}
-	}
-	return false;
-}
-
-
-
-inline bool isDependentOld(const Type& type, const DependentContext& context)
-{
-	if(type.visited)
-	{
-		return false;
-	}
-
-	type.visited = true;
-	bool result = isDependentFast(type, context);
-#if 0
-	bool alternative = isDependentInternal(type, context);
-	if(result != alternative)
-	{
-		__debugbreak();
-	}
-#endif
-	type.visited = false;
-	return result;
-}
-
-inline bool isDependentName(Declaration* declaration, const DependentContext& context)
-{
-	return isTemplateParameter(declaration, context)
-		|| isDependentOld(declaration->type, context)
-		|| evaluateDependent(declaration->valueDependent, context);
-}
-
-inline bool isDependentType(const Type* type, const DependentContext& context)
-{
-	return isDependentOld(*type, context);
-}
-
-inline bool isDependentTypeRef(TypePtr::Value* type, const DependentContext& context)
-{
-	return isDependentType(type, context);
-}
-
-inline bool isDependentClass(Scope* scope, const DependentContext& context)
-{
-	return isDependentOld(scope->bases, context);
-}
-
-inline bool isDependentListRef(Reference<Dependent>::Value* dependent, const DependentContext& context)
-{
-	return evaluateDependent(*dependent, context);
-}
-#endif
 
 inline const char* getDeclarationType(const Declaration& declaration)
 {
@@ -4118,13 +3393,12 @@ inline LookupResult findMemberDeclaration(Scope& scope, const Identifier& id, Lo
 	}
 	for(Types::iterator i = scope.bases.begin(); i != scope.bases.end(); ++i)
 	{
-#if 1
 		if(isEnclosing // if the lookup occurs within the enclosing class
-			&& isDependentNew((*i).dependent, &scope, 0)) // and the base class is dependent
+			&& isDependent((*i).dependent, &scope, 0)) // and the base class is dependent
 		{
 			continue; // do not examine it
 		}
-		const TypeInstance& base = getObjectType(makeUniqueType(*i, enclosing).value);
+		const TypeInstance& base = getObjectType(makeUniqueType(*i, enclosing).value); // TODO: cache this!
 		// an identifier looked up in the context of a class may name a base class
 		if(base.declaration->getName().value == id.value
 			&& filter(*base.declaration))
@@ -4133,23 +3407,6 @@ inline LookupResult findMemberDeclaration(Scope& scope, const Identifier& id, Lo
 			return result;
 		}
 		Scope* scope = base.declaration->enclosed;
-#else
-		const Type& base = getInstantiatedType(*i);
-		if(isEnclosing // if the lookup occurs within the enclosing class
-			&& isDependentNew(base.dependent, &scope, 0)) // and the base class is dependent
-		{
-			continue; // do not examine it
-		}
-		// an identifier looked up in the context of a class may name a base class
-		if(base.declaration->templateParameter == INDEX_INVALID // TODO: don't look in dependent base classes!
-			&& base.id->value == id.value
-			&& filter(*base.declaration))
-		{
-			result.filtered = base.id->dec.p;
-			return result;
-		}
-		Scope* scope = base.declaration->enclosed;
-#endif
 		if(scope != 0)
 		{
 			// [namespace.udir] A using-directive shall not appear in class scope, but may appear in namespace scope or in block scope.
@@ -4260,7 +3517,6 @@ inline void fixTemplateParamDefault(TypeId& type, const TemplateParameters& para
 	}
 	for(TemplateArguments::iterator i = type.templateArguments.begin(); i != type.templateArguments.end(); ++i)
 	{
-		SYMBOLS_ASSERT((*i).dependent.empty());
 		fixTemplateParamDefault((*i).type, params, otherParams);
 	}
 }
@@ -4320,84 +3576,8 @@ inline void mergeTemplateParamDefaults(Declaration& declaration, const TemplateP
 
 typedef TokenPrinter<std::ostream> FileTokenPrinter;
 
-#if 0
-struct TypeElementOpaque
-{
-	const void* p;
-	typedef void (*VisitCallback)(TypeElementVisitor& visitor, const void* p);
-	VisitCallback callback;
-	void accept(TypeElementVisitor& visitor)
-	{
-		callback(visitor, p);
-	}
-};
-
-template<typename ElementType>
-struct TypeElementThunk
-{
-	static void thunk(TypeElementVisitor& visitor, const void* p)
-	{
-		visitor.visit(*static_cast<const ElementType*>(p));
-	}
-};
-
-template<typename ElementType>
-TypeElementOpaque makeTypeElementOpaque(const ElementType& element)
-{
-	TypeElementOpaque result = { &element, &TypeElementThunk<ElementType>::thunk };
-	return result;
-}
-
-typedef std::list<TypeElementOpaque> TypeElements;
-
-struct TypeElementsAppend : TypeElementVisitor
-{
-	TypeElements& typeElements;
-	TypeElementsAppend(TypeElements& typeElements)
-		: typeElements(typeElements)
-	{
-	}
-
-	template<typename T>
-	void visitGeneric(const T& element)
-	{
-		typeElements.push_back(makeTypeElementOpaque(element));
-	}
-	void visit(const DependentType& element)
-	{
-		visitGeneric(element);
-	}
-	void visit(const ObjectType& element)
-	{
-		visitGeneric(element);
-	}
-	void visit(const ReferenceType& element)
-	{
-		visitGeneric(element);
-	}
-	void visit(const PointerType& element)
-	{
-		visitGeneric(element);
-	}
-	void visit(const ArrayType& element)
-	{
-		visitGeneric(element);
-	}
-	void visit(const MemberPointerType& element)
-	{
-		visitGeneric(element);
-	}
-	void visit(const FunctionType& element)
-	{
-		visitGeneric(element);
-	}
-};
-
-#else
 
 typedef std::list<UniqueType> TypeElements;
-
-#endif
 
 
 struct SymbolPrinter : TypeElementVisitor
@@ -4542,86 +3722,31 @@ struct SymbolPrinter : TypeElementVisitor
 	{
 		if(!typeElements.empty())
 		{
-#if 0
-			TypeElementOpaque element = typeElements.front();
-			typeElements.pop_front();
-			element.accept(*this);
-#else
 			UniqueType element = typeElements.front();
 			typeElements.pop_front();
 			qualifierStack.push_back(element);
 			element->accept(*this);
 			qualifierStack.pop_back();
-#endif
 		}
 	}
 
-#if 0
-	void visitTypeHistory(const DeclarationHistory& typeHistory)
-	{
-		for(DeclarationHistory::const_reverse_iterator i = typeHistory.rbegin(); i != typeHistory.rend(); ++i)
-		{
-			const Declaration& declaration = *(*i);
-			for(const TypeSequence::Node* node = declaration.type.typeSequence.get(); node != 0; node = node->get())
-			{
-				TypeElementsAppend visitor(typeElements);
-				node->accept(visitor);
-			}
-		}
-	}
-
-	void printTypeSequence(const Type& type)
-	{
-		DeclarationHistory typeHistory;
-		GetTypeHistory::apply(type, typeHistory);
-		visitTypeHistory(typeHistory);
-		visitTypeElement();
-	}
-
-	void printTypeSequence(const Declaration& declaration)
-	{
-		DeclarationHistory typeHistory;
-		GetTypeHistory::apply(declaration, typeHistory);
-		visitTypeHistory(typeHistory);
-		visitTypeElement();
-	}
-#endif
 
 	void printType(const Type& type)
 	{
-#if 1
 		printType(makeUniqueType(type, 0, true));
-#else
-		printName(getInstantiatedType(type).declaration);
-		printTypeSequence(type);
-#endif
 	}
 
 	void printType(const Declaration& declaration)
 	{
-#if 1
 		printType(makeUniqueType(declaration.type, 0, true));
-#else
-		printName(getInstantiatedType(declaration.type).declaration);
-		printTypeSequence(declaration);
-#endif
 	}
 
 	void printType(const UniqueTypeId& type)
 	{
-#if 0
-		for(UniqueType i = type.value; i != UNIQUETYPE_NULL; i = i->next)
-		{
-			TypeElementsAppend visitor(typeElements);
-			i->accept(visitor);
-		}
-		typeElements.reverse();
-#else
 		for(UniqueType i = type.value; i != UNIQUETYPE_NULL; i = i->next)
 		{
 			typeElements.push_front(i);
 		}
-#endif
 		visitTypeElement();
 	}
 
@@ -4632,26 +3757,6 @@ struct SymbolPrinter : TypeElementVisitor
 		for(Scope::DeclarationList::const_iterator i = parameters.begin(); i != parameters.end(); ++i)
 		{
 			const Declaration* declaration = *i;
-			if(declaration->templateParameter == INDEX_INVALID)
-			{
-				if(separator)
-				{
-					printer.out << ",";
-				}
-				SymbolPrinter walker(printer);
-				walker.printType(*declaration);
-				separator = true;
-			}
-		}
-		printer.out << ")";
-	}
-	void printParameters(const Parameters& parameters)
-	{
-		printer.out << "(";
-		bool separator = false;
-		for(Parameters::const_iterator i = parameters.begin(); i != parameters.end(); ++i)
-		{
-			const Declaration* declaration = (*i).declaration;
 			if(declaration->templateParameter == INDEX_INVALID)
 			{
 				if(separator)
@@ -4796,7 +3901,6 @@ struct OverloadResolver
 		CandidateFunction candidate(declaration);
 		candidate.conversions.reserve(best.conversions.size());
 
-#if 1
 		UniqueTypeWrapper type = makeUniqueType(declaration->type, 0, true); // TODO: dependent types, template argument deduction
 		if(!type.isFunction())
 		{
@@ -4825,23 +3929,6 @@ struct OverloadResolver
 			}
 			++p;
 		}
-#else
-		UniqueTypeIds::const_iterator a = arguments.begin();
-		for(Scope::DeclarationList::iterator i = declaration->enclosed->declarationList.begin(); i != declaration->enclosed->declarationList.end(); ++i)
-		{
-			const Declaration& parameter = *(*i);
-			UniqueTypeId type = makeUniqueType(parameter.type); // TODO: template argument deduction
-			if(a != arguments.end())
-			{
-				candidate.conversions.push_back(makeStandardConversionSequence(type, *a)); // TODO: null-pointer-constant, l-value
-				++a;
-			}
-			else
-			{
-				break; // TODO: default parameter values
-			}
-		}
-#endif
 
 		add(candidate);
 	}

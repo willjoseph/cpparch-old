@@ -87,18 +87,8 @@
 	+ remove legacy parameters from FunctionType: contains information about default-arguments
 		+ should disregard default-arguments when comparing function types
 	+ print cv-qualifiers
-	- track/report points source when a class is required to be complete: e.g. sizeof, member access
-	- use preprocessed source for tests
-	- improve error messages
-		- e.g. detect when 'typename' keyword is missing
-		- on reportIdentifierMismatch, show the location of the mismatching identifier
-	- include partial-specialization template-params in anchor, to distinguish from primary template
-	- distinguish name-of-template-itself as not dependent
-		- 14.6 (temp.res) Three kinds of names can be used within a template definition:
-			- The name of the template itself, and names declared within the template itself
-			- Names dependent on a template-parameter
-			- Names from scopes which are visible within the template-definition.
-	- handle template explicit/partial specialization with empty argument-list
+	- implement deferred name-lookup
+	- custom allocator for unique-types
 	- better dependent-ness tracking
 		- rules
 			- a template parameter is dependent on its scope
@@ -111,6 +101,20 @@
 				- should this be property of Type?
 					- allows it to encode template-arguments/qualifying
 			- when querying..?
+		- remove old isDependent/addDependent framework
+			- is opaque stuff necessary?
+	- track/report points source when a class is required to be complete: e.g. sizeof, member access
+	- use preprocessed source for tests
+	- improve error messages
+		- e.g. detect when 'typename' keyword is missing
+		- on reportIdentifierMismatch, show the location of the mismatching identifier
+	- include partial-specialization template-params in anchor, to distinguish from primary template
+	- distinguish name-of-template-itself as not dependent
+		- 14.6 (temp.res) Three kinds of names can be used within a template definition:
+			- The name of the template itself, and names declared within the template itself
+			- Names dependent on a template-parameter
+			- Names from scopes which are visible within the template-definition.
+	- handle template explicit/partial specialization with empty argument-list
 	- handle all parse errors without crashing
 		- don't crash when backtracking after parse error!
 		- if member-initializer parse fails, member declaration is already committed
@@ -192,7 +196,7 @@
 - refactoring:
 	+ replace UniqueTypeId with UniqueType
 		+ handle implicit-template-id flag when making unique type
-	- replace getInstantiatedType with makeUniqueType
+	+ replace getInstantiatedType with makeUniqueType
 		+ isDependent
 		+ printType/printTypeSequence
 		+ addBase
@@ -207,16 +211,17 @@
 				- optimise: cache evaluated base type
 			- does the order of declarations affect the type referred to by a base-specifier?
 				- base must be defined before it can be used?
-			- clean up templateParamScope!
-				- don't convert it into enclosed scope of class/function
-				- instead keep reference to template-param scope within class/function scope
-				- search template-param scope before parent scope
 			- check whether isBase param in findDeclaration(Declarations) is still required
-	- get rid of old printParameters
+	- get rid of old printParameters(DeclarationList)
+		- get unique type of declaration instead
 	- clean up duplicated html string escape in SourcePrinter/ParseTreePrinter
 	- clean up error handling - multiple assert exception types?
 	- clean up test code: ensure it compiles in LLVM
 	- rewrite template-parameter scope handling
+		- clean up templateParamScope!
+			- don't convert it into enclosed scope of class/function
+			- instead keep reference to template-param scope within class/function scope
+			- search template-param scope before parent scope
 		- create 'under-construction' scope?
 			- when beginning template-declaration, class-declaration, function-declaration
 			- push/clear under-construction scope at point of declaration
