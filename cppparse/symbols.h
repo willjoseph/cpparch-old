@@ -3632,7 +3632,11 @@ struct SymbolPrinter : TypeElementVisitor
 
 	void visit(const DependentType& dependent)
 	{
+#if 1
+		printer.out << "$T" << dependent.type->templateParameter;
+#else
 		printName(dependent.type);
+#endif
 		visitTypeElement();
 	}
 	void visit(const ObjectType& object)
@@ -3646,6 +3650,10 @@ struct SymbolPrinter : TypeElementVisitor
 			printer.out << "volatile ";
 		}
 		printName(object.type.declaration);
+		if(object.type.declaration->isTemplate)
+		{
+			printTemplateArguments(object.type.templateArguments);
+		}
 		visitTypeElement();
 	}
 	void visit(const ReferenceType& pointer)
@@ -3785,6 +3793,23 @@ struct SymbolPrinter : TypeElementVisitor
 			separator = true;
 		}
 		printer.out << ")";
+	}
+
+	void printTemplateArguments(const TemplateArgumentsInstance& templateArguments)
+	{
+		printer.out << "{";
+		bool separator = false;
+		for(TemplateArgumentsInstance::const_iterator i = templateArguments.begin(); i != templateArguments.end(); ++i)
+		{
+			if(separator)
+			{
+				printer.out << ",";
+			}
+			SymbolPrinter walker(printer);
+			walker.printType(*i);
+			separator = true;
+		}
+		printer.out << "}";
 	}
 
 	void printName(const Declaration* name)

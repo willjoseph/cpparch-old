@@ -1,5 +1,50 @@
 
 
+namespace N112
+{
+	template<typename T>
+	struct S
+	{
+		typedef typename T::Type Type;
+		void f(Type)
+		{
+		}
+	};
+
+	struct A
+	{
+		typedef int Type;
+	};
+
+	void test()
+	{
+		S<A> s;
+		s.f(A()); // should link to N111.S.f(???)
+	}
+}
+
+namespace N111
+{
+	template<typename T>
+	void f(T)
+	{
+	}
+
+	struct A
+	{
+	};
+
+	template<typename T>
+	struct S
+	{
+	};
+
+	void test()
+	{
+		f(S<A>()); // should link to N111.f($T0)
+	}
+}
+
 template<class String, class Traits>
 struct basic_path
 {

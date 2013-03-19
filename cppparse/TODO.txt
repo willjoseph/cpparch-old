@@ -87,9 +87,7 @@
 	+ remove legacy parameters from FunctionType: contains information about default-arguments
 		+ should disregard default-arguments when comparing function types
 	+ print cv-qualifiers
-	- implement deferred name-lookup
-	- custom allocator for unique-types
-	- better dependent-ness tracking
+	+ better dependent-ness tracking
 		- rules
 			- a template parameter is dependent on its scope
 			- an unqualified typedef is always dependent on the dependent-scope of the target type
@@ -101,8 +99,18 @@
 				- should this be property of Type?
 					- allows it to encode template-arguments/qualifying
 			- when querying..?
-		- remove old isDependent/addDependent framework
-			- is opaque stuff necessary?
+		+ remove old isDependent/addDependent framework
+	- get rid of old printParameters(DeclarationList)
+		- doesn't resolve types correctly!
+		- obtain target function type after overload resolution
+	- return more appropriate object than 'gBaseClass' when failing to resolve dependent type with allowDependent=true
+	- print template arguments when printing types
+		- also when linking to template explicit/partial specializations?
+			- depending on a specialization implies dependency on all specializations
+			- because illegal to declare specialization after first instantiation
+		- when linking to template functions?
+	- implement deferred name-lookup
+	- custom allocator for unique-types
 	- track/report points source when a class is required to be complete: e.g. sizeof, member access
 	- use preprocessed source for tests
 	- improve error messages
@@ -212,8 +220,6 @@
 			- does the order of declarations affect the type referred to by a base-specifier?
 				- base must be defined before it can be used?
 			- check whether isBase param in findDeclaration(Declarations) is still required
-	- get rid of old printParameters(DeclarationList)
-		- get unique type of declaration instead
 	- clean up duplicated html string escape in SourcePrinter/ParseTreePrinter
 	- clean up error handling - multiple assert exception types?
 	- clean up test code: ensure it compiles in LLVM
