@@ -100,9 +100,18 @@
 					- allows it to encode template-arguments/qualifying
 			- when querying..?
 		+ remove old isDependent/addDependent framework
+	- prioritise features that improve support for namespace-scope entities, deprioritise class-scope features
+		- rationale: dependency on class member requires inclusion of class definition
+			- e.g. std::vector<int>::empty() -> std::vector<T> (and all specialisations)
+			- e.g. std::iterator_traits<int*> -> std::iterator_traits<T> (and all specialisations)
+		- non-member overloaded operators
+		- non-member overload resolution
+			- function template argument deduction
+	- track/report points source when a class is required to be complete:
+		- required for tracking whether a source-file needs to include a class definition or simply forward-declare
+		- e.g. sizeof, member access, direct use as object (except function prototype), base-class
 	- get rid of old printParameters(DeclarationList)
-		- doesn't resolve types correctly!
-		- obtain target function type after overload resolution
+		- note that this needs to print (possibly dependent) parameters of an uninstantiated template function
 	- return more appropriate object than 'gBaseClass' when failing to resolve dependent type with allowDependent=true
 	- print template arguments when printing types
 		- also when linking to template explicit/partial specializations?
@@ -111,7 +120,6 @@
 		- when linking to template functions?
 	- implement deferred name-lookup
 	- custom allocator for unique-types
-	- track/report points source when a class is required to be complete: e.g. sizeof, member access
 	- use preprocessed source for tests
 	- improve error messages
 		- e.g. detect when 'typename' keyword is missing
