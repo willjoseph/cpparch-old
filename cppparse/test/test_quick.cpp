@@ -2410,6 +2410,8 @@ namespace N
 	};
 }
 
+// ----------------------------------------------------------------------------
+
 namespace N
 {
 	class X;
@@ -2417,8 +2419,10 @@ namespace N
 
 namespace N
 {
-	X x;
+	X x; // lookup of 'X' finds declaration in namespace 'N'
 }
+
+// ----------------------------------------------------------------------------
 
 struct S3
 {
@@ -2426,15 +2430,18 @@ struct S3
 	typedef int T;
 };
 
+// ----------------------------------------------------------------------------
 
 template<typename T>
 class Template3
 {
 	void f()
 	{
-		typename T::dependent x;
+		typename T::dependent x; // 'dependent' is determined to be dependent and name lookup is deferred.
 	}
 };
+
+// ----------------------------------------------------------------------------
 
 
 template<typename T>
@@ -2447,8 +2454,9 @@ class Template2
 };
 
 template<typename T>
-int Template2<T>::x;
+int Template2<T>::x; // lookup of 'x' finds declaration in definition of Template2
 
+// ----------------------------------------------------------------------------
 
 struct Incomplete;
 
@@ -2458,14 +2466,16 @@ class Template
 	void f()
 	{
 #if 0
-		Incomplete::X(); // should give an error!
+		Incomplete::X(); // 'X' should be looked up and not found in 'Incomplete'
 #endif
 	};
 };
 
+// ----------------------------------------------------------------------------
+
 int f(int a)
 {
-	int t(a); // function-declaration or variable declaration with init
+	int t(a); // should not be interpreted as function-declaration, not variable declaration with init: e.g. int t = a;
 	typedef int T;
 	int (*x)(T)(f);
 	// illegal
@@ -2475,6 +2485,8 @@ int f(int a)
 	// int t(a)[1];
 }
 
+// ----------------------------------------------------------------------------
+
 template<class T>
 class Template1
 {
@@ -2482,27 +2494,30 @@ class Template1
 	typedef Template1<int> Type;
 };
 
+// ----------------------------------------------------------------------------
 
 void f()
 {
-	struct S;
-	S *p;
+	struct S; // declares 'S' in global namespace
+	S *p; // lookup finds '::S'
 }
 
+// ----------------------------------------------------------------------------
 
 class C3
 {
-	void reset(C3*)
+	void reset(C3*) // lookup of 'C3' within in member declaration finds declaration of enclosing class
 	{
 	}
 	void f()
 	{
 		C3 *_Ptr;
 		reset(_Ptr);
-		return (*this);
+		return (*this); // parenthesised return expression
 	}
 };
 
+// ----------------------------------------------------------------------------
 
 template<typename T>
 class Tmpl7
@@ -2510,12 +2525,16 @@ class Tmpl7
 	template<typename Q>
 	void func()
 	{
-		Q q;
+		Q q; // lookup finds 'Q' in enclosing member-template declaration
 	}
 };
 
-enum { ENUM1 };
-enum { ENUM2 = ENUM1 };
+// ----------------------------------------------------------------------------
+
+enum { ENUM1 }; // declares '::ENUM1'
+enum { ENUM2 = ENUM1 }; // declares '::ENUM2', lookup finds '::ENUM1'
+
+// ----------------------------------------------------------------------------
 
 template<typename T>
 class C1
@@ -2531,6 +2550,7 @@ class C1<int>
 {
 };
 
+// ----------------------------------------------------------------------------
 
 namespace std
 {
@@ -2557,6 +2577,8 @@ namespace std
 	};
 }
 
+// ----------------------------------------------------------------------------
+
 typedef struct _div_t {
 } div_t;
 
@@ -2569,6 +2591,7 @@ inline ldiv_t  div()
 
 div_t  __cdecl div();
 
+// ----------------------------------------------------------------------------
 
 struct threadlocaleinfostruct;
 typedef struct threadlocaleinfostruct * pthreadlocinfo;
@@ -2584,41 +2607,45 @@ typedef struct fd_set
 typedef struct fd_set FD_SET;
 typedef struct fd_set *PFD_SET;
 
+// ----------------------------------------------------------------------------
 
 class type_info;
 
 const type_info& type;
 
+// ----------------------------------------------------------------------------
 
 template<class T>
 class C
 {
-	friend class C;
-	C()
+	friend class C; // does not declare anything
+	C()  // lookup finds enclosing class 'C', declares the constructor 'C::C()'
 	{
 	}
-	~C()
+	~C() // lookup finds enclosing class 'C', declares the destructor 'C::~C()'
 	{
 	}
 };
 
+// ----------------------------------------------------------------------------
 
 class A
 {
-	void f();
+	void f(); // declares 'A::f()'
 };
 
 class B
 {
-	friend class A;
+	friend class A; // does not declare anything
 };
 
-void A::f()
+void A::f() // lookup finds 'A::f', defines 'A::f()'
 {
 }
 
 
 
+// ----------------------------------------------------------------------------
 
 typedef unsigned int size_t;
 
@@ -2632,6 +2659,7 @@ inline int _snprintf_s(char(&_Dest)[_Size], size_t __Size, const char*_Format, .
 {
 };
 
+// ----------------------------------------------------------------------------
 
 template<typename A>
 struct X
@@ -2642,16 +2670,16 @@ struct X
 		template<typename C>
 		struct Z
 		{
-			A a;
-			B b;
-			C c;
+			A a; // lookup finds parameter 'A' of enclosing template
+			B b; // lookup finds parameter 'B' of enclosing template
+			C c; // lookup finds parameter 'C' of enclosing template
 		};
 	};
 };
 
-X<int>::Y<int>::Z<int> p;
+X<int>::Y<int>::Z<int> p; // lookup finds 'X', 'Y' and 'Z'
 
-
+// ----------------------------------------------------------------------------
 template<typename A>
 struct Y
 {

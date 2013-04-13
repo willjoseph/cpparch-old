@@ -113,6 +113,17 @@
 		- non-member overloaded operators
 		- non-member overload resolution
 			- function template argument deduction
+		- template instantation
+			- overload resolution for dependent names
+	- implement evaluation of integer-constant-expression
+		- required by is-null-pointer-constant check in overload resolution
+		- required by template-partial-specialization resolution
+	- implement template-instantiation
+		- specializations are chosen at point of instantiation
+		- dependent-names/types are bound at point of instantiation-
+			- TypeInstance: contains list of declarations, one for each dependent-name in the template
+				- including base classes
+		- partial-ordering of class template specialisations
 	- track/report points source when a class is required to be complete:
 		- required for tracking whether a source-file needs to include a class definition or simply forward-declare
 		- e.g. sizeof, member access, direct use as object (except function prototype), base-class
@@ -146,15 +157,6 @@
 			- for now, track all declarations and clean up if parse fails..
 				- doubles parse time, optimise!
 				- don't track declarations (except forward-decl) unless ALLOCATOR_DEBUG
-	- implement evaluation of integer-constant-expression
-		- required by is-null-pointer-constant check in overload resolution
-		- required by template-partial-specialization resolution
-	- implement template-instantiation
-		- specializations are chosen at point of instantiation
-		- dependent-names/types are bound at point of instantiation-
-			- TypeInstance: contains list of declarations, one for each dependent-name in the template
-				- including base classes
-		- partial-ordering of class template specialisations
 	- friend-declaration (currently behaves like MSVC8, which is broken)
 		- refers to name in namespace scope; should not be found by name-lookup (except argument-dependent) until a matching declaration is provided in that namespace scope
 			- name-lookup:
