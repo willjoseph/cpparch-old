@@ -55,7 +55,13 @@
 	- ensure there are tests for:
 		- nested-name-specifier-prefix: name lookup ignores object/function/enumerator names
 		- type-name lookup hidden by constructor
-
+		
+- workflow
+	- single-step very slow with large call-stack: try vc11
+		- build boost, stlport
+		- single-step faster if not looking at call-stack window
+	- debugging/testing slow: serialise preprocessed tokens?
+		- is this actually faster than reading preprocessed file?
 
 - optimisation:
 	- overhead of multiple-inherited vtables in identifier: 34 vtable pointers, 136 bytes

@@ -1,0 +1,200 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Source Files\boost">
+      <UniqueIdentifier>{01938ffe-1c51-4c21-8091-c4f57e8e6f91}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\boost\wave">
+      <UniqueIdentifier>{177de0f6-614a-44fc-8016-7bf392b12eda}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\boost\wave\util">
+      <UniqueIdentifier>{937e2097-426f-42c6-b57c-c39f88accc51}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\boost\wave\grammars">
+      <UniqueIdentifier>{5a7cf29c-3876-424e-ae7a-c46343135e05}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\boost\wave\cpplexer">
+      <UniqueIdentifier>{82ff029a-3783-4506-8b11-698cdfaf6b16}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\boost\wave\cpplexer\re2clex">
+      <UniqueIdentifier>{faeb95a9-761d-45c2-a9b0-a2cd468926a2}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\cpp_context.hpp">
+      <Filter>Source Files\boost\wave</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\cpp_exceptions.hpp">
+      <Filter>Source Files\boost\wave</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\cpp_iteration_context.hpp">
+      <Filter>Source Files\boost\wave</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\cpp_throw.hpp">
+      <Filter>Source Files\boost\wave</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\language_support.hpp">
+      <Filter>Source Files\boost\wave</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\preprocessing_hooks.hpp">
+      <Filter>Source Files\boost\wave</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\token_ids.hpp">
+      <Filter>Source Files\boost\wave</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\wave_config.hpp">
+      <Filter>Source Files\boost\wave</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\wave_config_constant.hpp">
+      <Filter>Source Files\boost\wave</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\wave_version.hpp">
+      <Filter>Source Files\boost\wave</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\whitespace_handling.hpp">
+      <Filter>Source Files\boost\wave</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\cpp_ifblock.hpp">
+      <Filter>Source Files\boost\wave\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\cpp_include_paths.hpp">
+      <Filter>Source Files\boost\wave\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\cpp_iterator.hpp">
+      <Filter>Source Files\boost\wave\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\cpp_macromap.hpp">
+      <Filter>Source Files\boost\wave\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\cpp_macromap_predef.hpp">
+      <Filter>Source Files\boost\wave\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\cpp_macromap_utils.hpp">
+      <Filter>Source Files\boost\wave\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\file_position.hpp">
+      <Filter>Source Files\boost\wave\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\filesystem_compatibility.hpp">
+      <Filter>Source Files\boost\wave\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\flex_string.hpp">
+      <Filter>Source Files\boost\wave\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\functor_input.hpp">
+      <Filter>Source Files\boost\wave\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\insert_whitespace_detection.hpp">
+      <Filter>Source Files\boost\wave\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\interpret_pragma.hpp">
+      <Filter>Source Files\boost\wave\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\iteration_context.hpp">
+      <Filter>Source Files\boost\wave\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\macro_definition.hpp">
+      <Filter>Source Files\boost\wave\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\macro_helpers.hpp">
+      <Filter>Source Files\boost\wave\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\pattern_parser.hpp">
+      <Filter>Source Files\boost\wave\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\symbol_table.hpp">
+      <Filter>Source Files\boost\wave\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\time_conversion_helper.hpp">
+      <Filter>Source Files\boost\wave\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\transform_iterator.hpp">
+      <Filter>Source Files\boost\wave\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\unput_queue_iterator.hpp">
+      <Filter>Source Files\boost\wave\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\grammars\cpp_chlit_grammar.hpp">
+      <Filter>Source Files\boost\wave\grammars</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\grammars\cpp_defined_grammar.hpp">
+      <Filter>Source Files\boost\wave\grammars</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\grammars\cpp_defined_grammar_gen.hpp">
+      <Filter>Source Files\boost\wave\grammars</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\grammars\cpp_expression_grammar.hpp">
+      <Filter>Source Files\boost\wave\grammars</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\grammars\cpp_expression_grammar_gen.hpp">
+      <Filter>Source Files\boost\wave\grammars</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\grammars\cpp_expression_value.hpp">
+      <Filter>Source Files\boost\wave\grammars</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\grammars\cpp_grammar.hpp">
+      <Filter>Source Files\boost\wave\grammars</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\grammars\cpp_grammar_gen.hpp">
+      <Filter>Source Files\boost\wave\grammars</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\grammars\cpp_intlit_grammar.hpp">
+      <Filter>Source Files\boost\wave\grammars</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\grammars\cpp_literal_grammar_gen.hpp">
+      <Filter>Source Files\boost\wave\grammars</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\grammars\cpp_predef_macros_gen.hpp">
+      <Filter>Source Files\boost\wave\grammars</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\grammars\cpp_predef_macros_grammar.hpp">
+      <Filter>Source Files\boost\wave\grammars</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\grammars\cpp_value_error.hpp">
+      <Filter>Source Files\boost\wave\grammars</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\cpplexer\convert_trigraphs.hpp">
+      <Filter>Source Files\boost\wave\cpplexer</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\cpplexer\cpp_lex_interface.hpp">
+      <Filter>Source Files\boost\wave\cpplexer</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\cpplexer\cpp_lex_interface_generator.hpp">
+      <Filter>Source Files\boost\wave\cpplexer</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\cpplexer\cpp_lex_iterator.hpp">
+      <Filter>Source Files\boost\wave\cpplexer</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\cpplexer\cpp_lex_token.hpp">
+      <Filter>Source Files\boost\wave\cpplexer</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\cpplexer\cpplexer_exceptions.hpp">
+      <Filter>Source Files\boost\wave\cpplexer</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\cpplexer\detect_include_guards.hpp">
+      <Filter>Source Files\boost\wave\cpplexer</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\cpplexer\token_cache.hpp">
+      <Filter>Source Files\boost\wave\cpplexer</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\cpplexer\validate_universal_char.hpp">
+      <Filter>Source Files\boost\wave\cpplexer</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\cpplexer\re2clex\aq.hpp">
+      <Filter>Source Files\boost\wave\cpplexer\re2clex</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\cpplexer\re2clex\cpp_re.hpp">
+      <Filter>Source Files\boost\wave\cpplexer\re2clex</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\cpplexer\re2clex\cpp_re2c_lexer.hpp">
+      <Filter>Source Files\boost\wave\cpplexer\re2clex</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\cpplexer\re2clex\scanner.hpp">
+      <Filter>Source Files\boost\wave\cpplexer\re2clex</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,146 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{2DF716DA-48FE-4411-8E0E-9AD8458C3E89}</ProjectGuid>
+    <RootNamespace>boost_ref</RootNamespace>
+    <Keyword>Win32Proj</Keyword>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <CharacterSet>Unicode</CharacterSet>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <_ProjectFileVersion>10.0.30319.1</_ProjectFileVersion>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(SolutionDir)$(Configuration)\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(Configuration)\</IntDir>
+    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</LinkIncremental>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(SolutionDir)$(Configuration)\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(Configuration)\</IntDir>
+    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</LinkIncremental>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <Optimization>Disabled</Optimization>
+      <AdditionalIncludeDirectories>..\..\boost_1_41_0;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;_SCL_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <MinimalRebuild>true</MinimalRebuild>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
+    </ClCompile>
+    <Link>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <SubSystem>Console</SubSystem>
+      <TargetMachine>MachineX86</TargetMachine>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>..\..\boost_1_41_0;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;_SCL_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+    </ClCompile>
+    <Link>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <SubSystem>Console</SubSystem>
+      <OptimizeReferences>true</OptimizeReferences>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <TargetMachine>MachineX86</TargetMachine>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\cpp_context.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\cpp_exceptions.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\cpp_iteration_context.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\cpp_throw.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\language_support.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\preprocessing_hooks.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\token_ids.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\wave_config.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\wave_config_constant.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\wave_version.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\whitespace_handling.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\cpp_ifblock.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\cpp_include_paths.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\cpp_iterator.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\cpp_macromap.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\cpp_macromap_predef.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\cpp_macromap_utils.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\file_position.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\filesystem_compatibility.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\flex_string.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\functor_input.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\insert_whitespace_detection.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\interpret_pragma.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\iteration_context.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\macro_definition.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\macro_helpers.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\pattern_parser.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\symbol_table.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\time_conversion_helper.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\transform_iterator.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\util\unput_queue_iterator.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\grammars\cpp_chlit_grammar.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\grammars\cpp_defined_grammar.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\grammars\cpp_defined_grammar_gen.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\grammars\cpp_expression_grammar.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\grammars\cpp_expression_grammar_gen.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\grammars\cpp_expression_value.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\grammars\cpp_grammar.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\grammars\cpp_grammar_gen.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\grammars\cpp_intlit_grammar.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\grammars\cpp_literal_grammar_gen.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\grammars\cpp_predef_macros_gen.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\grammars\cpp_predef_macros_grammar.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\grammars\cpp_value_error.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\cpplexer\convert_trigraphs.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\cpplexer\cpp_lex_interface.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\cpplexer\cpp_lex_interface_generator.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\cpplexer\cpp_lex_iterator.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\cpplexer\cpp_lex_token.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\cpplexer\cpplexer_exceptions.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\cpplexer\detect_include_guards.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\cpplexer\token_cache.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\cpplexer\validate_universal_char.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\cpplexer\re2clex\aq.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\cpplexer\re2clex\cpp_re.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\cpplexer\re2clex\cpp_re2c_lexer.hpp" />
+    <ClInclude Include="..\..\boost_1_41_0\boost\wave\cpplexer\re2clex\scanner.hpp" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>
