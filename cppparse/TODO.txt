@@ -428,6 +428,8 @@
 		- use '$..' to indicate looking outside an include-path
 	- compare output files generated from same source?
 - warn on escaping from include-path using '..'
+- detect multiple headers with same include-guard
+- detect headers that should have an include-guard
 - detect order-dependent includes
 	- e.g. header1.h depends on header2.h but does not (in)directly include it
 		- confused by multiple declarations in different headers: e.g. getwchar in stdio.h and wchar.h
@@ -443,6 +445,13 @@
 		- confused by forward-declaration of types (or redeclaration of typedef, function?) followed by subsequent include of header
 			- only add dependency on complete-type if it is actually used
 			- how to track dependency on incomplete type which may be declared in multiple headers?
+				- allow if any header containing a redeclaration is (in)directly included
+			- the declared identifier in a redeclaration does not depend on the original declaration
+				- template explicit/partial specializations depend on the primary declaration via explicitly naming it!
+			- forward-declarations using elaborated-type-specifier don't count as redeclarations
+				- treat as a redeclaration if used in same scope as original declaration
+		- confused by not-yet-resolved name in dependent function-call expression
+			- template instantiation required
 	- warn if declaration of overloaded function (that would have been selected) occurs after resolution
 		- or if similar overload declaration occurs after using-declaration that refers to function name
 - detect cyclic includes

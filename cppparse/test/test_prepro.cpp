@@ -1,4 +1,33 @@
 
+namespace N120
+{
+	struct S;
+	void f(struct S*);
+}
+
+namespace N119
+{
+	enum E {};
+	enum E e; // elaborated type specifier referring to 'E', does not declare anything
+}
+
+namespace N118
+{
+	typedef struct S {} S; // declares a typedef which hides 'S'
+	typedef S S; // redeclaration of typedef
+}
+
+namespace N117
+{
+	void f(int);
+	void f(float);
+
+	template<typename T>
+	void g(T t)
+	{
+		f(*t); // f should be determined to be dependent, 'f' is looked up in this context but overloads are not resolved until instantiation of 'g'
+	}
+}
 
 namespace N116
 {
@@ -6,7 +35,7 @@ namespace N116
 	{
 		void f(float)
 		{
-			return f(); // calls f(int) with default-argument '0'. Parse of this statement should be deferred until after parse of default-arguments
+			return f(); // calls f(int) with default-argument '0'. Parse of this statement should be deferred until after deferred-parse of default-arguments
 		}
 		void f(int i = 0)
 		{

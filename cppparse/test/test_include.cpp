@@ -17,9 +17,11 @@ X()
 
 const int TEST = USED;
 const int TEST_INDIRECT = INDIRECT;
+const Indirect TEST_INDIRECT_TYPEDEF = 0;
 
 void test()
 {
 	used();
+	indirect();
 }
 

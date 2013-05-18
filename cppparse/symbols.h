@@ -650,7 +650,7 @@ struct ScopeCounter
 struct DeclarationInstance : DeclarationPtr
 {
 	Identifier* name; // the identifier used in this declaration.
-	const DeclarationInstance* overloaded; // the previously declared overload of this name.
+	const DeclarationInstance* overloaded; // the previously declared overload of this name (which may or may not refer to the same entity.)
 	const DeclarationInstance* redeclared; // the previous declaration that refers to the same entity.
 	DeclarationInstance()
 		: DeclarationPtr(0), name(0), overloaded(0), redeclared(0)
@@ -671,6 +671,11 @@ struct DeclarationInstance : DeclarationPtr
 #endif
 };
 
+inline bool operator<(const DeclarationInstance& l, const DeclarationInstance& r)
+{
+	return l.name < r.name;
+}
+
 inline cpp::terminal_identifier& getDeclarationId(const DeclarationInstance* declaration)
 {
 	return (*declaration)->getName();
@@ -681,10 +686,10 @@ inline bool isDecorated(const Identifier& id)
 	return id.dec.p != 0;
 }
 
-inline Declaration& getDeclaration(const Identifier& id)
+inline const DeclarationInstance& getDeclaration(const Identifier& id)
 {
 	SYMBOLS_ASSERT(isDecorated(id));
-	return *(*id.dec.p);
+	return *id.dec.p;
 }
 
 
@@ -759,15 +764,15 @@ private:
 	//Scope& operator=(const Scope&);
 };
 
-inline Scope::Declarations::iterator findDeclaration(Scope::Declarations& declarations, Declaration* declaration)
+inline Scope::Declarations::iterator findDeclaration(Scope::Declarations& declarations, const DeclarationInstance* declaration)
 {
-	const Identifier& id = declaration->getName();
+	const Identifier& id = *declaration->name;
 	Scope::Declarations::iterator i = declarations.upper_bound(id.value);
 
 	for(; i != declarations.begin()
 		&& (*--i).first == id.value;)
 	{
-		if((*i).second == declaration)
+		if(&(*i).second == declaration)
 		{
 			return i;
 		}
@@ -778,17 +783,17 @@ inline Scope::Declarations::iterator findDeclaration(Scope::Declarations& declar
 
 inline void undeclare(const DeclarationInstance* p, LexerAllocator& allocator)
 {
-	Declaration* declaration = *p;
-	SYMBOLS_ASSERT(declaration->getName().dec.p == 0 || declaration->getName().dec.p == p);
-	declaration->getName().dec.p = 0;
+	SYMBOLS_ASSERT(p->name->dec.p == 0 || p->name->dec.p == p);
+	p->name->dec.p = 0;
 
+	Declaration* declaration = *p;
 	SYMBOLS_ASSERT(!declaration->scope->declarations.empty());
 	SYMBOLS_ASSERT(!declaration->scope->declarationList.empty());
 
 	SYMBOLS_ASSERT(declaration == declaration->scope->declarationList.back());
 	declaration->scope->declarationList.pop_back(); // TODO: optimise
 
-	Scope::Declarations::iterator i = findDeclaration(declaration->scope->declarations, declaration);
+	Scope::Declarations::iterator i = findDeclaration(declaration->scope->declarations, p);
 	SYMBOLS_ASSERT(i != declaration->scope->declarations.end());
 	declaration->scope->declarations.erase(i);
 
@@ -3254,7 +3259,7 @@ inline const Declaration& getPrimaryDeclaration(const Declaration& first, const 
 		}
 		if(isTypedef(second))
 		{
-			return first; // typedef of type previously declared
+			return second; // typedef of type previously declared: typedef struct S {} S;
 		}
 		if(isClass(first))
 		{
@@ -3268,7 +3273,7 @@ inline const Declaration& getPrimaryDeclaration(const Declaration& first, const 
 			}
 			if(isIncomplete(second))
 			{
-				return first; // redeclaration of previously-declared class
+				return second; // redeclaration of previously-declared class
 			}
 			if(isIncomplete(first))
 			{
@@ -3309,7 +3314,7 @@ inline const Declaration& getPrimaryDeclaration(const Declaration& first, const 
 	if(isExtern(first)
 		|| isExtern(second))
 	{
-		return first; // multiple declarations allowed
+		return second; // multiple declarations allowed
 	}
 	// HACK: ignore multiple declarations for members of template - e.g. const char Tmpl<char>::VALUE; const int Tmpl<int>::VALUE;
 	if(!first.templateParams.defaults.empty())

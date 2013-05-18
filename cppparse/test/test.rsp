@@ -4,6 +4,7 @@ C:\Program Files\Microsoft Visual Studio 8\VC\BIN\cl.exe
 /D WIN32
 /D _DEBUG
 .\test\test_prepro.cpp
+.\test\test_redeclared.cpp
 .\test\test_includepath.cpp
 .\test\test_include.cpp
 .\test\test_typelist.cpp

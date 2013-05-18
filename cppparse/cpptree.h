@@ -230,7 +230,8 @@ namespace cpp
 	struct decoration
 	{
 		SafePtr<const DeclarationInstance> p;
-		decoration() : p(0)
+		bool deferred;
+		decoration() : p(0), deferred(false)
 		{
 		}
 	};

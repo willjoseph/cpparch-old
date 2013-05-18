@@ -3,6 +3,8 @@
 
 extern const int INDIRECT = 0;
 
+typedef int Indirect;
+
 void indirect();
 
 #endif

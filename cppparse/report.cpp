@@ -138,7 +138,7 @@ bool isPrimary(const Identifier& id)
 	return isDecorated(id) && id.position == id.dec.p->name->position;
 }
 
-typedef std::pair<Name, Declaration*> ModuleDeclaration; // first=source, second=declaration
+typedef std::pair<Name, DeclarationInstance> ModuleDeclaration; // first=source, second=declaration
 typedef std::set<ModuleDeclaration> ModuleDeclarationSet;
 const ModuleDeclarationSet MODULEDECLARATIONSET_NULL = ModuleDeclarationSet();
 typedef std::map<Name, ModuleDeclarationSet> ModuleDependencyMap; // key=source
@@ -204,21 +204,21 @@ struct DependencyBuilder
 
 	void visit(cpp::identifier* symbol)
 	{
-		if(!isPrimary(symbol->value)) // if this symbol refers to a declaration
+		if(!isPrimary(symbol->value)) // if this is not the identifier in an actual declaration
 		{
 			if(isDecorated(symbol->value)
-				&& !isNamespace(getDeclaration(symbol->value)))
+				&& !isNamespace(*getDeclaration(symbol->value)))
 			{
 				// the source file containing this symbol depends on all the redeclarations (of the declaration chosen by name resolution) that were visible
 				// e.g. function redeclarations (excluding unchosen overloads), class forward-declarations (excluding unchosen explicit/partial-specializations)
-				for(const DeclarationInstance* p = symbol->value.dec.p; p != 0; p = p->redeclared)
+				
+				const DeclarationInstance& instance = *symbol->value.dec.p;
+				// add the most recent redeclaration
+				if(instance.name->source != NAME_NULL // refers to a symbol declared in a module
+					&& !symbol->value.dec.deferred // name resolution not deferred
+					&& symbol->value.source != instance.name->source) // refers to a symbol not declared in the current module
 				{
-					Declaration* declaration = *p;
-					if(p->name->source != NAME_NULL // refers to a symbol declared in a module
-						&& symbol->value.source != p->name->source) // refers to a symbol not declared in the current module
-					{
-						moduleDependencies[symbol->value.source].insert(ModuleDeclarationSet::value_type(p->name->source, &getDeclaration(symbol->value)));
-					}
+					moduleDependencies[symbol->value.source].insert(ModuleDeclarationSet::value_type(instance.name->source, getDeclaration(symbol->value)));
 				}
 			}
 		}
@@ -449,12 +449,12 @@ struct SourcePrinter : SymbolPrinter
 			&& included.find(&(*i)) != included.end();
 	}
 
-	bool isIncluded(const IncludeDependencyNodes& included, Declaration* declaration)
+	bool isIncluded(const IncludeDependencyNodes& included, const DeclarationInstance& instance)
 	{
-		for(; declaration != 0; declaration = declaration->overloaded)
+		for(const DeclarationInstance* p = &instance; p != 0; p = p->redeclared)
 		{
-			if(*declaration->getName().source.c_str() == '$' // '$outer'
-				|| isIncluded(included, declaration->getName().source))
+			if(*p->name->source.c_str() == '$' // '$outer'
+				|| isIncluded(included, p->name->source))
 			{
 				return true;
 			}
@@ -569,40 +569,58 @@ struct SourcePrinter : SymbolPrinter
 		return warnings;
 	}
 
-	bool printAnchorStart(Declaration* declaration)
+	void printAnchorName(const DeclarationInstance& instance, bool deferred = false)
 	{
-		if(declaration != 0
-			&& declaration->getName().source == NAME_NULL) // this identifier is a dependent-name
+		printName(instance);
+		if(deferred)
+		{
+			printer.out << "?";
+		}
+		if(instance.name != 0)
+		{
+			const FilePosition& position =  instance.name->position;
+			printer.out << ":" << position.line << "," << position.column;
+		}
+	}
+	bool printAnchorStart(const DeclarationInstance& instance, bool deferred = false)
+	{
+		if(instance.name != 0
+			&& instance.name->source == NAME_NULL) // this identifier is a dependent-name
 		{
 			return false; // don't make this identifier a link
 		}
 
 		printer.out << "<a href='";
-		if(declaration != 0)
+		if(instance.name != 0)
 		{
-			printer.out << OutPath(outputRoot, declaration->getName().source.c_str()).c_str();
+			printer.out << OutPath(outputRoot, instance.name->source.c_str()).c_str();
 		}
 		printer.out << "#";
-		printName(declaration);
+		printAnchorName(instance, deferred);
 		printer.out << "'>";
 		return true;
+	}
+	bool printAnchorStart(Declaration* declaration)
+	{
+		return printAnchorStart(DeclarationInstance(declaration));
 	}
 
 	void printIdentifier(const Identifier& identifier)
 	{
 		bool anchor = false;
-		Declaration* declaration = isDecorated(identifier) ? &getDeclaration(identifier) : 0;
+		DeclarationInstance declaration = isDecorated(identifier) ? getDeclaration(identifier) : DeclarationInstance();
 		if(isPrimary(identifier))
 		{
 			printer.out << "<a name='";
-			printName(declaration);
+			printAnchorName(declaration, identifier.dec.deferred);
 			printer.out << "'></a>";
 		}
 		else
 		{
-			anchor = printAnchorStart(declaration);
+			anchor = printAnchorStart(declaration, identifier.dec.deferred);
 		}
-		const char* type = declaration != 0 ? getDeclarationType(*declaration) : "unknown";
+		const char* type = declaration != 0
+			? getDeclarationType(*declaration) : "unknown";
 		printer.out << "<" << type << ">";
 		printer.out << getValue(identifier);
 		printer.out << "</" << type << ">";
@@ -676,7 +694,7 @@ struct SourcePrinter : SymbolPrinter
 							}
 						}
 						{
-							ModuleDeclarationSet::const_iterator j = dependencies.lower_bound(ModuleDeclarationSet::value_type((*i)->name, 0));
+							ModuleDeclarationSet::const_iterator j = dependencies.lower_bound(ModuleDeclarationSet::value_type((*i)->name, DeclarationInstance()));
 							for(; j != dependencies.end() && (*j).first == (*i)->name; ++j)
 							{
 								const ModuleDeclarationSet::value_type& declaration = *j;

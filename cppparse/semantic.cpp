@@ -1942,9 +1942,9 @@ struct PostfixExpressionWalker : public WalkerBase
 		{
 			if(id != 0 // the prefix contains an id-expression
 				&& isDecorated(*id) // TODO: assert!
-				&& &getDeclaration(*id) != &gDependentObject // the id-expression was not dependent
-				&& isFunction(getDeclaration(*id)) // the identifier names an overloadable function
-				&& !isMemberOfTemplate(getDeclaration(*id))) // the name of a member function of a template may be dependent: TODO: determine exactly when!
+				&& getDeclaration(*id) != &gDependentObject // the id-expression was not dependent
+				&& isFunction(*getDeclaration(*id)) // the identifier names an overloadable function
+				&& !isMemberOfTemplate(*getDeclaration(*id))) // the name of a member function of a template may be dependent: TODO: determine exactly when!
 			{
 				// TODO: 13.3.1.1.1  Call to named function
 				Declaration* declaration = findBestMatch(*id->dec.p, walker.arguments);
@@ -1958,6 +1958,10 @@ struct PostfixExpressionWalker : public WalkerBase
 		}
 		else
 		{
+			if(id != 0)
+			{
+				id->dec.deferred = true;
+			}
 			type = gUniqueTypeNull;
 		}
 		// TODO: assert
@@ -3590,8 +3594,20 @@ struct ElaboratedTypeSpecifierWalker : public WalkerQualified
 		*/
 		id = &symbol->value;
 		DeclarationInstanceRef declaration = findDeclaration(symbol->value, IsTypeName());
-		if(declaration != &gUndeclared
-			&& !isTypedef(*declaration))
+		if(declaration == &gUndeclared // if there is no existing declaration
+			|| isTypedef(*declaration) // or the existing declaration is a typedef
+			|| (key == &gClass && declaration->scope == getEtsScope())) // or this is a forward-declaration of a class/struct
+		{
+			if(key != &gClass)
+			{
+				SEMANTIC_ASSERT(key == &gEnum);
+				printPosition(symbol->value.position);
+				std::cout << "'" << symbol->value.value.c_str() << "': elaborated-type-specifier refers to undefined enum" << std::endl;
+				throw SemanticError();
+			}
+			type = key;
+		}
+		else
 		{
 			// template<typename T> class C
 			if(declaration->isSpecialization) // if the lookup found a template explicit/partial-specialization
@@ -3600,7 +3616,7 @@ struct ElaboratedTypeSpecifierWalker : public WalkerQualified
 				declaration = findPrimaryTemplateLastDeclaration(declaration); // the name is a plain identifier, not a template-id, therefore the name refers to the primary template
 			}
 			setDecoration(&symbol->value, declaration);
-			/* 7.1.6.3-2
+			/* [dcl.type.elab]
 			3.4.4 describes how name lookup proceeds for the identifier in an elaborated-type-specifier. If the identifier
 			resolves to a class-name or enum-name, the elaborated-type-specifier introduces it into the declaration the
 			same way a simple-type-specifier introduces its type-name. If the identifier resolves to a typedef-name, the
@@ -3627,23 +3643,6 @@ struct ElaboratedTypeSpecifierWalker : public WalkerQualified
 				throw SemanticError();
 			}
 			type = declaration;
-		}
-		else
-		{
-			/* 3.4.4-2
-			... If the elaborated-type-specifier is introduced by the enum keyword and this lookup does not find a previously
-			declared type-name, the elaborated-type-specifier is ill-formed. If the elaborated-type-specifier is introduced by
-			the class-key and this lookup does not find a previously declared type-name ...
-			the elaborated-type-specifier is a declaration that introduces the class-name as described in 3.3.1.
-			*/
-			if(key != &gClass)
-			{
-				SEMANTIC_ASSERT(key == &gEnum);
-				printPosition(symbol->value.position);
-				std::cout << "'" << symbol->value.value.c_str() << "': elaborated-type-specifier refers to undefined enum" << std::endl;
-				throw SemanticError();
-			}
-			type = key;
 		}
 	}
 };
@@ -4457,17 +4456,20 @@ struct SimpleDeclarationWalker : public WalkerBase
 				// friend class C<int>; // friend
 				// template class C<int>; // explicit instantiation
 			}
+			else if(specifiers.isFriend)
+			{
+				// friend class C;
+			}
 			else
 			{
 				if(isSpecialization)
 				{
 					SEMANTIC_ASSERT(enclosing == templateEnclosing);
 				}
-				// class C;
+				// class C; // isn't ths handled by elaborated-type-specifier parse?
 				// template<class T> class C;
 				// template<> class C<int>;
 				// template<class T> class C<T*>;
-				// friend class C;
 				DeclarationInstanceRef instance = pointOfDeclaration(context, enclosing, *forward, TYPE_CLASS, 0, DeclSpecifiers(), isSpecialization || enclosing == templateEnclosing, getTemplateParams(enclosing), isSpecialization, type.templateArguments);
 #ifdef ALLOCATOR_DEBUG
 				trackDeclaration(instance);
