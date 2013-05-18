@@ -3210,7 +3210,7 @@ inline const char* getDeclarationType(const Declaration& declaration)
 	}
 	if(isType(declaration))
 	{
-		return declaration.isTemplate ? "template" : "type";
+		return declaration.isTemplate ? "templateName" : "type";
 	}
 	return "object";
 }

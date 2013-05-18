@@ -486,7 +486,7 @@ struct SourcePrinter : SymbolPrinter
 	{
 		typedef const char* CharConstPointer;
 		const CharConstPointer exclude[] = {
-			"malloc.h", "wchar.h", "cwchar", "xlocinfo.h", "xlocinfo", "cstdlib"
+			"malloc.h", "wchar.h", "cwchar", "xlocinfo.h", "xlocinfo", "cstdlib", "math.h", "time.h", "list", "cwctype"
 		};
 		const char* name = findFilename(source);
 		for(const CharConstPointer* p = exclude; p != ARRAY_END(exclude); ++p)
@@ -766,8 +766,12 @@ struct ParseTreePrinter : SymbolPrinter
 	std::ofstream out;
 	FileTokenPrinter printer;
 	ParseTreePrinter(const char* outputRoot)
-		: SymbolPrinter(printer), out(OutPath(outputRoot).c_str()), printer(out)
+		: SymbolPrinter(printer), printer(out)
 	{
+		OutPath tmp(outputRoot);
+		createDirectories(tmp.c_str());
+		out.open(tmp.c_str());
+
 		out << "<html>\n"
 			"<head>\n"
 			"</head>\n"

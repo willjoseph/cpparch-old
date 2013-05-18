@@ -238,7 +238,24 @@ struct WalkerContext : public TreeAllocator<int>
 	}
 };
 
-typedef std::list< DeferredParse<struct WalkerBase, struct WalkerState> > DeferredSymbols;
+typedef std::list< DeferredParse<struct WalkerBase, struct WalkerState> > DeferredSymbolsList;
+
+struct DeferredSymbols
+{
+	DeferredSymbolsList first;
+	DeferredSymbolsList second;
+
+	void splice(DeferredSymbols& other)
+	{
+		first.splice(first.end(), other.first);
+		second.splice(second.end(), other.second);
+	}
+	bool empty() const
+	{
+		return first.empty() && second.empty();
+	}
+};
+
 
 typedef bool (*IdentifierFunc)(const Declaration& declaration);
 const char* getIdentifierType(IdentifierFunc func);
@@ -302,7 +319,7 @@ struct WalkerState
 		result.filtered = &gUndeclaredInstance;
 		return result;
 	}
-	LookupResult findDeclaration(const Identifier& id, LookupFilter filter = IsAny())
+	LookupResult findDeclaration(const Identifier& id, LookupFilter filter = IsAny(), bool isUnqualifiedId = false)
 	{
 		ProfileScope profile(gProfileLookup);
 #ifdef LOOKUP_DEBUG
@@ -333,24 +350,28 @@ struct WalkerState
 #endif
 					return result;
 				}
+				// else if we're parsing a nested-name-specifier prefix, look up in the current context
 			}
 
-			if(templateParamScope != 0)
+			if(memberObject == 0 || !isUnqualifiedId)
 			{
-				if(result.append(::findTemplateParameterDeclaration(*templateParamScope, id, filter)))
+				if(templateParamScope != 0)
+				{
+					if(result.append(::findTemplateParameterDeclaration(*templateParamScope, id, filter)))
+					{
+#ifdef LOOKUP_DEBUG
+						std::cout << "HIT: templateParamScope" << std::endl;
+#endif
+						return result;
+					}
+				}
+				if(result.append(::findClassOrNamespaceMemberDeclaration(*enclosing, id, filter, true, enclosingType)))
 				{
 #ifdef LOOKUP_DEBUG
-					std::cout << "HIT: templateParamScope" << std::endl;
+					std::cout << "HIT: unqualified" << std::endl;
 #endif
 					return result;
 				}
-			}
-			if(result.append(::findClassOrNamespaceMemberDeclaration(*enclosing, id, filter, true, enclosingType)))
-			{
-#ifdef LOOKUP_DEBUG
-				std::cout << "HIT: unqualified" << std::endl;
-#endif
-				return result;
 			}
 		}
 #ifdef LOOKUP_DEBUG
@@ -1323,7 +1344,7 @@ struct UnqualifiedIdWalker : public WalkerBase
 		isIdentifier = true;
 		if(!isDependent(qualifying_p))
 		{
-			declaration = findDeclaration(*id);
+			declaration = findDeclaration(*id, IsAny(), true);
 		}
 	}
 	void visit(cpp::simple_template_id* symbol)
@@ -1333,7 +1354,7 @@ struct UnqualifiedIdWalker : public WalkerBase
 		if(!isTemplate
 			&& !isDependent(qualifying_p))
 		{
-			DeclarationInstanceRef declaration = findDeclaration(*walker.id);
+			DeclarationInstanceRef declaration = findDeclaration(*walker.id, IsAny(), true);
 			if(declaration == &gUndeclared
 				|| !isTemplateName(*declaration))
 			{
@@ -1352,7 +1373,7 @@ struct UnqualifiedIdWalker : public WalkerBase
 		if(!isTemplate // TODO: is this possible?
 			&& !isDependent(qualifying_p))
 		{
-			DeclarationInstanceRef declaration = findDeclaration(*walker.id);
+			DeclarationInstanceRef declaration = findDeclaration(*walker.id, IsAny(), true);
 			if(declaration == &gUndeclared
 				|| !isTemplateName(*declaration))
 			{
@@ -1958,6 +1979,10 @@ struct PostfixExpressionWalker : public WalkerBase
 		{
 			walker.memberType = &getObjectType(object);
 			walker.memberObject = walker.memberType->declaration->enclosed; // TODO: assert that this is a class type
+		}
+		else
+		{
+			walker.memberObject = const_cast<Scope*>(&SCOPE_NULL); // indicates that the left-hand side is an unknown type - possibly dependent
 		}
 		TREEWALKER_WALK(walker, symbol);
 		id = walker.id; // perform overload resolution for a.m(x);
@@ -2727,6 +2752,28 @@ struct DeclaratorIdWalker : public WalkerQualified
 	}
 };
 
+struct ParameterDeclarationListWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	Parameters parameters;
+
+	ParameterDeclarationListWalker(const WalkerState& state)
+		: WalkerBase(state)
+	{
+	}
+
+	void visit(cpp::parameter_declaration* symbol)
+	{
+		ParameterDeclarationWalker walker(getState(), true);
+		TREEWALKER_WALK(walker, symbol);
+		if(!isVoidParameter(walker.declaration->type))
+		{
+			parameters.push_back(Parameter(walker.declaration, walker.defaultArgument));
+		}
+	}
+};
+
 struct ParameterDeclarationClauseWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
@@ -2776,14 +2823,11 @@ struct ParameterDeclarationClauseWalker : public WalkerBase
 		clearTemplateParams();
 	}
 
-	void visit(cpp::parameter_declaration* symbol)
+	void visit(cpp::parameter_declaration_list* symbol)
 	{
-		ParameterDeclarationWalker walker(getState(), true);
+		ParameterDeclarationListWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		if(!isVoidParameter(walker.declaration->type))
-		{
-			parameters.push_back(Parameter(walker.declaration, walker.defaultArgument));
-		}
+		parameters = walker.parameters;
 	}
 };
 
@@ -3379,7 +3423,8 @@ struct ClassSpecifierWalker : public WalkerBase
 	}
 	void visit(cpp::terminal<boost::wave::T_RIGHTBRACE> symbol)
 	{
-		parseDeferred(deferred, *this);
+		parseDeferred(deferred.first, *this);
+		parseDeferred(deferred.second, *this);
 	}
 };
 
@@ -4246,7 +4291,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		if(WalkerState::deferred != 0
 			&& !deferred.empty())
 		{
-			WalkerState::deferred->splice(WalkerState::deferred->end(), deferred);
+			WalkerState::deferred->splice(deferred);
 		}
 	}
 	void visit(cpp::terminal<boost::wave::T_COMMA> symbol)
@@ -4262,7 +4307,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		if(WalkerState::deferred != 0
 			&& !deferred.empty())
 		{
-			WalkerState::deferred->splice(WalkerState::deferred->end(), deferred);
+			WalkerState::deferred->splice(deferred);
 		}
 	}
 	void visit(cpp::terminal<boost::wave::T_COLON> symbol)
@@ -4277,7 +4322,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		if(WalkerState::deferred != 0
 			&& templateParameter == INDEX_INVALID) // don't defer parse of default-argument for non-type template-parameter
 		{
-			result = defer(*WalkerState::deferred, *this, makeSkipDefaultArgument(IsTemplateName(*this)), symbol);
+			result = defer(WalkerState::deferred->first, *this, makeSkipDefaultArgument(IsTemplateName(*this)), symbol);
 		}
 		else
 		{
@@ -4316,7 +4361,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		pushScope(newScope(enclosing->getUniqueName(), SCOPETYPE_LOCAL));
 		if(WalkerState::deferred != 0)
 		{
-			result = defer(*WalkerState::deferred, *this, skipBraced, symbol);
+			result = defer(WalkerState::deferred->second, *this, skipBraced, symbol);
 			if(result == 0)
 			{
 				return;
@@ -4346,7 +4391,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 	{
 		if(WalkerState::deferred != 0)
 		{
-			result = defer(*WalkerState::deferred, *this, skipMemInitializerClause, symbol);
+			result = defer(WalkerState::deferred->second, *this, skipMemInitializerClause, symbol);
 		}
 		else // in case of an out-of-line constructor-definition
 		{

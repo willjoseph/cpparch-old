@@ -49,6 +49,11 @@
 	- test parser for completeness and compliance
 	- test that a name found only in a friend-declaration can be found during argument-dependent name-lookup
 
+- unit tests
+	- test_include should give warning about using 'TEST_INDIRECT'
+	- test for known warnings from specific source files
+	- fail on unexpected warnings
+
 
 - test-cases:
 	- document existing tests
@@ -106,10 +111,16 @@
 					- allows it to encode template-arguments/qualifying
 			- when querying..?
 		+ remove old isDependent/addDependent framework
+	- name lookup for 'this->m' finds 'm' in enclosing scope
+		- see [basic.lookup.classref]
+		- reject names not found in enclosing class when not considering nested-name-specifier
+		- memberObject not set during scope of out-of-line member definition, member lookup fails
+		- check when object-expr is dependent and skip lookup, rather than reverting to unqualified lookup
 	- prioritise features that improve support for namespace-scope entities, deprioritise class-scope features
 		- rationale: dependency on class member requires inclusion of class definition
 			- e.g. std::vector<int>::empty() -> std::vector<T> (and all specialisations)
 			- e.g. std::iterator_traits<int*> -> std::iterator_traits<T> (and all specialisations)
+		- still need to prevent false-positive dependency on namespace-scope entity
 		- non-member overloaded operators
 		- non-member overload resolution
 			- function template argument deduction
@@ -428,6 +439,10 @@
 				- determine all tagged declarations to be present within any file containing #ifndef X
 		- confused by #ifdef X X() #endif
 			- ignore dependency on X when wrapped in #ifdef X
+		- confused by redefining identical macro in different headers
+		- confused by forward-declaration of types (or redeclaration of typedef, function?) followed by subsequent include of header
+			- only add dependency on complete-type if it is actually used
+			- how to track dependency on incomplete type which may be declared in multiple headers?
 	- warn if declaration of overloaded function (that would have been selected) occurs after resolution
 		- or if similar overload declaration occurs after using-declaration that refers to function name
 - detect cyclic includes

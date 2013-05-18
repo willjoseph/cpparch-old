@@ -1,5 +1,87 @@
 
 
+namespace N116
+{
+	struct S
+	{
+		void f(float)
+		{
+			return f(); // calls f(int) with default-argument '0'. Parse of this statement should be deferred until after parse of default-arguments
+		}
+		void f(int i = 0)
+		{
+		}
+	};
+}
+
+namespace N063
+{
+	template<typename T>
+	struct Tmpl
+	{
+		typedef void(*Function)(T);
+		void f(Function)
+		{
+			Function function;
+			dependent(function); // 'function' should be determined to be dependent
+		}
+	};
+}
+
+namespace N115
+{
+	const int x;
+
+	struct S
+	{
+	};
+
+	S g()
+	{
+	}
+
+	S s(S(g()), x); // Variation on most-vexing-parse. First parsed as a function definition, parse fails when encountering 'x'. Finally parsed successfully as a variable declaration.
+}
+
+#if 0
+namespace N114
+{
+	// http://llvm.org/bugs/show_bug.cgi?id=11856#c2
+	template<typename T> T end(T);
+
+	template <typename T>
+	void Foo()
+	{
+		T it1;
+		if (it1->end < it1->end) // 'end' is dependent. 
+		{
+		}
+	}
+}
+#endif
+
+namespace N113
+{
+	void f();
+
+	template<typename T>
+	struct B
+	{
+	};
+
+	template<typename T>
+	struct D : B<T>
+	{
+		void g()
+		{
+			this->f(); // should not be looked up until instantiation of D::g
+		}
+	};
+
+	//template<typename T>
+	//void D::g();
+}
+
 namespace N112
 {
 	template<typename T>
@@ -526,20 +608,6 @@ namespace N086
 	struct Tmpl
 	{
 		typedef void(T::template C<T>::*Function)(); // lookup of 'C' should be deferred
-	};
-}
-
-namespace N063
-{
-	template<typename T>
-	struct Tmpl
-	{
-		typedef void(*Function)(T);
-		void f(Function)
-		{
-			Function function;
-			dependent(function); // 'function' should be determined to be dependent
-		}
 	};
 }
 

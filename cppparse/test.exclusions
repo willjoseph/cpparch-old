@@ -8,3 +8,9 @@ D:\dev\cpparch\cppparse\msvc-8.0\include\xlocinfo.h|NotIncluded|__CLRCALL_PURE_O
 D:\dev\cpparch\cppparse\msvc-8.0\include\xlocinfo|NotIncluded|std::runtime_error // stdexcept: bug
 D:\dev\cpparch\cppparse\msvc-8.0\include\xlocinfo|NotIncluded|std::string // xstring: bug
 D:\dev\cpparch\cppparse\msvc-8.0\include\cstdlib|NotIncluded|calloc;free;malloc;realloc // malloc.h+stdlib.h: wrapped with #ifndef _CRT_ALLOCATION_DEFINED
+D:\dev\cpparch\cppparse\msvc-8.0\include\math.h|NotIncluded|labs // math.h+stdlib.h: wrapped with #ifndef _CRT_ABS_DEFINED
+D:\dev\cpparch\cppparse\msvc-8.0\include\math.h|NotIncluded|_copysign;_chgsign // math.h+float.h: wrapped with #ifndef _SIGN_DEFINED
+D:\dev\cpparch\cppparse\msvc-8.0\include\time.h|NotIncluded|tm // time.h+wchar.h: wrapped with #ifndef _TM_DEFINED
+D:\dev\cpparch\cppparse\msvc-8.0\include\list|NotIncluded|_GENERIC_BASE // list+xtree: multiple identical #define
+D:\dev\cpparch\cppparse\msvc-8.0\include\cwtype|NotIncluded|iswalpha;iswupper;iswlower;iswdigit;iswxdigit;iswspace;iswpunct;iswalnum;iswprint;iswcntrl;iswgraph;iswctype // cwtype.h+ctype.h+wctype.h: wrapped with #ifndef _WCTYPE_INLINE_DEFINED
+
