@@ -84,6 +84,7 @@
   <ItemGroup>
     <ClCompile Include="test\test_include.cpp" />
     <ClCompile Include="test\test_includepath.cpp" />
+    <ClCompile Include="test\test_incomplete.cpp" />
     <ClCompile Include="test\test_lexer.cpp" />
     <ClCompile Include="test\test_prepro.cpp" />
     <ClCompile Include="test\test_redeclared.cpp" />
