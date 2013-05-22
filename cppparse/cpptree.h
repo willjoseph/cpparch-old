@@ -236,10 +236,10 @@ namespace cpp
 		}
 	};
 
-	struct expression_decoration
+	struct type_decoration
 	{
 		UniqueType p;
-		expression_decoration() : p(0)
+		type_decoration() : p(0)
 		{
 		}
 	};
@@ -322,7 +322,7 @@ namespace cpp
 			SYMBOLFWD(expression_list),
 			SYMBOLFWD(assignment_expression)
 		));
-		expression_decoration dec; // the type of the expression
+		type_decoration type; // the type of the expression
 	};
 
 	struct initializer : public choice<initializer>

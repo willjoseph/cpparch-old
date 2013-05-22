@@ -535,6 +535,7 @@ public:
 	TemplateArguments templateArguments; // non-empty if this is an explicit (or partial) specialization
 	bool isTemplate;
 	bool isSpecialization;
+	bool isFunctionDefinition;
 
 	Declaration(
 		const TreeAllocator<int>& allocator,
@@ -560,7 +561,8 @@ public:
 		templateParams(templateParams),
 		templateArguments(templateArguments),
 		isTemplate(isTemplate),
-		isSpecialization(isSpecialization)
+		isSpecialization(isSpecialization),
+		isFunctionDefinition(false)
 	{
 	}
 	Declaration() :
@@ -583,6 +585,7 @@ public:
 		templateArguments.swap(other.templateArguments);
 		std::swap(isTemplate, other.isTemplate);
 		std::swap(isSpecialization, other.isSpecialization);
+		std::swap(isFunctionDefinition, other.isFunctionDefinition);
 	}
 
 
@@ -1531,6 +1534,11 @@ inline bool operator<(const ArrayType& left, const ArrayType& right)
 	return left.size < right.size;
 }
 
+inline const ArrayType& getArrayType(UniqueType type)
+{
+	SYMBOLS_ASSERT(typeid(*type) == typeid(TypeElementGeneric<ArrayType>));
+	return static_cast<const TypeElementGeneric<ArrayType>*>(type.getPointer())->value;
+}
 
 struct DeclaratorFunctionType
 {
@@ -1578,6 +1586,53 @@ inline const ParameterTypes& getParameterTypes(UniqueType type)
 }
 
 
+// ----------------------------------------------------------------------------
+
+
+inline UniqueTypeWrapper adjustFunctionParameter(UniqueTypeWrapper type)
+{
+	UniqueTypeWrapper result(type.value.getPointer());  // ignore cv-qualifiers
+	if(type.isFunction()) // T() becomes T(*)()
+	{
+		pushUniqueType(result.value, PointerType());
+	}
+	else if(type.isArray()) // T[] becomes T*
+	{
+		popUniqueType(result.value);
+		pushUniqueType(result.value, PointerType());
+	}
+	return result;
+}
+
+inline bool isFunctionParameterEquivalent(UniqueTypeWrapper left, UniqueTypeWrapper right)
+{
+	return adjustFunctionParameter(left) == adjustFunctionParameter(right);
+}
+
+inline bool isEquivalent(const ParameterTypes& left, const ParameterTypes& right)
+{
+	ParameterTypes::const_iterator l = left.begin();
+	ParameterTypes::const_iterator r = right.begin();
+	for(;; ++l, ++r)
+	{
+		if(l == left.end())
+		{
+			return r == right.end();
+		}
+		if(r == right.end())
+		{
+			return false;
+		}
+		if(!isFunctionParameterEquivalent(*l, *r))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+
+// ----------------------------------------------------------------------------
 
 template<typename T>
 inline UniqueType pushBuiltInType(UniqueType type, const T& value)
@@ -2169,15 +2224,13 @@ struct ExpressionType<T, false>
 	}
 };
 
-template<typename T>
-inline UniqueTypeId getExpressionType(T* symbol)
+inline UniqueTypeId getExpressionType(cpp::expression* symbol)
 {
-	return UniqueTypeId(symbol->dec.p);
+	return UniqueTypeId(symbol->type.p);
 }
-template<typename T>
-inline void setExpressionType(T* symbol, UniqueTypeId value)
+inline void setExpressionType(cpp::expression* symbol, UniqueTypeId value)
 {
-	symbol->dec.p = value.value;
+	symbol->type.p = value.value;
 }
 
 template<typename T>
@@ -3683,11 +3736,16 @@ struct SymbolPrinter : TypeElementVisitor
 		visitTypeElement();
 		popType();
 	}
-	void visit(const ArrayType&)
+	void visit(const ArrayType& array)
 	{
 		pushType(false);
 		visitTypeElement();
-		printer.out << "[]";
+		printer.out << "[";
+		if(array.size != 0)
+		{
+			printer.out << array.size;
+		}
+		printer.out << "]";
 		popType();
 	}
 	void visit(const MemberPointerType& pointer)

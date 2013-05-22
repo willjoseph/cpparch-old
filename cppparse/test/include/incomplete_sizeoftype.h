@@ -4,7 +4,7 @@
 struct S;
 namespace SizeOfType
 {
-	size_t size = sizeof(S);
+	int size = sizeof(S);
 }
 
 #endif

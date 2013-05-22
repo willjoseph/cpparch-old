@@ -121,48 +121,6 @@ inline void setDecoration(Identifier* id, const DeclarationInstance& declaration
 	id->dec.p = &declaration;
 }
 
-inline UniqueTypeWrapper adjustFunctionParameter(UniqueTypeWrapper type)
-{
-	UniqueTypeWrapper result(type.value.getPointer());  // ignore cv-qualifiers
-	if(type.isFunction()) // T() becomes T(*)()
-	{
-		pushUniqueType(result.value, PointerType());
-	}
-	else if(type.isArray()) // T[] becomes T*
-	{
-		popUniqueType(result.value);
-		pushUniqueType(result.value, PointerType());
-	}
-	return result;
-}
-
-inline bool isFunctionParameterEquivalent(UniqueTypeWrapper left, UniqueTypeWrapper right)
-{
-	return adjustFunctionParameter(left) == adjustFunctionParameter(right);
-}
-
-inline bool isEquivalent(const ParameterTypes& left, const ParameterTypes& right)
-{
-	ParameterTypes::const_iterator l = left.begin();
-	ParameterTypes::const_iterator r = right.begin();
-	for(;; ++l, ++r)
-	{
-		if(l == left.end())
-		{
-			return r == right.end();
-		}
-		if(r == right.end())
-		{
-			return false;
-		}
-		if(!isFunctionParameterEquivalent(*l, *r))
-		{
-			return false;
-		}
-	}
-	return true;
-}
-
 inline bool isReturnTypeEqual(UniqueTypeWrapper left, UniqueTypeWrapper right)
 {
 	SYMBOLS_ASSERT(left.isFunction());
@@ -2934,8 +2892,9 @@ struct DeclaratorArrayWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	Dependent valueDependent;
+	size_t size;
 	DeclaratorArrayWalker(const WalkerState& state)
-		: WalkerBase(state)
+		: WalkerBase(state), size(0)
 	{
 	}
 
@@ -2944,6 +2903,14 @@ struct DeclaratorArrayWalker : public WalkerBase
 		ExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		addDependent(valueDependent, walker.valueDependent);
+		size = 1; // TODO: evaluate constant expression
+	}
+	void visit(cpp::declarator_suffix_array* symbol)
+	{
+		DeclaratorArrayWalker walker(getState());
+		TREEWALKER_WALK_CACHED(walker, symbol);
+		addDependent(valueDependent, walker.valueDependent);
+		size = walker.size; // TODO: multiple dimensions
 	}
 };
 
@@ -3024,7 +2991,7 @@ struct DeclaratorWalker : public WalkerBase
 		DeclaratorArrayWalker walker(getState());
 		TREEWALKER_WALK_CACHED(walker, symbol);
 		addDependent(valueDependent, walker.valueDependent);
-		typeSequence.push_front(DeclaratorArrayType(0)); // TODO: how many dimensions, array size
+		typeSequence.push_front(DeclaratorArrayType(walker.size)); // TODO: how many dimensions
 	}
 	void visit(cpp::declarator_suffix_function* symbol)
 	{
@@ -4168,7 +4135,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 
 	// commit the declaration to the enclosing scope.
 	// invoked when no further ambiguities remain.
-	void commit()
+	void commit(bool isFunctionDefinition = false)
 	{
 		if(id != 0)
 		{
@@ -4179,6 +4146,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 				enclosed = templateParamScope; // for a static-member-variable definition, store template-params with different names than those in the class definition
 			}
 			declaration = declareObject(parent, id, type, enclosed, specifiers, templateParameter, valueDependent);
+			declaration->isFunctionDefinition = isFunctionDefinition;
 
 			enclosing = parent;
 
@@ -4283,7 +4251,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 	}
 	void visit(cpp::terminal<boost::wave::T_LEFTBRACE> symbol)
 	{
-		commit();
+		commit(true);
 
 		// symbols may be deferred during attempt to parse shared-prefix declarator: f(int i = j)
 		// first parsed as member_declaration_named, backtracks on reaching '{'

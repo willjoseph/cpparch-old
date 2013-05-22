@@ -428,6 +428,18 @@
 		- use '$..' to indicate looking outside an include-path
 	- compare output files generated from same source?
 - warn on escaping from include-path using '..'
+- track use of complete type
+	- definitions:
+		- parameter_declaration: void f(T)
+		- member_declaration: struct S { T m; };
+		- simple_declaration: T o;
+		- general_declaration: T f();
+		- condition_init: if(T o = 0)
+		- exception_declaration_default: catch(T)
+	- find identifiers that name definitions requiring a complete type
+		- add dependency on source file containing definition of type required
+		- decorate identifier with link to definition of type?
+		- distinguish between complete and incomplete array type
 - detect multiple headers with same include-guard
 - detect headers that should have an include-guard
 - detect order-dependent includes

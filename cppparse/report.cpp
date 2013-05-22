@@ -138,6 +138,7 @@ bool isPrimary(const Identifier& id)
 	return isDecorated(id) && id.position == id.dec.p->name->position;
 }
 
+
 typedef std::pair<Name, DeclarationInstance> ModuleDeclaration; // first=source, second=declaration
 typedef std::set<ModuleDeclaration> ModuleDeclarationSet;
 const ModuleDeclarationSet MODULEDECLARATIONSET_NULL = ModuleDeclarationSet();
@@ -165,10 +166,41 @@ void mergeIncludes(IncludeDependencyNodes& includes, const IncludeDependencyNode
 	}
 }
 
+void addModuleDependency(ModuleDependencyMap& moduleDependencies, const Identifier& id, const DeclarationInstance& instance)
+{
+	if(instance.name->source != NAME_NULL // refers to a symbol declared in a module
+		&& !id.dec.deferred // name resolution not deferred
+		&& id.source != instance.name->source) // refers to a symbol not declared in the current module
+	{
+		moduleDependencies[id.source].insert(ModuleDeclarationSet::value_type(instance.name->source, instance));
+	}
+}
+
+inline bool isObjectDefinition(const Declaration& declaration)
+{
+	// [basic.def]
+	// A declaration is a definition unless it declares a function without specifying the function's body, it
+	// contains the extern specifier or a linkage specification and neither an initializer nor a
+	// function body, it declares a static data member in a class declaration, it is a class name declaration,
+	// or it is a typedef declaration, a using declaration, or a using-directive.
+	return isObject(declaration)
+		&& !(isFunction(declaration) && !declaration.isFunctionDefinition)
+		&& !declaration.specifiers.isExtern
+		&& !declaration.specifiers.isTypedef
+		// TODO: linkage specification
+		&& !isStaticMember(declaration);
+}
+
+inline bool isFunctionParameter(const Declaration& declaration)
+{
+	return declaration.scope != 0 && declaration.scope->type == SCOPETYPE_PROTOTYPE;
+}
 
 struct DependencyBuilder
 {
 	ModuleDependencyMap moduleDependencies;
+
+	std::vector<Declaration*> functionStack;
 
 	void visit(cpp::terminal_identifier symbol)
 	{
@@ -204,21 +236,39 @@ struct DependencyBuilder
 
 	void visit(cpp::identifier* symbol)
 	{
+		if(!isDecorated(symbol->value))
+		{
+			return;
+		}
+		const DeclarationInstance& instance = getDeclaration(symbol->value);
 		if(!isPrimary(symbol->value)) // if this is not the identifier in an actual declaration
 		{
-			if(isDecorated(symbol->value)
-				&& !isNamespace(*getDeclaration(symbol->value)))
+			if(!isNamespace(*instance))
 			{
 				// the source file containing this symbol depends on all the redeclarations (of the declaration chosen by name resolution) that were visible
 				// e.g. function redeclarations (excluding unchosen overloads), class forward-declarations (excluding unchosen explicit/partial-specializations)
 				
-				const DeclarationInstance& instance = *symbol->value.dec.p;
 				// add the most recent redeclaration
-				if(instance.name->source != NAME_NULL // refers to a symbol declared in a module
-					&& !symbol->value.dec.deferred // name resolution not deferred
-					&& symbol->value.source != instance.name->source) // refers to a symbol not declared in the current module
+				addModuleDependency(moduleDependencies, symbol->value, instance);
+			}
+		}
+		else
+		{
+			if(isObjectDefinition(*instance) // if this declaration defines an object
+				&& !(isFunctionParameter(*instance) // and the object is not a function parameter..
+					&& (!isDecorated(instance->scope->name) || !getDeclaration(instance->scope->name)->isFunctionDefinition))) // .. within a function declaration
+			{
+				UniqueTypeId type = makeUniqueType(instance->type, 0, true);
+				if(isFunctionParameter(*instance))
 				{
-					moduleDependencies[symbol->value.source].insert(ModuleDeclarationSet::value_type(instance.name->source, getDeclaration(symbol->value)));
+					type = adjustFunctionParameter(type);
+				}
+				if(type.isSimple()
+					|| (type.isSimpleArray() && getArrayType(type.value).size != 0))
+				{
+					// the source file containing the definition depends on the type of the definition
+					DeclarationInstance type = DeclarationInstance(instance->type.declaration);
+					addModuleDependency(moduleDependencies, symbol->value, type);
 				}
 			}
 		}
@@ -853,6 +903,21 @@ struct ParseTreePrinter : SymbolPrinter
 		}
 	}
 
+	static UniqueTypeId getSymbolType(cpp::identifier* symbol)
+	{
+		if(isPrimary(symbol->value))
+		{
+			return makeUniqueType(getDeclaration(symbol->value)->type, 0, true);
+		}
+		return gUniqueTypeNull;
+	}
+
+	template<typename T>
+	static UniqueTypeId getSymbolType(T* symbol)
+	{
+		return ExpressionType<T>::get(symbol);
+	}
+
 	template<typename T>
 	void visit(T* symbol)
 	{
@@ -864,7 +929,7 @@ struct ParseTreePrinter : SymbolPrinter
 		}
 		else
 		{
-			UniqueTypeId type = ExpressionType<T>::get(symbol);
+			UniqueTypeId type = getSymbolType(symbol);
 			out << "<span title=\"" << SYMBOL_NAME(T);
 			if(type.value != 0
 				&& type.value != UNIQUETYPE_NULL)
