@@ -140,7 +140,7 @@ bool isPrimary(const Identifier& id)
 
 
 typedef std::pair<Name, DeclarationInstance> ModuleDeclaration; // first=source, second=declaration
-typedef std::set<ModuleDeclaration> ModuleDeclarationSet;
+typedef std::map<ModuleDeclaration, size_t> ModuleDeclarationSet;
 const ModuleDeclarationSet MODULEDECLARATIONSET_NULL = ModuleDeclarationSet();
 typedef std::map<Name, ModuleDeclarationSet> ModuleDependencyMap; // key=source
 
@@ -172,7 +172,7 @@ void addModuleDependency(ModuleDependencyMap& moduleDependencies, const Identifi
 		&& !id.dec.deferred // name resolution not deferred
 		&& id.source != instance.name->source) // refers to a symbol not declared in the current module
 	{
-		moduleDependencies[id.source].insert(ModuleDeclarationSet::value_type(instance.name->source, instance));
+		moduleDependencies[id.source][ModuleDeclaration(instance.name->source, instance)] = instance.name->position.line;
 	}
 }
 
@@ -263,12 +263,15 @@ struct DependencyBuilder
 				{
 					type = adjustFunctionParameter(type);
 				}
-				if(type.isSimple()
-					|| (type.isSimpleArray() && getArrayType(type.value).size != 0))
+				const TypeInstance* objectType = type.isSimple()
+					? &getObjectType(type.value)
+					: (type.isSimpleArray() && getArrayType(type.value).size != 0)
+						? &getObjectType(getInner(type.value))
+						: 0;
+				if(objectType != 0)
 				{
 					// the source file containing the definition depends on the type of the definition
-					DeclarationInstance type = DeclarationInstance(instance->type.declaration);
-					addModuleDependency(moduleDependencies, symbol->value, type);
+					addModuleDependency(moduleDependencies, symbol->value, DeclarationInstance(objectType->declaration));
 				}
 			}
 		}
@@ -580,9 +583,10 @@ struct SourcePrinter : SymbolPrinter
 			const ModuleDeclarationSet& d = findModuleDependencies(path);
 			for(ModuleDeclarationSet::const_iterator i = d.begin(); i != d.end(); ++i)
 			{
-				const ModuleDeclarationSet::value_type& declaration = *i;
+				const ModuleDeclarationSet::value_type& value = *i;
+				const ModuleDeclaration& declaration = value.first;
 
-				printer.out << (declaration.first != NAME_NULL ? declaration.first : Name("<unknown>")).c_str() << ": ";
+				printer.out << (declaration.first != NAME_NULL ? declaration.first : Name("<unknown>")).c_str() << "(" << value.second << "): ";
 				printName(declaration.second);
 				printer.out << std::endl;
 
@@ -734,20 +738,25 @@ struct SourcePrinter : SymbolPrinter
 						printer.out << "<a href='" << OutPath(outputRoot, (*i)->name.c_str()).c_str() << "'>" << (*i)->name.c_str() << "</a>" << std::endl;
 
 						{
-							MacroDeclarationSet::const_iterator j = macros.lower_bound(MacroDeclarationSet::value_type((*i)->name, 0));
+							MacroDeclarationSet::const_iterator j = macros.lower_bound(MacroDeclaration((*i)->name, 0));
 							for(; j != macros.end() && (*j).first == (*i)->name; ++j)
 							{
-								const MacroDeclarationSet::value_type& declaration = *j;
+								const MacroDeclaration& declaration = *j;
 								printer.out << "  ";
 								printer.out << declaration.second;
 								printer.out << std::endl;
 							}
 						}
 						{
-							ModuleDeclarationSet::const_iterator j = dependencies.lower_bound(ModuleDeclarationSet::value_type((*i)->name, DeclarationInstance()));
-							for(; j != dependencies.end() && (*j).first == (*i)->name; ++j)
+							ModuleDeclarationSet::const_iterator j = dependencies.lower_bound(ModuleDeclaration((*i)->name, DeclarationInstance()));
+							for(; j != dependencies.end(); ++j)
 							{
-								const ModuleDeclarationSet::value_type& declaration = *j;
+								const ModuleDeclarationSet::value_type& value = *j;
+								const ModuleDeclaration& declaration = value.first;
+								if(declaration.first != (*i)->name)
+								{
+									continue;
+								}
 								printer.out << "  ";
 								printAnchorStart(declaration.second);
 								printName(declaration.second);
