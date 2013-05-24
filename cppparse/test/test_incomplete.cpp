@@ -1,7 +1,4 @@
 
-struct Q {};
-Q* y = new Q[1];
-
 struct Base
 {
 };
@@ -25,7 +22,7 @@ namespace Temp
 	struct C { S m; }; // defines an object with type 'S'
 	void g(S* p) { if(S s = *p) {} } // defines an object with type 'S'
 	S ca[1]; // defines an object with type 'array of S'
-	S ia[1][]; // declares an object with type 'incomplete array of array of S'
+	extern S ia[1][]; // declares an object with type 'incomplete array of array of S'
 
 	typedef S F(); // note if 'F' is passed as a template argument, it cannot be used as the type of a member in a class-template
 	F fd; // not a definition, declares a function!

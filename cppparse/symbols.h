@@ -1511,11 +1511,13 @@ inline bool operator<(const MemberPointerType& left, const MemberPointerType& ri
 	return left.instance < right.instance;
 }
 
+typedef std::vector<size_t> ArrayRank;
+
 struct DeclaratorArrayType
 {
-	std::size_t size; // TODO: store expression to be evaluated when template-params are known
-	DeclaratorArrayType(std::size_t size)
-		: size(size)
+	ArrayRank rank; // TODO: store expression to be evaluated when template-params are known
+	DeclaratorArrayType(const ArrayRank& rank)
+		: rank(rank)
 	{
 	}
 };
@@ -2169,7 +2171,10 @@ struct TypeSequenceMakeUnique : TypeSequenceVisitor
 	}
 	void visit(const DeclaratorArrayType& element)
 	{
-		pushUniqueType(type, ArrayType(element.size));
+		for(ArrayRank::const_reverse_iterator i = element.rank.rbegin(); i != element.rank.rend(); ++i)
+		{
+			pushUniqueType(type, ArrayType(*i));
+		}
 	}
 	void visit(const DeclaratorMemberPointerType& element)
 	{

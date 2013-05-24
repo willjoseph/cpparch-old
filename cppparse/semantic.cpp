@@ -2894,12 +2894,17 @@ struct DeclaratorArrayWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	Dependent valueDependent;
+	ArrayRank rank;
 	size_t size;
 	DeclaratorArrayWalker(const WalkerState& state)
 		: WalkerBase(state), size(0)
 	{
 	}
 
+	void visit(cpp::terminal<boost::wave::T_LEFTBRACKET> symbol)
+	{
+		size = 0;
+	}
 	void visit(cpp::constant_expression* symbol)
 	{
 		ExpressionWalker walker(getState());
@@ -2907,12 +2912,9 @@ struct DeclaratorArrayWalker : public WalkerBase
 		addDependent(valueDependent, walker.valueDependent);
 		size = 1; // TODO: evaluate constant expression
 	}
-	void visit(cpp::declarator_suffix_array* symbol)
+	void visit(cpp::terminal<boost::wave::T_RIGHTBRACKET> symbol)
 	{
-		DeclaratorArrayWalker walker(getState());
-		TREEWALKER_WALK_CACHED(walker, symbol);
-		addDependent(valueDependent, walker.valueDependent);
-		size = walker.size; // TODO: multiple dimensions
+		rank.push_back(size);
 	}
 };
 
@@ -2992,7 +2994,7 @@ struct DeclaratorWalker : public WalkerBase
 		DeclaratorArrayWalker walker(getState());
 		TREEWALKER_WALK_CACHED(walker, symbol);
 		addDependent(valueDependent, walker.valueDependent);
-		typeSequence.push_front(DeclaratorArrayType(walker.size)); // TODO: how many dimensions
+		typeSequence.push_front(DeclaratorArrayType(walker.rank));
 	}
 	void visit(cpp::declarator_suffix_array* symbol)
 	{

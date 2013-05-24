@@ -37,6 +37,7 @@
 	- use list allocated with tree-allocator
 		- use reference-counting to ensure nodes not freed before release
 + make using-declaration link to named declaration
++ parse multi-dimensional array types
 
 
 - to test:

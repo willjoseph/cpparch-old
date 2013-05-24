@@ -1604,6 +1604,15 @@ namespace N036 // test parsing of type-id
 	// (*)[](): pointer to array of function returning
 	// *()[]: function returning array of pointer to
 	// (*)()[]: pointer to function returning array of
+
+	typedef int Arr2[2];
+	typedef Arr2 Arr1[];
+	extern Arr1 arr0;  // array(?) of array(2) of int
+	extern int arr1[1][2]; // array(1) of array(2) of int
+	extern int arr2[][2]; // array(?) of array(2) of int
+	extern int* arr3[2]; // array(2) of pointer to int
+	extern int (*arr4)[2]; // pointer to array(2) of int
+
 }
 
 namespace N001
