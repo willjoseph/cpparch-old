@@ -323,6 +323,7 @@ namespace cpp
 			SYMBOLFWD(assignment_expression)
 		));
 		type_decoration type; // the type of the expression
+		Source source;
 	};
 
 	struct initializer : public choice<initializer>

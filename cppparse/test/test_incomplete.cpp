@@ -1,4 +1,7 @@
 
+struct Q {};
+Q* y = new Q[1];
+
 struct Base
 {
 };
@@ -31,6 +34,10 @@ namespace Temp
 	S (*pf)(); // defines an object with type 'pointer-to function-returning S'
 
 	extern S s; // not a definition
+
+	// [expr.new] The new expression attempts to create an object of the type-id or new-type-id to which it is applied. The type shall be a complete type...
+	S* x = new S;
+	S* y = new S[1];
 
 	template<typename T>
 	struct W
@@ -66,7 +73,7 @@ namespace PtrArithmetic
 	// [expr.add] [pointer arithmetic requires completely defined object type]
 	S* p;
 	S* q = p + 1;
-	S* r = p - 1;
+	S* r = p -= 1;
 	int d = p - q;
 }
 
@@ -76,6 +83,7 @@ namespace RvalueConversion
 	// [basic.lval] Other builtin operators yield rvalues, and some expect them [overloaded operators require complete type]
 	// [basic.lval] Whenever an lvalue appears in a context where an rvalue is expected, the lvalue is converted to an rvalue
 	// [conv.lval] An lvalue of a non-function, non-array type T can be converted to an rvalue. If T is an incomplete type, a program that necessitates this conversion is ill formed.
+	// [expr.ass] If the left operand is of class type, the class shall be complete.
 	void f(S* p, S* q) { *p = *q; }
 }
 

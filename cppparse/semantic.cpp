@@ -1096,8 +1096,10 @@ struct WalkerQualified : public WalkerBase
 
 
 
-#define TREEWALKER_WALK(walker, symbol) SYMBOL_WALK(walker, symbol)
-#define TREEWALKER_LEAF(symbol) SYMBOL_WALK(*this, symbol)
+#define TREEWALKER_WALK(walker, symbol) SYMBOL_WALK(walker, symbol);
+#define TREEWALKER_WALK_SRC(walker, symbol) Source source_ = parser->get_source(); TREEWALKER_WALK(walker, symbol); symbol->source = source_
+#define TREEWALKER_LEAF(symbol) TREEWALKER_WALK(*this, symbol)
+#define TREEWALKER_LEAF_SRC(symbol) TREEWALKER_WALK_SRC(*this, symbol)
 
 #define TREEWALKER_DEFAULT PARSERCONTEXT_DEFAULT
 
@@ -1505,7 +1507,7 @@ struct ExplicitTypeExpressionWalker : public WalkerBase
 	}
 	void visit(cpp::new_type* symbol)
 	{
-		TypeIdWalker walker(getState());
+		NewTypeWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		type.swap(walker.type);
 		addDependent(typeDependent, type);
@@ -1838,7 +1840,7 @@ struct PostfixExpressionWalker : public WalkerBase
 	void visit(cpp::postfix_expression_construct* symbol)
 	{
 		ExplicitTypeExpressionWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
+		TREEWALKER_WALK_SRC(walker, symbol);
 		addDependent(typeDependent, walker.typeDependent);
 		type = gUniqueTypeNull;
 		if(!isDependent(walker.type))
@@ -1850,7 +1852,7 @@ struct PostfixExpressionWalker : public WalkerBase
 	void visit(cpp::postfix_expression_cast* symbol)
 	{
 		ExplicitTypeExpressionWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
+		TREEWALKER_WALK_SRC(walker, symbol);
 		type = gUniqueTypeNull;
 		if(!isDependent(walker.type))
 		{
@@ -2033,7 +2035,7 @@ struct ExpressionWalker : public WalkerBase
 	// this path handles the right-hand side of a binary expression
 	// it is assumed that 'type' already contains the type of the left-hand side
 	template<typename T, typename Select>
-	void walkBinaryExpression(T* symbol, Select select)
+	void walkBinaryExpression(T*& symbol, Select select)
 	{
 		// TODO: SEMANTIC_ASSERT(walker.type.declaration != 0);
 		ExpressionWalker walker(getState());
@@ -2127,7 +2129,7 @@ struct ExpressionWalker : public WalkerBase
 	}
 	void visit(cpp::assignment_expression_default* symbol)
 	{
-		TREEWALKER_LEAF(symbol);
+		TREEWALKER_LEAF_SRC(symbol);
 		setExpressionType(symbol, type);
 	}
 	void visit(cpp::expression* symbol) // RHS of expression-list
@@ -2200,7 +2202,7 @@ struct ExpressionWalker : public WalkerBase
 	void visit(cpp::new_expression_placement* symbol)
 	{
 		ExplicitTypeExpressionWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
+		TREEWALKER_WALK_SRC(walker, symbol);
 		type = isDependent(walker.type) ? gUniqueTypeNull : makeUniqueType(walker.type, enclosingType);
 		type.push_front(PointerType());
 		addDependent(typeDependent, walker.typeDependent);
@@ -2209,7 +2211,7 @@ struct ExpressionWalker : public WalkerBase
 	void visit(cpp::new_expression_default* symbol)
 	{
 		ExplicitTypeExpressionWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
+		TREEWALKER_WALK_SRC(walker, symbol);
 		type = isDependent(walker.type) ? gUniqueTypeNull : makeUniqueType(walker.type, enclosingType);
 		type.push_front(PointerType());
 		addDependent(typeDependent, walker.typeDependent);
@@ -2218,7 +2220,7 @@ struct ExpressionWalker : public WalkerBase
 	void visit(cpp::cast_expression_default* symbol)
 	{
 		ExplicitTypeExpressionWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
+		TREEWALKER_WALK_SRC(walker, symbol);
 		type = isDependent(walker.type) ? gUniqueTypeNull : makeUniqueType(walker.type, enclosingType);
 		Dependent tmp(walker.typeDependent);
 		addDependent(valueDependent, tmp);
@@ -2944,7 +2946,8 @@ struct DeclaratorWalker : public WalkerBase
 		qualifiers = walker.qualifiers;
 		memberPointer.swap(walker.qualifying);
 	}
-	void visit(cpp::declarator_ptr* symbol)
+	template<typename T>
+	void walkDeclaratorPtr(T* symbol)
 	{
 		DeclaratorWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol); // if parse fails, state of typeSeqence is not modified.
@@ -2959,20 +2962,17 @@ struct DeclaratorWalker : public WalkerBase
 		memberPointer.swap(walker.memberPointer);
 		pushPointerType(symbol->op);
 	}
+	void visit(cpp::declarator_ptr* symbol)
+	{
+		return walkDeclaratorPtr(symbol);
+	}
 	void visit(cpp::abstract_declarator_ptr* symbol)
 	{
-		DeclaratorWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol); // if parse fails, state of typeSeqence is not modified.
-		id = walker.id;
-		enclosing = walker.enclosing;
-		paramScope = walker.paramScope;
-		addDependent(valueDependent, walker.valueDependent);
-		SYMBOLS_ASSERT(typeSequence.empty());
-		typeSequence = walker.typeSequence;
-
-		qualifiers = walker.qualifiers;
-		memberPointer.swap(walker.memberPointer);
-		pushPointerType(symbol->op);
+		return walkDeclaratorPtr(symbol);
+	}
+	void visit(cpp::new_declarator_ptr* symbol)
+	{
+		return walkDeclaratorPtr(symbol);
 	}
 	void visit(cpp::declarator_id* symbol)
 	{
@@ -2986,12 +2986,17 @@ struct DeclaratorWalker : public WalkerBase
 			enclosing = walker.getQualifyingScope(); // names in declarator suffix (array-size, parameter-declaration) are looked up in declarator-id's qualifying scope
 		}
 	}
-	void visit(cpp::declarator_suffix_array* symbol)
+	template<typename T>
+	void walkDeclaratorArray(T* symbol)
 	{
 		DeclaratorArrayWalker walker(getState());
 		TREEWALKER_WALK_CACHED(walker, symbol);
 		addDependent(valueDependent, walker.valueDependent);
 		typeSequence.push_front(DeclaratorArrayType(walker.size)); // TODO: how many dimensions
+	}
+	void visit(cpp::declarator_suffix_array* symbol)
+	{
+		return walkDeclaratorArray(symbol);
 	}
 	void visit(cpp::declarator_suffix_function* symbol)
 	{
@@ -3003,49 +3008,50 @@ struct DeclaratorWalker : public WalkerBase
 		}
 		typeSequence.push_front(DeclaratorFunctionType(walker.parameters, walker.qualifiers));
 	}
-	void visit(cpp::direct_abstract_declarator* symbol)
+	void visit(cpp::new_declarator_suffix* symbol)
+	{
+		return walkDeclaratorArray(symbol);
+	}
+	void visit(cpp::expression* symbol) // in direct_new_declarator
+	{
+		ExpressionWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+	}
+	template<typename T>
+	void walkDeclarator(T* symbol)
 	{
 		DeclaratorWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol); // if parse fails, state of typeSeqence is not modified. e.g. type-id: int((int))
+		TREEWALKER_WALK(walker, symbol);
 		id = walker.id;
 		enclosing = walker.enclosing;
 		paramScope = walker.paramScope;
 		addDependent(valueDependent, walker.valueDependent);
 		SYMBOLS_ASSERT(typeSequence.empty());
 		typeSequence = walker.typeSequence;
+	}
+	void visit(cpp::direct_abstract_declarator* symbol)
+	{
+		return walkDeclarator(symbol); // if parse fails, state of typeSeqence is not modified. e.g. type-id: int((int))
 	}
 	void visit(cpp::direct_abstract_declarator_parenthesis* symbol)
 	{
-		DeclaratorWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol); // if parse fails, state of typeSeqence is not modified. e.g. function-style-cast type-id followed by parenthesised expression: int(*this)
-		id = walker.id;
-		enclosing = walker.enclosing;
-		paramScope = walker.paramScope;
-		addDependent(valueDependent, walker.valueDependent);
-		SYMBOLS_ASSERT(typeSequence.empty());
-		typeSequence = walker.typeSequence;
+		return walkDeclarator(symbol); // if parse fails, state of typeSeqence is not modified. e.g. function-style-cast type-id followed by parenthesised expression: int(*this)
+	}
+	void visit(cpp::direct_new_declarator* symbol)
+	{
+		return walkDeclarator(symbol);
 	}
 	void visit(cpp::declarator* symbol)
 	{
-		DeclaratorWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
-		id = walker.id;
-		enclosing = walker.enclosing;
-		paramScope = walker.paramScope;
-		addDependent(valueDependent, walker.valueDependent);
-		SYMBOLS_ASSERT(typeSequence.empty());
-		typeSequence = walker.typeSequence;
+		return walkDeclarator(symbol);
 	}
 	void visit(cpp::abstract_declarator* symbol)
 	{
-		DeclaratorWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
-		id = walker.id;
-		enclosing = walker.enclosing;
-		paramScope = walker.paramScope;
-		addDependent(valueDependent, walker.valueDependent);
-		SYMBOLS_ASSERT(typeSequence.empty());
-		typeSequence = walker.typeSequence;
+		return walkDeclarator(symbol);
+	}
+	void visit(cpp::new_declarator* symbol)
+	{
+		return walkDeclarator(symbol);
 	}
 };
 
@@ -4074,6 +4080,43 @@ struct TypeIdWalker : public WalkerBase
 	}
 };
 
+struct NewTypeWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	TypeId type;
+	Dependent valueDependent;
+	NewTypeWalker(const WalkerState& state)
+		: WalkerBase(state), type(0, context)
+	{
+	}
+	void visit(cpp::terminal<boost::wave::T_OPERATOR> symbol) 
+	{
+		// for debugging purposes
+	}
+	void visit(cpp::type_specifier_seq* symbol)
+	{
+		DeclSpecifierSeqWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+		type.swap(walker.type);
+		declareEts(type, walker.forward);
+	}
+	void visit(cpp::new_declarator* symbol)
+	{
+		DeclaratorWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+		addDependent(valueDependent, walker.valueDependent);
+		type.typeSequence = walker.typeSequence;
+		setDependent(type.dependent, type.typeSequence);
+		// new T
+		// new T*
+		// new T[variable]
+		// new T[variable][constant]
+		// new T*[variable]
+		// new T C::*
+	}
+};
+
 struct IsTemplateName
 {
 	WalkerState& context;
@@ -4685,9 +4728,7 @@ struct TemplateDeclarationWalker : public WalkerBase
 	void visit(cpp::declaration* symbol)
 	{
 		DeclarationWalker walker(getState());
-		Source source = parser->get_source();
-		TREEWALKER_WALK(walker, symbol);
-		symbol->source = source;
+		TREEWALKER_WALK_SRC(walker, symbol);
 		declaration = walker.declaration;
 		SEMANTIC_ASSERT(declaration != 0);
 	}
@@ -4842,10 +4883,8 @@ struct NamespaceWalker : public WalkerBase
 	{
 		DeclarationWalker walker(getState());
 		IncludeEvents events = parser->get_events();
-		Source source = parser->get_source();
-		TREEWALKER_WALK(walker, symbol);
+		TREEWALKER_WALK_SRC(walker, symbol);
 		symbol->events = events;
-		symbol->source = source;
 	}
 };
 

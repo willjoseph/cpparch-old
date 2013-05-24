@@ -140,7 +140,7 @@ bool isPrimary(const Identifier& id)
 
 
 typedef std::pair<Name, DeclarationInstance> ModuleDeclaration; // first=source, second=declaration
-typedef std::map<ModuleDeclaration, size_t> ModuleDeclarationSet;
+typedef std::set<ModuleDeclaration> ModuleDeclarationSet;
 const ModuleDeclarationSet MODULEDECLARATIONSET_NULL = ModuleDeclarationSet();
 typedef std::map<Name, ModuleDeclarationSet> ModuleDependencyMap; // key=source
 
@@ -166,13 +166,12 @@ void mergeIncludes(IncludeDependencyNodes& includes, const IncludeDependencyNode
 	}
 }
 
-void addModuleDependency(ModuleDependencyMap& moduleDependencies, const Identifier& id, const DeclarationInstance& instance)
+void addModuleDependency(ModuleDependencyMap& moduleDependencies, const Name module, const DeclarationInstance& instance)
 {
 	if(instance.name->source != NAME_NULL // refers to a symbol declared in a module
-		&& !id.dec.deferred // name resolution not deferred
-		&& id.source != instance.name->source) // refers to a symbol not declared in the current module
+		&& module != instance.name->source) // refers to a symbol not declared in the current module
 	{
-		moduleDependencies[id.source][ModuleDeclaration(instance.name->source, instance)] = instance.name->position.line;
+		moduleDependencies[module].insert(ModuleDeclaration(instance.name->source, instance));
 	}
 }
 
@@ -243,13 +242,14 @@ struct DependencyBuilder
 		const DeclarationInstance& instance = getDeclaration(symbol->value);
 		if(!isPrimary(symbol->value)) // if this is not the identifier in an actual declaration
 		{
-			if(!isNamespace(*instance))
+			if(!isNamespace(*instance)
+				&& !symbol->value.dec.deferred) // name resolution not deferred
 			{
 				// the source file containing this symbol depends on all the redeclarations (of the declaration chosen by name resolution) that were visible
 				// e.g. function redeclarations (excluding unchosen overloads), class forward-declarations (excluding unchosen explicit/partial-specializations)
 				
 				// add the most recent redeclaration
-				addModuleDependency(moduleDependencies, symbol->value, instance);
+				addModuleDependency(moduleDependencies, symbol->value.source, instance);
 			}
 		}
 		else
@@ -271,10 +271,67 @@ struct DependencyBuilder
 				if(objectType != 0)
 				{
 					// the source file containing the definition depends on the type of the definition
-					addModuleDependency(moduleDependencies, symbol->value, DeclarationInstance(objectType->declaration));
+					addModuleDependency(moduleDependencies, symbol->value.source, DeclarationInstance(objectType->declaration));
 				}
 			}
 		}
+	}
+	void addTypeDependency(UniqueTypeId type, Name module)
+	{
+		const TypeInstance* objectType = type.isSimple()
+			? &getObjectType(type.value)
+			: 0;
+		if(objectType != 0)
+		{
+			addModuleDependency(moduleDependencies, module, DeclarationInstance(objectType->declaration));
+		}
+	}
+	void addCastDependency(cpp::expression* symbol)
+	{
+		// [basic.lval] An expression which holds a temporary object resulting from a cast to a non-reference type is an rvalue
+		addTypeDependency(getExpressionType(symbol), symbol->source.absolute);
+	}
+	void visit(cpp::cast_expression_default* symbol)
+	{
+		addCastDependency(symbol);
+		symbol->accept(*this);
+	}
+	void visit(cpp::postfix_expression_construct* symbol)
+	{
+		addCastDependency(symbol);
+		symbol->accept(*this);
+	}
+	void visit(cpp::postfix_expression_cast* symbol)
+	{
+		addCastDependency(symbol);
+		symbol->accept(*this);
+	}
+	void addNewExpressionDependency(cpp::expression* symbol)
+	{
+		// [expr.new] The new expression attempts to create an object of the type-id or new-type-id to which it is applied. The type shall be a complete type...
+		addTypeDependency(UniqueTypeId(getInner(getExpressionType(symbol).value)), symbol->source.absolute);
+	}
+	void visit(cpp::new_expression_default* symbol)
+	{
+		addNewExpressionDependency(symbol);
+		symbol->accept(*this);
+	}
+	void visit(cpp::new_expression_placement* symbol)
+	{
+		addNewExpressionDependency(symbol);
+		symbol->accept(*this);
+	}
+	void visit(cpp::assignment_expression_default* symbol)
+	{
+		// [expr.ass] If the left operand is of class type, the class shall be complete.
+		UniqueTypeId type = getExpressionType(symbol);
+		if(type.isSimpleReference())
+		{
+			// [expr.ass] When the left operand of an assignment operator denotes a reference to T, the operation assigns to the object of type T denoted by the reference.
+			type = UniqueTypeId(getInner(type.value));
+		}
+		addTypeDependency(type, symbol->source.absolute);
+		symbol->accept(*this);
 	}
 };
 
@@ -583,10 +640,9 @@ struct SourcePrinter : SymbolPrinter
 			const ModuleDeclarationSet& d = findModuleDependencies(path);
 			for(ModuleDeclarationSet::const_iterator i = d.begin(); i != d.end(); ++i)
 			{
-				const ModuleDeclarationSet::value_type& value = *i;
-				const ModuleDeclaration& declaration = value.first;
+				const ModuleDeclaration& declaration = *i;
 
-				printer.out << (declaration.first != NAME_NULL ? declaration.first : Name("<unknown>")).c_str() << "(" << value.second << "): ";
+				printer.out << (declaration.first != NAME_NULL ? declaration.first : Name("<unknown>")).c_str() << ": ";
 				printName(declaration.second);
 				printer.out << std::endl;
 
@@ -739,9 +795,13 @@ struct SourcePrinter : SymbolPrinter
 
 						{
 							MacroDeclarationSet::const_iterator j = macros.lower_bound(MacroDeclaration((*i)->name, 0));
-							for(; j != macros.end() && (*j).first == (*i)->name; ++j)
+							for(; j != macros.end(); ++j)
 							{
 								const MacroDeclaration& declaration = *j;
+								if(declaration.first != (*i)->name)
+								{
+									continue;
+								}
 								printer.out << "  ";
 								printer.out << declaration.second;
 								printer.out << std::endl;
@@ -751,8 +811,7 @@ struct SourcePrinter : SymbolPrinter
 							ModuleDeclarationSet::const_iterator j = dependencies.lower_bound(ModuleDeclaration((*i)->name, DeclarationInstance()));
 							for(; j != dependencies.end(); ++j)
 							{
-								const ModuleDeclarationSet::value_type& value = *j;
-								const ModuleDeclaration& declaration = value.first;
+								const ModuleDeclaration& declaration = *j;
 								if(declaration.first != (*i)->name)
 								{
 									continue;
