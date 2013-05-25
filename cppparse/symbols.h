@@ -1386,9 +1386,9 @@ struct TypeInstance
 	const TypeInstance* enclosing; // the enclosing template
 	UniqueBases bases;
 	SpecializationTypes specializations; // the types of the dependent-names in the specialization
-	bool evaluated;
+	bool instantiated;
 	TypeInstance(Declaration* declaration, const TypeInstance* enclosing)
-		: declaration(declaration), enclosing(enclosing), evaluated(false)
+		: declaration(declaration), enclosing(enclosing), instantiated(false)
 	{
 		SYMBOLS_ASSERT(enclosing == 0 || isClass(*enclosing->declaration));
 	}
@@ -1831,7 +1831,11 @@ inline const TypeInstance* makeUniqueEnclosing(const Qualifying& qualifying, con
 {
 	if(!qualifying.empty())
 	{
-		UniqueTypeWrapper tmp = makeUniqueType(*qualifying.get(), enclosing, allowDependent, depth);
+		if(isNamespace(*qualifying.back().declaration))
+		{
+			return 0; // name is qualified by a namespace, therefore cannot be enclosed by a class
+		}
+		UniqueTypeWrapper tmp = makeUniqueType(qualifying.back(), enclosing, allowDependent, depth);
 		return allowDependent && tmp.isDependent() ? 0 : &getObjectType(tmp.value);
 	}
 	return enclosing;
@@ -1889,15 +1893,16 @@ inline Declaration* findTemplateSpecialization(Declaration* declaration, const T
 	return 0;
 }
 
-inline void evaluateBases(const TypeInstance& enclosing)
+inline void instantiateClass(const TypeInstance& enclosing)
 {
-	if(!enclosing.evaluated)
+	SYMBOLS_ASSERT(isClass(*enclosing.declaration));
+	if(!enclosing.instantiated)
 	{
 		TypeInstance& instance = const_cast<TypeInstance&>(enclosing);
-		instance.evaluated = true; // prevent recursion
+		instance.instantiated = true; // prevent recursion
 		if(enclosing.declaration->enclosed == 0)
 		{
-			std::cout << "evaluateBases failed!" << std::endl;
+			std::cout << "instantiateClass failed!" << std::endl;
 			return; // TODO: this can occur when the primary template is incomplete, and a specialization was not chosen
 		}
 		SYMBOLS_ASSERT(enclosing.declaration->enclosed != 0);
@@ -1921,7 +1926,7 @@ inline const TypeInstance* findEnclosingType(const TypeInstance& enclosing, Scop
 		return &enclosing;
 	}
 
-	evaluateBases(enclosing);
+	instantiateClass(enclosing);
 
 	for(UniqueBases::const_iterator i = enclosing.bases.begin(); i != enclosing.bases.end(); ++i)
 	{
@@ -1975,7 +1980,7 @@ inline LookupResult findDeclaration(const TypeInstance& instance, const Identifi
 	{
 		return result;
 	}
-	evaluateBases(instance);
+	instantiateClass(instance);
 	if(result.append(findDeclaration(instance.bases, id, filter)))
 	{
 		return result;
@@ -2870,7 +2875,7 @@ inline bool findBase(const TypeInstance& other, const TypeInstance& type)
 	}
 	SYMBOLS_ASSERT(other.declaration->enclosed != 0);
 	SYMBOLS_ASSERT(isClass(*type.declaration));
-	evaluateBases(other);
+	instantiateClass(other);
 	for(UniqueBases::const_iterator i = other.bases.begin(); i != other.bases.end(); ++i)
 	{
 		const TypeInstance& base = *(*i);
