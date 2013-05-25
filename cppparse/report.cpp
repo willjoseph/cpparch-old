@@ -197,9 +197,11 @@ inline bool isFunctionParameter(const Declaration& declaration)
 
 struct DependencyBuilder
 {
-	ModuleDependencyMap moduleDependencies;
-
-	std::vector<Declaration*> functionStack;
+	ModuleDependencyMap& moduleDependencies;
+	DependencyBuilder(ModuleDependencyMap& moduleDependencies)
+		: moduleDependencies(moduleDependencies)
+	{
+	}
 
 	void visit(cpp::terminal_identifier symbol)
 	{
@@ -233,6 +235,14 @@ struct DependencyBuilder
 		}
 	}
 
+	void addTypeDependency(UniqueTypeId type, Name module)
+	{
+		if(type.isSimple())
+		{
+			addModuleDependency(moduleDependencies, module, DeclarationInstance(getObjectType(type.value).declaration));
+		}
+	}
+
 	void visit(cpp::identifier* symbol)
 	{
 		if(!isDecorated(symbol->value))
@@ -263,29 +273,16 @@ struct DependencyBuilder
 				{
 					type = adjustFunctionParameter(type);
 				}
-				const TypeInstance* objectType = type.isSimple()
-					? &getObjectType(type.value)
-					: (type.isSimpleArray() && getArrayType(type.value).size != 0)
-						? &getObjectType(getInner(type.value))
-						: 0;
-				if(objectType != 0)
+				while(type.isArray()
+					&& getArrayType(type.value).size != 0)
 				{
-					// the source file containing the definition depends on the type of the definition
-					addModuleDependency(moduleDependencies, symbol->value.source, DeclarationInstance(objectType->declaration));
+					type.pop_front(); // arrays of known size are object types
 				}
+				addTypeDependency(type, symbol->value.source);
 			}
 		}
 	}
-	void addTypeDependency(UniqueTypeId type, Name module)
-	{
-		const TypeInstance* objectType = type.isSimple()
-			? &getObjectType(type.value)
-			: 0;
-		if(objectType != 0)
-		{
-			addModuleDependency(moduleDependencies, module, DeclarationInstance(objectType->declaration));
-		}
-	}
+
 	void addCastDependency(cpp::expression* symbol)
 	{
 		// [basic.lval] An expression which holds a temporary object resulting from a cast to a non-reference type is an rvalue
@@ -306,6 +303,7 @@ struct DependencyBuilder
 		addCastDependency(symbol);
 		symbol->accept(*this);
 	}
+
 	void addNewExpressionDependency(cpp::expression* symbol)
 	{
 		// [expr.new] The new expression attempts to create an object of the type-id or new-type-id to which it is applied. The type shall be a complete type...
@@ -323,14 +321,142 @@ struct DependencyBuilder
 	}
 	void visit(cpp::assignment_expression_default* symbol)
 	{
-		// [expr.ass] If the left operand is of class type, the class shall be complete.
-		UniqueTypeId type = getExpressionType(symbol);
-		if(type.isSimpleReference())
+		if(symbol->right != 0
+			&& typeid(*symbol->right) == typeid(cpp::assignment_expression_suffix))
 		{
-			// [expr.ass] When the left operand of an assignment operator denotes a reference to T, the operation assigns to the object of type T denoted by the reference.
-			type = UniqueTypeId(getInner(type.value));
+			cpp::assignment_expression_suffix* suffix = static_cast<cpp::assignment_expression_suffix*>(symbol->right.p);
+
+			UniqueTypeId type = getExpressionType(symbol->left);
+			if(type.isReference())
+			{
+				// [expr.ass] When the left operand of an assignment operator denotes a reference to T, the operation assigns to the object of type T denoted by the reference.
+				type.pop_front();
+			}
+			// [expr.ass] If the left operand is of class type, the class shall be complete.
+			addTypeDependency(type, symbol->source.absolute);
+
+			// [expr.ass] In += and -= [the left operand] shall have either arithmetic type or be a pointer to a possibly cv-qualified completely defined object type.
+			if(suffix->op->id == cpp::assignment_operator::PLUS
+				|| suffix->op->id == cpp::assignment_operator::MINUS)
+			{
+				if(type.isPointer())
+				{
+					type.pop_front();
+					addTypeDependency(type, symbol->source.absolute);
+				}
+			}
 		}
+
+		symbol->accept(*this);
+	}
+	
+	void visit(cpp::postfix_expression_member* symbol)
+	{
+		UniqueTypeId type = getExpressionType(symbol);
+		if(type.isReference())
+		{
+			type.pop_front(); // [expr] If an expression initially has the type "reference to T", the type is adjusted to "T" prior to any further analysis.
+		}
+		if(symbol->op->id == cpp::member_operator::ARROW
+			&& type.isPointer())
+		{
+			type.pop_front();
+		}
+		// [expr.ref] [the type of the object-expression shall be complete]
 		addTypeDependency(type, symbol->source.absolute);
+		symbol->accept(*this);
+	}
+
+	void visit(cpp::postfix_expression_subscript* symbol)
+	{
+		UniqueTypeId type = getExpressionType(symbol);
+		if(type.isReference())
+		{
+			type.pop_front(); // [expr] If an expression initially has the type "reference to T", the type is adjusted to "T" prior to any further analysis.
+		}
+		// [expr.sub] The result is an lvalue of type T. The type "T" shall be a completely defined object type.
+		addTypeDependency(type, symbol->source.absolute);
+		symbol->accept(*this);
+	}
+
+	void visit(cpp::unary_expression_sizeof* symbol)
+	{
+		UniqueTypeId type = getExpressionType(symbol->expr);
+		if(type.isReference())
+		{
+			type.pop_front(); // [expr] If an expression initially has the type "reference to T", the type is adjusted to "T" prior to any further analysis.
+		}
+		// [expr.sizeof] The sizeof operator shall not be applied to an expression that has function or incomplete type.
+		addTypeDependency(type, symbol->source.absolute);
+		symbol->accept(*this);
+	}
+
+	void visit(cpp::unary_expression_sizeoftype* symbol)
+	{
+		UniqueTypeId type = getExpressionType(symbol->type);
+		if(type.isReference())
+		{
+			type.pop_front(); // [expr] If an expression initially has the type "reference to T", the type is adjusted to "T" prior to any further analysis.
+		}
+		// [expr.sizeof] The sizeof operator shall not be applied to an expression that has function or incomplete type... or to the parenthesized name of such types.
+		addTypeDependency(type, symbol->source.absolute);
+		symbol->accept(*this);
+	}
+
+	void visit(cpp::unary_expression_op* symbol)
+	{
+		UniqueTypeId type = getExpressionType(symbol->expr);
+		if(type.isReference())
+		{
+			type.pop_front(); // [expr] If an expression initially has the type "reference to T", the type is adjusted to "T" prior to any further analysis.
+		}
+		if(symbol->op->id == cpp::unary_operator::PLUSPLUS
+			|| symbol->op->id == cpp::unary_operator::MINUSMINUS)
+		{
+			// [expr.pre.incr] The type of the operand shall be an arithmetic type or a pointer to a completely-defined object type.
+			if(type.isPointer())
+			{
+				type.pop_front();
+				addTypeDependency(type, symbol->source.absolute);
+			}
+		}
+		symbol->accept(*this);
+	}
+
+	void visit(cpp::postfix_operator* symbol)
+	{
+		UniqueTypeId type = getExpressionType(symbol);
+		if(type.isReference())
+		{
+			type.pop_front(); // [expr] If an expression initially has the type "reference to T", the type is adjusted to "T" prior to any further analysis.
+		}
+		if(symbol->id == cpp::unary_operator::PLUSPLUS
+			|| symbol->id == cpp::unary_operator::MINUSMINUS)
+		{
+			// [expr.post.incr] The type of the operand shall be an arithmetic type or a pointer to a complete object type.
+			if(type.isPointer())
+			{
+				type.pop_front();
+				addTypeDependency(type, symbol->source.absolute);
+			}
+		}
+		symbol->accept(*this);
+	}
+
+	void visit(cpp::additive_expression_default* symbol)
+	{
+		UniqueTypeId type = getExpressionType(symbol->left);
+		if(type.isReference())
+		{
+			type.pop_front(); // [expr] If an expression initially has the type "reference to T", the type is adjusted to "T" prior to any further analysis.
+		}
+		// [expr.add] the left operand is a pointer to a completely defined object type [or] both operands are pointers to the same completely defined object type.
+		if(type.isPointer())
+		{
+			type.pop_front();
+			addTypeDependency(type, symbol->source.absolute);
+		}
+
 		symbol->accept(*this);
 	}
 };
@@ -1026,14 +1152,17 @@ void printSymbol(cpp::declaration_seq* p, const PrintSymbolArgs& args)
 {
 	try
 	{
-		DependencyBuilder builder;
-		builder.visit(makeSymbol(p));
+		ModuleDependencyMap moduleDependencies;
+		{
+			DependencyBuilder builder(moduleDependencies);
+			builder.visit(makeSymbol(p));
+		}
 		{
 			ParseTreePrinter printer(args.outputRoot);
 			printer.visit(makeSymbol(p));
 		}
 		{
-			SourcePrinter printer(args, builder.moduleDependencies);
+			SourcePrinter printer(args, moduleDependencies);
 			printer.visit(makeSymbol(p));
 		}
 	}
@@ -1046,14 +1175,17 @@ void printSymbol(cpp::statement_seq* p, const PrintSymbolArgs& args)
 {
 	try
 	{
-		DependencyBuilder builder;
-		builder.visit(makeSymbol(p));
+		ModuleDependencyMap moduleDependencies;
+		{
+			DependencyBuilder builder(moduleDependencies);
+			builder.visit(makeSymbol(p));
+		}
 		{
 			ParseTreePrinter printer(args.outputRoot);
 			printer.visit(makeSymbol(p));
 		}
 		{
-			SourcePrinter printer(args, builder.moduleDependencies);
+			SourcePrinter printer(args, moduleDependencies);
 			printer.visit(makeSymbol(p));
 		}
 	}

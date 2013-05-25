@@ -1,4 +1,54 @@
 
+namespace N122
+{
+	struct Name
+	{
+	};
+	struct Source
+	{
+		Name absolute;
+	};
+	struct Token
+	{
+		Source source;
+	};
+	struct BacktrackBuffer
+	{
+		typedef const Token*const_iterator;
+	};
+	struct Lexer
+	{
+		typedef BacktrackBuffer Tokens;
+		Tokens history;
+		Tokens::const_iterator position;
+		void f()
+		{
+			Name name = (*position).source.absolute;
+		}
+	};
+}
+
+namespace N121
+{
+	struct S
+	{
+		int m;
+		void f()
+		{
+			int m; // hides declaration of 'S::m'
+			// 'm' should be looked up in the scope of 'S'
+			this->m = 0;
+			(*this)->m = 0;
+			this[0].m = 0;
+			S& s = *this;
+			s.m = 0;
+			S*& p = this;
+			p->m = 0;
+		}
+	};
+}
+
+
 namespace N120
 {
 	struct S;

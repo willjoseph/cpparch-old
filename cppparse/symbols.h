@@ -1262,6 +1262,8 @@ struct UniqueTypeWrapper
 	}
 	void pop_front()
 	{
+		SYMBOLS_ASSERT(value != 0);
+		SYMBOLS_ASSERT(value != UNIQUETYPE_NULL);
 		popUniqueType(value);
 	}
 	void swap(UniqueTypeWrapper& other)
@@ -2234,6 +2236,24 @@ inline UniqueTypeId getExpressionType(cpp::expression* symbol)
 	return UniqueTypeId(symbol->type.p);
 }
 inline void setExpressionType(cpp::expression* symbol, UniqueTypeId value)
+{
+	symbol->type.p = value.value;
+}
+
+inline UniqueTypeId getExpressionType(cpp::postfix_expression_suffix* symbol)
+{
+	return UniqueTypeId(symbol->type.p);
+}
+inline void setExpressionType(cpp::postfix_expression_suffix* symbol, UniqueTypeId value)
+{
+	symbol->type.p = value.value;
+}
+
+inline UniqueTypeId getExpressionType(cpp::type_id* symbol)
+{
+	return UniqueTypeId(symbol->type.p);
+}
+inline void setExpressionType(cpp::type_id* symbol, UniqueTypeId value)
 {
 	symbol->type.p = value.value;
 }

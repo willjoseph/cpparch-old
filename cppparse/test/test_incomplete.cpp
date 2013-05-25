@@ -13,65 +13,27 @@ struct S : Base
 	operator bool();
 };
 
-namespace Temp
-{
-	S f(); // not a definition
-	void f(S s); // not a definition
-	void f(S[1]) {}; // equivalent to f(S*);
-
-	struct C { S m; }; // defines an object with type 'S'
-	void g(S* p) { if(S s = *p) {} } // defines an object with type 'S'
-	S ca[1]; // defines an object with type 'array of S'
-	extern S ia[1][]; // declares an object with type 'incomplete array of array of S'
-
-	typedef S F(); // note if 'F' is passed as a template argument, it cannot be used as the type of a member in a class-template
-	F fd; // not a definition, declares a function!
-
-	S* spf; // defines an object with type 'pointer-to S'
-	S (*pf)(); // defines an object with type 'pointer-to function-returning S'
-
-	extern S s; // not a definition
-
-	// [expr.new] The new expression attempts to create an object of the type-id or new-type-id to which it is applied. The type shall be a complete type...
-	S* x = new S;
-	S* y = new S[1];
-
-	template<typename T>
-	struct W
-	{
-		typedef T Type;
-		static Type m; // type of 'm' is dependent
-	};
-
-	template<typename T>
-	typename W<T>::Type W<T>::m; // type of 'm' is dependent
-};
+struct ParserContext;
 
 
 int a[1];
 
+#include "include/incomplete_object.h"
+#include "include/incomplete_member.h"
 #include "include/incomplete_sizeof.h"
 #include "include/incomplete_sizeoftype.h"
+#include "include/incomplete_cast.h"
+#include "include/incomplete_new.h"
+#include "include/incomplete_ptr_add.h"
+#include "include/incomplete_ptr_diff.h"
+#include "include/incomplete_pre_incr.h"
+#include "include/incomplete_post_incr.h"
+#include "include/incomplete_assign_add.h"
 
 extern int a[];
 namespace SizeofArray
 {
 	int size = sizeof(a);
-}
-
-namespace Object
-{
-	// [basic.types] objects shall not be defined to have an incomplete type
-	S s; // defines an object with type 'S'
-}
-
-namespace PtrArithmetic
-{
-	// [expr.add] [pointer arithmetic requires completely defined object type]
-	S* p;
-	S* q = p + 1;
-	S* r = p -= 1;
-	int d = p - q;
 }
 
 namespace RvalueConversion
@@ -95,21 +57,6 @@ namespace Construct
 {
 	// [expr.type.conv] A simple-type-specifier followed by a parenthesized expression-list constructs a value of the specified type.... If the simple type specifier specifies a class type, the class type shall be complete.
 	const S& s = S(); // explicit type conversion
-}
-
-namespace CastTemp
-{
-	// [basic.lval] An expression which holds a temporary object resulting from a cast to a non-reference type is an rvalue
-	const S& s1 = S(0); // function-style-cast creates a temporary
-	const S& s2 = (S)0; // C-style-cast creates a temporary
-	const S& s3 = static_cast<S>(0); // static-cast creates a temporary
-}
-
-namespace Member
-{
-	// [expr.ref] [the type of the object-expression shall be complete]
-	void f(S* p) { p->m = 0; }
-	void f(S& p) { p.m = 0; }
 }
 
 namespace Parameter

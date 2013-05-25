@@ -1105,6 +1105,9 @@ namespace cpp
 		symbol<type_specifier_seq> spec;
 		symbol_optional<abstract_declarator> decl;
 		FOREACH2(spec, decl);
+
+		type_decoration type;
+		Source source;
 	};
 
 	struct throw_expression : public assignment_expression
@@ -1226,12 +1229,14 @@ namespace cpp
 	struct postfix_expression_suffix : public choice<postfix_expression_suffix>
 	{
 		VISITABLE_BASE(TYPELIST5(
-			SYMBOLFWD(postfix_expression_index),
+			SYMBOLFWD(postfix_expression_subscript),
 			SYMBOLFWD(postfix_expression_call),
 			SYMBOLFWD(postfix_expression_member),
 			SYMBOLFWD(postfix_expression_destructor),
 			SYMBOLFWD(postfix_operator)
 		));
+		type_decoration type; // the type of the left-hand side of the postfix-expression
+		Source source;
 	};
 
 	struct postfix_expression_suffix_seq
@@ -1249,7 +1254,7 @@ namespace cpp
 		FOREACH2(left, right);
 	};
 
-	struct postfix_expression_index : public postfix_expression_suffix
+	struct postfix_expression_subscript : public postfix_expression_suffix
 	{
 		VISITABLE_DERIVED(postfix_expression_suffix);
 		terminal<boost::wave::T_LEFTBRACKET> ls;
@@ -1678,6 +1683,8 @@ namespace cpp
 			SYMBOLFWD(conditional_expression_suffix),
 			SYMBOLFWD(assignment_expression_suffix)
 		));
+
+		Source source;
 	};
 
 	struct conditional_expression_suffix : public conditional_or_assignment_expression_suffix

@@ -428,6 +428,7 @@ struct WalkerState
 					&& isIncomplete(*declaration)) // if this class-declaration was previously forward-declared
 				{
 					declaration->enclosed = other.enclosed; // complete it
+					declaration->setName(other.getName()); // make this the definition
 				}
 			}
 		}
@@ -1783,7 +1784,16 @@ struct PostfixExpressionMemberWalker : public WalkerQualified
 	void visit(cpp::member_operator* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		isArrow = true;
+		isArrow = symbol->id == cpp::member_operator::ARROW;
+
+		if(memberType != 0)
+		{
+			memberObject = memberType->declaration->enclosed; // TODO: assert that this is a class type
+		}
+		else
+		{
+			memberObject = const_cast<Scope*>(&SCOPE_NULL); // indicates that the left-hand side is an unknown type - possibly dependent
+		}
 	}
 	void visit(cpp::terminal<boost::wave::T_TEMPLATE> symbol)
 	{
@@ -1807,9 +1817,35 @@ struct PostfixExpressionWalker : public WalkerBase
 	IdentifierPtr id; // only valid when the expression is a (parenthesised) id-expression
 	Dependent typeDependent;
 	Dependent valueDependent;
+	bool isPointer;
 	PostfixExpressionWalker(const WalkerState& state)
-		: WalkerBase(state), id(0)
+		: WalkerBase(state), id(0), isPointer(false)
 	{
+	}
+	void clearMemberType()
+	{
+		memberType = 0;
+		isPointer = false;
+	}
+	void updateMemberType()
+	{
+		if(type == gUniqueTypeNull)
+		{
+			memberType = 0; // TODO: left-hand side should always have a known type!
+			return;
+		}
+		UniqueTypeId object = type;
+		if(object.isReference())
+		{
+			object.pop_front(); // [expr] If an expression initially has the type "reference to T", the type is adjusted to "T" prior to any further analysis.
+		}
+		isPointer = object.isPointer();
+		if(isPointer)
+		{
+			object.pop_front();
+		}
+		// if the left-hand side is (reference-to)(pointer-to) object
+		memberType = object.isSimple() ? &getObjectType(object.value) : 0;
 	}
 	void visit(cpp::primary_expression* symbol)
 	{
@@ -1820,6 +1856,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		addDependent(valueDependent, walker.valueDependent);
 		id = walker.id;
 		setExpressionType(symbol, type);
+		updateMemberType();
 	}
 	// prefix
 	void visit(cpp::postfix_expression_disambiguate* symbol)
@@ -1836,6 +1873,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		// TODO: type = &gDependent;
 		addDependent(typeDependent, walker.typeDependent);
+		updateMemberType();
 	}
 	void visit(cpp::postfix_expression_construct* symbol)
 	{
@@ -1848,6 +1886,7 @@ struct PostfixExpressionWalker : public WalkerBase
 			type = makeUniqueType(walker.type, enclosingType);
 		}
 		setExpressionType(symbol, type);
+		updateMemberType();
 	}
 	void visit(cpp::postfix_expression_cast* symbol)
 	{
@@ -1866,6 +1905,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
 		setExpressionType(symbol, type);
+		updateMemberType();
 	}
 	void visit(cpp::postfix_expression_typeid* symbol)
 	{
@@ -1873,6 +1913,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		// TODO: type = std::type_info
 		// not dependent
+		clearMemberType();
 	}
 	void visit(cpp::postfix_expression_typeidtype* symbol)
 	{
@@ -1880,21 +1921,33 @@ struct PostfixExpressionWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		// TODO: type = std::type_info
 		// not dependent
+		clearMemberType();
 	}
 	// suffix
-	void visit(cpp::postfix_expression_index* symbol) // TODO: overloaded operator[]
+	void visit(cpp::postfix_expression_subscript* symbol)
 	{
 		ExpressionWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
-		type.swap(walker.type);
+		TREEWALKER_WALK_SRC(walker, symbol);
+		setExpressionType(symbol, type);
+		if(type.isArray()
+			|| type.isPointer())
+		{
+			type.pop_front(); // dereference left-hand side
+		}
+		else // TODO: overloaded operator[]
+		{
+			// TODO: non-fatal error: attempting to dereference non-array/pointer
+		}
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
 		id = 0; // don't perform overload resolution for a[i](x);
+		updateMemberType();
 	}
 	void visit(cpp::postfix_expression_call* symbol)
 	{
 		ArgumentListWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
+		TREEWALKER_WALK_SRC(walker, symbol);
+		setExpressionType(symbol, type);
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
 		if(!isDependent(typeDependent)) // the expression is not dependent
@@ -1932,23 +1985,13 @@ struct PostfixExpressionWalker : public WalkerBase
 		// TODO: 13.3.1.1.2  Call to object of class type
 		// TODO: set of pointers-to-function
 		id = 0; // don't perform overload resolution for a(x)(x);
+		updateMemberType();
 	}
 	void visit(cpp::postfix_expression_member* symbol)
 	{
 		PostfixExpressionMemberWalker walker(getState());
-		UniqueType object = type.isSimple()
-			? type.value : type.isSimplePointer() || type.isSimpleReference()
-				? getInner(type.value) : UNIQUETYPE_NULL;
-		if(object != UNIQUETYPE_NULL) // if the left-hand side is an object type (or pointer/reference-to-object)
-		{
-			walker.memberType = &getObjectType(object);
-			walker.memberObject = walker.memberType->declaration->enclosed; // TODO: assert that this is a class type
-		}
-		else
-		{
-			walker.memberObject = const_cast<Scope*>(&SCOPE_NULL); // indicates that the left-hand side is an unknown type - possibly dependent
-		}
-		TREEWALKER_WALK(walker, symbol);
+		TREEWALKER_WALK_SRC(walker, symbol);
+		setExpressionType(symbol, type);
 		id = walker.id; // perform overload resolution for a.m(x);
 		DeclarationInstanceRef declaration = walker.declaration;
 		if(declaration != 0)
@@ -1958,6 +2001,7 @@ struct PostfixExpressionWalker : public WalkerBase
 			{
 				// TODO: report non-fatal error
 				//reportIdentifierMismatch(symbol, *id, declaration, "object-name");
+				clearMemberType();
 				return;
 			}
 			addDependentType(typeDependent, declaration);
@@ -1965,27 +2009,16 @@ struct PostfixExpressionWalker : public WalkerBase
 			addDependentName(valueDependent, declaration);
 			setDecoration(id, declaration);
 
-			if(type.value != UNIQUETYPE_NULL // TODO: dependent member name lookup
+			// TODO: overloaded operator->
+			if(memberType != 0 // TODO: dependent member name lookup
+				&& isPointer == walker.isArrow // TODO: report non-fatal error, dot vs arrow
 				&& !isDependent(declaration->type)
 				&& !isDependent(walker.qualifying.get_ref())
 				&& !declaration->isTemplate // TODO: member template
 				&& !declaration->type.isImplicitTemplateId) // TODO: 
 			{
-				if(walker.isArrow) // dereference
-				{
-					// TODO: dependent types
-					if(type.isReference()) // T*&
-					{
-						type.pop_front();
-					}
-					if(type.isPointer()) // TODO: overloaded operator->
-					{
-						type.pop_front();
-					}
-				}
-
-				SEMANTIC_ASSERT(type.isSimple() || type.isSimpleReference()); // TODO: non-fatal error
-				const TypeInstance* enclosing = &getObjectType(type.value);
+				// TODO: [expr.ref] inherit const/volatile from object-expression type if member is non-static
+				const TypeInstance* enclosing = memberType;
 #if 0 // TODO: can this be removed?
 				if(!enclosing->declaration->isTemplate) // if the left-hand side is not a template instantiation
 				{
@@ -2007,13 +2040,44 @@ struct PostfixExpressionWalker : public WalkerBase
 				addDependent(typeDependent, walker.qualifying.back());
 			}
 		}
+		updateMemberType();
 	}
 	void visit(cpp::postfix_expression_destructor* symbol)
 	{
-		TREEWALKER_LEAF(symbol);
+		TREEWALKER_LEAF_SRC(symbol);
+		setExpressionType(symbol, type);
 		type = gVoid; // TODO: should this be null-type?
 		id = 0;
-		// TODO: name-lookup for member id-expression
+		// TODO: name-lookup for destructor name
+		clearMemberType();
+	}
+	void visit(cpp::postfix_operator* symbol)
+	{
+		TREEWALKER_LEAF_SRC(symbol);
+		setExpressionType(symbol, type);
+		id = 0;
+		updateMemberType();
+	}
+};
+
+struct SizeofTypeExpressionWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	TypeId type;
+	Dependent valueDependent;
+	SizeofTypeExpressionWalker(const WalkerState& state)
+		: WalkerBase(state), type(0, context)
+	{
+	}
+	void visit(cpp::type_id* symbol)
+	{
+		TypeIdWalker walker(getState());
+		TREEWALKER_WALK_SRC(walker, symbol);
+		addDependent(valueDependent, walker.type);
+		addDependent(valueDependent, walker.valueDependent);
+		UniqueTypeId type = isDependent(walker.type) ? gUniqueTypeNull : makeUniqueType(walker.type, enclosingType);
+		setExpressionType(symbol, type);
 	}
 };
 
@@ -2039,7 +2103,7 @@ struct ExpressionWalker : public WalkerBase
 	{
 		// TODO: SEMANTIC_ASSERT(walker.type.declaration != 0);
 		ExpressionWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
+		TREEWALKER_WALK_SRC(walker, symbol);
 		id = walker.id;
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
@@ -2145,7 +2209,7 @@ struct ExpressionWalker : public WalkerBase
 	void visit(cpp::postfix_expression* symbol)
 	{
 		PostfixExpressionWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
+		TREEWALKER_WALK_SRC(walker, symbol);
 		id = walker.id;
 		type.swap(walker.type);
 		addDependent(typeDependent, walker.typeDependent);
@@ -2157,7 +2221,7 @@ struct ExpressionWalker : public WalkerBase
 	{
 		Source source = parser->get_source();
 		FilePosition position = parser->get_position();
-		TREEWALKER_LEAF(symbol); 
+		TREEWALKER_LEAF_SRC(symbol); 
 		if(type.value != UNIQUETYPE_NULL) // TODO: assert
 		{
 			Identifier id;
@@ -2254,25 +2318,32 @@ struct ExpressionWalker : public WalkerBase
 	void visit(cpp::unary_expression_sizeof* symbol)
 	{
 		ExpressionWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
+		TREEWALKER_WALK_SRC(walker, symbol);
 		addDependent(valueDependent, walker.typeDependent);
+		type = gUnsignedInt;
+		setExpressionType(symbol, type);
 	}
 	void visit(cpp::unary_expression_sizeoftype* symbol)
 	{
-		TypeIdWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
+		SizeofTypeExpressionWalker walker(getState());
+		TREEWALKER_WALK_SRC(walker, symbol);
 		addDependent(valueDependent, walker.type);
 		addDependent(valueDependent, walker.valueDependent);
+		type = gUnsignedInt;
+		setExpressionType(symbol, type);
 	}
 	void visit(cpp::delete_expression* symbol)
 	{
 		ExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
+		type = gVoid;
+		setExpressionType(symbol, type);
 	}
 	void visit(cpp::throw_expression* symbol)
 	{
 		ExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
+		type = gUniqueTypeNull; // throw-expression has no type
 	}
 };
 
