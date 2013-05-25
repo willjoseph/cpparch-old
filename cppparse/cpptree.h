@@ -955,6 +955,9 @@ namespace cpp
 		terminal_optional<boost::wave::T_TEMPLATE> isTemplate; // TODO: disallow 'template' followed by non-template-id
 		symbol<class_name> id;
 		FOREACH5(prefix, isGlobal, context, isTemplate, id);
+
+		type_decoration type;
+		Source source;
 	};
 
 

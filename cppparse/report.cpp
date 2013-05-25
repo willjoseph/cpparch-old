@@ -459,6 +459,15 @@ struct DependencyBuilder
 
 		symbol->accept(*this);
 	}
+
+	void visit(cpp::base_specifier* symbol)
+	{
+		UniqueTypeId type = getExpressionType(symbol);
+		// [class.derived] The class-name in a base-specifier shall not be an incompletely defined class.
+		addTypeDependency(type, symbol->source.absolute);
+
+		symbol->accept(*this);
+	}
 };
 
 void createDirectories(const char* path)

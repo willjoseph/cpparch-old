@@ -19,6 +19,7 @@ struct ParserContext;
 int a[1];
 
 #include "include/incomplete_object.h"
+#include "include/incomplete_base.h"
 #include "include/incomplete_member.h"
 #include "include/incomplete_sizeof.h"
 #include "include/incomplete_sizeoftype.h"
@@ -92,12 +93,6 @@ namespace Definition
 {
 	// [dcl.fct] The type of the parameter or the return type for a function that is not a definition may be an incomplete class type.
 	void f(S) {}
-}
-
-namespace BaseSpec
-{
-	// [class.derived] The class-name in a base-specifier shall not be an incompletely defined class.
-	struct X : S {};
 }
 
 namespace Covariant

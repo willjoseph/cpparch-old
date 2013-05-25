@@ -429,7 +429,8 @@
 		- use '$..' to indicate looking outside an include-path
 	- compare output files generated from same source?
 - warn on escaping from include-path using '..'
-- track use of complete type
+- track use of completely defined object type
+	- note: required for implicit instantiation of template!
 	- definitions:
 		- parameter_declaration: void f(T)
 		- member_declaration: struct S { T m; };

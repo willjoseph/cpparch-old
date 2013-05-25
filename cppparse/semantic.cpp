@@ -2076,8 +2076,10 @@ struct SizeofTypeExpressionWalker : public WalkerBase
 		TREEWALKER_WALK_SRC(walker, symbol);
 		addDependent(valueDependent, walker.type);
 		addDependent(valueDependent, walker.valueDependent);
-		UniqueTypeId type = isDependent(walker.type) ? gUniqueTypeNull : makeUniqueType(walker.type, enclosingType);
-		setExpressionType(symbol, type);
+		type.swap(walker.type);
+
+		UniqueTypeId uniqueType = isDependent(type) ? gUniqueTypeNull : makeUniqueType(type, enclosingType);
+		setExpressionType(symbol, uniqueType);
 	}
 };
 
@@ -3146,7 +3148,7 @@ struct BaseSpecifierWalker : public WalkerQualified
 	}
 	void visit(cpp::class_name* symbol)
 	{
-		/* 10-2
+		/* [class.derived]
 		The class-name in a base-specifier shall not be an incompletely defined class (Clause class); this class is
 		called a direct base class for the class being defined. During the lookup for a base class name, non-type
 		names are ignored (3.3.10)
@@ -3216,12 +3218,14 @@ struct ClassHeadWalker : public WalkerBase
 	void visit(cpp::base_specifier* symbol) 
 	{
 		BaseSpecifierWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
+		TREEWALKER_WALK_SRC(walker, symbol);
 		if(walker.type.declaration != 0) // declaration == 0 if base-class is dependent
 		{
 			SEMANTIC_ASSERT(declaration->enclosed != 0);
 			addBase(declaration, walker.type);
 		}
+		UniqueTypeId type = isDependent(walker.type) ? gUniqueTypeNull : makeUniqueType(walker.type, enclosingType);
+		setExpressionType(symbol, type);
 	}
 };
 

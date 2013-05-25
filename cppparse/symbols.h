@@ -2258,6 +2258,15 @@ inline void setExpressionType(cpp::type_id* symbol, UniqueTypeId value)
 	symbol->type.p = value.value;
 }
 
+inline UniqueTypeId getExpressionType(cpp::base_specifier* symbol)
+{
+	return UniqueTypeId(symbol->type.p);
+}
+inline void setExpressionType(cpp::base_specifier* symbol, UniqueTypeId value)
+{
+	symbol->type.p = value.value;
+}
+
 template<typename T>
 struct ExpressionType<T, true>
 {

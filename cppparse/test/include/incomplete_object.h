@@ -1,20 +1,6 @@
 #ifndef INCLUDED_TEST_INCOMPLETE_OBJECT_H
 #define INCLUDED_TEST_INCOMPLETE_OBJECT_H
 
-struct ParserContext
-{
-	int m;
-};
-
-struct Parser
-{
-	ParserContext& context;
-	void f()
-	{
-		context.m = 0;
-	}
-};
-
 struct S;
 struct U;
 namespace Object
