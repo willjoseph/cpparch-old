@@ -1,31 +1,84 @@
 
+
+namespace N123
+{
+	template<typename T>
+	struct S
+	{
+		typedef T Type;
+
+		Type f();
+	};
+
+	template<typename U>
+	typename S<U>::Type S<U>::f()
+	{
+	}
+
+	S<int> s;
+	int i = s.f(); // return type is 'int'
+}
+
+namespace N124
+{
+	struct S
+	{
+		typedef int Type;
+	};
+
+	template<typename T>
+	typename T::Type f(T)
+	{
+		return 0;
+	}
+
+	S s;
+	int i = f(s); // return type is 'int'
+}
+
+namespace BLAH
+{
+	template<bool b>
+	struct Tmpl
+	{
+		typedef int I;
+	};
+
+	template<typename T>
+	struct S
+	{
+		enum { value = sizeof(T) };
+	};
+
+	template<typename T>
+	struct X
+	{
+		typedef Tmpl<S<int>::value>::I I; // no need for 'typename' because 'value' is not dependent
+		// this is because 'value' is dependent on template-params that are not visible
+		// i.e. 'value' is first qualified by 'S' which is not a member of a template
+	};
+}
+
 namespace N122
 {
-	struct Name
+	template<typename T>
+	void g(T t) // 'g' should be determined to be dependent, because it's type 'void(T)' is dependent
 	{
-	};
-	struct Source
+		typedef T Type;
+		Type tmp;
+	}
+}
+
+namespace N117
+{
+	void f(int);
+	void f(float);
+
+	template<typename T>
+	void g(T t)
 	{
-		Name absolute;
-	};
-	struct Token
-	{
-		Source source;
-	};
-	struct BacktrackBuffer
-	{
-		typedef const Token*const_iterator;
-	};
-	struct Lexer
-	{
-		typedef BacktrackBuffer Tokens;
-		Tokens history;
-		Tokens::const_iterator position;
-		void f()
-		{
-			Name name = (*position).source.absolute;
-		}
-	};
+		f(*t); // f should be determined to be dependent, 'f' is looked up in this context but overloads are not resolved until instantiation of 'g'
+	}
 }
 
 namespace N121
@@ -65,18 +118,6 @@ namespace N118
 {
 	typedef struct S {} S; // declares a typedef which hides 'S'
 	typedef S S; // redeclaration of typedef
-}
-
-namespace N117
-{
-	void f(int);
-	void f(float);
-
-	template<typename T>
-	void g(T t)
-	{
-		f(*t); // f should be determined to be dependent, 'f' is looked up in this context but overloads are not resolved until instantiation of 'g'
-	}
 }
 
 namespace N116

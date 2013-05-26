@@ -239,7 +239,12 @@ struct DependencyBuilder
 	{
 		if(type.isSimple())
 		{
-			addModuleDependency(moduleDependencies, module, DeclarationInstance(getObjectType(type.value).declaration));
+			const TypeInstance& objectType = getObjectType(type.value);
+			if(isClass(*objectType.declaration))
+			{
+				instantiateClass(objectType);
+				addModuleDependency(moduleDependencies, module, DeclarationInstance(objectType.declaration));
+			}
 		}
 	}
 
@@ -262,13 +267,13 @@ struct DependencyBuilder
 				addModuleDependency(moduleDependencies, symbol->value.source, instance);
 			}
 		}
-		else
+		else if(!instance->isDependent)
 		{
 			if(isObjectDefinition(*instance) // if this declaration defines an object
 				&& !(isFunctionParameter(*instance) // and the object is not a function parameter..
 					&& (!isDecorated(instance->scope->name) || !getDeclaration(instance->scope->name)->isFunctionDefinition))) // .. within a function declaration
 			{
-				UniqueTypeId type = makeUniqueType(instance->type, 0, true);
+				UniqueTypeId type = makeUniqueType(instance->type);
 				if(isFunctionParameter(*instance))
 				{
 					type = adjustFunctionParameter(type);

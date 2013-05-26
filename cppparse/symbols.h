@@ -536,6 +536,7 @@ public:
 	bool isTemplate;
 	bool isSpecialization;
 	bool isFunctionDefinition;
+	bool isDependent; // true if the type of this declaration is dependent in the context of the declaration
 
 	Declaration(
 		const TreeAllocator<int>& allocator,
@@ -562,7 +563,8 @@ public:
 		templateArguments(templateArguments),
 		isTemplate(isTemplate),
 		isSpecialization(isSpecialization),
-		isFunctionDefinition(false)
+		isFunctionDefinition(false),
+		isDependent(false)
 	{
 	}
 	Declaration() :
@@ -586,6 +588,7 @@ public:
 		std::swap(isTemplate, other.isTemplate);
 		std::swap(isSpecialization, other.isSpecialization);
 		std::swap(isFunctionDefinition, other.isFunctionDefinition);
+		std::swap(isDependent, other.isDependent);
 	}
 
 
@@ -1822,8 +1825,7 @@ inline bool findScope(Scope* scope, Scope* other)
 inline bool isDependent(Declaration* dependent, Scope* enclosing, Scope* templateParamScope)
 {
 	return dependent != 0
-		&& (dependent->scope->type == SCOPETYPE_TEMPLATE // hack, workaround for template-scope being copied
-		|| findScope(enclosing, dependent->scope) != 0
+		&& (findScope(enclosing, dependent->scope) != 0
 		|| findScope(templateParamScope, dependent->scope) != 0); // if we are within the candidate template-parameter's template-definition
 }
 
@@ -3699,7 +3701,10 @@ struct SymbolPrinter : TypeElementVisitor
 			&& scope->parent != 0)
 		{
 			printName(scope->parent);
-			printer.out << getValue(scope->name) << ".";
+			if(scope->type != SCOPETYPE_TEMPLATE)
+			{
+				printer.out << getValue(scope->name) << ".";
+			}
 		}
 	}
 
@@ -3730,7 +3735,7 @@ struct SymbolPrinter : TypeElementVisitor
 	void visit(const DependentType& dependent)
 	{
 #if 1
-		printer.out << "$T" << dependent.type->templateParameter;
+		printer.out << "$T" << dependent.type->scope->templateDepth << "_" << dependent.type->templateParameter;
 #else
 		printName(dependent.type);
 #endif

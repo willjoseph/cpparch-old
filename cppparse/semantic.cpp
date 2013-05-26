@@ -157,7 +157,8 @@ inline bool isEquivalent(const Declaration& declaration, const Declaration& othe
 			// TODO: also compare template parameter lists: <class, int> is not equivalent to <class, float>
 			SYMBOLS_ASSERT(r.isFunction()); // TODO: non-fatal error: 'id' previously declared as non-function, second declaration is a function
 			return declaration.isTemplate == other.isTemplate // early out
-				&& isReturnTypeEqual(l, r) // return-types match
+				// [over.load] Function declarations that differ only in the return type cannot be overloaded.
+				//&& isReturnTypeEqual(l, r) // return-types match (this cannot be determined for dependent return types, and is not necessary to distinguish overloads)
 				&& isEquivalent(getParameterTypes(l.value), getParameterTypes(r.value)); // and parameter-types match
 		}
 		return true; // redeclaring an object (cannot be overloaded)
@@ -362,6 +363,7 @@ struct WalkerState
 
 		SEMANTIC_ASSERT(!name.value.empty());
 		Declaration other(allocator, parent, name, type, enclosed, specifiers, isTemplate, params, isSpecialization, arguments, templateParameter, valueDependent);
+		other.isDependent = isDependent(type);
 		DeclarationInstance declaration;
 		const DeclarationInstance* overloaded = 0;
 		if(!isAnonymous(other)) // unnamed class/struct/union/enum
@@ -678,39 +680,12 @@ struct WalkerState
 			setDependent(dependent, (*i).dependent);
 		}
 	}
-	struct TypeSequenceSetDependent : TypeSequenceVisitor
+	void setDependent(DeclarationPtr& dependent, const Parameters& parameters) const
 	{
-		const WalkerState& walker;
-		DeclarationPtr& dependent;
-		TypeSequenceSetDependent(const WalkerState& walker, DeclarationPtr& dependent)
-			: walker(walker), dependent(dependent)
+		for(Parameters::const_iterator i = parameters.begin(); i != parameters.end(); ++i)
 		{
+			setDependent(dependent, (*i).declaration->type.dependent);
 		}
-		virtual void visit(const DeclaratorPointerType&)
-		{
-		}
-		virtual void visit(const DeclaratorReferenceType&)
-		{
-		}
-		virtual void visit(const DeclaratorArrayType&)
-		{
-		}
-		virtual void visit(const DeclaratorMemberPointerType& element)
-		{
-			walker.setDependent(dependent, element.type.dependent);
-		}
-		virtual void visit(const DeclaratorFunctionType& element)
-		{
-			for(Parameters::const_iterator i = element.parameters.begin(); i != element.parameters.end(); ++i)
-			{
-				walker.setDependent(dependent, (*i).declaration->type.dependent);
-			}
-		}
-	};
-	void setDependent(DeclarationPtr& dependent, const TypeSequence& typeSequence) const
-	{
-		TypeSequenceSetDependent visitor(*this, dependent);
-		typeSequence.accept(visitor);
 	}
 	void setDependent(Type& type, Declaration* declaration) const
 	{
@@ -2820,43 +2795,14 @@ struct ParameterDeclarationClauseWalker : public WalkerBase
 	ParameterDeclarationClauseWalker(const WalkerState& state)
 		: WalkerBase(state)
 	{
-#if 0 // TODO: this causes error if parse fails after templateParamScope is modified
-		pushScope(templateParamScope != 0 ? templateParamScope : newScope(makeIdentifier("$declarator")));
-		enclosing->type = SCOPETYPE_PROTOTYPE;
-#else
-		pushScope(newScope(makeIdentifier("$declarator"), SCOPETYPE_PROTOTYPE));
+		pushScope(newScope(makeIdentifier("$prototype"), SCOPETYPE_PROTOTYPE));
 		if(templateParamScope != 0)
 		{
+			// insert the template-parameter scope to enclose the declarator scope
+			templateParamScope->parent = enclosing->parent;
+			enclosing->parent = templateParamScope;
 			enclosing->templateDepth = templateParamScope->templateDepth;
-#if 0
-			enclosing->declarations = templateParamScope->declarations;
-			for(Scope::Declarations::iterator i = enclosing->declarations.begin(); i != enclosing->declarations.end(); ++i)
-			{
-				Declaration* declaration = &(*i).second;
-				setDecoration(&declaration->getName(), declaration);
-				declaration->scope = enclosing;
-				trackDeclaration(declaration);
-			}
-#else
-			// issue: the return-type of the function being declared may point to a declaration in this list
-			for(Scope::DeclarationList::iterator i = templateParamScope->declarationList.begin(); i != templateParamScope->declarationList.end(); ++i)
-			{
-				Declaration* declaration = allocatorNew(context, *(*i));
-				const DeclarationInstance& instance = enclosing->declarations.insert(DeclarationInstance(declaration));
-				enclosing->declarationList.push_back(declaration);
-				if(!isAnonymous(*declaration))
-				{
-					setDecoration(&declaration->getName(), instance);
-				}
-				declaration->scope = enclosing;
-				SEMANTIC_ASSERT(declaration->enclosed == 0 || declaration->enclosed->type != SCOPETYPE_CLASS); // can't copy class-declaration!
-#ifdef ALLOCATOR_DEBUG
-				trackDeclaration(instance);
-#endif
-			}
-#endif
 		}
-#endif	
 		clearTemplateParams();
 	}
 
@@ -3001,17 +2947,29 @@ struct DeclaratorWalker : public WalkerBase
 	TypeSequence typeSequence;
 	CvQualifiers qualifiers;
 	Qualifying memberPointer;
+	Dependent dependent;
 	DeclaratorWalker(const WalkerState& state)
 		: WalkerBase(state), id(&gAnonymousId), paramScope(0), typeSequence(context), memberPointer(context)
 	{
 	}
 	void pushPointerType(cpp::ptr_operator* op)
 	{
-		(op->key->id == cpp::ptr_operator_key::REF)
-			? typeSequence.push_front(DeclaratorReferenceType())
-			: memberPointer.empty()
-				? typeSequence.push_front(DeclaratorPointerType(qualifiers))
-				: typeSequence.push_front(DeclaratorMemberPointerType(*memberPointer.get(), qualifiers));
+		if(op->key->id == cpp::ptr_operator_key::REF)
+		{
+			typeSequence.push_front(DeclaratorReferenceType());
+		}
+		else
+		{
+			if(memberPointer.empty())
+			{
+				typeSequence.push_front(DeclaratorPointerType(qualifiers));
+			}
+			else
+			{
+				typeSequence.push_front(DeclaratorMemberPointerType(memberPointer.back(), qualifiers));
+				setDependent(dependent, memberPointer);
+			}
+		}
 	}
 
 	void visit(cpp::ptr_operator* symbol)
@@ -3029,6 +2987,7 @@ struct DeclaratorWalker : public WalkerBase
 		id = walker.id;
 		enclosing = walker.enclosing;
 		paramScope = walker.paramScope;
+		addDependent(dependent, walker.dependent);
 		addDependent(valueDependent, walker.valueDependent);
 		SYMBOLS_ASSERT(typeSequence.empty());
 		typeSequence = walker.typeSequence;
@@ -3082,6 +3041,7 @@ struct DeclaratorWalker : public WalkerBase
 			paramScope = walker.paramScope;
 		}
 		typeSequence.push_front(DeclaratorFunctionType(walker.parameters, walker.qualifiers));
+		setDependent(dependent, walker.parameters);
 	}
 	void visit(cpp::new_declarator_suffix* symbol)
 	{
@@ -3100,6 +3060,7 @@ struct DeclaratorWalker : public WalkerBase
 		id = walker.id;
 		enclosing = walker.enclosing;
 		paramScope = walker.paramScope;
+		addDependent(dependent, walker.dependent);
 		addDependent(valueDependent, walker.valueDependent);
 		SYMBOLS_ASSERT(typeSequence.empty());
 		typeSequence = walker.typeSequence;
@@ -4153,7 +4114,7 @@ struct TypeIdWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		addDependent(valueDependent, walker.valueDependent);
 		type.typeSequence = walker.typeSequence;
-		setDependent(type.dependent, type.typeSequence);
+		setDependent(type.dependent, walker.dependent);
 	}
 };
 
@@ -4184,7 +4145,7 @@ struct NewTypeWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		addDependent(valueDependent, walker.valueDependent);
 		type.typeSequence = walker.typeSequence;
-		setDependent(type.dependent, type.typeSequence);
+		setDependent(type.dependent, walker.dependent);
 		// new T
 		// new T*
 		// new T[variable]
@@ -4326,7 +4287,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		id = walker.id;
 		enclosed = walker.paramScope;
 		type.typeSequence = walker.typeSequence;
-		setDependent(type.dependent, type.typeSequence);
+		setDependent(type.dependent, walker.dependent);
 		/* temp.dep.constexpr
 		An identifier is value-dependent if it is:
 			— a name declared with a dependent type,
@@ -4345,7 +4306,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		enclosed = walker.paramScope;
 		type.typeSequence = walker.typeSequence;
-		setDependent(type.dependent, type.typeSequence);
+		setDependent(type.dependent, walker.dependent);
 	}
 	void visit(cpp::member_declarator_bitfield* symbol)
 	{
