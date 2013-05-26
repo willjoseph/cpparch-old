@@ -2018,7 +2018,8 @@ inline UniqueTypeWrapper makeUniqueObjectType(const TypeInstance& type)
 // unqualified typedef: Typedef, TemplateParam
 // qualified typedef: Qualifying::Type
 // /p type
-// /p enclosing The enclosing template, required when uniquing a template-argument: e.g. Enclosing<int>::Type
+// /p enclosingType The enclosing template, required when uniquing a template-argument: e.g. Enclosing<int>::Type
+//			Note: if 'type' is a class-template template default argument, 'enclosingType' will be the class-template, which does not require instantiation!
 inline UniqueTypeWrapper makeUniqueType(const Type& type, const TypeInstance* enclosingType, bool allowDependent, std::size_t depth)
 {
 	if(depth++ == 256)
@@ -2114,8 +2115,8 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, const TypeInstance* en
 		return makeUniqueType(declaration->type, enclosing, allowDependent, depth);
 	}
 
-	TypeInstance tmp(declaration, declaration->scope != 0 && declaration->scope->type == SCOPETYPE_CLASS // if the declaration is a class member
-			? findEnclosingType(enclosing, declaration->scope) // it may be a member of the base of the qualifying class: find which one.
+	TypeInstance tmp(declaration, isMember(*declaration) // if the declaration is a class member
+			? findEnclosingType(enclosing, declaration->scope) // it must be a member of the base of the qualifying class: find which one.
 			: 0); // the declaration is not a class member and cannot be found through qualified name lookup
 	SYMBOLS_ASSERT(declaration->type.declaration != &gArithmetic || tmp.enclosing == 0); // arithmetic types should not have an enclosing template!
 	if(declaration->isTemplate)
