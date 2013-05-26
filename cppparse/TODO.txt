@@ -431,6 +431,8 @@
 - warn on escaping from include-path using '..'
 - track use of completely defined object type
 	- note: required for implicit instantiation of template!
+		- scenario in which we find unique-type, but does not cause instantation?
+			- S<int>* s;
 	- definitions:
 		- parameter_declaration: void f(T)
 		- member_declaration: struct S { T m; };

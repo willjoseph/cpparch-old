@@ -1,5 +1,38 @@
 
 
+
+namespace N125
+{
+	template<typename T, typename U = typename T::Type>
+	struct S;
+
+	struct M
+	{
+		typedef int Type;
+	};
+
+	S<M>* s; // does not require instantiation of S, but requires instantiation of default argument
+}
+
+namespace N032
+{
+	template<typename T>
+	struct Base
+	{
+		typedef T Type;
+		typedef Base<T> Nested;
+		T member;
+	};
+
+	struct Derived : Base<int> // test type-uniquing for names that are implicitly qualified by 'Base<int>'
+	{
+		struct Inner
+		{
+			Nested::Type h();
+		};
+	};
+}
+
 namespace N123
 {
 	template<typename T>
@@ -1786,25 +1819,6 @@ namespace N030
 	}
 }
 #endif
-
-namespace N032
-{
-	template<typename T>
-	struct Base
-	{
-		typedef T Type;
-		typedef Base<T> Nested;
-		T member;
-	};
-
-	struct Derived : Base<int> // test type-uniquing for names that are implicitly qualified by 'Base<int>'
-	{
-		struct Inner
-		{
-			Nested::Type h();
-		};
-	};
-}
 
 namespace N028
 {

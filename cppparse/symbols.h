@@ -527,6 +527,7 @@ public:
 	Scope* scope;
 	TypeId type;
 	Scope* enclosed;
+	Scope* templateParamScope;
 	Declaration* overloaded;
 	Dependent valueDependent; // the dependent-types/names that are referred to in the declarator-suffix (array size)
 	DeclSpecifiers specifiers;
@@ -555,6 +556,7 @@ public:
 		name(&name),
 		type(type),
 		enclosed(enclosed),
+		templateParamScope(0),
 		overloaded(0),
 		valueDependent(valueDependent),
 		specifiers(specifiers),
@@ -579,6 +581,7 @@ public:
 		std::swap(scope, other.scope);
 		type.swap(other.type);
 		std::swap(enclosed, other.enclosed);
+		std::swap(templateParamScope, other.templateParamScope);
 		std::swap(overloaded, other.overloaded);
 		std::swap(valueDependent, other.valueDependent);
 		std::swap(specifiers, other.specifiers);
@@ -1390,8 +1393,9 @@ struct TypeInstance
 	UniqueBases bases;
 	SpecializationTypes specializations; // the types of the dependent-names in the specialization
 	bool instantiated;
+	Source instantiation;
 	TypeInstance(Declaration* declaration, const TypeInstance* enclosing)
-		: declaration(declaration), enclosing(enclosing), instantiated(false)
+		: declaration(declaration), enclosing(enclosing), instantiated(false), instantiation(SOURCE_NULL)
 	{
 		SYMBOLS_ASSERT(enclosing == 0 || isClass(*enclosing->declaration));
 	}
@@ -1829,6 +1833,36 @@ inline bool isDependent(Declaration* dependent, Scope* enclosing, Scope* templat
 		|| findScope(templateParamScope, dependent->scope) != 0); // if we are within the candidate template-parameter's template-definition
 }
 
+inline void instantiateClass(const TypeInstance& enclosing, bool allowDependent = false)
+{
+	SYMBOLS_ASSERT(isClass(*enclosing.declaration));
+	if(!enclosing.instantiated)
+	{
+		TypeInstance& instance = const_cast<TypeInstance&>(enclosing);
+		instance.instantiated = true; // prevent recursion
+		if(enclosing.declaration->enclosed == 0)
+		{
+			std::cout << "instantiateClass failed!" << std::endl;
+			return; // TODO: this can occur when the primary template is incomplete, and a specialization was not chosen
+		}
+		SYMBOLS_ASSERT(enclosing.declaration->enclosed != 0);
+		Types& bases = enclosing.declaration->enclosed->bases;
+		UniqueBases uniqueBases;
+		uniqueBases.reserve(std::distance(bases.begin(), bases.end()));
+		for(Types::const_iterator i = bases.begin(); i != bases.end(); ++i)
+		{
+			UniqueTypeId base = makeUniqueType(*i, &enclosing, allowDependent);
+			if(allowDependent && base.isDependent())
+			{
+				continue;
+			}
+			uniqueBases.push_back(&getObjectType(base.value));
+			//SYMBOLS_ASSERT(uniqueBases.back()->declaration->enclosed != 0); // TODO: this can occur when the primary template is incomplete, and a specialization was not chosen
+		}
+		instance.bases.swap(uniqueBases); // prevent searching a partially evaluated set of base classes inside 'makeUniqueType'
+	}
+}
+
 inline const TypeInstance* makeUniqueEnclosing(const Qualifying& qualifying, const TypeInstance* enclosing, bool allowDependent, std::size_t depth)
 {
 	if(!qualifying.empty())
@@ -1838,7 +1872,14 @@ inline const TypeInstance* makeUniqueEnclosing(const Qualifying& qualifying, con
 			return 0; // name is qualified by a namespace, therefore cannot be enclosed by a class
 		}
 		UniqueTypeWrapper tmp = makeUniqueType(qualifying.back(), enclosing, allowDependent, depth);
-		return allowDependent && tmp.isDependent() ? 0 : &getObjectType(tmp.value);
+		if(allowDependent && tmp.isDependent())
+		{
+			return 0;
+		}
+		const TypeInstance& type = getObjectType(tmp.value);
+		// [temp.inst] A class template is implicitly instantiated ... if the completeness of the class-type affects the semantics of the program.
+		instantiateClass(type, allowDependent);
+		return &type;
 	}
 	return enclosing;
 }
@@ -1895,35 +1936,12 @@ inline Declaration* findTemplateSpecialization(Declaration* declaration, const T
 	return 0;
 }
 
-inline void instantiateClass(const TypeInstance& enclosing)
+inline const TypeInstance* findEnclosingType(const TypeInstance& enclosing, Scope* scope)
 {
-	SYMBOLS_ASSERT(isClass(*enclosing.declaration));
-	if(!enclosing.instantiated)
-	{
-		TypeInstance& instance = const_cast<TypeInstance&>(enclosing);
-		instance.instantiated = true; // prevent recursion
-		if(enclosing.declaration->enclosed == 0)
-		{
-			std::cout << "instantiateClass failed!" << std::endl;
-			return; // TODO: this can occur when the primary template is incomplete, and a specialization was not chosen
-		}
-		SYMBOLS_ASSERT(enclosing.declaration->enclosed != 0);
-		Types& bases = enclosing.declaration->enclosed->bases;
-		UniqueBases uniqueBases;
-		uniqueBases.reserve(std::distance(bases.begin(), bases.end()));
-		for(Types::const_iterator i = bases.begin(); i != bases.end(); ++i)
-		{
-			uniqueBases.push_back(&getObjectType(makeUniqueType(*i, &enclosing).value));
-			//SYMBOLS_ASSERT(uniqueBases.back()->declaration->enclosed != 0); // TODO: this can occur when the primary template is incomplete, and a specialization was not chosen
-		}
-		instance.bases.swap(uniqueBases); // prevent searching a partially evaluated set of base classes inside 'makeUniqueType'
-	}
-}
-
-inline const TypeInstance* findEnclosingType(const TypeInstance& enclosing, Scope* enclosingType)
-{
-	SYMBOLS_ASSERT(enclosingType != 0);
-	if(enclosing.declaration->enclosed == enclosingType)
+	SYMBOLS_ASSERT(scope != 0);
+	if(scope->type == SCOPETYPE_TEMPLATE
+		? enclosing.declaration->templateParamScope == scope
+		: enclosing.declaration->enclosed == scope)
 	{
 		return &enclosing;
 	}
@@ -1932,7 +1950,7 @@ inline const TypeInstance* findEnclosingType(const TypeInstance& enclosing, Scop
 
 	for(UniqueBases::const_iterator i = enclosing.bases.begin(); i != enclosing.bases.end(); ++i)
 	{
-		const TypeInstance* result = findEnclosingType(*(*i), enclosingType);
+		const TypeInstance* result = findEnclosingType(*(*i), scope);
 		if(result != 0)
 		{
 			return result;
@@ -1941,12 +1959,12 @@ inline const TypeInstance* findEnclosingType(const TypeInstance& enclosing, Scop
 	return 0;
 }
 
-inline const TypeInstance* findEnclosingType(const TypeInstance* enclosing, Scope* enclosingType)
+inline const TypeInstance* findEnclosingType(const TypeInstance* enclosing, Scope* scope)
 {
-	SYMBOLS_ASSERT(enclosingType != 0);
+	SYMBOLS_ASSERT(scope != 0);
 	for(const TypeInstance* i = enclosing; i != 0; i = (*i).enclosing)
 	{
-		const TypeInstance* result = findEnclosingType(*i, enclosingType);
+		const TypeInstance* result = findEnclosingType(*i, scope);
 		if(result != 0)
 		{
 			return result;
@@ -2095,7 +2113,10 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, const TypeInstance* en
 	{
 		return makeUniqueType(declaration->type, enclosing, allowDependent, depth);
 	}
-	TypeInstance tmp(declaration, declaration->scope == 0 || declaration->scope->type != SCOPETYPE_CLASS ? 0 : findEnclosingType(enclosing, declaration->scope));
+
+	TypeInstance tmp(declaration, declaration->scope != 0 && declaration->scope->type == SCOPETYPE_CLASS // if the declaration is a class member
+			? findEnclosingType(enclosing, declaration->scope) // it may be a member of the base of the qualifying class: find which one.
+			: 0); // the declaration is not a class member and cannot be found through qualified name lookup
 	SYMBOLS_ASSERT(declaration->type.declaration != &gArithmetic || tmp.enclosing == 0); // arithmetic types should not have an enclosing template!
 	if(declaration->isTemplate)
 	{
@@ -2135,7 +2156,8 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, const TypeInstance* en
 				extern Declaration gNonType;
 				if(argument.declaration != &gNonType) // ignore non-type arguments
 				{
-					result = makeUniqueType(argument, isTemplateParamDefault ? &tmp : enclosingType, allowDependent, depth); // resolve dependent template-parameter-defaults in context of template class
+					const TypeInstance* enclosing = isTemplateParamDefault ? &tmp : enclosingType; // resolve dependent template-parameter-defaults in context of template class
+					result = makeUniqueType(argument, enclosing, allowDependent, depth);
 					SYMBOLS_ASSERT(result.value != UNIQUETYPE_NULL);
 				}
 				tmp.templateArguments.push_back(result);

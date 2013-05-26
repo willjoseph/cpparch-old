@@ -766,8 +766,7 @@ struct WalkerBase : public WalkerState
 
 	Declaration* declareClass(Identifier* id, bool isSpecialization, TemplateArguments& arguments)
 	{
-		Scope* enclosed = templateParamScope != 0 ? static_cast<Scope*>(templateParamScope) : newScope(makeIdentifier("$class"));
-		enclosed->type = SCOPETYPE_CLASS; // convert template-param-scope to class-scope if present
+		Scope* enclosed = newScope(makeIdentifier("$class"), SCOPETYPE_CLASS);
 		DeclarationInstanceRef declaration = pointOfDeclaration(context, enclosing, id == 0 ? enclosing->getUniqueName() : *id, TYPE_CLASS, enclosed, DeclSpecifiers(), enclosing == templateEnclosing, getTemplateParams(enclosing), isSpecialization, arguments);
 #ifdef ALLOCATOR_DEBUG
 		trackDeclaration(declaration);
@@ -825,6 +824,7 @@ struct WalkerBase : public WalkerState
 			smallest non-class, non-function-prototype scope that contains the declaration.
 			*/
 			DeclarationInstanceRef declaration = pointOfDeclaration(context, getEtsScope(), *forward, TYPE_CLASS, 0, DeclSpecifiers(), enclosing == templateEnclosing);
+			
 			trackDeclaration(declaration);
 			setDecoration(forward, declaration);
 			type = declaration;
@@ -3414,6 +3414,15 @@ struct ClassSpecifierWalker : public WalkerBase
 		if(declaration->enclosed != 0)
 		{
 			pushScope(declaration->enclosed);
+			if(templateParamScope != 0)
+			{
+				// insert the template-parameter scope to enclose the class scope
+				templateParamScope->parent = enclosing->parent;
+				enclosing->parent = templateParamScope; // required when looking up template-parameters from within a template class
+				enclosing->templateDepth = templateParamScope->templateDepth; // required by
+			}
+			declaration->templateParamScope = templateParamScope; // required by findEnclosingType
+
 			if(!declaration->isTemplate)
 			{
 				Type type(declaration, context);
@@ -4525,6 +4534,10 @@ struct SimpleDeclarationWalker : public WalkerBase
 #endif
 				setDecoration(forward, instance);
 				declaration = instance;
+				if(declaration->templateParamScope == 0)
+				{
+					declaration->templateParamScope = templateParamScope; // required by findEnclosingType
+				}
 			}
 			type = TypeId(declaration, context); // TODO: is this necessary?
 		}
