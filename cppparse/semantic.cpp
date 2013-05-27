@@ -148,8 +148,8 @@ inline bool isEquivalent(const Declaration& declaration, const Declaration& othe
 	else
 	{
 		// TODO: is enclosing type required to differentiate between member functions?
-		UniqueTypeWrapper l = makeUniqueType(declaration.type, 0, true);
-		UniqueTypeWrapper r = makeUniqueType(other.type, 0, true);
+		UniqueTypeWrapper l = makeUniqueType(declaration.type, NAME_NULL, 0, true);
+		UniqueTypeWrapper r = makeUniqueType(other.type, NAME_NULL, 0, true);
 		if(l.isFunction())
 		{
 			// 13.2 [over.dcl] Two functions of the same name refer to the same function
@@ -361,8 +361,11 @@ struct WalkerState
 
 		parser->context.allocator.deferredBacktrack(); // flush cached parse-tree
 
+		static size_t uniqueId = 0;
+
 		SEMANTIC_ASSERT(!name.value.empty());
 		Declaration other(allocator, parent, name, type, enclosed, specifiers, isTemplate, params, isSpecialization, arguments, templateParameter, valueDependent);
+		other.uniqueId = ++uniqueId;
 		other.isDependent = isDependent(type);
 		DeclarationInstance declaration;
 		const DeclarationInstance* overloaded = 0;
@@ -469,10 +472,12 @@ struct WalkerState
 			return; // TODO: implement template-instantiation, and disallow inheriting from current-instantiation
 		}
 		declaration->enclosed->bases.push_front(base);
+#if 0
 		if(isDependent(base))
 		{
 			::addDeferredLookupType(&declaration->enclosed->bases.front(), getEnclosingTemplate(declaration->scope));
 		}
+#endif
 	}
 
 	Declaration* getDeclaratorQualifying()
@@ -781,11 +786,13 @@ struct WalkerBase : public WalkerState
 
 	void addDeferredLookupType(Declaration& declaration)
 	{
+#if 0
 		if(!isDependent(declaration.type))
 		{
 			return;
 		}
 		::addDeferredLookupType(&declaration.type, getEnclosingTemplate(enclosing)); // TODO: getEnclosingTemplate fails for member-template friend function declaration
+#endif
 	}
 
 	Declaration* declareObject(Scope* parent, Identifier* id, const TypeId& type, Scope* enclosed, DeclSpecifiers specifiers, size_t templateParameter, const Dependent& valueDependent)
@@ -850,7 +857,7 @@ struct WalkerBase : public WalkerState
 			UniqueTypeIds::Pointer::Value value = UniqueTypeIds::Pointer::Value(UniqueTypeIds::Node(type));
 			UniqueTypeIds arguments = UniqueTypeIds(TREEALLOCATOR_NULL);
 			arguments.head.next = &value;
-			OverloadResolver resolver(arguments);
+			OverloadResolver resolver(arguments, id.source);
 
 			if(isClass(type))
 			{
@@ -1008,6 +1015,15 @@ struct WalkerBase : public WalkerState
 		SEMANTIC_ASSERT(symbol->id == cpp::unary_operator::PLUSPLUS || symbol->id == cpp::unary_operator::MINUSMINUS);
 		return type;
 	}
+
+	UniqueTypeWrapper makeUniqueTypeSafe(const Type& type, Location source = NAME_NULL)
+	{
+		return isDependent(type) ? gUniqueTypeNull : ::makeUniqueType(type, source, enclosingType);
+	}
+	UniqueTypeWrapper makeUniqueTypeSafe(const TypeId& type, Location source = NAME_NULL)
+	{
+		return isDependent(type) ? gUniqueTypeNull : ::makeUniqueType(type, source, enclosingType);
+	}
 };
 
 struct WalkerQualified : public WalkerBase
@@ -1062,7 +1078,7 @@ struct WalkerQualified : public WalkerBase
 			}
 			else
 			{
-				qualifyingType = &getObjectType(makeUniqueType(*qualifying_p, enclosingType).value);
+				qualifyingType = &getObjectType(makeUniqueType(*qualifying_p, parser->get_source().absolute, enclosingType).value);
 				qualifyingScope = qualifyingType->declaration;
 			}
 		}
@@ -1684,6 +1700,7 @@ struct PrimaryExpressionWalker : public WalkerBase
 	*/
 	void visit(cpp::id_expression* symbol)
 	{
+		Source source = parser->get_source();
 		IdExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		id = walker.id;
@@ -1701,13 +1718,13 @@ struct PrimaryExpressionWalker : public WalkerBase
 			setDecoration(id, declaration);
 
 			type = gUniqueTypeNull;
-			if(!isFunction(*declaration) // if the id-expression refers to a function, the function parameters may be dependent; defer evaluation of type
+			if(!isFunction(*declaration) // if the id-expression refers to a function, overload resolution dependends on the parameter types; defer evaluation of type
 				&& declaration->type.declaration != &gDependentType
 				&& !isDependent(declaration->type)
 				&& !isDependent(walker.arguments) // the id-expression may have an explicit template argument list
 				&& !isDependent(walker.qualifying.get_ref()))
 			{
-				type = makeUniqueType(declaration->type, makeUniqueEnclosing(walker.qualifying, enclosingType));
+				type = makeUniqueType(declaration->type, id->source, makeUniqueEnclosing(walker.qualifying, id->source, enclosingType));
 			}
 		}
 		else
@@ -1761,9 +1778,12 @@ struct PostfixExpressionMemberWalker : public WalkerQualified
 		TREEWALKER_LEAF(symbol);
 		isArrow = symbol->id == cpp::member_operator::ARROW;
 
-		if(memberType != 0)
+		if(memberType != 0
+			&& isClass(*memberType->declaration)) // TODO: assert that this is a class type
 		{
-			memberObject = memberType->declaration->enclosed; // TODO: assert that this is a class type
+			// [expr.ref] [the type of the object-expression shall be complete]
+			instantiateClass(*memberType, parser->get_source().absolute);
+			memberObject = memberType->declaration->enclosed;
 		}
 		else
 		{
@@ -1858,7 +1878,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		type = gUniqueTypeNull;
 		if(!isDependent(walker.type))
 		{
-			type = makeUniqueType(walker.type, enclosingType);
+			type = makeUniqueType(walker.type, symbol->source.absolute, enclosingType);
 		}
 		setExpressionType(symbol, type);
 		updateMemberType();
@@ -1870,7 +1890,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		type = gUniqueTypeNull;
 		if(!isDependent(walker.type))
 		{
-			type = makeUniqueType(walker.type, enclosingType);
+			type = makeUniqueType(walker.type, symbol->source.absolute, enclosingType);
 		}
 		if(symbol->op->id != cpp::cast_operator::DYNAMIC)
 		{
@@ -1935,12 +1955,12 @@ struct PostfixExpressionWalker : public WalkerBase
 				&& !isMemberOfTemplate(*getDeclaration(*id))) // the name of a member function of a template may be dependent: TODO: determine exactly when!
 			{
 				// TODO: 13.3.1.1.1  Call to named function
-				Declaration* declaration = findBestMatch(*id->dec.p, walker.arguments);
+				Declaration* declaration = findBestMatch(*id->dec.p, walker.arguments, id->source);
 				if(declaration != 0)
 				{
 					DeclarationInstanceRef instance = findLastDeclaration(*id->dec.p, declaration);
 					setDecoration(id, instance);
-					type = isDependent(declaration->type) ? gUniqueTypeNull : makeUniqueType(declaration->type);
+					type = isDependent(declaration->type) ? gUniqueTypeNull : makeUniqueType(declaration->type, id->source);
 				}
 			}
 		}
@@ -2001,7 +2021,7 @@ struct PostfixExpressionWalker : public WalkerBase
 					enclosing = enclosing->enclosing; // use its enclosing template-instantiation
 				}
 #endif
-				type = makeUniqueType(declaration->type, makeUniqueEnclosing(walker.qualifying, enclosing));
+				type = makeUniqueType(declaration->type, id->source, makeUniqueEnclosing(walker.qualifying, id->source, enclosing));
 			}
 		}
 		else
@@ -2053,7 +2073,7 @@ struct SizeofTypeExpressionWalker : public WalkerBase
 		addDependent(valueDependent, walker.valueDependent);
 		type.swap(walker.type);
 
-		UniqueTypeId uniqueType = isDependent(type) ? gUniqueTypeNull : makeUniqueType(type, enclosingType);
+		UniqueTypeId uniqueType = isDependent(type) ? gUniqueTypeNull : makeUniqueType(type, symbol->source.absolute, enclosingType);
 		setExpressionType(symbol, uniqueType);
 	}
 };
@@ -2213,7 +2233,7 @@ struct ExpressionWalker : public WalkerBase
 			else
 			{
 				SEMANTIC_ASSERT(declaration != 0);
-				type = makeUniqueType(declaration->type, &getObjectType(type.value));
+				type = makeUniqueType(declaration->type, id.source, &getObjectType(type.value)); // TODO: is this correct 'enclosing' type?
 			}
 			// TODO: decorate parse-tree with declaration
 		}
@@ -2244,7 +2264,7 @@ struct ExpressionWalker : public WalkerBase
 	{
 		ExplicitTypeExpressionWalker walker(getState());
 		TREEWALKER_WALK_SRC(walker, symbol);
-		type = isDependent(walker.type) ? gUniqueTypeNull : makeUniqueType(walker.type, enclosingType);
+		type = makeUniqueTypeSafe(walker.type, symbol->source.absolute);
 		type.push_front(PointerType());
 		addDependent(typeDependent, walker.typeDependent);
 		setExpressionType(symbol, type);
@@ -2253,7 +2273,7 @@ struct ExpressionWalker : public WalkerBase
 	{
 		ExplicitTypeExpressionWalker walker(getState());
 		TREEWALKER_WALK_SRC(walker, symbol);
-		type = isDependent(walker.type) ? gUniqueTypeNull : makeUniqueType(walker.type, enclosingType);
+		type = makeUniqueTypeSafe(walker.type, symbol->source.absolute);
 		type.push_front(PointerType());
 		addDependent(typeDependent, walker.typeDependent);
 		setExpressionType(symbol, type);
@@ -2262,7 +2282,7 @@ struct ExpressionWalker : public WalkerBase
 	{
 		ExplicitTypeExpressionWalker walker(getState());
 		TREEWALKER_WALK_SRC(walker, symbol);
-		type = isDependent(walker.type) ? gUniqueTypeNull : makeUniqueType(walker.type, enclosingType);
+		type = makeUniqueTypeSafe(walker.type, symbol->source.absolute);
 		Dependent tmp(walker.typeDependent);
 		addDependent(valueDependent, tmp);
 		addDependent(typeDependent, walker.typeDependent);
@@ -3185,7 +3205,7 @@ struct ClassHeadWalker : public WalkerBase
 			SEMANTIC_ASSERT(declaration->enclosed != 0);
 			addBase(declaration, walker.type);
 		}
-		UniqueTypeId type = isDependent(walker.type) ? gUniqueTypeNull : makeUniqueType(walker.type, enclosingType);
+		UniqueTypeId type = makeUniqueTypeSafe(walker.type, symbol->source.absolute);
 		setExpressionType(symbol, type);
 	}
 };
@@ -3427,7 +3447,13 @@ struct ClassSpecifierWalker : public WalkerBase
 			{
 				Type type(declaration, context);
 				setDependent(type);
-				enclosingType = isDependent(type) ? 0 : &getObjectType(makeUniqueType(type, enclosingType).value);
+				Location source = parser->get_source().absolute;
+				enclosingType = isDependent(type) ? 0 : &getObjectType(makeUniqueType(type, source, enclosingType).value);
+
+				if(enclosingType != 0)
+				{
+					instantiateClass(*enclosingType, source); // a non-dependent type is required to be complete, so instantiate its bases
+				}
 			}
 			else
 			{

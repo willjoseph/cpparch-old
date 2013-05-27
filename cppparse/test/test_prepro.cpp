@@ -1,17 +1,24 @@
 
-
-
-namespace N125
+namespace N126
 {
-	template<typename T, typename U = typename T::Type>
-	struct S;
-
-	struct M
+	struct S
 	{
-		typedef int Type;
-	};
+		struct Base
+		{
+		};
 
-	S<M>* s; // does not require instantiation of S, but requires instantiation of default argument
+		struct Inner : Base
+		{
+			Inner()
+			{
+				f()->f(); // should instantiate 'S::Inner'
+			}
+
+			Inner* f()
+			{
+			}
+		};
+	};
 }
 
 namespace N032
@@ -31,6 +38,21 @@ namespace N032
 			Nested::Type h();
 		};
 	};
+}
+
+
+
+namespace N125
+{
+	template<typename T, typename U = typename T::Type>
+	struct S;
+
+	struct M
+	{
+		typedef int Type;
+	};
+
+	S<M>* s; // does not require instantiation of S, but requires instantiation of default argument
 }
 
 namespace N123

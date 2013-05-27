@@ -242,7 +242,7 @@ struct DependencyBuilder
 			const TypeInstance& objectType = getObjectType(type.value);
 			if(isClass(*objectType.declaration))
 			{
-				instantiateClass(objectType);
+				instantiateClass(objectType, module);
 				addModuleDependency(moduleDependencies, module, DeclarationInstance(objectType.declaration));
 			}
 		}
@@ -273,7 +273,7 @@ struct DependencyBuilder
 				&& !(isFunctionParameter(*instance) // and the object is not a function parameter..
 					&& (!isDecorated(instance->scope->name) || !getDeclaration(instance->scope->name)->isFunctionDefinition))) // .. within a function declaration
 			{
-				UniqueTypeId type = makeUniqueType(instance->type);
+				UniqueTypeId type = makeUniqueType(instance->type, symbol->value.source);
 				if(isFunctionParameter(*instance))
 				{
 					type = adjustFunctionParameter(type);
@@ -1115,7 +1115,7 @@ struct ParseTreePrinter : SymbolPrinter
 	{
 		if(isPrimary(symbol->value))
 		{
-			return makeUniqueType(getDeclaration(symbol->value)->type, 0, true);
+			return makeUniqueType(getDeclaration(symbol->value)->type, NAME_NULL, 0, true);
 		}
 		return gUniqueTypeNull;
 	}
