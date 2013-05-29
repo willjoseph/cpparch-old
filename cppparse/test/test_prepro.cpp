@@ -1,4 +1,17 @@
 
+namespace N127
+{
+	template<typename T>
+	struct S
+	{
+		static T f(T t)
+		{
+			return t;
+		}
+	};
+
+	int i = S<int>::f(0); // type of 'S<int>::f' should be 'int(int)'
+}
 namespace N126
 {
 	struct S
@@ -13,10 +26,8 @@ namespace N126
 			{
 				f()->f(); // should instantiate 'S::Inner'
 			}
-
-			Inner* f()
-			{
-			}
+			Inner* f();
+			f(int);
 		};
 	};
 }

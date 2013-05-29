@@ -316,7 +316,8 @@ struct WalkerState
 			{
 				if(templateParamScope != 0)
 				{
-					if(result.append(::findTemplateParameterDeclaration(*templateParamScope, id, filter)))
+					// this occurs when looking up template parameters during parse of (but before the point of declaration of) a template class/function, 
+					if(result.append(::findDeclaration(*templateParamScope, id, filter)))
 					{
 #ifdef LOOKUP_DEBUG
 						std::cout << "HIT: templateParamScope" << std::endl;
@@ -863,11 +864,12 @@ struct WalkerBase : public WalkerState
 			{
 				SEMANTIC_ASSERT(isComplete(type)); // TODO: non-fatal parse error
 				const TypeInstance* enclosing = &getObjectType(type.value);
+				instantiateClass(*enclosing, id.source); // searching for overloads requires a complete type
 				Scope* scope = enclosing->declaration->enclosed;
 				DeclarationInstanceRef declaration = ::findMemberDeclaration(*scope, id, IsAny(), false, false, enclosing);
 				if(declaration != 0)
 				{
-					resolver.add(declaration);
+					resolver.add(declaration, enclosing);
 				}
 			}
 			// TODO: ignore non-member candidates if no operand has a class type, unless one or more params has enum (ref) type
@@ -1679,10 +1681,11 @@ struct PrimaryExpressionWalker : public WalkerBase
 
 	UniqueTypeId type;
 	IdentifierPtr id; // only valid when the expression is a (parenthesised) id-expression
+	const TypeInstance* idEnclosing; // may be valid when the above id-expression is a qualified-id
 	Dependent typeDependent;
 	Dependent valueDependent;
 	PrimaryExpressionWalker(const WalkerState& state)
-		: WalkerBase(state), id(0)
+		: WalkerBase(state), id(0), idEnclosing(0)
 	{
 	}
 	void visit(cpp::literal* symbol)
@@ -1718,13 +1721,15 @@ struct PrimaryExpressionWalker : public WalkerBase
 			setDecoration(id, declaration);
 
 			type = gUniqueTypeNull;
+			// further type resolution (including overloads) should be made in the context of the qualifying type (if present)
+			idEnclosing = isDependent(walker.qualifying.get_ref()) ? 0 : makeUniqueEnclosing(walker.qualifying, id->source, enclosingType);
 			if(!isFunction(*declaration) // if the id-expression refers to a function, overload resolution dependends on the parameter types; defer evaluation of type
 				&& declaration->type.declaration != &gDependentType
 				&& !isDependent(declaration->type)
 				&& !isDependent(walker.arguments) // the id-expression may have an explicit template argument list
 				&& !isDependent(walker.qualifying.get_ref()))
 			{
-				type = makeUniqueType(declaration->type, id->source, makeUniqueEnclosing(walker.qualifying, id->source, enclosingType));
+				type = makeUniqueType(declaration->type, id->source, idEnclosing);
 			}
 		}
 		else
@@ -1810,11 +1815,12 @@ struct PostfixExpressionWalker : public WalkerBase
 
 	UniqueTypeId type;
 	IdentifierPtr id; // only valid when the expression is a (parenthesised) id-expression
+	const TypeInstance* idEnclosing; // may be valid when the above id-expression is a qualified-id
 	Dependent typeDependent;
 	Dependent valueDependent;
 	bool isPointer;
 	PostfixExpressionWalker(const WalkerState& state)
-		: WalkerBase(state), id(0), isPointer(false)
+		: WalkerBase(state), id(0), idEnclosing(0), isPointer(false)
 	{
 	}
 	void clearMemberType()
@@ -1850,6 +1856,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
 		id = walker.id;
+		idEnclosing = walker.idEnclosing;
 		setExpressionType(symbol, type);
 		updateMemberType();
 	}
@@ -1955,7 +1962,7 @@ struct PostfixExpressionWalker : public WalkerBase
 				&& !isMemberOfTemplate(*getDeclaration(*id))) // the name of a member function of a template may be dependent: TODO: determine exactly when!
 			{
 				// TODO: 13.3.1.1.1  Call to named function
-				Declaration* declaration = findBestMatch(*id->dec.p, walker.arguments, id->source);
+				Declaration* declaration = findBestMatch(*id->dec.p, walker.arguments, id->source, idEnclosing);
 				if(declaration != 0)
 				{
 					DeclarationInstanceRef instance = findLastDeclaration(*id->dec.p, declaration);

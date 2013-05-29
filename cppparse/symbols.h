@@ -2138,14 +2138,17 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const
 		throw SymbolsError();
 		return gUniqueTypeNull; // error: can't find template specialisation for this template parameter
 	}
+
+	const TypeInstance* memberEnclosing = isMember(*declaration) // if the declaration is a class member
+		? findEnclosingType(enclosing, declaration->scope) // it must be a member of the base of the qualifying class: find which one.
+		: 0; // the declaration is not a class member and cannot be found through qualified name lookup
+
 	if(declaration->specifiers.isTypedef)
 	{
-		return makeUniqueType(declaration->type, source, enclosing, allowDependent, depth);
+		return makeUniqueType(declaration->type, source, memberEnclosing, allowDependent, depth);
 	}
 
-	TypeInstance tmp(declaration, isMember(*declaration) // if the declaration is a class member
-			? findEnclosingType(enclosing, declaration->scope) // it must be a member of the base of the qualifying class: find which one.
-			: 0); // the declaration is not a class member and cannot be found through qualified name lookup
+	TypeInstance tmp(declaration, memberEnclosing);
 	SYMBOLS_ASSERT(declaration->type.declaration != &gArithmetic || tmp.enclosing == 0); // arithmetic types should not have an enclosing template!
 	if(declaration->isTemplate)
 	{
@@ -3483,8 +3486,10 @@ inline const DeclarationInstance* findDeclaration(Scope::Declarations& declarati
 	for(; i != declarations.begin()
 		&& (*--i).first == id.value;)
 	{
+#if 0
 		if(!isBase
 			|| (*i).second->templateParameter == INDEX_INVALID) // template-params of base-class are not visible outside the class
+#endif
 		{
 			if(filter(*(*i).second))
 			{
@@ -3587,11 +3592,13 @@ inline LookupResult findClassOrNamespaceMemberDeclaration(Scope& scope, const Id
 	{
 		return result;
 	}
+#if 0
 	if(scope.type == SCOPETYPE_TEMPLATE // when searching template-parameter scopes 
 		&& !isEnclosing) // unless searching an enclosing scope
 	{
 		return result; // This prevents issues caused by searching in the parent-scope when explicitly searching templateParamScope.
 	}
+#endif
 	if(scope.parent != 0)
 	{
 		if(result.append(findClassOrNamespaceMemberDeclaration(*scope.parent, id, filter, isEnclosing, enclosing ? enclosing->enclosing : 0)))
@@ -3609,6 +3616,7 @@ inline LookupResult findClassOrNamespaceMemberDeclaration(Scope& scope, const Id
 	return result;
 }
 
+#if 0
 inline LookupResult findTemplateParameterDeclaration(Scope& scope, const Identifier& id, LookupFilter filter = IsAny())
 {
 	// HACK: prevent looking in base-class list when looking up template parameter.
@@ -3617,8 +3625,13 @@ inline LookupResult findTemplateParameterDeclaration(Scope& scope, const Identif
 	scope.type = SCOPETYPE_TEMPLATE;
 	LookupResult result = findClassOrNamespaceMemberDeclaration(scope, id, filter);
 	scope.type = tmp;
+#if 1
+	LookupResult result2 = findDeclaration(scope, id, filter);
+	SYMBOLS_ASSERT(result.filtered == result2.filtered);
+#endif
 	return result;
 }
+#endif
 
 // find a declaration within an explicit qualifying class or namespace scope.
 // e.g. Class::member, Namespace::member, object.member
@@ -4083,12 +4096,12 @@ struct OverloadResolver
 			ambiguous = candidate.declaration;
 		}
 	}
-	void addSingle(Declaration* declaration)
+	void addSingle(Declaration* declaration, const TypeInstance* enclosingType)
 	{
 		CandidateFunction candidate(declaration);
 		candidate.conversions.reserve(best.conversions.size());
 
-		UniqueTypeWrapper type = makeUniqueType(declaration->type, source, 0, true); // TODO: dependent types, template argument deduction
+		UniqueTypeWrapper type = makeUniqueType(declaration->type, source, enclosingType, true); // TODO: dependent types, template argument deduction
 		if(!type.isFunction())
 		{
 			return; // TODO: invoke operator() on object of class-type
@@ -4119,7 +4132,7 @@ struct OverloadResolver
 
 		add(candidate);
 	}
-	void add(Declaration* declaration)
+	void add(Declaration* declaration, const TypeInstance* enclosingType = 0)
 	{
 		for(Declaration* p = declaration; p != 0; p = p->overloaded)
 		{
@@ -4133,15 +4146,17 @@ struct OverloadResolver
 				continue; // TODO: template argument deduction
 			}
 
-			addSingle(p);
+			addSingle(p, enclosingType);
 		}
 	}
 };
 
-inline Declaration* findBestMatch(Declaration* declaration, const UniqueTypeIds& arguments, Location source)
+// source: where the overload resolution occurs (point of instantiation)
+// enclosingType: the class of which the declaration is a member (along with all its overloads).
+inline Declaration* findBestMatch(Declaration* declaration, const UniqueTypeIds& arguments, Location source, const TypeInstance* enclosingType)
 {
 	OverloadResolver resolver(arguments, source);
-	resolver.add(declaration);
+	resolver.add(declaration, enclosingType);
 
 	if(resolver.ambiguous != 0)
 	{
