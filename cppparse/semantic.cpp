@@ -288,8 +288,17 @@ struct WalkerState
 		Scope* qualifying = getQualifyingScope();
 		if(qualifying != 0)
 		{
-			// 3.4.3: qualified name lookup
-			if(result.append(::findQualifiedDeclaration(*qualifying, id, filter, qualifyingType)))
+			// [basic.lookup.qual]
+			if(qualifyingType != 0)
+			{
+				instantiateClass(*qualifyingType, id.source);
+				SYMBOLS_ASSERT(qualifyingType->declaration->enclosed == qualifying);
+				if(result.append(::findDeclaration(*qualifyingType, id, filter)))
+				{
+					return result;
+				}
+			}
+			else if(result.append(::findNamespaceDeclaration(*qualifying, id, filter)))
 			{
 #ifdef LOOKUP_DEBUG
 				std::cout << "HIT: qualified" << std::endl;
@@ -301,13 +310,21 @@ struct WalkerState
 		{
 			if(memberObject != 0)
 			{
-				// 3.4.5 class member acess
-				if(result.append(::findQualifiedDeclaration(*memberObject, id, filter, memberType)))
+				// [basic.lookup.classref]
+				if(memberObject == &nullScope())
 				{
+					 // TODO: this occurs if evaluation of the left-hand-side of a member access expression fails: report an error!
+				}
+				else if(memberType != 0)
+				{
+					SYMBOLS_ASSERT(memberType->declaration->enclosed == memberObject);
+					if(result.append(::findDeclaration(*memberType, id, filter)))
+					{
 #ifdef LOOKUP_DEBUG
-					std::cout << "HIT: member" << std::endl;
+						std::cout << "HIT: member" << std::endl;
 #endif
-					return result;
+						return result;
+					}
 				}
 				// else if we're parsing a nested-name-specifier prefix, look up in the current context
 			}
@@ -325,7 +342,7 @@ struct WalkerState
 						return result;
 					}
 				}
-				if(result.append(::findClassOrNamespaceMemberDeclaration(*enclosing, id, filter, true, enclosingType)))
+				if(result.append(::findClassOrNamespaceMemberDeclaration(*enclosing, id, filter)))
 				{
 #ifdef LOOKUP_DEBUG
 					std::cout << "HIT: unqualified" << std::endl;
@@ -520,6 +537,7 @@ struct WalkerState
 	{
 		qualifying_p = 0;
 		qualifyingScope = 0;
+		qualifyingType = 0;
 		memberObject = 0;
 		memberType = 0;
 	}
@@ -654,6 +672,14 @@ struct WalkerState
 			&& isComplete(declaration))
 		{
 			setDependent(dependent, declaration.enclosed->bases);
+		}
+
+		Scope* scope = findEnclosingClassTemplate(&declaration);
+		if(scope != 0)
+		{
+			// 'declaration' is a class that is dependent because it is a (possibly specialized) member of an enclosing template class
+			Declaration* declaration = getDeclaration(scope->name);
+			setDependent(dependent, declaration->templateParams.back().declaration);
 		}
 
 		setDependent(dependent, declaration.valueDependent);
@@ -865,8 +891,7 @@ struct WalkerBase : public WalkerState
 				SEMANTIC_ASSERT(isComplete(type)); // TODO: non-fatal parse error
 				const TypeInstance* enclosing = &getObjectType(type.value);
 				instantiateClass(*enclosing, id.source); // searching for overloads requires a complete type
-				Scope* scope = enclosing->declaration->enclosed;
-				DeclarationInstanceRef declaration = ::findMemberDeclaration(*scope, id, IsAny(), false, false, enclosing);
+				DeclarationInstanceRef declaration = ::findDeclaration(*enclosing, id, IsAny());
 				if(declaration != 0)
 				{
 					resolver.add(declaration, enclosing);
@@ -1967,7 +1992,7 @@ struct PostfixExpressionWalker : public WalkerBase
 				{
 					DeclarationInstanceRef instance = findLastDeclaration(*id->dec.p, declaration);
 					setDecoration(id, instance);
-					type = isDependent(declaration->type) ? gUniqueTypeNull : makeUniqueType(declaration->type, id->source);
+					type = isDependent(declaration->type) ? gUniqueTypeNull : makeUniqueType(declaration->type, id->source, idEnclosing);
 				}
 			}
 		}
@@ -3207,13 +3232,13 @@ struct ClassHeadWalker : public WalkerBase
 	{
 		BaseSpecifierWalker walker(getState());
 		TREEWALKER_WALK_SRC(walker, symbol);
+		walker.type.unique = makeUniqueTypeSafe(walker.type, symbol->source.absolute).value;
 		if(walker.type.declaration != 0) // declaration == 0 if base-class is dependent
 		{
 			SEMANTIC_ASSERT(declaration->enclosed != 0);
 			addBase(declaration, walker.type);
 		}
-		UniqueTypeId type = makeUniqueTypeSafe(walker.type, symbol->source.absolute);
-		setExpressionType(symbol, type);
+		setExpressionType(symbol, UniqueTypeWrapper(walker.type.unique));
 	}
 };
 

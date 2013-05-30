@@ -1,17 +1,80 @@
 
-namespace N127
+namespace N130
 {
 	template<typename T>
-	struct S
+	struct C
 	{
-		static T f(T t)
-		{
-			return t;
-		}
+		static const unsigned int value=8;
 	};
 
-	int i = S<int>::f(0); // type of 'S<int>::f' should be 'int(int)'
+	namespace N
+	{
+		struct S
+		{
+		};
+	}
+
+	template<typename T, typename U>
+	struct S
+	{
+	};
+
+
+	typedef S<C<int>::value < 8, N::S> Type; // attempted parse of 'value<8, N::S>' as a template-id should not produce an error
 }
+
+namespace N129
+{
+	template<typename T>
+	struct A
+	{
+		struct B // B is dependent: could be explicitly specialized
+		{
+			static T g();
+		};
+
+		struct C
+		{
+			typedef int Type;
+#if 0
+			A<T>::C::Type m; // vcpp complains that 'C' is dependent, GCC, ICC and Clang do not
+			// 'C' names 'the template itself' because it is within the definition of 'C'
+#endif
+		};
+
+		struct D : B // B should not be evaluated
+		{
+			void f()
+			{
+				C::f(); // lookup of 'f' should be deferred
+				this->g(); // lookup of 'g' should be deferred
+			}
+		};
+	};
+
+	int i = A<int>::D::g();
+}
+
+namespace N128
+{
+	struct S
+	{
+		struct Base
+		{
+			Base* g();
+			g(int);
+		};
+
+		struct Inner : Base
+		{
+			Inner()
+			{
+				g()->g(); // should instantiate 'S::Base'
+			}
+		};
+	};
+}
+
 namespace N126
 {
 	struct S
@@ -30,6 +93,20 @@ namespace N126
 			f(int);
 		};
 	};
+}
+
+namespace N127
+{
+	template<typename T>
+	struct S
+	{
+		static T f(T t)
+		{
+			return t;
+		}
+	};
+
+	int i = S<int>::f(0); // type of 'S<int>::f' should be 'int(int)'
 }
 
 namespace N032
@@ -1179,7 +1256,7 @@ namespace N064
 
 
 
-#if 0
+#if 0 // this is all incorrect!
 namespace N065
 {
 

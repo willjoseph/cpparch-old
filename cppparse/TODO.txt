@@ -112,7 +112,7 @@
 					- allows it to encode template-arguments/qualifying
 			- when querying..?
 		+ remove old isDependent/addDependent framework
-	- name lookup for 'this->m' finds 'm' in enclosing scope
+	+ name lookup for 'this->m' finds 'm' in enclosing scope
 		- see [basic.lookup.classref]
 		- reject names not found in enclosing class when not considering nested-name-specifier
 		- memberObject not set during scope of out-of-line member definition, member lookup fails
@@ -136,9 +136,15 @@
 			- TypeInstance: contains list of declarations, one for each dependent-name in the template
 				- including base classes
 		- partial-ordering of class template specialisations
-	- track/report points source when a class is required to be complete:
+	- track/report first point in source when a class is required to be complete:
 		- required for tracking whether a source-file needs to include a class definition or simply forward-declare
 		- e.g. sizeof, member access, direct use as object (except function prototype), base-class
+		- same as point-of-instantiation for implicit instantiation
+	- distinguish name-of-template-itself as not dependent
+		- 14.6 (temp.res) Three kinds of names can be used within a template definition:
+			- The name of the template itself, and names declared within the template itself
+			- Names dependent on a template-parameter
+			- Names from scopes which are visible within the template-definition.
 	- get rid of old printParameters(DeclarationList)
 		- note that this needs to print (possibly dependent) parameters of an uninstantiated template function
 	- return more appropriate object than 'gBaseClass' when failing to resolve dependent type with allowDependent=true
@@ -154,11 +160,6 @@
 		- e.g. detect when 'typename' keyword is missing
 		- on reportIdentifierMismatch, show the location of the mismatching identifier
 	- include partial-specialization template-params in anchor, to distinguish from primary template
-	- distinguish name-of-template-itself as not dependent
-		- 14.6 (temp.res) Three kinds of names can be used within a template definition:
-			- The name of the template itself, and names declared within the template itself
-			- Names dependent on a template-parameter
-			- Names from scopes which are visible within the template-definition.
 	- handle template explicit/partial specialization with empty argument-list
 	- handle all parse errors without crashing
 		- don't crash when backtracking after parse error!
@@ -247,7 +248,20 @@
 				- optimise: cache evaluated base type
 			- does the order of declarations affect the type referred to by a base-specifier?
 				- base must be defined before it can be used?
-			- check whether isBase param in findDeclaration(Declarations) is still required
+			+ check whether isBase param in findDeclaration(Declarations) is still required
+			+ unique non-dependent base when parsing base-specifier
+				- makeUniqueType seems inconsistent when uniquing dependent bases
+					- need to pass D<int> as enclosing-class when base-specifier D:B<T> depends on template parameter
+	- unique all non-dependent type-names/type-ids when parsing?
+		- base-specifier
+		- nested-name-specifier
+		- qualified-id
+		- template-arguments
+		- declarations
+		- template-parameters (always dependent!), template-param-defaults
+		- forward-declaration
+		- destructor-name, conversion-function
+		- cast-expression, new-expression, typeid, sizeof
 	- clean up duplicated html string escape in SourcePrinter/ParseTreePrinter
 	- clean up error handling - multiple assert exception types?
 	- clean up test code: ensure it compiles in LLVM
