@@ -312,7 +312,9 @@ struct DependencyBuilder
 	void addNewExpressionDependency(cpp::expression* symbol)
 	{
 		// [expr.new] The new expression attempts to create an object of the type-id or new-type-id to which it is applied. The type shall be a complete type...
-		addTypeDependency(UniqueTypeId(getInner(getExpressionType(symbol).value)), symbol->source.absolute);
+		UniqueTypeWrapper type = getExpressionType(symbol);
+		type.pop_front();
+		addTypeDependency(type, symbol->source.absolute);
 	}
 	void visit(cpp::new_expression_default* symbol)
 	{

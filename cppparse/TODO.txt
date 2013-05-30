@@ -63,7 +63,7 @@
 		- type-name lookup hidden by constructor
 		
 - workflow
-	- single-step very slow with large call-stack: try vc11
+	- single-step very slow with large call-stack: try vc10
 		- build boost, stlport
 		- single-step faster if not looking at call-stack window
 	- debugging/testing slow: serialise preprocessed tokens?

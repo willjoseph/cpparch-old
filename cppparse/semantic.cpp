@@ -1860,11 +1860,8 @@ struct PostfixExpressionWalker : public WalkerBase
 			memberType = 0; // TODO: left-hand side should always have a known type!
 			return;
 		}
-		UniqueTypeId object = type;
-		if(object.isReference())
-		{
-			object.pop_front(); // [expr] If an expression initially has the type "reference to T", the type is adjusted to "T" prior to any further analysis.
-		}
+		// [expr] If an expression initially has the type "reference to T", the type is adjusted to "T" prior to any further analysis.
+		UniqueTypeId object = removeReference(type);
 		isPointer = object.isPointer();
 		if(isPointer)
 		{
@@ -1907,11 +1904,9 @@ struct PostfixExpressionWalker : public WalkerBase
 		ExplicitTypeExpressionWalker walker(getState());
 		TREEWALKER_WALK_SRC(walker, symbol);
 		addDependent(typeDependent, walker.typeDependent);
-		type = gUniqueTypeNull;
-		if(!isDependent(walker.type))
-		{
-			type = makeUniqueType(walker.type, symbol->source.absolute, enclosingType);
-		}
+		type = makeUniqueTypeSafe(walker.type, symbol->source.absolute);
+		// [basic.lval] An expression which holds a temporary object resulting from a cast to a non-reference type is an rvalue
+		requireCompleteObjectType(type, symbol->source.absolute);
 		setExpressionType(symbol, type);
 		updateMemberType();
 	}
@@ -1919,11 +1914,9 @@ struct PostfixExpressionWalker : public WalkerBase
 	{
 		ExplicitTypeExpressionWalker walker(getState());
 		TREEWALKER_WALK_SRC(walker, symbol);
-		type = gUniqueTypeNull;
-		if(!isDependent(walker.type))
-		{
-			type = makeUniqueType(walker.type, symbol->source.absolute, enclosingType);
-		}
+		type = makeUniqueTypeSafe(walker.type, symbol->source.absolute);
+		// [basic.lval] An expression which holds a temporary object resulting from a cast to a non-reference type is an rvalue
+		requireCompleteObjectType(type, symbol->source.absolute);
 		if(symbol->op->id != cpp::cast_operator::DYNAMIC)
 		{
 			Dependent tmp(walker.typeDependent);
@@ -1955,19 +1948,24 @@ struct PostfixExpressionWalker : public WalkerBase
 	{
 		ExpressionWalker walker(getState());
 		TREEWALKER_WALK_SRC(walker, symbol);
-		setExpressionType(symbol, type);
+		addDependent(typeDependent, walker.typeDependent);
+		addDependent(valueDependent, walker.valueDependent);
+		id = 0; // don't perform overload resolution for a[i](x);
+		// [expr] If an expression initially has the type "reference to T", the type is adjusted to "T" prior to any further analysis.
+		type = removeReference(type);
 		if(type.isArray()
 			|| type.isPointer())
 		{
 			type.pop_front(); // dereference left-hand side
+			// [expr.sub] The result is an lvalue of type T. The type "T" shall be a completely defined object type.
+			requireCompleteObjectType(type, symbol->source.absolute);
 		}
 		else // TODO: overloaded operator[]
 		{
 			// TODO: non-fatal error: attempting to dereference non-array/pointer
+			type = gUniqueTypeNull;
 		}
-		addDependent(typeDependent, walker.typeDependent);
-		addDependent(valueDependent, walker.valueDependent);
-		id = 0; // don't perform overload resolution for a[i](x);
+		setExpressionType(symbol, type);
 		updateMemberType();
 	}
 	void visit(cpp::postfix_expression_call* symbol)
@@ -2081,6 +2079,13 @@ struct PostfixExpressionWalker : public WalkerBase
 	void visit(cpp::postfix_operator* symbol)
 	{
 		TREEWALKER_LEAF_SRC(symbol);
+		type = removeReference(type);
+		// [expr.post.incr] The type of the operand shall be an arithmetic type or a pointer to a complete object type.
+		if(type.isPointer())
+		{
+			type.pop_front();
+			requireCompleteObjectType(type, symbol->source.absolute);
+		}
 		setExpressionType(symbol, type);
 		id = 0;
 		updateMemberType();
@@ -2297,6 +2302,8 @@ struct ExpressionWalker : public WalkerBase
 		ExplicitTypeExpressionWalker walker(getState());
 		TREEWALKER_WALK_SRC(walker, symbol);
 		type = makeUniqueTypeSafe(walker.type, symbol->source.absolute);
+		// [expr.new] The new expression attempts to create an object of the type-id or new-type-id to which it is applied. The type shall be a complete type...
+		requireCompleteObjectType(type, symbol->source.absolute);
 		type.push_front(PointerType());
 		addDependent(typeDependent, walker.typeDependent);
 		setExpressionType(symbol, type);
@@ -2306,6 +2313,8 @@ struct ExpressionWalker : public WalkerBase
 		ExplicitTypeExpressionWalker walker(getState());
 		TREEWALKER_WALK_SRC(walker, symbol);
 		type = makeUniqueTypeSafe(walker.type, symbol->source.absolute);
+		// [expr.new] The new expression attempts to create an object of the type-id or new-type-id to which it is applied. The type shall be a complete type...
+		requireCompleteObjectType(type, symbol->source.absolute);
 		type.push_front(PointerType());
 		addDependent(typeDependent, walker.typeDependent);
 		setExpressionType(symbol, type);
@@ -2315,6 +2324,8 @@ struct ExpressionWalker : public WalkerBase
 		ExplicitTypeExpressionWalker walker(getState());
 		TREEWALKER_WALK_SRC(walker, symbol);
 		type = makeUniqueTypeSafe(walker.type, symbol->source.absolute);
+		// [basic.lval] An expression which holds a temporary object resulting from a cast to a non-reference type is an rvalue
+		requireCompleteObjectType(type, symbol->source.absolute);
 		Dependent tmp(walker.typeDependent);
 		addDependent(valueDependent, tmp);
 		addDependent(typeDependent, walker.typeDependent);
@@ -2351,6 +2362,9 @@ struct ExpressionWalker : public WalkerBase
 		addDependent(valueDependent, walker.typeDependent);
 		type = gUnsignedInt;
 		setExpressionType(symbol, type);
+		// [expr] If an expression initially has the type "reference to T", the type is adjusted to "T" prior to any further analysis.
+		// [expr.sizeof] The sizeof operator shall not be applied to an expression that has function or incomplete type.
+		requireCompleteObjectType(removeReference(getExpressionType(symbol->expr)), symbol->source.absolute);
 	}
 	void visit(cpp::unary_expression_sizeoftype* symbol)
 	{
@@ -2360,6 +2374,9 @@ struct ExpressionWalker : public WalkerBase
 		addDependent(valueDependent, walker.valueDependent);
 		type = gUnsignedInt;
 		setExpressionType(symbol, type);
+		// [expr] If an expression initially has the type "reference to T", the type is adjusted to "T" prior to any further analysis.
+		// [expr.sizeof] The sizeof operator shall not be applied to an expression that has function or incomplete type... or to the parenthesized name of such types.
+		requireCompleteObjectType(removeReference(getExpressionType(symbol->type)), symbol->source.absolute);
 	}
 	void visit(cpp::delete_expression* symbol)
 	{

@@ -1905,6 +1905,33 @@ inline void instantiateClass(const TypeInstance& enclosing, Location source, boo
 	}
 }
 
+inline void requireCompleteObjectType(UniqueTypeWrapper type, Location source)
+{
+	while(type.isArray()
+		&& getArrayType(type.value).size != 0)
+	{
+		type.pop_front(); // arrays of known size are complete object types
+	}
+	if(type.isSimple())
+	{
+		const TypeInstance& objectType = getObjectType(type.value);
+		if(isClass(*objectType.declaration))
+		{
+			instantiateClass(objectType, source);
+		}
+	}
+}
+
+ // [expr] If an expression initially has the type "reference to T", the type is adjusted to "T" prior to any further analysis.
+inline UniqueTypeWrapper removeReference(UniqueTypeWrapper type)
+{
+	if(type.isReference())
+	{
+		type.pop_front();
+	}
+	return type;
+}
+
 inline const TypeInstance* makeUniqueEnclosing(const Qualifying& qualifying, Location source, const TypeInstance* enclosing, bool allowDependent, std::size_t depth)
 {
 	if(!qualifying.empty())
