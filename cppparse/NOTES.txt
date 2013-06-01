@@ -1,0 +1,33 @@
+
+- crash: infinite loop in findDeclaration, type is base of base of itself
+	- struct D : B {}; struct B : D {};
+	- use visited flag to prevent infinite recursion
+
+- assert: D:\dev\cpparch\cppparse\msvc-8.0\include\xdebug:110
+	- instantiation of basic_string<char, char_traits<char>, _DebugHeapAllocator<char> > in base-specifier of _DebugHeapString
+	- when instantiated at point of declaration of _DebugHeapString, unique-type differs to instantiation in base-specifier
+	- second template argument has a different type: iosfwd:155 char_traits<T> vs iosfwd:406 vs char_traits<char>
+	- occurs because type was uniqued with 'allowDependent' when it was not dependent
+
+
+- task: make-unique for all types at point of parse, allowDependent=true for unique types
+	- set isDependent=true on Type if dependent, do not look up names in base classes with isDependent=true
+
++ task: make-unique the enclosing type even when it's a template
+	- always allow dependent if it's a template
+
+- task: in makeUniqueType, use previously specified unique type if available and isDependent=false.
+	- first, assert that previously specified type is equal to result of makeUniqueType
+	- if isDependent=true, perform type substitution on dependent unique-type
+
+
+- task: remove if(walker.type.declaration != 0) and addBase even if declaration is not found
+
+
+	
++ task: use enclosing scope to determine whether type name is name of enclosing class
+
++ task: modify instantiateClass to instantiate base classes of the enclosing template class
+	- also instantiate dependent base classes, but don't add them to the list if allowDependent=true
+	- is allowDependent=true in context where base classes are no longer dependent?
+		- e.g. D<int>::B

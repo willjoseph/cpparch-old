@@ -130,5 +130,6 @@
     <None Include="DONE.txt" />
     <None Include="README.txt" />
     <None Include="TODO.txt" />
+    <None Include="NOTES.txt" />
   </ItemGroup>
 </Project>

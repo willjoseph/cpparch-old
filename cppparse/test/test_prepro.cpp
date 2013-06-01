@@ -1,4 +1,164 @@
 
+namespace N136
+{
+	template<class T>
+	struct S;
+
+	template<class T>
+	struct S<T*>
+	{
+	};
+
+	template<template<typename T> class F>
+	struct A;
+
+	typedef A<S> Type;
+}
+
+namespace N024
+{
+	template<typename T>
+	struct Wrapper
+	{
+	};
+
+	template<class _Ty, class _Ax=Wrapper<_Ty> >
+	struct vector;
+
+	template<class _Alloc>
+	struct vector<bool, _Alloc>
+	{
+		typedef bool Type;
+	};
+
+	template<class _Ty, class _Ax>
+	struct vector
+	{
+		typedef _Ty Type;
+	};
+
+	vector<char>::Type x;
+}
+
+namespace N134
+{
+	template<template<typename T> class F>
+	struct A;
+
+	template<typename T>
+	struct B;
+
+	typedef B< A<B> > Type; // 'B' should be interpreted as a template-name, not an implicit template-id
+}
+
+namespace N132
+{
+	template<class T>
+	struct Tmpl
+	{
+		typedef int Type;
+		// Tmpl::Type i; // TODO: 'Tmpl' is not dependent: it is an implicit template-id that refers to the template itself
+	};
+};
+
+namespace N135
+{
+	template<template<typename T> class F>
+	struct A;
+
+	template<typename T>
+	struct B
+	{
+		typedef B< A<N135::B> > Type; // 'B' should be interpreted as a template-name, not an implicit template-id
+	};
+}
+
+namespace N133
+{
+	template<class T>
+	struct Tmpl;
+
+	template<class T>
+	struct Tmpl
+	{
+	};
+}
+
+namespace N137
+{
+	struct A
+	{
+		template<typename T, int i>
+		struct B : T::template Inner<i>
+		{
+		};
+
+		template<int i>
+		struct Inner : B<A, i - 1>
+		{
+		};
+	};
+
+	template<>
+	struct A::Inner<0>
+	{
+		typedef int Type;
+	};
+
+	A::Inner<5>::Type i;
+}
+
+
+namespace N136
+{
+	struct B
+	{
+		int m;
+	};
+
+	template<typename T>
+	class D : public B
+	{
+		void f()
+		{
+			m = 0;
+		}
+	};
+}
+
+namespace N028
+{
+	template<typename T>
+	struct Base
+	{
+		typedef T Type;
+		typedef Base<T> Nested;
+		T member;
+	};
+
+	struct Derived : Base<int> // test type-uniquing for names that are implicitly qualified by 'Base<int>'
+	{
+		Type g();
+		Nested::Type h();
+		void f()
+		{
+			member = 0;
+			int t = Type(0); // 'Type' should be resolved to 'int'
+			int u = (Type)0; // 'Type' should be resolved to 'int'
+		}
+	};
+}
+
+
+
+namespace N131
+{
+	template<typename T>
+	struct S : T::Nested::X
+	{
+	};
+}
+
 namespace N130
 {
 	template<typename T>
@@ -1930,29 +2090,6 @@ namespace N030
 }
 #endif
 
-namespace N028
-{
-	template<typename T>
-	struct Base
-	{
-		typedef T Type;
-		typedef Base<T> Nested;
-		T member;
-	};
-
-	struct Derived : Base<int> // test type-uniquing for names that are implicitly qualified by 'Base<int>'
-	{
-		Type g();
-		Nested::Type h();
-		void f()
-		{
-			member = 0;
-			int t = Type(0); // 'Type' should be resolved to 'int'
-			int u = (Type)0; // 'Type' should be resolved to 'int'
-		}
-	};
-}
-
 namespace N027
 {
 
@@ -2048,31 +2185,6 @@ namespace N026
 	int Outer<T>::time_put<T, _OutIt>::id;
 }
 #endif
-
-namespace N024
-{
-	template<typename T>
-	struct Wrapper
-	{
-	};
-	
-	template<class _Ty, class _Ax=Wrapper<_Ty> >
-	struct vector;
-
-	template<class _Alloc>
-	struct vector<bool, _Alloc>
-	{
-		typedef bool Type;
-	};
-
-	template<class _Ty, class _Ax>
-	struct vector
-	{
-		typedef _Ty Type;
-	};
-
-	vector<char>::Type x;
-}
 
 namespace N022
 {

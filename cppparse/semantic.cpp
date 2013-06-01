@@ -384,7 +384,6 @@ struct WalkerState
 		SEMANTIC_ASSERT(!name.value.empty());
 		Declaration other(allocator, parent, name, type, enclosed, specifiers, isTemplate, params, isSpecialization, arguments, templateParameter, valueDependent);
 		other.uniqueId = ++uniqueId;
-		other.isDependent = isDependent(type);
 		DeclarationInstance declaration;
 		const DeclarationInstance* overloaded = 0;
 		if(!isAnonymous(other)) // unnamed class/struct/union/enum
@@ -1043,13 +1042,24 @@ struct WalkerBase : public WalkerState
 		return type;
 	}
 
-	UniqueTypeWrapper makeUniqueTypeSafe(const Type& type, Location source = NAME_NULL)
+	template<typename T>
+	UniqueTypeWrapper makeUniqueTypeImpl(T& type, Location source = NAME_NULL)
 	{
+#if 1
+		type.isDependent = isDependent(type);
+		type.unique = makeUniqueType(type, source, enclosingType, type.isDependent).value;
+		return type.isDependent ? gUniqueTypeNull : UniqueTypeWrapper(type.unique);
+#else
 		return isDependent(type) ? gUniqueTypeNull : ::makeUniqueType(type, source, enclosingType);
+#endif
 	}
-	UniqueTypeWrapper makeUniqueTypeSafe(const TypeId& type, Location source = NAME_NULL)
+	UniqueTypeWrapper makeUniqueTypeSafe(Type& type, Location source = NAME_NULL)
 	{
-		return isDependent(type) ? gUniqueTypeNull : ::makeUniqueType(type, source, enclosingType);
+		return makeUniqueTypeImpl(type, source);
+	}
+	UniqueTypeWrapper makeUniqueTypeSafe(TypeId& type, Location source = NAME_NULL)
+	{
+		return makeUniqueTypeImpl(type, source);
 	}
 };
 
@@ -1508,6 +1518,7 @@ struct ExplicitTypeExpressionWalker : public WalkerBase
 			type = getFundamentalType(walker.fundamental);
 		}
 		addDependent(typeDependent, type);
+		makeUniqueTypeSafe(type, parser->get_source().absolute);
 	}
 	void visit(cpp::typename_specifier* symbol)
 	{
@@ -1515,6 +1526,7 @@ struct ExplicitTypeExpressionWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		type.swap(walker.type);
 		addDependent(typeDependent, type);
+		makeUniqueTypeSafe(type, parser->get_source().absolute);
 	}
 	void visit(cpp::type_id* symbol)
 	{
@@ -1748,6 +1760,12 @@ struct PrimaryExpressionWalker : public WalkerBase
 			type = gUniqueTypeNull;
 			// further type resolution (including overloads) should be made in the context of the qualifying type (if present)
 			idEnclosing = isDependent(walker.qualifying.get_ref()) ? 0 : makeUniqueEnclosing(walker.qualifying, id->source, enclosingType);
+			if(idEnclosing != 0
+				&& declaration->scope->type == SCOPETYPE_CLASS)
+			{
+				// the identifier may name a type in a base-class of the qualifying type; findEnclosingType resolves this.
+				idEnclosing = findEnclosingType(idEnclosing, declaration->scope);
+			}
 			if(!isFunction(*declaration) // if the id-expression refers to a function, overload resolution dependends on the parameter types; defer evaluation of type
 				&& declaration->type.declaration != &gDependentType
 				&& !isDependent(declaration->type)
@@ -2051,6 +2069,9 @@ struct PostfixExpressionWalker : public WalkerBase
 					enclosing = enclosing->enclosing; // use its enclosing template-instantiation
 				}
 #endif
+				SEMANTIC_ASSERT(declaration->scope->type == SCOPETYPE_CLASS)
+				// the identifier may name a type in a base-class of the qualifying type; findEnclosingType resolves this.
+				enclosing = findEnclosingType(enclosing, declaration->scope);
 				type = makeUniqueType(declaration->type, id->source, makeUniqueEnclosing(walker.qualifying, id->source, enclosing));
 			}
 		}
@@ -2110,7 +2131,7 @@ struct SizeofTypeExpressionWalker : public WalkerBase
 		addDependent(valueDependent, walker.valueDependent);
 		type.swap(walker.type);
 
-		UniqueTypeId uniqueType = isDependent(type) ? gUniqueTypeNull : makeUniqueType(type, symbol->source.absolute, enclosingType);
+		UniqueTypeId uniqueType = makeUniqueTypeSafe(type, symbol->source.absolute);
 		setExpressionType(symbol, uniqueType);
 	}
 };
@@ -2456,6 +2477,9 @@ struct TypeNameWalker : public WalkerBase
 		type.id = &symbol->value;
 		type.declaration = declaration;
 		type.isImplicitTemplateId = declaration->isTemplate;
+		type.isEnclosingClass = isClass(*declaration)
+			&& isComplete(*declaration)
+			&& findScope(enclosing, declaration->enclosed); // is this the type of an enclosing class?
 		setDecoration(&symbol->value, declaration);
 		setDependent(type);
 #if 1 // temp hack, imitate previous isDependent behaviour
@@ -2610,6 +2634,7 @@ struct NestedNameSpecifierPrefixWalker : public WalkerBase
 			return reportIdentifierMismatch(symbol, walker.type.declaration->getName(), walker.type.declaration, "class-name");
 		}
 		type.swap(walker.type);
+		makeUniqueTypeSafe(type, parser->get_source().absolute);
 	}
 };
 
@@ -3188,6 +3213,7 @@ struct BaseSpecifierWalker : public WalkerQualified
 		type.swap(walker.type);
 		type.qualifying.swap(qualifying);
 		setDependent(type.dependent, type.qualifying);
+		makeUniqueTypeSafe(type, parser->get_source().absolute);
 	}
 };
 
@@ -3249,13 +3275,12 @@ struct ClassHeadWalker : public WalkerBase
 	{
 		BaseSpecifierWalker walker(getState());
 		TREEWALKER_WALK_SRC(walker, symbol);
-		walker.type.unique = makeUniqueTypeSafe(walker.type, symbol->source.absolute).value;
 		if(walker.type.declaration != 0) // declaration == 0 if base-class is dependent
 		{
 			SEMANTIC_ASSERT(declaration->enclosed != 0);
 			addBase(declaration, walker.type);
 		}
-		setExpressionType(symbol, UniqueTypeWrapper(walker.type.unique));
+		setExpressionType(symbol, walker.type.isDependent ? gUniqueTypeNull : UniqueTypeWrapper(walker.type.unique));
 	}
 };
 
@@ -3492,6 +3517,16 @@ struct ClassSpecifierWalker : public WalkerBase
 			}
 			declaration->templateParamScope = templateParamScope; // required by findEnclosingType
 
+#if 1
+			Location source = parser->get_source().absolute;
+			Type type(declaration, context);
+			setDependent(type);
+			type.isDependent = isDependent(type);
+			type.isImplicitTemplateId = declaration->isTemplate;
+			UniqueTypeWrapper objectType = makeUniqueType(type, source, enclosingType, type.isDependent || declaration->isTemplate); // prevent uniquing of template-arguments in implicit template-id
+			enclosingType = &getObjectType(objectType.value);
+			instantiateClass(*enclosingType, source, type.isDependent); // instantiate non-dependent base classes
+#else
 			if(!declaration->isTemplate)
 			{
 				Type type(declaration, context);
@@ -3508,6 +3543,7 @@ struct ClassSpecifierWalker : public WalkerBase
 			{
 				enclosingType = 0;
 			}
+#endif
 		}
 		clearTemplateParams();
 	}
@@ -4199,6 +4235,7 @@ struct TypeIdWalker : public WalkerBase
 		addDependent(valueDependent, walker.valueDependent);
 		type.typeSequence = walker.typeSequence;
 		setDependent(type.dependent, walker.dependent);
+		makeUniqueTypeSafe(type, parser->get_source().absolute);
 	}
 };
 
@@ -4230,6 +4267,7 @@ struct NewTypeWalker : public WalkerBase
 		addDependent(valueDependent, walker.valueDependent);
 		type.typeSequence = walker.typeSequence;
 		setDependent(type.dependent, walker.dependent);
+		makeUniqueTypeSafe(type, parser->get_source().absolute);
 		// new T
 		// new T*
 		// new T[variable]
@@ -4372,6 +4410,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		enclosed = walker.paramScope;
 		type.typeSequence = walker.typeSequence;
 		setDependent(type.dependent, walker.dependent);
+		makeUniqueTypeSafe(type, parser->get_source().absolute);
 		/* temp.dep.constexpr
 		An identifier is value-dependent if it is:
 			— a name declared with a dependent type,
@@ -4391,11 +4430,13 @@ struct SimpleDeclarationWalker : public WalkerBase
 		enclosed = walker.paramScope;
 		type.typeSequence = walker.typeSequence;
 		setDependent(type.dependent, walker.dependent);
+		makeUniqueTypeSafe(type, parser->get_source().absolute);
 	}
 	void visit(cpp::member_declarator_bitfield* symbol)
 	{
 		MemberDeclaratorBitfieldWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
+		makeUniqueTypeSafe(type, parser->get_source().absolute);
 		if(walker.id != 0)
 		{
 			DeclarationInstanceRef instance = pointOfDeclaration(context, enclosing, *walker.id, type, 0, specifiers); // 3.3.1.1

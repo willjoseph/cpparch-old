@@ -267,7 +267,7 @@ struct DependencyBuilder
 				addModuleDependency(moduleDependencies, symbol->value.source, instance);
 			}
 		}
-		else if(!instance->isDependent)
+		else if(!instance->type.isDependent)
 		{
 			if(isObjectDefinition(*instance) // if this declaration defines an object
 				&& !(isFunctionParameter(*instance) // and the object is not a function parameter..

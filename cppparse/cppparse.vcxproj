@@ -153,6 +153,7 @@
     <None Include="BUGS.txt" />
     <None Include="cppparse.rsp" />
     <None Include="DONE.txt" />
+    <None Include="NOTES.txt" />
     <None Include="README.txt" />
     <None Include="TODO.txt" />
   </ItemGroup>

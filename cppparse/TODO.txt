@@ -49,6 +49,7 @@
 	- test that names introduced into namespace by using-directive correctly hide previously-declared names
 	- test parser for completeness and compliance
 	- test that a name found only in a friend-declaration can be found during argument-dependent name-lookup
+	- test injected-class-name: referring to a template base by its name is allowed: struct D : B<T> { B b; };
 
 - unit tests
 	- test_include should give warning about using 'TEST_INDIRECT'
