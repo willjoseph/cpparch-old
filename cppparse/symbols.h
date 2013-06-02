@@ -3080,13 +3080,19 @@ inline const Type& getUnderlyingType(const Type& type)
 
 inline bool isEqual(const TypeId& l, const TypeId& r)
 {
-	UniqueTypeWrapper left = makeUniqueType(l, NAME_NULL, 0, true);
-	UniqueTypeWrapper right = makeUniqueType(r, NAME_NULL, 0, true);
-	return left == right;
+	SYMBOLS_ASSERT(l.unique != 0);
+	SYMBOLS_ASSERT(l.unique == makeUniqueType(l, NAME_NULL, 0, true).value);
+	SYMBOLS_ASSERT(r.unique != 0);
+	SYMBOLS_ASSERT(r.unique == makeUniqueType(r, NAME_NULL, 0, true).value);
+	return l.unique == r.unique;
 }
 
 inline bool isEqual(const TemplateArgument& l, const TemplateArgument& r)
 {
+	if(l.type.declaration == &gNonType)
+	{
+		return r.type.declaration == &gNonType; // TODO: non-type template parameters
+	}
 	return isEqual(l.type, r.type);
 }
 
@@ -3949,8 +3955,9 @@ typedef std::list<UniqueType> TypeElements;
 struct SymbolPrinter : TypeElementVisitor
 {
 	FileTokenPrinter& printer;
-	SymbolPrinter(FileTokenPrinter& printer)
-		: printer(printer)
+	bool escape;
+	SymbolPrinter(FileTokenPrinter& printer, bool escape = false)
+		: printer(printer), escape(escape)
 	{
 		typeStack.push_back(false);
 	}
@@ -4152,7 +4159,7 @@ struct SymbolPrinter : TypeElementVisitor
 				{
 					printer.out << ",";
 				}
-				SymbolPrinter walker(printer);
+				SymbolPrinter walker(printer, escape);
 				walker.printType(*declaration);
 				separator = true;
 			}
@@ -4169,7 +4176,7 @@ struct SymbolPrinter : TypeElementVisitor
 			{
 				printer.out << ",";
 			}
-			SymbolPrinter walker(printer);
+			SymbolPrinter walker(printer, escape);
 			walker.printType(*i);
 			separator = true;
 		}
@@ -4178,7 +4185,7 @@ struct SymbolPrinter : TypeElementVisitor
 
 	void printTemplateArguments(const TemplateArgumentsInstance& templateArguments)
 	{
-		printer.out << "{";
+		printer.out << (escape ? "&lt;" : "<");
 		bool separator = false;
 		for(TemplateArgumentsInstance::const_iterator i = templateArguments.begin(); i != templateArguments.end(); ++i)
 		{
@@ -4186,11 +4193,11 @@ struct SymbolPrinter : TypeElementVisitor
 			{
 				printer.out << ",";
 			}
-			SymbolPrinter walker(printer);
+			SymbolPrinter walker(printer, escape);
 			walker.printType(*i);
 			separator = true;
 		}
-		printer.out << "}";
+		printer.out << (escape ? "&gt;" : ">");
 	}
 
 	void printName(const Declaration* name)

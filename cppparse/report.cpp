@@ -569,7 +569,7 @@ struct SourcePrinter : SymbolPrinter
 	};
 
 	SourcePrinter(const PrintSymbolArgs& args, ModuleDependencyMap& dependencies)
-		: SymbolPrinter(printer),
+		: SymbolPrinter(printer, true),
 		printer(out),
 		inputRoot(args.inputRoot),
 		outputRoot(args.outputRoot),
@@ -1046,7 +1046,7 @@ struct ParseTreePrinter : SymbolPrinter
 	std::ofstream out;
 	FileTokenPrinter printer;
 	ParseTreePrinter(const char* outputRoot)
-		: SymbolPrinter(printer), printer(out)
+		: SymbolPrinter(printer, true), printer(out)
 	{
 		OutPath tmp(outputRoot);
 		createDirectories(tmp.c_str());

@@ -913,7 +913,7 @@ struct WalkerBase : public WalkerState
 				continue; // TODO: template argument deduction
 			}
 
-			UniqueTypeWrapper type = makeUniqueType(p->type, source, enclosing, isDependent(p->type)); // TODO: dependent types, template argument deduction
+			UniqueTypeWrapper type = makeUniqueType(p->type, source, enclosing, isDependent(p->type));
 			resolver.add(p, type);
 		}
 	}
@@ -1118,13 +1118,9 @@ struct WalkerBase : public WalkerState
 	template<typename T>
 	UniqueTypeWrapper makeUniqueTypeImpl(T& type, Location source = NAME_NULL)
 	{
-#if 1
 		type.isDependent = isDependent(type);
 		type.unique = makeUniqueType(type, source, enclosingType, type.isDependent).value;
 		return type.isDependent ? gUniqueTypeNull : UniqueTypeWrapper(type.unique);
-#else
-		return isDependent(type) ? gUniqueTypeNull : ::makeUniqueType(type, source, enclosingType);
-#endif
 	}
 	UniqueTypeWrapper makeUniqueTypeSafe(Type& type, Location source = NAME_NULL)
 	{
