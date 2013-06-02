@@ -67,3 +67,7 @@
 
 - investigate: partial specializations: how to substitute template-arguments when uniquing
 
+- investigate: is it possible to do overload resolution and choose a function that has a dependent return type?
+	- example: calling an overloaded static member of a template, within sizeof(), to initialise a static-const member
+	- should defer overload resolution until 
+

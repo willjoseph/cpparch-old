@@ -1,4 +1,21 @@
 
+namespace N152
+{
+	template<int x>
+	struct I;
+
+	template<typename T>
+	struct S
+	{
+		static int f(int);
+		static T f(const char*);
+
+		// [temp.dep.expr] 'f' is dependent because it is an identifier that was declared with a dependent type
+		static const int value = I<sizeof(f(3))>::dependent;
+		static const int x = sizeof(f(3).x);
+	};
+}
+
 namespace N151
 {
 	template<class T, class A>

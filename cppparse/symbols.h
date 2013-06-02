@@ -3556,17 +3556,28 @@ inline bool isValid(const ImplicitConversion& conversion)
 
 
 typedef std::vector<ImplicitConversion> ArgumentConversions;
-struct CandidateFunction
+
+struct FunctionOverload
 {
 	Declaration* declaration;
+	UniqueTypeWrapper type;
+	FunctionOverload(Declaration* declaration, UniqueTypeWrapper type)
+		: declaration(declaration), type(type)
+	{
+	}
+};
+
+struct CandidateFunction : FunctionOverload
+{
+	UniqueTypeWrapper type;
 	ArgumentConversions conversions;
 	bool isTemplate;
 	CandidateFunction()
-		: declaration(0)
+		: FunctionOverload(0, gUniqueTypeNull)
 	{
 	}
-	CandidateFunction(Declaration* declaration)
-		: declaration(declaration), isTemplate(false)
+	CandidateFunction(FunctionOverload overload)
+		: FunctionOverload(overload), isTemplate(false)
 	{
 	}
 };
@@ -4284,9 +4295,9 @@ struct OverloadResolver
 		size_t count = std::distance(arguments.begin(), arguments.end());
 		best.conversions.resize(count, ImplicitConversion(STANDARDCONVERSIONSEQUENCE_INVALID));
 	}
-	Declaration* get() const
+	FunctionOverload get() const
 	{
-		return ambiguous != 0 ? 0 : best.declaration;
+		return ambiguous != 0 ? FunctionOverload(0, gUniqueTypeNull) : best;
 	}
 	bool isViable(const CandidateFunction& candidate)
 	{
@@ -4329,18 +4340,18 @@ struct OverloadResolver
 			ambiguous = candidate.declaration;
 		}
 	}
-	void add(Declaration* declaration, UniqueTypeWrapper type)
+	void add(const FunctionOverload& overload)
 	{
-		CandidateFunction candidate(declaration);
+		CandidateFunction candidate(overload);
 		candidate.conversions.reserve(best.conversions.size());
 
-		if(!type.isFunction())
+		if(!overload.type.isFunction())
 		{
 			return; // TODO: invoke operator() on object of class-type
 		}
-		const ParameterTypes& parameters = getParameterTypes(type.value);
+		const ParameterTypes& parameters = getParameterTypes(overload.type.value);
 		UniqueTypeIds::const_iterator a = arguments.begin();
-		const Parameters& defaults = getParameters(declaration->type);
+		const Parameters& defaults = getParameters(overload.declaration->type);
 		Parameters::const_iterator p = defaults.begin();
 		// TODO: ellipsis
 		for(ParameterTypes::const_iterator i = parameters.begin(); i != parameters.end(); ++i)

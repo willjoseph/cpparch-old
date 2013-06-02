@@ -914,13 +914,13 @@ struct WalkerBase : public WalkerState
 			}
 
 			UniqueTypeWrapper type = makeUniqueType(p->type, source, enclosing, isDependent(p->type));
-			resolver.add(p, type);
+			resolver.add(FunctionOverload(p, type));
 		}
 	}
 
 	// source: where the overload resolution occurs (point of instantiation)
 	// enclosingType: the class of which the declaration is a member (along with all its overloads).
-	inline Declaration* findBestMatch(Declaration* declaration, const UniqueTypeIds& arguments, Location source, const TypeInstance* enclosingType)
+	inline FunctionOverload findBestMatch(Declaration* declaration, const UniqueTypeIds& arguments, Location source, const TypeInstance* enclosingType)
 	{
 		OverloadResolver resolver(arguments, source);
 		addOverloads(resolver, declaration, source, enclosingType);
@@ -946,7 +946,7 @@ struct WalkerBase : public WalkerState
 		return resolver.get();
 	}
 
-	Declaration* findBestOverloadedOperator(const Identifier& id, const UniqueTypeId& type)
+	FunctionOverload findBestOverloadedOperator(const Identifier& id, const UniqueTypeId& type)
 	{
 		if((isClass(type) || isEnumeration(type)) // if the operand has class or enum type
 			&& (type.isSimple() || type.isReference())) // and is a simple object or reference
@@ -980,14 +980,14 @@ struct WalkerBase : public WalkerState
 			{
 				// TODO: 13.3.1.2: built-in operators for overload resolution
 				// These are relevant either when the operand has a user-defined conversion to a non-class type, or is an enum that can be converted to an arithmetic type
-				CandidateFunction candidate(&gUnknown);
+				CandidateFunction candidate(FunctionOverload(&gUnknown, gUniqueTypeNull));
 				candidate.conversions.reserve(1);
 				candidate.conversions.push_back(IMPLICITCONVERSION_USERDEFINED);//getIcsRank(???, type)); // TODO: cv-qualified overloads
 				resolver.add(candidate); // TODO: ignore built-in overloads that have same signature as a non-member
 			}
 			return resolver.get();
 		}
-		return &gUnknown;
+		return FunctionOverload(&gUnknown, gUniqueTypeNull);
 	}
 
 	// 5 Expressions
@@ -2077,13 +2077,14 @@ struct PostfixExpressionWalker : public WalkerBase
 				&& !isMemberOfTemplate(*getDeclaration(*id))) // the name of a member function of a template may be dependent: TODO: determine exactly when!
 			{
 				// TODO: 13.3.1.1.1  Call to named function
-				Declaration* declaration = findBestMatch(*id->dec.p, walker.arguments, id->source, idEnclosing);
-				if(declaration != 0)
+				FunctionOverload overload = findBestMatch(*id->dec.p, walker.arguments, id->source, idEnclosing);
+				if(overload.declaration != 0)
 				{
-					DeclarationInstanceRef instance = findLastDeclaration(*id->dec.p, declaration);
+					DeclarationInstanceRef instance = findLastDeclaration(*id->dec.p, overload.declaration);
 					setDecoration(id, instance);
-					type = isDependent(declaration->type) ? gUniqueTypeNull : makeUniqueType(declaration->type, id->source, idEnclosing);
+					//type = isDependent(overload.declaration->type) ? gUniqueTypeNull : makeUniqueType(overload.declaration->type, id->source, idEnclosing);
 				}
+				type = overload.type;
 			}
 		}
 		else
@@ -2358,15 +2359,15 @@ struct ExpressionWalker : public WalkerBase
 			id.value = getUnaryOperatorName(symbol->op);
 			id.position = position;
 			id.source = source.absolute;
-			Declaration* declaration = findBestOverloadedOperator(id, type);
-			if(declaration == &gUnknown)
+			FunctionOverload overload = findBestOverloadedOperator(id, type);
+			if(overload.declaration == &gUnknown)
 			{
 				type = getBuiltInUnaryOperatorReturnType(symbol->op, type);
 			}
 			else
 			{
-				SEMANTIC_ASSERT(declaration != 0);
-				type = makeUniqueType(declaration->type, id.source, &getObjectType(type.value)); // TODO: is this correct 'enclosing' type?
+				SEMANTIC_ASSERT(overload.declaration != 0);
+				type = overload.type;
 			}
 			// TODO: decorate parse-tree with declaration
 		}
