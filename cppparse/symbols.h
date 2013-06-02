@@ -1476,16 +1476,17 @@ inline bool operator<(const DependentType& left, const DependentType& right)
 
 struct DependentTypename
 {
-	IdentifierPtr name; // the type name
-	DependentTypename(Identifier* name)
-		: name(name)
+	Name name; // the type name
+	size_t uniqueId;
+	DependentTypename(Name name, size_t uniqueId)
+		: name(name), uniqueId(uniqueId)
 	{
 	}
 };
 
 inline bool operator<(const DependentTypename& left, const DependentTypename& right)
 {
-	return left.name->value < right.name->value;
+	return left.name < right.name;
 }
 
 
@@ -1736,6 +1737,102 @@ inline const DeclarationInstance& findPrimaryTemplateLastDeclaration(const Decla
 // template instantiation
 
 
+inline bool isDependent(UniqueTypeWrapper type);
+
+inline bool isDependent(const std::vector<UniqueTypeWrapper>& types)
+{
+	for(std::vector<UniqueTypeWrapper>::const_iterator i = types.begin(); i != types.end(); ++i)
+	{
+		if(isDependent(*i))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+
+inline bool isDependent(const TypeInstance& type)
+{
+	if(type.enclosing
+		&& isDependent(*type.enclosing))
+	{
+		return true;
+	}
+	if(isDependent(type.templateArguments))
+	{
+		return true;
+	}
+	return false;
+}
+
+
+struct IsDependentVisitor : TypeElementVisitor
+{
+	bool result;
+	IsDependentVisitor()
+		: result(false)
+	{
+	}
+	virtual void visit(const DependentType&)
+	{
+		result = true;
+	}
+	virtual void visit(const DependentTypename&)
+	{
+		result = true;
+	}
+	virtual void visit(const ObjectType& element)
+	{
+		if(isDependent(element.type))
+		{
+			result = true;
+		}
+	}
+	virtual void visit(const PointerType&)
+	{
+	}
+	virtual void visit(const ReferenceType&)
+	{
+	}
+	virtual void visit(const ArrayType&)
+	{
+	}
+	virtual void visit(const MemberPointerType& element)
+	{
+		if(element.instance == 0
+			|| isDependent(*element.instance))
+		{
+			result = true;
+		}
+	}
+	virtual void visit(const FunctionType& element)
+	{
+		if(isDependent(element.parameterTypes))
+		{
+			result = true;
+		}
+	}
+};
+
+
+inline bool isDependent(UniqueTypeWrapper type)
+{
+	for(UniqueTypeWrapper i = type; !i.empty(); i.pop_front())
+	{
+		IsDependentVisitor visitor;
+		i.value->accept(visitor);
+		if(visitor.result)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+
+
+
 inline UniqueTypeWrapper makeUniqueType(const TypeId& type, Location source);
 inline UniqueTypeWrapper makeUniqueType(const TypeId& type, Location source, const TypeInstance* enclosing, bool allowDependent, std::size_t depth);
 inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const TypeInstance* enclosing, bool allowDependent, std::size_t depth);
@@ -1751,7 +1848,9 @@ inline UniqueTypeWrapper makeUniqueType(const TypeId& type, Location source, con
 {
 	try
 	{
-		return makeUniqueType(type, source, enclosing, allowDependent, 0);
+		UniqueTypeWrapper result = makeUniqueType(type, source, enclosing, allowDependent, 0);
+		SYMBOLS_ASSERT(type.unique == 0 || type.isDependent || isDependent(result) || result.value == type.unique);
+		return result;
 	}
 	catch(TypeError)
 	{
@@ -1765,7 +1864,9 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const
 {
 	try
 	{
-		return makeUniqueType(type, source, enclosing, allowDependent, 0);
+		UniqueTypeWrapper result = makeUniqueType(type, source, enclosing, allowDependent, 0);
+		SYMBOLS_ASSERT(type.unique == 0 || type.isDependent || isDependent(result) || result.value == type.unique);
+		return result;
 	}
 	catch(TypeError)
 	{
@@ -1866,7 +1967,8 @@ inline bool findScope(Scope* scope, Scope* other)
 inline Scope* findEnclosingClassTemplate(Declaration* dependent)
 {
 	if(dependent != 0
-		&& isClass(*dependent)
+		&& (isClass(*dependent)
+			|| isEnum(*dependent)) // type of enum within class template is dependent
 		&& dependent->scope != 0
 		&& isDecorated(dependent->scope->name))
 	{
@@ -1908,11 +2010,8 @@ inline void instantiateClass(const TypeInstance& enclosing, Location source, boo
 		for(Types::const_iterator i = bases.begin(); i != bases.end(); ++i)
 		{
 			UniqueTypeId base = makeUniqueType(*i, source, &enclosing, allowDependent);
-			if((*i).unique != 0
-				&& !(*i).isDependent)
-			{
-				SYMBOLS_ASSERT(base.value == (*i).unique);
-			}
+			SYMBOLS_ASSERT((*i).unique != 0);
+			SYMBOLS_ASSERT((*i).isDependent || base.value == (*i).unique);
 			if(allowDependent && (*i).isDependent)
 			{
 				continue;
@@ -2000,7 +2099,7 @@ inline const TypeInstance* makeUniqueEnclosing(const Qualifying& qualifying, Loc
 	}
 }
 
-inline bool matchTemplateSpecialization(const Declaration& declaration, const TemplateArgumentsInstance& arguments, Location source, const TypeInstance* enclosing)
+inline bool matchTemplateSpecialization(const Declaration& declaration, const TemplateArgumentsInstance& arguments, Location source, const TypeInstance* enclosing, bool allowDependent)
 {
 	// TODO: check that all non-defaulted arguments are specified!
 	TemplateArgumentsInstance::const_iterator a = arguments.begin();
@@ -2012,9 +2111,10 @@ inline bool matchTemplateSpecialization(const Declaration& declaration, const Te
 		extern Declaration gNonType;
 		if((*i).type.declaration != &gNonType) // ignore non-type arguments
 		{
-			type = makeUniqueType((*i).type, source, enclosing, true); // a partial-specialization may have dependent template-arguments: template<class T> class C<T*>
+			SYMBOLS_ASSERT((*i).type.unique != 0);
+			type = makeUniqueType((*i).type, source, enclosing, allowDependent || (*i).type.isDependent); // a partial-specialization may have dependent template-arguments: template<class T> class C<T*>
 		}
-		if(type != *a)
+		if(type != *a++)
 		{
 			return false;
 		}
@@ -2022,7 +2122,7 @@ inline bool matchTemplateSpecialization(const Declaration& declaration, const Te
 	return true;
 }
 
-inline Declaration* findTemplateSpecialization(Declaration* declaration, const TemplateArgumentsInstance& arguments, Location source, const TypeInstance* enclosing)
+inline Declaration* findTemplateSpecialization(Declaration* declaration, const TemplateArgumentsInstance& arguments, Location source, const TypeInstance* enclosing, bool allowDependent)
 {
 	for(; declaration != 0; declaration = declaration->overloaded)
 	{
@@ -2031,7 +2131,7 @@ inline Declaration* findTemplateSpecialization(Declaration* declaration, const T
 			continue;
 		}
 
-		if(matchTemplateSpecialization(*declaration, arguments, source, enclosing))
+		if(matchTemplateSpecialization(*declaration, arguments, source, enclosing, allowDependent))
 		{
 			return declaration;
 		}
@@ -2195,7 +2295,8 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const
 		{
 			if(allowDependent)
 			{
-				return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, dependent.value, DependentTypename(type.id)));
+				static size_t uniqueId = 0;
+				return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, dependent.value, DependentTypename(type.id->value, ++uniqueId)));
 			}
 			else
 			{
@@ -2244,8 +2345,13 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const
 		SYMBOLS_ASSERT(type.qualifying.empty());
 		// Find the template-specialisation it belongs to:
 		const TypeInstance* enclosingType = findEnclosingType(enclosing, declaration->scope);
-		if(enclosingType != 0)
+		if(enclosingType != 0
+			&& (!allowDependent // if we expect the type not to be dependent
+				|| !isDependent(*enclosingType))) // or the enclosing type is not dependent
 		{
+			SYMBOLS_ASSERT(allowDependent || !isDependent(*enclosingType)); // if we expect the type not to be dependent, assert that the enclosing type is not dependent
+			SYMBOLS_ASSERT(!enclosingType->declaration->isSpecialization); // partial-specializations not supported!
+
 			SYMBOLS_ASSERT(index < enclosingType->templateArguments.size());
 			UniqueTypeWrapper result = enclosingType->templateArguments[index];
 			// TODO: SYMBOLS_ASSERT(result.value != UNIQUETYPE_NULL); // fails for non-type template-argument
@@ -2325,13 +2431,10 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const
 			SYMBOLS_ASSERT(!tmp.templateArguments.empty());
 		}
 
-		if(!allowDependent)
+		Declaration* specialization = findTemplateSpecialization(declaration, tmp.templateArguments, source, enclosing, allowDependent);
+		if(specialization != 0)
 		{
-			Declaration* specialization = findTemplateSpecialization(declaration, tmp.templateArguments, source, enclosing);
-			if(specialization != 0)
-			{
-				tmp.declaration = specialization;
-			}
+			tmp.declaration = specialization;
 		}
 	}
 	SYMBOLS_ASSERT(tmp.bases.empty());
@@ -4017,12 +4120,14 @@ struct SymbolPrinter : TypeElementVisitor
 
 	void printType(const Type& type)
 	{
-		printType(makeUniqueType(type, NAME_NULL, 0, true));
+		SYMBOLS_ASSERT(type.unique != 0);
+		printType(UniqueTypeWrapper(type.unique));
 	}
 
 	void printType(const Declaration& declaration)
 	{
-		printType(makeUniqueType(declaration.type, NAME_NULL, 0, true));
+		SYMBOLS_ASSERT(declaration.type.unique != 0);
+		printType(UniqueTypeWrapper(declaration.type.unique));
 	}
 
 	void printType(const UniqueTypeId& type)
@@ -4098,11 +4203,19 @@ struct SymbolPrinter : TypeElementVisitor
 		{
 			printName(name->scope);
 			printer.out << getValue(name->getName());
+#if 1
+			if(name->type.unique != 0
+				&& UniqueTypeWrapper(name->type.unique).isFunction())
+			{
+				printParameters(getParameterTypes(name->type.unique));
+			}
+#else
 			if(name->enclosed != 0
 				&& name->enclosed->type == SCOPETYPE_PROTOTYPE)
 			{
 				printParameters(name->enclosed->declarationList);
 			}
+#endif
 		}
 	}
 
@@ -4209,19 +4322,19 @@ struct OverloadResolver
 			ambiguous = candidate.declaration;
 		}
 	}
-	void addSingle(Declaration* declaration, const TypeInstance* enclosingType)
+	void add(Declaration* declaration, UniqueTypeWrapper type)
 	{
 		CandidateFunction candidate(declaration);
 		candidate.conversions.reserve(best.conversions.size());
 
-		UniqueTypeWrapper type = makeUniqueType(declaration->type, source, enclosingType, true); // TODO: dependent types, template argument deduction
 		if(!type.isFunction())
 		{
 			return; // TODO: invoke operator() on object of class-type
 		}
 		const ParameterTypes& parameters = getParameterTypes(type.value);
 		UniqueTypeIds::const_iterator a = arguments.begin();
-		Parameters::const_iterator p = getParameters(declaration->type).begin();
+		const Parameters& defaults = getParameters(declaration->type);
+		Parameters::const_iterator p = defaults.begin();
 		// TODO: ellipsis
 		for(ParameterTypes::const_iterator i = parameters.begin(); i != parameters.end(); ++i)
 		{
@@ -4245,52 +4358,8 @@ struct OverloadResolver
 
 		add(candidate);
 	}
-	void add(Declaration* declaration, const TypeInstance* enclosingType = 0)
-	{
-		for(Declaration* p = declaration; p != 0; p = p->overloaded)
-		{
-			if(p->enclosed == 0)
-			{
-				continue;
-			}
-
-			if(p->isTemplate)
-			{
-				continue; // TODO: template argument deduction
-			}
-
-			addSingle(p, enclosingType);
-		}
-	}
 };
 
-// source: where the overload resolution occurs (point of instantiation)
-// enclosingType: the class of which the declaration is a member (along with all its overloads).
-inline Declaration* findBestMatch(Declaration* declaration, const UniqueTypeIds& arguments, Location source, const TypeInstance* enclosingType)
-{
-	OverloadResolver resolver(arguments, source);
-	resolver.add(declaration, enclosingType);
-
-	if(resolver.ambiguous != 0)
-	{
-#if 0
-		std::cout << "overload resolution failed:" << std::endl;
-		std::cout << "  ";
-		printPosition(resolver.ambiguous->getName().position);
-		printName(resolver.ambiguous);
-		std::cout << std::endl;
-		if(resolver.best.declaration != 0)
-		{
-			std::cout << "  ";
-			printPosition(resolver.best.declaration->getName().position);
-			printName(resolver.best.declaration);
-			std::cout << std::endl;
-		}
-#endif
-	}
-
-	return resolver.get();
-}
 
 #endif
 

@@ -2030,20 +2030,6 @@ class C18
 
 
 
-template<typename T, typename X>
-struct Spec1;
-
-template<typename T>
-struct Spec1<T, int>
-{
-};
-
-template<typename T, typename X>
-struct Spec1
-{
-};
-
-
 
 #if 1
 template <class Tag,class T>

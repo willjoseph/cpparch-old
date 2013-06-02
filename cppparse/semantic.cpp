@@ -134,22 +134,40 @@ inline bool isEquivalentSpecialization(const Declaration& declaration, const Dec
 		&& matchTemplateSpecialization(declaration, other.templateArguments);
 }
 
+inline bool isEquivalentTypedef(const Declaration& declaration, const Declaration& other)
+{
+	return getType(declaration) == getType(other);
+}
+
 inline bool isEquivalent(const Declaration& declaration, const Declaration& other)
 {
-	if(isClass(declaration))
+	if(isClass(declaration)
+		&& isClass(other))
 	{
-		SYMBOLS_ASSERT(isClass(other));
 		// TODO: compare template-argument-lists of partial specializations
 		return isSpecialization(declaration) == isSpecialization(other)
 			&& (!isSpecialization(declaration) // both are not explicit/partial specializations
 			|| isEquivalentSpecialization(declaration, other)); // both are specializations and have matching arguments
 
 	}
-	else
+
+	if(isEnum(declaration)
+		|| isEnum(other))
 	{
-		// TODO: is enclosing type required to differentiate between member functions?
-		UniqueTypeWrapper l = makeUniqueType(declaration.type, NAME_NULL, 0, true);
-		UniqueTypeWrapper r = makeUniqueType(other.type, NAME_NULL, 0, true);
+		return isEquivalentTypedef(declaration, other);
+	}
+
+	if(isClass(declaration)
+		|| isClass(other))
+	{
+		return isEquivalentTypedef(declaration, other);
+	}
+
+	{
+		SEMANTIC_ASSERT(declaration.type.unique != 0);
+		SEMANTIC_ASSERT(other.type.unique != 0);
+		UniqueTypeWrapper l(declaration.type.unique);
+		UniqueTypeWrapper r(other.type.unique);
 		if(l.isFunction())
 		{
 			// 13.2 [over.dcl] Two functions of the same name refer to the same function
@@ -228,6 +246,7 @@ struct WalkerState
 	WalkerContext& context;
 	ScopePtr enclosing;
 	const TypeInstance* enclosingType;
+	Dependent enclosingDependent;
 	TypePtr qualifying_p;
 	DeclarationPtr qualifyingScope;
 	const TypeInstance* qualifyingType;
@@ -678,7 +697,12 @@ struct WalkerState
 		{
 			// 'declaration' is a class that is dependent because it is a (possibly specialized) member of an enclosing template class
 			Declaration* declaration = getDeclaration(scope->name);
-			setDependent(dependent, declaration->templateParams.back().declaration);
+			SEMANTIC_ASSERT(declaration->isSpecialization || !declaration->templateParams.empty());
+			if(!declaration->templateParams.empty()) // if the enclosing template class is not an explicit specialization
+			{
+				// depend on the template parameter(s) of the enclosing template class
+				setDependent(dependent, declaration->templateParams.back().declaration);
+			}
 		}
 
 		setDependent(dependent, declaration.valueDependent);
@@ -875,6 +899,53 @@ struct WalkerBase : public WalkerState
 		return gDependentTemplateInstance;
 	}
 
+	void addOverloads(OverloadResolver& resolver, Declaration* declaration, Location source, const TypeInstance* enclosing = 0)
+	{
+		for(Declaration* p = declaration; p != 0; p = p->overloaded)
+		{
+			if(p->enclosed == 0)
+			{
+				continue;
+			}
+
+			if(p->isTemplate)
+			{
+				continue; // TODO: template argument deduction
+			}
+
+			UniqueTypeWrapper type = makeUniqueType(p->type, source, enclosing, isDependent(p->type)); // TODO: dependent types, template argument deduction
+			resolver.add(p, type);
+		}
+	}
+
+	// source: where the overload resolution occurs (point of instantiation)
+	// enclosingType: the class of which the declaration is a member (along with all its overloads).
+	inline Declaration* findBestMatch(Declaration* declaration, const UniqueTypeIds& arguments, Location source, const TypeInstance* enclosingType)
+	{
+		OverloadResolver resolver(arguments, source);
+		addOverloads(resolver, declaration, source, enclosingType);
+
+		if(resolver.ambiguous != 0)
+		{
+#if 0
+			std::cout << "overload resolution failed:" << std::endl;
+			std::cout << "  ";
+			printPosition(resolver.ambiguous->getName().position);
+			printName(resolver.ambiguous);
+			std::cout << std::endl;
+			if(resolver.best.declaration != 0)
+			{
+				std::cout << "  ";
+				printPosition(resolver.best.declaration->getName().position);
+				printName(resolver.best.declaration);
+				std::cout << std::endl;
+			}
+#endif
+		}
+
+		return resolver.get();
+	}
+
 	Declaration* findBestOverloadedOperator(const Identifier& id, const UniqueTypeId& type)
 	{
 		if((isClass(type) || isEnumeration(type)) // if the operand has class or enum type
@@ -893,7 +964,9 @@ struct WalkerBase : public WalkerState
 				DeclarationInstanceRef declaration = ::findDeclaration(*enclosing, id, IsAny());
 				if(declaration != 0)
 				{
-					resolver.add(declaration, enclosing);
+					enclosing = findEnclosingType(enclosing, declaration->scope); // find the base class which contains the member-declaration
+					SEMANTIC_ASSERT(enclosing != 0);
+					addOverloads(resolver, declaration, id.source, enclosing);
 				}
 			}
 			// TODO: ignore non-member candidates if no operand has a class type, unless one or more params has enum (ref) type
@@ -902,7 +975,7 @@ struct WalkerBase : public WalkerState
 				&& !declaration->isTemplate // TODO: template argument deduction for overloaded operator
 				&& !declaration->specifiers.isFriend) // TODO: 14.5.3: friend function as member of a template-class, which depends on template arguments
 			{
-				resolver.add(declaration);
+				addOverloads(resolver, declaration, id.source);
 			}
 			{
 				// TODO: 13.3.1.2: built-in operators for overload resolution
@@ -1224,6 +1297,7 @@ struct TemplateArgumentListWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		argument.type.swap(walker.type);
 		addDependent(argument.dependent, walker.valueDependent);
+		makeUniqueTypeSafe(argument.type, parser->get_source().absolute);
 	}
 	void visit(cpp::assignment_expression* symbol)
 	{
@@ -1535,6 +1609,7 @@ struct ExplicitTypeExpressionWalker : public WalkerBase
 		type.swap(walker.type);
 		addDependent(typeDependent, type);
 		addDependent(typeDependent, walker.valueDependent);
+		makeUniqueTypeSafe(type, parser->get_source().absolute);
 	}
 	void visit(cpp::new_type* symbol)
 	{
@@ -1543,6 +1618,7 @@ struct ExplicitTypeExpressionWalker : public WalkerBase
 		type.swap(walker.type);
 		addDependent(typeDependent, type);
 		addDependent(typeDependent, walker.valueDependent);
+		makeUniqueTypeSafe(type, parser->get_source().absolute);
 	}
 	void visit(cpp::assignment_expression* symbol)
 	{
@@ -1765,6 +1841,7 @@ struct PrimaryExpressionWalker : public WalkerBase
 			{
 				// the identifier may name a type in a base-class of the qualifying type; findEnclosingType resolves this.
 				idEnclosing = findEnclosingType(idEnclosing, declaration->scope);
+				SEMANTIC_ASSERT(idEnclosing != 0);
 			}
 			if(!isFunction(*declaration) // if the id-expression refers to a function, overload resolution dependends on the parameter types; defer evaluation of type
 				&& declaration->type.declaration != &gDependentType
@@ -1800,11 +1877,12 @@ struct PrimaryExpressionWalker : public WalkerBase
 	{
 		TREEWALKER_LEAF(symbol);
 		// TODO: cv-qualifiers: change enclosingType to a UniqueType<ObjectType>
+		// TODO: SEMANTIC_ASSERT(enclosingType != 0); // TODO: this occurs for out-of-line member definitions
 		type = (enclosingType != 0) ? UniqueTypeWrapper(pushUniqueType(gUniqueTypes, makeUniqueObjectType(*enclosingType).value, PointerType())) : gUniqueTypeNull;
 		/* 14.6.2.2-2
 		'this' is type-dependent if the class type of the enclosing member function is dependent
 		*/
-		addDependent(typeDependent, getClassScope()); // TODO: use full type, not just scope
+		addDependent(typeDependent, enclosingDependent);
 		setExpressionType(symbol, type);
 	}
 };
@@ -2061,7 +2139,7 @@ struct PostfixExpressionWalker : public WalkerBase
 				&& !declaration->type.isImplicitTemplateId) // TODO: 
 			{
 				// TODO: [expr.ref] inherit const/volatile from object-expression type if member is non-static
-				const TypeInstance* enclosing = memberType;
+				idEnclosing = makeUniqueEnclosing(walker.qualifying, id->source, memberType);
 #if 0 // TODO: can this be removed?
 				if(!enclosing->declaration->isTemplate) // if the left-hand side is not a template instantiation
 				{
@@ -2069,10 +2147,11 @@ struct PostfixExpressionWalker : public WalkerBase
 					enclosing = enclosing->enclosing; // use its enclosing template-instantiation
 				}
 #endif
-				SEMANTIC_ASSERT(declaration->scope->type == SCOPETYPE_CLASS)
+				SEMANTIC_ASSERT(declaration->scope->type == SCOPETYPE_CLASS);
 				// the identifier may name a type in a base-class of the qualifying type; findEnclosingType resolves this.
-				enclosing = findEnclosingType(enclosing, declaration->scope);
-				type = makeUniqueType(declaration->type, id->source, makeUniqueEnclosing(walker.qualifying, id->source, enclosing));
+				idEnclosing = findEnclosingType(idEnclosing, declaration->scope);
+				SEMANTIC_ASSERT(idEnclosing != 0);
+				type = makeUniqueType(declaration->type, id->source, idEnclosing);
 			}
 		}
 		else
@@ -3280,6 +3359,7 @@ struct ClassHeadWalker : public WalkerBase
 			SEMANTIC_ASSERT(declaration->enclosed != 0);
 			addBase(declaration, walker.type);
 		}
+		SEMANTIC_ASSERT(walker.type.unique != 0);
 		setExpressionType(symbol, walker.type.isDependent ? gUniqueTypeNull : UniqueTypeWrapper(walker.type.unique));
 	}
 };
@@ -3505,46 +3585,34 @@ struct ClassSpecifierWalker : public WalkerBase
 		the name’s point of declaration, but also of all function bodies, brace-or-equal-initializers of non-static
 		data members, and default arguments in that class (including such things in nested classes).
 		*/
-		if(declaration->enclosed != 0)
+		SEMANTIC_ASSERT(declaration->enclosed != 0);
+
+		pushScope(declaration->enclosed);
+		if(templateParamScope != 0)
 		{
-			pushScope(declaration->enclosed);
-			if(templateParamScope != 0)
-			{
-				// insert the template-parameter scope to enclose the class scope
-				templateParamScope->parent = enclosing->parent;
-				enclosing->parent = templateParamScope; // required when looking up template-parameters from within a template class
-				enclosing->templateDepth = templateParamScope->templateDepth; // required by
-			}
-			declaration->templateParamScope = templateParamScope; // required by findEnclosingType
-
-#if 1
-			Location source = parser->get_source().absolute;
-			Type type(declaration, context);
-			setDependent(type);
-			type.isDependent = isDependent(type);
-			type.isImplicitTemplateId = declaration->isTemplate;
-			UniqueTypeWrapper objectType = makeUniqueType(type, source, enclosingType, type.isDependent || declaration->isTemplate); // prevent uniquing of template-arguments in implicit template-id
-			enclosingType = &getObjectType(objectType.value);
-			instantiateClass(*enclosingType, source, type.isDependent); // instantiate non-dependent base classes
-#else
-			if(!declaration->isTemplate)
-			{
-				Type type(declaration, context);
-				setDependent(type);
-				Location source = parser->get_source().absolute;
-				enclosingType = isDependent(type) ? 0 : &getObjectType(makeUniqueType(type, source, enclosingType).value);
-
-				if(enclosingType != 0)
-				{
-					instantiateClass(*enclosingType, source); // a non-dependent type is required to be complete, so instantiate its bases
-				}
-			}
-			else
-			{
-				enclosingType = 0;
-			}
-#endif
+			// insert the template-parameter scope to enclose the class scope
+			templateParamScope->parent = enclosing->parent;
+			enclosing->parent = templateParamScope; // required when looking up template-parameters from within a template class
 		}
+		if(declaration->isTemplate)
+		{
+			enclosing->templateDepth = templateDepth; // indicates that this is a template
+		}
+		declaration->templateParamScope = templateParamScope; // required by findEnclosingType
+
+		Location source = parser->get_source().absolute;
+		Type type(declaration, context);
+		setDependent(type);
+		type.isDependent = isDependent(type);
+		type.isImplicitTemplateId = declaration->isTemplate;
+		type.isEnclosingClass = true;
+		bool isExplicitSpecialization = isSpecialization && declaration->templateParams.empty();
+		bool allowDependent = type.isDependent || (declaration->isTemplate && !isExplicitSpecialization); // prevent uniquing of template-arguments in implicit template-id
+		UniqueTypeWrapper objectType = makeUniqueType(type, source, enclosingType, allowDependent);
+		enclosingType = &getObjectType(objectType.value);
+		addDependent(enclosingDependent, type);
+		instantiateClass(*enclosingType, source, type.isDependent); // instantiate non-dependent base classes
+
 		clearTemplateParams();
 	}
 	void visit(cpp::member_declaration* symbol)
@@ -4235,7 +4303,6 @@ struct TypeIdWalker : public WalkerBase
 		addDependent(valueDependent, walker.valueDependent);
 		type.typeSequence = walker.typeSequence;
 		setDependent(type.dependent, walker.dependent);
-		makeUniqueTypeSafe(type, parser->get_source().absolute);
 	}
 };
 
@@ -4267,7 +4334,6 @@ struct NewTypeWalker : public WalkerBase
 		addDependent(valueDependent, walker.valueDependent);
 		type.typeSequence = walker.typeSequence;
 		setDependent(type.dependent, walker.dependent);
-		makeUniqueTypeSafe(type, parser->get_source().absolute);
 		// new T
 		// new T*
 		// new T[variable]
@@ -4312,6 +4378,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 	ScopePtr parent;
 	IdentifierPtr id;
 	TypeId type;
+	Dependent typeDependent;
 	ScopePtr enclosed;
 	DeclSpecifiers specifiers;
 	IdentifierPtr forward;
@@ -4342,6 +4409,9 @@ struct SimpleDeclarationWalker : public WalkerBase
 	{
 		if(id != 0)
 		{
+			DeclarationPtr tmpDependent = type.dependent;
+			setDependent(type.dependent, typeDependent);
+			makeUniqueTypeSafe(type, parser->get_source().absolute);
 			if(enclosed == 0
 				&& templateParamScope != 0)
 			{
@@ -4361,6 +4431,11 @@ struct SimpleDeclarationWalker : public WalkerBase
 			clearTemplateParams();
 
 			id = 0;
+
+			// clear state that was modified while committing 
+			type.unique = 0;
+			type.isDependent = false;
+			type.dependent = tmpDependent;
 		}
 	}
 
@@ -4409,8 +4484,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		id = walker.id;
 		enclosed = walker.paramScope;
 		type.typeSequence = walker.typeSequence;
-		setDependent(type.dependent, walker.dependent);
-		makeUniqueTypeSafe(type, parser->get_source().absolute);
+		addDependent(typeDependent, walker.dependent);
 		/* temp.dep.constexpr
 		An identifier is value-dependent if it is:
 			— a name declared with a dependent type,
@@ -4429,22 +4503,29 @@ struct SimpleDeclarationWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		enclosed = walker.paramScope;
 		type.typeSequence = walker.typeSequence;
-		setDependent(type.dependent, walker.dependent);
-		makeUniqueTypeSafe(type, parser->get_source().absolute);
+		addDependent(typeDependent, walker.dependent);
 	}
 	void visit(cpp::member_declarator_bitfield* symbol)
 	{
 		MemberDeclaratorBitfieldWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		makeUniqueTypeSafe(type, parser->get_source().absolute);
 		if(walker.id != 0)
 		{
+			DeclarationPtr tmpDependent = type.dependent;
+			setDependent(type.dependent, typeDependent);
+			makeUniqueTypeSafe(type, parser->get_source().absolute);
+
 			DeclarationInstanceRef instance = pointOfDeclaration(context, enclosing, *walker.id, type, 0, specifiers); // 3.3.1.1
 #ifdef ALLOCATOR_DEBUG
 			trackDeclaration(instance);
 #endif
 			setDecoration(walker.id, instance);
 			declaration = instance;
+
+			// clear state that was modified while committing 
+			type.unique = 0;
+			type.isDependent = false;
+			type.dependent = tmpDependent;
 		}
 	}
 	void visit(cpp::terminal<boost::wave::T_ASSIGN> symbol)
@@ -4771,6 +4852,7 @@ struct TypeParameterWalker : public WalkerBase
 		TypeIdWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		argument.swap(walker.type);
+		makeUniqueTypeSafe(argument, parser->get_source().absolute);
 	}
 	void visit(cpp::template_parameter_clause* symbol)
 	{

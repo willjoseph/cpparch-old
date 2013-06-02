@@ -6,22 +6,32 @@
 - assert: D:\dev\cpparch\cppparse\msvc-8.0\include\xdebug:110
 	- instantiation of basic_string<char, char_traits<char>, _DebugHeapAllocator<char> > in base-specifier of _DebugHeapString
 	- when instantiated at point of declaration of _DebugHeapString, unique-type differs to instantiation in base-specifier
-	- second template argument has a different type: iosfwd:155 char_traits<T> vs iosfwd:406 vs char_traits<char>
+	- second template argument has a different type: iosfwd:155 char_traits<T> vs iosfwd:406 char_traits<char>
 	- occurs because type was uniqued with 'allowDependent' when it was not dependent
 
+- assert: D:\dev\cpparch\cppparse\msvc-8.0\include\xlocale:347 (iostream.prepro.cpp:6966:25)
+	- instantiation of std::string in return value of Locinfo::Getname()
+	- when instantiated at overload resolution for Getname(), unique-type differs to instantiation in declaration
+	- second template argument has a different type: new: char_traits<T> vs original: char_traits<char>
+	- examine uniquing of 21170
 
-- task: make-unique for all types at point of parse, allowDependent=true for unique types
+
++ task: make-unique for all types at point of parse, allowDependent=true for unique types
 	- set isDependent=true on Type if dependent, do not look up names in base classes with isDependent=true
 
 + task: make-unique the enclosing type even when it's a template
 	- always allow dependent if it's a template
 
-- task: in makeUniqueType, use previously specified unique type if available and isDependent=false.
-	- first, assert that previously specified type is equal to result of makeUniqueType
+- task: in makeUniqueType, use previously uniqued type if available and isDependent=false.
+	+ assert that previously uniqued type is equal to result of makeUniqueType
+		- can only do this if both the previously uniqued type and the result of makeUniqueType are not dependent
 	- if isDependent=true, perform type substitution on dependent unique-type
 
 
 - task: remove if(walker.type.declaration != 0) and addBase even if declaration is not found
+
+
+- issue: parser loses track of current token just after parsing last token of default-parameter (and other deferred parse?)
 
 
 	
@@ -31,3 +41,29 @@
 	- also instantiate dependent base classes, but don't add them to the list if allowDependent=true
 	- is allowDependent=true in context where base classes are no longer dependent?
 		- e.g. D<int>::B
+
+- task: remove check for isMemberOfTemplate that guards overload resolution: findBestMatch
+	- required because member-functions of template classes may have dependent arguments
+
+- task: construct templateParamScope when parsing 'template' token
+	- construct empty template param scope for explicit specialization?
+
+- task: make enclosingType valid for out-of-line member definitions
+
+- task: remove check for 'declaration->enclosing' in LEFTBRACE of class-specifier
+
+- task: avoid having to revert changes to TypeId in between parsing multiple declarators in init-declarator-list
+
+- task: unique dependent template-name: T::template X<int>
+
++ task: assert result of findEnclosingType is not 0
+
+- investigate: what is the dependent unique-type of a template-partial-specialization?
+	- A<T*> where T is the enclosing template parameter?
+	- ok to resolve specialization of a dependent unique-type?
+	- necessary to correctly unique the enclosing class when parsing a template-partial-specialization
+
++ task: assert Type::unique is valid when checking Type::isDependent
+
+- investigate: partial specializations: how to substitute template-arguments when uniquing
+

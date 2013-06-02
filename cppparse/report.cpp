@@ -270,10 +270,12 @@ struct DependencyBuilder
 		else if(!instance->type.isDependent)
 		{
 			if(isObjectDefinition(*instance) // if this declaration defines an object
+				&& instance->type.declaration != &gEnumerator // and the object is not an enumerator
 				&& !(isFunctionParameter(*instance) // and the object is not a function parameter..
 					&& (!isDecorated(instance->scope->name) || !getDeclaration(instance->scope->name)->isFunctionDefinition))) // .. within a function declaration
 			{
-				UniqueTypeId type = makeUniqueType(instance->type, symbol->value.source);
+				REPORT_ASSERT(instance->type.unique != 0);
+				UniqueTypeId type(instance->type.unique);
 				if(isFunctionParameter(*instance))
 				{
 					type = adjustFunctionParameter(type);
@@ -1117,7 +1119,7 @@ struct ParseTreePrinter : SymbolPrinter
 	{
 		if(isPrimary(symbol->value))
 		{
-			return makeUniqueType(getDeclaration(symbol->value)->type, NAME_NULL, 0, true);
+			return UniqueTypeId(getDeclaration(symbol->value)->type.unique);
 		}
 		return gUniqueTypeNull;
 	}

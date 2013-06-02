@@ -1,4 +1,289 @@
 
+namespace N151
+{
+	template<class T, class A>
+	struct vector
+	{
+	};
+
+	template<class A>
+	struct vector<bool, A>
+	{
+		typedef typename A::size_type size_type; // 'A' maps to the second template argument, not the first
+	};
+}
+
+namespace N150
+{
+	template<class T, class U>
+	struct B
+	{
+	};
+
+	template<class T, class U>
+	struct D : B<T, U>
+	{
+		typedef int Type;
+	};
+
+	template<class T>
+	void f()
+	{
+		typedef D<char, T> Type; // instantiates 'B<char, T>' not 'B<T, U>'
+		const Type t;
+	}
+}
+
+namespace N149
+{
+	template<class T, class U>
+	struct A
+	{
+	};
+
+	template<>
+	struct A<wchar_t, char>
+	{
+		void g();
+		void f()
+		{
+			g(); // 'A<wchar_t, char>::g', not '<A<T, U>::g'
+		}
+	};
+}
+
+namespace N148
+{
+	template<typename T, typename X>
+	struct Spec1;
+
+	template<typename T>
+	struct Spec1<T, int>
+	{
+	};
+
+	template<typename T, typename X>
+	struct Spec1
+	{
+	};
+}
+
+namespace N031
+{
+	template<typename T>
+	struct Tmpl
+	{
+		Tmpl f(); // 'Tmpl' should resolve to 'Tmpl<T>'
+	};
+
+	template<typename T>
+	struct Tmpl<T*>
+	{
+		Tmpl f(); // 'Tmpl' should resolve to 'Tmpl<T*>'
+	};
+
+	template<>
+	struct Tmpl<int>
+	{
+		Tmpl f(); // 'Tmpl' should resolve to 'Tmpl<int>'
+	};
+
+	void f()
+	{
+		Tmpl<float> x;
+		x.f();
+		Tmpl<int> y;
+		y.f();
+	}
+}
+
+
+namespace N147
+{
+	template<class T>
+	class A
+	{
+	};
+	template<class T>
+	class A<T*>
+	{
+		void g();
+		void f()
+		{
+			g(); // 'A<T*>::g', not '<A<T>::g'
+		}
+	};
+}
+
+namespace N146
+{
+	template<class T>
+	class A
+	{
+	};
+	template<>
+	class A<void>
+	{
+		void g();
+		void f()
+		{
+			g(); // 'A<void>::g', not '<A<T>::g'
+		}
+	};
+}
+
+namespace N145
+{
+	template<class T>
+	class A
+	{
+	};
+	template<>
+	class A<void>
+	{
+	};
+	template<class T>
+	void f(T a, A<void>*) // 'A<void>' is not dependent, 'void(T, A<void>)' is dependent
+	{
+	}
+}
+
+
+namespace N144
+{
+	template<typename T>
+	struct S
+	{
+		const T i : 1,
+			j : 1,
+			: 1; // all three declarations have a dependent type
+		void f()
+		{
+			dependent(i);
+			dependent(j);
+		}
+	};
+}
+
+namespace N143
+{
+	template<typename T>
+	void f()
+	{
+		T a, b; // both declarations have a dependent type
+		dependent(a);
+		dependent(b);
+	}
+}
+
+namespace N142
+{
+	template<typename T>
+	struct A
+	{
+		enum Type { N = 0 }; // 'Type' is dependent: aka A<T>::Type
+		static const Type m = (Type)0;
+	};
+
+	template<typename T>
+	const typename A<T>::Type A<T>::m;
+
+	struct B : A<int>
+	{
+		void f(int a = m)
+		{
+		}
+	};
+}
+
+namespace N141
+{
+	template<typename T>
+	struct A
+	{
+	};
+
+	template<>
+	struct A<int>
+	{
+	};
+
+	template<typename T>
+	struct B
+	{
+	};
+
+	typedef B<A<int> > Type;
+
+	struct C
+	{
+		Type f(); // 'Type' should be 'B<A<int>>', referring to the explicit specialization 'A<int>'
+	};
+
+	void f()
+	{
+		C c;
+		c.f(); // return value should be 'B<A<int>>', referring to the explicit specialization 'A<int>'
+	}
+
+}
+
+
+namespace N140
+{
+	template<typename T>
+	struct A;
+
+	template<>
+	struct A<int>
+	{
+		struct B // B is dependent: could be explicitly specialized
+		{
+		};
+
+		struct D : B // B should not be evaluated
+		{
+			void f()
+			{
+				this->g(); // lookup of 'g' should be deferred
+			}
+		};
+	};
+}
+
+namespace N137
+{
+	typedef int I;
+	typedef I J;
+	typedef J I;
+}
+
+namespace N138
+{
+	typedef struct S { } S;
+
+	typedef struct S S;
+}
+
+namespace N139
+{
+	typedef enum E { } E;
+
+	typedef enum E E;
+}
+
+
+namespace N132
+{
+	template<class T>
+	struct Tmpl
+	{
+		typedef int Type;
+		// Tmpl::Type i; // TODO: 'Tmpl' is not dependent: it is an implicit template-id that refers to the template itself
+	};
+};
+
+
 namespace N136
 {
 	template<class T>
@@ -12,7 +297,7 @@ namespace N136
 	template<template<typename T> class F>
 	struct A;
 
-	typedef A<S> Type;
+	typedef A<S> Type; // 'S' names a template-template-parameter 'S<T>'
 }
 
 namespace N024
@@ -51,16 +336,6 @@ namespace N134
 	typedef B< A<B> > Type; // 'B' should be interpreted as a template-name, not an implicit template-id
 }
 
-namespace N132
-{
-	template<class T>
-	struct Tmpl
-	{
-		typedef int Type;
-		// Tmpl::Type i; // TODO: 'Tmpl' is not dependent: it is an implicit template-id that refers to the template itself
-	};
-};
-
 namespace N135
 {
 	template<template<typename T> class F>
@@ -83,31 +358,6 @@ namespace N133
 	{
 	};
 }
-
-namespace N137
-{
-	struct A
-	{
-		template<typename T, int i>
-		struct B : T::template Inner<i>
-		{
-		};
-
-		template<int i>
-		struct Inner : B<A, i - 1>
-		{
-		};
-	};
-
-	template<>
-	struct A::Inner<0>
-	{
-		typedef int Type;
-	};
-
-	A::Inner<5>::Type i;
-}
-
 
 namespace N136
 {
@@ -1272,36 +1522,6 @@ namespace N073
 		return (t.f(t)); // the return-type of f(t) should be determined to be dependent
 	}
 }
-
-namespace N031
-{
-	template<typename T>
-	struct Tmpl
-	{
-		Tmpl f(); // 'Tmpl' should resolve to 'Tmpl<T>'
-	};
-
-	template<>
-	struct Tmpl<int>
-	{
-		Tmpl f(); // 'Tmpl' should resolve to 'Tmpl<int>'
-	};
-
-	template<typename T>
-	struct Tmpl<T*>
-	{
-		Tmpl f(); // 'Tmpl' should resolve to 'Tmpl<T*>'
-	};
-
-	void f()
-	{
-		Tmpl<float> x;
-		x.f();
-		Tmpl<int> y;
-		y.f();
-	}
-}
-
 
 namespace N072
 {
