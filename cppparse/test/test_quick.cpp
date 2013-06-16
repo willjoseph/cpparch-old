@@ -835,9 +835,19 @@ namespace N83
 	{
 		void f()
 		{
+			// [special] Programs may explicitly refer to implicitly declared special member functions.
 			operator=(*this); // explicit call of operator not supported
 		}
 	};
+}
+
+namespace N168
+{
+	// [expr.new] an implementation shall provide default definitions for the global allocation functions
+	inline void operator delete(void * _P, int, const char *, int)
+	{
+		::operator delete(_P);
+	}
 }
 
 namespace N80

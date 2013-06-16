@@ -1,4 +1,723 @@
 
+namespace N186
+{
+	template<typename T>
+	struct sfinae
+	{
+		typedef void Type;
+	};
+	template<typename T, typename U=void>
+	struct S
+	{
+		typedef int False;
+	};
+	template<typename T>
+	struct S<T, typename sfinae<typename T::Type>::Type>
+	{
+		typedef int True;
+
+		static const bool value=true;
+		typedef sfinae<value> type;
+	};
+
+	struct A
+	{
+		typedef int Type;
+	};
+
+	struct B
+	{
+	};
+
+	typedef S<A>::True True;
+	typedef S<B>::False False;
+}
+
+namespace N185
+{
+	template<typename T>
+	struct A
+	{
+	};
+
+	template<typename T>
+	struct B
+	{
+	};
+
+	template<class T>
+	struct S
+	{
+	};
+	template<class T>
+	struct S< A<T> >
+	{
+		typedef int First;
+	};
+	template<class T>
+	struct S< B<T> >
+	{
+		typedef int Second;
+	};
+
+	typedef  S< A<int> >::First First;
+	typedef  S< B<int> >::Second Second;
+}
+
+namespace N184
+{
+	template<class T, class U>
+	struct S
+	{
+	};
+
+	template<class T>
+	struct S<T**, T**>
+	{
+	};
+
+	template<class T>
+	struct S<T**, const T**>
+	{
+	};
+}
+
+namespace N183
+{
+	template<class T, class U>
+	struct S
+	{
+	};
+
+	template<class T>
+	struct S<T**, T**>
+	{
+	};
+
+	typedef S<int**, const int**> Type;
+}
+
+namespace N182
+{
+	template<class T, class U>
+	struct S
+	{
+	};
+
+	template<class T>
+	struct S<T, const T>
+	{
+	};
+
+	typedef S<int, const int> Type;
+}
+
+namespace N181
+{
+	template<class T, class U>
+	struct S
+	{
+	};
+
+	template<class T>
+	struct S<T, const T>
+	{
+	};
+
+	typedef S<int, const int> Type;
+}
+
+namespace N180
+{
+	template<typename T>
+	struct S
+	{
+		typedef int Primary;
+	};
+
+	template<typename T>
+	struct S<const T> // f(const T)
+	{
+		typedef int Const;
+	};
+
+	typedef S<int>::Primary Primary; // matches 'S<T>'
+	typedef S<const int>::Const Const; // matches 'S<const T>'
+}
+
+namespace N179
+{
+	template<typename T>
+	struct S
+	{
+		typedef int Primary;
+	};
+
+	template<typename T>
+	struct S<T*>
+	{
+		typedef int Ptr;
+	};
+
+	template<typename T>
+	struct S<T**>
+	{
+		typedef int PtrPtr;
+	};
+
+	typedef S<int>::Primary Primary; // matches 'S<T>'
+	typedef S<int*>::Ptr Ptr; // matches 'S<T*>'
+	typedef S<int**>::PtrPtr PtrPtr; // matches 'S<T**>', not S<T*>
+}
+
+namespace N155
+{
+	template<typename T>
+	struct Tmpl
+	{
+		Tmpl f(); // 'Tmpl' should resolve to 'Tmpl<T>'
+	};
+
+	template<typename T>
+	struct Tmpl<const T*>
+	{
+		Tmpl f(); // 'Tmpl' should resolve to 'Tmpl<const T*>'
+	};
+
+	template<typename T>
+	struct Tmpl<T*>
+	{
+		Tmpl f(); // 'Tmpl' should resolve to 'Tmpl<T*>'
+	};
+}
+
+
+namespace N163
+{
+	struct large_size
+	{
+		char c[256];
+	};
+	large_size dispatch(struct exception*);
+	struct small_size
+	{
+	};
+	small_size dispatch(void*);
+	template<class, int>
+	struct S;
+	template<class T>
+	struct S<T, sizeof(large_size)>
+	{
+		typedef int type;
+	};
+	template<class T>
+	struct S<T, sizeof(small_size)>
+	{
+		typedef int type;
+	};
+	template<class T>
+	struct A
+	{
+		typedef typename S<T, sizeof(dispatch((T*)0))>::type type; // overload resolution is performed within sizeof
+	};
+
+	A<struct exception> a;
+	A<struct Blah> b;
+}
+
+
+namespace N178
+{
+	template<class T, class U = void>
+	class A
+	{
+		typedef T Type; // dependent type is 'T'
+	};
+	template<>
+	class A<int>
+	{
+		typedef int Type;
+	};
+	template<class T, class U = void>
+	class B
+	{
+		typedef typename A<T>::Type Type; // dependent type is 'A<T, void>::Type'
+		typedef A<T> Type2; // dependent type is 'A<T, void>'
+		typedef B<T> Type3; // dependent type is 'B<T, void>'
+		typedef B Type4; // dependent type is 'B<T, void>'
+	};
+}
+
+namespace N177
+{
+	template<template<class> class TT>
+	void f(TT<int>)
+	{
+	}
+
+	template<class T>
+	struct S
+	{
+	};
+
+	void g()
+	{
+		S<int> s;
+		f(s);
+	}
+}
+
+#if 0
+namespace N176
+{
+	template<typename T>
+	struct sfinae
+	{
+		typedef void type;
+	};
+	template<typename T, typename U=void>
+	struct Test
+	{
+		typedef int False;
+	};
+	template<typename T>
+	struct Test<T, typename sfinae<typename T::Type>::type>
+	{
+		typedef int True;
+	};
+
+	struct A
+	{
+		typedef int Type;
+	};
+
+	struct B
+	{
+	};
+
+	Test<A>::True a;
+	Test<B>::False b;
+}
+#endif
+
+namespace N175
+{
+	template<class T>
+	struct S
+	{
+		struct iterator
+		{
+			typedef typename T::Type Type2;
+			Type2 f();
+		};
+	};
+
+	struct A
+	{
+		typedef int Type;
+	};
+
+	void f()
+	{
+		S<A>::iterator s;
+		s.f(); // instantiates S<A>::iterator
+	}
+}
+
+#if 0
+boost.mpl.aux.iter_fold_if_impl<
+	boost.mpl.void_,
+	void,
+	boost.mpl.arg<1>,
+	boost.mpl.protect<
+		boost.mpl.aux.iter_fold_if_pred<
+			boost.mpl.protect<
+				boost.mpl.aux.find_if_pred<
+					boost.multi_index.detail.has_tag<
+						boost.wave.util.to
+					>
+				>,
+				0
+			>,
+			boost.mpl.void_
+		>,
+		0
+	>,
+	boost.mpl.na,
+	boost.mpl.always<
+		boost.mpl.bool_<0>
+	>
+>
+
+typedef typename if_<
+	typename forward_step4::not_last,
+	iter_fold_if_impl<
+		typename forward_step4::iterator, typename forward_step4::state, ForwardOp, ForwardPredicate, BackwardOp, BackwardPredicate
+	>,
+	iter_fold_if_null_step<typename forward_step4::iterator, typename forward_step4::state>
+>::type backward_step4;
+
+#endif
+
+namespace N174
+{
+	template<typename T, int x = 0>
+	struct S
+	{
+	};
+	template<>
+	struct S<int> // specializes S<int, 0>
+	{
+	};
+}
+
+namespace N173
+{
+	template<typename T, int T::*member>
+	struct I
+	{
+	};
+
+	template<class T>
+	struct S
+	{
+		T m;
+	};
+
+	typedef S<int> Type;
+
+	I<Type, &Type::m> i;
+}
+
+namespace N172
+{
+	template<int N>
+	struct I
+	{
+	};
+
+	template<class T, T N>
+	struct S
+	{
+		static const T value = N; // 
+	};
+
+	I<S<int, 37>::value> i; // instantiates 'I<37>'
+}
+
+namespace N171
+{
+	template<int N>
+	struct I
+	{
+	};
+
+	I<true ? 3 : 5> i; // instantiates 'I<3>'
+}
+
+namespace N166
+{
+	template<int N>
+	struct I
+	{
+	};
+
+	template<int N>
+	struct S
+	{
+		static const int value = N;
+	};
+
+	I<S<37>::value> i; // instantiates 'I<37>'
+}
+
+
+template<int>
+struct S
+{
+};
+
+void f(S<1 * 5 / 3 + 7 & 15> s)
+{
+	f(s);
+}
+
+namespace N170
+{
+	template<int>
+	struct S
+	{
+	};
+
+	namespace Inner
+	{
+		struct S; // declares a type distinct from the outer 'S'!
+
+		void f(struct S*);
+	}
+}
+
+namespace N169
+{
+	template<int>
+	struct S
+	{
+	};
+
+	namespace Inner
+	{
+		template<int>
+		struct S; // declares a type distinct from the outer 'S'!
+		template<int>
+		struct S; // redeclares a type distinct from the outer 'S'!
+	}
+}
+
+namespace N165
+{
+	template<int N>
+	struct S
+	{
+	};
+
+	// [temp.dep.constexpr] an identifier is value-dependent if it is ... a constant with integral or enumeration type and is initialized with an expression that is value-dependent
+	template<typename T>
+	void f()
+	{
+		const bool b = T::value;
+		S<b> s;
+	}
+}
+
+
+namespace N164
+{
+	template<typename T>
+	struct is_array
+	{
+	};
+	template<typename T, int N>
+	struct is_array<T[N]> // T[N] is distinct from..
+	{
+	};
+	template<typename T>
+	struct is_array<T[]> // ..T[]
+	{
+	};
+}
+
+
+namespace N167
+{
+	int i(i); // point of declaration for name 'i' is immediately following the declarator 'i'
+}
+
+namespace N160
+{
+	template<int N>
+	struct uintptr_candidates;
+	template<>
+	struct uintptr_candidates<-1>
+	{
+		typedef unsigned int type;
+	};
+	template<>
+	struct uintptr_candidates<0>
+	{
+		typedef unsigned int type;
+	};
+	template<>
+	struct uintptr_candidates<1>
+	{
+		typedef unsigned short type;
+	};
+	template<>
+	struct uintptr_candidates<2>
+	{
+		typedef unsigned long type;
+	};
+	template<>
+	struct uintptr_candidates<3>
+	{
+		typedef unsigned int type;
+	};
+	template<>
+	struct uintptr_candidates<4>
+	{
+		typedef unsigned __int64 type;
+	};
+	struct uintptr_aux
+	{
+		static const int index=sizeof(void*)==sizeof(uintptr_candidates<0>::type)?0: sizeof(void*)==sizeof(uintptr_candidates<1>::type)?1: sizeof(void*)==sizeof(uintptr_candidates<2>::type)?2: sizeof(void*)==sizeof(uintptr_candidates<3>::type)?3: sizeof(void*)==sizeof(uintptr_candidates<4>::type)?4: -1;
+		static const bool has_uintptr_type=(index>=0);
+		typedef uintptr_candidates<index>::type type;
+	};
+}
+
+namespace N162
+{
+	template<typename T>
+	struct S
+	{
+		enum { RESULT = S<T>::RESULT }; // enumerator 'RESULT' is dependent
+	};
+}
+
+namespace N161
+{
+	bool f(int x)
+	{
+		return (x < x > x); // not a template-id
+	}
+}
+
+namespace N157
+{
+	template<class R>
+	struct S
+	{
+	};
+	template<>
+	struct S<void(...)>
+	{
+	};
+	template<>
+	struct S<void()>
+	{
+	};
+
+	S<void()> s;
+}
+
+
+namespace N076
+{
+	template<bool b>
+	struct Tmpl
+	{
+		typedef int I;
+	};
+
+	template<typename T>
+	struct S
+	{
+		template<typename U>
+		struct Q
+		{
+			enum { value = sizeof(T) + sizeof(U) };
+		};
+
+		typedef typename Tmpl<Q<int>::value>::I I;
+	};
+}
+
+
+namespace N159
+{
+	template<int N>
+	struct S;
+	template<>
+	struct S<0>
+	{
+		typedef int Type;
+	};
+	template<>
+	struct S<1>
+	{
+		typedef int Type;
+	};
+	typedef S<0>::Type Type;
+}
+
+namespace N158
+{
+	template<bool _Cond, class _Ty1, class _Ty2>
+	class _If
+	{
+	public:
+		typedef _Ty2 _Result;
+	};
+	template<class _Ty1, class _Ty2>
+	class _If<true, _Ty1, _Ty2>
+	{
+	public:
+		typedef _Ty1 _Result;
+	};
+}
+
+namespace N156
+{
+	template<typename T>
+	struct S
+	{
+	};
+
+	template<>
+	struct S<__int64>
+	{
+	};
+
+	template<>
+	struct S<int>
+	{
+	};
+
+	S<__int64> a;
+}
+
+namespace N154
+{
+	template<typename T>
+	T f()
+	{
+		return T();
+	}
+
+	struct S
+	{
+		int m;
+	};
+
+	int i = f<S>().m; // 'f<S>()' should have type 'S'
+};
+
+namespace N142
+{
+	template<typename T>
+	struct A
+	{
+		enum Type { N = 0 }; // 'Type' is dependent: aka A<T>::Type
+		static const Type m = (Type)0;
+	};
+
+	template<typename T>
+	const typename A<T>::Type A<T>::m;
+
+	struct B : A<int>
+	{
+		void f(int a = m)
+		{
+		}
+	};
+}
+
+
+namespace N153
+{
+	template<typename T>
+	struct S
+	{
+		union
+		{
+			int i;
+			T m; // should be instantiated when S is instantiated
+		};
+
+	};
+
+	S<int> s;
+}
+
 namespace N152
 {
 	template<int x>
@@ -191,26 +910,6 @@ namespace N143
 		dependent(a);
 		dependent(b);
 	}
-}
-
-namespace N142
-{
-	template<typename T>
-	struct A
-	{
-		enum Type { N = 0 }; // 'Type' is dependent: aka A<T>::Type
-		static const Type m = (Type)0;
-	};
-
-	template<typename T>
-	const typename A<T>::Type A<T>::m;
-
-	struct B : A<int>
-	{
-		void f(int a = m)
-		{
-		}
-	};
 }
 
 namespace N141
@@ -1174,7 +1873,7 @@ namespace N094
 namespace N093
 {
 	void f(float, float);
-	void f(float, int = 0);
+	void f(float, int = 37);
 	void f(int)
 	{
 		f(0.f); // overload resolution should choose f(float, int)
@@ -1476,27 +2175,6 @@ namespace N077
 	{
 		typedef char P[VALUE];
 		typedef typename ValTmpl<sizeof(P)>::Type Q;
-	};
-}
-
-namespace N076
-{
-	template<bool b>
-	struct Tmpl
-	{
-		typedef int I;
-	};
-
-	template<typename T>
-	struct S
-	{
-		template<typename U>
-		struct Q
-		{
-			enum { value = sizeof(T) + sizeof(U) };
-		};
-
-		typedef typename Tmpl<Q<int>::value>::I I;
 	};
 }
 

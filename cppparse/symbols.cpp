@@ -9,7 +9,6 @@ UniqueTypes gBuiltInTypes;
 
 size_t gScopeCount = 0;
 
-
 // special-case
 Identifier gUndeclaredId = makeIdentifier("$undeclared");
 Declaration gUndeclared(TREEALLOCATOR_NULL, 0, gUndeclaredId, TYPE_NULL, 0);
@@ -213,10 +212,46 @@ PointerTypeId gBaseClassPointer(&gBaseClassDeclaration, TREEALLOCATOR_NULL);
 PointerTypeId gDerivedClassPointer(&gDerivedClassDeclaration, TREEALLOCATOR_NULL);
 
 
+struct DependentTypeId : UniqueTypeId
+{
+	DependentTypeId(Declaration* declaration, const TreeAllocator<int>& allocator)
+	{
+		value = pushBuiltInType(value, DependentType(declaration));
+		declaration->templateParameter = 0;
+	}
+};
+
+Identifier gTemplateParameterId = makeIdentifier("T");
+Scope gTemplateParameterScope(TREEALLOCATOR_NULL,  makeIdentifier("$template"), SCOPETYPE_TEMPLATE);
+Declaration gTemplateParameterDeclaration(TREEALLOCATOR_NULL, &gTemplateParameterScope, gTemplateParameterId, TYPE_PARAM, 0);
+DependentTypeId gTemplateParameter(&gTemplateParameterDeclaration, TREEALLOCATOR_NULL);
+
+
+Identifier gTemplateClassId = makeIdentifier("$template");
+Declaration gTemplateClassDeclaration(TREEALLOCATOR_NULL, 0, gTemplateClassId, TYPE_CLASS, 0, DeclSpecifiers(), true);
+
+Identifier gTemplateTemplateParameterId = makeIdentifier("TT");
+Declaration gTemplateTemplateParameterDeclaration(TREEALLOCATOR_NULL, &gTemplateParameterScope, gTemplateTemplateParameterId, TYPE_CLASS, 0, DeclSpecifiers(), true, TEMPLATEPARAMETERS_NULL, false, TEMPLATEARGUMENTS_NULL, 0);
+
+
 struct Base
 {
 };
 struct Derived : Base
+{
+};
+
+template<typename T>
+struct Template
+{
+};
+
+struct T
+{
+};
+
+template<typename T>
+struct TT
 {
 };
 
@@ -296,6 +331,37 @@ struct MakeType<Derived>
 	static UniqueTypeWrapper apply()
 	{
 		return gDerivedClass;
+	}
+};
+
+template<typename T>
+struct MakeType< Template<T> >
+{
+	static UniqueTypeWrapper apply()
+	{
+		ObjectType result(TypeInstance(&gTemplateClassDeclaration, 0));
+		result.type.templateArguments.push_back(MakeType<T>::apply());
+		return UniqueTypeWrapper(pushBuiltInType(UNIQUETYPE_NULL, result));
+	}
+};
+
+template<>
+struct MakeType<T>
+{
+	static UniqueTypeWrapper apply()
+	{
+		return gTemplateParameter;
+	}
+};
+
+template<typename T>
+struct MakeType< TT<T> >
+{
+	static UniqueTypeWrapper apply()
+	{
+		DependentType result(&gTemplateTemplateParameterDeclaration);
+		result.templateArguments.push_back(MakeType<T>::apply());
+		return UniqueTypeWrapper(pushBuiltInType(UNIQUETYPE_NULL, result));
 	}
 };
 
@@ -440,8 +506,7 @@ struct MakeMemberPointer
 {
 	static UniqueTypeWrapper apply(UniqueTypeWrapper inner)
 	{
-		const TypeInstance& instance = getObjectType(MakeType<C>::apply().value);
-		return UniqueTypeWrapper(pushBuiltInType(inner.value, MemberPointerType(&instance)));
+		return UniqueTypeWrapper(pushBuiltInType(inner.value, MemberPointerType(MakeType<C>::apply())));
 	}
 };
 
@@ -516,6 +581,7 @@ inline void testTypeGen()
 	UniqueTypeWrapper test14 = MakeType<int (Base::*)(int) const>::apply();
 	UniqueTypeWrapper test15 = MakeType<int (Base::*const)(int)>::apply();
 
+	UniqueTypeWrapper test16 = MakeType< Template<int> >::apply();
 
 	FileTokenPrinter tokenPrinter(std::cout);
 	SymbolPrinter symbolPrinter(tokenPrinter);
@@ -549,6 +615,8 @@ inline void testTypeGen()
 	symbolPrinter.printType(test14);
 	std::cout << std::endl;
 	symbolPrinter.printType(test15);
+	std::cout << std::endl;
+	symbolPrinter.printType(test16);
 	std::cout << std::endl;
 }
 
@@ -809,6 +877,204 @@ struct IcsRankTest
 		testIcsRank();
 	}
 } gIcsRankTest;
+
+
+
+template<typename P, typename A, typename R = void>
+struct TestDeduction
+{
+	static void apply(UniqueTypeWrapper expected = MakeType<R>::apply())
+	{
+		TemplateArgumentsInstance templateArguments(1, gUniqueTypeNull);
+		bool result = deduce(MakeType<P>::apply(), MakeType<A>::apply(), templateArguments);
+		if(result)
+		{
+			SYMBOLS_ASSERT(templateArguments[0] == expected);
+		}
+		else
+		{
+			SYMBOLS_ASSERT(gUniqueTypeNull == expected);
+		}
+	}
+};
+
+
+// [temp.deduct]
+/*
+	A template type argument T, a template template argument TT or a template non-type
+	argument i can be deduced if P and A have one of the following forms:
+	T cv-list
+	T
+	T*
+	T&
+	T[integer-constant]
+	template-name<T> (where template-name refers to a class template)
+	type(*)(T)
+	T(*)()
+	T(*)(T)
+	T type::*
+	type T::*
+	T T::*
+	T (type::*)()
+	type (T::*)()
+	type (type::*)(T)
+	type (T::*)(T)
+	T (type::*)(T)
+	T (T::*)()
+	T (T::*)(T)
+	type[i]
+	template-name<i> (where template-name refers to a class template)
+	TT<T>
+	TT<i>
+	TT<>
+	where (T) represents argument lists where at least one argument type contains a T, and () represents
+	argument lists where no parameter contains a T. Similarly, <T> represents template argument lists where
+	at least one argument contains a T, <i> represents template argument lists where at least one argument
+	contains an i and <> represents template argument lists where no argument contains a T or an i.
+	*/
+
+// cv-qualifiers
+// P	11	00	11
+// A	11	11	00
+// R	00	11	xx
+
+void testDeduction()
+{
+	TestDeduction<T, int>::apply(gSignedInt);
+	TestDeduction<T*, int*>::apply(gSignedInt);
+	TestDeduction<T&, int&>::apply(gSignedInt);
+	TestDeduction<T[], int[]>::apply(gSignedInt);
+
+	TestDeduction<const T, const int, int>::apply();
+	TestDeduction<const T*, const int*, int>::apply();
+	TestDeduction<const T&, const int&, int>::apply();
+	TestDeduction<const T[], const int[], int>::apply();
+
+	TestDeduction<const T**, const int**, int>::apply();
+	TestDeduction<T**, int**, int>::apply();
+
+	TestDeduction<T, const int, const int>::apply();
+	TestDeduction<T*, const int*, const int>::apply();
+	TestDeduction<T&, const int&, const int>::apply();
+	TestDeduction<T[], const int[], const int>::apply();
+
+	TestDeduction<int(*)(T),	int(*)(int)>::apply(gSignedInt);
+	TestDeduction<T(*)(),		int(*)()>::apply(gSignedInt);
+	TestDeduction<T(*)(T),		int(*)(int)>::apply(gSignedInt);
+
+	typedef Base type;
+	TestDeduction<T type::*,			type type::*>::apply(gBaseClass);
+	TestDeduction<type T::*,			type type::*>::apply(gBaseClass);
+	TestDeduction<T T::*,				type type::*>::apply(gBaseClass);
+	TestDeduction<T (type::*)(),		type (type::*)()>::apply(gBaseClass);
+	TestDeduction<type (T::*)(),		type (type::*)()>::apply(gBaseClass);
+	TestDeduction<type (type::*)(T),	type (type::*)(type)>::apply(gBaseClass);
+	TestDeduction<type (T::*)(T),		type (type::*)(type)>::apply(gBaseClass);
+	TestDeduction<T (type::*)(T),		type (type::*)(type)>::apply(gBaseClass);
+	TestDeduction<T (T::*)(),			type (type::*)()>::apply(gBaseClass);
+	TestDeduction<T (T::*)(T),			type (type::*)(type)>::apply(gBaseClass);
+
+	TestDeduction<Template<T>,			Template<int> >::apply(gSignedInt);
+	TestDeduction<TT<int>,				Template<int>, Template<int> >::apply();
+
+	// TODO: T[integer-constant]
+	// TODO: type[i]
+	// TODO: template-name<i> (where template-name refers to a class template)
+	// TODO: TT<T>
+	// TODO: TT<i>
+	// TODO: TT<>
+
+	// expected to fail because T cannot be deduced
+	TestDeduction<int, int>::apply(gUniqueTypeNull);
+	TestDeduction<T*, int>::apply(gUniqueTypeNull);
+	TestDeduction<T&, int>::apply(gUniqueTypeNull);
+	TestDeduction<T[], int>::apply(gUniqueTypeNull);
+	TestDeduction<int(*)(T), int>::apply(gUniqueTypeNull);
+	TestDeduction<T(*)(), int>::apply(gUniqueTypeNull);
+	TestDeduction<T(*)(T), int>::apply(gUniqueTypeNull);
+	TestDeduction<const T, int>::apply(gUniqueTypeNull);
+	TestDeduction<const T*, int*>::apply(gUniqueTypeNull);
+
+	// expected to fail due to multiple deductions of T
+	TestDeduction<T(*)(T), int(*)(float)>::apply(gUniqueTypeNull);
+}
+
+
+
+struct DeductionTest
+{
+	DeductionTest()
+	{
+		testDeduction();
+	}
+} gDeductionTest;
+
+
+
+template<typename P, typename A, typename R = void>
+struct TestSubstitution
+{
+	static void apply(UniqueTypeWrapper expected = MakeType<R>::apply())
+	{
+		TemplateArgumentsInstance templateArguments(1, MakeType<A>::apply());
+		UniqueTypeWrapper result = substitute(MakeType<P>::apply(), templateArguments);
+		SYMBOLS_ASSERT(result == expected);
+	}
+};
+
+void testSubstitution()
+{
+	TestSubstitution<T, int, int>::apply();
+	TestSubstitution<T*, int, int*>::apply();
+	TestSubstitution<T[], int, int[]>::apply();
+	TestSubstitution<T, int*, int*>::apply();
+	TestSubstitution<T, int&, int&>::apply();
+	TestSubstitution<T, int[], int[]>::apply();
+
+	TestSubstitution<const T, int, const int>::apply();
+	TestSubstitution<T, const int, const int>::apply();
+	TestSubstitution<const T, const int, const int>::apply();
+	TestSubstitution<const T&, int, const int&>::apply();
+	TestSubstitution<T&, const int, const int&>::apply();
+	TestSubstitution<const T&, const int, const int&>::apply();
+	TestSubstitution<const T*, int, const int*>::apply();
+	TestSubstitution<T*, const int, const int*>::apply();
+	TestSubstitution<const T*, const int, const int*>::apply();
+
+	TestSubstitution<int(T), int, int(int)>::apply();
+	TestSubstitution<T, int(int), int(int)>::apply();
+	TestSubstitution<int(*)(T), int, int(*)(int)>::apply();
+	TestSubstitution<T, int(*)(int), int(*)(int)>::apply();
+
+	// TODO:
+	// T::Dependent
+	// non-type
+
+	// [temp.deduct] Attempting to create a pointer to reference type.
+	TestSubstitution<T*, int&>::apply(gUniqueTypeNull);
+
+	// [temp.deduct] Attempting to create a reference to a reference type or a reference to void
+	TestSubstitution<T&, int&>::apply(gUniqueTypeNull);
+	TestSubstitution<T&, void>::apply(gUniqueTypeNull);
+
+	// [temp.deduct] Attempting to create an array with an element type that is void, a function type, or a reference type,
+	//	or attempting to create an array with a size that is zero or negative.
+	TestSubstitution<T[], void>::apply(gUniqueTypeNull);
+	TestSubstitution<T[], int()>::apply(gUniqueTypeNull);
+	TestSubstitution<T[], int&>::apply(gUniqueTypeNull);
+
+	// [temp.deduct] Attempting to create a function type in which a parameter has a type of void.
+	TestSubstitution<void(T), void>::apply(gUniqueTypeNull);
+}
+
+
+struct SubstitutionTest
+{
+	SubstitutionTest()
+	{
+		testSubstitution();
+	}
+} gSubstitutionTest;
 
 
 #if 0

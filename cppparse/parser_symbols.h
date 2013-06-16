@@ -88,11 +88,11 @@ inline cpp::simple_type_specifier_builtin* parseSymbol(ParserType& parser, cpp::
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_VOID, cpp::simple_type_specifier_builtin::VOID);
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_AUTO, cpp::simple_type_specifier_builtin::AUTO);
 
-	// not handles as macros: types may be used as parameters in overloaded functions or template specialisations
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_MSEXT_INT8, cpp::simple_type_specifier_builtin::INT);
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_MSEXT_INT16, cpp::simple_type_specifier_builtin::INT);
+	// not handled as macros: types may be used as parameters in overloaded functions or template specialisations
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_MSEXT_INT8, cpp::simple_type_specifier_builtin::CHAR);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_MSEXT_INT16, cpp::simple_type_specifier_builtin::SHORT);
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_MSEXT_INT32, cpp::simple_type_specifier_builtin::INT);
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_MSEXT_INT64, cpp::simple_type_specifier_builtin::INT);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_MSEXT_INT64, cpp::simple_type_specifier_builtin::INT64);
 	return result;
 }
 
@@ -153,7 +153,6 @@ inline cpp::bitwise_operator* parseSymbol(ParserType& parser, cpp::bitwise_opera
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_AND, cpp::bitwise_operator::AND);
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_OR, cpp::bitwise_operator::OR);
 	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_XOR, cpp::bitwise_operator::XOR);
-	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_NOT, cpp::bitwise_operator::NOT);
 	return result;
 }
 

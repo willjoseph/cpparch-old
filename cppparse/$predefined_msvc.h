@@ -1,5 +1,5 @@
 
-#if 1
+#if 0
 // size_t
 
 #if Wp64
@@ -135,6 +135,13 @@ __declspec(unmanaged) void __cdecl __annotation(const wchar_t *, ...);
 #else
 __declspec(unmanaged) void __cdecl __annotation(const unsigned short *, ...);
 #endif
+
+
+// [expr.new] an implementation shall provide default definitions for the global allocation functions
+void operator delete(void*);
+void* operator new(unsigned int);
+void operator delete[](void*);
+void* operator new[](unsigned int);
 
 #endif
 

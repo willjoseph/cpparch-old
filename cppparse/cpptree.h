@@ -34,6 +34,11 @@ inline bool operator==(const CvQualifiers& l, const CvQualifiers& r)
 		&& l.isVolatile == r.isVolatile;
 }
 
+inline bool operator!=(const CvQualifiers& l, const CvQualifiers& r)
+{
+	return !operator==(l, r);
+}
+
 inline bool operator<(const CvQualifiers& l, const CvQualifiers& r)
 {
 	return l.isConst != r.isConst ? l.isConst < r.isConst
@@ -813,7 +818,7 @@ namespace cpp
 
 	struct bitwise_operator : public terminal_choice
 	{
-		enum { AND, OR, XOR, NOT } id;
+		enum { AND, OR, XOR } id;
 		terminal_choice2 value;
 		FOREACH1(value);
 	};
@@ -1693,11 +1698,11 @@ namespace cpp
 	struct conditional_expression_suffix : public conditional_or_assignment_expression_suffix
 	{
 		VISITABLE_DERIVED(conditional_or_assignment_expression_suffix);
-		terminal<boost::wave::T_QUESTION_MARK> key;
+		terminal<boost::wave::T_QUESTION_MARK> op;
 		symbol<expression> mid;
 		terminal<boost::wave::T_COLON> colon;
 		symbol<assignment_expression> right;
-		FOREACH4(key, mid, colon, right);
+		FOREACH4(op, mid, colon, right);
 	};
 
 	struct conditional_expression_default : public conditional_expression
@@ -2461,7 +2466,7 @@ namespace cpp
 		VISITABLE_DERIVED(simple_type_specifier);
 		VISITABLE_DERIVED(decl_specifier_suffix);
 		VISITABLE_DERIVED(type_specifier_suffix);
-		enum { CHAR, WCHAR_T, BOOL, SHORT, INT, LONG, SIGNED, UNSIGNED, FLOAT, DOUBLE, VOID, AUTO } id;
+		enum { CHAR, WCHAR_T, BOOL, SHORT, INT, LONG, SIGNED, UNSIGNED, FLOAT, DOUBLE, VOID, AUTO, INT64 } id;
 		terminal_choice2 value;
 		FOREACH1(value);
 	};
