@@ -1852,16 +1852,21 @@ struct PrimaryExpressionWalker : public WalkerBase
 		}
 		else if(declaration == 0)
 		{
-			SYMBOLS_ASSERT(id->value == gConversionFunctionId.value // TODO: user defined conversions
-				|| isDependent(walker.qualifying.get_ref()));
-			setDecoration(id, gDependentObjectInstance);
+			if(!isDependent(walker.qualifying.get_ref()))
+			{
+				SYMBOLS_ASSERT(id->value == gConversionFunctionId.value); // TODO: user defined conversions
+			}
+			else
+			{
+				setDecoration(id, gDependentObjectInstance);
 
-			expression = ExpressionWrapper(
-				makeExpression(DependentIdExpression(id->value)),
-				false,
-				true,
-				true
-			);
+				expression = ExpressionWrapper(
+					makeExpression(DependentIdExpression(id->value, walker.qualifying)),
+					false,
+					true,
+					true
+				);
+			}
 		}
 		else
 		{
@@ -3769,6 +3774,7 @@ struct ClassSpecifierWalker : public WalkerBase
 		declaration->type.isDependent = type.isDependent;
 		declaration->type.unique = makeUniqueType(type, source, enclosingType, allowDependent).value;
 		enclosingType = &getObjectType(declaration->type.unique);
+		SEMANTIC_ASSERT(declaration == enclosingType->declaration);
 		addDependent(enclosingDependent, type);
 		instantiateClass(*enclosingType, source, allowDependent); // instantiate non-dependent base classes
 

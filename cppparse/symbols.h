@@ -1756,6 +1756,7 @@ struct TypeInstance
 	size_t uniqueId;
 	DeclarationPtr declaration;
 	TemplateArgumentsInstance templateArguments;
+	TemplateArgumentsInstance deducedArguments; // the deduced arguments for the partial-specialization's template-parameters
 	const TypeInstance* enclosing; // the enclosing template
 	UniqueBases bases;
 	size_t size;
@@ -1832,8 +1833,9 @@ struct DependentTypename
 {
 	Name name; // the type name
 	UniqueTypeWrapper qualifying; // the qualifying type
-	DependentTypename(Name name, UniqueTypeWrapper qualifying)
-		: name(name), qualifying(qualifying)
+	bool isNested;
+	DependentTypename(Name name, UniqueTypeWrapper qualifying, bool isNested)
+		: name(name), qualifying(qualifying), isNested(isNested)
 	{
 	}
 };
@@ -1842,7 +1844,9 @@ inline bool operator<(const DependentTypename& left, const DependentTypename& ri
 {
 	return left.name != right.name
 		? left.name < right.name
-		: left.qualifying < right.qualifying;
+		: left.qualifying != right.qualifying
+			? left.qualifying < right.qualifying
+			: left.isNested < right.isNested;
 }
 
 
@@ -2078,6 +2082,7 @@ struct ObjectTypeId : UniqueTypeId
 	}
 };
 
+// ----------------------------------------------------------------------------
 
 inline Declaration* findPrimaryTemplate(Declaration* declaration)
 {
@@ -2112,6 +2117,148 @@ inline const DeclarationInstance& findPrimaryTemplateLastDeclaration(const Decla
 	return findLastDeclaration(instance, findPrimaryTemplate(instance));
 }
 
+
+// ----------------------------------------------------------------------------
+
+struct LookupResult
+{
+	const DeclarationInstance* filtered; // the declaration found by the name-lookup, using the filter
+	const TypeInstance* enclosing;
+
+	LookupResult()
+		: filtered(0), enclosing(0)
+	{
+	}
+	operator const DeclarationInstance*() const
+	{
+		return filtered;
+	}
+
+	// Combines the result of a subsequent lookup, returns true if lookup succeeded
+	bool append(const LookupResult& other)
+	{
+		*this = other;
+		return filtered != 0;
+	}
+};
+
+struct DeclarationInstanceRef
+{
+	const DeclarationInstance* p;
+	DeclarationInstanceRef()
+		: p(0)
+	{
+	}
+	DeclarationInstanceRef(const DeclarationInstance& p)
+		: p(&p)
+	{
+		checkAllocated(this->p);
+	}
+	Declaration& operator*() const
+	{
+		checkAllocated(p);
+		return p->operator*();
+	}
+	Declaration* operator->() const
+	{
+		checkAllocated(p);
+		return p->operator->();
+	}
+	operator const DeclarationInstance&() const
+	{
+		checkAllocated(p);
+		return *p;
+	}
+	operator Declaration*() const
+	{
+		checkAllocated(p);
+		return p == 0 ? 0 : static_cast<Declaration*>(*p);
+	}
+};
+
+struct LookupResultRef : DeclarationInstanceRef
+{
+	const TypeInstance* enclosing;
+	LookupResultRef()
+		: enclosing(0)
+	{
+	}
+	LookupResultRef(const DeclarationInstance& p)
+		: DeclarationInstanceRef(p), enclosing(0)
+	{
+	}
+	LookupResultRef(const LookupResult& result)
+		: DeclarationInstanceRef(*result.filtered), enclosing(result.enclosing)
+	{
+	}
+};
+
+
+inline const DeclarationInstance* findDeclaration(Scope::Declarations& declarations, const Identifier& id, LookupFilter filter);
+
+struct RecursionGuard
+{
+	const TypeInstance& instance;
+	RecursionGuard(const TypeInstance& instance)
+		: instance(instance)
+	{
+		SYMBOLS_ASSERT(!instance.visited);
+		instance.visited = true;
+	}
+	~RecursionGuard()
+	{
+		instance.visited = false;
+	}
+};
+
+inline void printType(const TypeInstance& type);
+
+inline LookupResult findDeclaration(const TypeInstance& instance, const Identifier& id, LookupFilter filter)
+{
+	SYMBOLS_ASSERT(instance.declaration->enclosed != 0);
+	SYMBOLS_ASSERT(instance.instantiated); // the qualifying type should have been instantiated by this point
+	SYMBOLS_ASSERT(!instance.instantiating);
+
+	LookupResult result;
+
+	if(instance.visited) // TODO: this occurs when the same type is found twice when searching bases: can be caused by two templates that differ only in non-type template arguments
+	{
+		std::cout << "duplicate base: ";
+		printType(instance);
+		std::cout << std::endl;
+		return result;
+	}
+	RecursionGuard guard(instance);
+
+	result.filtered = findDeclaration(instance.declaration->enclosed->declarations, id, filter);
+	if(result.filtered)
+	{
+		result.enclosing = &instance;
+		return result;
+	}
+	for(UniqueBases::const_iterator i = instance.bases.begin(); i != instance.bases.end(); ++i)
+	{
+		const TypeInstance& base = *(*i);
+		SYMBOLS_ASSERT(base.declaration->enclosed != 0); // TODO: non-fatal error: incomplete type
+		SYMBOLS_ASSERT(base.declaration->enclosed->usingDirectives.empty()); // namespace.udir: A using-directive shall not appear in class scope, but may appear in namespace scope or in block scope.
+
+		// an identifier looked up in the context of a class may name a base class
+		if(base.declaration->getName().value == id.value
+			&& filter(*base.declaration))
+		{
+			result.filtered = &getDeclaration(base.declaration->getName());
+			result.enclosing = base.enclosing;
+			return result;
+		}
+
+		if(result.append(findDeclaration(base, id, filter)))
+		{
+			return result;
+		}
+	}
+	return result;
+}
+
 // ----------------------------------------------------------------------------
 // expression evaluation
 
@@ -2132,8 +2279,9 @@ struct IntegralConstantExpression
 struct DependentIdExpression
 {
 	Name name;
-	DependentIdExpression(Name name)
-		: name(name)
+	Qualifying qualifying;
+	DependentIdExpression(Name name, const Qualifying& qualifying)
+		: name(name), qualifying(qualifying)
 	{
 	}
 };
@@ -2266,20 +2414,20 @@ inline UniqueTypeWrapper typeofExpression(ExpressionNode* node, Location source)
 }
 
 
+
+inline std::size_t instantiateClass(const TypeInstance& enclosing, Location source, bool allowDependent = false);
 inline std::size_t requireCompleteObjectType(UniqueTypeWrapper type, Location source);
 inline UniqueTypeWrapper removeReference(UniqueTypeWrapper type);
 inline const TypeInstance* makeUniqueEnclosing(const Qualifying& qualifying, Location source, const TypeInstance* enclosing, bool allowDependent = false);
 inline const TypeInstance* findEnclosingType(const TypeInstance* enclosing, Scope* scope);
 inline bool isDependent(const TypeInstance& type);
 
-inline IntegralConstant evaluateIdExpression(const IdExpression& node, Location source, const TypeInstance* enclosing)
+inline IntegralConstant evaluateIdExpression(const Declaration* declaration, Location source, const TypeInstance* enclosing)
 {
-	enclosing = makeUniqueEnclosing(node.qualifying, source, enclosing);
-
-	size_t index = node.declaration->templateParameter;
+	size_t index = declaration->templateParameter;
 	if(index != INDEX_INVALID)
 	{
-		const TypeInstance* enclosingType = findEnclosingType(enclosing, node.declaration->scope);
+		const TypeInstance* enclosingType = findEnclosingType(enclosing, declaration->scope);
 		SYMBOLS_ASSERT(enclosingType != 0);
 		SYMBOLS_ASSERT(!isDependent(*enclosingType)); // assert that the enclosing type is not dependent
 		SYMBOLS_ASSERT(!enclosingType->declaration->isSpecialization); // partial-specializations not supported!
@@ -2289,11 +2437,35 @@ inline IntegralConstant evaluateIdExpression(const IdExpression& node, Location 
 		return getNonTypeValue(argument.value);
 	}
 
-	const TypeInstance* memberEnclosing = isMember(*node.declaration) // if the declaration is a class member
-		? findEnclosingType(enclosing, node.declaration->scope) // it must be a member of (a base of) the qualifying class: find which one.
+	const TypeInstance* memberEnclosing = isMember(*declaration) // if the declaration is a class member
+		? findEnclosingType(enclosing, declaration->scope) // it must be a member of (a base of) the qualifying class: find which one.
 		: 0; // the declaration is not a class member and cannot be found through qualified name lookup
 
-	return evaluateExpression(node.declaration->initializer, source, memberEnclosing);
+	return evaluateExpression(declaration->initializer, source, memberEnclosing);
+}
+
+inline IntegralConstant evaluateIdExpression(const IdExpression& node, Location source, const TypeInstance* enclosing)
+{
+	enclosing = makeUniqueEnclosing(node.qualifying, source, enclosing);
+
+	return evaluateIdExpression(node.declaration, source, enclosing);
+}
+
+inline IntegralConstant evaluateIdExpression(const DependentIdExpression& node, Location source, const TypeInstance* enclosing)
+{
+	enclosing = makeUniqueEnclosing(node.qualifying, source, enclosing);
+
+	SYMBOLS_ASSERT(enclosing != 0);
+	SYMBOLS_ASSERT(isClass(*enclosing->declaration));
+
+	instantiateClass(*enclosing, source);
+	Identifier id;
+	id.value = node.name;
+	SYMBOLS_ASSERT(enclosing->instantiated);
+	SYMBOLS_ASSERT(!enclosing->instantiating);
+	LookupResultRef declaration = findDeclaration(*enclosing, id, IsAny());
+	SYMBOLS_ASSERT(declaration != 0);
+	return evaluateIdExpression(declaration, source, enclosing);
 }
 
 struct EvaluateVisitor : ExpressionNodeVisitor
@@ -2311,7 +2483,7 @@ struct EvaluateVisitor : ExpressionNodeVisitor
 	}
 	void visit(const DependentIdExpression& node)
 	{
-		// TODO: name lookup
+		result = evaluateIdExpression(node, source, enclosing);
 	}
 	void visit(const IdExpression& node)
 	{
@@ -2367,148 +2539,10 @@ inline IntegralConstant evaluateExpression(ExpressionNode* node, Location source
 	return visitor.result;
 }
 
+
+
 // ----------------------------------------------------------------------------
 // template instantiation
-
-struct LookupResult
-{
-	const DeclarationInstance* filtered; // the declaration found by the name-lookup, using the filter
-	const TypeInstance* enclosing;
-
-	LookupResult()
-		: filtered(0), enclosing(0)
-	{
-	}
-	operator const DeclarationInstance*() const
-	{
-		return filtered;
-	}
-
-	// Combines the result of a subsequent lookup, returns true if lookup succeeded
-	bool append(const LookupResult& other)
-	{
-		*this = other;
-		return filtered != 0;
-	}
-};
-
-struct DeclarationInstanceRef
-{
-	const DeclarationInstance* p;
-	DeclarationInstanceRef()
-		: p(0)
-	{
-	}
-	DeclarationInstanceRef(const DeclarationInstance& p)
-		: p(&p)
-	{
-		checkAllocated(this->p);
-	}
-	Declaration& operator*() const
-	{
-		checkAllocated(p);
-		return p->operator*();
-	}
-	Declaration* operator->() const
-	{
-		checkAllocated(p);
-		return p->operator->();
-	}
-	operator const DeclarationInstance&() const
-	{
-		checkAllocated(p);
-		return *p;
-	}
-	operator Declaration*() const
-	{
-		checkAllocated(p);
-		return p == 0 ? 0 : static_cast<Declaration*>(*p);
-	}
-};
-
-struct LookupResultRef : DeclarationInstanceRef
-{
-	const TypeInstance* enclosing;
-	LookupResultRef()
-		: enclosing(0)
-	{
-	}
-	LookupResultRef(const DeclarationInstance& p)
-		: DeclarationInstanceRef(p), enclosing(0)
-	{
-	}
-	LookupResultRef(const LookupResult& result)
-		: DeclarationInstanceRef(*result.filtered), enclosing(result.enclosing)
-	{
-	}
-};
-
-
-
-inline const DeclarationInstance* findDeclaration(Scope::Declarations& declarations, const Identifier& id, LookupFilter filter);
-
-struct RecursionGuard
-{
-	const TypeInstance& instance;
-	RecursionGuard(const TypeInstance& instance)
-		: instance(instance)
-	{
-		SYMBOLS_ASSERT(!instance.visited);
-		instance.visited = true;
-	}
-	~RecursionGuard()
-	{
-		instance.visited = false;
-	}
-};
-
-inline void printType(const TypeInstance& type);
-
-inline LookupResult findDeclaration(const TypeInstance& instance, const Identifier& id, LookupFilter filter)
-{
-	SYMBOLS_ASSERT(instance.declaration->enclosed != 0);
-	SYMBOLS_ASSERT(instance.instantiated); // the qualifying type should have been instantiated by this point
-	SYMBOLS_ASSERT(!instance.instantiating);
-
-	LookupResult result;
-
-	if(instance.visited) // TODO: this occurs when the same type is found twice when searching bases: can be caused by two templates that differ only in non-type template arguments
-	{
-		std::cout << "duplicate base: ";
-		printType(instance);
-		std::cout << std::endl;
-		return result;
-	}
-	RecursionGuard guard(instance);
-
-	result.filtered = findDeclaration(instance.declaration->enclosed->declarations, id, filter);
-	if(result.filtered)
-	{
-		result.enclosing = &instance;
-		return result;
-	}
-	for(UniqueBases::const_iterator i = instance.bases.begin(); i != instance.bases.end(); ++i)
-	{
-		const TypeInstance& base = *(*i);
-		SYMBOLS_ASSERT(base.declaration->enclosed != 0); // TODO: non-fatal error: incomplete type
-		SYMBOLS_ASSERT(base.declaration->enclosed->usingDirectives.empty()); // namespace.udir: A using-directive shall not appear in class scope, but may appear in namespace scope or in block scope.
-
-		// an identifier looked up in the context of a class may name a base class
-		if(base.declaration->getName().value == id.value
-			&& filter(*base.declaration))
-		{
-			result.filtered = &getDeclaration(base.declaration->getName());
-			result.enclosing = base.enclosing;
-			return result;
-		}
-
-		if(result.append(findDeclaration(base, id, filter)))
-		{
-			return result;
-		}
-	}
-	return result;
-}
 
 
 inline bool isDependent(UniqueTypeWrapper type);
@@ -2872,8 +2906,7 @@ inline bool substitute(UniqueTypeArray& substituted, const UniqueTypeArray& depe
 }
 
 inline UniqueTypeWrapper makeUniqueObjectType(const TypeInstance& type);
-inline Declaration* findTemplateSpecialization(Declaration* declaration, const TemplateArgumentsInstance& arguments, Location source, const TypeInstance* enclosing, bool allowDependent);
-inline std::size_t instantiateClass(const TypeInstance& enclosing, Location source, bool allowDependent = false);
+inline Declaration* findTemplateSpecialization(Declaration* declaration, TemplateArgumentsInstance& deducedArguments, const TemplateArgumentsInstance& arguments, Location source, const TypeInstance* enclosing, bool allowDependent);
 
 inline const TypeInstance* substitute(const TypeInstance& instance, const TemplateArgumentsInstance& templateArguments)
 {
@@ -2895,7 +2928,7 @@ inline const TypeInstance* substitute(const TypeInstance& instance, const Templa
 		}
 		result.declaration = findPrimaryTemplate(instance.declaration);
 
-		Declaration* specialization = findTemplateSpecialization(instance.declaration, result.templateArguments, NAME_NULL, enclosing, false);
+		Declaration* specialization = findTemplateSpecialization(instance.declaration, result.deducedArguments, result.templateArguments, NAME_NULL, enclosing, false);
 		if(specialization != 0)
 		{
 			result.declaration = specialization;
@@ -2939,7 +2972,7 @@ struct SubstituteVisitor : TypeElementVisitor
 		id.value = element.name;
 		SYMBOLS_ASSERT(enclosing->instantiated);
 		SYMBOLS_ASSERT(!enclosing->instantiating);
-		LookupResultRef declaration = findDeclaration(*enclosing, id, LookupFilter(IsNestedName()));
+		LookupResultRef declaration = findDeclaration(*enclosing, id, element.isNested ? LookupFilter(IsNestedName()) : LookupFilter(IsAny()));
 		SYMBOLS_ASSERT(declaration == 0 || isTypedef(*declaration) || isClass(*declaration));
 		// [temp.deduct]
 		// - Attempting to use a type in the qualifier portion of a qualified name that names a type when that
@@ -3388,7 +3421,7 @@ inline const TypeInstance* makeUniqueEnclosing(const Qualifying& qualifying, Loc
 	}
 }
 
-inline bool matchTemplatePartialSpecialization(const Declaration& declaration, const TemplateArgumentsInstance& specializationArguments, const TemplateArgumentsInstance& arguments)
+inline bool matchTemplatePartialSpecialization(const Declaration& declaration, TemplateArgumentsInstance& deducedArguments, const TemplateArgumentsInstance& specializationArguments, const TemplateArgumentsInstance& arguments)
 {
 	SYMBOLS_ASSERT(!declaration.templateParams.empty());
 	TemplateArgumentsInstance deduced(std::distance(declaration.templateParams.begin(), declaration.templateParams.end()), gUniqueTypeNull);
@@ -3397,10 +3430,82 @@ inline bool matchTemplatePartialSpecialization(const Declaration& declaration, c
 	{
 		return false; // partial-specialization only matches if template-argument-deduction succeeds
 	}
-	return std::equal(substituted.begin(), substituted.end(), arguments.begin());
+	if(std::equal(substituted.begin(), substituted.end(), arguments.begin()))
+	{
+		deducedArguments.swap(deduced);
+		return true;
+	}
+	return false;
 }
 
-inline Declaration* findTemplateSpecialization(Declaration* declaration, const TemplateArgumentsInstance& arguments, Location source, const TypeInstance* enclosing, bool allowDependent)
+inline bool matchTemplatePartialSpecialization(const Declaration& declaration, const TemplateArgumentsInstance& specializationArguments, const TemplateArgumentsInstance& arguments)
+{
+	TemplateArgumentsInstance deducedArguments;
+	return matchTemplatePartialSpecialization(declaration, deducedArguments, specializationArguments, arguments);
+}
+
+inline void makeSpecializationArguments(Declaration* declaration, TemplateArgumentsInstance& specializationArguments, Location source, const TypeInstance* enclosing, bool allowDependent)
+{
+	SYMBOLS_ASSERT(isSpecialization(*declaration));
+	for(TemplateArguments::const_iterator i = declaration->templateArguments.begin(); i != declaration->templateArguments.end(); ++i)
+	{
+		UniqueTypeWrapper type;
+		SYMBOLS_ASSERT((*i).type.declaration != 0);
+		extern Declaration gNonType;
+		if((*i).type.declaration == &gNonType)
+		{
+			(*i).expression.isValueDependent
+				? pushUniqueType(type.value, DependentNonType())
+				: pushUniqueType(type.value, NonType((*i).expression.isConstant ? evaluateExpression((*i).expression, source, enclosing) : IntegralConstant(0)));
+		}
+		else
+		{
+			SYMBOLS_ASSERT((*i).type.unique != 0);
+			type = makeUniqueType((*i).type, source, enclosing, allowDependent || (*i).type.isDependent); // a partial-specialization may have dependent template-arguments: template<class T> class C<T*>
+			SYMBOLS_ASSERT((*i).type.unique == type.value);
+		}
+		specializationArguments.push_back(type);
+	}
+}
+
+inline void makePrimaryArguments(Declaration* declaration, TemplateArgumentsInstance& arguments, Location source, const TypeInstance* enclosing, bool allowDependent)
+{
+	for(Types::const_iterator i = declaration->templateParams.begin(); i != declaration->templateParams.end(); ++i)
+	{
+		const Type& argument = (*i);
+		UniqueTypeWrapper result;
+		extern Declaration gParam;
+		if(argument.declaration->type.declaration == &gParam)
+		{
+			result = makeUniqueType(argument, source, enclosing, allowDependent);
+			SYMBOLS_ASSERT(result.value != UNIQUETYPE_NULL);
+		}
+		else
+		{
+			// TODO: value for non-type parameter
+			pushUniqueType(result.value, DependentNonType());
+		}
+		arguments.push_back(result);
+	}
+	SYMBOLS_ASSERT(!arguments.empty());
+}
+
+inline bool matchEnclosingTemplate(Declaration* declaration, const TemplateArgumentsInstance& arguments, Location source, const TypeInstance* enclosing, bool allowDependent)
+{
+	TemplateArgumentsInstance expected;
+	if(isSpecialization(*declaration))
+	{
+		makeSpecializationArguments(declaration, expected, source, enclosing, allowDependent);
+	}
+	else
+	{
+		makePrimaryArguments(declaration, expected, source, enclosing, allowDependent);
+	}
+	return expected.size() == arguments.size()
+		&& std::equal(expected.begin(), expected.end(), arguments.begin());
+}
+
+inline Declaration* findTemplateSpecialization(Declaration* declaration, TemplateArgumentsInstance& deducedArguments, const TemplateArgumentsInstance& arguments, Location source, const TypeInstance* enclosing, bool allowDependent)
 {
 	Declaration* best = 0;
 	TemplateArgumentsInstance bestArguments;
@@ -3413,25 +3518,7 @@ inline Declaration* findTemplateSpecialization(Declaration* declaration, const T
 
 		// TODO: check that all non-defaulted arguments are specified!
 		TemplateArgumentsInstance specializationArguments;
-		for(TemplateArguments::const_iterator i = declaration->templateArguments.begin(); i != declaration->templateArguments.end(); ++i)
-		{
-			UniqueTypeWrapper type;
-			SYMBOLS_ASSERT((*i).type.declaration != 0);
-			extern Declaration gNonType;
-			if((*i).type.declaration == &gNonType)
-			{
-				allowDependent && (*i).expression.isValueDependent
-					? pushUniqueType(type.value, DependentNonType())
-					: pushUniqueType(type.value, NonType((*i).expression.isConstant ? evaluateExpression((*i).expression, source, enclosing) : IntegralConstant(0)));
-			}
-			else
-			{
-				SYMBOLS_ASSERT((*i).type.unique != 0);
-				type = makeUniqueType((*i).type, source, enclosing, allowDependent || (*i).type.isDependent); // a partial-specialization may have dependent template-arguments: template<class T> class C<T*>
-				SYMBOLS_ASSERT((*i).type.unique == type.value);
-			}
-			specializationArguments.push_back(type);
-		}
+		makeSpecializationArguments(declaration, specializationArguments, source, enclosing, allowDependent);
 
 		SYMBOLS_ASSERT(specializationArguments.size() <= arguments.size()); // a template-specialization must have no more arguments than the template parameters
 		
@@ -3439,10 +3526,14 @@ inline Declaration* findTemplateSpecialization(Declaration* declaration, const T
 		{
 			if(std::equal(specializationArguments.begin(), specializationArguments.end(), arguments.begin()))
 			{
+				deducedArguments.clear();
 				return declaration; // exact match
 			}
+			continue;
 		}
-		else if(matchTemplatePartialSpecialization(*declaration, specializationArguments, arguments)) // if this partial-specialization can be deduced for the specified types
+
+		TemplateArgumentsInstance deduced;
+		if(matchTemplatePartialSpecialization(*declaration, deduced, specializationArguments, arguments)) // if this partial-specialization can be deduced for the specified types
 		{
 			// consider two specializations: A<T**> and A<T*>
 			// when deducing with int**, we deduce against A<T*> and find a match, recording it as 'best'
@@ -3475,6 +3566,7 @@ inline Declaration* findTemplateSpecialization(Declaration* declaration, const T
 			}
 			best = declaration;
 			bestArguments.swap(specializationArguments);
+			deducedArguments.swap(deduced);
 		}
 	}
 	return best;
@@ -3580,7 +3672,7 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const
 		{
 			if(allowDependent)
 			{
-				return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, UNIQUETYPE_NULL, DependentTypename(type.id->value, qualifying)));
+				return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, UNIQUETYPE_NULL, DependentTypename(type.id->value, qualifying, declaration == &gDependentNested)));
 			}
 
 			std::cout << "lookup failed: ";
@@ -3603,10 +3695,12 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const
 				|| !isDependent(*enclosingType))) // or the enclosing type is not dependent
 		{
 			SYMBOLS_ASSERT(allowDependent || !isDependent(*enclosingType)); // if we expect the type not to be dependent, assert that the enclosing type is not dependent
-			SYMBOLS_ASSERT(!enclosingType->declaration->isSpecialization); // partial-specializations not supported!
+			const TemplateArgumentsInstance& arguments = enclosingType->declaration->isSpecialization
+				? enclosingType->deducedArguments
+				: enclosingType->templateArguments;
 
-			SYMBOLS_ASSERT(index < enclosingType->templateArguments.size());
-			UniqueTypeWrapper result = enclosingType->templateArguments[index];
+			SYMBOLS_ASSERT(index < arguments.size());
+			UniqueTypeWrapper result = arguments[index];
 			// TODO: SYMBOLS_ASSERT(result.value != UNIQUETYPE_NULL); // fails for non-type template-argument
 			return result;
 		}
@@ -3651,26 +3745,10 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const
 		if(type.isImplicitTemplateId // if no template argument list was specified
 			&& !isEnclosingSpecialization) // and the type is not the name of an enclosing class-template explicit/partial-specialization
 		{
-			// when the type refers to a template-name outside an enclosing class, it is a template-template-parameter: we substitute the (possibly dependent) template parameters.
+			// when the type refers to a template-name outside an enclosing class, it is a template-template-parameter:
+			// we substitute the primary template's (possibly dependent) template parameters.
 			bool dependent = allowDependent || !type.isEnclosingClass;
-			for(Types::const_iterator i = tmp.declaration->templateParams.begin(); i != tmp.declaration->templateParams.end(); ++i)
-			{
-				const Type& argument = (*i);
-				UniqueTypeWrapper result;
-				extern Declaration gParam;
-				if(argument.declaration->type.declaration == &gParam)
-				{
-					result = makeUniqueType(argument, source, enclosingType, dependent, depth);
-					SYMBOLS_ASSERT(result.value != UNIQUETYPE_NULL);
-				}
-				else
-				{
-					// TODO: value for non-type parameter
-					pushUniqueType(result.value, DependentNonType());
-				}
-				tmp.templateArguments.push_back(result);
-			}
-			SYMBOLS_ASSERT(!tmp.templateArguments.empty());
+			makePrimaryArguments(tmp.declaration, tmp.templateArguments, source, enclosingType, dependent);
 		}
 		else
 		{
@@ -3702,10 +3780,18 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const
 			SYMBOLS_ASSERT(!tmp.templateArguments.empty());
 		}
 
-		Declaration* specialization = findTemplateSpecialization(declaration, tmp.templateArguments, source, enclosing, allowDependent);
-		if(specialization != 0)
+		if(type.isEnclosingClass
+			&& matchEnclosingTemplate(declaration, tmp.templateArguments, source, enclosing, allowDependent))
 		{
-			tmp.declaration = specialization;
+			tmp.declaration = type.declaration;
+		}
+		else
+		{
+			Declaration* specialization = findTemplateSpecialization(declaration, tmp.deducedArguments, tmp.templateArguments, source, enclosing, allowDependent);
+			if(specialization != 0)
+			{
+				tmp.declaration = specialization;
+			}
 		}
 	}
 	SYMBOLS_ASSERT(tmp.bases.empty());

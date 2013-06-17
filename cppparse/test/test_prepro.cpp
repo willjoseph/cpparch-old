@@ -1,10 +1,38 @@
 
+namespace N190
+{
+	template<bool b>
+	struct B
+	{
+		typedef int False;
+	};
+	template<>
+	struct B<true>
+	{
+		typedef int True;
+	};
+
+	template<typename T>
+	struct D : B<T::value> // dependent id-expression as non-type template-argument
+	{
+	};
+
+	template<bool a>
+	struct A
+	{
+		static const bool value = a;
+	};
+
+	typedef D<A<true> >::True True;
+	typedef D<A<false> >::False False;
+}
+
 namespace N186
 {
 	template<typename T>
 	struct sfinae
 	{
-		typedef void Type;
+		typedef T Type;
 	};
 	template<typename T, typename U=void>
 	struct S
@@ -15,22 +43,105 @@ namespace N186
 	struct S<T, typename sfinae<typename T::Type>::Type>
 	{
 		typedef int True;
-
-		static const bool value=true;
-		typedef sfinae<value> type;
+		// S<T, typename sfinae<typename T::Type>::Type>::True m; // TODO: names the current instantiation, not dependent
 	};
 
+	template<typename T>
 	struct A
 	{
-		typedef int Type;
+		typedef T Type;
 	};
 
 	struct B
 	{
 	};
 
-	typedef S<A>::True True;
+	typedef S<A<void> >::True True;
 	typedef S<B>::False False;
+}
+
+
+namespace N190
+{
+	template<bool C, typename T1, typename T2>
+	struct Cond
+	{
+		typedef T1 Left;
+	};
+	template<typename T1, typename T2>
+	struct Cond<false, T1, T2>
+	{
+		typedef T2 Right;
+	};
+
+	Cond<false, int, int>::Right right;
+	Cond<true, int, int>::Left left;
+}
+
+namespace N189
+{
+	struct Base
+	{
+		// dummy template parameter...
+		template<class U, class _ = void> struct Inner {};
+
+		// ... to allow in-class partial specialization
+		template<class _> struct Inner<char, _> {};
+	};
+
+	struct Derived
+		:
+		Base
+	{
+		// cannot partially specialize Inner inside Derived...
+		//template<class _>
+		//struct Inner<int, _>: std::false_type {};
+	};
+
+	// ... but specializing Derived::Inner at namespace scope, also specializes it for Base::Inner
+	template<class _> struct Derived::Inner<int, _> {};
+}
+
+namespace N188
+{
+	template<typename T, T t>
+	struct B
+	{
+		typedef T Type;
+		static const T value = t;
+	};
+
+	template<bool b>
+	struct B<bool, b>
+	{
+		typedef bool Type;
+		static const bool boolValue = b;
+	};
+
+	template<typename T, T t>
+	struct S : B<T, t>
+	{
+	};
+
+	const int s = S<int, 37>::value;
+	//const bool b = S<bool, true>::boolValue;
+}
+
+namespace N187
+{
+	template<typename T, T t>
+	struct B
+	{
+		typedef T Type;
+		static const T value = t;
+	};
+
+	template<typename T, T t>
+	struct S : N187::B<T, t>
+	{
+	};
+
+	const int s = S<int, 37>::value;
 }
 
 namespace N185
