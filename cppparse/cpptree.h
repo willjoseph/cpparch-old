@@ -66,6 +66,11 @@ struct UniqueType : CvQualifiers
 	{
 		*static_cast<CvQualifiers*>(this) = qualifiers;
 	}
+	void addQualifiers(CvQualifiers qualifiers)
+	{
+		isConst |= qualifiers.isConst;
+		isVolatile |= qualifiers.isVolatile;
+	}
 	CvQualifiers getQualifiers() const
 	{
 		return *this;

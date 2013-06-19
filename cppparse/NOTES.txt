@@ -136,6 +136,18 @@
 	- what causes <const T> and 'int' to fail deduction?
 		- likewise, what causes <const T> and 'const int' to deduce 'int' ?
 
+- task: correct name lookup for template explicit/partial specializations
+	- [temp.class.spec] Partial specialization declarations themselves are not found by name lookup.
+	- [temp.class.spec.match] When a class template is used in a context that requires an instantiation of the class, it is necessary to determine
+			whether the instantiation is to be generated using the primary template or one of the partial specializations.
+		- implies that this is not determined (e.g. no argument deduction is performed) until the class template is instantiated?
+	- don't add to declarations? If not, where to store Declaration?
+	- add, but ignore during name lookup?
+		- inefficient, but works
+	- store list of specializations in primary template
+		- modifying existing declaration when specialization is declared is hard to undo when specialization is undeclared
+	- forward declaration of partial specialization is invisible?
+
 - task: in makeUniqueType, use previously uniqued type if available and isDependent=false.
 	+ assert that previously uniqued type is equal to result of makeUniqueType
 		- can only do this if both the previously uniqued type and the result of makeUniqueType are not dependent

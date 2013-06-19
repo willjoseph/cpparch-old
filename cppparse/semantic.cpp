@@ -310,8 +310,8 @@ struct WalkerState
 			// [basic.lookup.qual]
 			if(qualifyingType != 0)
 			{
-				instantiateClass(*qualifyingType, id.source);
 				SYMBOLS_ASSERT(qualifyingType->declaration->enclosed == qualifying);
+				instantiateClass(*qualifyingType, id.source);
 				if(result.append(::findDeclaration(*qualifyingType, id, filter)))
 				{
 					return result;
@@ -401,87 +401,89 @@ struct WalkerState
 		static size_t uniqueId = 0;
 
 		SEMANTIC_ASSERT(!name.value.empty());
-		Declaration other(allocator, parent, name, type, enclosed, specifiers, isTemplate, params, isSpecialization, arguments, templateParameter, valueDependent);
-		other.uniqueId = ++uniqueId;
-		DeclarationInstance declaration;
-		const DeclarationInstance* overloaded = 0;
-		if(!isAnonymous(other)) // unnamed class/struct/union/enum
+		Declaration declaration(allocator, parent, name, type, enclosed, specifiers, isTemplate, params, isSpecialization, arguments, templateParameter, valueDependent);
+		declaration.uniqueId = ++uniqueId;
+		DeclarationInstance instance;
+		const DeclarationInstance* existing = 0;
+		if(!isAnonymous(declaration)) // unnamed class/struct/union/enum
 		{
-			overloaded = ::findDeclaration(parent->declarations, name);
+			existing = ::findDeclaration(parent->declarations, name);
 		}
 		/* 3.4.4-1
 		An elaborated-type-specifier (7.1.6.3) may be used to refer to a previously declared class-name or enum-name
 		even though the name has been hidden by a non-type declaration (3.3.10).
 		*/
-		if(overloaded != 0)
+		if(existing != 0)
 		{
-			declaration = *overloaded;
+			instance = *existing;
 			try
 			{
-				const Declaration& primary = getPrimaryDeclaration(*declaration, other);
-				if(&primary == declaration)
+				const Declaration& primary = getPrimaryDeclaration(*instance, declaration);
+				if(&primary == instance)
 				{
-					return *overloaded;
+					return *existing;
 				}
 			}
 			catch(DeclarationError& e)
 			{
 				printPosition(name.position);
 				std::cout << "'" << name.value.c_str() << "': " << e.description << std::endl;
-				printPosition(declaration->getName().position);
+				printPosition(instance->getName().position);
 				throw SemanticError();
 			}
 
-			if(!isNamespace(other)
-				&& !isType(other)
-				&& isFunction(other))
+			if(!isNamespace(declaration)
+				&& !isType(declaration)
+				&& isFunction(declaration))
 			{
 				// quick hack - if any template overload of a function has been declared, all subsequent declarations are template functions
-				if(declaration->isTemplate)
+				if(instance->isTemplate)
 				{
-					other.isTemplate = true;
+					declaration.isTemplate = true;
 				}
 			}
-			other.overloaded = declaration;
-			declaration.p = 0;
-			declaration.overloaded = overloaded;
-			declaration.redeclared = findRedeclared(other, overloaded);
-			if(declaration.redeclared != 0)
+
+			declaration.overloaded = instance; // the new declaration 'overloads' the existing declaration
+
+			instance.p = 0;
+			instance.overloaded = existing;
+			instance.redeclared = findRedeclared(declaration, existing);
+			if(instance.redeclared != 0)
 			{
-				declaration.p = *declaration.redeclared;
-				if(isClass(other)
-					&& other.isTemplate)
+				instance.p = *instance.redeclared;
+				if(isClass(declaration)
+					&& declaration.isTemplate)
 				{
 					TemplateParameters tmp(context);
-					tmp.swap(declaration->templateParams);
-					declaration->templateParams = other.templateParams;
-					if(other.isSpecialization) // this is a partial-specialization
+					tmp.swap(instance->templateParams);
+					instance->templateParams = declaration.templateParams;
+					if(declaration.isSpecialization) // this is a partial-specialization
 					{
-						SEMANTIC_ASSERT(!hasTemplateParamDefaults(other.templateParams)); // TODO: non-fatal error: partial-specialization may not have default template-arguments
+						SEMANTIC_ASSERT(!hasTemplateParamDefaults(declaration.templateParams)); // TODO: non-fatal error: partial-specialization may not have default template-arguments
 					}
 					else
 					{
-						SEMANTIC_ASSERT(!other.templateParams.empty());
-						mergeTemplateParamDefaults(*declaration, tmp);
+						SEMANTIC_ASSERT(!declaration.templateParams.empty());
+						mergeTemplateParamDefaults(*instance, tmp);
 					}
 				}
-				if(isClass(other)
-					&& isIncomplete(*declaration)) // if this class-declaration was previously forward-declared
+				if(isClass(declaration)
+					&& isIncomplete(*instance)) // if this class-declaration was previously forward-declared
 				{
-					declaration->enclosed = other.enclosed; // complete it
-					declaration->setName(other.getName()); // make this the definition
+					instance->enclosed = declaration.enclosed; // complete it
+					instance->setName(declaration.getName()); // make this the definition
 				}
 			}
 		}
-		if(declaration.p == 0)
+		if(instance.p == 0)
 		{
-			declaration.p = allocatorNew(context, Declaration());
-			declaration->swap(other);
+			instance.p = allocatorNew(context, Declaration());
+			instance->swap(declaration);
 		}
 
-		declaration.name = &name;
-		const DeclarationInstance& result = parent->declarations.insert(declaration);
-		parent->declarationList.push_back(declaration);
+		instance.name = &name;
+		const DeclarationInstance& result = parent->declarations.insert(instance);
+		parent->declarationList.push_back(instance);
 		return result;
 	}
 
@@ -816,6 +818,11 @@ struct WalkerBase : public WalkerState
 	ExpressionNode* makeExpression(const T& value)
 	{
 		return allocatorNew(context, makeExpressionNode(value));
+	}
+
+	void disableBacktrack()
+	{
+		parser->addBacktrackCallback(makeBacktrackErrorCallback());
 	}
 
 	// Causes /p declaration to be undeclared when backtracking.
@@ -2888,6 +2895,7 @@ struct NestedNameSpecifierWalker : public WalkerQualified
 		TREEWALKER_WALK(walker, symbol);
 		SEMANTIC_ASSERT(walker.type.declaration != 0);
 		swapQualifying(walker.type, isDeclarator);
+		//disableBacktrack();
 	}
 	void visit(cpp::nested_name_specifier_suffix_template* symbol)
 	{
@@ -2896,6 +2904,7 @@ struct NestedNameSpecifierWalker : public WalkerQualified
 		SEMANTIC_ASSERT(walker.type.declaration != 0);
 		walker.type.qualifying.swap(qualifying);
 		swapQualifying(walker.type, isDeclarator);
+		//disableBacktrack();
 	}
 	void visit(cpp::nested_name_specifier_suffix_default* symbol)
 	{
@@ -2904,6 +2913,7 @@ struct NestedNameSpecifierWalker : public WalkerQualified
 		SEMANTIC_ASSERT(walker.type.declaration != 0);
 		walker.type.qualifying.swap(qualifying);
 		swapQualifying(walker.type, isDeclarator);
+		//disableBacktrack();
 	}
 };
 
@@ -3774,9 +3784,10 @@ struct ClassSpecifierWalker : public WalkerBase
 		declaration->type.isDependent = type.isDependent;
 		declaration->type.unique = makeUniqueType(type, source, enclosingType, allowDependent).value;
 		enclosingType = &getObjectType(declaration->type.unique);
-		SEMANTIC_ASSERT(declaration == enclosingType->declaration);
-		addDependent(enclosingDependent, type);
+		const_cast<TypeInstance*>(enclosingType)->declaration = declaration; // if this is a specialization, use the specialization instead of the primary template
 		instantiateClass(*enclosingType, source, allowDependent); // instantiate non-dependent base classes
+
+		addDependent(enclosingDependent, type);
 
 		clearTemplateParams();
 	}

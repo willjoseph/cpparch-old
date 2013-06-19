@@ -228,7 +228,16 @@ DependentTypeId gTemplateParameter(&gTemplateParameterDeclaration, TREEALLOCATOR
 
 
 Identifier gTemplateClassId = makeIdentifier("$template");
-Declaration gTemplateClassDeclaration(TREEALLOCATOR_NULL, 0, gTemplateClassId, TYPE_CLASS, 0, DeclSpecifiers(), true);
+struct TemplateClassDeclaration : Declaration
+{
+	TemplateClassDeclaration() : Declaration(TREEALLOCATOR_NULL, 0, gTemplateClassId, TYPE_CLASS, 0, DeclSpecifiers(), true)
+	{
+		templateParamScope = &gTemplateParameterScope;
+	}
+};
+
+TemplateClassDeclaration gTemplateClassDeclaration;
+
 
 Identifier gTemplateTemplateParameterId = makeIdentifier("TT");
 Declaration gTemplateTemplateParameterDeclaration(TREEALLOCATOR_NULL, &gTemplateParameterScope, gTemplateTemplateParameterId, TYPE_CLASS, 0, DeclSpecifiers(), true, TEMPLATEPARAMETERS_NULL, false, TEMPLATEARGUMENTS_NULL, 0);
@@ -1017,7 +1026,10 @@ struct TestSubstitution
 	static void apply(UniqueTypeWrapper expected = MakeType<R>::apply())
 	{
 		TemplateArgumentsInstance templateArguments(1, MakeType<A>::apply());
-		UniqueTypeWrapper result = substitute(MakeType<P>::apply(), templateArguments);
+		TypeInstance enclosing(&gTemplateClassDeclaration, 0);
+		enclosing.templateArguments.swap(templateArguments);
+		enclosing.instantiated = true;
+		UniqueTypeWrapper result = substitute(MakeType<P>::apply(), enclosing);
 		SYMBOLS_ASSERT(result == expected);
 	}
 };
