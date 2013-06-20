@@ -1858,7 +1858,9 @@ inline bool operator<(const DependentTypename& left, const DependentTypename& ri
 		? left.name < right.name
 		: left.qualifying != right.qualifying
 			? left.qualifying < right.qualifying
-			: left.isNested < right.isNested;
+			: left.isNested != right.isNested
+				? left.isNested < right.isNested
+				: left.templateArguments < right.templateArguments;
 }
 
 
@@ -2926,15 +2928,17 @@ inline UniqueTypeWrapper substitute(Declaration* declaration, const TypeInstance
 	TypeInstance result(declaration, enclosing);
 	if(declaration->isTemplate)
 	{
+		result.declaration = result.primary = findPrimaryTemplate(declaration); // TODO: name lookup should always find primary template
+
 		if(!substitute(result.templateArguments, templateArguments, enclosingType))
 		{
 			return gUniqueTypeNull;
 		}
 
 		TemplateArgumentsInstance defaultTemplateArguments;
-		TemplateArguments::const_iterator i = declaration->templateParams.defaults.begin();
+		TemplateArguments::const_iterator i = result.declaration->templateParams.defaults.begin();
 		std::advance(i, templateArguments.size());
-		for(; i != declaration->templateParams.defaults.end(); ++i)
+		for(; i != result.declaration->templateParams.defaults.end(); ++i)
 		{
 			defaultTemplateArguments.push_back(UniqueTypeWrapper((*i).type.unique));
 		}
@@ -2943,8 +2947,7 @@ inline UniqueTypeWrapper substitute(Declaration* declaration, const TypeInstance
 			return gUniqueTypeNull;
 		}
 
-		result.declaration = result.primary = findPrimaryTemplate(declaration); // TODO: name lookup should always find primary template
-		SYMBOLS_ASSERT(std::distance(declaration->templateParams.begin(), declaration->templateParams.end()) == result.templateArguments.size());
+		SYMBOLS_ASSERT(std::distance(result.declaration->templateParams.begin(), result.declaration->templateParams.end()) == result.templateArguments.size());
 	}
 
 	return makeUniqueObjectType(result);

@@ -1,60 +1,4 @@
 
-namespace N192
-{
-	template<class T>
-	struct S
-	{
-		typedef T Primary;
-	};
-
-	template<class T>
-	struct B
-	{
-		typedef S<T> Type;
-	};
-
-	template<>
-	struct S<char>
-	{
-		typedef char Char;
-	};
-
-	typedef B<char>::Type::Char Char;
-	typedef B<int>::Type::Primary Primary;
-}
-
-namespace N191
-{
-	template<class T>
-	struct Alloc
-	{
-		template<class U, class D = T>
-		struct rebind
-		{
-			typedef Alloc<U> other;
-		};
-	};
-
-	template<class T, class A>
-	struct S
-	{
-		typedef typename A::template rebind<T>::other Type; // dependent template-name
-	};
-
-	typedef S<float, Alloc<int> >::Type Type;
-}
-
-namespace N059
-{
-	template<typename T, typename U>
-	struct Tmpl
-	{
-		static void f(T); // declaration
-		static void f(U); // redeclaration (illegal)
-	};
-
-	Tmpl<int, const int>::f(0);
-}
 
 #if 0
 namespace N190
@@ -85,6 +29,64 @@ namespace N190
 	typedef D<A<false> >::False False;
 }
 #endif
+
+namespace N192
+{
+	template<class T>
+	struct S
+	{
+		typedef T Primary;
+	};
+
+	template<class T>
+	struct B
+	{
+		typedef S<T> Type;
+	};
+
+	template<>
+	struct S<char> // explicit-specialization declared after reference in B<T>
+	{
+		typedef char Char;
+	};
+
+	typedef B<char>::Type::Char Char;
+	typedef B<int>::Type::Primary Primary;
+}
+
+namespace N191
+{
+	template<class T>
+	struct Alloc
+	{
+		template<class U, class D = T>
+		struct rebind
+		{
+			typedef Alloc<U> other;
+		};
+	};
+
+	template<class T, class A>
+	struct S
+	{
+		typedef typename A::template rebind<T>::other Type; // dependent template-name
+	};
+
+	typedef S<float, Alloc<int> >::Type Type;
+	S<float, Alloc<int> > object;
+}
+
+namespace N059
+{
+	template<typename T, typename U>
+	struct Tmpl
+	{
+		static void f(T); // declaration
+		static void f(U); // redeclaration (illegal)
+	};
+
+	Tmpl<int, const int>::f(0);
+}
 
 namespace N186
 {

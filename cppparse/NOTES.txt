@@ -135,6 +135,8 @@
 		- if A matches B but B does not match A, A is more specialized
 	- what causes <const T> and 'int' to fail deduction?
 		- likewise, what causes <const T> and 'const int' to deduce 'int' ?
+	- deduction for non-type
+	- substitution for non-type
 
 - task: correct name lookup for template explicit/partial specializations
 	- [temp.class.spec] Partial specialization declarations themselves are not found by name lookup.
