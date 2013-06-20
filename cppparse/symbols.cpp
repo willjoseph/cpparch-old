@@ -214,17 +214,22 @@ PointerTypeId gDerivedClassPointer(&gDerivedClassDeclaration, TREEALLOCATOR_NULL
 
 struct DependentTypeId : UniqueTypeId
 {
-	DependentTypeId(Declaration* declaration, const TreeAllocator<int>& allocator)
+	DependentTypeId(Declaration* declaration, std::size_t index)
 	{
 		value = pushBuiltInType(value, DependentType(declaration));
-		declaration->templateParameter = 0;
+		declaration->templateParameter = index;
 	}
 };
 
-Identifier gTemplateParameterId = makeIdentifier("T");
 Scope gTemplateParameterScope(TREEALLOCATOR_NULL,  makeIdentifier("$template"), SCOPETYPE_TEMPLATE);
+
+Identifier gTemplateParameterId = makeIdentifier("T");
 Declaration gTemplateParameterDeclaration(TREEALLOCATOR_NULL, &gTemplateParameterScope, gTemplateParameterId, TYPE_PARAM, 0);
-DependentTypeId gTemplateParameter(&gTemplateParameterDeclaration, TREEALLOCATOR_NULL);
+DependentTypeId gTemplateParameter(&gTemplateParameterDeclaration, 0);
+
+Identifier gNonTypeTemplateParameterId = makeIdentifier("i");
+Declaration gNonTypeTemplateParameterDeclaration(TREEALLOCATOR_NULL, &gTemplateParameterScope, gNonTypeTemplateParameterId, TYPE_PARAM, 0);
+DependentTypeId gNonTypeTemplateParameter(&gNonTypeTemplateParameterDeclaration, 1);
 
 
 Identifier gTemplateClassId = makeIdentifier("$template");
@@ -242,6 +247,36 @@ TemplateClassDeclaration gTemplateClassDeclaration;
 Identifier gTemplateTemplateParameterId = makeIdentifier("TT");
 Declaration gTemplateTemplateParameterDeclaration(TREEALLOCATOR_NULL, &gTemplateParameterScope, gTemplateTemplateParameterId, TYPE_CLASS, 0, DeclSpecifiers(), true, TEMPLATEPARAMETERS_NULL, false, TEMPLATEARGUMENTS_NULL, 0);
 
+struct BuiltInTemplateTemplateArgument : UniqueTypeId
+{
+	BuiltInTemplateTemplateArgument(Declaration* declaration)
+	{
+		value = pushBuiltInType(value, TemplateTemplateArgument(declaration));
+	}
+};
+
+BuiltInTemplateTemplateArgument gTemplateTemplateArgument(&gTemplateClassDeclaration);
+
+struct BuiltInNonType : UniqueTypeId
+{
+	BuiltInNonType(IntegralConstant constant)
+	{
+		value = pushBuiltInType(value, NonType(constant));
+	}
+};
+
+BuiltInNonType gZero(IntegralConstant(0));
+BuiltInNonType gOne(IntegralConstant(1));
+
+struct BuiltInDependentNonType : UniqueTypeId
+{
+	BuiltInDependentNonType(DeclarationPtr declaration)
+	{
+		value = pushBuiltInType(value, DependentNonType(declaration));
+	}
+};
+
+BuiltInDependentNonType gDependentNonType(&gNonTypeTemplateParameterDeclaration);
 
 struct Base
 {
@@ -250,16 +285,18 @@ struct Derived : Base
 {
 };
 
-template<typename T>
+template<typename T, int i>
 struct Template
 {
 };
+
+const int NONTYPE_PARAM = INT_MAX;
 
 struct T
 {
 };
 
-template<typename T>
+template<typename T, int i>
 struct TT
 {
 };
@@ -343,14 +380,33 @@ struct MakeType<Derived>
 	}
 };
 
-template<typename T>
-struct MakeType< Template<T> >
+struct MakeTemplate
+{
+	static UniqueTypeWrapper apply(Declaration* declaration, UniqueTypeWrapper a1, UniqueTypeWrapper a2)
+	{
+		ObjectType result(TypeInstance(declaration, 0));
+		result.type.templateArguments.push_back(a1);
+		result.type.templateArguments.push_back(a2);
+		return UniqueTypeWrapper(pushBuiltInType(UNIQUETYPE_NULL, result));
+	}
+};
+
+template<typename T, int i>
+struct MakeType< Template<T, i> >
 {
 	static UniqueTypeWrapper apply()
 	{
-		ObjectType result(TypeInstance(&gTemplateClassDeclaration, 0));
-		result.type.templateArguments.push_back(MakeType<T>::apply());
-		return UniqueTypeWrapper(pushBuiltInType(UNIQUETYPE_NULL, result));
+		return MakeTemplate::apply(&gTemplateClassDeclaration, MakeType<T>::apply(), BuiltInNonType(IntegralConstant(i)));
+	}
+};
+
+
+template<typename T>
+struct MakeType< Template<T, NONTYPE_PARAM> >
+{
+	static UniqueTypeWrapper apply()
+	{
+		return MakeTemplate::apply(&gTemplateClassDeclaration,  MakeType<T>::apply(), gDependentNonType);
 	}
 };
 
@@ -363,14 +419,32 @@ struct MakeType<T>
 	}
 };
 
-template<typename T>
-struct MakeType< TT<T> >
+struct MakeTemplateTemplateParameter
+{
+	static UniqueTypeWrapper apply(Declaration* declaration, UniqueTypeWrapper a1, UniqueTypeWrapper a2)
+	{
+		DependentType result(declaration);
+		result.templateArguments.push_back(a1);
+		result.templateArguments.push_back(a2);
+		return UniqueTypeWrapper(pushBuiltInType(UNIQUETYPE_NULL, result));
+	}
+};
+
+template<typename T, int i>
+struct MakeType< TT<T, i> >
 {
 	static UniqueTypeWrapper apply()
 	{
-		DependentType result(&gTemplateTemplateParameterDeclaration);
-		result.templateArguments.push_back(MakeType<T>::apply());
-		return UniqueTypeWrapper(pushBuiltInType(UNIQUETYPE_NULL, result));
+		return MakeTemplateTemplateParameter::apply(&gTemplateTemplateParameterDeclaration, MakeType<T>::apply(), BuiltInNonType(IntegralConstant(i)));
+	}
+};
+
+template<typename T>
+struct MakeType< TT<T, NONTYPE_PARAM> >
+{
+	static UniqueTypeWrapper apply()
+	{
+		return MakeTemplateTemplateParameter::apply(&gTemplateTemplateParameterDeclaration, MakeType<T>::apply(), gDependentNonType);
 	}
 };
 
@@ -590,7 +664,7 @@ inline void testTypeGen()
 	UniqueTypeWrapper test14 = MakeType<int (Base::*)(int) const>::apply();
 	UniqueTypeWrapper test15 = MakeType<int (Base::*const)(int)>::apply();
 
-	UniqueTypeWrapper test16 = MakeType< Template<int> >::apply();
+	UniqueTypeWrapper test16 = MakeType< Template<int, 1> >::apply();
 
 	FileTokenPrinter tokenPrinter(std::cout);
 	SymbolPrinter symbolPrinter(tokenPrinter);
@@ -892,18 +966,31 @@ struct IcsRankTest
 template<typename P, typename A, typename R = void>
 struct TestDeduction
 {
-	static void apply(UniqueTypeWrapper expected = MakeType<R>::apply())
+	static void apply(const TemplateArgumentsInstance& expected)
 	{
-		TemplateArgumentsInstance templateArguments(1, gUniqueTypeNull);
+		TemplateArgumentsInstance templateArguments(expected.size(), gUniqueTypeNull);
 		bool result = deduce(MakeType<P>::apply(), MakeType<A>::apply(), templateArguments);
 		if(result)
 		{
-			SYMBOLS_ASSERT(templateArguments[0] == expected);
+			SYMBOLS_ASSERT(templateArguments == expected);
 		}
 		else
 		{
-			SYMBOLS_ASSERT(gUniqueTypeNull == expected);
+			SYMBOLS_ASSERT(gUniqueTypeNull == expected[0]);
 		}
+	}
+	static void apply(UniqueTypeWrapper expected = MakeType<R>::apply())
+	{
+		TemplateArgumentsInstance tmp;
+		tmp.push_back(expected);
+		apply(tmp);
+	}
+	static void apply(UniqueTypeWrapper expected, UniqueTypeWrapper expected2)
+	{
+		TemplateArgumentsInstance tmp;
+		tmp.push_back(expected);
+		tmp.push_back(expected2);
+		apply(tmp);
 	}
 };
 
@@ -983,15 +1070,13 @@ void testDeduction()
 	TestDeduction<T (T::*)(),			type (type::*)()>::apply(gBaseClass);
 	TestDeduction<T (T::*)(T),			type (type::*)(type)>::apply(gBaseClass);
 
-	TestDeduction<Template<T>,			Template<int> >::apply(gSignedInt);
-	TestDeduction<TT<int>,				Template<int>, Template<int> >::apply();
+	const int i = NONTYPE_PARAM;
 
-	// TODO: T[integer-constant]
+	TestDeduction<Template<T, i>, Template<int, 1> >::apply(gSignedInt, gOne);
+	TestDeduction<TT<int, i>, Template<int, 1> >::apply(gTemplateTemplateArgument, gOne);
+	TestDeduction<TT<int, 1>, Template<int, 1> >::apply(gTemplateTemplateArgument);
+
 	// TODO: type[i]
-	// TODO: template-name<i> (where template-name refers to a class template)
-	// TODO: TT<T>
-	// TODO: TT<i>
-	// TODO: TT<>
 
 	// expected to fail because T cannot be deduced
 	TestDeduction<int, int>::apply(gUniqueTypeNull);
@@ -1003,6 +1088,8 @@ void testDeduction()
 	TestDeduction<T(*)(T), int>::apply(gUniqueTypeNull);
 	TestDeduction<const T, int>::apply(gUniqueTypeNull);
 	TestDeduction<const T*, int*>::apply(gUniqueTypeNull);
+	TestDeduction<TT<int, 1>, int >::apply(gUniqueTypeNull);
+	TestDeduction<Template<T, 1>, int >::apply(gUniqueTypeNull);
 
 	// expected to fail due to multiple deductions of T
 	TestDeduction<T(*)(T), int(*)(float)>::apply(gUniqueTypeNull);

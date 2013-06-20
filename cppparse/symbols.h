@@ -1472,6 +1472,7 @@ struct TypeElementVisitor
 	virtual void visit(const struct DependentType&) = 0;
 	virtual void visit(const struct DependentTypename&) = 0;
 	virtual void visit(const struct DependentNonType&) = 0;
+	virtual void visit(const struct TemplateTemplateArgument&) = 0;
 	virtual void visit(const struct NonType&) = 0;
 	virtual void visit(const struct ObjectType&) = 0;
 	virtual void visit(const struct PointerType&) = 0;
@@ -1820,6 +1821,20 @@ inline const TypeInstance& getObjectType(UniqueType type)
 }
 
 
+struct TemplateTemplateArgument
+{
+	DeclarationPtr declaration; // the primary declaration of the template template argument
+	TemplateTemplateArgument(Declaration* declaration)
+		: declaration(declaration)
+	{
+	}
+};
+
+inline bool operator<(const TemplateTemplateArgument& left, const TemplateTemplateArgument& right)
+{
+	return left.declaration.p < right.declaration.p;
+}
+
 struct DependentType
 {
 	DeclarationPtr type; // the declaration of the template parameter
@@ -1867,11 +1882,16 @@ inline bool operator<(const DependentTypename& left, const DependentTypename& ri
 struct DependentNonType
 {
 	// TODO: contains dependent expression
+	DeclarationPtr declaration;
+	DependentNonType(DeclarationPtr declaration)
+		: declaration(declaration)
+	{
+	}
 };
 
 inline bool operator<(const DependentNonType& left, const DependentNonType& right)
 {
-	return false;
+	return left.declaration.p < right.declaration.p;
 }
 
 
@@ -2310,9 +2330,14 @@ struct IdExpression
 	}
 };
 
+inline bool isIdExpression(ExpressionNode* node)
+{
+	return typeid(*node) == typeid(ExpressionNodeGeneric<IdExpression>);
+}
+
 inline const IdExpression& getIdExpression(ExpressionNode* node)
 {
-	SYMBOLS_ASSERT(typeid(*node) == typeid(ExpressionNodeGeneric<IdExpression>));
+	SYMBOLS_ASSERT(isIdExpression(node));
 	return static_cast<const ExpressionNodeGeneric<IdExpression>*>(node)->value;
 }
 
@@ -2553,6 +2578,12 @@ inline IntegralConstant evaluateExpression(ExpressionNode* node, Location source
 	return visitor.result;
 }
 
+// if this expression is of the form 'i' where 'i' is a non-type template parameter, returns the declaration of the non-type template parameter
+inline Declaration* evaluateDependentExpression(ExpressionNode* node)
+{
+	return isIdExpression(node) ? getIdExpression(node).declaration : 0;
+}
+
 
 
 // ----------------------------------------------------------------------------
@@ -2606,7 +2637,10 @@ struct IsDependentVisitor : TypeElementVisitor
 	}
 	virtual void visit(const DependentNonType&)
 	{
-		// TODO
+		// TODO:
+	}
+	virtual void visit(const TemplateTemplateArgument&)
+	{
 	}
 	virtual void visit(const NonType&)
 	{
@@ -2658,104 +2692,6 @@ inline bool isDependent(UniqueTypeWrapper type)
 	return false;
 }
 
-#if 0
-inline bool isNonType(UniqueTypeWrapper type);
-
-inline bool isNonType(const UniqueTypeArray& types)
-{
-	for(UniqueTypeArray::const_iterator i = types.begin(); i != types.end(); ++i)
-	{
-		if(isNonType(*i))
-		{
-			return true;
-		}
-	}
-	return false;
-}
-
-
-inline bool isNonType(const TypeInstance& type)
-{
-	if(type.enclosing
-		&& isNonType(*type.enclosing))
-	{
-		return true;
-	}
-	if(isNonType(type.templateArguments))
-	{
-		return true;
-	}
-	return false;
-}
-
-
-struct IsNonTypeVisitor : TypeElementVisitor
-{
-	bool result;
-	IsNonTypeVisitor()
-		: result(false)
-	{
-	}
-	virtual void visit(const DependentType&)
-	{
-	}
-	virtual void visit(const DependentTypename&)
-	{
-	}
-	virtual void visit(const DependentNonType&)
-	{
-	}
-	virtual void visit(const NonType&)
-	{
-		result = true;
-	}
-	virtual void visit(const ObjectType& element)
-	{
-		if(isNonType(element.type))
-		{
-			result = true;
-		}
-	}
-	virtual void visit(const PointerType&)
-	{
-	}
-	virtual void visit(const ReferenceType&)
-	{
-	}
-	virtual void visit(const ArrayType&)
-	{
-	}
-	virtual void visit(const MemberPointerType& element)
-	{
-		if(isNonType(element.type))
-		{
-			result = true;
-		}
-	}
-	virtual void visit(const FunctionType& element)
-	{
-		if(isNonType(element.parameterTypes))
-		{
-			result = true;
-		}
-	}
-};
-
-
-inline bool isNonType(UniqueTypeWrapper type)
-{
-	for(UniqueTypeWrapper i = type; !i.empty(); i.pop_front())
-	{
-		IsNonTypeVisitor visitor;
-		i.value->accept(visitor);
-		if(visitor.result)
-		{
-			return true;
-		}
-	}
-	return false;
-}
-#endif
 
 // ----------------------------------------------------------------------------
 // template argument deduction
@@ -2801,14 +2737,9 @@ struct DeduceVisitor : TypeElementVisitor
 		: argument(argument), templateArguments(templateArguments), result(true)
 	{
 	}
-	virtual void visit(const DependentType& element)
+	void commit(std::size_t index)
 	{
-		std::size_t index = element.type->templateParameter;
-		if(element.type->isTemplate
-			&& argument.isSimple()) // template-template-parameter may have template-arguments that refer to a template parameter
-		{
-			result = deduce(element.templateArguments, getObjectType(argument.value).templateArguments, templateArguments);
-		}
+		SYMBOLS_ASSERT(index != INDEX_INVALID);
 		SYMBOLS_ASSERT(index < templateArguments.size());
 		if(templateArguments[index] == gUniqueTypeNull) // if this argument was not already deduced (or explicitly specified)
 		{
@@ -2819,16 +2750,42 @@ struct DeduceVisitor : TypeElementVisitor
 			result = false;
 		}
 	}
+	virtual void visit(const DependentType& element)
+	{
+		if(element.type->isTemplate)
+		{
+			if(!argument.isSimple())
+			{
+				result = false;
+				return;
+			}
+			const TypeInstance& type = getObjectType(argument.value);
+			if(!type.declaration->isTemplate
+				|| !deduce(element.templateArguments, type.templateArguments, templateArguments)) // template-template-parameter may have template-arguments that refer to a template parameter
+			{
+				result = false;
+				return;
+			}
+			argument = gUniqueTypeNull;
+			argument.push_front(TemplateTemplateArgument(type.declaration));
+		}
+		commit(element.type->templateParameter);
+	}
 	virtual void visit(const DependentTypename&)
 	{
-		// TODO
+		// cannot deduce from T::
 	}
-	virtual void visit(const DependentNonType&)
+	virtual void visit(const DependentNonType& element)
 	{
-		// TODO
+		commit(element.declaration->templateParameter);
+	}
+	virtual void visit(const TemplateTemplateArgument& element)
+	{
+		// cannot deduce from name of primary template
 	}
 	virtual void visit(const NonType&)
 	{
+		// cannot deduce from integral constant expression
 	}
 	virtual void visit(const ObjectType& element)
 	{
@@ -2842,12 +2799,15 @@ struct DeduceVisitor : TypeElementVisitor
 	}
 	virtual void visit(const PointerType&)
 	{
+		// cannot deduce from pointer
 	}
 	virtual void visit(const ReferenceType&)
 	{
+		// cannot deduce from reference
 	}
 	virtual void visit(const ArrayType&)
 	{
+		// TODO: deduce type-name[i]
 	}
 	virtual void visit(const MemberPointerType& element)
 	{
@@ -2871,7 +2831,7 @@ inline bool deduce(UniqueTypeWrapper parameter, UniqueTypeWrapper argument, Temp
 		{
 			return false;
 		}
-		if(parameter.isDependent())
+		if(parameter.isDependent()) // TODO only relevant if this is a DependentType?
 		{
 			CvQualifiers qualifiers = argument.value.getQualifiers();
 			if(parameter.value.getQualifiers().isConst
@@ -3054,9 +3014,13 @@ struct SubstituteVisitor : TypeElementVisitor
 	{
 		type.push_front(element); // TODO substitute dependent expressions
 	}
+	virtual void visit(const TemplateTemplateArgument& element)
+	{
+		type.push_front(element);
+	}
 	virtual void visit(const NonType& element)
 	{
-		type.push_front(element); // TODO substitute dependent expressions
+		type.push_front(element);
 	}
 	virtual void visit(const ObjectType& element)
 	{
@@ -3541,7 +3505,7 @@ inline void makeSpecializationArguments(Declaration* declaration, TemplateArgume
 		if((*i).type.declaration == &gNonType)
 		{
 			(*i).expression.isValueDependent
-				? pushUniqueType(type.value, DependentNonType())
+				? pushUniqueType(type.value, DependentNonType(evaluateDependentExpression((*i).expression)))
 				: pushUniqueType(type.value, NonType((*i).expression.isConstant ? evaluateExpression((*i).expression, source, enclosing) : IntegralConstant(0)));
 		}
 		else
@@ -3569,7 +3533,7 @@ inline void makePrimaryArguments(Declaration* declaration, TemplateArgumentsInst
 		else
 		{
 			// TODO: value for non-type parameter
-			pushUniqueType(result.value, DependentNonType());
+			pushUniqueType(result.value, DependentNonType(0));
 		}
 		arguments.push_back(result);
 	}
@@ -3670,7 +3634,7 @@ inline void makeUniqueTemplateArguments(const TemplateArguments& arguments, Temp
 		if(argument.type.declaration == &gNonType)
 		{
 			/* allowDependent &&*/ argument.expression.isValueDependent // for now, do not evaluate dependent expressions!
-				? pushUniqueType(result.value, DependentNonType())
+				? pushUniqueType(result.value, DependentNonType(evaluateDependentExpression(argument.expression)))
 				: pushUniqueType(result.value, NonType(argument.expression.isConstant ? evaluateExpression(argument.expression, source, enclosingType) : IntegralConstant(0)));
 		}
 		else
@@ -3880,7 +3844,7 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const
 				if(argument.type.declaration == &gNonType)
 				{
 					/* allowDependent &&*/ argument.expression.isValueDependent // for now, do not evaluate dependent expressions!
-						? pushUniqueType(result.value, DependentNonType())
+						? pushUniqueType(result.value, DependentNonType(evaluateDependentExpression(argument.expression)))
 						: pushUniqueType(result.value, NonType(argument.expression.isConstant ? evaluateExpression(argument.expression, source, enclosingType) : IntegralConstant(0)));
 				}
 				else
@@ -5598,6 +5562,11 @@ struct SymbolPrinter : TypeElementVisitor
 	virtual void visit(const DependentNonType& element)
 	{
 		printer.out << "$nontype";
+		visitTypeElement();
+	}
+	virtual void visit(const TemplateTemplateArgument& element)
+	{
+		printName(element.declaration);
 		visitTypeElement();
 	}
 	virtual void visit(const NonType& element)

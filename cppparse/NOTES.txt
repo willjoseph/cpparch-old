@@ -137,6 +137,10 @@
 		- likewise, what causes <const T> and 'const int' to deduce 'int' ?
 	- deduction for non-type
 	- substitution for non-type
+	- substitute while deducing?
+		- [temp.deduct] When all template arguments have been deduced, all uses of template parameters in
+			nondeduced contexts are replaced with the corresponding deduced argument values. If the substitution
+			results in an invalid type, as described above, type deduction fails.
 
 - task: correct name lookup for template explicit/partial specializations
 	- [temp.class.spec] Partial specialization declarations themselves are not found by name lookup.
