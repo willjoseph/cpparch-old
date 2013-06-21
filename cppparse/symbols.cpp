@@ -274,7 +274,7 @@ struct BuiltInDependentNonType : UniqueTypeId
 {
 	BuiltInDependentNonType(DeclarationPtr declaration)
 	{
-		value = pushBuiltInType(value, DependentNonType(declaration));
+		value = pushBuiltInType(value, DependentNonType(makeBuiltInExpression(NonTypeTemplateParameter(declaration))));
 	}
 };
 

@@ -809,7 +809,7 @@ struct IndirectSet
 struct ExpressionNodeVisitor
 {
 	virtual void visit(const struct IntegralConstantExpression&) = 0; // literal
-	virtual void visit(const struct DependentNonType&) = 0; // non-type template parameter
+	virtual void visit(const struct NonTypeTemplateParameter&) = 0; // non-type template parameter
 	virtual void visit(const struct DependentIdExpression&) = 0; // T::name
 	virtual void visit(const struct IdExpression&) = 0; // enumerator, const variable, static data member, non-type template parameter
 	virtual void visit(const struct SizeofExpression&) = 0;
@@ -1976,27 +1976,16 @@ inline bool operator<(const DependentTypename& left, const DependentTypename& ri
 
 struct DependentNonType
 {
-	// TODO: contains dependent expression
-	DeclarationPtr declaration;
-	DependentNonType(DeclarationPtr declaration)
-		: declaration(declaration)
+	UniqueExpression expression;
+	DependentNonType(UniqueExpression expression)
+		: expression(expression)
 	{
 	}
 };
 
 inline bool operator<(const DependentNonType& left, const DependentNonType& right)
 {
-	if(left.declaration.p == 0)
-	{
-		return right.declaration.p != 0;
-	}
-	if(right.declaration.p == 0)
-	{
-		return false;
-	}
-	return left.declaration->scope->templateDepth != right.declaration->scope->templateDepth
-		? left.declaration->scope->templateDepth < right.declaration->scope->templateDepth
-		: left.declaration->templateParameter < right.declaration->templateParameter;
+	return left.expression < right.expression;
 }
 
 
@@ -2460,15 +2449,32 @@ inline const IdExpression& getIdExpression(ExpressionNode* node)
 	return static_cast<const ExpressionNodeGeneric<IdExpression>*>(node)->value;
 }
 
-inline bool isNonTypeTemplateParameter(ExpressionNode* node)
+
+struct NonTypeTemplateParameter
 {
-	return typeid(*node) == typeid(ExpressionNodeGeneric<DependentNonType>);
+	DeclarationPtr declaration;
+	NonTypeTemplateParameter(DeclarationPtr declaration)
+		: declaration(declaration)
+	{
+	}
+};
+
+inline bool operator<(const NonTypeTemplateParameter& left, const NonTypeTemplateParameter& right)
+{
+	return left.declaration->scope->templateDepth != right.declaration->scope->templateDepth
+		? left.declaration->scope->templateDepth < right.declaration->scope->templateDepth
+		: left.declaration->templateParameter < right.declaration->templateParameter;
 }
 
-inline const DependentNonType& getNonTypeTemplateParameter(ExpressionNode* node)
+inline bool isNonTypeTemplateParameter(ExpressionNode* node)
+{
+	return typeid(*node) == typeid(ExpressionNodeGeneric<NonTypeTemplateParameter>);
+}
+
+inline const NonTypeTemplateParameter& getNonTypeTemplateParameter(ExpressionNode* node)
 {
 	SYMBOLS_ASSERT(isNonTypeTemplateParameter(node));
-	return static_cast<const ExpressionNodeGeneric<DependentNonType>*>(node)->value;
+	return static_cast<const ExpressionNodeGeneric<NonTypeTemplateParameter>*>(node)->value;
 }
 
 struct SizeofExpression
@@ -2587,7 +2593,7 @@ struct TypeofVisitor : ExpressionNodeVisitor
 	{
 		result = literal.type;
 	}
-	void visit(const DependentNonType& node)
+	void visit(const NonTypeTemplateParameter& node)
 	{
 		// TODO: evaluate non-type template parameter
 	}
@@ -2712,7 +2718,7 @@ struct EvaluateVisitor : ExpressionNodeVisitor
 	{
 		result = literal.value;
 	}
-	void visit(const DependentNonType& node)
+	void visit(const NonTypeTemplateParameter& node)
 	{
 		size_t index = node.declaration->templateParameter;
 		SYMBOLS_ASSERT(index != INDEX_INVALID);
@@ -2782,13 +2788,6 @@ inline IntegralConstant evaluateExpression(ExpressionNode* node, Location source
 	node->accept(visitor);
 	return visitor.result;
 }
-
-// if this expression is of the form 'i' where 'i' is a non-type template parameter, returns the declaration of the non-type template parameter
-inline Declaration* evaluateDependentExpression(ExpressionNode* node)
-{
-	return isNonTypeTemplateParameter(node) ? getNonTypeTemplateParameter(node).declaration : 0;
-}
-
 
 
 // ----------------------------------------------------------------------------
@@ -2982,7 +2981,12 @@ struct DeduceVisitor : TypeElementVisitor
 	}
 	virtual void visit(const DependentNonType& element)
 	{
-		commit(element.declaration->templateParameter);
+		// if this expression is of the form 'i' where 'i' is a non-type template parameter
+		if(isNonTypeTemplateParameter(element.expression))
+		{
+			// deduce the argument from the name of the non-type template parameter
+			commit(getNonTypeTemplateParameter(element.expression).declaration->templateParameter);
+		}
 	}
 	virtual void visit(const TemplateTemplateArgument& element)
 	{
@@ -3693,7 +3697,7 @@ inline void makeSpecializationArguments(Declaration* declaration, TemplateArgume
 		if((*i).type.declaration == &gNonType)
 		{
 			(*i).expression.isValueDependent
-				? pushUniqueType(type.value, DependentNonType(evaluateDependentExpression((*i).expression)))
+				? pushUniqueType(type.value, DependentNonType((*i).expression))
 				: pushUniqueType(type.value, NonType((*i).expression.isConstant ? evaluateExpression((*i).expression, source, enclosing) : IntegralConstant(0)));
 		}
 		else
@@ -3720,8 +3724,7 @@ inline void makePrimaryArguments(Declaration* declaration, TemplateArgumentsInst
 		}
 		else
 		{
-			// TODO: value for non-type parameter
-			pushUniqueType(result.value, DependentNonType(0));
+			pushUniqueType(result.value, DependentNonType(makeExpression(NonTypeTemplateParameter(argument.declaration))));
 		}
 		arguments.push_back(result);
 	}
@@ -3822,7 +3825,7 @@ inline void makeUniqueTemplateArguments(const TemplateArguments& arguments, Temp
 		if(argument.type.declaration == &gNonType)
 		{
 			/* allowDependent &&*/ argument.expression.isValueDependent // for now, do not evaluate dependent expressions!
-				? pushUniqueType(result.value, DependentNonType(evaluateDependentExpression(argument.expression)))
+				? pushUniqueType(result.value, DependentNonType(argument.expression))
 				: pushUniqueType(result.value, NonType(argument.expression.isConstant ? evaluateExpression(argument.expression, source, enclosingType) : IntegralConstant(0)));
 		}
 		else
@@ -4032,7 +4035,7 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const
 				if(argument.type.declaration == &gNonType)
 				{
 					/* allowDependent &&*/ argument.expression.isValueDependent // for now, do not evaluate dependent expressions!
-						? pushUniqueType(result.value, DependentNonType(evaluateDependentExpression(argument.expression)))
+						? pushUniqueType(result.value, DependentNonType(argument.expression))
 						: pushUniqueType(result.value, NonType(argument.expression.isConstant ? evaluateExpression(argument.expression, source, enclosingType) : IntegralConstant(0)));
 				}
 				else

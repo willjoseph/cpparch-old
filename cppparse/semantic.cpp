@@ -1901,7 +1901,7 @@ struct PrimaryExpressionWalker : public WalkerBase
 			expression = ExpressionWrapper(
 				declaration->templateParameter == INDEX_INVALID
 					? makeExpression(IdExpression(declaration, qualifying))
-					: makeExpression(DependentNonType(declaration)),
+					: makeExpression(NonTypeTemplateParameter(declaration)),
 				false,
 				isDependent(typeDependent),
 				isDependent(valueDependent)
