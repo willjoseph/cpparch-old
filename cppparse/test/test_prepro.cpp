@@ -1,4 +1,48 @@
 
+
+namespace N054
+{
+	template<bool C_>
+	struct bool_;
+
+	template<bool C_>
+	struct bool_
+	{
+		typedef bool_ type;
+	};
+
+	bool_<false>::type x;
+}
+
+
+namespace N190
+{
+	template<bool b>
+	struct B
+	{
+		typedef int False;
+	};
+	template<>
+	struct B<true>
+	{
+		typedef int True;
+	};
+
+	template<typename T>
+	struct D : B<T::value> // dependent id-expression as non-type template-argument
+	{
+	};
+
+	template<bool a>
+	struct A
+	{
+		static const bool value = a;
+	};
+
+	typedef D<A<true> >::True True;
+	typedef D<A<false> >::False False;
+}
+
 namespace N131
 {
 	template<typename T>
@@ -39,35 +83,6 @@ namespace N129
 	int i = A<int>::D::g();
 }
 
-#if 0
-namespace N190
-{
-	template<bool b>
-	struct B
-	{
-		typedef int False;
-	};
-	template<>
-	struct B<true>
-	{
-		typedef int True;
-	};
-
-	template<typename T>
-	struct D : B<T::value> // dependent id-expression as non-type template-argument
-	{
-	};
-
-	template<bool a>
-	struct A
-	{
-		static const bool value = a;
-	};
-
-	typedef D<A<true> >::True True;
-	typedef D<A<false> >::False False;
-}
-#endif
 
 namespace N192
 {
@@ -2667,21 +2682,6 @@ namespace N048
 		void f(Tmpl); // declaration
 		void f(int); // declaration
 	};
-}
-
-
-namespace N054
-{
-	template<bool C_>
-	struct bool_;
-
-	template<bool C_>
-	struct bool_
-	{
-		typedef bool_ type;
-	};
-
-	bool_<false>::type x;
 }
 
 

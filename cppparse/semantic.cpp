@@ -1868,7 +1868,7 @@ struct PrimaryExpressionWalker : public WalkerBase
 
 				expression = ExpressionWrapper(
 					makeExpression(DependentIdExpression(id->value, qualifying)),
-					false,
+					true, // TODO: expression depending on template parameter may or may not be an integral constant expression
 					true,
 					true
 				);

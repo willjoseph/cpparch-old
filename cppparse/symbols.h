@@ -2725,9 +2725,11 @@ struct EvaluateVisitor : ExpressionNodeVisitor
 		const TypeInstance* enclosingType = findEnclosingTemplate(enclosing, node.declaration->scope);
 		SYMBOLS_ASSERT(enclosingType != 0);
 		SYMBOLS_ASSERT(!isDependent(*enclosingType)); // assert that the enclosing type is not dependent
-		SYMBOLS_ASSERT(!enclosingType->declaration->isSpecialization); // partial-specializations not supported!
-		SYMBOLS_ASSERT(index < enclosingType->templateArguments.size());
-		UniqueTypeWrapper argument = enclosingType->templateArguments[index];
+		SYMBOLS_ASSERT(!enclosingType->declaration->isSpecialization || enclosingType->instantiated); // a specialization must be instantiated (or in the process of instantiating)
+		const TemplateArgumentsInstance& templateArguments = enclosingType->declaration->isSpecialization
+			? enclosingType->deducedArguments : enclosingType->templateArguments;
+		SYMBOLS_ASSERT(index < templateArguments.size());
+		UniqueTypeWrapper argument = templateArguments[index];
 		SYMBOLS_ASSERT(argument.isNonType());
 		result = getNonTypeValue(argument.value);
 	}
@@ -2841,7 +2843,7 @@ struct IsDependentVisitor : TypeElementVisitor
 	}
 	virtual void visit(const DependentNonType&)
 	{
-		// TODO:
+		result = true;
 	}
 	virtual void visit(const TemplateTemplateArgument&)
 	{
@@ -3203,7 +3205,7 @@ struct SubstituteVisitor : TypeElementVisitor
 	}
 	virtual void visit(const DependentNonType& element)
 	{
-		type.push_front(element); // TODO substitute dependent expressions
+		type.push_front(NonType(evaluateExpression(element.expression, NAME_NULL, &enclosingType))); // TODO: source
 	}
 	virtual void visit(const TemplateTemplateArgument& element)
 	{
@@ -3696,7 +3698,7 @@ inline void makeSpecializationArguments(Declaration* declaration, TemplateArgume
 		extern Declaration gNonType;
 		if((*i).type.declaration == &gNonType)
 		{
-			(*i).expression.isValueDependent
+			allowDependent || (*i).expression.isValueDependent
 				? pushUniqueType(type.value, DependentNonType((*i).expression))
 				: pushUniqueType(type.value, NonType((*i).expression.isConstant ? evaluateExpression((*i).expression, source, enclosing) : IntegralConstant(0)));
 		}
@@ -3724,7 +3726,10 @@ inline void makePrimaryArguments(Declaration* declaration, TemplateArgumentsInst
 		}
 		else
 		{
-			pushUniqueType(result.value, DependentNonType(makeExpression(NonTypeTemplateParameter(argument.declaration))));
+			UniqueExpression expression = makeExpression(NonTypeTemplateParameter(argument.declaration));
+			allowDependent
+				? pushUniqueType(result.value, DependentNonType(expression))
+				: pushUniqueType(result.value, NonType(evaluateExpression(expression, source, enclosing)));
 		}
 		arguments.push_back(result);
 	}
@@ -3824,7 +3829,7 @@ inline void makeUniqueTemplateArguments(const TemplateArguments& arguments, Temp
 		extern Declaration gNonType;
 		if(argument.type.declaration == &gNonType)
 		{
-			/* allowDependent &&*/ argument.expression.isValueDependent // for now, do not evaluate dependent expressions!
+			allowDependent && argument.expression.isValueDependent // for now, do not evaluate dependent expressions!
 				? pushUniqueType(result.value, DependentNonType(argument.expression))
 				: pushUniqueType(result.value, NonType(argument.expression.isConstant ? evaluateExpression(argument.expression, source, enclosingType) : IntegralConstant(0)));
 		}
@@ -4034,7 +4039,7 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const
 				extern Declaration gNonType;
 				if(argument.type.declaration == &gNonType)
 				{
-					/* allowDependent &&*/ argument.expression.isValueDependent // for now, do not evaluate dependent expressions!
+					allowDependent && argument.expression.isValueDependent // for now, do not evaluate dependent expressions!
 						? pushUniqueType(result.value, DependentNonType(argument.expression))
 						: pushUniqueType(result.value, NonType(argument.expression.isConstant ? evaluateExpression(argument.expression, source, enclosingType) : IntegralConstant(0)));
 				}
