@@ -746,6 +746,7 @@ inline IntegralConstant conditional(IntegralConstant first, IntegralConstant sec
 struct ExpressionNodeVisitor
 {
 	virtual void visit(const struct IntegralConstantExpression&) = 0; // literal
+	virtual void visit(const struct DependentNonType&) = 0; // non-type template parameter
 	virtual void visit(const struct DependentIdExpression&) = 0; // T::name
 	virtual void visit(const struct IdExpression&) = 0; // enumerator, const variable, static data member, non-type template parameter
 	virtual void visit(const struct SizeofExpression&) = 0;
@@ -1891,7 +1892,17 @@ struct DependentNonType
 
 inline bool operator<(const DependentNonType& left, const DependentNonType& right)
 {
-	return left.declaration.p < right.declaration.p;
+	if(left.declaration.p == 0)
+	{
+		return right.declaration.p != 0;
+	}
+	if(right.declaration.p == 0)
+	{
+		return false;
+	}
+	return left.declaration->scope->templateDepth != right.declaration->scope->templateDepth
+		? left.declaration->scope->templateDepth < right.declaration->scope->templateDepth
+		: left.declaration->templateParameter < right.declaration->templateParameter;
 }
 
 
@@ -2341,6 +2352,16 @@ inline const IdExpression& getIdExpression(ExpressionNode* node)
 	return static_cast<const ExpressionNodeGeneric<IdExpression>*>(node)->value;
 }
 
+inline bool isNonTypeTemplateParameter(ExpressionNode* node)
+{
+	return typeid(*node) == typeid(ExpressionNodeGeneric<DependentNonType>);
+}
+
+inline const DependentNonType& getNonTypeTemplateParameter(ExpressionNode* node)
+{
+	SYMBOLS_ASSERT(isNonTypeTemplateParameter(node));
+	return static_cast<const ExpressionNodeGeneric<DependentNonType>*>(node)->value;
+}
 
 struct SizeofExpression
 {
@@ -2414,6 +2435,10 @@ struct TypeofVisitor : ExpressionNodeVisitor
 	{
 		result = literal.type;
 	}
+	void visit(const DependentNonType& node)
+	{
+		// TODO: evaluate non-type template parameter
+	}
 	void visit(const DependentIdExpression& node)
 	{
 		// TODO: name lookup
@@ -2463,18 +2488,7 @@ inline bool isDependent(const TypeInstance& type);
 
 inline IntegralConstant evaluateIdExpression(const Declaration* declaration, Location source, const TypeInstance* enclosing)
 {
-	size_t index = declaration->templateParameter;
-	if(index != INDEX_INVALID)
-	{
-		const TypeInstance* enclosingType = findEnclosingType(enclosing, declaration->scope);
-		SYMBOLS_ASSERT(enclosingType != 0);
-		SYMBOLS_ASSERT(!isDependent(*enclosingType)); // assert that the enclosing type is not dependent
-		SYMBOLS_ASSERT(!enclosingType->declaration->isSpecialization); // partial-specializations not supported!
-		SYMBOLS_ASSERT(index < enclosingType->templateArguments.size());
-		UniqueTypeWrapper argument = enclosingType->templateArguments[index];
-		SYMBOLS_ASSERT(argument.isNonType());
-		return getNonTypeValue(argument.value);
-	}
+	SYMBOLS_ASSERT(declaration->templateParameter == INDEX_INVALID);
 
 	const TypeInstance* memberEnclosing = isMember(*declaration) // if the declaration is a class member
 		? findEnclosingType(enclosing, declaration->scope) // it must be a member of (a base of) the qualifying class: find which one.
@@ -2519,6 +2533,19 @@ struct EvaluateVisitor : ExpressionNodeVisitor
 	void visit(const IntegralConstantExpression& literal)
 	{
 		result = literal.value;
+	}
+	void visit(const DependentNonType& node)
+	{
+		size_t index = node.declaration->templateParameter;
+		SYMBOLS_ASSERT(index != INDEX_INVALID);
+		const TypeInstance* enclosingType = findEnclosingType(enclosing, node.declaration->scope);
+		SYMBOLS_ASSERT(enclosingType != 0);
+		SYMBOLS_ASSERT(!isDependent(*enclosingType)); // assert that the enclosing type is not dependent
+		SYMBOLS_ASSERT(!enclosingType->declaration->isSpecialization); // partial-specializations not supported!
+		SYMBOLS_ASSERT(index < enclosingType->templateArguments.size());
+		UniqueTypeWrapper argument = enclosingType->templateArguments[index];
+		SYMBOLS_ASSERT(argument.isNonType());
+		result = getNonTypeValue(argument.value);
 	}
 	void visit(const DependentIdExpression& node)
 	{
@@ -2581,7 +2608,7 @@ inline IntegralConstant evaluateExpression(ExpressionNode* node, Location source
 // if this expression is of the form 'i' where 'i' is a non-type template parameter, returns the declaration of the non-type template parameter
 inline Declaration* evaluateDependentExpression(ExpressionNode* node)
 {
-	return isIdExpression(node) ? getIdExpression(node).declaration : 0;
+	return isNonTypeTemplateParameter(node) ? getNonTypeTemplateParameter(node).declaration : 0;
 }
 
 

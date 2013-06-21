@@ -1896,8 +1896,11 @@ struct PrimaryExpressionWalker : public WalkerBase
 
 			setDecoration(id, declaration);
 
+			SYMBOLS_ASSERT(declaration->templateParameter == INDEX_INVALID || walker.qualifying.empty()); // template params cannot be qualified
 			expression = ExpressionWrapper(
-				makeExpression(IdExpression(declaration, walker.qualifying)),
+				declaration->templateParameter == INDEX_INVALID
+					? makeExpression(IdExpression(declaration, walker.qualifying))
+					: makeExpression(DependentNonType(declaration)),
 				false,
 				isDependent(typeDependent),
 				isDependent(valueDependent)
