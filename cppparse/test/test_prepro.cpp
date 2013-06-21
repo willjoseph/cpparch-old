@@ -1,4 +1,43 @@
 
+namespace N131
+{
+	template<typename T>
+	struct S : T::Nested::X
+	{
+	};
+}
+
+namespace N129
+{
+	template<typename T>
+	struct A
+	{
+		struct B // B is dependent: could be explicitly specialized
+		{
+			static T g();
+		};
+
+		struct C
+		{
+			typedef int Type;
+#if 0
+			A<T>::C::Type m; // vcpp complains that 'C' is dependent, GCC, ICC and Clang do not
+			// 'C' names 'the template itself' because it is within the definition of 'C'
+#endif
+		};
+
+		struct D : B // B should not be evaluated
+		{
+			void f()
+			{
+				C::f(); // lookup of 'f' should be deferred
+				this->g(); // lookup of 'g' should be deferred
+			}
+		};
+	};
+
+	int i = A<int>::D::g();
+}
 
 #if 0
 namespace N190
@@ -1289,14 +1328,6 @@ namespace N028
 
 
 
-namespace N131
-{
-	template<typename T>
-	struct S : T::Nested::X
-	{
-	};
-}
-
 namespace N130
 {
 	template<typename T>
@@ -1319,38 +1350,6 @@ namespace N130
 
 
 	typedef S<C<int>::value < 8, N::S> Type; // attempted parse of 'value<8, N::S>' as a template-id should not produce an error
-}
-
-namespace N129
-{
-	template<typename T>
-	struct A
-	{
-		struct B // B is dependent: could be explicitly specialized
-		{
-			static T g();
-		};
-
-		struct C
-		{
-			typedef int Type;
-#if 0
-			A<T>::C::Type m; // vcpp complains that 'C' is dependent, GCC, ICC and Clang do not
-			// 'C' names 'the template itself' because it is within the definition of 'C'
-#endif
-		};
-
-		struct D : B // B should not be evaluated
-		{
-			void f()
-			{
-				C::f(); // lookup of 'f' should be deferred
-				this->g(); // lookup of 'g' should be deferred
-			}
-		};
-	};
-
-	int i = A<int>::D::g();
 }
 
 namespace N128

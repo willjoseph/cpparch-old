@@ -2324,8 +2324,8 @@ struct IntegralConstantExpression
 struct DependentIdExpression
 {
 	Name name;
-	Qualifying qualifying;
-	DependentIdExpression(Name name, const Qualifying& qualifying)
+	UniqueTypeWrapper qualifying;
+	DependentIdExpression(Name name, UniqueTypeWrapper qualifying)
 		: name(name), qualifying(qualifying)
 	{
 	}
@@ -2334,10 +2334,11 @@ struct DependentIdExpression
 struct IdExpression
 {
 	DeclarationPtr declaration;
-	Qualifying qualifying;
-	IdExpression(DeclarationPtr declaration, const Qualifying& qualifying)
+	UniqueTypeWrapper qualifying;
+	IdExpression(DeclarationPtr declaration, UniqueTypeWrapper qualifying)
 		: declaration(declaration), qualifying(qualifying)
 	{
+		SYMBOLS_ASSERT(qualifying.value.p != 0);
 	}
 };
 
@@ -2485,6 +2486,8 @@ inline UniqueTypeWrapper removeReference(UniqueTypeWrapper type);
 inline const TypeInstance* makeUniqueEnclosing(const Qualifying& qualifying, Location source, const TypeInstance* enclosing, bool allowDependent = false);
 inline const TypeInstance* findEnclosingType(const TypeInstance* enclosing, Scope* scope);
 inline bool isDependent(const TypeInstance& type);
+inline UniqueTypeWrapper substitute(UniqueTypeWrapper dependent, const TypeInstance& enclosingType);
+
 
 inline IntegralConstant evaluateIdExpression(const Declaration* declaration, Location source, const TypeInstance* enclosing)
 {
@@ -2499,16 +2502,24 @@ inline IntegralConstant evaluateIdExpression(const Declaration* declaration, Loc
 
 inline IntegralConstant evaluateIdExpression(const IdExpression& node, Location source, const TypeInstance* enclosing)
 {
-	enclosing = makeUniqueEnclosing(node.qualifying, source, enclosing);
+	if(node.qualifying != gUniqueTypeNull)
+	{
+		SYMBOLS_ASSERT(node.qualifying.isSimple());
+		enclosing = &getObjectType(node.qualifying.value);
+	}
 
 	return evaluateIdExpression(node.declaration, source, enclosing);
 }
 
 inline IntegralConstant evaluateIdExpression(const DependentIdExpression& node, Location source, const TypeInstance* enclosing)
 {
-	enclosing = makeUniqueEnclosing(node.qualifying, source, enclosing);
-
+	SYMBOLS_ASSERT(node.qualifying != gUniqueTypeNull);
 	SYMBOLS_ASSERT(enclosing != 0);
+
+	UniqueTypeWrapper substituted = substitute(node.qualifying, *enclosing);
+	SYMBOLS_ASSERT(substituted.isSimple());
+	enclosing = &getObjectType(substituted.value);
+
 	SYMBOLS_ASSERT(isClass(*enclosing->declaration));
 
 	instantiateClass(*enclosing, source);
@@ -2889,8 +2900,6 @@ inline bool deduce(UniqueTypeWrapper parameter, UniqueTypeWrapper argument, Temp
 
 extern ObjectTypeId gVoid;
 
-inline UniqueTypeWrapper substitute(UniqueTypeWrapper dependent, const TypeInstance& enclosingType);
-
 
 inline bool substitute(UniqueTypeArray& substituted, const UniqueTypeArray& dependent, const TypeInstance& enclosingType)
 {
@@ -2986,7 +2995,7 @@ struct SubstituteVisitor : TypeElementVisitor
 		SYMBOLS_ASSERT(index != INDEX_INVALID);
 		const TypeInstance* enclosingTemplate = findEnclosingTemplate(&enclosingType, element.type->scope);
 		SYMBOLS_ASSERT(enclosingTemplate != 0);
-		SYMBOLS_ASSERT(enclosingTemplate->instantiated); // must be instantiated (or in the process of instantiating)
+		SYMBOLS_ASSERT(!enclosingTemplate->declaration->isSpecialization || enclosingTemplate->instantiated); // a specialization must be instantiated (or in the process of instantiating)
 		const TemplateArgumentsInstance& templateArguments = enclosingTemplate->declaration->isSpecialization
 			? enclosingTemplate->deducedArguments : enclosingTemplate->templateArguments;
 		SYMBOLS_ASSERT(index < templateArguments.size());
@@ -3444,6 +3453,7 @@ inline const TypeInstance* makeUniqueEnclosing(const Qualifying& qualifying, Loc
 			return 0; // name is qualified by a namespace, therefore cannot be enclosed by a class
 		}
 		unique = makeUniqueType(qualifying.back(), source, enclosing, allowDependent, depth);
+		checkUniqueType(unique, qualifying.back(), enclosing, allowDependent);
 		if(allowDependent && unique.isDependent())
 		{
 			return 0;

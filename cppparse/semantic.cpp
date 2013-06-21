@@ -1850,6 +1850,10 @@ struct PrimaryExpressionWalker : public WalkerBase
 		// [temp.dep.expr] An id-expression is type-dependent if it contains:- a nested-name-specifier that contains a class-name that names a dependent type
 		setDependent(typeDependent, walker.qualifying.get());
 		setDependent(valueDependent, walker.qualifying.get()); // it's clearly value-dependent too, because name lookup must be deferred
+
+		UniqueTypeWrapper qualifying = walker.qualifying.empty() || isNamespace(*walker.qualifying.back().declaration)
+			? gUniqueTypeNull : UniqueTypeWrapper(walker.qualifying.back().unique);
+
 		if(declaration == &gUndeclared
 			&& id->value == gOperatorAssignId)
 		{
@@ -1868,7 +1872,7 @@ struct PrimaryExpressionWalker : public WalkerBase
 				setDecoration(id, gDependentObjectInstance);
 
 				expression = ExpressionWrapper(
-					makeExpression(DependentIdExpression(id->value, walker.qualifying)),
+					makeExpression(DependentIdExpression(id->value, qualifying)),
 					false,
 					true,
 					true
@@ -1896,10 +1900,12 @@ struct PrimaryExpressionWalker : public WalkerBase
 
 			setDecoration(id, declaration);
 
-			SYMBOLS_ASSERT(declaration->templateParameter == INDEX_INVALID || walker.qualifying.empty()); // template params cannot be qualified
+			SEMANTIC_ASSERT(!isDependent(walker.qualifying.get_ref()));
+
+			SEMANTIC_ASSERT(declaration->templateParameter == INDEX_INVALID || walker.qualifying.empty()); // template params cannot be qualified
 			expression = ExpressionWrapper(
 				declaration->templateParameter == INDEX_INVALID
-					? makeExpression(IdExpression(declaration, walker.qualifying))
+					? makeExpression(IdExpression(declaration, qualifying))
 					: makeExpression(DependentNonType(declaration)),
 				false,
 				isDependent(typeDependent),
@@ -2516,7 +2522,7 @@ struct ExpressionWalker : public WalkerBase
 					// For a qualified-id, if the member is a static member of type “T”, the type of the result is plain “pointer to T.”
 					// If the member is a non-static member of class C of type T, the type of the result is “pointer to member of class C of type
 					// T.”
-					UniqueTypeWrapper classType = UniqueTypeWrapper(getIdExpression(expression).qualifying.back().unique);
+					UniqueTypeWrapper classType = UniqueTypeWrapper(getIdExpression(expression).qualifying);
 					type.push_front(MemberPointerType(classType)); // produces a non-const pointer
 				}
 				else
@@ -2906,6 +2912,8 @@ struct NestedNameSpecifierWalker : public WalkerQualified
 		TREEWALKER_WALK(walker, symbol);
 		SEMANTIC_ASSERT(walker.type.declaration != 0);
 		walker.type.qualifying.swap(qualifying);
+		setDependent(walker.type.dependent, walker.type.qualifying);
+		makeUniqueTypeSafe(walker.type, parser->get_source().absolute);
 		swapQualifying(walker.type, isDeclarator);
 		//disableBacktrack();
 	}
@@ -2915,6 +2923,8 @@ struct NestedNameSpecifierWalker : public WalkerQualified
 		TREEWALKER_WALK(walker, symbol);
 		SEMANTIC_ASSERT(walker.type.declaration != 0);
 		walker.type.qualifying.swap(qualifying);
+		setDependent(walker.type.dependent, walker.type.qualifying);
+		makeUniqueTypeSafe(walker.type, parser->get_source().absolute);
 		swapQualifying(walker.type, isDeclarator);
 		//disableBacktrack();
 	}
