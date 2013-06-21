@@ -739,6 +739,69 @@ inline IntegralConstant conditional(IntegralConstant first, IntegralConstant sec
 
 
 
+// returns d < b
+// requires that D be derived from B, and that B has a virtual function
+template<typename D, typename B>
+inline bool abstractLess(const D& d, const B& b)
+{
+	return (typeid(d).before(typeid(b)) ||
+		!(typeid(b).before(typeid(d))) && d < *static_cast<const D*>(&b));
+}
+
+struct IndirectLess
+{
+	template<typename T, typename U>
+	bool operator()(T left, U right) const
+	{
+		return *left < *right;
+	}
+};
+
+template<typename Ptr>
+struct IndirectSet
+{
+	typedef std::set<Ptr, IndirectLess> Set;
+	Set elements;
+
+	typedef typename Set::iterator iterator;
+
+	iterator begin()
+	{
+		return elements.begin();
+	}
+	iterator end()
+	{
+		return elements.end();
+	}
+	// Ptr must be constructible from T*
+	template<typename T>
+	iterator find(const T& value)
+	{
+		return elements.find(&value);
+	}
+	// Ptr must be constructible from T*
+	template<typename T>
+	inline iterator insert(const T& value)
+	{
+		iterator i = elements.lower_bound(&value); // first element not less than value
+		if(i != elements.end()
+			&& !elements.key_comp()(&value, *i)) // if value is not less than lower bound
+		{
+			// lower bound is equal to value
+			return i;
+		}
+		return elements.insert(i, new T(value));
+	}
+	void clear()
+	{
+		for(iterator i = elements.begin(); i != elements.end(); ++i)
+		{
+			delete &(*(*i));
+		}
+		elements.clear();
+	}
+};
+
 // [expr.const]
 // An integral constant-expression can involve only literals, enumerators, const variables or static
 // data members of integral or enumeration types initialized with constant expressions, non-type template
@@ -765,6 +828,7 @@ struct ExpressionNode
 	{
 	}
 	virtual void accept(ExpressionNodeVisitor& visitor) const = 0;
+	virtual bool operator<(const ExpressionNode& other) const = 0;
 };
 
 typedef SafePtr<ExpressionNode> ExpressionPtr;
@@ -781,13 +845,45 @@ struct ExpressionNodeGeneric : ExpressionNode
 	{
 		visitor.visit(value);
 	}
+	bool operator<(const ExpressionNodeGeneric& other) const
+	{
+		return value < other.value;
+	}
+	bool operator<(const ExpressionNode& other) const
+	{
+		return abstractLess(*this, other);
+	}
 };
 
+typedef ExpressionNode* UniqueExpression;
+
+typedef IndirectSet<UniqueExpression> UniqueExpressions;
+
+extern UniqueExpressions gBuiltInExpressions;
+extern UniqueExpressions gUniqueExpressions;
+
 template<typename T>
-ExpressionNodeGeneric<T> makeExpressionNode(const T& value)
+inline UniqueExpression makeBuiltInExpression(const T& value)
 {
-	return ExpressionNodeGeneric<T>(value);
+	ExpressionNodeGeneric<T> node(value);
+	return *gBuiltInExpressions.insert(node);
 }
+
+template<typename T>
+inline UniqueExpression makeExpression(const T& value)
+{
+	ExpressionNodeGeneric<T> node(value);
+	{
+		UniqueExpressions::iterator i = gBuiltInExpressions.find(node);
+		if(i != gBuiltInExpressions.end())
+		{
+			return *i;
+		}
+	}
+	return *gUniqueExpressions.insert(node);
+}
+
+
 
 typedef Name Location;
 
@@ -1515,6 +1611,7 @@ struct TypeElementEmpty : TypeElement
 
 extern const TypeElementEmpty gTypeElementEmpty;
 
+
 template<typename T>
 struct TypeElementGeneric : TypeElement
 {
@@ -1527,28 +1624,32 @@ struct TypeElementGeneric : TypeElement
 	{
 		visitor.visit(value);
 	}
+	bool operator<(const TypeElementGeneric& other) const
+	{
+		return value < other.value;
+	}
 	bool operator<(const TypeElement& other) const
 	{
-		return (typeid(*this).before(typeid(other)) ||
-			!(typeid(other).before(typeid(*this))) && value < static_cast<const TypeElementGeneric*>(&other)->value);
+		return next != other.next
+			? next < other.next
+			: abstractLess(*this, other);
 	}
 };
 
 const UniqueType UNIQUETYPE_NULL = &gTypeElementEmpty;
 
 
-struct UniqueTypeLess
-{
-	bool operator()(UniqueType left, UniqueType right) const
-	{
-		return (*left < *right ||
-			!(*right < *left) && left->next < right->next);
-	}
-};
-
-typedef std::set<UniqueType, UniqueTypeLess> UniqueTypes;
+typedef IndirectSet<UniqueType> UniqueTypes;
 
 extern UniqueTypes gBuiltInTypes;
+
+template<typename T>
+inline UniqueType pushBuiltInType(UniqueType type, const T& value)
+{
+	TypeElementGeneric<T> node(value);
+	node.next = type;
+	return *gBuiltInTypes.insert(node);
+}
 
 template<typename T>
 inline UniqueType pushUniqueType(UniqueTypes& types, UniqueType type, const T& value)
@@ -1556,20 +1657,13 @@ inline UniqueType pushUniqueType(UniqueTypes& types, UniqueType type, const T& v
 	TypeElementGeneric<T> node(value);
 	node.next = type;
 	{
-		UniqueTypes::iterator i = gBuiltInTypes.find(&node);
+		UniqueTypes::iterator i = gBuiltInTypes.find(node);
 		if(i != gBuiltInTypes.end())
 		{
 			return *i;
 		}
 	}
-	UniqueTypes::iterator i = types.lower_bound(&node); // first element not less than value
-	if(i != types.end()
-		&& !types.key_comp()(&node, *i)) // if value is not less than lower bound
-	{
-		// lower bound is equal to value
-		return *i;
-	}
-	return *types.insert(i, new TypeElementGeneric<T>(node)); // leaked deliberately
+	return *types.insert(node);
 }
 
 extern UniqueTypes gUniqueTypes;
@@ -2109,14 +2203,6 @@ inline bool isEquivalent(const ParameterTypes& left, const ParameterTypes& right
 
 // ----------------------------------------------------------------------------
 
-template<typename T>
-inline UniqueType pushBuiltInType(UniqueType type, const T& value)
-{
-	TypeElementGeneric<T> node(value);
-	node.next = type;
-	return *gBuiltInTypes.insert(new TypeElementGeneric<T>(node)).first; // leaked deliberately
-}
-
 struct ObjectTypeId : UniqueTypeId
 {
 	ObjectTypeId(Declaration* declaration, const TreeAllocator<int>& allocator)
@@ -2321,6 +2407,13 @@ struct IntegralConstantExpression
 	}
 };
 
+inline bool operator<(const IntegralConstantExpression& left, const IntegralConstantExpression& right)
+{
+	return left.type != right.type
+		? left.type < right.type
+		: left.value.value < right.value.value;
+}
+
 struct DependentIdExpression
 {
 	Name name;
@@ -2330,6 +2423,13 @@ struct DependentIdExpression
 	{
 	}
 };
+
+inline bool operator<(const DependentIdExpression& left, const DependentIdExpression& right)
+{
+	return left.name != right.name
+		? left.name < right.name
+		: left.qualifying < right.qualifying;
+}
 
 struct IdExpression
 {
@@ -2341,6 +2441,13 @@ struct IdExpression
 		SYMBOLS_ASSERT(qualifying.value.p != 0);
 	}
 };
+
+inline bool operator<(const IdExpression& left, const IdExpression& right)
+{
+	return left.declaration.p != right.declaration.p
+		? left.declaration.p < right.declaration.p
+		: left.qualifying < right.qualifying;
+}
 
 inline bool isIdExpression(ExpressionNode* node)
 {
@@ -2374,6 +2481,11 @@ struct SizeofExpression
 	}
 };
 
+inline bool operator<(const SizeofExpression& left, const SizeofExpression& right)
+{
+	return left.operand.p < right.operand.p;
+}
+
 struct SizeofTypeExpression
 {
 	// [expr.sizeof] The operand is ... a parenthesized type-id
@@ -2383,6 +2495,12 @@ struct SizeofTypeExpression
 	{
 	}
 };
+
+inline bool operator<(const SizeofTypeExpression& left, const SizeofTypeExpression& right)
+{
+	return left.type < right.type;
+}
+
 
 struct UnaryExpression
 {
@@ -2394,6 +2512,15 @@ struct UnaryExpression
 	{
 	}
 };
+
+inline bool operator<(const UnaryExpression& left, const UnaryExpression& right)
+{
+	return left.operation != right.operation
+		? left.operation < right.operation
+		: left.type != right.type
+			? left.type < right.type
+			: left.first.p < right.first.p;
+}
 
 struct BinaryExpression
 {
@@ -2407,6 +2534,17 @@ struct BinaryExpression
 	}
 };
 
+inline bool operator<(const BinaryExpression& left, const BinaryExpression& right)
+{
+	return left.operation != right.operation
+		? left.operation < right.operation
+		: left.type != right.type
+			? left.type < right.type
+			: left.first.p != right.first.p
+				? left.first.p < right.first.p
+				: left.second.p < right.second.p;
+}
+
 struct TernaryExpression
 {
 	TernaryIceOp operation;
@@ -2419,6 +2557,19 @@ struct TernaryExpression
 	{
 	}
 };
+
+inline bool operator<(const TernaryExpression& left, const TernaryExpression& right)
+{
+	return left.operation != right.operation
+		? left.operation < right.operation
+		: left.type != right.type
+			? left.type < right.type
+			: left.first.p != right.first.p
+				? left.first.p < right.first.p
+				: left.second.p != right.second.p
+					? left.second.p < right.second.p
+					: left.third.p < right.third.p;
+}
 
 inline UniqueTypeWrapper typeofExpression(ExpressionNode* node, Location source);
 
@@ -2489,6 +2640,22 @@ inline bool isDependent(const TypeInstance& type);
 inline UniqueTypeWrapper substitute(UniqueTypeWrapper dependent, const TypeInstance& enclosingType);
 
 
+inline const TypeInstance* findEnclosingTemplate(const TypeInstance* enclosing, Scope* scope)
+{
+	SYMBOLS_ASSERT(scope != 0);
+	SYMBOLS_ASSERT(scope->type == SCOPETYPE_TEMPLATE);
+	for(const TypeInstance* i = enclosing; i != 0; i = (*i).enclosing)
+	{
+		if((*i).declaration->templateParamScope != 0
+			&& (*i).declaration->templateParamScope->templateDepth == scope->templateDepth)
+		{
+			return i;
+		}
+	}
+	return 0;
+}
+
+
 inline IntegralConstant evaluateIdExpression(const Declaration* declaration, Location source, const TypeInstance* enclosing)
 {
 	SYMBOLS_ASSERT(declaration->templateParameter == INDEX_INVALID);
@@ -2549,7 +2716,7 @@ struct EvaluateVisitor : ExpressionNodeVisitor
 	{
 		size_t index = node.declaration->templateParameter;
 		SYMBOLS_ASSERT(index != INDEX_INVALID);
-		const TypeInstance* enclosingType = findEnclosingType(enclosing, node.declaration->scope);
+		const TypeInstance* enclosingType = findEnclosingTemplate(enclosing, node.declaration->scope);
 		SYMBOLS_ASSERT(enclosingType != 0);
 		SYMBOLS_ASSERT(!isDependent(*enclosingType)); // assert that the enclosing type is not dependent
 		SYMBOLS_ASSERT(!enclosingType->declaration->isSpecialization); // partial-specializations not supported!
@@ -2963,22 +3130,6 @@ inline const TypeInstance* substitute(const TypeInstance& instance, const TypeIn
 	UniqueTypeWrapper result = substitute(instance.declaration, enclosing, instance.templateArguments, enclosingType);
 	return result == gUniqueTypeNull ? 0 : &getObjectType(result.value);
 }
-
-inline const TypeInstance* findEnclosingTemplate(const TypeInstance* enclosing, Scope* scope)
-{
-	SYMBOLS_ASSERT(scope != 0);
-	SYMBOLS_ASSERT(scope->type == SCOPETYPE_TEMPLATE);
-	for(const TypeInstance* i = enclosing; i != 0; i = (*i).enclosing)
-	{
-		if((*i).declaration->templateParamScope != 0
-			&& (*i).declaration->templateParamScope->templateDepth == scope->templateDepth)
-		{
-			return i;
-		}
-	}
-	return 0;
-}
-
 
 
 struct SubstituteVisitor : TypeElementVisitor

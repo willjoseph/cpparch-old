@@ -814,11 +814,6 @@ struct WalkerBase : public WalkerState
 	{
 		return allocatorNew(context, Scope(context, name, type));
 	}
-	template<typename T>
-	ExpressionNode* makeExpression(const T& value)
-	{
-		return allocatorNew(context, makeExpressionNode(value));
-	}
 
 	void disableBacktrack()
 	{
@@ -5442,6 +5437,7 @@ cpp::declaration_seq* parseFile(ParserContext& context)
 {
 	gUniqueNames.clear();
 	gUniqueTypes.clear();
+	gUniqueExpressions.clear();
 
 	WalkerContext& globals = *new WalkerContext(getAllocator(context));
 	Walker::NamespaceWalker& walker = *new Walker::NamespaceWalker(globals);
@@ -5479,6 +5475,7 @@ cpp::statement_seq* parseFunction(ParserContext& context)
 {
 	gUniqueNames.clear();
 	gUniqueTypes.clear();
+	gUniqueExpressions.clear();
 
 	WalkerContext& globals = *new WalkerContext(getAllocator(context));
 	Walker::CompoundStatementWalker& walker = *new Walker::CompoundStatementWalker(globals);

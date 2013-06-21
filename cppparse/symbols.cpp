@@ -6,6 +6,8 @@ const TypeElementEmpty gTypeElementEmpty;
 UniqueNames gUniqueNames;
 UniqueTypes gUniqueTypes;
 UniqueTypes gBuiltInTypes;
+UniqueExpressions gBuiltInExpressions;
+UniqueExpressions gUniqueExpressions;
 
 size_t gScopeCount = 0;
 
