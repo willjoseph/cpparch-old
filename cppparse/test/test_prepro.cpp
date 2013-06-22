@@ -1,4 +1,43 @@
 
+namespace N198
+{
+	template<class T, class U = int >
+	struct S
+	{
+	};
+
+	template<class T>
+	void f(S<T>)
+	{
+	}
+
+	template<class T>
+	void f(S<T, int>) // TODO: should fail: redefinition of void f(S<T, int>);
+	{
+	}
+}
+
+namespace N197
+{
+	template<typename T>
+	struct A
+	{
+	};
+
+	template<class T, class U = A<T> >
+	struct S
+	{
+	};
+
+	template<typename T>
+	struct B
+	{
+		typedef typename S<A<T> > Type;
+	};
+
+	B<int>::Type s;
+}
+
 namespace N196
 {
 	struct C
@@ -19,6 +58,42 @@ namespace N196
 
 	S<C>::Type t;
 }
+
+#if 0 // SFINAE: requires checking type of dependent non-type template argument expression against type of non-type template parameter
+namespace N197
+{
+	template<typename T, void (T::*member)()>
+	struct sfinae
+	{
+		typedef void Type;
+	};
+
+	template<class T, class U = void>
+	struct S
+	{
+		typedef int Primary;
+	};
+
+	template<class T>
+	struct S<T, typename sfinae<T, &T::member>::Type >
+	{
+		typedef int Special;
+	};
+
+	struct B
+	{
+		static void member();
+	};
+
+	struct C
+	{
+		void member();
+	};
+
+	S<B>::Primary primary;
+	S<C>::Special special;
+}
+#endif
 
 namespace N195
 {

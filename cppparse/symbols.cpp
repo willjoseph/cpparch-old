@@ -218,8 +218,8 @@ struct DependentTypeId : UniqueTypeId
 {
 	DependentTypeId(Declaration* declaration, std::size_t index)
 	{
-		value = pushBuiltInType(value, DependentType(declaration));
 		declaration->templateParameter = index;
+		value = pushBuiltInType(value, DependentType(declaration));
 	}
 };
 
@@ -1148,7 +1148,8 @@ void testSubstitution()
 	TestSubstitution<T, int(*)(int), int(*)(int)>::apply();
 
 	// TODO:
-	// T::Dependent
+	// T::Type
+	// &T::member
 	// non-type
 
 	// [temp.deduct] Attempting to create a pointer to reference type.

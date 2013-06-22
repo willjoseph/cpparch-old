@@ -513,15 +513,23 @@ inline IntegralConstant operator~(IntegralConstant left)
 {
 	return IntegralConstant(~left.value);
 }
+inline IntegralConstant addressOf(IntegralConstant left)
+{
+	return IntegralConstant(0); // TODO
+}
+inline IntegralConstant dereference(IntegralConstant left)
+{
+	return IntegralConstant(0); // TODO
+}
 
-inline UnaryIceOp getUnaryiceOp(cpp::unary_expression_op* symbol)
+inline UnaryIceOp getUnaryIceOp(cpp::unary_expression_op* symbol)
 {
 	switch(symbol->op->id)
 	{
 	case cpp::unary_operator::PLUSPLUS: return operator++;
 	case cpp::unary_operator::MINUSMINUS: return operator--;
-	case cpp::unary_operator::STAR: return 0;
-	case cpp::unary_operator::AND: return 0;
+	case cpp::unary_operator::STAR: return dereference;
+	case cpp::unary_operator::AND: return addressOf;
 	case cpp::unary_operator::PLUS: return operator+;
 	case cpp::unary_operator::MINUS: return operator-;
 	case cpp::unary_operator::NOT: return operator!;
@@ -889,7 +897,7 @@ typedef Name Location;
 
 struct TypeInstance;
 
-inline IntegralConstant evaluateExpression(ExpressionNode* node, Location source, const TypeInstance* enclosing);
+inline IntegralConstant evaluate(ExpressionNode* node, Location source, const TypeInstance* enclosing);
 
 struct ExpressionWrapper : ExpressionPtr
 {
@@ -1937,6 +1945,7 @@ struct DependentType
 	DependentType(Declaration* type)
 		: type(type)
 	{
+		SYMBOLS_ASSERT(type->templateParameter != INDEX_INVALID);
 	}
 };
 
@@ -2420,6 +2429,18 @@ inline bool operator<(const DependentIdExpression& left, const DependentIdExpres
 		: left.qualifying < right.qualifying;
 }
 
+inline bool isDependentIdExpression(ExpressionNode* node)
+{
+	return typeid(*node) == typeid(ExpressionNodeGeneric<DependentIdExpression>);
+}
+
+inline const DependentIdExpression& getDependentIdExpression(ExpressionNode* node)
+{
+	SYMBOLS_ASSERT(isDependentIdExpression(node));
+	return static_cast<const ExpressionNodeGeneric<DependentIdExpression>*>(node)->value;
+}
+
+
 struct IdExpression
 {
 	DeclarationPtr declaration;
@@ -2528,6 +2549,18 @@ inline bool operator<(const UnaryExpression& left, const UnaryExpression& right)
 			: left.first.p < right.first.p;
 }
 
+inline bool isUnaryExpression(ExpressionNode* node)
+{
+	return typeid(*node) == typeid(ExpressionNodeGeneric<UnaryExpression>);
+}
+
+inline const UnaryExpression& getUnaryExpression(ExpressionNode* node)
+{
+	SYMBOLS_ASSERT(isUnaryExpression(node));
+	return static_cast<const ExpressionNodeGeneric<UnaryExpression>*>(node)->value;
+}
+
+
 struct BinaryExpression
 {
 	BinaryIceOp operation;
@@ -2575,6 +2608,14 @@ inline bool operator<(const TernaryExpression& left, const TernaryExpression& ri
 				: left.second.p != right.second.p
 					? left.second.p < right.second.p
 					: left.third.p < right.third.p;
+}
+
+
+inline bool isDependentPointerToMemberExpression(ExpressionNode* expression)
+{
+	return isUnaryExpression(expression)
+		&& getUnaryExpression(expression).operation == addressOf
+		&& isDependentIdExpression(getUnaryExpression(expression).first);
 }
 
 inline UniqueTypeWrapper typeofExpression(ExpressionNode* node, Location source);
@@ -2670,7 +2711,7 @@ inline IntegralConstant evaluateIdExpression(const Declaration* declaration, Loc
 		? findEnclosingType(enclosing, declaration->scope) // it must be a member of (a base of) the qualifying class: find which one.
 		: 0; // the declaration is not a class member and cannot be found through qualified name lookup
 
-	return evaluateExpression(declaration->initializer, source, memberEnclosing);
+	return evaluate(declaration->initializer, source, memberEnclosing);
 }
 
 inline IntegralConstant evaluateIdExpression(const IdExpression& node, Location source, const TypeInstance* enclosing)
@@ -2764,33 +2805,40 @@ struct EvaluateVisitor : ExpressionNodeVisitor
 	void visit(const UnaryExpression& node)
 	{
 		result = node.operation(
-			evaluateExpression(node.first, source, enclosing)
+			evaluate(node.first, source, enclosing)
 		);
 	}
 	void visit(const BinaryExpression& node)
 	{
 		result = node.operation(
-			evaluateExpression(node.first, source, enclosing),
-			evaluateExpression(node.second, source, enclosing)
+			evaluate(node.first, source, enclosing),
+			evaluate(node.second, source, enclosing)
 		);
 	}
 	void visit(const TernaryExpression& node)
 	{
 		result = node.operation(
-			evaluateExpression(node.first, source, enclosing),
-			evaluateExpression(node.second, source, enclosing),
-			evaluateExpression(node.third, source, enclosing)
+			evaluate(node.first, source, enclosing),
+			evaluate(node.second, source, enclosing),
+			evaluate(node.third, source, enclosing)
 		);
 	}
 };
 
-inline IntegralConstant evaluateExpression(ExpressionNode* node, Location source, const TypeInstance* enclosing)
+inline IntegralConstant evaluate(ExpressionNode* node, Location source, const TypeInstance* enclosing)
 {
 	EvaluateVisitor visitor(source, enclosing);
 	node->accept(visitor);
 	return visitor.result;
 }
 
+inline IntegralConstant evaluateExpression(ExpressionNode* node, Location source, const TypeInstance* enclosing)
+{
+	return isDependentPointerToMemberExpression(node) // TODO: check this names a valid non-static member
+		? IntegralConstant(0) // TODO: unique value for address of member
+		: evaluate(node, source, enclosing);
+}
+	
 
 // ----------------------------------------------------------------------------
 // template instantiation
@@ -3190,22 +3238,29 @@ struct SubstituteVisitor : TypeElementVisitor
 			return;
 		}
 
+		SYMBOLS_ASSERT(isMember(*declaration));
+
+		const TypeInstance* memberEnclosing = findEnclosingType(enclosing, declaration->scope); // the declaration must be a member of (a base of) the qualifying class: find which one.
+		SYMBOLS_ASSERT(memberEnclosing != 0);
+
 		if(isClass(*declaration))
 		{
-			type = substitute(declaration, enclosing, element.templateArguments, enclosingType);
+			type = substitute(declaration, memberEnclosing, element.templateArguments, enclosingType);
 		}
 		else
 		{
 			type = UniqueTypeWrapper(declaration->type.unique);
 			if(declaration->type.isDependent)
 			{
-				type = substitute(type, *enclosing);
+				type = substitute(type, *memberEnclosing);
 			}
 		}
 	}
 	virtual void visit(const DependentNonType& element)
 	{
-		type.push_front(NonType(evaluateExpression(element.expression, NAME_NULL, &enclosingType))); // TODO: source
+		// TODO: SFINAE for expressions: check that type of template argument matches template parameter
+		IntegralConstant value = evaluateExpression(element.expression, NAME_NULL, &enclosingType); // TODO: source
+		type.push_front(NonType(value));
 	}
 	virtual void visit(const TemplateTemplateArgument& element)
 	{
@@ -3213,6 +3268,7 @@ struct SubstituteVisitor : TypeElementVisitor
 	}
 	virtual void visit(const NonType& element)
 	{
+		// TODO: SFINAE for expressions: check that type of template argument matches template parameter
 		type.push_front(element);
 	}
 	virtual void visit(const ObjectType& element)
@@ -3323,7 +3379,16 @@ inline void checkUniqueType(UniqueTypeWrapper result, const Type& type, const Ty
 	{
 		SYMBOLS_ASSERT(enclosing != 0);
 		UniqueTypeWrapper substituted = substitute(UniqueTypeWrapper(type.unique), *enclosing);
-		SYMBOLS_ASSERT(substituted == result);
+		if(substituted != result)
+		{
+			std::cout << "uniqued: ";
+			printType(result);
+			std::cout << std::endl;
+			std::cout << "substituted: ";
+			printType(substituted);
+			std::cout << std::endl;
+			throw SymbolsError();
+		}
 	}
 }
 
@@ -4033,6 +4098,10 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const
 			for(TemplateArguments::const_iterator i = defaults.begin(); i != defaults.end(); ++i)
 			{
 				bool isTemplateParamDefault = a == arguments.end();
+				if(allowDependent && isTemplateParamDefault) // for dependent types, don't substitute default for unspecified arguments
+				{
+					break;
+				}
 				const TemplateArgument& argument = isTemplateParamDefault ? (*i) : (*a++);
 				SYMBOLS_ASSERT(argument.type.declaration != 0); // TODO: non-fatal error: not enough template arguments!
 				UniqueTypeWrapper result;
@@ -4051,7 +4120,7 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const
 				}
 				tmp.templateArguments.push_back(result);
 			}
-			SYMBOLS_ASSERT(!tmp.templateArguments.empty());
+			SYMBOLS_ASSERT(allowDependent || !tmp.templateArguments.empty()); // dependent types may have no arguments
 		}
 
 #if 0
@@ -4093,7 +4162,7 @@ inline std::size_t evaluateArraySize(const ExpressionWrapper& expression, Locati
 		return -1;
 	}
 	SYMBOLS_ASSERT(expression.isConstant);
-	return evaluateExpression(expression, source, enclosing).value;
+	return evaluate(expression, source, enclosing).value;
 }
 
 struct TypeSequenceMakeUnique : TypeSequenceVisitor
@@ -5780,11 +5849,7 @@ struct SymbolPrinter : TypeElementVisitor
 		{
 			printer.out << "volatile ";
 		}
-		printName(object.type.declaration);
-		if(object.type.declaration->isTemplate)
-		{
-			printTemplateArguments(object.type.templateArguments);
-		}
+		printType(object.type);
 		visitTypeElement();
 	}
 	void visit(const ReferenceType& pointer)
@@ -5885,6 +5950,24 @@ struct SymbolPrinter : TypeElementVisitor
 	{
 		SYMBOLS_ASSERT(declaration.type.unique != 0);
 		printType(UniqueTypeWrapper(declaration.type.unique));
+	}
+
+	void printType(const TypeInstance& type)
+	{
+		if(type.enclosing != 0)
+		{
+			printType(*type.enclosing);
+			printer.out << ".";
+		}
+		else
+		{
+			printName(type.declaration->scope);
+		}
+		printer.out << getValue(type.declaration->getName());
+		if(type.declaration->isTemplate)
+		{
+			printTemplateArguments(type.templateArguments);
+		}
 	}
 
 	void printType(const UniqueTypeId& type)

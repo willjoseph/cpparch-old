@@ -815,6 +815,11 @@ struct WalkerBase : public WalkerState
 		return allocatorNew(context, Scope(context, name, type));
 	}
 
+	Location getLocation() const
+	{
+		return parser->get_source().absolute;
+	}
+
 	void disableBacktrack()
 	{
 		parser->addBacktrackCallback(makeBacktrackErrorCallback());
@@ -1195,7 +1200,7 @@ struct WalkerQualified : public WalkerBase
 			}
 			else
 			{
-				qualifyingType = &getObjectType(makeUniqueType(*qualifying_p, parser->get_source().absolute, enclosingType).value);
+				qualifyingType = &getObjectType(makeUniqueType(*qualifying_p, getLocation(), enclosingType).value);
 				qualifyingScope = qualifyingType->declaration;
 			}
 		}
@@ -1303,7 +1308,7 @@ struct TemplateArgumentListWalker : public WalkerBase
 		TypeIdWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		argument.type.swap(walker.type);
-		makeUniqueTypeSafe(argument.type, parser->get_source().absolute);
+		makeUniqueTypeSafe(argument.type, getLocation());
 	}
 	void visit(cpp::assignment_expression* symbol)
 	{
@@ -1609,7 +1614,7 @@ struct ExplicitTypeExpressionWalker : public WalkerBase
 			type = getFundamentalType(walker.fundamental);
 		}
 		addDependent(typeDependent, type);
-		makeUniqueTypeSafe(type, parser->get_source().absolute);
+		makeUniqueTypeSafe(type, getLocation());
 	}
 	void visit(cpp::typename_specifier* symbol)
 	{
@@ -1617,7 +1622,7 @@ struct ExplicitTypeExpressionWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		type.swap(walker.type);
 		addDependent(typeDependent, type);
-		makeUniqueTypeSafe(type, parser->get_source().absolute);
+		makeUniqueTypeSafe(type, getLocation());
 	}
 	void visit(cpp::type_id* symbol)
 	{
@@ -1625,7 +1630,7 @@ struct ExplicitTypeExpressionWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		type.swap(walker.type);
 		addDependent(typeDependent, type);
-		makeUniqueTypeSafe(type, parser->get_source().absolute);
+		makeUniqueTypeSafe(type, getLocation());
 	}
 	void visit(cpp::new_type* symbol)
 	{
@@ -1634,7 +1639,7 @@ struct ExplicitTypeExpressionWalker : public WalkerBase
 		type.swap(walker.type);
 		addDependent(typeDependent, type);
 		addDependent(typeDependent, walker.valueDependent);
-		makeUniqueTypeSafe(type, parser->get_source().absolute);
+		makeUniqueTypeSafe(type, getLocation());
 	}
 	void visit(cpp::assignment_expression* symbol)
 	{
@@ -1825,7 +1830,7 @@ struct PrimaryExpressionWalker : public WalkerBase
 		LiteralWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		expression = walker.expression;
-		type = typeofExpression(expression, parser->get_source().absolute);
+		type = typeofExpression(expression, getLocation());
 		SEMANTIC_ASSERT(!type.empty());
 	}
 	/* temp.dep.constexpr
@@ -1907,7 +1912,7 @@ struct PrimaryExpressionWalker : public WalkerBase
 				isDependent(valueDependent)
 			);
 
-			expression.isQualifiedNonStaticMemberName = !walker.qualifying.empty()
+			expression.isQualifiedNonStaticMemberName = qualifying != gUniqueTypeNull
 				&& isMember(*declaration)
 				&& !isStatic(*declaration);
 
@@ -1980,7 +1985,7 @@ struct PostfixExpressionMemberWalker : public WalkerQualified
 			&& isClass(*memberType->declaration)) // TODO: assert that this is a class type
 		{
 			// [expr.ref] [the type of the object-expression shall be complete]
-			instantiateClass(*memberType, parser->get_source().absolute);
+			instantiateClass(*memberType, getLocation());
 			memberObject = memberType->declaration->enclosed;
 		}
 		else
@@ -2538,7 +2543,7 @@ struct ExpressionWalker : public WalkerBase
 		}
 
 
-		UnaryIceOp iceOp = getUnaryiceOp(symbol);
+		UnaryIceOp iceOp = getUnaryIceOp(symbol);
 		expression = ExpressionWrapper(
 			makeExpression(UnaryExpression(iceOp, 0, expression)),
 			expression.isConstant && iceOp != 0,
@@ -2880,7 +2885,7 @@ struct NestedNameSpecifierPrefixWalker : public WalkerBase
 			return reportIdentifierMismatch(symbol, walker.type.declaration->getName(), walker.type.declaration, "class-name");
 		}
 		type.swap(walker.type);
-		makeUniqueTypeSafe(type, parser->get_source().absolute);
+		makeUniqueTypeSafe(type, getLocation());
 	}
 };
 
@@ -2908,7 +2913,7 @@ struct NestedNameSpecifierWalker : public WalkerQualified
 		SEMANTIC_ASSERT(walker.type.declaration != 0);
 		walker.type.qualifying.swap(qualifying);
 		setDependent(walker.type.dependent, walker.type.qualifying);
-		makeUniqueTypeSafe(walker.type, parser->get_source().absolute);
+		makeUniqueTypeSafe(walker.type, getLocation());
 		swapQualifying(walker.type, isDeclarator);
 		//disableBacktrack();
 	}
@@ -2919,7 +2924,7 @@ struct NestedNameSpecifierWalker : public WalkerQualified
 		SEMANTIC_ASSERT(walker.type.declaration != 0);
 		walker.type.qualifying.swap(qualifying);
 		setDependent(walker.type.dependent, walker.type.qualifying);
-		makeUniqueTypeSafe(walker.type, parser->get_source().absolute);
+		makeUniqueTypeSafe(walker.type, getLocation());
 		swapQualifying(walker.type, isDeclarator);
 		//disableBacktrack();
 	}
@@ -3473,7 +3478,7 @@ struct BaseSpecifierWalker : public WalkerQualified
 		type.swap(walker.type);
 		type.qualifying.swap(qualifying);
 		setDependent(type.dependent, type.qualifying);
-		makeUniqueTypeSafe(type, parser->get_source().absolute);
+		makeUniqueTypeSafe(type, getLocation());
 	}
 };
 
@@ -3781,7 +3786,7 @@ struct ClassSpecifierWalker : public WalkerBase
 		}
 		declaration->templateParamScope = templateParamScope; // required by findEnclosingType
 
-		Location source = parser->get_source().absolute;
+		Location source = getLocation();
 		Type type(declaration, context);
 		setDependent(type);
 		type.isDependent = isDependent(type);
@@ -4634,7 +4639,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		{
 			DeclarationPtr tmpDependent = type.dependent;
 			setDependent(type.dependent, typeDependent);
-			makeUniqueTypeSafe(type, parser->get_source().absolute);
+			makeUniqueTypeSafe(type, getLocation());
 			if(enclosed == 0
 				&& templateParamScope != 0)
 			{
@@ -4675,7 +4680,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 				Scope* scope = getEnclosingClass(declaration->scope);
 				Declaration* enclosingClass = getClassDeclaration(scope);
 				const TypeInstance& instance = getObjectType(enclosingClass->type.unique);
-				const_cast<TypeInstance*>(&instance)->size += requireCompleteObjectType(UniqueTypeWrapper(declaration->type.unique), parser->get_source().absolute);
+				const_cast<TypeInstance*>(&instance)->size += requireCompleteObjectType(UniqueTypeWrapper(declaration->type.unique), getLocation());
 			}
 
 			enclosing = parent;
@@ -4770,7 +4775,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		{
 			DeclarationPtr tmpDependent = type.dependent;
 			setDependent(type.dependent, typeDependent);
-			makeUniqueTypeSafe(type, parser->get_source().absolute);
+			makeUniqueTypeSafe(type, getLocation());
 
 			DeclarationInstanceRef instance = pointOfDeclaration(context, enclosing, *walker.id, type, 0, specifiers); // 3.3.1.1
 #ifdef ALLOCATOR_DEBUG
@@ -5136,7 +5141,7 @@ struct TypeParameterWalker : public WalkerBase
 		TypeIdWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		argument.type.swap(walker.type);
-		makeUniqueTypeSafe(argument.type, parser->get_source().absolute);
+		makeUniqueTypeSafe(argument.type, getLocation());
 	}
 	void visit(cpp::template_parameter_clause* symbol)
 	{

@@ -108,6 +108,9 @@
 			- sometimes type depends on value, and vice versa
 				- sizeof(0) // value depends on type of '0' (but NOT value)
 				- X<0> // type depends on value of '0' (but NOT type
+	- determine type of dependent pointer-to-member expression
+		- for SFINAE during substitution of nontype pointer-to-member parameter &T::member -> int T::*member
+	- determine type of 
 
 - task: template argument deduction
 	- for function templates
