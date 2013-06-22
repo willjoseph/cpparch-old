@@ -144,11 +144,12 @@ class Hooks : public boost::wave::context_policies::eat_whitespace<token_type>
 {
 public:
 	LexNames& names;
-	Source includes[1024];
+	Path includes[1024];
 	size_t depth;
 	std::string directive;
 
 	size_t macroDepth;
+	size_t macroTokenCount;
 	FilePosition macroPosition;
 
 	IncludeDependencyGraph dependencies;
@@ -159,9 +160,9 @@ public:
 	StringStack ifdef;
 
 	Hooks(LexNames& names)
-		: names(names), depth(1), macroDepth(0)
+		: names(names), depth(1), macroDepth(0), macroTokenCount(0)
 	{
-		includes[0] = Source(Name(""), Name("$outer"));
+		includes[0] = Path(Name(""), Name("$outer"));
 	}
 
     // new signature
@@ -308,7 +309,7 @@ public:
 			}
 		}
 
-		Source parent = includes[depth - 1];
+		Path parent = includes[depth - 1];
 		Name absolute = names.makeFilename(absname.c_str());
 
 		bool isLocal = false; // whether the included file is local to the including file
@@ -361,7 +362,7 @@ public:
 
 		Name relative = names.makeFilename(Concatenate(makeRange(root), makeRange(normalised)).c_str());
 
-		includes[depth] = Source(relative, absolute);
+		includes[depth] = Path(relative, absolute);
 		//LEXER_ASSERT(std::find(includes, includes + depth, includes[depth]) == includes + depth); // cyclic includes! 
 #ifdef _DEBUG
 		std::cout << "lexer: " << findFilename(includes[depth - 1].c_str()) << "  included: " << findFilename(includes[depth].c_str()) << "\n";
@@ -468,7 +469,11 @@ public:
     void rescanned_macro(ContextT const &ctx, ContainerT const &result)
 	{
 		LEXER_ASSERT(macroDepth != 0);
-		--macroDepth;
+		if(--macroDepth == 0)
+		{
+			LEXER_ASSERT(result.size() > 0); // TODO: replacement sequence always contains one more token than required?
+			macroTokenCount = result.size() - 1;
+		}
 	}
 
     template <
@@ -502,7 +507,7 @@ public:
 		}
 	}
 
-	Source getSourcePath() const
+	Path getSourcePath() const
 	{
 		return includes[depth - 1];
 	}
@@ -797,21 +802,25 @@ Token* Lexer::read(Token* first, Token* last)
 					printer.printToken(token, token.get_value().c_str());
 				}
 #endif
-				FilePosition position = context.get_hooks().macroDepth == 0
+				FilePosition position = context.get_hooks().macroTokenCount == 0
 					? context.makeFilePosition(token.get_position())
 					: context.get_hooks().macroPosition;
-				*first++ = Token(token, TokenValue(context.makeIdentifier(token.get_value().c_str())), position, context.get_hooks().getSourcePath(), context.get_hooks().events);
+				*first++ = Token(token, TokenValue(context.makeIdentifier(token.get_value().c_str())), position, Source(context.get_hooks().getSourcePath(), position.line, position.column), context.get_hooks().events);
 
 				//debugEvents(context.get_hooks().events, context.get_hooks().getSourcePath().absolute);
 
 				context.get_hooks().events = IncludeEvents();
+				if(context.get_hooks().macroTokenCount != 0)
+				{
+					--context.get_hooks().macroTokenCount;
+				}
 			}
 		}
 		// if reached end of token stream, append EOF
 		if(this->first == this->last
 			&& first != last)
 		{
-			*first++ = Token(boost::wave::T_EOF, TokenValue(), FilePosition(), context.get_hooks().getSourcePath(), context.get_hooks().events);
+			*first++ = Token(boost::wave::T_EOF, TokenValue(), FilePosition(), Source(context.get_hooks().getSourcePath(), 0, 0), context.get_hooks().events);
 
 			//debugEvents(context.get_hooks().events, context.get_hooks().getSourcePath().absolute);
 		}

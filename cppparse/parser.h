@@ -184,10 +184,7 @@ struct Visualiser
 						{
 							cpp::terminal_identifier& id = getDeclarationId(p->declaration);
 							std::cout << id.value.c_str() << " ";
-							if(!id.position.file.empty())
-							{
-								printPosition(id.position);
-							}
+							printPosition(id.source);
 						}
 						else
 						{
@@ -1393,7 +1390,7 @@ struct SkipParenthesised
 				// elaborated-type-specifier of the form 'class-key identifier' declares 'identifier' in enclosing scope
 				parser.increment();
 				PARSE_ASSERT(TOKEN_EQUAL(parser, boost::wave::T_IDENTIFIER));
-				cpp::terminal_identifier id = { parser.get_value(), parser.get_position() };
+				cpp::terminal_identifier id = { parser.get_value(), parser.get_source() };
 				parser.increment();
 				if(!TOKEN_EQUAL(parser, boost::wave::T_LESS) // template-id
 					&& !TOKEN_EQUAL(parser, boost::wave::T_COLON_COLON)) // nested-name-specifier
@@ -1442,7 +1439,7 @@ struct SkipDefaultArgument
 			if(TOKEN_EQUAL(parser, boost::wave::T_IDENTIFIER))
 			{
 				// may be template-name 
-				cpp::terminal_identifier id = { parser.get_value(), parser.get_position() };
+				cpp::terminal_identifier id = { parser.get_value(), parser.get_source() };
 				parser.increment();
 				if(TOKEN_EQUAL(parser, boost::wave::T_LESS)
 					&& isTemplateName(id))

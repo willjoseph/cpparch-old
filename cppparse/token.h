@@ -102,15 +102,15 @@ struct IncludeEvents
 	}
 };
 
-struct Source
+struct Path
 {
 	Name relative;
 	Name absolute;
 
-	Source()
+	Path()
 	{
 	}
-	Source(Name relative, Name absolute)
+	Path(Name relative, Name absolute)
 		: relative(relative), absolute(absolute)
 	{
 	}
@@ -120,22 +120,50 @@ struct Source
 	}
 };
 
-inline bool operator==(const Source& left, const Source& right)
+
+inline bool operator==(const Path& left, const Path& right)
 {
 	return left.absolute == right.absolute;
 }
 
-inline bool operator!=(const Source& left, const Source& right)
+inline bool operator!=(const Path& left, const Path& right)
 {
 	return left.absolute != right.absolute;
 }
 
-inline bool operator<(const Source& left, const Source& right)
+inline bool operator<(const Path& left, const Path& right)
 {
 	return left.absolute < right.absolute;
 }
 
-#define SOURCE_NULL Source(Name(0), Name(0))
+#define PATH_NULL Path(Name(0), Name(0))
+
+
+struct Source : Path
+{
+	unsigned int line;
+	unsigned int column;
+
+	Source()
+	{
+	}
+	Source(Path path, unsigned int line, unsigned int column)
+		: Path(path), line(line), column(column)
+	{
+	}
+};
+
+inline bool operator==(const Source& left, const Source& right)
+{
+	return left.absolute == right.absolute
+		&& left.line == right.line
+		&& left.column == right.column;
+}
+
+inline bool operator!=(const Source& left, const Source& right)
+{
+	return !operator==(left, right);
+}
 
 #endif
 

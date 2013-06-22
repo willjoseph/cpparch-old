@@ -135,7 +135,7 @@ const char* escapeTerminal(cpp::terminal_choice2 symbol)
 bool isPrimary(const Identifier& id)
 {
 	// TODO: optimise
-	return isDecorated(id) && id.position == id.dec.p->name->position;
+	return isDecorated(id) && id.source == id.dec.p->name->source;
 }
 
 
@@ -168,10 +168,10 @@ void mergeIncludes(IncludeDependencyNodes& includes, const IncludeDependencyNode
 
 void addModuleDependency(ModuleDependencyMap& moduleDependencies, const Name module, const DeclarationInstance& instance)
 {
-	if(instance.name->source != NAME_NULL // refers to a symbol declared in a module
-		&& module != instance.name->source) // refers to a symbol not declared in the current module
+	if(instance.name->source.absolute != NAME_NULL // refers to a symbol declared in a module
+		&& module != instance.name->source.absolute) // refers to a symbol not declared in the current module
 	{
-		moduleDependencies[module].insert(ModuleDeclaration(instance.name->source, instance));
+		moduleDependencies[module].insert(ModuleDeclaration(instance.name->source.absolute, instance));
 	}
 }
 
@@ -242,7 +242,7 @@ struct DependencyBuilder
 			const TypeInstance& objectType = getObjectType(type.value);
 			if(isClass(*objectType.declaration))
 			{
-				instantiateClass(objectType, module);
+				//TODO SYMBOLS_ASSERT(objectType.instantiated);
 				addModuleDependency(moduleDependencies, module, DeclarationInstance(objectType.declaration));
 			}
 		}
@@ -264,7 +264,7 @@ struct DependencyBuilder
 				// e.g. function redeclarations (excluding unchosen overloads), class forward-declarations (excluding unchosen explicit/partial-specializations)
 				
 				// add the most recent redeclaration
-				addModuleDependency(moduleDependencies, symbol->value.source, instance);
+				addModuleDependency(moduleDependencies, symbol->value.source.absolute, instance);
 			}
 		}
 		else if(!instance->type.isDependent)
@@ -285,7 +285,7 @@ struct DependencyBuilder
 				{
 					type.pop_front(); // arrays of known size are object types
 				}
-				addTypeDependency(type, symbol->value.source);
+				addTypeDependency(type, symbol->value.source.absolute);
 			}
 		}
 	}
@@ -576,7 +576,7 @@ struct SourcePrinter : SymbolPrinter
 		includeGraph(args.includeGraph),
 		moduleDependencies(dependencies)
 	{
-		includeStack.push(Source(Name(""), Name("$outer")));
+		includeStack.push(Path(Name(""), Name("$outer")));
 		open(includeStack.top().c_str());
 	}
 	~SourcePrinter()
@@ -681,18 +681,18 @@ struct SourcePrinter : SymbolPrinter
 		}
 	}
 
-	typedef Stack<Source, 1024> IncludeStack;
+	typedef Stack<Path, 1024> IncludeStack;
 
 	IncludeStack includeStack;
 
 	void push()
 	{
 		REPORT_ASSERT(!includeStack.empty());
-		if(includeStack.top() != SOURCE_NULL)
+		if(includeStack.top() != PATH_NULL)
 		{
 			suspend();
 		}
-		includeStack.push(SOURCE_NULL);
+		includeStack.push(PATH_NULL);
 	}
 
 	bool isIncluded(const IncludeDependencyNodes& included, Name source)
@@ -707,8 +707,8 @@ struct SourcePrinter : SymbolPrinter
 	{
 		for(const DeclarationInstance* p = &instance; p != 0; p = p->redeclared)
 		{
-			if(*p->name->source.c_str() == '$' // '$outer'
-				|| isIncluded(included, p->name->source))
+			if(*p->name->source.absolute.c_str() == '$' // '$outer'
+				|| isIncluded(included, p->name->source.absolute))
 			{
 				return true;
 			}
@@ -832,14 +832,13 @@ struct SourcePrinter : SymbolPrinter
 		}
 		if(instance.name != 0)
 		{
-			const FilePosition& position =  instance.name->position;
-			printer.out << ":" << position.line << "," << position.column;
+			printer.out << ":" << instance.name->source.line << "," << instance.name->source.column;
 		}
 	}
 	bool printAnchorStart(const DeclarationInstance& instance, bool deferred = false)
 	{
 		if(instance.name != 0
-			&& instance.name->source == NAME_NULL) // this identifier is a dependent-name
+			&& instance.name->source.absolute == NAME_NULL) // this identifier is a dependent-name
 		{
 			return false; // don't make this identifier a link
 		}
@@ -887,7 +886,7 @@ struct SourcePrinter : SymbolPrinter
 	void pop()
 	{
 		REPORT_ASSERT(!includeStack.empty());
-		if(includeStack.top() != SOURCE_NULL)
+		if(includeStack.top() != PATH_NULL)
 		{
 			close();
 
@@ -903,7 +902,7 @@ struct SourcePrinter : SymbolPrinter
 		}
 		includeStack.pop();
 		if(!includeStack.empty()
-			&& includeStack.top() != SOURCE_NULL)
+			&& includeStack.top() != PATH_NULL)
 		{
 			resume(includeStack.top().c_str());
 		}
@@ -919,7 +918,7 @@ struct SourcePrinter : SymbolPrinter
 		{
 			push();
 		}
-		if(includeStack.top() == SOURCE_NULL)
+		if(includeStack.top() == PATH_NULL)
 		{
 			includeStack.top() = symbol->source;
 			open(includeStack.top().c_str());

@@ -105,11 +105,11 @@ IdentifierMismatch gIdentifierMismatch = IDENTIFIERMISMATCH_NULL;
 
 void printIdentifierMismatch(const IdentifierMismatch& e)
 {
-	printPosition(e.id.position);
+	printPosition(e.id.source);
 	std::cout << "'" << getValue(e.id) << "' expected " << e.expected << ", " << (e.declaration == &gUndeclared ? "was undeclared" : "was declared here:") << std::endl;
 	if(e.declaration != &gUndeclared)
 	{
-		printPosition(e.declaration->getName().position);
+		printPosition(e.declaration->getName().source);
 		std::cout << std::endl;
 	}
 }
@@ -280,6 +280,10 @@ struct WalkerState
 	{ 
 		return *this;
 	}
+	Location getLocation() const
+	{
+		return parser->get_source();
+	}
 
 	LookupResult findDeclaration(const Identifier& id, bool isDeclarator, LookupFilter filter = IsAny())
 	{
@@ -311,7 +315,7 @@ struct WalkerState
 			if(qualifyingType != 0)
 			{
 				SYMBOLS_ASSERT(qualifyingType->declaration->enclosed == qualifying);
-				instantiateClass(*qualifyingType, id.source);
+				instantiateClass(*qualifyingType, getLocation());
 				if(result.append(::findDeclaration(*qualifyingType, id, filter)))
 				{
 					return result;
@@ -426,9 +430,9 @@ struct WalkerState
 			}
 			catch(DeclarationError& e)
 			{
-				printPosition(name.position);
+				printPosition(name.source);
 				std::cout << "'" << name.value.c_str() << "': " << e.description << std::endl;
-				printPosition(instance->getName().position);
+				printPosition(instance->getName().source);
 				throw SemanticError();
 			}
 
@@ -815,11 +819,6 @@ struct WalkerBase : public WalkerState
 		return allocatorNew(context, Scope(context, name, type));
 	}
 
-	Location getLocation() const
-	{
-		return parser->get_source().absolute;
-	}
-
 	void disableBacktrack()
 	{
 		parser->addBacktrackCallback(makeBacktrackErrorCallback());
@@ -1132,17 +1131,17 @@ struct WalkerBase : public WalkerState
 	}
 
 	template<typename T>
-	UniqueTypeWrapper makeUniqueTypeImpl(T& type, Location source = NAME_NULL)
+	UniqueTypeWrapper makeUniqueTypeImpl(T& type, Location source)
 	{
 		type.isDependent = isDependent(type);
 		type.unique = makeUniqueType(type, source, enclosingType, type.isDependent).value;
 		return type.isDependent ? gUniqueTypeNull : UniqueTypeWrapper(type.unique);
 	}
-	UniqueTypeWrapper makeUniqueTypeSafe(Type& type, Location source = NAME_NULL)
+	UniqueTypeWrapper makeUniqueTypeSafe(Type& type, Location source)
 	{
 		return makeUniqueTypeImpl(type, source);
 	}
-	UniqueTypeWrapper makeUniqueTypeSafe(TypeId& type, Location source = NAME_NULL)
+	UniqueTypeWrapper makeUniqueTypeSafe(TypeId& type, Location source)
 	{
 		return makeUniqueTypeImpl(type, source);
 	}
@@ -1387,12 +1386,10 @@ struct TemplateIdWalker : public WalkerBase
 	void visit(cpp::operator_function_id* symbol) 
 	{
 		Source source = parser->get_source();
-		FilePosition position = parser->get_position();
 		OperatorFunctionIdWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		symbol->value.value = walker.name;
-		symbol->value.source = source.absolute;
-		symbol->value.position = position;
+		symbol->value.source = source;
 		id = &symbol->value;
 	}
 	void visit(cpp::template_argument_clause* symbol)
@@ -1468,12 +1465,10 @@ struct UnqualifiedIdWalker : public WalkerBase
 	void visit(cpp::operator_function_id* symbol)
 	{
 		Source source = parser->get_source();
-		FilePosition position = parser->get_position();
 		OperatorFunctionIdWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		symbol->value.value = walker.name;
-		symbol->value.source = source.absolute;
-		symbol->value.position = position;
+		symbol->value.source = source;
 		id = &symbol->value;
 		if(!isDependent(qualifying_p))
 		{
@@ -2080,9 +2075,9 @@ struct PostfixExpressionWalker : public WalkerBase
 		TREEWALKER_WALK_SRC(walker, symbol);
 		expression = walker.expression;
 		addDependent(typeDependent, walker.typeDependent);
-		type = makeUniqueTypeSafe(walker.type, symbol->source.absolute);
+		type = makeUniqueTypeSafe(walker.type, symbol->source);
 		// [basic.lval] An expression which holds a temporary object resulting from a cast to a non-reference type is an rvalue
-		requireCompleteObjectType(type, symbol->source.absolute);
+		requireCompleteObjectType(type, symbol->source);
 		setExpressionType(symbol, type);
 		updateMemberType();
 		expression.isTemplateArgumentAmbiguity = symbol->args == 0;
@@ -2092,9 +2087,9 @@ struct PostfixExpressionWalker : public WalkerBase
 		ExplicitTypeExpressionWalker walker(getState());
 		TREEWALKER_WALK_SRC(walker, symbol);
 		expression = walker.expression;
-		type = makeUniqueTypeSafe(walker.type, symbol->source.absolute);
+		type = makeUniqueTypeSafe(walker.type, symbol->source);
 		// [basic.lval] An expression which holds a temporary object resulting from a cast to a non-reference type is an rvalue
-		requireCompleteObjectType(type, symbol->source.absolute);
+		requireCompleteObjectType(type, symbol->source);
 		if(symbol->op->id != cpp::cast_operator::DYNAMIC)
 		{
 			Dependent tmp(walker.typeDependent);
@@ -2136,7 +2131,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		{
 			type.pop_front(); // dereference left-hand side
 			// [expr.sub] The result is an lvalue of type T. The type "T" shall be a completely defined object type.
-			requireCompleteObjectType(type, symbol->source.absolute);
+			requireCompleteObjectType(type, symbol->source);
 		}
 		else // TODO: overloaded operator[]
 		{
@@ -2267,7 +2262,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		if(type.isPointer())
 		{
 			type.pop_front();
-			requireCompleteObjectType(type, symbol->source.absolute);
+			requireCompleteObjectType(type, symbol->source);
 		}
 		setExpressionType(symbol, type);
 		id = 0;
@@ -2293,7 +2288,7 @@ struct SizeofTypeExpressionWalker : public WalkerBase
 		// [temp.dep.constexpr] Expressions of the following form [sizeof(T)] are value-dependent if ... the type-id is dependent
 		addDependent(valueDependent, walker.type);
 
-		UniqueTypeId uniqueType = makeUniqueTypeSafe(walker.type, symbol->source.absolute);
+		UniqueTypeId uniqueType = makeUniqueTypeSafe(walker.type, symbol->source);
 		setExpressionType(symbol, uniqueType);
 
 		expression = ExpressionWrapper(makeExpression(SizeofTypeExpression(uniqueType)), true, false, isDependent(valueDependent));
@@ -2501,14 +2496,12 @@ struct ExpressionWalker : public WalkerBase
 	void visit(cpp::unary_expression_op* symbol)
 	{
 		Source source = parser->get_source();
-		FilePosition position = parser->get_position();
 		TREEWALKER_LEAF_SRC(symbol); 
 		if(type.value != UNIQUETYPE_NULL) // TODO: assert
 		{
 			Identifier id;
 			id.value = getUnaryOperatorName(symbol->op);
-			id.position = position;
-			id.source = source.absolute;
+			id.source = source;
 			FunctionOverload overload = findBestOverloadedOperator(id, type);
 			if(overload.declaration == &gUnknown)
 			{
@@ -2573,9 +2566,9 @@ struct ExpressionWalker : public WalkerBase
 	{
 		ExplicitTypeExpressionWalker walker(getState());
 		TREEWALKER_WALK_SRC(walker, symbol);
-		type = makeUniqueTypeSafe(walker.type, symbol->source.absolute);
+		type = makeUniqueTypeSafe(walker.type, symbol->source);
 		// [expr.new] The new expression attempts to create an object of the type-id or new-type-id to which it is applied. The type shall be a complete type...
-		requireCompleteObjectType(type, symbol->source.absolute);
+		requireCompleteObjectType(type, symbol->source);
 		type.push_front(PointerType());
 		addDependent(typeDependent, walker.typeDependent);
 		setExpressionType(symbol, type);
@@ -2584,9 +2577,9 @@ struct ExpressionWalker : public WalkerBase
 	{
 		ExplicitTypeExpressionWalker walker(getState());
 		TREEWALKER_WALK_SRC(walker, symbol);
-		type = makeUniqueTypeSafe(walker.type, symbol->source.absolute);
+		type = makeUniqueTypeSafe(walker.type, symbol->source);
 		// [expr.new] The new expression attempts to create an object of the type-id or new-type-id to which it is applied. The type shall be a complete type...
-		requireCompleteObjectType(type, symbol->source.absolute);
+		requireCompleteObjectType(type, symbol->source);
 		type.push_front(PointerType());
 		addDependent(typeDependent, walker.typeDependent);
 		setExpressionType(symbol, type);
@@ -2596,9 +2589,9 @@ struct ExpressionWalker : public WalkerBase
 		ExplicitTypeExpressionWalker walker(getState());
 		TREEWALKER_WALK_SRC(walker, symbol);
 		expression = walker.expression;
-		type = makeUniqueTypeSafe(walker.type, symbol->source.absolute);
+		type = makeUniqueTypeSafe(walker.type, symbol->source);
 		// [basic.lval] An expression which holds a temporary object resulting from a cast to a non-reference type is an rvalue
-		requireCompleteObjectType(type, symbol->source.absolute);
+		requireCompleteObjectType(type, symbol->source);
 		Dependent tmp(walker.typeDependent);
 		addDependent(valueDependent, tmp);
 		addDependent(typeDependent, walker.typeDependent);
@@ -3040,8 +3033,7 @@ struct UnqualifiedDeclaratorIdWalker : public WalkerBase
 		OperatorFunctionIdWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		symbol->value.value = walker.name;
-		symbol->value.source = source.absolute;
-		symbol->value.position = position;
+		symbol->value.source = source;
 		id = &symbol->value;
 	}
 	void visit(cpp::conversion_function_id* symbol) 
@@ -4014,7 +4006,7 @@ struct ElaboratedTypeSpecifierWalker : public WalkerQualified
 			if(key != &gClass)
 			{
 				SEMANTIC_ASSERT(key == &gEnum);
-				printPosition(symbol->value.position);
+				printPosition(symbol->value.source);
 				std::cout << "'" << symbol->value.value.c_str() << "': elaborated-type-specifier refers to undefined enum" << std::endl;
 				throw SemanticError();
 			}
@@ -4040,9 +4032,9 @@ struct ElaboratedTypeSpecifierWalker : public WalkerQualified
 #if 0 // allow hiding a typedef with a forward-declaration
 			if(isTypedef(*declaration))
 			{
-				printPosition(symbol->value.position);
+				printPosition(symbol->value.source);
 				std::cout << "'" << symbol->value.value.c_str() << "': elaborated-type-specifier refers to a typedef" << std::endl;
-				printPosition(declaration->getName().position);
+				printPosition(declaration->getName().source);
 				throw SemanticError();
 			}
 #endif
@@ -4052,9 +4044,9 @@ struct ElaboratedTypeSpecifierWalker : public WalkerQualified
 			*/
 			if(declaration->type.declaration != key)
 			{
-				printPosition(symbol->value.position);
+				printPosition(symbol->value.source);
 				std::cout << "'" << symbol->value.value.c_str() << "': elaborated-type-specifier key does not match declaration" << std::endl;
-				printPosition(declaration->getName().position);
+				printPosition(declaration->getName().source);
 				throw SemanticError();
 			}
 			type = declaration;
@@ -5054,9 +5046,9 @@ struct SimpleDeclarationWalker : public WalkerBase
 					if(holder != 0)
 					{
 						Declaration* declaration = *holder;
-						printPosition(member.getName().position);
+						printPosition(member.getName().source);
 						std::cout << "'" << member.getName().value.c_str() << "': anonymous union member already declared" << std::endl;
-						printPosition(declaration->getName().position);
+						printPosition(declaration->getName().source);
 						throw SemanticError();
 					}
 				}

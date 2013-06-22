@@ -1,4 +1,5 @@
 
+
 namespace N198
 {
 	template<class T, class U = int >

@@ -257,8 +257,7 @@ namespace cpp
 	struct terminal_identifier
 	{
 		TokenValue value;
-		FilePosition position;
-		Name source;
+		Source source;
 		decoration dec; // refers to the primary declaration named by this identifier
 	};
 

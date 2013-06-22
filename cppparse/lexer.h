@@ -119,7 +119,7 @@ struct Token
 		: id(boost::wave::T_UNKNOWN)
 	{
 	}
-	Token(LexTokenId id, const TokenValue& value, const FilePosition& position, Source source = Source(Name("\"$unknown\""), Name("$unknown")), IncludeEvents events = IncludeEvents())
+	Token(LexTokenId id, const TokenValue& value, const FilePosition& position, Source source = Source(Path(Name("\"$unknown\""), Name("$unknown")), 0, 0), IncludeEvents events = IncludeEvents())
 		: id(id), value(value), position(position), events(events), source(source)
 	{
 	}
@@ -455,6 +455,11 @@ inline void printPosition(const LexFilePosition& position)
 inline void printPosition(const FilePosition& position)
 {
 	std::cout << position.file.c_str() << "(" << position.line << "): ";
+}
+
+inline void printPosition(const Source& source)
+{
+	std::cout << source.absolute.c_str() << "(" << source.line << "): ";
 }
 
 #endif

@@ -11,8 +11,7 @@ inline cpp::identifier* parseSymbol(ParserType& parser, cpp::identifier* result)
 	if(TOKEN_EQUAL(parser, boost::wave::T_IDENTIFIER))
 	{
 		result->value.value = parser.get_value();
-		result->value.position = parser.get_position();
-		result->value.source = parser.get_source().absolute;
+		result->value.source = parser.get_source();
 		parser.increment();
 		return result;
 	}
