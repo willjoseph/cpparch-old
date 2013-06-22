@@ -1,4 +1,51 @@
 
+namespace N196
+{
+	struct C
+	{
+		void member();
+	};
+
+	template<void (C::*member)()>
+	struct A
+	{
+	};
+
+	template<class T>
+	struct S
+	{
+		typedef A<&T::member> Type;
+	};
+
+	S<C>::Type t;
+}
+
+namespace N195
+{
+	template<class> // anonymous template type param $T0
+	class S
+	{
+		typedef S Type; // resolves to S<$T0>
+	};
+}
+
+namespace N194
+{
+	template<int> // anonymous template nontype param $i0
+	class S
+	{
+		typedef S Type; // resolves to S<$i0>
+	};
+}
+
+namespace N193
+{
+	template<template<class> class> // anonymous template template param $TT0
+	class S
+	{
+		typedef S Type; // resolves to S<$TT0>
+	};
+}
 
 namespace N054
 {

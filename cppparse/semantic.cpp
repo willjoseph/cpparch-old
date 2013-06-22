@@ -5102,24 +5102,33 @@ struct TypeParameterWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
+	IdentifierPtr id;
 	DeclarationPtr declaration;
 	TemplateArgument argument; // the default argument for this param
 	TemplateArguments arguments; // the default arguments for this param's template-params (if template-template-param)
 	size_t templateParameter;
 	TypeParameterWalker(const WalkerState& state, size_t templateParameter)
-		: WalkerBase(state), declaration(0), argument(context), arguments(context), templateParameter(templateParameter)
+		: WalkerBase(state), id(&gAnonymousId), declaration(0), argument(context), arguments(context), templateParameter(templateParameter)
 	{
+	}
+	void commit()
+	{
+		SEMANTIC_ASSERT(declaration == 0); // may only be called once, after parse of type-parameter succeeds
+		DeclarationInstanceRef instance = pointOfDeclaration(context, enclosing, *id, TYPE_PARAM, 0, DECLSPEC_TYPEDEF, !arguments.empty(), TEMPLATEPARAMETERS_NULL, false, TEMPLATEARGUMENTS_NULL, templateParameter);
+#ifdef ALLOCATOR_DEBUG
+		trackDeclaration(instance);
+#endif
+		if(id != &gAnonymousId)
+		{
+			setDecoration(id, instance);
+		}
+		declaration = instance;
+		declaration->templateParams.defaults.swap(arguments);
 	}
 	void visit(cpp::identifier* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		DeclarationInstanceRef instance = pointOfDeclaration(context, enclosing, symbol->value, TYPE_PARAM, 0, DECLSPEC_TYPEDEF, !arguments.empty(), TEMPLATEPARAMETERS_NULL, false, TEMPLATEARGUMENTS_NULL, templateParameter);
-#ifdef ALLOCATOR_DEBUG
-		trackDeclaration(instance);
-#endif
-		setDecoration(&symbol->value, instance);
-		declaration = instance;
-		declaration->templateParams.defaults.swap(arguments);
+		id = &symbol->value;
 	}
 	void visit(cpp::type_id* symbol)
 	{
@@ -5167,9 +5176,8 @@ struct TemplateParameterListWalker : public WalkerBase
 	{
 		TypeParameterWalker walker(getState(), count);
 		TREEWALKER_WALK(walker, symbol);
-		param = walker.declaration == 0
-			? &gUnknown // anonymous type param
-			: walker.declaration;
+		walker.commit();
+		param = walker.declaration;
 		param.argument.swap(walker.argument);
 		++count;
 	}
@@ -5177,9 +5185,9 @@ struct TemplateParameterListWalker : public WalkerBase
 	{
 		TypeParameterWalker walker(getState(), count);
 		TREEWALKER_WALK(walker, symbol);
-		param = walker.declaration == 0
-			? &gUnknown // anonymous type param
-			: walker.declaration;
+		walker.commit();
+		SEMANTIC_ASSERT( walker.declaration != 0);
+		param = walker.declaration;
 		param.argument.swap(walker.argument);
 		++count;
 	}
