@@ -1360,31 +1360,6 @@ namespace N32
 }
 
 
-// name-lookup within (nested class) template member definition
-template<typename X>
-class C2
-{
-	template<typename T>
-	class C3
-	{
-		typedef T I;
-		static T m;
-		static T f(I);
-	};
-};
-
-template<typename X>
-template<typename T>
-T C2<X>::C3<T>::m = I();
-
-template<typename X>
-template<typename T>
-T C2<X>::C3<T>::f(I)
-{
-	I i;
-}
-
-
 
 
 namespace N84
@@ -1809,16 +1784,6 @@ template<typename Y>
 void Template7<X>::f(Y)
 {
 }
-
-
-// testing name-lookup within declarator-suffix
-class C6
-{
-	enum { SIZE = 1 };
-	static int m[SIZE];
-};
-
-int C6::m[SIZE];
 
 class C8
 {

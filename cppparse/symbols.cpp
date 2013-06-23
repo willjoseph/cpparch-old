@@ -106,6 +106,9 @@ const DeclarationInstance gDependentTemplateInstance(&gDependentTemplate);
 Identifier gDependentNestedId = makeIdentifier("$nested");
 Declaration gDependentNested(TREEALLOCATOR_NULL, 0, gDependentNestedId, TYPE_SPECIAL, 0);
 const DeclarationInstance gDependentNestedInstance(&gDependentNested);
+Identifier gDependentNestedTemplateId = makeIdentifier("$nested-template");
+Declaration gDependentNestedTemplate(TREEALLOCATOR_NULL, 0, gDependentNestedTemplateId, TYPE_SPECIAL, 0, DeclSpecifiers(), true);
+const DeclarationInstance gDependentNestedTemplateInstance(&gDependentNestedTemplate);
 
 Identifier gParamId = makeIdentifier("$param");
 Declaration gParam(TREEALLOCATOR_NULL, 0, gParamId, TYPE_CLASS, 0);

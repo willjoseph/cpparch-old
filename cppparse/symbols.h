@@ -746,6 +746,24 @@ inline IntegralConstant conditional(IntegralConstant first, IntegralConstant sec
 }
 
 
+template<boost::wave::token_id id>
+inline Name getBinaryOperatorNameImpl(cpp::terminal<id> op)
+{
+	return op.value;
+}
+
+template<typename T>
+inline Name getBinaryOperatorNameImpl(T op)
+{
+	return op->value.value;
+}
+
+template<typename T>
+inline Name getBinaryOperatorName(T* symbol)
+{
+	return getBinaryOperatorNameImpl(symbol->op);
+}
+
 
 // returns d < b
 // requires that D be derived from B, and that B has a virtual function
@@ -1964,9 +1982,10 @@ struct DependentTypename
 	Name name; // the type name
 	UniqueTypeWrapper qualifying; // the qualifying type
 	TemplateArgumentsInstance templateArguments;
-	bool isNested;
-	DependentTypename(Name name, UniqueTypeWrapper qualifying, TemplateArgumentsInstance templateArguments, bool isNested)
-		: name(name), qualifying(qualifying), templateArguments(templateArguments), isNested(isNested)
+	bool isNested; // T::dependent::
+	bool isTemplate; // T::template dependent<>
+	DependentTypename(Name name, UniqueTypeWrapper qualifying, TemplateArgumentsInstance templateArguments, bool isNested, bool isTemplate)
+		: name(name), qualifying(qualifying), templateArguments(templateArguments), isNested(isNested), isTemplate(isTemplate)
 	{
 	}
 };
@@ -2419,6 +2438,7 @@ struct DependentIdExpression
 	DependentIdExpression(Name name, UniqueTypeWrapper qualifying)
 		: name(name), qualifying(qualifying)
 	{
+		SYMBOLS_ASSERT(qualifying.value.p != 0);
 	}
 };
 
@@ -2444,11 +2464,10 @@ inline const DependentIdExpression& getDependentIdExpression(ExpressionNode* nod
 struct IdExpression
 {
 	DeclarationPtr declaration;
-	UniqueTypeWrapper qualifying;
-	IdExpression(DeclarationPtr declaration, UniqueTypeWrapper qualifying)
-		: declaration(declaration), qualifying(qualifying)
+	const TypeInstance* enclosing;
+	IdExpression(DeclarationPtr declaration, const TypeInstance* enclosing)
+		: declaration(declaration), enclosing(enclosing)
 	{
-		SYMBOLS_ASSERT(qualifying.value.p != 0);
 	}
 };
 
@@ -2456,7 +2475,7 @@ inline bool operator<(const IdExpression& left, const IdExpression& right)
 {
 	return left.declaration.p != right.declaration.p
 		? left.declaration.p < right.declaration.p
-		: left.qualifying < right.qualifying;
+		: left.enclosing < right.enclosing;
 }
 
 inline bool isIdExpression(ExpressionNode* node)
@@ -2531,11 +2550,12 @@ inline bool operator<(const SizeofTypeExpression& left, const SizeofTypeExpressi
 
 struct UnaryExpression
 {
+	Name operatorName;
 	UnaryIceOp operation;
 	UnaryTypeOp type;
 	ExpressionPtr first;
-	UnaryExpression(UnaryIceOp operation, UnaryTypeOp type, ExpressionPtr first)
-		: operation(operation), type(type), first(first)
+	UnaryExpression(Name operatorName, UnaryIceOp operation, UnaryTypeOp type, ExpressionPtr first)
+		: operatorName(operatorName), operation(operation), type(type), first(first)
 	{
 	}
 };
@@ -2563,12 +2583,13 @@ inline const UnaryExpression& getUnaryExpression(ExpressionNode* node)
 
 struct BinaryExpression
 {
+	Name operatorName;
 	BinaryIceOp operation;
 	BinaryTypeOp type;
 	ExpressionPtr first;
 	ExpressionPtr second;
-	BinaryExpression(BinaryIceOp operation, BinaryTypeOp type, ExpressionPtr first, ExpressionPtr second)
-		: operation(operation), type(type), first(first), second(second)
+	BinaryExpression(Name operatorName, BinaryIceOp operation, BinaryTypeOp type, ExpressionPtr first, ExpressionPtr second)
+		: operatorName(operatorName), operation(operation), type(type), first(first), second(second)
 	{
 	}
 };
@@ -2716,12 +2737,10 @@ inline IntegralConstant evaluateIdExpression(const Declaration* declaration, Loc
 
 inline IntegralConstant evaluateIdExpression(const IdExpression& node, Location source, const TypeInstance* enclosing)
 {
-	if(node.qualifying != gUniqueTypeNull)
+	if(node.enclosing != 0)
 	{
-		SYMBOLS_ASSERT(node.qualifying.isSimple());
-		enclosing = &getObjectType(node.qualifying.value);
+		enclosing = node.enclosing;
 	}
-
 	return evaluateIdExpression(node.declaration, source, enclosing);
 }
 
@@ -2743,6 +2762,11 @@ inline IntegralConstant evaluateIdExpression(const DependentIdExpression& node, 
 	SYMBOLS_ASSERT(!enclosing->instantiating);
 	LookupResultRef declaration = findDeclaration(*enclosing, id, IsAny());
 	SYMBOLS_ASSERT(declaration != 0);
+
+	const TypeInstance* memberEnclosing = isMember(*declaration) // if the declaration is a class member
+		? findEnclosingType(enclosing, declaration->scope) // it must be a member of (a base of) the qualifying class: find which one.
+		: 0; // the declaration is not a class member and cannot be found through qualified name lookup
+
 	return evaluateIdExpression(declaration, source, enclosing);
 }
 
@@ -3367,9 +3391,7 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const
 
 struct TypeError
 {
-	TypeError()
-	{
-	}
+	virtual void report() = 0;
 };
 
 inline void checkUniqueType(UniqueTypeWrapper result, const Type& type, Location source, const TypeInstance* enclosing, bool allowDependent)
@@ -3401,11 +3423,13 @@ inline UniqueTypeWrapper makeUniqueType(const TypeId& type, Location source, con
 		checkUniqueType(result, type, source, enclosing, allowDependent);
 		return result;
 	}
-	catch(TypeError)
+	catch(TypeError&)
 	{
-		std::cout << "makeUniqueType failed!" << std::endl;
-		extern ObjectTypeId gBaseClass;
-		return gBaseClass;
+		std::cout << "while uniquing: ";
+		SYMBOLS_ASSERT(type.unique != 0);
+		printType(UniqueTypeWrapper(type.unique));
+		std::cout << std::endl;
+		throw;
 	}
 }
 
@@ -3417,11 +3441,13 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const
 		checkUniqueType(result, type, source, enclosing, allowDependent);
 		return result;
 	}
-	catch(TypeError)
+	catch(TypeError&)
 	{
-		std::cout << "makeUniqueType failed!" << std::endl;
-		extern ObjectTypeId gBaseClass;
-		return gBaseClass;
+		std::cout << "while uniquing: ";
+		SYMBOLS_ASSERT(type.unique != 0);
+		printType(UniqueTypeWrapper(type.unique));
+		std::cout << std::endl;
+		throw;
 	}
 }
 
@@ -3701,10 +3727,17 @@ inline const TypeInstance* makeUniqueEnclosing(const Qualifying& qualifying, Loc
 	{
 		return makeUniqueEnclosing(qualifying, source, enclosing, allowDependent, 0);
 	}
-	catch(TypeError)
+	catch(TypeError&)
 	{
-		std::cout << "makeUniqueEnclosing failed!" << std::endl;
-		return 0;
+		if(!qualifying.empty())
+		{
+			const Type& type = qualifying.back();
+			std::cout << "while uniquing: ";
+			SYMBOLS_ASSERT(type.unique != 0);
+			printType(UniqueTypeWrapper(type.unique));
+			std::cout << std::endl;
+		}
+		throw;
 	}
 }
 
@@ -3866,9 +3899,15 @@ inline Declaration* findTemplateSpecialization(Declaration* declaration, Templat
 				{
 					// TODO: this may occur if the specializations differ only in non-type arguments
 					//SYMBOLS_ASSERT(isNonType(arguments));
-					std::cout << "ambiguous specialization!";
-					std::cout << std::endl;
-					throw TypeError();
+					struct AmbiguousSpecialization : TypeError
+					{
+						void report()
+						{
+							std::cout << "ambiguous specialization!";
+							std::cout << std::endl;
+						}
+					};
+					throw AmbiguousSpecialization();
 				}
 				
 				if(atLeastAsSpecializedBest)
@@ -3961,6 +4000,22 @@ inline UniqueTypeWrapper makeUniqueObjectType(const TypeInstance& type)
 	return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, UNIQUETYPE_NULL, ObjectType(type)));
 }
 
+struct LookupFailed : TypeError
+{
+	const TypeInstance* enclosing;
+	const Identifier* id;
+	LookupFailed(const TypeInstance* enclosing, const Identifier* id)
+		: enclosing(enclosing), id(id)
+	{
+	}
+	void report()
+	{
+		std::cout << "lookup failed: ";
+		printType(*enclosing);
+		std::cout << "::" << id->value.c_str() << std::endl;
+	}
+};
+
 // unqualified object name: int, Object,
 // qualified object name: Qualifying::Object
 // unqualified typedef: Typedef, TemplateParam
@@ -3972,8 +4027,14 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const
 {
 	if(depth++ == 256)
 	{
-		std::cout << "makeUniqueType reached maximum recursion depth!" << std::endl;
-		throw TypeError();
+		struct MaximumRecursionDepth : TypeError
+		{
+			void report()
+			{
+				std::cout << "makeUniqueType reached maximum recursion depth!" << std::endl;
+			}
+		};
+		throw MaximumRecursionDepth();
 	}
 
 	// the type in which template-arguments are looked up: returns qualifying type if specified, else returns enclosingType
@@ -3983,10 +4044,13 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const
 	extern Declaration gDependentType;
 	extern Declaration gDependentTemplate;
 	extern Declaration gDependentNested;
+	extern Declaration gDependentNestedTemplate;
 	if(declaration == &gDependentType
 		|| declaration == &gDependentTemplate
-		|| declaration == &gDependentNested) // this is a type-name with a dependent nested-name-specifier
+		|| declaration == &gDependentNested
+		|| declaration == &gDependentNestedTemplate) // this is a type-name with a dependent nested-name-specifier
 	{
+		bool isNested = declaration == &gDependentNested || declaration == &gDependentNestedTemplate;
 		SYMBOLS_ASSERT(!type.qualifying.empty()); // the type-name must be qualified
 		SYMBOLS_ASSERT(type.id != IdentifierPtr(0));
 		const DeclarationInstance* instance = 0;
@@ -4001,7 +4065,7 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const
 			}
 			else
 			{
-				instance = findDeclaration(*enclosing, *type.id, declaration == &gDependentNested ? LookupFilter(IsNestedName()) : LookupFilter(IsAny()));
+				instance = findDeclaration(*enclosing, *type.id, isNested ? LookupFilter(IsNestedName()) : LookupFilter(IsAny()));
 			}
 		}
 		// SYMBOLS_ASSERT(declaration != 0); // TODO: assert
@@ -4011,15 +4075,10 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const
 			{
 				TemplateArgumentsInstance templateArguments;
 				makeUniqueTemplateArguments(type.templateArguments, templateArguments, source, enclosingType, allowDependent);
-				return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, UNIQUETYPE_NULL, DependentTypename(type.id->value, qualifying, templateArguments, declaration == &gDependentNested)));
+				return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, UNIQUETYPE_NULL, DependentTypename(type.id->value, qualifying, templateArguments, isNested, declaration->isTemplate)));
 			}
 
-			std::cout << "lookup failed: ";
-			printType(*enclosing);
-			std::cout << "::" << type.id->value.c_str() << std::endl;
-			throw TypeError();
-			extern ObjectTypeId gBaseClass;
-			return gBaseClass;
+			throw LookupFailed(enclosing, type.id);
 		}
 		declaration = *instance;
 	}
@@ -4601,6 +4660,8 @@ extern Declaration gDependentTemplate;
 extern const DeclarationInstance gDependentTemplateInstance;
 extern Declaration gDependentNested;
 extern const DeclarationInstance gDependentNestedInstance;
+extern Declaration gDependentNestedTemplate;
+extern const DeclarationInstance gDependentNestedTemplateInstance;
 
 extern Declaration gParam;
 extern Declaration gNonType;
@@ -5749,7 +5810,7 @@ typedef TokenPrinter<std::ostream> FileTokenPrinter;
 typedef std::list<UniqueType> TypeElements;
 
 
-struct SymbolPrinter : TypeElementVisitor
+struct SymbolPrinter : TypeElementVisitor, ExpressionNodeVisitor
 {
 	FileTokenPrinter& printer;
 	bool escape;
@@ -5779,6 +5840,74 @@ struct SymbolPrinter : TypeElementVisitor
 		}
 	}
 
+	void visit(const IntegralConstantExpression& literal)
+	{
+		printer.out << literal.value.value;
+	}
+	void visit(const NonTypeTemplateParameter& node)
+	{
+		printer.out << "$i" << node.declaration->scope->templateDepth << "_" << node.declaration->templateParameter;
+	}
+	void visit(const DependentIdExpression& node)
+	{
+		printType(node.qualifying);
+		printer.out << ".";
+		printer.out << node.name.c_str();
+		// TODO: template arguments
+	}
+	void visit(const IdExpression& node)
+	{
+		if(node.enclosing != 0)
+		{
+			printType(*node.enclosing);
+			printer.out << ".";
+		}
+		printer.out << getValue(node.declaration->getName());
+		// TODO: template arguments
+	}
+	void visit(const SizeofExpression& node)
+	{
+		printer.out << "sizeof(";
+		printExpression(node.operand);
+		printer.out << ")";
+	}
+	void visit(const SizeofTypeExpression& node)
+	{
+		printer.out << "sizeof(";
+		printType(node.type);
+		printer.out << ")";
+	}
+	void visit(const UnaryExpression& node)
+	{
+		printer.out << "(";
+		printer.out << " " << node.operatorName.c_str() << " ";
+		printExpression(node.first);
+		printer.out << ")";
+	}
+	void visit(const BinaryExpression& node)
+	{
+		printer.out << "(";
+		printExpression(node.first);
+		printer.out << " " << node.operatorName.c_str() << " ";
+		printExpression(node.second);
+		printer.out << ")";
+	}
+	void visit(const TernaryExpression& node)
+	{
+		printer.out << "(";
+		printExpression(node.first);
+		printer.out << " " << "?" << " ";
+		printExpression(node.second);
+		printer.out << " " << ":" << " ";
+		printExpression(node.third);
+		printer.out << ")";
+	}
+
+	void printExpression(ExpressionNode* node)
+	{
+		node->accept(*this);
+	}
+
 	std::vector<bool> typeStack;
 
 	void pushType(bool isPointer)
@@ -5803,7 +5932,7 @@ struct SymbolPrinter : TypeElementVisitor
 
 	std::vector<CvQualifiers> qualifierStack;
 
-	void visit(const DependentType& dependent)
+	void visit(const DependentType& element)
 	{
 		if(qualifierStack.back().isConst)
 		{
@@ -5814,28 +5943,33 @@ struct SymbolPrinter : TypeElementVisitor
 			printer.out << "volatile ";
 		}
 #if 1
-		printer.out << "$T" << dependent.type->scope->templateDepth << "_" << dependent.type->templateParameter;
+		printer.out << "$T" << element.type->scope->templateDepth << "_" << element.type->templateParameter;
 #else
-		printName(dependent.type);
+		printName(element.type);
 #endif
 		visitTypeElement();
 	}
-	void visit(const DependentTypename& dependent)
+	void visit(const DependentTypename& element)
 	{
-		// TODO
+		printType(element.qualifying);
+		printer.out << "." << element.name.c_str();
+		if(element.isTemplate)
+		{
+			printTemplateArguments(element.templateArguments);
+		}
 		visitTypeElement();
 	}
-	virtual void visit(const DependentNonType& element)
+	void visit(const DependentNonType& element)
 	{
-		printer.out << "$nontype";
+		printExpression(element.expression);
 		visitTypeElement();
 	}
-	virtual void visit(const TemplateTemplateArgument& element)
+	void visit(const TemplateTemplateArgument& element)
 	{
 		printName(element.declaration);
 		visitTypeElement();
 	}
-	virtual void visit(const NonType& element)
+	void visit(const NonType& element)
 	{
 		printer.out << element.value;
 		visitTypeElement();

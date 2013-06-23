@@ -1897,10 +1897,13 @@ struct PrimaryExpressionWalker : public WalkerBase
 
 			SEMANTIC_ASSERT(!isDependent(walker.qualifying.get_ref()));
 
+			const TypeInstance* qualifyingType = qualifying == gUniqueTypeNull ? 0 : &getObjectType(qualifying.value);
+			SEMANTIC_ASSERT(qualifyingType == walker.qualifyingType);
+
 			SEMANTIC_ASSERT(declaration->templateParameter == INDEX_INVALID || walker.qualifying.empty()); // template params cannot be qualified
 			expression = ExpressionWrapper(
 				declaration->templateParameter == INDEX_INVALID
-					? makeExpression(IdExpression(declaration, qualifying))
+					? makeExpression(IdExpression(declaration, qualifyingType))
 					: makeExpression(NonTypeTemplateParameter(declaration)),
 				false,
 				isDependent(typeDependent),
@@ -1911,13 +1914,13 @@ struct PrimaryExpressionWalker : public WalkerBase
 				&& isMember(*declaration)
 				&& !isStatic(*declaration);
 
-			// further type resolution (including overloads) should be made in the context of the qualifying type (if present)
-			idEnclosing = isDependent(walker.qualifying.get_ref()) ? 0 : makeUniqueEnclosing(walker.qualifying, id->source, enclosingType);
-			if(idEnclosing != 0
-				&& declaration->scope->type == SCOPETYPE_CLASS)
+			// further type resolution (including overloads) should be made in the context of the enclosing type (if present)
+			idEnclosing = makeUniqueEnclosing(walker.qualifying, id->source, enclosingType);
+			if(isMember(*declaration)) // if the declaration is a class member
 			{
+				SEMANTIC_ASSERT(idEnclosing != 0);
 				// the identifier may name a type in a base-class of the qualifying type; findEnclosingType resolves this.
-				idEnclosing = findEnclosingType(idEnclosing, declaration->scope);
+				idEnclosing = findEnclosingType(idEnclosing, declaration->scope); // it must be a member of (a base of) the qualifying class: find which one.
 				SEMANTIC_ASSERT(idEnclosing != 0);
 			}
 
@@ -2356,7 +2359,7 @@ struct ExpressionWalker : public WalkerBase
 		// TODO: SEMANTIC_ASSERT(type.declaration != 0 && walker.type.declaration != 0);
 		BinaryIceOp iceOp = getBinaryIceOp(symbol);
 		expression = ExpressionWrapper(
-			makeExpression(BinaryExpression(iceOp, typeOp, expression, walker.expression)),
+			makeExpression(BinaryExpression(getBinaryOperatorName(symbol), iceOp, typeOp, expression, walker.expression)),
 			expression.isConstant && walker.expression.isConstant && iceOp != 0,
 			isDependent(typeDependent),
 			isDependent(valueDependent)
@@ -2515,7 +2518,7 @@ struct ExpressionWalker : public WalkerBase
 					// For a qualified-id, if the member is a static member of type “T”, the type of the result is plain “pointer to T.”
 					// If the member is a non-static member of class C of type T, the type of the result is “pointer to member of class C of type
 					// T.”
-					UniqueTypeWrapper classType = UniqueTypeWrapper(getIdExpression(expression).qualifying);
+					UniqueTypeWrapper classType = makeUniqueObjectType(*getIdExpression(expression).enclosing);
 					type.push_front(MemberPointerType(classType)); // produces a non-const pointer
 				}
 				else
@@ -2538,7 +2541,7 @@ struct ExpressionWalker : public WalkerBase
 
 		UnaryIceOp iceOp = getUnaryIceOp(symbol);
 		expression = ExpressionWrapper(
-			makeExpression(UnaryExpression(iceOp, 0, expression)),
+			makeExpression(UnaryExpression(symbol->op->value.value, iceOp, 0, expression)),
 			expression.isConstant && iceOp != 0,
 			isDependent(typeDependent),
 			isDependent(valueDependent)
@@ -2810,7 +2813,7 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 	{
 		TemplateIdWalker walker(getState());
 		TREEWALKER_WALK_CACHED(walker, symbol);
-		LookupResultRef declaration = gDependentNestedInstance;
+		LookupResultRef declaration = gDependentNestedTemplateInstance;
 		if(!isTemplate // TODO: should perform name lookup anyway, even if 'qualifying_p' not dependent!
 			&& (isDeclarator
 				|| !isDependent(qualifying_p)))
@@ -2824,7 +2827,7 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 		type = declaration;
 		type.id = walker.id;
 		type.templateArguments.swap(walker.arguments);
-		if(declaration != &gDependentNested)
+		if(declaration != &gDependentNestedTemplate)
 		{
 			setDependent(type); // a template-id is dependent if the 'identifier' is a template-parameter
 		}
@@ -3293,6 +3296,7 @@ struct DeclaratorWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	IdentifierPtr id;
+	UniqueTypeWrapper qualifying;
 	ScopePtr paramScope;
 	Dependent valueDependent;
 	TypeSequence typeSequence;
@@ -3336,6 +3340,7 @@ struct DeclaratorWalker : public WalkerBase
 		DeclaratorWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol); // if parse fails, state of typeSeqence is not modified.
 		id = walker.id;
+		qualifying = walker.qualifying;
 		enclosing = walker.enclosing;
 		paramScope = walker.paramScope;
 		addDependent(dependent, walker.dependent);
@@ -3364,11 +3369,17 @@ struct DeclaratorWalker : public WalkerBase
 		DeclaratorIdWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		id = walker.id;
+		qualifying = walker.qualifying.empty() || isNamespace(*walker.qualifying.back().declaration)
+			? gUniqueTypeNull : UniqueTypeWrapper(walker.qualifying.back().unique);
 
 		if(walker.getQualifyingScope()
-			&& enclosing->type != SCOPETYPE_CLASS) // in 'class C { friend Q::N(X); };' X should be looked up in the scope of C rather than Q
+			&& enclosing->type != SCOPETYPE_CLASS) // in 'class C { friend void Q::N(X); };' X should be looked up in the scope of C rather than Q
 		{
 			enclosing = walker.getQualifyingScope(); // names in declarator suffix (array-size, parameter-declaration) are looked up in declarator-id's qualifying scope
+			if(qualifying != gUniqueTypeNull)
+			{
+				enclosingType = &getObjectType(qualifying.value);
+			}
 		}
 	}
 	template<typename T>
@@ -3409,6 +3420,7 @@ struct DeclaratorWalker : public WalkerBase
 		DeclaratorWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		id = walker.id;
+		qualifying = walker.qualifying;
 		enclosing = walker.enclosing;
 		paramScope = walker.paramScope;
 		addDependent(dependent, walker.dependent);
@@ -3905,7 +3917,7 @@ struct EnumSpecifierWalker : public WalkerBase
 		// [dcl.enum] An enumerator-definition without an initializer gives the enumerator the value obtained by increasing the value of the previous enumerator by one.
 		ExpressionPtr one = makeExpression(IntegralConstantExpression(gSignedInt, IntegralConstant(1)));
 		value = ExpressionWrapper(
-			makeExpression(BinaryExpression(operator+, binaryOperatorAssignment, value, one)),
+			makeExpression(BinaryExpression(Name("+"), operator+, binaryOperatorAssignment, value, one)),
 			true, value.isTypeDependent, value.isValueDependent
 		);
 	}
@@ -4625,7 +4637,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 
 	// commit the declaration to the enclosing scope.
 	// invoked when no further ambiguities remain.
-	void commit(bool isFunctionDefinition = false)
+	void commit()
 	{
 		if(id != 0)
 		{
@@ -4639,7 +4651,6 @@ struct SimpleDeclarationWalker : public WalkerBase
 				enclosed = templateParamScope; // for a static-member-variable definition, store template-params with different names than those in the class definition
 			}
 			declaration = declareObject(parent, id, type, enclosed, specifiers, templateParameter, valueDependent);
-			declaration->isFunctionDefinition = isFunctionDefinition;
 
 			if(isMember(*declaration)
 				&& !declaration->isTemplate // TODO: template function instantiation
@@ -4746,6 +4757,12 @@ struct SimpleDeclarationWalker : public WalkerBase
 			— a constant with effective literal type and is initialized with an expression that is value-dependent.
 		*/
 		addDependent(valueDependent, walker.valueDependent);
+
+		if(walker.qualifying != gUniqueTypeNull)
+		{
+			SEMANTIC_ASSERT(walker.qualifying.isSimple());
+			enclosingType = &getObjectType(walker.qualifying.value);
+		}
 	}
 	void visit(cpp::abstract_declarator* symbol)
 	{
@@ -4796,7 +4813,9 @@ struct SimpleDeclarationWalker : public WalkerBase
 	}
 	void visit(cpp::terminal<boost::wave::T_LEFTBRACE> symbol) // begins function_body
 	{
-		commit(true);
+		commit();
+		SEMANTIC_ASSERT(declaration != 0);
+		declaration->isFunctionDefinition = true;
 
 		// symbols may be deferred during attempt to parse shared-prefix declarator: f(int i = j)
 		// first parsed as member_declaration_named, backtracks on reaching '{'
@@ -4822,7 +4841,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 			WalkerState::deferred->splice(deferred);
 		}
 	}
-	void visit(cpp::terminal<boost::wave::T_COLON> symbol) // in member_declarator_bitfield
+	void visit(cpp::terminal<boost::wave::T_COLON> symbol) // in member_declarator_bitfield, or ctor_initializer
 	{
 		commit();
 	}
@@ -5220,9 +5239,12 @@ struct TemplateParameterClauseWalker : public WalkerBase
 		: WalkerBase(state), params(context)
 	{
 		// collect template-params into a new scope
-		Scope* scope = templateParamScope != 0 ? static_cast<Scope*>(templateParamScope) : newScope(makeIdentifier("$template"), SCOPETYPE_TEMPLATE);
+		if(templateParamScope != 0)
+		{
+			pushScope(templateParamScope); // the existing template parameter scope encloses the new scope
+		}
+		pushScope(newScope(makeIdentifier("$template"), SCOPETYPE_TEMPLATE));
 		clearTemplateParams();
-		pushScope(scope);
 		enclosing->templateDepth = templateDepth;
 	}
 	void visit(cpp::template_parameter_list* symbol)
@@ -5460,6 +5482,10 @@ cpp::declaration_seq* parseFile(ParserContext& context)
 	catch(SemanticError&)
 	{
 	}
+	catch(TypeError& e)
+	{
+		e.report();
+	}
 	if(!context.finished())
 	{
 		printError(parser);
@@ -5494,6 +5520,10 @@ cpp::statement_seq* parseFunction(ParserContext& context)
 	}
 	catch(ParseError&)
 	{
+	}
+	catch(TypeError& e)
+	{
+		e.report();
 	}
 	if(!context.finished())
 	{

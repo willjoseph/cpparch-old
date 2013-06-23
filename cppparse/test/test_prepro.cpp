@@ -1,4 +1,138 @@
 
+namespace N207
+{
+	template<int N>
+	struct S
+	{
+		static const int value = N;
+	};
+
+	template<int N>
+	struct A : S<N>
+	{
+	};
+
+	int i = A<0>::value;
+}
+
+namespace N206
+{
+	template<int N>
+	struct S
+	{
+		static const int value = N;
+		typedef S<value + 1> next;
+	};
+
+	S<0> s;
+}
+
+namespace N205
+{
+	struct O
+	{
+		struct S
+		{
+			S(S s): m(s.m)
+			{
+			}
+			int m;
+		};
+	};
+}
+namespace N204
+{
+	class C
+	{
+		C();
+		int m;
+	};
+
+	C::C() : m(m) // 'm' must be usable in an unqualified expression within the initializer list
+	{
+	}
+}
+
+namespace N203
+{
+
+	struct Q
+	{
+		struct X;
+		void N(X*);
+	};
+
+	struct C
+	{
+		typedef Q::X Y;
+		static const int c = 0;
+		friend void Q::N(Y* = c); // 'Y' and 'c' should be looked up in the scope of C rather than Q
+	};
+
+}
+
+namespace N202
+{
+	// testing name-lookup within declarator-suffix
+	class C6
+	{
+		enum { SIZE = 1 };
+		static int m[SIZE];
+	};
+
+	int C6::m[SIZE];
+}
+
+namespace N201
+{
+	// name-lookup within (nested class) template member definition
+	template<typename X>
+	class C2
+	{
+		template<typename T>
+		class C3
+		{
+			typedef T I;
+			static T m;
+			static T f(I);
+		};
+	};
+
+	template<typename X>
+	template<typename T>
+	T C2<X>::C3<T>::f(I)
+	{
+		I i;
+	}
+
+	template<typename X>
+	template<typename T>
+	T C2<X>::C3<T>::m = I();
+}
+
+namespace N200
+{
+	class C
+	{
+		C* f();
+	}
+
+	void C::f()
+	{
+		f()->f();
+	}
+}
+
+namespace N199
+{
+	template<typename T>
+	void f();
+
+	void g()
+	{
+		f<int>(); // TODO: id-expression containing template-arguments
+	}
+}
 
 namespace N198
 {
