@@ -2763,10 +2763,6 @@ inline IntegralConstant evaluateIdExpression(const DependentIdExpression& node, 
 	LookupResultRef declaration = findDeclaration(*enclosing, id, IsAny());
 	SYMBOLS_ASSERT(declaration != 0);
 
-	const TypeInstance* memberEnclosing = isMember(*declaration) // if the declaration is a class member
-		? findEnclosingType(enclosing, declaration->scope) // it must be a member of (a base of) the qualifying class: find which one.
-		: 0; // the declaration is not a class member and cannot be found through qualified name lookup
-
 	return evaluateIdExpression(declaration, source, enclosing);
 }
 
