@@ -4,6 +4,7 @@
 
 #include <cstddef> // size_t 
 
+// ----------------------------------------------------------------------------
 
 #define ARRAY_COUNT(array) (sizeof(array) / sizeof(*array))
 #define ARRAY_END(array) ((array) + ARRAY_COUNT(array))
@@ -28,6 +29,7 @@ ArrayRange<T> makeRange(const T* first, const T* last)
 #define ARRAY_RANGE(array) makeRange(array, ARRAY_END(array))
 
 
+// ----------------------------------------------------------------------------
 
 struct TypeListEnd
 {
@@ -87,6 +89,7 @@ struct TypeListCount<TypeListEnd>
 #define TYPELIST_COUNT(Types) TypeListCount<Types>::RESULT
 
 
+// ----------------------------------------------------------------------------
 
 
 
@@ -169,6 +172,7 @@ typename Caller::Result makeCallback(Caller caller)
 {
 	return typename Caller::Result(Caller::thunk, caller.object);
 }
+
 
 #endif
 

@@ -2899,6 +2899,7 @@ struct NestedNameSpecifierWalker : public WalkerQualified
 		NestedNameSpecifierPrefixWalker walker(getState(), isDeclarator);
 		TREEWALKER_WALK(walker, symbol);
 		SEMANTIC_ASSERT(walker.type.declaration != 0);
+		makeUniqueTypeSafe(walker.type, getLocation());
 		swapQualifying(walker.type, isDeclarator);
 		//disableBacktrack();
 	}

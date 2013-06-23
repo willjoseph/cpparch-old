@@ -8,10 +8,11 @@
 #include "allocator.h"
 #include "list.h"
 #include "parser.h"
+#include "indirect_set.h"
+#include "sequence.h"
 
 #include <list>
 #include <map>
-#include <set>
 
 
 #define SYMBOLS_ASSERT ALLOCATOR_ASSERT
@@ -49,204 +50,6 @@ const DeclSpecifiers DECLSPEC_TYPEDEF = DeclSpecifiers(true, false, false, false
 #define TreeAllocator DebugAllocator
 #define TREEALLOCATOR_NULL TreeAllocator<int>()
 #endif
-
-// ----------------------------------------------------------------------------
-// sequence
-
-template<typename Visitor>
-struct SequenceNode
-{
-	Reference<SequenceNode> next;
-
-	virtual ~SequenceNode()
-	{
-	}
-	virtual void accept(Visitor& visitor) const = 0;
-#if 0
-	virtual bool operator==(const SequenceNode& other) const = 0;
-#endif
-
-	const SequenceNode* get() const
-	{
-		return next.get();
-	}
-};
-
-template<typename Visitor>
-struct SequenceNodeEmpty : SequenceNode<Visitor>
-{
-	virtual void accept(Visitor& visitor) const
-	{
-		throw SymbolsError();
-	}
-#if 0
-	virtual bool operator==(const SequenceNode<Visitor>& other) const
-	{
-		throw SymbolsError();
-	}
-#endif
-	virtual bool operator<(const SequenceNode<Visitor>& other) const
-	{
-		throw SymbolsError();
-	}
-};
-
-template<typename T, typename Visitor>
-struct SequenceNodeGeneric : Reference< SequenceNode<Visitor> >::Value
-{
-	T value;
-	SequenceNodeGeneric(const T& value)
-		: value(value)
-	{
-	}
-	void accept(Visitor& visitor) const
-	{
-		visitor.visit(value);
-	}
-#if 0
-	bool operator==(const SequenceNode<Visitor>& other) const
-	{
-		return typeid(*this) == typeid(other)
-			&& value == static_cast<const SequenceNodeGeneric*>(&other)->value;
-	}
-#endif
-#if 0
-	bool operator<(const SequenceNode<Visitor>& other) const
-	{
-		return (typeid(*this).before(typeid(other)) ||
-			!(typeid(other).before(typeid(*this))) && value < static_cast<const SequenceNodeGeneric*>(&other)->value);
-	}
-#endif
-};
-
-template<typename A, typename Visitor>
-struct Sequence : A
-{
-	typedef SequenceNode<Visitor> Node;
-	typedef Reference<Node> Pointer;
-	SequenceNodeEmpty<Visitor> head;
-
-	A& getAllocator()
-	{
-		return *this;
-	}
-	const A& getAllocator() const
-	{
-		return *this;
-	}
-
-	Sequence()
-	{
-		construct();
-	}
-	Sequence(const A& allocator)
-		:  A(allocator)
-	{
-		construct();
-	}
-	Sequence& operator=(Sequence other)
-	{
-		head = other.head;
-		return *this;
-	}
-	void construct()
-	{
-		head.next = 0;
-	}
-
-	bool empty() const
-	{
-		return head.next == Pointer(0);
-	}
-	void clear()
-	{
-		construct();
-	}
-
-	template<typename T>
-	void push_front(const T& value)
-	{
-		Pointer node = allocatorNew(getAllocator(), SequenceNodeGeneric<T, Visitor>(value));
-		node->next = head.next;
-		head.next = node;
-	}
-	template<typename T>
-	void push_back(const T& value)
-	{
-		Pointer node = allocatorNew(getAllocator(), SequenceNodeGeneric<T, Visitor>(value));
-		if(empty())
-		{
-			node->next = head.next;
-			head.next = node;
-		}
-		else
-		{
-			Pointer last = head.next;
-			for(Pointer next = last->next; next != 0; next = next->next)
-			{
-				last = next;
-			}
-			node->next = 0;
-			last->next = node;
-		}
-	}
-	void pop_front()
-	{
-#ifdef ALLOCATOR_DEBUG
-		SYMBOLS_ASSERT(head.next.p->count == 1);
-#endif
-		SYMBOLS_ASSERT(!empty());
-		Pointer node = head.next;
-		head.next = node->next;
-		allocatorDelete(getAllocator(), node.get());
-	}
-
-	void swap(Sequence& other)
-	{
-		head.next.swap(other.head.next);
-	}
-	void reverse()
-	{
-#ifdef ALLOCATOR_DEBUG
-		SYMBOLS_ASSERT(head.next.p->count == 1);
-#endif
-		Pointer root = head.next;
-		head.next = 0;
-		while(root != 0)
-		{
-			Pointer next = root->next;
-			root->next = head.next;
-			head.next = root;
-			root = next;
-		}
-	}
-
-	const Node* get() const
-	{
-		return head.next.get();
-	}
-
-	void accept(Visitor& visitor) const
-	{
-		for(const Node* node = get(); node != 0; node = node->get())
-		{
-			node->accept(visitor);
-		}
-	}
-};
-
-template<typename Visitor>
-const SequenceNode<Visitor>* findLast(const SequenceNode<Visitor>* node)
-{
-	SYMBOLS_ASSERT(node != 0);
-	const SequenceNode<Visitor>* next = node->get();
-	if(next == 0)
-	{
-		return node;
-	}
-	return findLast(next);
-}
-
 
 
 // ----------------------------------------------------------------------------
@@ -763,70 +566,6 @@ inline Name getBinaryOperatorName(T* symbol)
 {
 	return getBinaryOperatorNameImpl(symbol->op);
 }
-
-
-// returns d < b
-// requires that D be derived from B, and that B has a virtual function
-template<typename D, typename B>
-inline bool abstractLess(const D& d, const B& b)
-{
-	return (typeid(d).before(typeid(b)) ||
-		!(typeid(b).before(typeid(d))) && d < *static_cast<const D*>(&b));
-}
-
-struct IndirectLess
-{
-	template<typename T, typename U>
-	bool operator()(T left, U right) const
-	{
-		return *left < *right;
-	}
-};
-
-template<typename Ptr>
-struct IndirectSet
-{
-	typedef std::set<Ptr, IndirectLess> Set;
-	Set elements;
-
-	typedef typename Set::iterator iterator;
-
-	iterator begin()
-	{
-		return elements.begin();
-	}
-	iterator end()
-	{
-		return elements.end();
-	}
-	// Ptr must be constructible from T*
-	template<typename T>
-	iterator find(const T& value)
-	{
-		return elements.find(&value);
-	}
-	// Ptr must be constructible from T*
-	template<typename T>
-	inline iterator insert(const T& value)
-	{
-		iterator i = elements.lower_bound(&value); // first element not less than value
-		if(i != elements.end()
-			&& !elements.key_comp()(&value, *i)) // if value is not less than lower bound
-		{
-			// lower bound is equal to value
-			return i;
-		}
-		return elements.insert(i, new T(value));
-	}
-	void clear()
-	{
-		for(iterator i = elements.begin(); i != elements.end(); ++i)
-		{
-			delete &(*(*i));
-		}
-		elements.clear();
-	}
-};
 
 // [expr.const]
 // An integral constant-expression can involve only literals, enumerators, const variables or static
@@ -4920,12 +4659,6 @@ inline bool isEqual(const TypeId& l, const TypeId& r)
 
 inline bool isEqual(const TemplateArgument& l, const TemplateArgument& r)
 {
-#if 0
-	if(l.type.declaration == &gNonType)
-	{
-		return r.type.declaration == &gNonType; // TODO: non-type template parameters
-	}
-#endif
 	return isEqual(l.type, r.type);
 }
 
@@ -5938,11 +5671,7 @@ struct SymbolPrinter : TypeElementVisitor, ExpressionNodeVisitor
 		{
 			printer.out << "volatile ";
 		}
-#if 1
 		printer.out << "$T" << element.type->scope->templateDepth << "_" << element.type->templateParameter;
-#else
-		printName(element.type);
-#endif
 		visitTypeElement();
 	}
 	void visit(const DependentTypename& element)
@@ -6174,19 +5903,12 @@ struct SymbolPrinter : TypeElementVisitor, ExpressionNodeVisitor
 		{
 			printName(name->scope);
 			printer.out << getValue(name->getName());
-#if 1
-			if(name->type.unique != 0
+			SYMBOLS_ASSERT(!isFunction(*name) || name->type.unique != 0);
+			if(isFunction(*name)
 				&& UniqueTypeWrapper(name->type.unique).isFunction())
 			{
 				printParameters(getParameterTypes(name->type.unique));
 			}
-#else
-			if(name->enclosed != 0
-				&& name->enclosed->type == SCOPETYPE_PROTOTYPE)
-			{
-				printParameters(name->enclosed->declarationList);
-			}
-#endif
 		}
 	}
 

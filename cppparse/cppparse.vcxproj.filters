@@ -64,6 +64,12 @@
     <ClInclude Include="visitor.h">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="indirect_set.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="sequence.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="allocator.cpp">
@@ -121,6 +127,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="visitor.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="indirect_set.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="sequence.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

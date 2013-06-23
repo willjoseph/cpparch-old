@@ -109,6 +109,7 @@
     <ClInclude Include="copied.h" />
     <ClInclude Include="cpptree.h" />
     <ClInclude Include="generator.h" />
+    <ClInclude Include="indirect_set.h" />
     <ClInclude Include="lexer.h" />
     <ClInclude Include="list.h" />
     <ClInclude Include="parser.h" />
@@ -117,6 +118,7 @@
     <ClInclude Include="profiler.h" />
     <ClInclude Include="report.h" />
     <ClInclude Include="semantic.h" />
+    <ClInclude Include="sequence.h" />
     <ClInclude Include="symbols.h" />
     <ClInclude Include="test.h" />
     <ClInclude Include="token.h" />
@@ -130,6 +132,7 @@
     <ClCompile Include="cppparse.cpp" />
     <ClCompile Include="cpptree.cpp" />
     <ClCompile Include="generator.cpp" />
+    <ClCompile Include="indirect_set.cpp" />
     <ClCompile Include="lexer.cpp" />
     <ClCompile Include="list.cpp" />
     <ClCompile Include="parser.cpp" />
@@ -138,6 +141,7 @@
     <ClCompile Include="profiler.cpp" />
     <ClCompile Include="report.cpp" />
     <ClCompile Include="semantic.cpp" />
+    <ClCompile Include="sequence.cpp" />
     <ClCompile Include="symbols.cpp">
       <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)%(Filename)1.obj</ObjectFileName>
       <XMLDocumentationFileName Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)%(Filename)1.xdc</XMLDocumentationFileName>
