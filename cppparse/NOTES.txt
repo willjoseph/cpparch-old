@@ -172,6 +172,13 @@
 		- DependentTemplate: as above, plus stored template arguments
 			- add default arguments to stored arguments if necessary, add to ObjectType
 
+- template instantiation debugging
+	- for a given instantiation, report which instantiations it requires
+	- for each required instantiation
+		- link to instantiation page
+		- point of instantiation: file/line/column
+
+
 - investigate: can explicit/partial-specializations omit template arguments where there are defaults in the primary template?
 	- clang allows with c++98
 

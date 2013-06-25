@@ -203,6 +203,7 @@ struct DerivedClassTypeId : ObjectTypeId
 	DerivedClassTypeId(Declaration* declaration, const TreeAllocator<int>& allocator)
 		: ObjectTypeId(declaration, allocator)
 	{
+		gBaseClassNode.value.id =  &gBaseClassId;
 		declaration->enclosed->bases.head.next = declaration->enclosed->bases.tail = &gBaseClassNode;
 		declaration->enclosed->bases.back().unique = gBaseClass.value;
 	}

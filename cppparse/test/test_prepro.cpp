@@ -1,4 +1,154 @@
 
+namespace N210
+{
+	template<typename T=int, int not_le_=0> // non-type default parameter
+	struct S
+	{
+	};
+
+	template<typename T>
+	struct A
+	{
+		struct S<T> s; // should be ok to add unnecessary 'struct' qualifier
+	};
+
+	A<int> a;
+}
+
+namespace N209
+{
+	template<typename T=int, int not_le_=0> // non-type default parameter
+	struct S
+	{
+	};
+
+	template<typename T>
+	struct A
+	{
+		S<T> s; // instantiates S<T, 0>
+	};
+
+	A<int> a;
+}
+
+namespace N208
+{
+	namespace aux
+	{
+		template<long N>
+		struct vector_tag
+		{
+		};
+		struct set_tag
+		{
+		};
+	}
+
+	template<typename Tag>
+	struct clear_impl; // 4
+	template<long N>
+	struct clear_impl<aux::vector_tag<N> > // 3
+	{
+		template<typename Vector>
+		struct apply
+		{
+		};
+	};
+	template<>
+	struct clear_impl<aux::set_tag> // 2
+	{
+		template<typename Set>
+		struct apply
+		{
+		};
+	};
+	template<typename Tag>
+	struct clear_impl // 4
+	{
+		template<typename Sequence>
+		struct apply;
+	};
+	template<>
+	struct clear_impl<int> // 1
+	{
+	};
+
+	// when lookup finds clear_impl, the list of specializations searched should be in the order shown above
+	struct clear : clear_impl<aux::vector_tag<2> >::apply<int>
+	{
+	};
+}
+
+
+#if 0 // SFINAE: requires checking type of dependent non-type template argument expression against type of non-type template parameter
+namespace N197
+{
+	template<typename T, void (T::*member)()>
+	struct sfinae
+	{
+		typedef void Type;
+	};
+
+	template<class T, class U = void>
+	struct S
+	{
+		typedef int Primary;
+	};
+
+	template<class T>
+	struct S<T, typename sfinae<T, &T::member>::Type >
+	{
+		typedef int Special;
+	};
+
+	struct B
+	{
+		static void member();
+	};
+
+	struct C
+	{
+		void member();
+	};
+
+	S<B>::Primary primary;
+	S<C>::Special special;
+}
+#endif
+
+#if 1
+namespace N176
+{
+	template<typename T>
+	struct sfinae
+	{
+		typedef void type;
+	};
+	template<typename T, typename U=void>
+	struct Test
+	{
+		typedef int False;
+	};
+	template<typename T>
+	struct Test<T, typename sfinae<typename T::Type>::type>
+	{
+		typedef int True;
+	};
+
+	struct A
+	{
+		typedef int Type;
+	};
+
+	struct B
+	{
+	};
+
+	Test<A>::True a;
+	Test<B>::False b;
+}
+#endif
+
 namespace N207
 {
 	template<int N>
@@ -193,42 +343,6 @@ namespace N196
 
 	S<C>::Type t;
 }
-
-#if 0 // SFINAE: requires checking type of dependent non-type template argument expression against type of non-type template parameter
-namespace N197
-{
-	template<typename T, void (T::*member)()>
-	struct sfinae
-	{
-		typedef void Type;
-	};
-
-	template<class T, class U = void>
-	struct S
-	{
-		typedef int Primary;
-	};
-
-	template<class T>
-	struct S<T, typename sfinae<T, &T::member>::Type >
-	{
-		typedef int Special;
-	};
-
-	struct B
-	{
-		static void member();
-	};
-
-	struct C
-	{
-		void member();
-	};
-
-	S<B>::Primary primary;
-	S<C>::Special special;
-}
-#endif
 
 namespace N195
 {
@@ -749,39 +863,6 @@ namespace N177
 		f(s);
 	}
 }
-
-#if 0
-namespace N176
-{
-	template<typename T>
-	struct sfinae
-	{
-		typedef void type;
-	};
-	template<typename T, typename U=void>
-	struct Test
-	{
-		typedef int False;
-	};
-	template<typename T>
-	struct Test<T, typename sfinae<typename T::Type>::type>
-	{
-		typedef int True;
-	};
-
-	struct A
-	{
-		typedef int Type;
-	};
-
-	struct B
-	{
-	};
-
-	Test<A>::True a;
-	Test<B>::False b;
-}
-#endif
 
 namespace N175
 {

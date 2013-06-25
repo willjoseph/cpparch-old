@@ -196,6 +196,19 @@ inline const DeclarationInstance* findRedeclared(const Declaration& declaration,
 	return 0;
 }
 
+// returns the most recent declaration that is not a redeclaration
+inline Declaration* findOverloaded(const DeclarationInstance& instance)
+{
+	for(const DeclarationInstance* p = &instance; p != 0; p = p->overloaded)
+	{
+		if((*p).redeclared == 0)
+		{
+			return *p;
+		}
+	}
+	return 0;
+}
+
 
 Identifier gGlobalId = makeIdentifier("$global");
 
@@ -314,7 +327,6 @@ struct WalkerState
 			// [basic.lookup.qual]
 			if(qualifyingType != 0)
 			{
-				SYMBOLS_ASSERT(qualifyingType->declaration->enclosed == qualifying);
 				instantiateClass(*qualifyingType, getLocation());
 				if(result.append(::findDeclaration(*qualifyingType, id, filter)))
 				{
@@ -447,7 +459,7 @@ struct WalkerState
 				}
 			}
 
-			declaration.overloaded = instance; // the new declaration 'overloads' the existing declaration
+			declaration.overloaded = findOverloaded(instance); // the new declaration refers to the existing declaration
 
 			instance.p = 0;
 			instance.overloaded = existing;
@@ -514,12 +526,6 @@ struct WalkerState
 			return; // TODO: implement template-instantiation, and disallow inheriting from current-instantiation
 		}
 		declaration->enclosed->bases.push_front(base);
-#if 0
-		if(isDependent(base))
-		{
-			::addDeferredLookupType(&declaration->enclosed->bases.front(), getEnclosingTemplate(declaration->scope));
-		}
-#endif
 	}
 
 	Declaration* getDeclaratorQualifying()
@@ -846,17 +852,6 @@ struct WalkerBase : public WalkerState
 		return declaration;
 	}
 
-	void addDeferredLookupType(Declaration& declaration)
-	{
-#if 0
-		if(!isDependent(declaration.type))
-		{
-			return;
-		}
-		::addDeferredLookupType(&declaration.type, getEnclosingTemplate(enclosing)); // TODO: getEnclosingTemplate fails for member-template friend function declaration
-#endif
-	}
-
 	Declaration* declareObject(Scope* parent, Identifier* id, const TypeId& type, Scope* enclosed, DeclSpecifiers specifiers, size_t templateParameter, const Dependent& valueDependent)
 	{
 		// 7.3.1.2 Namespace member definitions
@@ -928,7 +923,7 @@ struct WalkerBase : public WalkerState
 				continue;
 			}
 
-			UniqueTypeWrapper type = makeUniqueType(p->type, source, enclosing, isDependent(p->type));
+			UniqueTypeWrapper type = getUniqueType(p->type, source, enclosing, isDependent(p->type));
 			resolver.add(FunctionOverload(p, type));
 		}
 	}
@@ -1199,7 +1194,7 @@ struct WalkerQualified : public WalkerBase
 			}
 			else
 			{
-				qualifyingType = &getObjectType(makeUniqueType(*qualifying_p, getLocation(), enclosingType).value);
+				qualifyingType = &getObjectType(getUniqueType(*qualifying_p, getLocation(), enclosingType).value);
 				qualifyingScope = qualifyingType->declaration;
 			}
 		}
@@ -1307,7 +1302,8 @@ struct TemplateArgumentListWalker : public WalkerBase
 		TypeIdWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		argument.type.swap(walker.type);
-		makeUniqueTypeSafe(argument.type, getLocation());
+		argument.source = getLocation();
+		makeUniqueTypeSafe(argument.type, argument.source);
 	}
 	void visit(cpp::assignment_expression* symbol)
 	{
@@ -1322,6 +1318,7 @@ struct TemplateArgumentListWalker : public WalkerBase
 		addDependent(argument.valueDependent, walker.valueDependent);
 		argument.type = &gNonType;
 		argument.expression = walker.expression;
+		argument.source = getLocation();
 	}
 	void visit(cpp::template_argument_list* symbol)
 	{
@@ -1927,7 +1924,7 @@ struct PrimaryExpressionWalker : public WalkerBase
 			if(!isFunction(*declaration) // if the id-expression refers to a function, overload resolution dependends on the parameter types; defer evaluation of type
 				&& !expression.isTypeDependent)
 			{
-				type = makeUniqueType(declaration->type, id->source, idEnclosing);
+				type = getUniqueType(declaration->type, id->source, idEnclosing);
 			}
 
 			// [expr.const]
@@ -2166,7 +2163,7 @@ struct PostfixExpressionWalker : public WalkerBase
 				{
 					DeclarationInstanceRef instance = findLastDeclaration(*id->dec.p, overload.declaration);
 					setDecoration(id, instance);
-					//type = isDependent(overload.declaration->type) ? gUniqueTypeNull : makeUniqueType(overload.declaration->type, id->source, idEnclosing);
+					//type = isDependent(overload.declaration->type) ? gUniqueTypeNull : getUniqueType(overload.declaration->type, id->source, idEnclosing);
 				}
 				type = overload.type;
 			}
@@ -2232,7 +2229,7 @@ struct PostfixExpressionWalker : public WalkerBase
 				// the identifier may name a type in a base-class of the qualifying type; findEnclosingType resolves this.
 				idEnclosing = findEnclosingType(idEnclosing, declaration->scope);
 				SEMANTIC_ASSERT(idEnclosing != 0);
-				type = makeUniqueType(declaration->type, id->source, idEnclosing);
+				type = getUniqueType(declaration->type, id->source, idEnclosing);
 			}
 		}
 		else
@@ -3717,11 +3714,6 @@ struct MemberDeclarationWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		SEMANTIC_ASSERT(walker.type.declaration != 0);
 		declaration = walker.declaration;
-		if(!isClass(*declaration)
-			&& !isEnum(*declaration))
-		{
-			addDeferredLookupType(*declaration);
-		}
 	}
 	void visit(cpp::member_declaration_nested* symbol)
 	{
@@ -3793,6 +3785,7 @@ struct ClassSpecifierWalker : public WalkerBase
 
 		Location source = getLocation();
 		Type type(declaration, context);
+		type.id = &declaration->getName();
 		setDependent(type);
 		type.isDependent = isDependent(type);
 		type.isImplicitTemplateId = declaration->isTemplate;
@@ -4656,6 +4649,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 			if(isMember(*declaration)
 				&& !declaration->isTemplate // TODO: template function instantiation
 				&& declaration->type.isDependent
+				&& declaration->type.declaration != &gCtor // ignore constructor
 				&& getEnclosingTemplate(declaration->scope)->type == SCOPETYPE_CLASS)
 			{
 				Scope* scope = getEnclosingClass(declaration->scope);
@@ -5195,6 +5189,8 @@ struct TemplateParameterListWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		walker.commit();
 		param = walker.declaration;
+		setDependent(param);
+		makeUniqueTypeSafe(param, getLocation());
 		param.argument.swap(walker.argument);
 		++count;
 	}
@@ -5205,6 +5201,8 @@ struct TemplateParameterListWalker : public WalkerBase
 		walker.commit();
 		SEMANTIC_ASSERT( walker.declaration != 0);
 		param = walker.declaration;
+		setDependent(param);
+		makeUniqueTypeSafe(param, getLocation());
 		param.argument.swap(walker.argument);
 		++count;
 	}
