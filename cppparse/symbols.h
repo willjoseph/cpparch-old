@@ -1649,11 +1649,12 @@ struct TypeInstance
 	bool instantiated;
 	bool instantiating;
 	mutable bool visited; // used during findDeclaration to prevent infinite recursion
+	mutable bool dumped; // used during dumpTemplateInstantiations to prevent duplicates
 	Location instantiation;
 	ChildInstantiations childInstantiations;
 
 	TypeInstance(Declaration* declaration, const TypeInstance* enclosing)
-		: uniqueId(0), primary(declaration), declaration(declaration), enclosing(enclosing), size(0), instantiated(false), instantiating(false), visited(false)
+		: uniqueId(0), primary(declaration), declaration(declaration), enclosing(enclosing), size(0), instantiated(false), instantiating(false), visited(false), dumped(false)
 	{
 		SYMBOLS_ASSERT(enclosing == 0 || isClass(*enclosing->declaration));
 	}
@@ -2112,7 +2113,7 @@ struct RecursionGuard
 	}
 };
 
-inline void printType(const TypeInstance& type);
+inline void printType(const TypeInstance& type, std::ostream& out = std::cout, bool escape = false);
 
 inline LookupResult findDeclaration(const TypeInstance& instance, const Identifier& id, LookupFilter filter)
 {
@@ -2161,7 +2162,7 @@ inline LookupResult findDeclaration(const TypeInstance& instance, const Identifi
 }
 
 // ----------------------------------------------------------------------------
-inline void printType(UniqueTypeWrapper type);
+inline void printType(UniqueTypeWrapper type, std::ostream& out = std::cout, bool escape = false);
 
 struct TypeError
 {
@@ -3460,13 +3461,7 @@ inline bool isTemplate(const TypeInstance& instance)
 		&& isTemplate(*instance.enclosing);
 }
 
-inline void dumpTemplateInstantiations(const TypeInstance& instance)
-{
-	for(ChildInstantiations::const_iterator i = instance.childInstantiations.begin(); i != instance.childInstantiations.end(); ++i)
-	{
-
-	}
-}
+void dumpTemplateInstantiations(const TypeInstance& instance, bool root = false);
 
 inline std::size_t instantiateClass(const TypeInstance& instanceConst, Location source, const TypeInstance* enclosing, bool allowDependent)
 {
@@ -3563,7 +3558,11 @@ inline std::size_t instantiateClass(const TypeInstance& instanceConst, Location 
 			std::cout << std::endl;
 		}
 
-		dumpTemplateInstantiations(instance);
+		if(enclosing == 0
+			|| !isTemplate(*enclosing))
+		{
+			dumpTemplateInstantiations(instance, true);
+		}
 		throw;
 	}
 	return instance.size;
@@ -6095,17 +6094,17 @@ struct SymbolPrinter : TypeElementVisitor, ExpressionNodeVisitor
 
 };
 
-inline void printName(const Declaration* name)
+inline void printName(const Declaration* name, std::ostream& out = std::cout)
 {
-	FileTokenPrinter tokenPrinter(std::cout);
+	FileTokenPrinter tokenPrinter(out);
 	SymbolPrinter printer(tokenPrinter);
 	printer.printName(name);
 }
 
-inline void printType(const TypeInstance& type)
+inline void printType(const TypeInstance& type, std::ostream& out, bool escape)
 {
-	FileTokenPrinter tokenPrinter(std::cout);
-	SymbolPrinter printer(tokenPrinter);
+	FileTokenPrinter tokenPrinter(out);
+	SymbolPrinter printer(tokenPrinter, escape);
 	printer.printName(type.declaration);
 	if(type.declaration->isTemplate)
 	{
@@ -6113,10 +6112,10 @@ inline void printType(const TypeInstance& type)
 	}
 }
 
-inline void printType(UniqueTypeWrapper type)
+inline void printType(UniqueTypeWrapper type, std::ostream& out, bool escape)
 {
-	FileTokenPrinter tokenPrinter(std::cout);
-	SymbolPrinter printer(tokenPrinter);
+	FileTokenPrinter tokenPrinter(out);
+	SymbolPrinter printer(tokenPrinter, escape);
 	printer.printType(type);
 }
 

@@ -1271,3 +1271,80 @@ namespace Test
 	}
 }
 #endif
+
+#include <fstream>
+#include "util.h"
+
+
+struct InstantiationSuffix
+{
+	char value[12];
+	InstantiationSuffix(const void* p)
+	{
+		sprintf(value, "_%08x", p);
+	}
+	const char* c_str() const
+	{
+		return value;
+	}
+};
+
+struct InstantiationName : public Concatenate
+{
+	InstantiationName(const TypeInstance& instance)
+		: Concatenate(
+			makeRange(getValue(instance.declaration->getName())),
+			makeRange(InstantiationSuffix(&instance).c_str()))
+	{
+	}
+};
+
+struct InstantiationPath : public Concatenate
+{
+	InstantiationPath(const TypeInstance& instance)
+		: Concatenate(
+			makeRange(InstantiationName(instance).c_str()),
+			makeRange(".html"))
+	{
+	}
+};
+
+inline void printPosition(const Source& source, std::ostream& out)
+{
+	out << source.absolute.c_str() << "(" << source.line << "): ";
+}
+
+inline void dumpTemplateInstantiations(const TypeInstance& instance, bool root)
+{
+	if(instance.dumped)
+	{
+		return;
+	}
+	instance.dumped = true;
+	SYMBOLS_ASSERT(!instance.visited);
+	instance.visited = true;
+	std::ofstream out(Concatenate(makeRange(root ? "debug/!" : "debug/"), makeRange(InstantiationPath(instance).c_str())).c_str());
+	SYMBOLS_ASSERT(out.is_open());
+
+	out << "<html>\n"
+		"<head>\n"
+		"</head>\n"
+		"<body>\n"
+		"<pre style='color:#000000;background:#ffffff;'>\n";
+	printType(instance, out, true);
+	out << std::endl;
+	for(ChildInstantiations::const_iterator i = instance.childInstantiations.begin(); i != instance.childInstantiations.end(); ++i)
+	{
+		printPosition((*i).source, out);
+		out << std::endl;
+		out << "<a href='" << InstantiationPath(*(*i).instance).c_str() << "'>";
+		printType(*(*i).instance, out, true);
+		out << "</a>\n";
+		out << std::endl;
+		dumpTemplateInstantiations(*(*i).instance);
+	}
+	out << "</pre>\n"
+		"</body>\n"
+		"</html>\n";
+	instance.visited = false;
+}
