@@ -3450,6 +3450,24 @@ inline std::size_t addBase(TypeInstance& instance, UniqueTypeWrapper base, Locat
 	return size;
 }
 
+inline bool isTemplate(const TypeInstance& instance)
+{
+	if(instance.declaration->isTemplate)
+	{
+		return true;
+	}
+	return instance.enclosing != 0
+		&& isTemplate(*instance.enclosing);
+}
+
+inline void dumpTemplateInstantiations(const TypeInstance& instance)
+{
+	for(ChildInstantiations::const_iterator i = instance.childInstantiations.begin(); i != instance.childInstantiations.end(); ++i)
+	{
+
+	}
+}
+
 inline std::size_t instantiateClass(const TypeInstance& instanceConst, Location source, const TypeInstance* enclosing, bool allowDependent)
 {
 	TypeInstance& instance = const_cast<TypeInstance&>(instanceConst);
@@ -3536,7 +3554,7 @@ inline std::size_t instantiateClass(const TypeInstance& instanceConst, Location 
 	{
 		printPosition(source);
 		std::cout << "instantiated from here" << std::endl;
-		TemplateArgumentsInstance::const_iterator a = instance.templateArguments.begin();
+		TemplateArgumentsInstance::const_iterator a = instance.templateArguments.begin(); // TODO: partial specialization
 		for(TemplateParameters::const_iterator i = instance.primary->templateParams.begin(); i != instance.primary->templateParams.end(); ++i)
 		{
 			SYMBOLS_ASSERT(a != instance.templateArguments.end());
@@ -3544,6 +3562,8 @@ inline std::size_t instantiateClass(const TypeInstance& instanceConst, Location 
 			printType(*a++);
 			std::cout << std::endl;
 		}
+
+		dumpTemplateInstantiations(instance);
 		throw;
 	}
 	return instance.size;

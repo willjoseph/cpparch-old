@@ -196,19 +196,6 @@ inline const DeclarationInstance* findRedeclared(const Declaration& declaration,
 	return 0;
 }
 
-// returns the most recent declaration that is not a redeclaration
-inline Declaration* findOverloaded(const DeclarationInstance& instance)
-{
-	for(const DeclarationInstance* p = &instance; p != 0; p = p->overloaded)
-	{
-		if((*p).redeclared == 0)
-		{
-			return *p;
-		}
-	}
-	return 0;
-}
-
 
 Identifier gGlobalId = makeIdentifier("$global");
 
