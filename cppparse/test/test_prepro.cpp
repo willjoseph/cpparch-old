@@ -1,4 +1,85 @@
 
+namespace N213
+{
+	struct Null;
+
+	template<typename T0=Null, typename T1=Null>
+	struct B;
+
+	template<typename T0>
+	struct B<T0, Null>
+	{
+		typedef int One;
+	};
+
+	template<typename T0, typename T1>
+	struct B
+	{
+		typedef int Two;
+	};
+
+	typedef B<int>::One One;
+	//typedef B<int, int>::Two Two;
+}
+
+#if 0 // static_assert
+namespace N212
+{
+	template<typename T>
+	struct Fail
+	{
+		typedef Fail<T::m> Type;
+	};
+	template<int N>
+	struct Error
+	{
+		typedef typename Fail<N>::Type Type;
+	};
+	template<>
+	struct Error<2>
+	{
+		typedef int Type;
+	};
+
+	template<int N>
+	struct Test
+	{
+		typedef typename Error<N>::Type Type;
+	};
+
+	Test<2>::Type x;
+};
+#endif
+
+namespace N211
+{
+	template<typename T>
+	struct S
+	{
+		typedef int Primary;
+	};
+
+	template<int N>
+	struct A
+	{
+	};
+
+	template<typename T>
+	struct B
+	{
+	};
+
+	template<int N>
+	struct S<A<N> >
+	{
+		typedef int Special;
+	};
+
+	typedef S<B<A<0> > >::Primary Primary; // instantiates S<T>
+	typedef S<A<0> >::Special Special; // instantiates S<A<T> >
+}
+
+#if 0 // TODO
 namespace N210
 {
 	template<typename T=int, int not_le_=0> // non-type default parameter
@@ -14,6 +95,7 @@ namespace N210
 
 	A<int> a;
 }
+#endif
 
 namespace N209
 {

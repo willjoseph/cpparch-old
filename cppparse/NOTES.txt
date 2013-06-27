@@ -112,6 +112,20 @@
 		- for SFINAE during substitution of nontype pointer-to-member parameter &T::member -> int T::*member
 	- determine type of 
 
+- investigate: how does bidirectional_map work?
+	- multi_index_container -> multi_index_base_type<...>::type -> nth_layer<0, ...>::type
+		- nth_layer::type = apply2<index_applier, T1, T2>::type
+			- apply2<F, T1, T2> -> lambda<F>::type::apply<T1, T2> -> F::apply<T1, T2>
+		- index_applier::apply<T1, T2>::type -> T1::type::index_class<T2>::type
+			- T1 = at_c<IndexSpecifierList, N>
+			- T2 = nth_layer<N+1, ...>
+			-> at_c<IndexSpecifierList, N>::type::index_class<nth_layer<N+1, ...>>::type
+		- IndexSpecifier list: either ordered_unique or ordered_non_unique
+		- ordered_unique::index_class<T1>::type -> ordered_index<T1 ...>::type
+		- why is 'length' 20?
+			- indexed_by is a vector20
+			- vector<T1, T2, na, ..> should be vector2!
+
 - task: template argument deduction
 	- for function templates
 	- for class template partial-specializations
@@ -172,11 +186,20 @@
 		- DependentTemplate: as above, plus stored template arguments
 			- add default arguments to stored arguments if necessary, add to ObjectType
 
-- template instantiation debugging
+- task: template instantiation debugging
 	- for a given instantiation, report which instantiations it requires
+		- track required instantiations
+		- add to list in enclosing-type when calling instantiateClass
+			- contains instance+location
+			- reversal of existing graph?
+				- except that existing graph does not store location
+		- instantiation graph: maps enclosing-type to children
+			- multimap, key of enclosing type, data of instance+location?
+				- hard to debug
 	- for each required instantiation
 		- link to instantiation page
 		- point of instantiation: file/line/column
+
 
 
 - investigate: can explicit/partial-specializations omit template arguments where there are defaults in the primary template?

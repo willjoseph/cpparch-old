@@ -327,7 +327,7 @@ struct WalkerState
 			// [basic.lookup.qual]
 			if(qualifyingType != 0)
 			{
-				instantiateClass(*qualifyingType, getLocation());
+				instantiateClass(*qualifyingType, getLocation(), enclosingType);
 				if(result.append(::findDeclaration(*qualifyingType, id, filter)))
 				{
 					return result;
@@ -932,7 +932,7 @@ struct WalkerBase : public WalkerState
 	// enclosingType: the class of which the declaration is a member (along with all its overloads).
 	inline FunctionOverload findBestMatch(Declaration* declaration, const UniqueTypeIds& arguments, Location source, const TypeInstance* enclosingType)
 	{
-		OverloadResolver resolver(arguments, source);
+		OverloadResolver resolver(arguments, source, enclosingType);
 		addOverloads(resolver, declaration, source, enclosingType);
 
 		if(resolver.ambiguous != 0)
@@ -964,13 +964,13 @@ struct WalkerBase : public WalkerState
 			UniqueTypeIds::Pointer::Value value = UniqueTypeIds::Pointer::Value(UniqueTypeIds::Node(type));
 			UniqueTypeIds arguments = UniqueTypeIds(TREEALLOCATOR_NULL);
 			arguments.head.next = &value;
-			OverloadResolver resolver(arguments, id.source);
+			OverloadResolver resolver(arguments, id.source, enclosingType);
 
 			if(isClass(type))
 			{
 				SEMANTIC_ASSERT(isComplete(type)); // TODO: non-fatal parse error
 				const TypeInstance* enclosing = &getObjectType(type.value);
-				instantiateClass(*enclosing, id.source); // searching for overloads requires a complete type
+				instantiateClass(*enclosing, id.source, enclosingType); // searching for overloads requires a complete type
 				LookupResultRef declaration = ::findDeclaration(*enclosing, id, IsAny());
 				if(declaration != 0)
 				{
@@ -1980,7 +1980,7 @@ struct PostfixExpressionMemberWalker : public WalkerQualified
 			&& isClass(*memberType->declaration)) // TODO: assert that this is a class type
 		{
 			// [expr.ref] [the type of the object-expression shall be complete]
-			instantiateClass(*memberType, getLocation());
+			instantiateClass(*memberType, getLocation(), enclosingType);
 			memberObject = memberType->declaration->enclosed;
 		}
 		else
@@ -2077,7 +2077,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		addDependent(typeDependent, walker.typeDependent);
 		type = makeUniqueTypeSafe(walker.type, symbol->source);
 		// [basic.lval] An expression which holds a temporary object resulting from a cast to a non-reference type is an rvalue
-		requireCompleteObjectType(type, symbol->source);
+		requireCompleteObjectType(type, symbol->source, enclosingType);
 		setExpressionType(symbol, type);
 		updateMemberType();
 		expression.isTemplateArgumentAmbiguity = symbol->args == 0;
@@ -2089,7 +2089,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		expression = walker.expression;
 		type = makeUniqueTypeSafe(walker.type, symbol->source);
 		// [basic.lval] An expression which holds a temporary object resulting from a cast to a non-reference type is an rvalue
-		requireCompleteObjectType(type, symbol->source);
+		requireCompleteObjectType(type, symbol->source, enclosingType);
 		if(symbol->op->id != cpp::cast_operator::DYNAMIC)
 		{
 			Dependent tmp(walker.typeDependent);
@@ -2131,7 +2131,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		{
 			type.pop_front(); // dereference left-hand side
 			// [expr.sub] The result is an lvalue of type T. The type "T" shall be a completely defined object type.
-			requireCompleteObjectType(type, symbol->source);
+			requireCompleteObjectType(type, symbol->source, enclosingType);
 		}
 		else // TODO: overloaded operator[]
 		{
@@ -2262,7 +2262,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		if(type.isPointer())
 		{
 			type.pop_front();
-			requireCompleteObjectType(type, symbol->source);
+			requireCompleteObjectType(type, symbol->source, enclosingType);
 		}
 		setExpressionType(symbol, type);
 		id = 0;
@@ -2568,7 +2568,7 @@ struct ExpressionWalker : public WalkerBase
 		TREEWALKER_WALK_SRC(walker, symbol);
 		type = makeUniqueTypeSafe(walker.type, symbol->source);
 		// [expr.new] The new expression attempts to create an object of the type-id or new-type-id to which it is applied. The type shall be a complete type...
-		requireCompleteObjectType(type, symbol->source);
+		requireCompleteObjectType(type, symbol->source, enclosingType);
 		type.push_front(PointerType());
 		addDependent(typeDependent, walker.typeDependent);
 		setExpressionType(symbol, type);
@@ -2579,7 +2579,7 @@ struct ExpressionWalker : public WalkerBase
 		TREEWALKER_WALK_SRC(walker, symbol);
 		type = makeUniqueTypeSafe(walker.type, symbol->source);
 		// [expr.new] The new expression attempts to create an object of the type-id or new-type-id to which it is applied. The type shall be a complete type...
-		requireCompleteObjectType(type, symbol->source);
+		requireCompleteObjectType(type, symbol->source, enclosingType);
 		type.push_front(PointerType());
 		addDependent(typeDependent, walker.typeDependent);
 		setExpressionType(symbol, type);
@@ -2591,7 +2591,7 @@ struct ExpressionWalker : public WalkerBase
 		expression = walker.expression;
 		type = makeUniqueTypeSafe(walker.type, symbol->source);
 		// [basic.lval] An expression which holds a temporary object resulting from a cast to a non-reference type is an rvalue
-		requireCompleteObjectType(type, symbol->source);
+		requireCompleteObjectType(type, symbol->source, enclosingType);
 		Dependent tmp(walker.typeDependent);
 		addDependent(valueDependent, tmp);
 		addDependent(typeDependent, walker.typeDependent);
@@ -3796,7 +3796,7 @@ struct ClassSpecifierWalker : public WalkerBase
 		declaration->type.unique = makeUniqueType(type, source, enclosingType, allowDependent).value;
 		enclosingType = &getObjectType(declaration->type.unique);
 		const_cast<TypeInstance*>(enclosingType)->declaration = declaration; // if this is a specialization, use the specialization instead of the primary template
-		instantiateClass(*enclosingType, source, allowDependent); // instantiate non-dependent base classes
+		instantiateClass(*enclosingType, source, 0, allowDependent); // instantiate non-dependent base classes
 
 		addDependent(enclosingDependent, type);
 
@@ -4657,13 +4657,13 @@ struct SimpleDeclarationWalker : public WalkerBase
 				const TypeInstance& instance = getObjectType(enclosingClass->type.unique);
 				if(declaration->instance != INDEX_INVALID)
 				{
-					SEMANTIC_ASSERT(instance.instances[declaration->instance] == UniqueTypeWrapper(declaration->type.unique));
+					SEMANTIC_ASSERT(instance.members[declaration->instance] == UniqueTypeWrapper(declaration->type.unique));
 				}
 				else
 				{
-					declaration->instance = instance.instances.size();
-					const_cast<TypeInstance*>(&instance)->instances.push_back(UniqueTypeWrapper(declaration->type.unique));
-					const_cast<TypeInstance*>(&instance)->instanceDeclarations.push_back(declaration);
+					declaration->instance = instance.members.size();
+					const_cast<TypeInstance*>(&instance)->members.push_back(UniqueTypeWrapper(declaration->type.unique));
+					const_cast<TypeInstance*>(&instance)->memberDeclarations.push_back(declaration);
 				}
 			}
 
@@ -4678,7 +4678,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 				Scope* scope = getEnclosingClass(declaration->scope);
 				Declaration* enclosingClass = getClassDeclaration(scope);
 				const TypeInstance& instance = getObjectType(enclosingClass->type.unique);
-				const_cast<TypeInstance*>(&instance)->size += requireCompleteObjectType(UniqueTypeWrapper(declaration->type.unique), getLocation());
+				const_cast<TypeInstance*>(&instance)->size += requireCompleteObjectType(UniqueTypeWrapper(declaration->type.unique), getLocation(), enclosingType);
 			}
 
 			enclosing = parent;
