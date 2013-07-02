@@ -63,8 +63,23 @@ struct LexFilePosition : boost::wave::util::file_position<LexFilename>
 	{
 	}
 };
+#elif 0
+struct LexFilePosition : boost::wave::util::file_position<BOOST_WAVE_STRINGTYPE>
+{
+	typedef boost::wave::util::file_position<BOOST_WAVE_STRINGTYPE> Base;
+
+	std::size_t offset;
+
+	LexFilePosition()
+	{
+	}
+	LexFilePosition(BOOST_WAVE_STRINGTYPE const& file, unsigned int line = 1, unsigned int column = 1, std::size_t offset = 0)
+		: Base(file, line, column), offset(offset)
+	{
+	}
+};
 #else
-typedef boost::wave::util::file_position_type LexFilePosition;
+typedef boost::wave::util::file_position<BOOST_WAVE_STRINGTYPE> LexFilePosition;
 #endif
 
 
@@ -902,5 +917,5 @@ const LexFilePosition& get_position(const LexToken& token)
 
 #if 1 // required only if iterator is not a std::string::iterator
 #include <boost/wave/cpplexer/re2clex/cpp_re2c_lexer.hpp>
-template struct boost::wave::cpplexer::new_lexer_gen<input_policy_type::iterator_type>;
+template struct boost::wave::cpplexer::new_lexer_gen<input_policy_type::iterator_type, LexFilePosition>;
 #endif

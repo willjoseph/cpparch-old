@@ -199,14 +199,22 @@
 	- for each required instantiation
 		- link to instantiation page
 		- point of instantiation: file/line/column
-
-
+	- display point of instantiation in source code
+		- source file? can't auto scroll without inserting markup
+		- inline only selected line(s)?
+			- how to display long lines?
+			- performance if file is large?
+				- create index of source lines during prepro?
+					- unnecessary performance hit?
+				- ideally could get pointer to location in input file buffer for each token
+				- performance not critical for error reporting
+			- source lines should only be within template definition?
 
 - investigate: can explicit/partial-specializations omit template arguments where there are defaults in the primary template?
 	- clang allows with c++98
 
 - investigate: what is instantiated when instantiating a class?
-	- direct members: yes
+	- direct member declarations: yes
 	- member-functions: no
 	- member-classes: no
 

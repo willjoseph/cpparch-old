@@ -5103,16 +5103,16 @@ struct TypeParameterWalker : public WalkerBase
 	IdentifierPtr id;
 	DeclarationPtr declaration;
 	TemplateArgument argument; // the default argument for this param
-	TemplateArguments arguments; // the default arguments for this param's template-params (if template-template-param)
+	TemplateParameters params; // the template parameters for this param (if template-template-param)
 	size_t templateParameter;
 	TypeParameterWalker(const WalkerState& state, size_t templateParameter)
-		: WalkerBase(state), id(&gAnonymousId), declaration(0), argument(context), arguments(context), templateParameter(templateParameter)
+		: WalkerBase(state), id(&gAnonymousId), declaration(0), argument(context), params(context), templateParameter(templateParameter)
 	{
 	}
 	void commit()
 	{
 		SEMANTIC_ASSERT(declaration == 0); // may only be called once, after parse of type-parameter succeeds
-		DeclarationInstanceRef instance = pointOfDeclaration(context, enclosing, *id, TYPE_PARAM, 0, DECLSPEC_TYPEDEF, !arguments.empty(), TEMPLATEPARAMETERS_NULL, false, TEMPLATEARGUMENTS_NULL, templateParameter);
+		DeclarationInstanceRef instance = pointOfDeclaration(context, enclosing, *id, TYPE_PARAM, 0, DECLSPEC_TYPEDEF, !params.empty(), params, false, TEMPLATEARGUMENTS_NULL, templateParameter);
 #ifdef ALLOCATOR_DEBUG
 		trackDeclaration(instance);
 #endif
@@ -5121,7 +5121,6 @@ struct TypeParameterWalker : public WalkerBase
 			setDecoration(id, instance);
 		}
 		declaration = instance;
-		declaration->templateParams.defaults.swap(arguments);
 	}
 	void visit(cpp::identifier* symbol)
 	{
@@ -5130,7 +5129,7 @@ struct TypeParameterWalker : public WalkerBase
 	}
 	void visit(cpp::type_id* symbol)
 	{
-		SEMANTIC_ASSERT(arguments.empty());
+		SEMANTIC_ASSERT(params.empty());
 		TypeIdWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		argument.type.swap(walker.type);
@@ -5140,7 +5139,7 @@ struct TypeParameterWalker : public WalkerBase
 	{
 		TemplateParameterClauseWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		arguments.swap(walker.params.defaults);
+		params.swap(walker.params);
 	}
 	void visit(cpp::id_expression* symbol)
 	{

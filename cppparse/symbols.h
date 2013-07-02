@@ -1511,6 +1511,10 @@ struct UniqueTypeWrapper
 	{
 		return typeid(*value) == typeid(TypeElementGeneric<NonType>);
 	}
+	bool isTemplateTemplateArgument() const
+	{
+		return typeid(*value) == typeid(TypeElementGeneric<TemplateTemplateArgument>);
+	}
 	bool isSimplePointer() const
 	{
 		return isPointer()
@@ -1699,8 +1703,9 @@ inline const TypeInstance& getObjectType(UniqueType type)
 struct TemplateTemplateArgument
 {
 	DeclarationPtr declaration; // the primary declaration of the template template argument
-	TemplateTemplateArgument(Declaration* declaration)
-		: declaration(declaration)
+	const TypeInstance* enclosing;
+	TemplateTemplateArgument(Declaration* declaration, const TypeInstance* enclosing)
+		: declaration(declaration), enclosing(enclosing)
 	{
 	}
 };
@@ -1710,12 +1715,24 @@ inline bool operator<(const TemplateTemplateArgument& left, const TemplateTempla
 	return left.declaration.p < right.declaration.p;
 }
 
+inline const TemplateTemplateArgument& getTemplateTemplateArgument(UniqueType type)
+{
+	SYMBOLS_ASSERT(typeid(*type) == typeid(TypeElementGeneric<TemplateTemplateArgument>));
+	return static_cast<const TypeElementGeneric<TemplateTemplateArgument>*>(type.getPointer())->value;
+}
+
+// represents a template-parameter (or template-template-parameter)
+// T
+// TT
+// TT<> (TODO)
+// TT<T>
 struct DependentType
 {
 	DeclarationPtr type; // the declaration of the template parameter
 	TemplateArgumentsInstance templateArguments;
-	DependentType(Declaration* type)
-		: type(type)
+	std::size_t templateParameterCount;
+	DependentType(Declaration* type, TemplateArgumentsInstance templateArguments = TemplateArgumentsInstance(), std::size_t templateParameterCount = 0)
+		: type(type), templateArguments(templateArguments), templateParameterCount(templateParameterCount)
 	{
 		SYMBOLS_ASSERT(type->templateParameter != INDEX_INVALID);
 	}
@@ -1723,11 +1740,13 @@ struct DependentType
 
 inline bool operator<(const DependentType& left, const DependentType& right)
 {
-	return left.type->scope->templateDepth != right.type->scope->templateDepth
-		? left.type->scope->templateDepth < right.type->scope->templateDepth
-		: left.type->templateParameter != right.type->templateParameter
-			? left.type->templateParameter < right.type->templateParameter
-			: left.templateArguments < right.templateArguments;
+	return left.templateParameterCount != right.templateParameterCount
+		? left.templateParameterCount < right.templateParameterCount
+		: left.type->scope->templateDepth != right.type->scope->templateDepth
+			? left.type->scope->templateDepth < right.type->scope->templateDepth
+			: left.type->templateParameter != right.type->templateParameter
+				? left.type->templateParameter < right.type->templateParameter
+				: left.templateArguments < right.templateArguments;
 }
 
 
@@ -2216,6 +2235,38 @@ struct MemberIsNotTypeError : TypeErrorBase
 	}
 };
 
+struct ExpectedTemplateTemplateArgumentError : TypeErrorBase
+{
+	UniqueTypeWrapper type;
+	ExpectedTemplateTemplateArgumentError(Location source, UniqueTypeWrapper type)
+		: TypeErrorBase(source), type(type)
+	{
+	}
+	void report()
+	{
+		TypeErrorBase::report();
+		std::cout << "expected template template argument: ";
+		printType(type);
+		std::cout << std::endl;
+	}
+};
+
+struct MismatchedTemplateTemplateArgumentError : TypeErrorBase
+{
+	UniqueTypeWrapper type;
+	MismatchedTemplateTemplateArgumentError(Location source, UniqueTypeWrapper type)
+		: TypeErrorBase(source), type(type)
+	{
+	}
+	void report()
+	{
+		TypeErrorBase::report();
+		std::cout << "mismatched template template argument: ";
+		printType(type);
+		std::cout << std::endl;
+	}
+};
+
 struct QualifyingIsNotClassError : TypeErrorBase
 {
 	UniqueTypeWrapper qualifying;
@@ -2283,6 +2334,20 @@ struct VoidParameterError : TypeErrorBase
 		std::cout << "cannot create function with void parameter" << std::endl;
 	}
 };
+
+struct TooFewTemplateArgumentsError : TypeErrorBase
+{
+	TooFewTemplateArgumentsError(Location source)
+		: TypeErrorBase(source)
+	{
+	}
+	void report()
+	{
+		TypeErrorBase::report();
+		std::cout << "too few template arguments" << std::endl;
+	}
+};
+
 // ----------------------------------------------------------------------------
 // expression evaluation
 
@@ -2879,12 +2944,12 @@ inline bool deduce(UniqueTypeWrapper parameter, UniqueTypeWrapper argument, Temp
 
 inline bool deduce(const UniqueTypeArray& parameters, const UniqueTypeArray& arguments, TemplateArgumentsInstance& result)
 {
-	if(arguments.size() != parameters.size())
-	{
-		return false;
-	}
 	UniqueTypeArray::const_iterator p = parameters.begin();
-	for(UniqueTypeArray::const_iterator a = arguments.begin(); a != arguments.end(); ++a, ++p)
+	for(UniqueTypeArray::const_iterator a = arguments.begin();
+		a != arguments.end() && p != parameters.end(); // for each pair P, A
+		// fewer arguments than parameters: occurs when some parameters are defaulted
+		// more arguments than parameters: occurs when matching a specialization such as 'struct S<>'
+		++a, ++p)
 	{
 		if(!deduce(*p, *a, result))
 		{
@@ -2927,24 +2992,35 @@ struct DeduceVisitor : TypeElementVisitor
 			result = false;
 		}
 	}
-	virtual void visit(const DependentType& element)
+	virtual void visit(const DependentType& element) // deduce from T, TT, TT<...>
 	{
-		if(element.type->isTemplate)
+		if(element.templateParameterCount != 0) // TT or TT<..>
 		{
-			if(!argument.isSimple())
+			if(element.templateArguments.empty()) // TT
 			{
-				result = false;
-				return;
+				if(!argument.isTemplateTemplateArgument())
+				{
+					result = false;
+					return;
+				}
 			}
-			const TypeInstance& type = getObjectType(argument.value);
-			if(!type.declaration->isTemplate
-				|| !deduce(element.templateArguments, type.templateArguments, templateArguments)) // template-template-parameter may have template-arguments that refer to a template parameter
+			else  // TT<..>
 			{
-				result = false;
-				return;
+				if(!argument.isSimple())
+				{
+					result = false;
+					return;
+				}
+				const TypeInstance& type = getObjectType(argument.value);
+				if(!type.declaration->isTemplate
+					|| !deduce(element.templateArguments, type.templateArguments, templateArguments)) // template-template-parameter may have template-arguments that refer to a template parameter
+				{
+					result = false;
+					return;
+				}
+				argument = gUniqueTypeNull;
+				argument.push_front(TemplateTemplateArgument(type.declaration, type.enclosing));
 			}
-			argument = gUniqueTypeNull;
-			argument.push_front(TemplateTemplateArgument(type.declaration));
 		}
 		commit(element.type->templateParameter);
 	}
@@ -3077,6 +3153,10 @@ inline UniqueTypeWrapper substitute(Declaration* declaration, const TypeInstance
 		std::advance(i, templateArguments.size());
 		for(; i != result.declaration->templateParams.defaults.end(); ++i)
 		{
+			if((*i).type.declaration == 0)
+			{
+				throw TooFewTemplateArgumentsError(source);
+			}
 			extern Declaration gNonType;
 			SYMBOLS_ASSERT((*i).type.declaration == &gNonType || (*i).type.unique != 0);
 			UniqueTypeWrapper argument = UniqueTypeWrapper((*i).type.declaration == &gNonType
@@ -3115,7 +3195,7 @@ struct SubstituteVisitor : TypeElementVisitor
 		: type(type), source(source), enclosingType(enclosingType)
 	{
 	}
-	virtual void visit(const DependentType& element)
+	virtual void visit(const DependentType& element) // substitute T, TT, TT<...>
 	{
 		std::size_t index = element.type->templateParameter;
 		SYMBOLS_ASSERT(index != INDEX_INVALID);
@@ -3127,9 +3207,26 @@ struct SubstituteVisitor : TypeElementVisitor
 		SYMBOLS_ASSERT(index < templateArguments.size());
 		SYMBOLS_ASSERT(type == gUniqueTypeNull);
 		type = templateArguments[index];
-		// TODO: template-template-parameter
+		if(element.templateParameterCount != 0) // TT or TT<...>
+		{
+			// template-template-argument
+			if(!type.isTemplateTemplateArgument())
+			{
+				throw ExpectedTemplateTemplateArgumentError(source, type);
+			}
+			const TemplateTemplateArgument& argument = getTemplateTemplateArgument(type.value);
+			if(std::distance(argument.declaration->templateParams.begin(), argument.declaration->templateParams.end())
+				!= element.templateParameterCount)
+			{
+				throw MismatchedTemplateTemplateArgumentError(source, type);
+			}
+			if(!element.templateArguments.empty()) // TT<...>
+			{ //TODO: TT<>
+				type = substitute(argument.declaration, argument.enclosing, element.templateArguments, source, enclosingType);
+			}
+		}
 	}
-	virtual void visit(const DependentTypename& element)
+	virtual void visit(const DependentTypename& element) // substitute T::X, T::template X<...>
 	{
 		UniqueTypeWrapper qualifying = substitute(element.qualifying, source, enclosingType);
 		const TypeInstance* enclosing = qualifying == gUniqueTypeNull || !qualifying.isSimple() ? 0 : &getObjectType(qualifying.value);
@@ -3548,14 +3645,20 @@ inline std::size_t instantiateClass(const TypeInstance& instanceConst, Location 
 	catch(TypeError&)
 	{
 		printPosition(source);
-		std::cout << "instantiated from here" << std::endl;
-		TemplateArgumentsInstance::const_iterator a = instance.templateArguments.begin(); // TODO: partial specialization
-		for(TemplateParameters::const_iterator i = instance.primary->templateParams.begin(); i != instance.primary->templateParams.end(); ++i)
+		std::cout << "while instantiating ";
+		printType(instance);
+		std::cout << std::endl;
+		if(instance.declaration->isTemplate)
 		{
-			SYMBOLS_ASSERT(a != instance.templateArguments.end());
-			std::cout << getValue((*i).declaration->getName()) << ": ";
-			printType(*a++);
-			std::cout << std::endl;
+			const TemplateArgumentsInstance& templateArguments = instance.declaration->isSpecialization ? instance.deducedArguments : instance.templateArguments;
+			TemplateArgumentsInstance::const_iterator a = templateArguments.begin();
+			for(TemplateParameters::const_iterator i = instance.declaration->templateParams.begin(); i != instance.declaration->templateParams.end(); ++i)
+			{
+				SYMBOLS_ASSERT(a != templateArguments.end());
+				std::cout << getValue((*i).declaration->getName()) << ": ";
+				printType(*a++);
+				std::cout << std::endl;
+			}
 		}
 
 		if(enclosing == 0
@@ -4017,7 +4120,10 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const
 		if(allowDependent
 			/*&& enclosing == 0*/)
 		{
-			return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, UNIQUETYPE_NULL, DependentType(declaration)));
+			TemplateArgumentsInstance templateArguments;
+			makeUniqueTemplateArguments(type.templateArguments, templateArguments, source, enclosingType, allowDependent);
+			std::size_t templateParameterCount = declaration->isTemplate ? std::distance(declaration->templateParams.begin(), declaration->templateParams.end()) : 0;
+			return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, UNIQUETYPE_NULL, DependentType(declaration, templateArguments, templateParameterCount)));
 		}
 
 		throw SymbolsError();
@@ -4038,6 +4144,14 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const
 			return memberEnclosing->members[declaration->instance];
 		}
 		return getUniqueType(declaration->type, source, memberEnclosing, allowDependent);
+	}
+
+	if(declaration->isTemplate
+		&& type.isImplicitTemplateId // if no template argument list was specified
+		&& !type.isEnclosingClass) // and the type is not the name of an enclosing class
+	{
+		// this is a template-name
+		return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, UNIQUETYPE_NULL, TemplateTemplateArgument(declaration, memberEnclosing)));
 	}
 
 	TypeInstance tmp(declaration, memberEnclosing);
@@ -6099,6 +6213,13 @@ inline void printName(const Declaration* name, std::ostream& out = std::cout)
 	FileTokenPrinter tokenPrinter(out);
 	SymbolPrinter printer(tokenPrinter);
 	printer.printName(name);
+}
+
+inline void printName(const Scope* scope, std::ostream& out = std::cout)
+{
+	FileTokenPrinter tokenPrinter(out);
+	SymbolPrinter printer(tokenPrinter);
+	printer.printName(scope);
 }
 
 inline void printType(const TypeInstance& type, std::ostream& out, bool escape)

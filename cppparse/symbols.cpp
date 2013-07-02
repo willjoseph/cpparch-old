@@ -238,12 +238,17 @@ Declaration gNonTypeTemplateParameterDeclaration(TREEALLOCATOR_NULL, &gTemplateP
 DependentTypeId gNonTypeTemplateParameter(&gNonTypeTemplateParameterDeclaration, 1);
 
 
+Types2::Pointer::Value gTemplateParam1 = Types2::Node(Type(&gTemplateParameterDeclaration, TREEALLOCATOR_NULL));
+Types2::Pointer::Value gTemplateParam2 = Types2::Node(Type(&gNonTypeTemplateParameterDeclaration, TREEALLOCATOR_NULL));
+
 Identifier gTemplateClassId = makeIdentifier("$template");
 struct TemplateClassDeclaration : Declaration
 {
 	TemplateClassDeclaration() : Declaration(TREEALLOCATOR_NULL, 0, gTemplateClassId, TYPE_CLASS, 0, DeclSpecifiers(), true)
 	{
 		templateParamScope = &gTemplateParameterScope;
+		templateParams.head.next = &gTemplateParam1;
+		gTemplateParam1.next = templateParams.tail = &gTemplateParam2;
 	}
 };
 
@@ -257,7 +262,7 @@ struct BuiltInTemplateTemplateArgument : UniqueTypeId
 {
 	BuiltInTemplateTemplateArgument(Declaration* declaration)
 	{
-		value = pushBuiltInType(value, TemplateTemplateArgument(declaration));
+		value = pushBuiltInType(value, TemplateTemplateArgument(declaration, 0));
 	}
 };
 
@@ -429,9 +434,10 @@ struct MakeTemplateTemplateParameter
 {
 	static UniqueTypeWrapper apply(Declaration* declaration, UniqueTypeWrapper a1, UniqueTypeWrapper a2)
 	{
-		DependentType result(declaration);
-		result.templateArguments.push_back(a1);
-		result.templateArguments.push_back(a2);
+		TemplateArgumentsInstance templateArguments;
+		templateArguments.push_back(a1);
+		templateArguments.push_back(a2);
+		DependentType result(declaration, templateArguments, 2);
 		return UniqueTypeWrapper(pushBuiltInType(UNIQUETYPE_NULL, result));
 	}
 };
@@ -1311,7 +1317,41 @@ struct InstantiationPath : public Concatenate
 
 inline void printPosition(const Source& source, std::ostream& out)
 {
-	out << source.absolute.c_str() << "(" << source.line << "): ";
+	out << source.absolute.c_str() << "(" << source.line << ", " << source.column << "): ";
+}
+
+void printTypeReadable(const TypeInstance& type, std::ostream& out, bool escape = true)
+{
+	if(type.enclosing != 0)
+	{
+		printTypeReadable(*type.enclosing, out, escape);
+		out << ".";
+	}
+	else
+	{
+		printName(type.declaration->scope, out);
+	}
+	out << getValue(type.declaration->getName());
+	if(type.declaration->isTemplate)
+	{
+		out << (escape ? "&lt;" : "<");
+		bool separator = false;
+		for(TemplateArgumentsInstance::const_iterator i = type.templateArguments.begin(); i != type.templateArguments.end(); ++i)
+		{
+			if(separator)
+			{
+				out << ",";
+			}
+			out << std::endl << "\t";
+			printType(*i, out, escape);
+			separator = true;
+		}
+		if(!type.templateArguments.empty())
+		{
+			out << std::endl;
+		}
+		out << (escape ? "&gt;" : ">");
+	}
 }
 
 inline void dumpTemplateInstantiations(const TypeInstance& instance, bool root)
@@ -1331,17 +1371,26 @@ inline void dumpTemplateInstantiations(const TypeInstance& instance, bool root)
 		"</head>\n"
 		"<body>\n"
 		"<pre style='color:#000000;background:#ffffff;'>\n";
-	printType(instance, out, true);
+	printPosition(instance.declaration->getName().source, out);
 	out << std::endl;
+	printTypeReadable(instance, out, true);
+	out << std::endl << std::endl;
+
+	typedef std::map<const TypeInstance*, Location> InstanceMap;
+	InstanceMap instanceMap;
 	for(ChildInstantiations::const_iterator i = instance.childInstantiations.begin(); i != instance.childInstantiations.end(); ++i)
 	{
-		printPosition((*i).source, out);
+		instanceMap.insert(InstanceMap::value_type((*i).instance, (*i).source));
+	}
+	for(InstanceMap::const_iterator i = instanceMap.begin(); i != instanceMap.end(); ++i)
+	{
+		printPosition((*i).second, out);
 		out << std::endl;
-		out << "<a href='" << InstantiationPath(*(*i).instance).c_str() << "'>";
-		printType(*(*i).instance, out, true);
-		out << "</a>\n";
+		out << "<a href='" << InstantiationPath(*(*i).first).c_str() << "'>";
+		printTypeReadable(*(*i).first, out, true);
+		out << "</a>";
 		out << std::endl;
-		dumpTemplateInstantiations(*(*i).instance);
+		dumpTemplateInstantiations(*(*i).first);
 	}
 	out << "</pre>\n"
 		"</body>\n"
