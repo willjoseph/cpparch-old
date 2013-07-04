@@ -1967,6 +1967,7 @@ struct PostfixExpressionMemberWalker : public WalkerQualified
 		isArrow = symbol->id == cpp::member_operator::ARROW;
 
 		if(memberType != 0
+			&& !::isDependent(*memberType)
 			&& isClass(*memberType->declaration)) // TODO: assert that this is a class type
 		{
 			// [expr.ref] [the type of the object-expression shall be complete]
@@ -3339,7 +3340,7 @@ struct DeclaratorWalker : public WalkerBase
 	TypeSequence typeSequence;
 	CvQualifiers qualifiers;
 	Qualifying memberPointer;
-	Dependent dependent;
+	Dependent dependent; // track which template parameters the declarator's type depends on. e.g. 'T::* memberPointer', 'void f(T)'
 	DeclaratorWalker(const WalkerState& state)
 		: WalkerBase(state), id(&gAnonymousId), paramScope(0), typeSequence(context), memberPointer(context)
 	{

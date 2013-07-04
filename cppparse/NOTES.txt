@@ -110,7 +110,13 @@
 				- X<0> // type depends on value of '0' (but NOT type
 	- determine type of dependent pointer-to-member expression
 		- for SFINAE during substitution of nontype pointer-to-member parameter &T::member -> int T::*member
-	- determine type of 
+
+- issue: 'context' is being instantiated while uniqueing
+	LexContext
+		-> context
+		-> macromap<context>::name_iterator (instantiate macromap<context>)
+		-> ContextT::token_type token_type (instantiate ContextT)
+
 
 - investigate: how does bidirectional_map work?
 	- multi_index_container -> multi_index_base_type<...>::type -> nth_layer<0, ...>::type

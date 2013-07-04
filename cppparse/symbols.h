@@ -4208,14 +4208,16 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const
 
 	if(declaration->specifiers.isTypedef)
 	{
+		UniqueTypeWrapper result = getUniqueType(declaration->type, source, memberEnclosing, allowDependent);
 		if(memberEnclosing != 0 // if the typedef is a member
+			&& !allowDependent // and we expect the enclosing class to have been instantiated (qualified access, e.g. C<T>::m)
 			&& declaration->instance != INDEX_INVALID) // and its type was dependent when parsed
 		{
-			SYMBOLS_ASSERT(memberEnclosing->instantiated);
+			SYMBOLS_ASSERT(memberEnclosing->instantiated); // assert that the enclosing class was instantiated
 			SYMBOLS_ASSERT(declaration->instance < memberEnclosing->members.size());
-			return memberEnclosing->members[declaration->instance];
+			SYMBOLS_ASSERT(memberEnclosing->members[declaration->instance] == result);
 		}
-		return getUniqueType(declaration->type, source, memberEnclosing, allowDependent);
+		return result;
 	}
 
 	if(declaration->isTemplate
@@ -5023,7 +5025,14 @@ inline bool isEqual(const TypeId& l, const TypeId& r)
 
 inline bool isEqual(const TemplateArgument& l, const TemplateArgument& r)
 {
-	return isEqual(l.type, r.type);
+	if((l.type.declaration == &gNonType)
+		!= (r.type.declaration == &gNonType))
+	{
+		return false;
+	}
+	return l.type.declaration == &gNonType
+		? l.expression.p == r.expression.p
+		: isEqual(l.type, r.type);
 }
 
 inline bool matchTemplateSpecialization(const Declaration& declaration, const TemplateArguments& arguments)

@@ -1,7 +1,66 @@
 
+namespace N224
+{
+	template<typename T>
+	struct B
+	{
+		typedef typename T::Type Type;
+	};
 
-bool b1 = __is_class(int);
-bool b2 = __is_base_of(int, int);
+	template<typename T>
+	struct A
+	{
+		typedef T Type;
+		typedef typename B<A>::Type Instantiate;
+	};
+
+	typedef A<int>::Type Type;
+}
+
+namespace N223
+{
+	template<int i>
+	struct S;
+	template<>
+	struct S<1>;
+	template<>
+	struct S<2>;
+	template<>
+	struct S<3>;
+}
+
+namespace N222
+{
+	template<typename T>
+	struct B : T
+	{
+	};
+
+	struct Outer
+	{
+		template <typename T>
+		struct Inner;
+	};
+
+	template<typename T>
+	struct Outer::Inner : B<T>
+	{
+		void f();
+	};
+
+	template<typename T>
+	void Outer::Inner<T>::f()
+	{
+		this->dependent(); // 'this' is dependent
+	}
+}
+
+namespace N221
+{
+	bool b1 = __is_class(int);
+	bool b2 = __is_base_of(int, int);
+}
+
 
 #if 1
 #include <boost/multi_index_container.hpp>
