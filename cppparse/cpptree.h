@@ -514,13 +514,15 @@ namespace cpp
 	struct postfix_expression_prefix : public choice<postfix_expression_prefix>, public postfix_expression
 	{
 		VISITABLE_DERIVED(postfix_expression);
-		VISITABLE_BASE(TYPELIST6(
+		VISITABLE_BASE(TYPELIST8(
 			SYMBOLFWD(primary_expression),
 			SYMBOLFWD(postfix_expression_disambiguate), // matched when 'identifier' in primary-expression is dependent
 			SYMBOLFWD(postfix_expression_construct),
 			SYMBOLFWD(postfix_expression_cast),
 			SYMBOLFWD(postfix_expression_typeid),
-			SYMBOLFWD(postfix_expression_typeidtype)
+			SYMBOLFWD(postfix_expression_typeidtype),
+			SYMBOLFWD(postfix_expression_typetraits_unary),
+			SYMBOLFWD(postfix_expression_typetraits_binary)
 		));
 	};
 
@@ -1375,6 +1377,66 @@ namespace cpp
 		symbol<type_id> type;
 		terminal<boost::wave::T_RIGHTPAREN> rp;
 		FOREACH4(key, lp, type, rp);
+	};
+
+	struct typetraits_unary : public terminal_choice
+	{
+		enum {
+			HAS_NOTHROW_CONSTRUCTOR,
+			HAS_NOTHROW_COPY,
+			HAS_TRIVIAL_ASSIGN,
+			HAS_TRIVIAL_CONSTRUCTOR,
+			HAS_TRIVIAL_COPY,
+			HAS_TRIVIAL_DESTRUCTOR,
+			HAS_VIRTUAL_DESTRUCTOR,
+			IS_ABSTRACT,
+			IS_CLASS,
+			IS_EMPTY,
+			IS_ENUM,
+			IS_POD,
+			IS_POLYMORPHIC,
+			IS_UNION,
+			IS_TRIVIALLY_COPYABLE,
+			IS_STANDARD_LAYOUT,
+			IS_LITERAL_TYPE,
+			UNDERLYING_TYPE,
+		} id;
+		terminal_choice2 value;
+		FOREACH1(value);
+	};
+
+	struct postfix_expression_typetraits_unary : public postfix_expression_prefix
+	{
+		VISITABLE_DERIVED(postfix_expression_prefix);
+		symbol<typetraits_unary> trait;
+		terminal<boost::wave::T_LEFTPAREN> lp;
+		symbol<type_id> type;
+		terminal<boost::wave::T_RIGHTPAREN> rp;
+		FOREACH4(trait, lp, type, rp);
+	};
+
+	struct typetraits_binary : public terminal_choice
+	{
+		enum {
+			IS_BASE_OF,
+			IS_CONVERTIBLE_TO,
+			IS_TRIVIALLY_CONSTRUCTIBLE,
+			IS_TRIVIALLY_ASSIGNABLE,
+		} id;
+		terminal_choice2 value;
+		FOREACH1(value);
+	};
+
+	struct postfix_expression_typetraits_binary : public postfix_expression_prefix
+	{
+		VISITABLE_DERIVED(postfix_expression_prefix);
+		symbol<typetraits_binary> trait;
+		terminal<boost::wave::T_LEFTPAREN> lp;
+		symbol<type_id> first;
+		terminal<boost::wave::T_COMMA> comma;
+		symbol<type_id> second;
+		terminal<boost::wave::T_RIGHTPAREN> rp;
+		FOREACH6(trait, lp, first, comma, second, rp);
 	};
 
 	struct new_type : public choice<new_type>

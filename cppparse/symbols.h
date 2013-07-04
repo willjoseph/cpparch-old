@@ -567,6 +567,7 @@ inline Name getBinaryOperatorName(T* symbol)
 	return getBinaryOperatorNameImpl(symbol->op);
 }
 
+
 // [expr.const]
 // An integral constant-expression can involve only literals, enumerators, const variables or static
 // data members of integral or enumeration types initialized with constant expressions, non-type template
@@ -582,6 +583,8 @@ struct ExpressionNodeVisitor
 	virtual void visit(const struct UnaryExpression&) = 0;
 	virtual void visit(const struct BinaryExpression&) = 0;
 	virtual void visit(const struct TernaryExpression&) = 0;
+	virtual void visit(const struct TypeTraitsUnaryExpression&) = 0;
+	virtual void visit(const struct TypeTraitsBinaryExpression&) = 0;
 };
 
 struct ExpressionNode
@@ -1570,6 +1573,7 @@ struct Parameters : std::vector<Parameter>
 	{
 	}
 };
+
 
 // ----------------------------------------------------------------------------
 
@@ -2572,6 +2576,50 @@ inline bool operator<(const TernaryExpression& left, const TernaryExpression& ri
 					: left.third.p < right.third.p;
 }
 
+typedef bool (*UnaryTypeTraitsOp)(UniqueTypeWrapper);
+typedef bool (*BinaryTypeTraitsOp)(UniqueTypeWrapper, UniqueTypeWrapper, Location source, const TypeInstance* enclosing);
+
+struct TypeTraitsUnaryExpression
+{
+	Name traitName;
+	UnaryTypeTraitsOp operation;
+	UniqueTypeWrapper type;
+	TypeTraitsUnaryExpression(Name traitName, UnaryTypeTraitsOp operation, UniqueTypeWrapper type)
+		: traitName(traitName), operation(operation), type(type)
+	{
+	}
+};
+
+inline bool operator<(const TypeTraitsUnaryExpression& left, const TypeTraitsUnaryExpression& right)
+{
+	return left.operation != right.operation
+		? left.operation < right.operation
+			: left.type < right.type;
+}
+
+struct TypeTraitsBinaryExpression
+{
+	Name traitName;
+	BinaryTypeTraitsOp operation;
+	UniqueTypeWrapper first;
+	UniqueTypeWrapper second;
+	TypeTraitsBinaryExpression(Name traitName, BinaryTypeTraitsOp operation, UniqueTypeWrapper first, UniqueTypeWrapper second)
+		: traitName(traitName), operation(operation), first(first), second(second)
+	{
+		SYMBOLS_ASSERT(first != gUniqueTypeNull);
+		SYMBOLS_ASSERT(second != gUniqueTypeNull);
+	}
+};
+
+inline bool operator<(const TypeTraitsBinaryExpression& left, const TypeTraitsBinaryExpression& right)
+{
+	return left.operation != right.operation
+		? left.operation < right.operation
+		: left.first != right.first
+			? left.first < right.first
+			: left.second < right.second;
+}
+
 inline bool isPointerToMemberExpression(ExpressionNode* expression)
 {
 	return isUnaryExpression(expression)
@@ -2589,6 +2637,7 @@ inline bool isDependentPointerToMemberExpression(ExpressionNode* expression)
 inline UniqueTypeWrapper typeofExpression(ExpressionNode* node, Location source);
 
 extern ObjectTypeId gUnsignedInt;
+extern ObjectTypeId gBool;
 
 struct TypeofVisitor : ExpressionNodeVisitor
 {
@@ -2634,6 +2683,14 @@ struct TypeofVisitor : ExpressionNodeVisitor
 	void visit(const TernaryExpression& node)
 	{
 		result = node.type(typeofExpression(node.first, source), typeofExpression(node.second, source), typeofExpression(node.third, source));
+	}
+	void visit(const TypeTraitsUnaryExpression& node)
+	{
+		result = gBool;
+	}
+	void visit(const TypeTraitsBinaryExpression& node)
+	{
+		result = gBool;
 	}
 };
 
@@ -2799,6 +2856,21 @@ struct EvaluateVisitor : ExpressionNodeVisitor
 			evaluate(node.second, source, enclosing),
 			evaluate(node.third, source, enclosing)
 		);
+	}
+	void visit(const TypeTraitsUnaryExpression& node)
+	{
+		result = IntegralConstant(node.operation(
+			substitute(node.type, source, *enclosing)
+		));
+	}
+	void visit(const TypeTraitsBinaryExpression& node)
+	{
+		result = IntegralConstant(node.operation(
+			substitute(node.first, source, *enclosing),
+			substitute(node.second, source, *enclosing),
+			source,
+			enclosing
+		));
 	}
 };
 
@@ -4863,9 +4935,14 @@ inline UniqueTypeWrapper ternaryOperatorNull(UniqueTypeWrapper first, UniqueType
 
 
 
-inline bool isClass(const UniqueTypeId& type)
+inline bool isClass(UniqueTypeWrapper type)
 {
 	return type.isSimple() && getObjectType(type.value).declaration->type.declaration == &gClass;
+}
+
+inline bool isEnum(UniqueTypeWrapper type)
+{
+	return type.isSimple() && getObjectType(type.value).declaration->type.declaration == &gEnum;
 }
 
 inline bool isComplete(const UniqueTypeId& type)
@@ -5915,6 +5992,22 @@ struct SymbolPrinter : TypeElementVisitor, ExpressionNodeVisitor
 		printExpression(node.third);
 		printer.out << ")";
 	}
+	void visit(const TypeTraitsUnaryExpression& node)
+	{
+		printer.out << node.traitName.c_str();
+		printer.out << "(";
+		printType(node.type);
+		printer.out << ")";
+	}
+	void visit(const TypeTraitsBinaryExpression& node)
+	{
+		printer.out << node.traitName.c_str();
+		printer.out << "(";
+		printType(node.first);
+		printer.out << ", ";
+		printType(node.second);
+		printer.out << ")";
+	}
 
 	void printExpression(ExpressionNode* node)
 	{
@@ -6375,6 +6468,132 @@ struct OverloadResolver
 	}
 };
 
+
+
+
+template<typename T>
+inline Name getTypeTraitName(T* symbol)
+{
+	return symbol->trait->value.value;
+}
+
+inline bool hasNothrowConstructor(UniqueTypeWrapper type)
+{
+	return true; // TODO
+}
+
+inline bool hasNothrowCopy(UniqueTypeWrapper type)
+{
+	return true; // TODO
+}
+
+inline bool hasTrivialAssign(UniqueTypeWrapper type)
+{
+	return true; // TODO
+}
+
+inline bool hasTrivialConstructor(UniqueTypeWrapper type)
+{
+	return true; // TODO
+}
+
+inline bool hasTrivialCopy(UniqueTypeWrapper type)
+{
+	return true; // TODO
+}
+
+inline bool hasTrivialDestructor(UniqueTypeWrapper type)
+{
+	return true; // TODO
+}
+
+inline bool hasVirtualDestructor(UniqueTypeWrapper type)
+{
+	return false; // TODO
+}
+
+inline bool isAbstract(UniqueTypeWrapper type)
+{
+	return false; // TODO
+}
+
+inline bool isEmpty(UniqueTypeWrapper type)
+{
+	return false; // TODO
+}
+
+inline bool isPod(UniqueTypeWrapper type)
+{
+	return false; // TODO
+}
+
+inline bool isPolymorphic(UniqueTypeWrapper type)
+{
+	return false; // TODO
+}
+
+inline bool isUnion(UniqueTypeWrapper type)
+{
+	return false; // TODO
+}
+
+inline bool isBaseOf(UniqueTypeWrapper base, UniqueTypeWrapper derived, Location source, const TypeInstance* enclosing)
+{
+	if(!base.isSimple()
+		|| !derived.isSimple())
+	{
+		return false;
+	}
+	const TypeInstance& baseType = getObjectType(base.value);
+	const TypeInstance& derivedType = getObjectType(derived.value);
+	if(&baseType == &derivedType)
+	{
+		return true;
+	}
+	SYMBOLS_ASSERT(!isIncomplete(*derivedType.declaration)); // TODO: does SFINAE apply?
+	return isBaseOf(baseType, derivedType, source, enclosing);
+}
+
+inline bool isConvertibleTo(UniqueTypeWrapper from, UniqueTypeWrapper to, Location source, const TypeInstance* enclosing)
+{
+	return false; // TODO
+}
+
+inline UnaryTypeTraitsOp getUnaryTypeTraitsOp(cpp::typetraits_unary* symbol)
+{
+	switch(symbol->id)
+	{
+	case cpp::typetraits_unary::HAS_NOTHROW_CONSTRUCTOR: return hasNothrowConstructor;
+	case cpp::typetraits_unary::HAS_NOTHROW_COPY: return hasNothrowCopy;
+	case cpp::typetraits_unary::HAS_TRIVIAL_ASSIGN: return hasTrivialAssign;
+	case cpp::typetraits_unary::HAS_TRIVIAL_CONSTRUCTOR: return hasTrivialConstructor;
+	case cpp::typetraits_unary::HAS_TRIVIAL_COPY: return hasTrivialCopy;
+	case cpp::typetraits_unary::HAS_TRIVIAL_DESTRUCTOR: return hasTrivialDestructor;
+	case cpp::typetraits_unary::HAS_VIRTUAL_DESTRUCTOR: return hasVirtualDestructor;
+	case cpp::typetraits_unary::IS_ABSTRACT: return isAbstract;
+	case cpp::typetraits_unary::IS_CLASS: return isClass;
+	case cpp::typetraits_unary::IS_EMPTY: return isEnum;
+	case cpp::typetraits_unary::IS_ENUM: return isEmpty;
+	case cpp::typetraits_unary::IS_POD: return isPod;
+	case cpp::typetraits_unary::IS_POLYMORPHIC: return isPolymorphic;
+	case cpp::typetraits_unary::IS_UNION: return isUnion;
+	default: break;
+	}
+	throw SymbolsError();
+}
+
+inline BinaryTypeTraitsOp getBinaryTypeTraitsOp(cpp::typetraits_binary* symbol)
+{
+	switch(symbol->id)
+	{
+	case cpp::typetraits_binary::IS_BASE_OF: return isBaseOf;
+	case cpp::typetraits_binary::IS_CONVERTIBLE_TO: return isConvertibleTo;
+	default: break;
+	}
+	throw SymbolsError();
+}
+
+// ----------------------------------------------------------------------------
 
 #endif
 

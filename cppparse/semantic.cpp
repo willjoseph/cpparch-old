@@ -508,10 +508,12 @@ struct WalkerState
 
 	void addBase(Declaration* declaration, const Type& base)
 	{
+#if 0
 		if(getUnderlyingType(base).declaration == declaration)
 		{
 			return; // TODO: implement template-instantiation, and disallow inheriting from current-instantiation
 		}
+#endif
 		declaration->enclosed->bases.push_front(base);
 	}
 
@@ -1113,19 +1115,20 @@ struct WalkerBase : public WalkerState
 	}
 
 	template<typename T>
-	UniqueTypeWrapper makeUniqueTypeImpl(T& type, Location source)
+	void makeUniqueTypeImpl(T& type, Location source)
 	{
 		type.isDependent = isDependent(type);
 		type.unique = makeUniqueType(type, source, enclosingType, type.isDependent).value;
-		return type.isDependent ? gUniqueTypeNull : UniqueTypeWrapper(type.unique);
 	}
 	UniqueTypeWrapper makeUniqueTypeSafe(Type& type, Location source)
 	{
-		return makeUniqueTypeImpl(type, source);
+		makeUniqueTypeImpl(type, source);
+		return type.isDependent ? gUniqueTypeNull : UniqueTypeWrapper(type.unique);
 	}
 	UniqueTypeWrapper makeUniqueTypeSafe(TypeId& type, Location source)
 	{
-		return makeUniqueTypeImpl(type, source);
+		makeUniqueTypeImpl(type, source);
+		return type.isDependent ? gUniqueTypeNull : UniqueTypeWrapper(type.unique);
 	}
 };
 
@@ -1989,6 +1992,35 @@ struct PostfixExpressionMemberWalker : public WalkerQualified
 	}
 };
 
+struct TypeTraitsIntrinsicWalker : public WalkerBase
+{
+	TREEWALKER_DEFAULT;
+
+	Dependent valueDependent;
+	UniqueTypeWrapper first;
+	UniqueTypeWrapper second;
+	TypeTraitsIntrinsicWalker(const WalkerState& state)
+		: WalkerBase(state)
+	{
+	}
+	void visit(cpp::terminal<boost::wave::T_LEFTPAREN> symbol)
+	{
+		// debugging
+	}
+	void visit(cpp::type_id* symbol)
+	{
+		TypeIdWalker walker(getState());
+		TREEWALKER_WALK_SRC(walker, symbol);
+		addDependent(valueDependent, walker.type);
+
+		makeUniqueTypeImpl(walker.type, symbol->source);
+		UniqueTypeWrapper uniqueType = UniqueTypeWrapper(walker.type.unique);
+		setExpressionType(symbol, uniqueType);
+
+		(first == gUniqueTypeNull ? first : second) = uniqueType;
+	}
+};
+
 struct PostfixExpressionWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
@@ -2254,6 +2286,26 @@ struct PostfixExpressionWalker : public WalkerBase
 		setExpressionType(symbol, type);
 		id = 0;
 		updateMemberType();
+	}
+	void visit(cpp::postfix_expression_typetraits_unary* symbol)
+	{
+		TypeTraitsIntrinsicWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+		addDependent(valueDependent, walker.valueDependent);
+		type = gBool;
+		UnaryTypeTraitsOp operation = getUnaryTypeTraitsOp(symbol->trait);
+		Name name = getTypeTraitName(symbol);
+		expression = ExpressionWrapper(makeExpression(TypeTraitsUnaryExpression(name, operation, walker.first)), true, false, isDependent(valueDependent));
+	}
+	void visit(cpp::postfix_expression_typetraits_binary* symbol)
+	{
+		TypeTraitsIntrinsicWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+		addDependent(valueDependent, walker.valueDependent);
+		type = gBool;
+		BinaryTypeTraitsOp operation = getBinaryTypeTraitsOp(symbol->trait);
+		Name name = getTypeTraitName(symbol);
+		expression = ExpressionWrapper(makeExpression(TypeTraitsBinaryExpression(name, operation, walker.first, walker.second)), true, false, isDependent(valueDependent));
 	}
 };
 

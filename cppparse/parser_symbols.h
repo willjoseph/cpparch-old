@@ -780,6 +780,42 @@ inline cpp::msext_asm_element_list_inline* parseSymbol(ParserType& parser, cpp::
 }
 
 
+
+template<typename ParserType>
+inline cpp::typetraits_unary* parseSymbol(ParserType& parser, cpp::typetraits_unary* result)
+{
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_HAS_NOTHROW_CONSTRUCTOR, cpp::typetraits_unary::HAS_NOTHROW_CONSTRUCTOR);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_HAS_NOTHROW_COPY, cpp::typetraits_unary::HAS_NOTHROW_COPY);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_HAS_TRIVIAL_ASSIGN, cpp::typetraits_unary::HAS_TRIVIAL_ASSIGN);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_HAS_TRIVIAL_CONSTRUCTOR, cpp::typetraits_unary::HAS_TRIVIAL_CONSTRUCTOR);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_HAS_TRIVIAL_COPY, cpp::typetraits_unary::HAS_TRIVIAL_COPY);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_HAS_TRIVIAL_DESTRUCTOR, cpp::typetraits_unary::HAS_TRIVIAL_DESTRUCTOR);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_HAS_VIRTUAL_DESTRUCTOR, cpp::typetraits_unary::HAS_VIRTUAL_DESTRUCTOR);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_IS_ABSTRACT, cpp::typetraits_unary::IS_ABSTRACT);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_IS_CLASS, cpp::typetraits_unary::IS_CLASS);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_IS_EMPTY, cpp::typetraits_unary::IS_EMPTY);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_IS_ENUM, cpp::typetraits_unary::IS_ENUM);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_IS_POD, cpp::typetraits_unary::IS_POD);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_IS_POLYMORPHIC, cpp::typetraits_unary::IS_POLYMORPHIC);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_IS_UNION, cpp::typetraits_unary::IS_UNION);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_IS_TRIVIALLY_COPYABLE, cpp::typetraits_unary::IS_TRIVIALLY_COPYABLE);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_IS_STANDARD_LAYOUT, cpp::typetraits_unary::IS_STANDARD_LAYOUT);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_IS_LITERAL_TYPE, cpp::typetraits_unary::IS_LITERAL_TYPE);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_UNDERLYING_TYPE, cpp::typetraits_unary::UNDERLYING_TYPE);
+	return result;
+}
+
+template<typename ParserType>
+inline cpp::typetraits_binary* parseSymbol(ParserType& parser, cpp::typetraits_binary* result)
+{
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_IS_BASE_OF, cpp::typetraits_binary::IS_BASE_OF);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_IS_CONVERTIBLE_TO, cpp::typetraits_binary::IS_CONVERTIBLE_TO);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_IS_TRIVIALLY_CONSTRUCTIBLE, cpp::typetraits_binary::IS_TRIVIALLY_CONSTRUCTIBLE);
+	PARSE_SELECT_TOKEN(parser, result, boost::wave::T_IS_TRIVIALLY_ASSIGNABLE, cpp::typetraits_binary::IS_TRIVIALLY_ASSIGNABLE);
+	return result;
+}
+
+
 #endif
 
 

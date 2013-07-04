@@ -74,23 +74,6 @@ int runTest(const Test& test)
 		add_macro_definition(lexer, "__multiple_inheritance", true);
 		add_macro_definition(lexer, "__virtual_inheritance", true);
 
-		add_macro_definition(lexer, "__has_nothrow_constructor(type)=0", true);
-		add_macro_definition(lexer, "__has_nothrow_copy(type)=0", true);
-		add_macro_definition(lexer, "__has_trivial_assign(type)=0", true);
-		add_macro_definition(lexer, "__has_trivial_constructor(type)=0", true);
-		add_macro_definition(lexer, "__has_trivial_copy(type)=0", true);
-		add_macro_definition(lexer, "__has_trivial_destructor(type)=0", true);
-		add_macro_definition(lexer, "__has_virtual_destructor(type)=0", true);
-		add_macro_definition(lexer, "__is_abstract(type)=0", true);
-		add_macro_definition(lexer, "__is_base_of(base, derived)=0", true);
-		add_macro_definition(lexer, "__is_class(type)=0", true);
-		add_macro_definition(lexer, "__is_convertible_to(type)=0", true);
-		add_macro_definition(lexer, "__is_empty(type)=0", true);
-		add_macro_definition(lexer, "__is_enum(type)=0", true);
-		add_macro_definition(lexer, "__is_pod(type)=0", true);
-		add_macro_definition(lexer, "__is_polymorphic(type)=0", true);
-		add_macro_definition(lexer, "__is_union(type)=0", true);
-
 		// optional: _DEBUG, _DLL, /Ze=_MSC_EXTENSIONS, /MT=_MT
 		add_macro_definition(lexer, "_WIN32", true);
 		add_macro_definition(lexer, "__FUNCTION__=\"<function-sig>\"", true);

@@ -95,6 +95,84 @@ typedef boost::wave::cpplexer::lex_iterator<token_type> lex_iterator_type;
 
 typedef std::basic_string<char, std::char_traits<char>, DebugAllocator<char> > LexString;
 
+LexTokenId LEXER_INTRINSIC_IDS[] = {
+	boost::wave::T_HAS_NOTHROW_CONSTRUCTOR,
+	boost::wave::T_HAS_NOTHROW_COPY,
+	boost::wave::T_HAS_TRIVIAL_ASSIGN,
+	boost::wave::T_HAS_TRIVIAL_CONSTRUCTOR,
+	boost::wave::T_HAS_TRIVIAL_COPY,
+	boost::wave::T_HAS_TRIVIAL_DESTRUCTOR,
+	boost::wave::T_HAS_VIRTUAL_DESTRUCTOR,
+	boost::wave::T_IS_ABSTRACT,
+	boost::wave::T_IS_BASE_OF,
+	boost::wave::T_IS_CLASS,
+	boost::wave::T_IS_CONVERTIBLE_TO,
+	boost::wave::T_IS_EMPTY,
+	boost::wave::T_IS_ENUM,
+	boost::wave::T_IS_POD,
+	boost::wave::T_IS_POLYMORPHIC,
+	boost::wave::T_IS_UNION,
+	boost::wave::T_IS_TRIVIAL,
+	boost::wave::T_IS_TRIVIALLY_CONSTRUCTIBLE,
+	boost::wave::T_IS_TRIVIALLY_ASSIGNABLE,
+	boost::wave::T_IS_TRIVIALLY_COPYABLE,
+	boost::wave::T_IS_STANDARD_LAYOUT,
+	boost::wave::T_IS_LITERAL_TYPE,
+	boost::wave::T_UNDERLYING_TYPE,
+};
+
+
+typedef const char* LexTokenValue;
+
+LexTokenValue LEXER_INTRINSIC_VALUES[] = {
+	"__has_nothrow_constructor",
+	"__has_nothrow_copy",
+	"__has_trivial_assign",
+	"__has_trivial_constructor",
+	"__has_trivial_copy",
+	"__has_trivial_destructor",
+	"__has_virtual_destructor",
+	"__is_abstract",
+	"__is_base_of",
+	"__is_class",
+	"__is_convertible_to",
+	"__is_empty",
+	"__is_enum",
+	"__is_pod",
+	"__is_polymorphic",
+	"__is_union",
+	"__is_trivial",
+	"__is_trivially_constructible",
+	"__is_trivially_assignable",
+	"__is_trivially_copyable",
+	"__is_standard_layout",
+	"__is_literal_type",
+	"__underlying_type",
+};
+
+struct StringEqualPredicate
+{
+	const char* s;
+	StringEqualPredicate(const char* s)
+		: s(s)
+	{
+	}
+	bool operator()(const char* other) const
+	{
+		return string_equal(s, other);
+	}
+};
+
+LexTokenId getLexerIntrinsicId(const char* value)
+{
+	const LexTokenValue* result = std::find_if(LEXER_INTRINSIC_VALUES, ARRAY_END(LEXER_INTRINSIC_VALUES), StringEqualPredicate(value));
+	if(result != ARRAY_END(LEXER_INTRINSIC_VALUES))
+	{
+		return LEXER_INTRINSIC_IDS[result - LEXER_INTRINSIC_VALUES];
+	}
+	return boost::wave::T_IDENTIFIER;
+}
+
 struct LexNames
 {
 	typedef std::set<LexString, std::less<LexString>, DebugAllocator<int> > Identifiers;
@@ -820,7 +898,17 @@ Token* Lexer::read(Token* first, Token* last)
 				FilePosition position = context.get_hooks().macroTokenCount == 0
 					? context.makeFilePosition(token.get_position())
 					: context.get_hooks().macroPosition;
-				*first++ = Token(token, TokenValue(context.makeIdentifier(token.get_value().c_str())), position, Source(context.get_hooks().getSourcePath(), position.line, position.column), context.get_hooks().events);
+				LexTokenId id = token;
+				const char* name = context.makeIdentifier(token.get_value().c_str());
+				if(id == boost::wave::T_IDENTIFIER
+					&& name[0] == '_'
+					&& name[1] == '_')
+				{
+					// compiler intrinsic?
+					id = getLexerIntrinsicId(name);
+				}
+
+				*first++ = Token(id, TokenValue(name), position, Source(context.get_hooks().getSourcePath(), position.line, position.column), context.get_hooks().events);
 
 				//debugEvents(context.get_hooks().events, context.get_hooks().getSourcePath().absolute);
 
