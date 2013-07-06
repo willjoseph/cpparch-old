@@ -826,7 +826,7 @@ struct TestIcsRank
 {
 	static void apply(IcsRank expected, bool isNullPointerConstant = false, bool isLvalue = false)
 	{
-		IcsRank rank = getIcsRank(MakeType<To>::apply(), MakeType<From>::apply(), Source(), 0, isNullPointerConstant, isLvalue);
+		IcsRank rank = getIcsRank(MakeType<To>::apply(), MakeType<From>::apply(), Location(), 0, isNullPointerConstant, isLvalue);
 		SYMBOLS_ASSERT(rank == expected);
 	}
 };
@@ -840,7 +840,7 @@ inline void testIcsRank()
 		{
 			UniqueTypeIdConstPointer from = *i;
 			IcsRank expected = getArithmeticIcsRank(*to, *from);
-			IcsRank rank = getIcsRank(*to, *from, Source(), 0);
+			IcsRank rank = getIcsRank(*to, *from, Location(), 0);
 			SYMBOLS_ASSERT(expected == rank);
 		}
 	}
@@ -853,11 +853,11 @@ inline void testIcsRank()
 		{
 			UniqueTypeIdConstPointer other = *i;
 			{
-				IcsRank rank = getIcsRank(*other, *type, Source(), 0, true);
+				IcsRank rank = getIcsRank(*other, *type, Location(), 0, true);
 				SYMBOLS_ASSERT(rank == ICSRANK_STANDARDCONVERSION);
 			}
 			{
-				IcsRank rank = getIcsRank(*other, *type, Source(), 0, false);
+				IcsRank rank = getIcsRank(*other, *type, Location(), 0, false);
 				SYMBOLS_ASSERT(rank == ICSRANK_INVALID);
 			}
 		}
@@ -870,13 +870,13 @@ inline void testIcsRank()
 		for(const UniqueTypeIdConstPointer* i = gPointerTypes; i != ARRAY_END(gPointerTypes); ++i)
 		{
 			UniqueTypeIdConstPointer other = *i;
-			IcsRank rank = getIcsRank(*type, *other, Source(), 0);
+			IcsRank rank = getIcsRank(*type, *other, Location(), 0);
 			SYMBOLS_ASSERT(rank == (type == &gBool ? ICSRANK_STANDARDCONVERSION : ICSRANK_INVALID));
 		}
 		for(const UniqueTypeIdConstPointer* i = gMemberPointerTypes; i != ARRAY_END(gMemberPointerTypes); ++i)
 		{
 			UniqueTypeIdConstPointer other = *i;
-			IcsRank rank = getIcsRank(*type, *other, Source(), 0);
+			IcsRank rank = getIcsRank(*type, *other, Location(), 0);
 			SYMBOLS_ASSERT(rank == (type == &gBool ? ICSRANK_STANDARDCONVERSION : ICSRANK_INVALID));
 		}
 	}
@@ -886,7 +886,7 @@ inline void testIcsRank()
 	{
 		UniqueTypeIdConstPointer type = *i;
 		{
-			IcsRank rank = getIcsRank(gVoidPointer, *type, Source(), 0);
+			IcsRank rank = getIcsRank(gVoidPointer, *type, Location(), 0);
 			SYMBOLS_ASSERT(rank == ICSRANK_STANDARDCONVERSION);
 		}
 	}
@@ -894,11 +894,11 @@ inline void testIcsRank()
 	{
 		UniqueTypeIdConstPointer type = *i;
 		{
-			IcsRank rank = getIcsRank(gVoidPointer, *type, Source(), 0, true);
+			IcsRank rank = getIcsRank(gVoidPointer, *type, Location(), 0, true);
 			SYMBOLS_ASSERT(rank == ICSRANK_INVALID);
 		}
 		{
-			IcsRank rank = getIcsRank(*type, gVoidPointer, Source(), 0, true);
+			IcsRank rank = getIcsRank(*type, gVoidPointer, Location(), 0, true);
 			SYMBOLS_ASSERT(rank == ICSRANK_INVALID);
 		}
 	}
@@ -1130,7 +1130,7 @@ struct TestSubstitution
 		enclosing.instantiated = true;
 		try
 		{
-			UniqueTypeWrapper result = substitute(MakeType<P>::apply(), Source(), enclosing);
+			UniqueTypeWrapper result = substitute(MakeType<P>::apply(), Location(), enclosing);
 			SYMBOLS_ASSERT(result == expected);
 		}
 		catch(TypeError&)

@@ -853,10 +853,12 @@ struct SourcePrinter : SymbolPrinter
 		printer.out << "'>";
 		return true;
 	}
+#if 0
 	bool printAnchorStart(Declaration* declaration)
 	{
 		return printAnchorStart(DeclarationInstance(declaration));
 	}
+#endif
 
 	void printIdentifier(const Identifier& identifier)
 	{

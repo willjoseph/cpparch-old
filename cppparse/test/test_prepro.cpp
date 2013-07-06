@@ -1,20 +1,52 @@
 
+namespace N226
+{
+	template<void(*op)()>
+	struct S
+	{
+		static int thunk();
+	};
+
+	inline void f();
+
+	int i = S<f>::thunk();
+}
+
+namespace N225
+{
+	template<typename T>
+	struct B
+	{
+		typedef typename T::Before Before; // ok
+		//typedef typename T::After After; // error: no type named 'After' in 'A'
+	};
+
+	struct A
+	{
+		typedef int Before;
+		typedef B<A>::Before Instantiate;
+		typedef int After;
+	};
+}
+
 namespace N224
 {
 	template<typename T>
 	struct B
 	{
-		typedef typename T::Type Type;
+		typedef typename T::Before Before; // ok
+		//typedef typename T::After After; // error: no type named 'After' in 'A<int>'
 	};
 
 	template<typename T>
 	struct A
 	{
-		typedef T Type;
-		typedef typename B<A>::Type Instantiate;
+		typedef int Before;
+		typedef typename B<A>::Before Instantiate;
+		typedef int After;
 	};
 
-	typedef A<int>::Type Type;
+	typedef A<int>::Instantiate Type; // instantiate A<int>
 }
 
 namespace N223

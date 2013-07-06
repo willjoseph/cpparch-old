@@ -653,7 +653,17 @@ inline UniqueExpression makeExpression(const T& value)
 
 
 
-typedef Source Location;
+struct Location : Source
+{
+	std::size_t pointOfInstantiation;
+	Location()
+	{
+	}
+	Location(Source source, std::size_t pointOfInstantiation)
+		: Source(source), pointOfInstantiation(pointOfInstantiation)
+	{
+	}
+};
 
 struct TypeInstance;
 
@@ -686,7 +696,7 @@ struct TemplateArgument
 	TypeId type;
 	Dependent valueDependent;
 	ExpressionWrapper expression;
-	Source source;
+	Location source;
 #if 0
 	TemplateArgument(const TypeId& type) : type(type)
 	{
@@ -908,13 +918,14 @@ struct DeclarationInstance : DeclarationPtr
 	Identifier* name; // the identifier used in this declaration.
 	const DeclarationInstance* overloaded; // the previously declared overload of this name (which may or may not refer to the same entity.)
 	const DeclarationInstance* redeclared; // the previous declaration that refers to the same entity.
+	std::size_t ordering; // every declaration declared before this has a lesser value
 	DeclarationInstance()
-		: DeclarationPtr(0), name(0), overloaded(0), redeclared(0)
+		: DeclarationPtr(0), name(0), overloaded(0), redeclared(0), ordering(INDEX_INVALID)
 	{
 	}
 	// used when cloning an existing declaration, in the process of copying declarations from one scope to another.
-	explicit DeclarationInstance(Declaration* declaration)
-		: DeclarationPtr(declaration), name(declaration != 0 ? &declaration->getName() : 0), overloaded(0), redeclared(0)
+	explicit DeclarationInstance(Declaration* declaration, std::size_t ordering = INDEX_INVALID)
+		: DeclarationPtr(declaration), name(declaration != 0 ? &declaration->getName() : 0), overloaded(0), redeclared(0), ordering(ordering)
 	{
 		SYMBOLS_ASSERT(name != 0);
 	}
@@ -1639,12 +1650,12 @@ struct ChildInstantiation
 };
 typedef std::vector<ChildInstantiation> ChildInstantiations;
 
-typedef std::vector<DeclarationPtr> InstanceDeclarations; // temporary scaffolding!
+typedef std::vector<DeclarationInstance> InstanceDeclarations; // temporary scaffolding!
 
 
 struct TypeInstance
 {
-	size_t uniqueId;
+	std::size_t uniqueId;
 	DeclarationPtr primary;
 	DeclarationPtr declaration; // don't compare declaration pointer - it will change on instantiation if an explicit/partial specialization is chosen
 	TemplateArgumentsInstance templateArguments;
@@ -1656,13 +1667,14 @@ struct TypeInstance
 	InstanceDeclarations memberDeclarations; // temporary scaffolding!
 	bool instantiated;
 	bool instantiating;
+	bool allowLookup;
 	mutable bool visited; // used during findDeclaration to prevent infinite recursion
 	mutable bool dumped; // used during dumpTemplateInstantiations to prevent duplicates
 	Location instantiation;
 	ChildInstantiations childInstantiations;
 
 	TypeInstance(Declaration* declaration, const TypeInstance* enclosing)
-		: uniqueId(0), primary(declaration), declaration(declaration), enclosing(enclosing), size(0), instantiated(false), instantiating(false), visited(false), dumped(false)
+		: uniqueId(0), primary(declaration), declaration(declaration), enclosing(enclosing), size(0), instantiated(false), instantiating(false), allowLookup(false), visited(false), dumped(false)
 	{
 		SYMBOLS_ASSERT(enclosing == 0 || isClass(*enclosing->declaration));
 	}
@@ -2119,7 +2131,7 @@ struct LookupResultRef : DeclarationInstanceRef
 };
 
 
-inline const DeclarationInstance* findDeclaration(Scope::Declarations& declarations, const Identifier& id, LookupFilter filter = IsAny());
+inline const DeclarationInstance* findDeclaration(Scope::Declarations& declarations, const Identifier& id, LookupFilter filter = IsAny(), std::size_t visibility = UINT_MAX);
 
 struct RecursionGuard
 {
@@ -2138,11 +2150,11 @@ struct RecursionGuard
 
 inline void printType(const TypeInstance& type, std::ostream& out = std::cout, bool escape = false);
 
-inline LookupResult findDeclaration(const TypeInstance& instance, const Identifier& id, LookupFilter filter)
+inline LookupResult findDeclaration(const TypeInstance& instance, const Identifier& id, LookupFilter filter, std::size_t visibility = UINT_MAX)
 {
 	SYMBOLS_ASSERT(instance.declaration->enclosed != 0);
 	SYMBOLS_ASSERT(instance.instantiated); // the qualifying type should have been instantiated by this point
-	SYMBOLS_ASSERT(!instance.instantiating);
+	SYMBOLS_ASSERT(instance.allowLookup);
 
 	LookupResult result;
 
@@ -2155,7 +2167,7 @@ inline LookupResult findDeclaration(const TypeInstance& instance, const Identifi
 	}
 	RecursionGuard guard(instance);
 
-	result.filtered = findDeclaration(instance.declaration->enclosed->declarations, id, filter);
+	result.filtered = findDeclaration(instance.declaration->enclosed->declarations, id, filter, visibility);
 	if(result.filtered)
 	{
 		result.enclosing = &instance;
@@ -2176,7 +2188,7 @@ inline LookupResult findDeclaration(const TypeInstance& instance, const Identifi
 			return result;
 		}
 
-		if(result.append(findDeclaration(base, id, filter)))
+		if(result.append(findDeclaration(base, id, filter, visibility)))
 		{
 			return result;
 		}
@@ -2620,11 +2632,31 @@ inline bool operator<(const TypeTraitsBinaryExpression& left, const TypeTraitsBi
 			: left.second < right.second;
 }
 
+inline UniqueTypeWrapper typeofExpression(ExpressionNode* node, Location source);
+
 inline bool isPointerToMemberExpression(ExpressionNode* expression)
 {
 	return isUnaryExpression(expression)
 		&& getUnaryExpression(expression).operation == addressOf
 		&& isIdExpression(getUnaryExpression(expression).first);
+}
+
+inline bool isPointerToFunctionExpression(ExpressionNode* expression)
+{
+	if(isUnaryExpression(expression))
+	{
+		expression = getUnaryExpression(expression).first;
+	}
+	if(!isIdExpression(expression))
+	{
+		return false;
+	}
+	const IdExpression node = getIdExpression(expression);
+	if(node.declaration->type.declaration == &gEnumerator)
+	{
+		return false;
+	}
+	return UniqueTypeWrapper(node.declaration->type.unique).isFunction();
 }
 
 inline bool isDependentPointerToMemberExpression(ExpressionNode* expression)
@@ -2633,8 +2665,6 @@ inline bool isDependentPointerToMemberExpression(ExpressionNode* expression)
 		&& getUnaryExpression(expression).operation == addressOf
 		&& isDependentIdExpression(getUnaryExpression(expression).first);
 }
-
-inline UniqueTypeWrapper typeofExpression(ExpressionNode* node, Location source);
 
 extern ObjectTypeId gUnsignedInt;
 extern ObjectTypeId gBool;
@@ -2769,8 +2799,6 @@ inline IntegralConstant evaluateIdExpression(const DependentIdExpression& node, 
 	instantiateClass(*qualifyingType, source, enclosingType);
 	Identifier id;
 	id.value = node.name;
-	SYMBOLS_ASSERT(qualifyingType->instantiated);
-	SYMBOLS_ASSERT(!qualifyingType->instantiating);
 	LookupResultRef declaration = findDeclaration(*qualifyingType, id, IsAny());
 	if(declaration == 0)
 	{
@@ -2896,6 +2924,10 @@ inline IntegralConstant evaluateExpression(const ExpressionWrapper& expression, 
 	if(isPointerToMemberExpression(expression))
 	{
 		return IntegralConstant(0); // TODO: unique value for address of member
+	}
+	if(isPointerToFunctionExpression(expression))
+	{
+		return IntegralConstant(0); // TODO: unique value for address of function
 	}
 	SYMBOLS_ASSERT(expression.isConstant);
 	return evaluateExpression(expression.p, source, enclosing);
@@ -3298,6 +3330,7 @@ struct SubstituteVisitor : TypeElementVisitor
 			}
 		}
 	}
+
 	virtual void visit(const DependentTypename& element) // substitute T::X, T::template X<...>
 	{
 		UniqueTypeWrapper qualifying = substitute(element.qualifying, source, enclosingType);
@@ -3312,9 +3345,8 @@ struct SubstituteVisitor : TypeElementVisitor
 		instantiateClass(*enclosing, source, &enclosingType);
 		Identifier id;
 		id.value = element.name;
-		SYMBOLS_ASSERT(enclosing->instantiated);
-		SYMBOLS_ASSERT(!enclosing->instantiating);
-		LookupResultRef declaration = findDeclaration(*enclosing, id, element.isNested ? LookupFilter(IsNestedName()) : LookupFilter(IsAny()));
+		std::size_t visibility = enclosing->instantiating ? enclosingType.instantiation.pointOfInstantiation : UINT_MAX;
+		LookupResultRef declaration = findDeclaration(*enclosing, id, element.isNested ? LookupFilter(IsNestedName()) : LookupFilter(IsAny()), visibility);
 		// [temp.deduct]
 		// - Attempting to use a type in the qualifier portion of a qualified name that names a type when that
 		//   type does not contain the specified member, or if the specified member is not a type where a type is
@@ -3474,6 +3506,8 @@ inline void reportTypeInfo(const Type& type, const TypeInstance* enclosing)
 	printType(*enclosing);
 	std::cout << std::endl;
 }
+
+extern ObjectTypeId gSignedInt;
 
 template<typename T>
 inline UniqueTypeWrapper getUniqueTypeImpl(const T& type, Location source, const TypeInstance* enclosing, bool allowDependent)
@@ -3677,25 +3711,32 @@ inline std::size_t instantiateClass(const TypeInstance& instanceConst, Location 
 			std::cout << std::endl;
 			return 0; // TODO: this can occur when the primary template is incomplete, and a specialization was not chosen
 		}
+
+		SYMBOLS_ASSERT(instance.declaration->type.unique != 0);
+		// the is the (possibly dependent) unique type of the unspecialized (template) class on which this specialization is based
+		const TypeInstance& original = getObjectType(instance.declaration->type.unique);
+
 		instance.size = 4; // TODO: get size of built-in types
 		SYMBOLS_ASSERT(instance.declaration->enclosed != 0);
 		Types& bases = instance.declaration->enclosed->bases;
 		instance.bases.reserve(std::distance(bases.begin(), bases.end()));
 		for(Types::const_iterator i = bases.begin(); i != bases.end(); ++i)
 		{
-			UniqueTypeId base = getUniqueType(*i, (*i).id->source, &instance, allowDependent);
+			// TODO: check compliance: the point of instantiation of a base is the point of declaration of the enclosing (template) class
+			// .. along with the point of instantiation of types required when naming the base type. e.g. struct C : A<T>::B {}; struct C : B<A<T>::value> {};
+			UniqueTypeId base = getUniqueType(*i, original.instantiation, &instance, allowDependent);
 			SYMBOLS_ASSERT((*i).unique != 0);
 			SYMBOLS_ASSERT((*i).isDependent || base.value == (*i).unique);
 			if(allowDependent && (*i).isDependent)
 			{
+				// this occurs during 'instantiation' of a template class definition, in which case we postpone instantiation of this dependent base
 				continue;
 			}
-			instance.size += addBase(instance, base, (*i).id->source);
+			instance.size += addBase(instance, base, original.instantiation);
 		}
+		instance.allowLookup = true; // prevent searching bases during lookup within incomplete instantiation
 		if(!allowDependent)
 		{
-			SYMBOLS_ASSERT(instance.declaration->type.unique != 0);
-			const TypeInstance& original = getObjectType(instance.declaration->type.unique);
 			if(!original.members.empty()
 				&& &instance != &original) // TODO: this will be an assert when instantiateClass is no longer called at the beginning of a template-definition
 			{
@@ -3704,10 +3745,12 @@ inline std::size_t instantiateClass(const TypeInstance& instanceConst, Location 
 				InstanceDeclarations::const_iterator d = original.memberDeclarations.begin();
 				for(InstantiatedTypes::const_iterator i = original.members.begin(); i != original.members.end(); ++i)
 				{
-					Declaration* declaration = *d++;
+					const DeclarationInstance& declaration = *d++;
 					const TypeId& type = declaration->type;
 					SYMBOLS_ASSERT(declaration->instance == instance.members.size());
-					UniqueTypeWrapper member = getUniqueType(type, declaration->getName().source, &instance);
+					// TODO: check compliance: the point of instantiation of a type used in a member declaration is the point of declaration of the member
+					// .. along with the point of instantiation of types required when naming the member type. e.g. A<T>::B m; B<A<T>::value> m;
+					UniqueTypeWrapper member = getUniqueType(type, Location(declaration->getName().source, declaration.ordering), &instance);
 					instance.members.push_back(member);
 				}
 			}
@@ -3781,14 +3824,14 @@ inline const TypeInstance* makeUniqueEnclosing(const Qualifying& qualifying, Loc
 		{
 			return 0; // name is qualified by a namespace, therefore cannot be enclosed by a class
 		}
-		unique = getUniqueType(qualifying.back(), qualifying.back().id->source, enclosing, allowDependent);
+		unique = getUniqueType(qualifying.back(), source, enclosing, allowDependent);
 		if(allowDependent && unique.isDependent())
 		{
 			return 0;
 		}
 		const TypeInstance& type = getObjectType(unique.value);
 		// [temp.inst] A class template is implicitly instantiated ... if the completeness of the class-type affects the semantics of the program.
-		instantiateClass(type, qualifying.back().id->source, enclosing, allowDependent);
+		instantiateClass(type, source, enclosing, allowDependent);
 		return &type;
 	}
 	return enclosing;
@@ -5675,14 +5718,16 @@ inline const Declaration& getPrimaryDeclaration(const Declaration& first, const 
 	throw DeclarationError("symbol already defined");
 }
 
-inline const DeclarationInstance* findDeclaration(Scope::Declarations& declarations, const Identifier& id, LookupFilter filter)
+inline const DeclarationInstance* findDeclaration(Scope::Declarations& declarations, const Identifier& id, LookupFilter filter, std::size_t visibility)
 {
 	Scope::Declarations::iterator i = declarations.upper_bound(id.value);
 
 	for(; i != declarations.begin()
 		&& (*--i).first == id.value;)
 	{
-		if(filter(*(*i).second))
+		SYMBOLS_ASSERT((*i).second.ordering != UINT_MAX);
+		if((*i).second.ordering < visibility // if this declaration was visible at the specified point
+			&& filter(*(*i).second)) // and this declaration is not filtered
 		{
 			return &(*i).second;
 		}

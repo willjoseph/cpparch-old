@@ -31,17 +31,17 @@ struct SequenceNodeEmpty : SequenceNode<Visitor>
 {
 	virtual void accept(Visitor& visitor) const
 	{
-		throw SymbolsError();
+		throw AllocatorError();
 	}
 #if 0
 	virtual bool operator==(const SequenceNode<Visitor>& other) const
 	{
-		throw SymbolsError();
+		throw AllocatorError();
 	}
 #endif
 	virtual bool operator<(const SequenceNode<Visitor>& other) const
 	{
-		throw SymbolsError();
+		throw AllocatorError();
 	}
 };
 
@@ -147,9 +147,9 @@ struct Sequence : A
 	void pop_front()
 	{
 #ifdef ALLOCATOR_DEBUG
-		SYMBOLS_ASSERT(head.next.p->count == 1);
+		ALLOCATOR_ASSERT(head.next.p->count == 1);
 #endif
-		SYMBOLS_ASSERT(!empty());
+		ALLOCATOR_ASSERT(!empty());
 		Pointer node = head.next;
 		head.next = node->next;
 		allocatorDelete(getAllocator(), node.get());
@@ -162,7 +162,7 @@ struct Sequence : A
 	void reverse()
 	{
 #ifdef ALLOCATOR_DEBUG
-		SYMBOLS_ASSERT(head.next.p->count == 1);
+		ALLOCATOR_ASSERT(head.next.p->count == 1);
 #endif
 		Pointer root = head.next;
 		head.next = 0;
@@ -192,7 +192,7 @@ struct Sequence : A
 template<typename Visitor>
 const SequenceNode<Visitor>* findLast(const SequenceNode<Visitor>* node)
 {
-	SYMBOLS_ASSERT(node != 0);
+	ALLOCATOR_ASSERT(node != 0);
 	const SequenceNode<Visitor>* next = node->get();
 	if(next == 0)
 	{

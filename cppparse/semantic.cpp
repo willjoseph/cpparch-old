@@ -205,12 +205,14 @@ struct WalkerContext : public TreeAllocator<int>
 	Scope global;
 	Declaration globalDecl;
 	TypeRef globalType;
+	std::size_t declarationCount;
 
 	WalkerContext(const TreeAllocator<int>& allocator) :
 		TreeAllocator<int>(allocator),
 		global(allocator, gGlobalId, SCOPETYPE_NAMESPACE),
 		globalDecl(allocator, 0, gGlobalId, TYPE_NULL, &global),
-		globalType(Type(&globalDecl, allocator), allocator)
+		globalType(Type(&globalDecl, allocator), allocator),
+		declarationCount(0)
 	{
 	}
 };
@@ -256,7 +258,7 @@ struct WalkerState
 	ScopePtr templateParamScope;
 	ScopePtr templateEnclosing;
 	DeferredSymbols* deferred;
-	size_t templateDepth;
+	std::size_t templateDepth;
 	bool isExplicitInstantiation;
 
 	WalkerState(WalkerContext& context)
@@ -282,7 +284,7 @@ struct WalkerState
 	}
 	Location getLocation() const
 	{
-		return parser->get_source();
+		return Location(parser->get_source(), context.declarationCount);
 	}
 
 	LookupResult findDeclaration(const Identifier& id, bool isDeclarator, LookupFilter filter = IsAny())
@@ -485,6 +487,7 @@ struct WalkerState
 		}
 
 		instance.name = &name;
+		instance.ordering = context.declarationCount++;
 		const DeclarationInstance& result = parent->declarations.insert(instance);
 		parent->declarationList.push_back(instance);
 		return result;
@@ -862,6 +865,41 @@ struct WalkerBase : public WalkerState
 			setDecoration(id, declaration);
 		}
 
+		if(isMember(*declaration)
+			&& !declaration->isTemplate // TODO: template function instantiation
+			&& declaration->type.isDependent
+			&& declaration->type.declaration != &gCtor // ignore constructor
+			&& getEnclosingTemplate(declaration->scope)->type == SCOPETYPE_CLASS)
+		{
+			Scope* scope = getEnclosingClass(declaration->scope);
+			Declaration* enclosingClass = getClassDeclaration(scope);
+			const TypeInstance& instance = getObjectType(enclosingClass->type.unique);
+			if(declaration->instance != INDEX_INVALID)
+			{
+				SEMANTIC_ASSERT(instance.members[declaration->instance] == UniqueTypeWrapper(declaration->type.unique));
+			}
+			else
+			{
+				declaration->instance = instance.members.size();
+				const_cast<TypeInstance*>(&instance)->members.push_back(UniqueTypeWrapper(declaration->type.unique));
+				const_cast<TypeInstance*>(&instance)->memberDeclarations.push_back(declaration);
+			}
+		}
+
+		// TODO: accurate sizeof
+		if(!declaration->type.isDependent
+			&& isMember(*declaration)
+			&& !isTypedef(*declaration)
+			&& getEnclosingClass(declaration->scope) != 0
+			&& (UniqueTypeWrapper(declaration->type.unique).isSimple()
+			|| UniqueTypeWrapper(declaration->type.unique).isArray()))
+		{
+			Scope* scope = getEnclosingClass(declaration->scope);
+			Declaration* enclosingClass = getClassDeclaration(scope);
+			const TypeInstance& instance = getObjectType(enclosingClass->type.unique);
+			const_cast<TypeInstance*>(&instance)->size += requireCompleteObjectType(UniqueTypeWrapper(declaration->type.unique), getLocation(), enclosingType);
+		}
+
 		return declaration;
 	}
 
@@ -953,19 +991,19 @@ struct WalkerBase : public WalkerState
 			UniqueTypeIds::Pointer::Value value = UniqueTypeIds::Pointer::Value(UniqueTypeIds::Node(type));
 			UniqueTypeIds arguments = UniqueTypeIds(TREEALLOCATOR_NULL);
 			arguments.head.next = &value;
-			OverloadResolver resolver(arguments, id.source, enclosingType);
+			OverloadResolver resolver(arguments, Location(id.source, context.declarationCount), enclosingType);
 
 			if(isClass(type))
 			{
 				SEMANTIC_ASSERT(isComplete(type)); // TODO: non-fatal parse error
 				const TypeInstance* enclosing = &getObjectType(type.value);
-				instantiateClass(*enclosing, id.source, enclosingType); // searching for overloads requires a complete type
+				instantiateClass(*enclosing, Location(id.source, context.declarationCount), enclosingType); // searching for overloads requires a complete type
 				LookupResultRef declaration = ::findDeclaration(*enclosing, id, IsAny());
 				if(declaration != 0)
 				{
 					enclosing = findEnclosingType(enclosing, declaration->scope); // find the base class which contains the member-declaration
 					SEMANTIC_ASSERT(enclosing != 0);
-					addOverloads(resolver, declaration, id.source, enclosing);
+					addOverloads(resolver, declaration, Location(id.source, context.declarationCount), enclosing);
 				}
 			}
 			// TODO: ignore non-member candidates if no operand has a class type, unless one or more params has enum (ref) type
@@ -974,7 +1012,7 @@ struct WalkerBase : public WalkerState
 				&& !declaration->isTemplate // TODO: template argument deduction for overloaded operator
 				&& !declaration->specifiers.isFriend) // TODO: 14.5.3: friend function as member of a template-class, which depends on template arguments
 			{
-				addOverloads(resolver, declaration, id.source);
+				addOverloads(resolver, declaration, Location(id.source, context.declarationCount));
 			}
 			{
 				// TODO: 13.3.1.2: built-in operators for overload resolution
@@ -1902,7 +1940,7 @@ struct PrimaryExpressionWalker : public WalkerBase
 				&& !isStatic(*declaration);
 
 			// further type resolution (including overloads) should be made in the context of the enclosing type (if present)
-			idEnclosing = makeUniqueEnclosing(walker.qualifying, id->source, enclosingType);
+			idEnclosing = makeUniqueEnclosing(walker.qualifying, Location(id->source, context.declarationCount), enclosingType);
 			if(isMember(*declaration)) // if the declaration is a class member
 			{
 				SEMANTIC_ASSERT(idEnclosing != 0);
@@ -1914,7 +1952,7 @@ struct PrimaryExpressionWalker : public WalkerBase
 			if(!isFunction(*declaration) // if the id-expression refers to a function, overload resolution dependends on the parameter types; defer evaluation of type
 				&& !expression.isTypeDependent)
 			{
-				type = getUniqueType(declaration->type, id->source, idEnclosing);
+				type = getUniqueType(declaration->type, Location(id->source, context.declarationCount), idEnclosing);
 			}
 
 			// [expr.const]
@@ -2014,7 +2052,7 @@ struct TypeTraitsIntrinsicWalker : public WalkerBase
 		TREEWALKER_WALK_SRC(walker, symbol);
 		addDependent(valueDependent, walker.type);
 
-		makeUniqueTypeImpl(walker.type, symbol->source);
+		makeUniqueTypeImpl(walker.type, Location(symbol->source, context.declarationCount));
 		UniqueTypeWrapper uniqueType = UniqueTypeWrapper(walker.type.unique);
 		setExpressionType(symbol, uniqueType);
 
@@ -2095,9 +2133,9 @@ struct PostfixExpressionWalker : public WalkerBase
 		TREEWALKER_WALK_SRC(walker, symbol);
 		expression = walker.expression;
 		addDependent(typeDependent, walker.typeDependent);
-		type = makeUniqueTypeSafe(walker.type, symbol->source);
+		type = makeUniqueTypeSafe(walker.type, Location(symbol->source, context.declarationCount));
 		// [basic.lval] An expression which holds a temporary object resulting from a cast to a non-reference type is an rvalue
-		requireCompleteObjectType(type, symbol->source, enclosingType);
+		requireCompleteObjectType(type, Location(symbol->source, context.declarationCount), enclosingType);
 		setExpressionType(symbol, type);
 		updateMemberType();
 		expression.isTemplateArgumentAmbiguity = symbol->args == 0;
@@ -2107,9 +2145,9 @@ struct PostfixExpressionWalker : public WalkerBase
 		ExplicitTypeExpressionWalker walker(getState());
 		TREEWALKER_WALK_SRC(walker, symbol);
 		expression = walker.expression;
-		type = makeUniqueTypeSafe(walker.type, symbol->source);
+		type = makeUniqueTypeSafe(walker.type, Location(symbol->source, context.declarationCount));
 		// [basic.lval] An expression which holds a temporary object resulting from a cast to a non-reference type is an rvalue
-		requireCompleteObjectType(type, symbol->source, enclosingType);
+		requireCompleteObjectType(type, Location(symbol->source, context.declarationCount), enclosingType);
 		if(symbol->op->id != cpp::cast_operator::DYNAMIC)
 		{
 			Dependent tmp(walker.typeDependent);
@@ -2151,7 +2189,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		{
 			type.pop_front(); // dereference left-hand side
 			// [expr.sub] The result is an lvalue of type T. The type "T" shall be a completely defined object type.
-			requireCompleteObjectType(type, symbol->source, enclosingType);
+			requireCompleteObjectType(type, Location(symbol->source, context.declarationCount), enclosingType);
 		}
 		else // TODO: overloaded operator[]
 		{
@@ -2178,12 +2216,12 @@ struct PostfixExpressionWalker : public WalkerBase
 				&& !isMemberOfTemplate(*getDeclaration(*id))) // the name of a member function of a template may be dependent: TODO: determine exactly when!
 			{
 				// TODO: 13.3.1.1.1  Call to named function
-				FunctionOverload overload = findBestMatch(*id->dec.p, walker.arguments, id->source, idEnclosing);
+				FunctionOverload overload = findBestMatch(*id->dec.p, walker.arguments, Location(id->source, context.declarationCount), idEnclosing);
 				if(overload.declaration != 0)
 				{
 					DeclarationInstanceRef instance = findLastDeclaration(*id->dec.p, overload.declaration);
 					setDecoration(id, instance);
-					//type = isDependent(overload.declaration->type) ? gUniqueTypeNull : getUniqueType(overload.declaration->type, id->source, idEnclosing);
+					//type = isDependent(overload.declaration->type) ? gUniqueTypeNull : getUniqueType(overload.declaration->type, Location(id->source, context.declarationCount), idEnclosing);
 				}
 				type = overload.type;
 			}
@@ -2237,7 +2275,7 @@ struct PostfixExpressionWalker : public WalkerBase
 				&& !declaration->type.isImplicitTemplateId) // TODO: 
 			{
 				// TODO: [expr.ref] inherit const/volatile from object-expression type if member is non-static
-				idEnclosing = makeUniqueEnclosing(walker.qualifying, id->source, memberType);
+				idEnclosing = makeUniqueEnclosing(walker.qualifying, Location(id->source, context.declarationCount), memberType);
 #if 0 // TODO: can this be removed?
 				if(!enclosing->declaration->isTemplate) // if the left-hand side is not a template instantiation
 				{
@@ -2249,7 +2287,7 @@ struct PostfixExpressionWalker : public WalkerBase
 				// the identifier may name a type in a base-class of the qualifying type; findEnclosingType resolves this.
 				idEnclosing = findEnclosingType(idEnclosing, declaration->scope);
 				SEMANTIC_ASSERT(idEnclosing != 0);
-				type = getUniqueType(declaration->type, id->source, idEnclosing);
+				type = getUniqueType(declaration->type, Location(id->source, context.declarationCount), idEnclosing);
 			}
 		}
 		else
@@ -2282,7 +2320,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		if(type.isPointer())
 		{
 			type.pop_front();
-			requireCompleteObjectType(type, symbol->source, enclosingType);
+			requireCompleteObjectType(type, Location(symbol->source, context.declarationCount), enclosingType);
 		}
 		setExpressionType(symbol, type);
 		id = 0;
@@ -2328,7 +2366,7 @@ struct SizeofTypeExpressionWalker : public WalkerBase
 		// [temp.dep.constexpr] Expressions of the following form [sizeof(T)] are value-dependent if ... the type-id is dependent
 		addDependent(valueDependent, walker.type);
 
-		UniqueTypeId uniqueType = makeUniqueTypeSafe(walker.type, symbol->source);
+		UniqueTypeId uniqueType = makeUniqueTypeSafe(walker.type, Location(symbol->source, context.declarationCount));
 		setExpressionType(symbol, uniqueType);
 
 		expression = ExpressionWrapper(makeExpression(SizeofTypeExpression(uniqueType)), true, false, isDependent(valueDependent));
@@ -2606,9 +2644,9 @@ struct ExpressionWalker : public WalkerBase
 	{
 		ExplicitTypeExpressionWalker walker(getState());
 		TREEWALKER_WALK_SRC(walker, symbol);
-		type = makeUniqueTypeSafe(walker.type, symbol->source);
+		type = makeUniqueTypeSafe(walker.type, Location(symbol->source, context.declarationCount));
 		// [expr.new] The new expression attempts to create an object of the type-id or new-type-id to which it is applied. The type shall be a complete type...
-		requireCompleteObjectType(type, symbol->source, enclosingType);
+		requireCompleteObjectType(type, Location(symbol->source, context.declarationCount), enclosingType);
 		type.push_front(PointerType());
 		addDependent(typeDependent, walker.typeDependent);
 		setExpressionType(symbol, type);
@@ -2617,9 +2655,9 @@ struct ExpressionWalker : public WalkerBase
 	{
 		ExplicitTypeExpressionWalker walker(getState());
 		TREEWALKER_WALK_SRC(walker, symbol);
-		type = makeUniqueTypeSafe(walker.type, symbol->source);
+		type = makeUniqueTypeSafe(walker.type, Location(symbol->source, context.declarationCount));
 		// [expr.new] The new expression attempts to create an object of the type-id or new-type-id to which it is applied. The type shall be a complete type...
-		requireCompleteObjectType(type, symbol->source, enclosingType);
+		requireCompleteObjectType(type, Location(symbol->source, context.declarationCount), enclosingType);
 		type.push_front(PointerType());
 		addDependent(typeDependent, walker.typeDependent);
 		setExpressionType(symbol, type);
@@ -2629,9 +2667,9 @@ struct ExpressionWalker : public WalkerBase
 		ExplicitTypeExpressionWalker walker(getState());
 		TREEWALKER_WALK_SRC(walker, symbol);
 		expression = walker.expression;
-		type = makeUniqueTypeSafe(walker.type, symbol->source);
+		type = makeUniqueTypeSafe(walker.type, Location(symbol->source, context.declarationCount));
 		// [basic.lval] An expression which holds a temporary object resulting from a cast to a non-reference type is an rvalue
-		requireCompleteObjectType(type, symbol->source, enclosingType);
+		requireCompleteObjectType(type, Location(symbol->source, context.declarationCount), enclosingType);
 		Dependent tmp(walker.typeDependent);
 		addDependent(valueDependent, tmp);
 		addDependent(typeDependent, walker.typeDependent);
@@ -4686,41 +4724,6 @@ struct SimpleDeclarationWalker : public WalkerBase
 			}
 			declaration = declareObject(parent, id, type, enclosed, specifiers, templateParameter, valueDependent);
 
-			if(isMember(*declaration)
-				&& !declaration->isTemplate // TODO: template function instantiation
-				&& declaration->type.isDependent
-				&& declaration->type.declaration != &gCtor // ignore constructor
-				&& getEnclosingTemplate(declaration->scope)->type == SCOPETYPE_CLASS)
-			{
-				Scope* scope = getEnclosingClass(declaration->scope);
-				Declaration* enclosingClass = getClassDeclaration(scope);
-				const TypeInstance& instance = getObjectType(enclosingClass->type.unique);
-				if(declaration->instance != INDEX_INVALID)
-				{
-					SEMANTIC_ASSERT(instance.members[declaration->instance] == UniqueTypeWrapper(declaration->type.unique));
-				}
-				else
-				{
-					declaration->instance = instance.members.size();
-					const_cast<TypeInstance*>(&instance)->members.push_back(UniqueTypeWrapper(declaration->type.unique));
-					const_cast<TypeInstance*>(&instance)->memberDeclarations.push_back(declaration);
-				}
-			}
-
-			// TODO: accurate sizeof
-			if(!declaration->type.isDependent
-				&& isMember(*declaration)
-				&& !isTypedef(*declaration)
-				&& getEnclosingClass(declaration->scope) != 0
-				&& (UniqueTypeWrapper(declaration->type.unique).isSimple()
-					|| UniqueTypeWrapper(declaration->type.unique).isArray()))
-			{
-				Scope* scope = getEnclosingClass(declaration->scope);
-				Declaration* enclosingClass = getClassDeclaration(scope);
-				const TypeInstance& instance = getObjectType(enclosingClass->type.unique);
-				const_cast<TypeInstance*>(&instance)->size += requireCompleteObjectType(UniqueTypeWrapper(declaration->type.unique), getLocation(), enclosingType);
-			}
-
 			enclosing = parent;
 
 			if(enclosed != 0) // if the declaration has a parameter-declaration-clause
@@ -5108,7 +5111,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 				}
 				member.scope = enclosing;
 				Identifier* id = &member.getName();
-				enclosing->declarations.insert(DeclarationInstance(&member));
+				enclosing->declarations.insert(DeclarationInstance(&member, context.declarationCount++));
 				enclosing->declarationList.push_back(&member);
 			}
 			declaration->enclosed = 0;
