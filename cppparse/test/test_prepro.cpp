@@ -1,4 +1,38 @@
 
+namespace N223
+{
+	template<int i>
+	struct S;
+	template<>
+	struct S<1>;
+	template<>
+	struct S<2>;
+	template<>
+	struct S<3>;
+}
+
+namespace N229
+{
+#if 0
+	template<typename T>
+	struct S
+	{
+		template<typename U>
+		int f(U);
+	};
+
+	template<typename T>
+	template<typename U>
+	int S<T>::f(U)
+	{
+		return 0;
+	}
+
+	S<int> s;
+	int i = s.f(0); // instantiates S<int> and S<int>::f<int>
+#endif
+}
+
 namespace N228
 {
 	template<typename T>
@@ -87,17 +121,6 @@ namespace N224
 	typedef A<int>::Instantiate Type; // instantiate A<int>
 }
 
-namespace N223
-{
-	template<int i>
-	struct S;
-	template<>
-	struct S<1>;
-	template<>
-	struct S<2>;
-	template<>
-	struct S<3>;
-}
 
 namespace N222
 {

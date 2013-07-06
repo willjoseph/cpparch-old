@@ -254,9 +254,8 @@ struct WalkerState
 	const TypeInstance* qualifyingType;
 	ScopePtr memberObject;
 	const TypeInstance* memberType;
-	SafePtr<TemplateParameters> templateParams;
+	SafePtr<const TemplateParameters> templateParams;
 	ScopePtr templateParamScope;
-	ScopePtr templateEnclosing;
 	DeferredSymbols* deferred;
 	std::size_t templateDepth;
 	bool isExplicitInstantiation;
@@ -272,7 +271,6 @@ struct WalkerState
 		, memberType(0)
 		, templateParams(0)
 		, templateParamScope(0)
-		, templateEnclosing(0)
 		, deferred(0)
 		, templateDepth(0)
 		, isExplicitInstantiation(false)
@@ -564,9 +562,13 @@ struct WalkerState
 		memberType = 0;
 	}
 
-	const TemplateParameters& getTemplateParams(Scope* parent) const
+	const TemplateParameters& getTemplateParams() const
 	{
-		return templateParams != 0 && parent == templateEnclosing ? *templateParams : TEMPLATEPARAMETERS_NULL;
+		if(templateParams == 0)
+		{
+			return TEMPLATEPARAMETERS_NULL;
+		}
+		return *templateParams;
 	}
 
 	void clearTemplateParams()
@@ -832,7 +834,7 @@ struct WalkerBase : public WalkerState
 	Declaration* declareClass(Identifier* id, bool isSpecialization, TemplateArguments& arguments)
 	{
 		Scope* enclosed = newScope(makeIdentifier("$class"), SCOPETYPE_CLASS);
-		DeclarationInstanceRef declaration = pointOfDeclaration(context, enclosing, id == 0 ? enclosing->getUniqueName() : *id, TYPE_CLASS, enclosed, DeclSpecifiers(), enclosing == templateEnclosing, getTemplateParams(enclosing), isSpecialization, arguments);
+		DeclarationInstanceRef declaration = pointOfDeclaration(context, enclosing, id == 0 ? enclosing->getUniqueName() : *id, TYPE_CLASS, enclosed, DeclSpecifiers(), templateParams != 0, getTemplateParams(), isSpecialization, arguments);
 #ifdef ALLOCATOR_DEBUG
 		trackDeclaration(declaration);
 #endif
@@ -856,39 +858,43 @@ struct WalkerBase : public WalkerState
 		{
 			parent = getFriendScope();
 		}
-		bool isTemplate = parent == templateEnclosing;
+
+		bool isTemplate = templateParams != 0;
 
 		// the type of an object is required to be complete
 		// a member's type must be instantiated before the point of declaration of the member, to prevent the member being found by name lookup during the instantiation
 		SEMANTIC_ASSERT(type.unique != 0);
 		UniqueTypeWrapper uniqueType = UniqueTypeWrapper(type.unique);
 		if(parent->type == SCOPETYPE_CLASS // just members, for now
-			&& !specifiers.isTypedef // ignore typedef
-			&& !(parent->type == SCOPETYPE_CLASS && specifiers.isStatic) // ignore static member
-			&& type.declaration != &gCtor // ignore constructor
-			&& (uniqueType.isSimple() || uniqueType.isArray()))
+			&& type.declaration != &gCtor) // ignore constructor
 		{
-			TypeInstance* enclosing = const_cast<TypeInstance*>(getEnclosingType(enclosingType));
+			TypeInstance* enclosingClass = const_cast<TypeInstance*>(getEnclosingType(enclosingType));
 			std::size_t size = 0;
 			if(!type.isDependent)
 			{
-				// TODO: accurate sizeof
-				size = requireCompleteObjectType(uniqueType, getLocation(), enclosingType);
+				if(!(parent->type == SCOPETYPE_CLASS && specifiers.isStatic) // ignore static member
+					&& !specifiers.isTypedef // ignore typedef
+					&& (uniqueType.isSimple() || uniqueType.isArray()))
+				{
+					// TODO: accurate sizeof
+					size = requireCompleteObjectType(uniqueType, getLocation(), enclosingType);
+				}
 			}
-			else if(enclosing != 0)
+			else if(enclosingClass != 0
+				&& !isTemplate) // ignore template member functions, for now
 			{
-				enclosing->children.push_back(uniqueType);
+				enclosingClass->children.push_back(uniqueType);
 				// TODO: check compliance: the point of instantiation of a type used in a member declaration is the point of declaration of the member
 				// .. along with the point of instantiation of types required when naming the member type. e.g. A<T>::B m; B<A<T>::value> m;
-				enclosing->childLocations.push_back(getLocation());
+				enclosingClass->childLocations.push_back(getLocation());
 			}
-			if(enclosing != 0)
+			if(enclosingClass != 0)
 			{
-				enclosing->size += size;
+				enclosingClass->size += size;
 			}
 		}
 
-		DeclarationInstanceRef declaration = pointOfDeclaration(context, parent, *id, type, enclosed, specifiers, isTemplate, getTemplateParams(parent), false, TEMPLATEARGUMENTS_NULL, templateParameter, valueDependent); // 3.3.1.1
+		DeclarationInstanceRef declaration = pointOfDeclaration(context, parent, *id, type, enclosed, specifiers, isTemplate, getTemplateParams(), false, TEMPLATEARGUMENTS_NULL, templateParameter, valueDependent); // 3.3.1.1
 #ifdef ALLOCATOR_DEBUG
 		trackDeclaration(declaration);
 #endif
@@ -911,7 +917,7 @@ struct WalkerBase : public WalkerState
 			contains the declaration; otherwise, except as a friend declaration, the identifier is declared in the
 			smallest non-class, non-function-prototype scope that contains the declaration.
 			*/
-			DeclarationInstanceRef declaration = pointOfDeclaration(context, getEtsScope(), *forward, TYPE_CLASS, 0, DeclSpecifiers(), enclosing == templateEnclosing);
+			DeclarationInstanceRef declaration = pointOfDeclaration(context, getEtsScope(), *forward, TYPE_CLASS, 0);
 			
 			trackDeclaration(declaration);
 			setDecoration(forward, declaration);
@@ -3591,10 +3597,6 @@ struct ClassHeadWalker : public WalkerBase
 		// resolve the (possibly dependent) qualifying scope
 		if(walker.getDeclaratorQualifying() != 0)
 		{
-			if(enclosing == templateEnclosing)
-			{
-				templateEnclosing = walker.getDeclaratorQualifying()->enclosed;
-			}
 			enclosing = walker.getDeclaratorQualifying()->enclosed; // names in declaration of nested-class are looked up in scope of enclosing class
 		}
 	}
@@ -4081,7 +4083,7 @@ struct ElaboratedTypeSpecifierWalker : public WalkerQualified
 		if(declaration == &gUndeclared // if there is no existing declaration
 			|| isTypedef(*declaration) // or the existing declaration is a typedef
 			|| declaration->isTemplate // or the existing declaration is a template class
-			|| enclosing == templateEnclosing // or we are forward-declaring a template class
+			|| templateParams != 0 // or we are forward-declaring a template class
 			|| (key == &gClass && declaration->scope == getEtsScope())) // or this is a forward-declaration of a class/struct
 		{
 			if(key != &gClass)
@@ -5043,15 +5045,11 @@ struct SimpleDeclarationWalker : public WalkerBase
 			}
 			else
 			{
-				if(isSpecialization)
-				{
-					SEMANTIC_ASSERT(enclosing == templateEnclosing);
-				}
 				// class C;
 				// template<class T> class C;
 				// template<> class C<int>;
 				// template<class T> class C<T*>;
-				DeclarationInstanceRef instance = pointOfDeclaration(context, enclosing, *forward, TYPE_CLASS, 0, DeclSpecifiers(), isSpecialization || enclosing == templateEnclosing, getTemplateParams(enclosing), isSpecialization, type.templateArguments);
+				DeclarationInstanceRef instance = pointOfDeclaration(context, enclosing, *forward, TYPE_CLASS, 0, DeclSpecifiers(), templateParams != 0, getTemplateParams(), isSpecialization, type.templateArguments);
 #ifdef ALLOCATOR_DEBUG
 				trackDeclaration(instance);
 #endif
@@ -5303,8 +5301,8 @@ struct TemplateDeclarationWalker : public WalkerBase
 	TemplateDeclarationWalker(const WalkerState& state)
 		: WalkerBase(state), declaration(0), params(context)
 	{
-		templateEnclosing = enclosing;
 		++templateDepth;
+		templateParams = &TEMPLATEPARAMETERS_NULL; // explicit specialization has empty template params: template<> struct S;
 	}
 	void visit(cpp::template_parameter_clause* symbol)
 	{

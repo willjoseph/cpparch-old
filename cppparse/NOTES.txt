@@ -280,3 +280,11 @@
 
 - task: when complete type is required for dependent type, add it to children list in enclosing template class
 
+- issue: out-of-line member function template definition is not determined to be template
+	- because testing 'parent == templateEnclosing'
+	- should test 'enclosing == templateEnclosing'?
+		- but 'enclosing' refers to template-param scope
+		- enclosing is the scope in which name lookup occurs
+			- must include template-params in name lookup
+	- test something else?
+
