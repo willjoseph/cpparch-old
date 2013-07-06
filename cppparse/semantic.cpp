@@ -856,48 +856,45 @@ struct WalkerBase : public WalkerState
 		{
 			parent = getFriendScope();
 		}
-		DeclarationInstanceRef declaration = pointOfDeclaration(context, parent, *id, type, enclosed, specifiers, parent == templateEnclosing, getTemplateParams(parent), false, TEMPLATEARGUMENTS_NULL, templateParameter, valueDependent); // 3.3.1.1
+		bool isTemplate = parent == templateEnclosing;
+
+		// the type of an object is required to be complete
+		// a member's type must be instantiated before the point of declaration of the member, to prevent the member being found by name lookup during the instantiation
+		SEMANTIC_ASSERT(type.unique != 0);
+		UniqueTypeWrapper uniqueType = UniqueTypeWrapper(type.unique);
+		if(parent->type == SCOPETYPE_CLASS // just members, for now
+			&& !specifiers.isTypedef // ignore typedef
+			&& !(parent->type == SCOPETYPE_CLASS && specifiers.isStatic) // ignore static member
+			&& type.declaration != &gCtor // ignore constructor
+			&& (uniqueType.isSimple() || uniqueType.isArray()))
+		{
+			TypeInstance* enclosing = const_cast<TypeInstance*>(getEnclosingType(enclosingType));
+			std::size_t size = 0;
+			if(!type.isDependent)
+			{
+				// TODO: accurate sizeof
+				size = requireCompleteObjectType(uniqueType, getLocation(), enclosingType);
+			}
+			else if(enclosing != 0)
+			{
+				enclosing->children.push_back(uniqueType);
+				// TODO: check compliance: the point of instantiation of a type used in a member declaration is the point of declaration of the member
+				// .. along with the point of instantiation of types required when naming the member type. e.g. A<T>::B m; B<A<T>::value> m;
+				enclosing->childLocations.push_back(getLocation());
+			}
+			if(enclosing != 0)
+			{
+				enclosing->size += size;
+			}
+		}
+
+		DeclarationInstanceRef declaration = pointOfDeclaration(context, parent, *id, type, enclosed, specifiers, isTemplate, getTemplateParams(parent), false, TEMPLATEARGUMENTS_NULL, templateParameter, valueDependent); // 3.3.1.1
 #ifdef ALLOCATOR_DEBUG
 		trackDeclaration(declaration);
 #endif
 		if(id != &gAnonymousId)
 		{
 			setDecoration(id, declaration);
-		}
-
-		if(isMember(*declaration)
-			&& !declaration->isTemplate // TODO: template function instantiation
-			&& declaration->type.isDependent
-			&& declaration->type.declaration != &gCtor // ignore constructor
-			&& getEnclosingTemplate(declaration->scope)->type == SCOPETYPE_CLASS)
-		{
-			Scope* scope = getEnclosingClass(declaration->scope);
-			Declaration* enclosingClass = getClassDeclaration(scope);
-			const TypeInstance& instance = getObjectType(enclosingClass->type.unique);
-			if(declaration->instance != INDEX_INVALID)
-			{
-				SEMANTIC_ASSERT(instance.members[declaration->instance] == UniqueTypeWrapper(declaration->type.unique));
-			}
-			else
-			{
-				declaration->instance = instance.members.size();
-				const_cast<TypeInstance*>(&instance)->members.push_back(UniqueTypeWrapper(declaration->type.unique));
-				const_cast<TypeInstance*>(&instance)->memberDeclarations.push_back(declaration);
-			}
-		}
-
-		// TODO: accurate sizeof
-		if(!declaration->type.isDependent
-			&& isMember(*declaration)
-			&& !isTypedef(*declaration)
-			&& getEnclosingClass(declaration->scope) != 0
-			&& (UniqueTypeWrapper(declaration->type.unique).isSimple()
-			|| UniqueTypeWrapper(declaration->type.unique).isArray()))
-		{
-			Scope* scope = getEnclosingClass(declaration->scope);
-			Declaration* enclosingClass = getClassDeclaration(scope);
-			const TypeInstance& instance = getObjectType(enclosingClass->type.unique);
-			const_cast<TypeInstance*>(&instance)->size += requireCompleteObjectType(UniqueTypeWrapper(declaration->type.unique), getLocation(), enclosingType);
 		}
 
 		return declaration;

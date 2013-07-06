@@ -1650,7 +1650,8 @@ struct ChildInstantiation
 };
 typedef std::vector<ChildInstantiation> ChildInstantiations;
 
-typedef std::vector<DeclarationInstance> InstanceDeclarations; // temporary scaffolding!
+
+typedef std::vector<Location> InstanceLocations; // temporary scaffolding!
 
 
 struct TypeInstance
@@ -1663,8 +1664,8 @@ struct TypeInstance
 	const TypeInstance* enclosing; // the enclosing template
 	UniqueBases bases;
 	size_t size;
-	InstantiatedTypes members; // the types of the dependent-names in the specialization
-	InstanceDeclarations memberDeclarations; // temporary scaffolding!
+	InstantiatedTypes children; // the dependent types in the specialization
+	InstanceLocations childLocations; // temporary scaffolding!
 	bool instantiated;
 	bool instantiating;
 	bool allowLookup;
@@ -2757,6 +2758,18 @@ inline const TypeInstance* findEnclosingTemplate(const TypeInstance* enclosing, 
 	return 0;
 }
 
+inline const TypeInstance* getEnclosingType(const TypeInstance* enclosing)
+{
+	for(const TypeInstance* i = enclosing; i != 0; i = (*i).enclosing)
+	{
+		if((*i).declaration->getName().value.c_str()[0] != '$') // ignore anonymous union
+		{
+			return i;
+		}
+	}
+	return 0;
+}
+
 
 inline IntegralConstant evaluateIdExpression(const Declaration* declaration, Location source, const TypeInstance* enclosing)
 {
@@ -2799,7 +2812,8 @@ inline IntegralConstant evaluateIdExpression(const DependentIdExpression& node, 
 	instantiateClass(*qualifyingType, source, enclosingType);
 	Identifier id;
 	id.value = node.name;
-	LookupResultRef declaration = findDeclaration(*qualifyingType, id, IsAny());
+	std::size_t visibility = qualifyingType->instantiating ? enclosingType->instantiation.pointOfInstantiation : UINT_MAX;
+	LookupResultRef declaration = findDeclaration(*qualifyingType, id, IsAny(), visibility);
 	if(declaration == 0)
 	{
 		throw MemberNotFoundError(source, node.name, node.qualifying);
@@ -3355,7 +3369,7 @@ struct SubstituteVisitor : TypeElementVisitor
 		{
 			throw MemberNotFoundError(source, element.name, qualifying);
 		}
-		if(!(isTypedef(*declaration) || isClass(*declaration)))
+		if(!isType(*declaration))
 		{
 			throw MemberIsNotTypeError(source, element.name, qualifying);
 		}
@@ -3365,12 +3379,14 @@ struct SubstituteVisitor : TypeElementVisitor
 		const TypeInstance* memberEnclosing = findEnclosingType(enclosing, declaration->scope); // the declaration must be a member of (a base of) the qualifying class: find which one.
 		SYMBOLS_ASSERT(memberEnclosing != 0);
 
-		if(isClass(*declaration))
+		if(isClass(*declaration)
+			|| isEnum(*declaration))
 		{
 			type = substitute(declaration, memberEnclosing, element.templateArguments, source, enclosingType);
 		}
 		else
 		{
+			SYMBOLS_ASSERT(declaration->type.unique != 0);
 			type = UniqueTypeWrapper(declaration->type.unique);
 			if(declaration->type.isDependent)
 			{
@@ -3737,21 +3753,17 @@ inline std::size_t instantiateClass(const TypeInstance& instanceConst, Location 
 		instance.allowLookup = true; // prevent searching bases during lookup within incomplete instantiation
 		if(!allowDependent)
 		{
-			if(!original.members.empty()
+			if(!original.children.empty()
 				&& &instance != &original) // TODO: this will be an assert when instantiateClass is no longer called at the beginning of a template-definition
 			{
 				SYMBOLS_ASSERT(instance.declaration->isComplete);
-				instance.members.reserve(original.members.size());
-				InstanceDeclarations::const_iterator d = original.memberDeclarations.begin();
-				for(InstantiatedTypes::const_iterator i = original.members.begin(); i != original.members.end(); ++i)
+				instance.children.reserve(original.children.size());
+				InstanceLocations::const_iterator l = original.childLocations.begin();
+				for(InstantiatedTypes::const_iterator i = original.children.begin(); i != original.children.end(); ++i, ++l)
 				{
-					const DeclarationInstance& declaration = *d++;
-					const TypeId& type = declaration->type;
-					SYMBOLS_ASSERT(declaration->instance == instance.members.size());
-					// TODO: check compliance: the point of instantiation of a type used in a member declaration is the point of declaration of the member
-					// .. along with the point of instantiation of types required when naming the member type. e.g. A<T>::B m; B<A<T>::value> m;
-					UniqueTypeWrapper member = getUniqueType(type, Location(declaration->getName().source, declaration.ordering), &instance);
-					instance.members.push_back(member);
+					UniqueTypeWrapper substituted = substitute(*i, *l, instance);
+					SYMBOLS_ASSERT(!isDependent(substituted));
+					instance.children.push_back(substituted);
 				}
 			}
 		}
@@ -4257,8 +4269,8 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const
 			&& declaration->instance != INDEX_INVALID) // and its type was dependent when parsed
 		{
 			SYMBOLS_ASSERT(memberEnclosing->instantiated); // assert that the enclosing class was instantiated
-			SYMBOLS_ASSERT(declaration->instance < memberEnclosing->members.size());
-			SYMBOLS_ASSERT(memberEnclosing->members[declaration->instance] == result);
+			SYMBOLS_ASSERT(declaration->instance < memberEnclosing->children.size());
+			SYMBOLS_ASSERT(memberEnclosing->children[declaration->instance] == result);
 		}
 		return result;
 	}
@@ -4341,7 +4353,7 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const
 #endif
 	}
 	SYMBOLS_ASSERT(tmp.bases.empty());
-	SYMBOLS_ASSERT(tmp.members.empty());
+	SYMBOLS_ASSERT(tmp.children.empty());
 	static size_t uniqueId = 0;
 	tmp.uniqueId = ++uniqueId;
 	return makeUniqueObjectType(tmp);

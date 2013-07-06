@@ -1,4 +1,42 @@
 
+namespace N228
+{
+	template<typename T>
+	struct B
+	{
+		typedef typename T::Before Before; // ok
+		typedef typename T::Instantiate Instantiate; // ok
+		typedef typename T::After After; // ok
+	};
+
+	struct A
+	{
+		typedef int Before;
+		static B<A> Instantiate;
+		typedef int After;
+	};
+}
+
+namespace N227
+{
+	template<typename T>
+	struct B
+	{
+		static const int value = T::value; // ok
+		//static const int after = T::after; // error: no member named 'After' in 'A<int>'
+	};
+
+	template<typename T>
+	struct A
+	{
+		static const int value = 0;
+		static const int instantiate = B<A>::value;
+		static const int after = 0;
+	};
+
+	static const int value = A<int>::instantiate; // instantiate A<int>
+}
+
 namespace N226
 {
 	template<void(*op)()>

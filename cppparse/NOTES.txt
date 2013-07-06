@@ -24,13 +24,13 @@
 	- also instantiate dependent base classes, but don't add them to the list if allowDependent=true
 	- is allowDependent=true in context where base classes are no longer dependent?
 		- e.g. D<int>::B
++ task: use the 'type' of a class definition to store unique-type
 
 - task: build list of dependent types for deferred uniquing/instantiation in instantiateClass
 	- cannot instantiate until unique-type is known, should hold reference to placeholder 'deferred' unique-type
 	- avoid duplicates: use dependent unique-type to distinguish?
-	- addBase: 
+	- do this whenever complete type is required, but type is dependent
 
-- task: use the 'type' of a class definition to store unique-type
 
 - investigate: template instantiation
 	- perform substitution on dependent unique-types instead of Type
@@ -56,6 +56,8 @@
 
 
 - task: disallow implicit instantiation of a template within its own definition
+
+- task: proper type for enumerators, instead of gEnumerator
 
 - problem: findEnclosingType searches bases of incomplete class when within class definition
 	- don't use instantiateClass to enable this search: search non-dependent bases if..
@@ -111,7 +113,7 @@
 	- determine type of dependent pointer-to-member expression
 		- for SFINAE during substitution of nontype pointer-to-member parameter &T::member -> int T::*member
 
-- issue: 'context' is being instantiated while uniqueing
++ issue: 'context' is still being instantiated while looking up names within it
 	LexContext
 		-> context
 		-> macromap<context>::name_iterator (instantiate macromap<context>)
@@ -183,7 +185,11 @@
 			nondeduced contexts are replaced with the corresponding deduced argument values. If the substitution
 			results in an invalid type, as described above, type deduction fails.
 
-- task: correct name lookup for template explicit/partial specializations
+
++ task: make enclosingType valid for out-of-line member definitions
++ task: unique dependent template-name: T::template X<int>
+
++ task: correct name lookup for template explicit/partial specializations
 	- [temp.class.spec] Partial specialization declarations themselves are not found by name lookup.
 	- [temp.class.spec.match] When a class template is used in a context that requires an instantiation of the class, it is necessary to determine
 			whether the instantiation is to be generated using the primary template or one of the partial specializations.
@@ -195,7 +201,7 @@
 		- modifying existing declaration when specialization is declared is hard to undo when specialization is undeclared
 	- forward declaration of partial specialization is invisible?
 
-- task: in makeUniqueType, use previously uniqued type if available and isDependent=false.
++ task: in makeUniqueType, use previously uniqued type if available and isDependent=false.
 	+ assert that previously uniqued type is equal to result of makeUniqueType
 		- can only do this if both the previously uniqued type and the result of makeUniqueType are not dependent
 	- in declaration with dependent type, store index into array of dependent member types
@@ -210,7 +216,7 @@
 		- DependentTemplate: as above, plus stored template arguments
 			- add default arguments to stored arguments if necessary, add to ObjectType
 
-- task: template instantiation debugging
++ task: template instantiation debugging
 	- for a given instantiation, report which instantiations it requires
 		- track required instantiations
 		- add to list in enclosing-type when calling instantiateClass
@@ -258,11 +264,7 @@
 - task: construct templateParamScope when parsing 'template' token
 	- construct empty template param scope for explicit specialization?
 
-- task: make enclosingType valid for out-of-line member definitions
-
 - task: avoid having to revert changes to TypeId in between parsing multiple declarators in init-declarator-list
-
-- task: unique dependent template-name: T::template X<int>
 
 
 - investigate: what is the dependent unique-type of a template-partial-specialization?
@@ -275,4 +277,6 @@
 
 
 - investigate: is result of makeUniqueType cached during cached-parse of template-id?
+
+- task: when complete type is required for dependent type, add it to children list in enclosing template class
 
