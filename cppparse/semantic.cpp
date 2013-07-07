@@ -485,7 +485,7 @@ struct WalkerState
 		}
 
 		instance.name = &name;
-		instance.ordering = context.declarationCount++;
+		instance.visibility = context.declarationCount++;
 		const DeclarationInstance& result = parent->declarations.insert(instance);
 		parent->declarationList.push_back(instance);
 		return result;
@@ -859,8 +859,6 @@ struct WalkerBase : public WalkerState
 			parent = getFriendScope();
 		}
 
-		bool isTemplate = templateParams != 0;
-
 		// the type of an object is required to be complete
 		// a member's type must be instantiated before the point of declaration of the member, to prevent the member being found by name lookup during the instantiation
 		SEMANTIC_ASSERT(type.unique != 0);
@@ -881,7 +879,7 @@ struct WalkerBase : public WalkerState
 				}
 			}
 			else if(enclosingClass != 0
-				&& !isTemplate) // ignore template member functions, for now
+				&& templateParams == 0) // ignore template member functions, for now
 			{
 				enclosingClass->children.push_back(uniqueType);
 				// TODO: check compliance: the point of instantiation of a type used in a member declaration is the point of declaration of the member
@@ -894,7 +892,7 @@ struct WalkerBase : public WalkerState
 			}
 		}
 
-		DeclarationInstanceRef declaration = pointOfDeclaration(context, parent, *id, type, enclosed, specifiers, isTemplate, getTemplateParams(), false, TEMPLATEARGUMENTS_NULL, templateParameter, valueDependent); // 3.3.1.1
+		DeclarationInstanceRef declaration = pointOfDeclaration(context, parent, *id, type, enclosed, specifiers, templateParams != 0, getTemplateParams(), false, TEMPLATEARGUMENTS_NULL, templateParameter, valueDependent); // 3.3.1.1
 #ifdef ALLOCATOR_DEBUG
 		trackDeclaration(declaration);
 #endif
@@ -2573,6 +2571,9 @@ struct ExpressionWalker : public WalkerBase
 		addDependent(valueDependent, walker.valueDependent);
 		//setDependent(dependent, walker.dependent); // TODO:
 		setExpressionType(symbol, type);
+	}
+	UniqueTypeWrapper typeOfUnaryExpression(UniqueTypeWrapper operand)
+	{
 	}
 	void visit(cpp::unary_expression_op* symbol)
 	{

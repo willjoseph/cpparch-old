@@ -113,6 +113,13 @@
 	- determine type of dependent pointer-to-member expression
 		- for SFINAE during substitution of nontype pointer-to-member parameter &T::member -> int T::*member
 
+- determine type of dependent expression
+	- requires two-phase name lookup for unqualified names within expression. e.g. f(dependent);
+		- for now: [temp.dep.res] Declarations that are visible at the point of definition of the template.
+		- if operand is dependent, must store unqualified-id and point-of-definition.
+			- point-of-definition is location of original template
+		- could do lookup (but not overload resolution) at point of parse?
+
 + issue: 'context' is still being instantiated while looking up names within it
 	LexContext
 		-> context

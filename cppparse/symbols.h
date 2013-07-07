@@ -911,6 +911,8 @@ struct ScopeCounter
 	}
 };
 
+const std::size_t VISIBILITY_ALL = UINT_MAX;
+
 // An instance of a declaration - multiple declarations may refer to the same entity.
 // e.g. definition, forward declaration, redeclaration
 struct DeclarationInstance : DeclarationPtr
@@ -918,14 +920,14 @@ struct DeclarationInstance : DeclarationPtr
 	Identifier* name; // the identifier used in this declaration.
 	const DeclarationInstance* overloaded; // the previously declared overload of this name (which may or may not refer to the same entity.)
 	const DeclarationInstance* redeclared; // the previous declaration that refers to the same entity.
-	std::size_t ordering; // every declaration declared before this has a lesser value
+	std::size_t visibility; // every declaration declared before this has a lesser value
 	DeclarationInstance()
-		: DeclarationPtr(0), name(0), overloaded(0), redeclared(0), ordering(INDEX_INVALID)
+		: DeclarationPtr(0), name(0), overloaded(0), redeclared(0), visibility(VISIBILITY_ALL)
 	{
 	}
 	// used when cloning an existing declaration, in the process of copying declarations from one scope to another.
-	explicit DeclarationInstance(Declaration* declaration, std::size_t ordering = INDEX_INVALID)
-		: DeclarationPtr(declaration), name(declaration != 0 ? &declaration->getName() : 0), overloaded(0), redeclared(0), ordering(ordering)
+	explicit DeclarationInstance(Declaration* declaration, std::size_t visibility = VISIBILITY_ALL)
+		: DeclarationPtr(declaration), name(declaration != 0 ? &declaration->getName() : 0), overloaded(0), redeclared(0), visibility(visibility)
 	{
 		SYMBOLS_ASSERT(name != 0);
 	}
@@ -1249,11 +1251,11 @@ inline bool isSpecialization(const Declaration& declaration)
 
 struct LookupFilter
 {
-	typedef bool (*Function)(void* context, const Declaration& declaration);
+	typedef bool (*Function)(void* context, const DeclarationInstance& declaration);
 	Function function;
 	void* context;
 
-	bool operator()(const Declaration& declaration)
+	bool operator()(const DeclarationInstance& declaration)
 	{
 		return function(context, declaration);
 	}
@@ -1265,28 +1267,13 @@ inline bool isAny(const Declaration& declaration)
 	return declaration.type.declaration != &gCtor;
 }
 
-template<bool filter(const Declaration& declaration)>
-struct LookupFilterDefault : LookupFilter
-{
-	LookupFilterDefault()
-	{
-		LookupFilter::function = apply;
-		LookupFilter::context = 0;
-	}
-	static bool apply(void*, const Declaration& declaration)
-	{
-		return filter(declaration);
-	}
-};
-
-typedef LookupFilterDefault<isAny> IsAny;
 
 template<typename T>
 struct LookupFilterThunk
 {
-	static bool apply(void* context, const Declaration& declaration)
+	static bool apply(void* context, const DeclarationInstance& declaration)
 	{
-		return (*static_cast<T*>(context))(declaration);
+		return (*static_cast<T*>(context))(*declaration);
 	}
 };
 
@@ -1296,6 +1283,24 @@ LookupFilter makeLookupFilter(T& filter)
 	LookupFilter result = { LookupFilterThunk<T>::apply, &filter };
 	return result;
 }
+
+template<bool filter(const Declaration& declaration)>
+struct LookupFilterDefault : LookupFilter
+{
+	explicit LookupFilterDefault(std::size_t visibility = VISIBILITY_ALL)
+	{
+		LookupFilter::context = reinterpret_cast<void*>(visibility);
+		LookupFilter::function = apply;
+	}
+	static bool apply(void* context, const DeclarationInstance& declaration)
+	{
+		std::size_t visibility = reinterpret_cast<std::size_t>(context);
+		return declaration.visibility < visibility
+			&& filter(*declaration);
+	}
+};
+
+typedef LookupFilterDefault<isAny> IsAny;
 
 
 inline bool isTypeName(const Declaration& declaration)
@@ -2132,7 +2137,7 @@ struct LookupResultRef : DeclarationInstanceRef
 };
 
 
-inline const DeclarationInstance* findDeclaration(Scope::Declarations& declarations, const Identifier& id, LookupFilter filter = IsAny(), std::size_t visibility = UINT_MAX);
+inline const DeclarationInstance* findDeclaration(Scope::Declarations& declarations, const Identifier& id, LookupFilter filter = IsAny());
 
 struct RecursionGuard
 {
@@ -2151,7 +2156,7 @@ struct RecursionGuard
 
 inline void printType(const TypeInstance& type, std::ostream& out = std::cout, bool escape = false);
 
-inline LookupResult findDeclaration(const TypeInstance& instance, const Identifier& id, LookupFilter filter, std::size_t visibility = UINT_MAX)
+inline LookupResult findDeclaration(const TypeInstance& instance, const Identifier& id, LookupFilter filter)
 {
 	SYMBOLS_ASSERT(instance.declaration->enclosed != 0);
 	SYMBOLS_ASSERT(instance.instantiated); // the qualifying type should have been instantiated by this point
@@ -2168,7 +2173,7 @@ inline LookupResult findDeclaration(const TypeInstance& instance, const Identifi
 	}
 	RecursionGuard guard(instance);
 
-	result.filtered = findDeclaration(instance.declaration->enclosed->declarations, id, filter, visibility);
+	result.filtered = findDeclaration(instance.declaration->enclosed->declarations, id, filter);
 	if(result.filtered)
 	{
 		result.enclosing = &instance;
@@ -2182,14 +2187,14 @@ inline LookupResult findDeclaration(const TypeInstance& instance, const Identifi
 
 		// an identifier looked up in the context of a class may name a base class
 		if(base.declaration->getName().value == id.value
-			&& filter(*base.declaration))
+			&& filter(DeclarationInstance(base.declaration)))
 		{
 			result.filtered = &getDeclaration(base.declaration->getName());
 			result.enclosing = base.enclosing;
 			return result;
 		}
 
-		if(result.append(findDeclaration(base, id, filter, visibility)))
+		if(result.append(findDeclaration(base, id, filter)))
 		{
 			return result;
 		}
@@ -2812,8 +2817,8 @@ inline IntegralConstant evaluateIdExpression(const DependentIdExpression& node, 
 	instantiateClass(*qualifyingType, source, enclosingType);
 	Identifier id;
 	id.value = node.name;
-	std::size_t visibility = qualifyingType->instantiating ? enclosingType->instantiation.pointOfInstantiation : UINT_MAX;
-	LookupResultRef declaration = findDeclaration(*qualifyingType, id, IsAny(), visibility);
+	std::size_t visibility = qualifyingType->instantiating ? enclosingType->instantiation.pointOfInstantiation : VISIBILITY_ALL;
+	LookupResultRef declaration = findDeclaration(*qualifyingType, id, IsAny(visibility));
 	if(declaration == 0)
 	{
 		throw MemberNotFoundError(source, node.name, node.qualifying);
@@ -3359,8 +3364,8 @@ struct SubstituteVisitor : TypeElementVisitor
 		instantiateClass(*enclosing, source, &enclosingType);
 		Identifier id;
 		id.value = element.name;
-		std::size_t visibility = enclosing->instantiating ? enclosingType.instantiation.pointOfInstantiation : UINT_MAX;
-		LookupResultRef declaration = findDeclaration(*enclosing, id, element.isNested ? LookupFilter(IsNestedName()) : LookupFilter(IsAny()), visibility);
+		std::size_t visibility = enclosing->instantiating ? enclosingType.instantiation.pointOfInstantiation : VISIBILITY_ALL;
+		LookupResultRef declaration = findDeclaration(*enclosing, id, element.isNested ? LookupFilter(IsNestedName(visibility)) : LookupFilter(IsAny(visibility)));
 		// [temp.deduct]
 		// - Attempting to use a type in the qualifier portion of a qualified name that names a type when that
 		//   type does not contain the specified member, or if the specified member is not a type where a type is
@@ -5730,16 +5735,14 @@ inline const Declaration& getPrimaryDeclaration(const Declaration& first, const 
 	throw DeclarationError("symbol already defined");
 }
 
-inline const DeclarationInstance* findDeclaration(Scope::Declarations& declarations, const Identifier& id, LookupFilter filter, std::size_t visibility)
+inline const DeclarationInstance* findDeclaration(Scope::Declarations& declarations, const Identifier& id, LookupFilter filter)
 {
 	Scope::Declarations::iterator i = declarations.upper_bound(id.value);
 
 	for(; i != declarations.begin()
 		&& (*--i).first == id.value;)
 	{
-		SYMBOLS_ASSERT((*i).second.ordering != UINT_MAX);
-		if((*i).second.ordering < visibility // if this declaration was visible at the specified point
-			&& filter(*(*i).second)) // and this declaration is not filtered
+		if(filter((*i).second)) // if the filter passes this declaration
 		{
 			return &(*i).second;
 		}
@@ -5819,7 +5822,7 @@ inline LookupResult findMemberDeclaration(Scope& scope, const Identifier& id, Lo
 
 		// an identifier looked up in the context of a class may name a base class
 		if(base.declaration->getName().value == id.value
-			&& filter(*base.declaration))
+			&& filter(DeclarationInstance(base.declaration)))
 		{
 			result.filtered = base.declaration->getName().dec.p;
 			result.enclosing = base.enclosing;

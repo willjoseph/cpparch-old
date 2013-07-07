@@ -57,7 +57,8 @@ namespace N227
 	struct B
 	{
 		static const int value = T::value; // ok
-		//static const int after = T::after; // error: no member named 'After' in 'A<int>'
+		//static const int instantiate = T::instantiate; // error: initializer is not a constant expression
+		//static const int after = T::after; // error: no member named 'after' in 'A<int>'
 	};
 
 	template<typename T>
