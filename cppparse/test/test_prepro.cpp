@@ -1,4 +1,262 @@
 
+namespace N240
+{
+	template<class A>
+	struct S
+	{
+		template<class T>
+		struct Inner;
+	};
+
+
+	template<>
+	template<class T>
+	struct S<int>::Inner // 'inner' is a template
+	{
+		void f();
+	};
+
+	template<>
+	template<class T>
+	void S<int>::Inner<T>::f() // 'f' is not a template
+	{
+	}
+
+	template<>
+	template<>
+	struct S<int>::Inner<int> // 'inner' is a template specialization
+	{
+		void f();
+	};
+
+	void S<int>::Inner<int>::f() // 'f' is not a template
+	{
+	}
+
+}
+
+namespace N236
+{
+	template<class T>
+	struct S
+	{
+		struct Inner;
+	};
+
+	template<class T>
+	struct S<T>::Inner // 'Inner' is not a template
+	{
+	};
+}
+
+namespace N239
+{
+	template<class T>
+	struct S
+	{
+		void f();
+	};
+
+	template<class T>
+	void S<T>::f() // 'inner' is not a template
+	{
+	}
+}
+
+namespace N238
+{
+	struct S
+	{
+		template<class T>
+		void f();
+	};
+
+	template<class T>
+	void S::f() // 'inner' is a template
+	{
+	}
+}
+
+namespace N237
+{
+	struct S
+	{
+		template<class T>
+		struct Inner;
+	};
+
+	template<class T>
+	struct S::Inner // 'Inner' is a template
+	{
+	};
+}
+
+
+namespace N152
+{
+	template<int x>
+	struct I;
+
+	template<typename T>
+	struct S
+	{
+		static int f(int);
+		static T f(const char*);
+
+		// [temp.dep.expr] 'f' is dependent because it is an identifier that was declared with a dependent type
+		static const int value = I<sizeof(f(3))>::dependent;
+		static const int x = sizeof(f(3).x);
+	};
+}
+
+namespace N235
+{
+	template<typename T, template<class> class TT>
+	void f(TT<T>)
+	{
+	}
+
+	template<class T>
+	struct S
+	{
+	};
+
+	void g()
+	{
+		S<int> s;
+		f<int>(s);
+	}
+}
+
+namespace N177
+{
+	template<template<class> class TT>
+	void f(TT<int>)
+	{
+	}
+
+	template<class T>
+	struct S
+	{
+	};
+
+	void g()
+	{
+		S<int> s;
+		f(s);
+	}
+}
+
+
+namespace N234
+{
+	template<int i>
+	int f()
+	{
+		return 0;
+	}
+
+	template<typename T>
+	typename T::Result f()
+	{
+		return 0;
+	}
+
+	template<typename T>
+	struct S
+	{
+		typedef int Result;
+	};
+
+	int a = f<S<int> >();
+	int b = f<0>(); // SFNAE during overload resolution
+}
+
+namespace N233
+{
+	void f(char*)
+	{
+		f(0); // null-pointer-constant matches T*
+	}
+}
+
+namespace N232
+{
+	template<typename T>
+	struct S
+	{
+		T m;
+		void f()
+		{
+			m.dependent();
+			m->dependent();
+			m.Dependent::dependent();
+		}
+	};
+}
+
+namespace N222
+{
+	template<typename T>
+	struct B : T
+	{
+	};
+
+	struct Outer
+	{
+		template <typename T>
+		struct Inner;
+	};
+
+	template<typename T>
+	struct Outer::Inner : B<T>
+	{
+		void f();
+	};
+
+	template<typename T>
+	void Outer::Inner<T>::f()
+	{
+		this->dependent(); // 'this' is dependent
+	}
+}
+
+
+namespace N230
+{
+	template<typename T>
+	struct S
+	{
+		S f();
+	};
+
+	typedef S<int> Type;
+
+	inline Type f(Type& p)
+	{
+		return p.f();
+	}
+}
+
+namespace N231
+{
+	template<typename T>
+	struct S
+	{
+	};
+
+	template<>
+	struct S<wchar_t>
+	{
+		static int eof();
+		static int not_eof(const int&_Meta)
+		{
+			return (_Meta!=eof()?_Meta: !eof());
+		}
+	};
+}
+
+
 namespace N223
 {
 	template<int i>
@@ -122,33 +380,6 @@ namespace N224
 	typedef A<int>::Instantiate Type; // instantiate A<int>
 }
 
-
-namespace N222
-{
-	template<typename T>
-	struct B : T
-	{
-	};
-
-	struct Outer
-	{
-		template <typename T>
-		struct Inner;
-	};
-
-	template<typename T>
-	struct Outer::Inner : B<T>
-	{
-		void f();
-	};
-
-	template<typename T>
-	void Outer::Inner<T>::f()
-	{
-		this->dependent(); // 'this' is dependent
-	}
-}
-
 namespace N221
 {
 	bool b1 = __is_class(int);
@@ -156,7 +387,7 @@ namespace N221
 }
 
 
-#if 1
+#if 0
 #include <boost/multi_index_container.hpp>
 #include <boost/multi_index/member.hpp>
 #include <boost/multi_index/ordered_index.hpp>

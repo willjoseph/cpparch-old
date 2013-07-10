@@ -118,7 +118,8 @@
 		- for now: [temp.dep.res] Declarations that are visible at the point of definition of the template.
 		- if operand is dependent, must store unqualified-id and point-of-definition.
 			- point-of-definition is location of original template
-		- could do lookup (but not overload resolution) at point of parse?
+		- could do unqualified lookup (but not overload resolution) at point of parse?
+		- lookup of member operator overloads within the operand must be deferred, to allow searching dependent base class
 
 + issue: 'context' is still being instantiated while looking up names within it
 	LexContext
@@ -295,3 +296,16 @@
 			- must include template-params in name lookup
 	- test something else?
 
+- task: determine type of all non-dependent expressions
+	- overload resolution
+		- unique type for dependent member of template
+		- null-pointer-constant
+	- template argument deduction for function template
+		- along with explicit template argument specification
+		- requires support for function templates
+		- substitute template params that have explicit arguments
+			- ignore unspecified template params at this point
+			- substitute unspecified template params with themselves?
+				- much like when name of current-instantiation is used in class template definition
+
+- task: determine type of conditional-expression with differing second and third operands

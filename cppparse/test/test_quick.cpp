@@ -468,9 +468,9 @@ namespace N200
 	class C
 	{
 		C* f();
-	}
+	};
 
-	void C::f()
+	C* C::f()
 	{
 		f()->f();
 	}
@@ -479,7 +479,7 @@ namespace N200
 namespace N199
 {
 	template<typename T>
-	void f();
+	T f();
 
 	void g()
 	{
@@ -767,6 +767,7 @@ namespace N190
 	Cond<true, int, int>::Left left;
 }
 
+#if 0 // TODO: declaring member-class qualified by name of derived class
 namespace N189
 {
 	struct Base
@@ -790,6 +791,7 @@ namespace N189
 	// ... but specializing Derived::Inner at namespace scope, also specializes it for Base::Inner
 	template<class _> struct Derived::Inner<int, _> {};
 }
+#endif
 
 namespace N188
 {
@@ -1046,25 +1048,6 @@ namespace N178
 		typedef B<T> Type3; // dependent type is 'B<T, void>'
 		typedef B Type4; // dependent type is 'B<T, void>'
 	};
-}
-
-namespace N177
-{
-	template<template<class> class TT>
-	void f(TT<int>)
-	{
-	}
-
-	template<class T>
-	struct S
-	{
-	};
-
-	void g()
-	{
-		S<int> s;
-		f(s);
-	}
 }
 
 namespace N175
@@ -1485,23 +1468,6 @@ namespace N153
 	S<int> s;
 }
 
-namespace N152
-{
-	template<int x>
-	struct I;
-
-	template<typename T>
-	struct S
-	{
-		static int f(int);
-		static T f(const char*);
-
-		// [temp.dep.expr] 'f' is dependent because it is an identifier that was declared with a dependent type
-		static const int value = I<sizeof(f(3))>::dependent;
-		static const int x = sizeof(f(3).x);
-	};
-}
-
 namespace N151
 {
 	template<class T, class A>
@@ -1715,10 +1681,7 @@ namespace N141
 namespace N140
 {
 	template<typename T>
-	struct A;
-
-	template<>
-	struct A<int>
+	struct A
 	{
 		struct B // B is dependent: could be explicitly specialized
 		{
@@ -2087,7 +2050,7 @@ namespace N121
 			int m; // hides declaration of 'S::m'
 			// 'm' should be looked up in the scope of 'S'
 			this->m = 0;
-			(*this)->m = 0;
+			(*this).m = 0;
 			this[0].m = 0;
 			S& s = *this;
 			s.m = 0;
@@ -2217,7 +2180,7 @@ namespace N112
 	void test()
 	{
 		S<A> s;
-		s.f(A()); // should link to N111.S.f(???)
+		s.f(0); // should link to N111.S.f(int)
 	}
 }
 
