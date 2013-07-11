@@ -802,7 +802,37 @@ inline void printSequence(Parser& parser)
 #define PARSE_ERROR() throw ParseError()
 #define PARSE_ASSERT(condition) if(!(condition)) { PARSE_ERROR(); }
 
-#define NULLSYMBOL(T) cpp::symbol< T >(0)
+template<typename T>
+inline cpp::symbol_required<T> makeSymbolRequired(T* p)
+{
+	return cpp::symbol_required<T>(p);
+}
+
+template<typename T>
+inline cpp::symbol_required<T>& checkSymbolRequired(cpp::symbol_required<T>& symbol)
+{
+	return symbol;
+}
+
+template<typename T>
+inline cpp::symbol_optional<T> makeSymbolOptional(T* p)
+{
+	return cpp::symbol_optional<T>(p);
+}
+
+template<typename T>
+inline cpp::symbol_optional<T>& checkSymbolOptional(cpp::symbol_optional<T>& symbol)
+{
+	return symbol;
+}
+
+template<typename T>
+inline cpp::symbol_sequence<T>& checkSymbolSequence(cpp::symbol_sequence<T>& symbol)
+{
+	return symbol;
+}
+
+#define NULLSYMBOL(T) cpp::symbol_required< T >(0)
 
 
 template<typename T>
@@ -894,8 +924,8 @@ struct SymbolHolder<T, false>
 	}
 };
 
-template<typename ParserType, typename T>
-T* parseHit(ParserType& parser, T* p)
+template<typename T>
+T* parseHit(Parser& parser, T* p)
 {
 	return SymbolHolder<T>::hit(p, parser.context);
 }
@@ -910,45 +940,6 @@ inline bool checkBacktrack(Parser& parser)
 	}
 	return false;
 };
-
-template<typename ParserType, typename T>
-cpp::symbol<T> parseSymbolRequired(ParserType& parser, cpp::symbol<T> symbol)
-{
-#ifdef _DEBUG
-	PARSE_ASSERT(symbol.p == 0);
-	PARSE_ASSERT(!checkBacktrack(parser));
-#endif
-	ParserType tmp(parser);
-#ifdef PARSER_DEBUG
-	parser.context.visualiser.push(SYMBOL_NAME(T), parser.context.position);
-#endif
-	SymbolHolder<T> holder(parser.context);
-#if 0
-	T* result = parseSymbol(tmp, holder.get());
-#else
-	T* result = tmp.parse(holder.get());
-#endif
-	if(result != 0)
-	{
-#ifdef PARSER_DEBUG
-		parser.context.visualiser.pop(result);
-#endif
-		parser.position += tmp.position;
-		return cpp::symbol<T>(result);
-	}
-
-#ifdef PARSER_DEBUG
-	parser.context.visualiser.pop(false);
-#endif
-	tmp.backtrack(SYMBOL_NAME(T));
-	return cpp::symbol<T>(0);
-}
-
-template<typename ParserType, typename T>
-cpp::symbol_optional<T> parseSymbolOptional(ParserType& parser, cpp::symbol_optional<T> symbol)
-{
-	return cpp::symbol_optional<T>(parseSymbolRequired(parser, symbol));
-}
 
 
 inline void breakpoint()
@@ -1018,92 +1009,6 @@ inline ParseResult parseTerminal(Parser& parser, cpp::terminal_suffix<id>& resul
 	return parseTerminal(parser, getTokenId(result), result.value) ? PARSERESULT_PASS : PARSERESULT_SKIP;
 }
 
-
-#define TOKEN_EQUAL(parser, token) isToken((parser).get_id(), token)
-// TODO: avoid dependency on 'result'
-#define PARSE_TERMINAL(parser, t) switch(parseTerminal(parser, t)) { case PARSERESULT_FAIL: return 0; case PARSERESULT_SKIP: return result; default: break; }
-
-#define PARSE_TOKEN_REQUIRED(parser, token_) if(TOKEN_EQUAL(parser, token_)) { parser.increment(); } else { return 0; }
-#define PARSE_TOKEN_OPTIONAL(parser, result, token) result = false; if(TOKEN_EQUAL(parser, token)) { result = true; parser.increment(); }
-#define PARSE_SELECT_TOKEN(parser, p, token, value_) if(TOKEN_EQUAL(parser, token)) { p = createSymbol(parser, p); p->id = value_; p->value.id = token; p->value.value = parser.get_value(); parser.increment(); return p; }
-#define PARSE_OPTIONAL(parser, p) (p) = parseSymbolOptional(parser, p)
-#define PARSE_REQUIRED(parser, p) if(((p) = parseSymbolRequired(parser, p)) == 0) { return 0; }
-#define PARSE_SELECT(parser, Type) if(cpp::symbol<Type> p = parseSymbolRequired(parser, NULLSYMBOL(Type))) { return p; }
-#define PARSE_SELECT_UNAMBIGUOUS PARSE_SELECT
-
-// Type must have members 'left' and 'right', and 'typeof(left)' must by substitutable for 'Type'
-#define PARSE_PREFIX(parser, Type) if(cpp::symbol<Type> p = parseSymbolRequired(parser, NULLSYMBOL(Type))) { if(p->right == 0) return p->left; return p; }
-
-#if 0
-#define PARSE_EXPRESSION PARSE_PREFIX
-#else
-#define PARSE_EXPRESSION PARSE_SELECT
-#endif
-
-
-
-template<typename ParserType, typename T, typename Base>
-inline cpp::symbol<Base> parseExpression(ParserType& parser, cpp::symbol<T> symbol, Base* result)
-{
-	// HACK: create temporary copy of expression-symbol to get RHS-symbol
-	result = parseSymbolRequired(parser, T().right);
-	if(result != 0)
-	{
-		for(;;)
-		{
-			// parse suffix of expression-symbol
-			symbol = parseSymbolRequired(parser, NULLSYMBOL(T));
-			if(symbol == 0
-				|| symbol->right == 0)
-			{
-				break;
-			}
-			symbol->left = makeSymbol(result);
-			result = symbol;
-		}
-	}
-	return makeSymbol(result);
-}
-
-#define PARSE_EXPRESSION_LEFTASSOCIATIVE(parser, Type) result = parseExpression(parser, NULLSYMBOL(Type), result)
-
-template<typename ParserType, typename T>
-inline cpp::symbol_sequence<T> parseSequence(ParserType& parser, cpp::symbol_sequence<T>)
-{
-	T tmp;
-	cpp::symbol_next<T> p(&tmp);
-	for(;;)
-	{
-		p->next = cpp::symbol_next<T>(parseSymbolRequired(parser, p->next));
-		if(p->next == 0)
-		{
-			break;
-		}
-		p = p->next;
-	}
-	return cpp::symbol_sequence<T>(tmp.next);
-}
-
-#define PARSE_SEQUENCE(parser, p) p = parseSequence(parser, p)
-
-
-struct True
-{
-};
-
-struct False
-{
-};
-
-
-struct ParseResultFail
-{
-};
-
-struct ParseResultSkip
-{
-};
-
 struct ParserOpaque : public Parser
 {
 	void* walker;
@@ -1116,29 +1021,46 @@ struct ParserOpaque : public Parser
 template<typename WalkerType>
 class ParserGeneric : public ParserOpaque
 {
+public:
+	bool skip;
+	ParserGeneric(ParserContext& context, WalkerType& walker)
+		: ParserOpaque(context, &walker), skip(false)
+	{
+	}
 	WalkerType& getWalker()
 	{
 		return *static_cast<WalkerType*>(ParserOpaque::walker);
 	}
-public:
-	ParserGeneric(ParserContext& context, WalkerType& walker)
-		: ParserOpaque(context, &walker)
+
+	template<typename T, typename Base>
+	inline cpp::symbol<Base> parseExpression(cpp::symbol_required<T> symbol, Base* result)
 	{
+		// HACK: create temporary copy of expression-symbol to get RHS-symbol
+		T tmp;
+		if(parse(checkSymbolRequired(tmp.right)))
+		{
+			result = tmp.right;
+			for(;;)
+			{
+				// parse suffix of expression-symbol
+				symbol = NULLSYMBOL(T);
+				if(!parse(symbol)
+					|| symbol->right == 0)
+				{
+					break;
+				}
+				symbol->left = makeSymbolRequired(result);
+				result = symbol;
+			}
+			return makeSymbol(result);
+		}
+		return cpp::symbol<Base>(0);
 	}
-	template<typename T>
-	T* parse(T* symbol)
-	{
-		WalkerType& walker = getWalker();
-		ParserOpaque* tmp = walker.parser;
-		walker.parser = this; // pass parser as hidden argument to WalkerType::visit 
-		walker.visit(symbol);
-		walker.parser = tmp;
-		return static_cast<T*>(walker.result);
-	}
+
 	template<LexTokenId ID>
-	ParseResult parse(cpp::terminal<ID>& t)
+	ParseResult parseTerminal(cpp::terminal<ID>& t)
 	{
-		ParseResult result = parseTerminal(*this, t);
+		ParseResult result = ::parseTerminal(*this, t);
 		if(!t.value.empty())
 		{
 			WalkerType& walker = getWalker();
@@ -1149,83 +1071,128 @@ public:
 		}
 		return result;
 	}
-};
 
-#define SYMBOL_WALK(walker, symbol) if((result = symbol = parseSymbol(getParser(walker), symbol)) == 0) return; result = symbol = parseHit(getParser(walker), symbol)
-#define PARSERCONTEXT_DEFAULT \
-	template<typename T> \
-	void visit(T* symbol) \
-	{ \
-		SYMBOL_WALK(*this, symbol); \
-	} \
-	template<LexTokenId id> \
-	void visit(cpp::terminal<id> symbol) \
-	{ \
-	}
-
-template<typename ParserType>
-struct ParsingVisitor
-{
-	ParserType& parser;
-	bool skip;
-	ParsingVisitor(ParserType& parser) : parser(parser), skip(false)
+	template<typename T, bool required>
+	bool parse(cpp::symbol_generic<T, required>& s)
 	{
+#ifdef _DEBUG
+		PARSE_ASSERT(s.p == 0);
+		PARSE_ASSERT(!checkBacktrack(*this));
+#endif
+		ParserGeneric<WalkerType> tmp(*this);
+#ifdef PARSER_DEBUG
+		context.visualiser.push(SYMBOL_NAME(T), context.position);
+#endif
+		SymbolHolder<T> holder(context);
+#if 1
+		WalkerType& walker = tmp.getWalker();
+		{
+			ParserOpaque* tmpParser = walker.parser;
+			walker.parser = &tmp; // pass parser as hidden argument to WalkerType::visit 
+			walker.visit(holder.get());
+			walker.parser = tmpParser;
+		}
+		T* result = static_cast<T*>(walker.result);
+#else
+		T* result = tmp.parse(holder.get());
+#endif
+		if(result != 0)
+		{
+#ifdef PARSER_DEBUG
+			context.visualiser.pop(result);
+#endif
+			position += tmp.position;
+			s = cpp::symbol_generic<T, required>(result);
+			return true;
+		}
+#ifdef PARSER_DEBUG
+		context.visualiser.pop(false);
+#endif
+		tmp.backtrack(SYMBOL_NAME(T));
+		s = cpp::symbol_generic<T, required>(0);
+		return !required;
 	}
 	template<typename T>
-	bool visit(cpp::symbol<T>& s)
+	bool parse(cpp::symbol_sequence<T>& s)
 	{
-		return (s = parseSymbolRequired(parser, s)) != 0;
-	}
-	template<typename T>
-	bool visit(cpp::symbol_optional<T>& s)
-	{
-		s = cpp::symbol_optional<T>(parseSymbolRequired(parser, s));
+		T tmp;
+		cpp::symbol_next<T> p(&tmp);
+		for(;;)
+		{
+			cpp::symbol_required<T> next = NULLSYMBOL(T);
+			if(!parse(next))
+			{
+				break;
+			}
+			p->next = cpp::symbol_next<T>(next);
+			p = p->next;
+		}
+		s = cpp::symbol_sequence<T>(tmp.next);
 		return true;
 	}
 	template<typename T>
-	bool visit(cpp::symbol_sequence<T>& s)
+	bool parse(cpp::symbol_next<T>& s)
 	{
-		s = parseSequence(parser, s);
-		return true;
-	}
-	template<typename T>
-	bool visit(cpp::symbol_next<T>& s)
-	{
-		return true; // this is handled by parseSequence
+		return true; // this is handled by parse(cpp::symbol_sequence<T>)
 	}
 	template<LexTokenId ID>
-	bool visit(cpp::terminal<ID>& t)
+	bool parse(cpp::terminal<ID>& t)
 	{
-		return parser.parse(t) == PARSERESULT_PASS;
+		return parseTerminal(t) == PARSERESULT_PASS;
 	}
 	template<LexTokenId ID>
-	bool visit(cpp::terminal_optional<ID>& t)
+	bool parse(cpp::terminal_optional<ID>& t)
 	{
-		parser.parse(t);
+		parseTerminal(t);
 		return true;
 	}
 	template<LexTokenId ID>
-	bool visit(cpp::terminal_suffix<ID>& t)
+	bool parse(cpp::terminal_suffix<ID>& t)
 	{
-		skip = parser.parse(t) != PARSERESULT_PASS;
+		skip = parseTerminal(t) != PARSERESULT_PASS;
 		return !skip;
 	}
 };
 
-template<typename ParserType, typename T>
-inline T* parseSymbol(ParserType& parser, T* result, const False&)
-{
-	ParsingVisitor<ParserType> visitor(parser);
-	if(!result->parse(visitor))
-	{
-#if 0
-		std::cout << "rejected: '" << SYMBOL_NAME(T) << "'" << std::endl;
-		printSequence(parser.context); // rejected tokens
-#endif
-		return visitor.skip ? result : 0;
-	}
-	return result;
+
+#define SYMBOL_WALK(walker, symbol) if((result = symbol = makeParser(symbol).parseSymbol(getParser(walker), symbol)) == 0) return; result = symbol = parseHit(getParser(walker), symbol)
+#define PARSERCONTEXT_DEFAULT \
+	template<typename T> \
+	void visit(T* symbol) \
+{ \
+	SYMBOL_WALK(*this, symbol); \
+} \
+	template<LexTokenId id> \
+	void visit(cpp::terminal<id> symbol) \
+{ \
 }
+
+
+#define TOKEN_EQUAL(parser, token) isToken((parser).get_id(), token)
+// TODO: avoid dependency on 'result'
+#define PARSE_TERMINAL(parser, t) switch(parseTerminal(parser, t)) { case PARSERESULT_FAIL: return 0; case PARSERESULT_SKIP: return result; default: break; }
+
+#define PARSE_TOKEN_REQUIRED(parser, token_) if(TOKEN_EQUAL(parser, token_)) { parser.increment(); } else { return 0; }
+#define PARSE_TOKEN_OPTIONAL(parser, result, token) result = false; if(TOKEN_EQUAL(parser, token)) { result = true; parser.increment(); }
+#define PARSE_SELECT_TOKEN(parser, p, token, value_) if(TOKEN_EQUAL(parser, token)) { p = createSymbol(parser, p); p->id = value_; p->value.id = token; p->value.value = parser.get_value(); parser.increment(); return p; }
+#define PARSE_OPTIONAL(parser, p) parser.parse(checkSymbolOptional(p))
+#define PARSE_REQUIRED(parser, p) if(parser.parse(checkSymbolRequired(p)) == 0) { return 0; }
+#define PARSE_SELECT(parser, Type) { cpp::symbol_required<Type> result; if(parser.parse(result)) { return result; } }
+#define PARSE_SELECT_UNAMBIGUOUS PARSE_SELECT
+
+#if 0
+// Type must have members 'left' and 'right', and 'typeof(left)' must by substitutable for 'Type'
+#define PARSE_PREFIX(parser, Type) if(cpp::symbol_required<Type> p = parser.parseSymbolRequired(NULLSYMBOL(Type))) { if(p->right == 0) return p->left; return p; }
+#endif
+
+#if 0
+#define PARSE_EXPRESSION PARSE_PREFIX
+#else
+#define PARSE_EXPRESSION PARSE_SELECT
+#endif
+
+#define PARSE_EXPRESSION_LEFTASSOCIATIVE(parser, Type) result = parser.parseExpression(NULLSYMBOL(Type), result)
+#define PARSE_SEQUENCE(parser, p) parser.parse(checkSymbolSequence(p))
 
 
 #define GENERIC_ITERATE1(i, op) op(i);
@@ -1247,23 +1214,24 @@ inline T* parseSymbol(ParserType& parser, T* result, const False&)
 #define GENERIC_ITERATE17(i, op) op(i); GENERIC_ITERATE16(i + 1, op)
 
 
-template<typename ParserType, typename T, size_t N>
+template<typename T, size_t N>
 struct ChoiceParser
 {
 };
 
 #define DEFINE_CHOICEPARSER(N) \
-	template<typename ParserType, typename T> \
-	struct ChoiceParser<ParserType, T, N> \
+	template<typename T> \
+	struct ChoiceParser<T, N> \
 	{ \
-		static T* parseSymbol(ParserType& parser, T* result) \
+		template<typename Walker> \
+		static T* parseSymbol(ParserGeneric<Walker>& parser, T* result) \
 		{ \
 			GENERIC_ITERATE##N(0, CHOICEPARSER_OP) \
 			return result; \
 		} \
 	}
 
-#define CHOICEPARSER_OP(N) if((result = parseSymbolRequired(parser, NULLSYMBOL(TYPELIST_NTH(typename T::Choices, N))))) return result
+#define CHOICEPARSER_OP(N) { cpp::symbol_required<TYPELIST_NTH(typename T::Choices, N)> result; if(parser.parse(result)) return result; }
 DEFINE_CHOICEPARSER(1);
 DEFINE_CHOICEPARSER(2);
 DEFINE_CHOICEPARSER(3);
@@ -1284,28 +1252,24 @@ DEFINE_CHOICEPARSER(17);
 #undef CHOICEPARSER_OP
 
 
-template<typename ParserType, typename T>
-inline T* parseSymbol(ParserType& parser, T* result, const True&)
+template<typename T, typename Choices>
+struct MakeParser
 {
-	return ChoiceParser<ParserType, T, TYPELIST_COUNT(typename T::Choices)>::parseSymbol(parser, result);
-}
+	typedef ChoiceParser<T, TYPELIST_COUNT(typename T::Choices)> Type;
+};
+
+struct DefaultParser;
 
 template<typename T>
-struct IsChoice
+struct MakeParser<T, TypeListEnd>
 {
-	typedef True Result;
+	typedef DefaultParser Type;
 };
 
-template<>
-struct IsChoice<TypeListEnd>
+template<typename T>
+typename MakeParser<T, typename T::Choices>::Type makeParser(T*)
 {
-	typedef False Result;
-};
-
-template<typename ParserType, typename T>
-inline T* parseSymbol(ParserType& parser, T* result)
-{
-	return parseSymbol(parser, result, typename IsChoice<typename T::Choices>::Result());
+	return typename MakeParser<T, typename T::Choices>::Type();
 }
 
 
@@ -1494,7 +1458,7 @@ struct DeferredParseThunk
 	{
 		Walker walker(state);
 		T* symbol = static_cast<T*>(p);
-		void* result = parseSymbol(walker.getParser(walker), symbol);
+		void* result = makeParser(symbol).parseSymbol(walker.getParser(walker), symbol);
 		return result;
 	}
 };

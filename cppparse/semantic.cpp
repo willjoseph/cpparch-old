@@ -139,6 +139,39 @@ inline bool isEquivalentTypedef(const Declaration& declaration, const Declaratio
 	return getType(declaration) == getType(other);
 }
 
+inline bool isEquivalentTemplateParameter(const Type& left, const Type& right)
+{
+	extern Declaration gParam;
+	if((left.declaration->type.declaration == &gParam)
+		!= (right.declaration->type.declaration == &gParam))
+	{
+		return false;
+	}
+	return left.declaration->type.declaration == &gParam
+		? isEqual(left, right)
+		: isEqual(left.declaration->type, right.declaration->type);
+}
+
+inline bool isEquivalentTemplateParameters(const TemplateParameters& left, const TemplateParameters& right)
+{
+	if(std::distance(left.begin(), left.end()) != std::distance(right.begin(), right.end()))
+	{
+		return false;
+	}
+	TemplateParameters::const_iterator l = left.begin();
+	for(TemplateParameters::const_iterator r = right.begin(); r != right.end(); ++l, ++r)
+	{
+		SYMBOLS_ASSERT(l != left.end());
+
+		if(!isEquivalentTemplateParameter(*l, *r))
+		{
+			return false;
+		}
+	}
+	SYMBOLS_ASSERT(l == left.end());
+	return true;
+}
+
 inline bool isEquivalent(const Declaration& declaration, const Declaration& other)
 {
 	if(isClass(declaration)
@@ -175,8 +208,9 @@ inline bool isEquivalent(const Declaration& declaration, const Declaration& othe
 			// TODO: also compare template parameter lists: <class, int> is not equivalent to <class, float>
 			SYMBOLS_ASSERT(r.isFunction()); // TODO: non-fatal error: 'id' previously declared as non-function, second declaration is a function
 			return declaration.isTemplate == other.isTemplate // early out
+				&& isEquivalentTemplateParameters(declaration.templateParams, other.templateParams)
 				// [over.load] Function declarations that differ only in the return type cannot be overloaded.
-				&& isReturnTypeEqual(l, r) // return-types match (template overloads may differ in return type, and is not necessary to distinguish overloads)
+				// && isReturnTypeEqual(l, r) // return-types match (only template overloads may differ in return type, return-type is not used to distinguish overloads)
 				&& isEquivalent(getParameterTypes(l.value), getParameterTypes(r.value)); // and parameter-types match
 		}
 		return true; // redeclaring an object (cannot be overloaded)
@@ -929,12 +963,13 @@ struct WalkerBase : public WalkerState
 			return false;
 		}
 		const Type& type = qualifying.back();
-		if(!type.declaration->isTemplate)
+		if(!type.declaration->isTemplate) // if the qualifying type is not a template
 		{
 			return consumeTemplateParams(type.qualifying);
 		}
-		SEMANTIC_ASSERT(type.declaration->templateParamScope->templateDepth <= templateDepth); // TODO: non-fatal error: not enough template-parameter-clauses in class declaration
-		return type.declaration->templateParamScope->templateDepth == templateDepth;
+		Declaration* primary = findPrimaryTemplate(type.declaration);
+		SEMANTIC_ASSERT(primary->templateParamScope->templateDepth <= templateDepth); // TODO: non-fatal error: not enough template-parameter-clauses in class declaration
+		return primary->templateParamScope->templateDepth == templateDepth;
 	}
 
 	LookupResultRef lookupTemplate(const Identifier& id, LookupFilter filter)
@@ -991,7 +1026,7 @@ struct WalkerBase : public WalkerState
 					{
 						throw TypeErrorBase(source); // too many explicitly specified template arguments
 					}
-					TypeInstance specialization(p, 0);
+					TypeInstance specialization(p, enclosing);
 					specialization.instantiated = true;
 					{
 						TemplateArgumentsInstance::const_iterator p = templateParameters.begin();
@@ -1711,10 +1746,18 @@ struct UnqualifiedIdWalker : public WalkerBase
 	}
 	void visit(cpp::conversion_function_id* symbol)
 	{
+		Source source = parser->get_source();
 		TypeIdWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		// TODO
-		id = &gConversionFunctionId;
+		UniqueTypeWrapper type = makeUniqueTypeSafe(walker.type, getLocation());
+		symbol->value = gConversionFunctionId;
+		symbol->value.source = source;
+		id = &symbol->value;
+		if(!isDependent(qualifying_p)
+			&& !::isDependent(memberType))
+		{
+			declaration = findDeclaration(*id, IsAny(), true);
+		}
 	}
 	void visit(cpp::destructor_id* symbol)
 	{
@@ -2080,26 +2123,21 @@ struct PrimaryExpressionWalker : public WalkerBase
 			declaration = LookupResultRef();
 			expression = ExpressionWrapper();
 		}
-		else if(declaration == 0)
+		else if(isDependent(walker.qualifying.get_ref()))
 		{
-			if(!isDependent(walker.qualifying.get_ref()))
-			{
-				SYMBOLS_ASSERT(id->value == gConversionFunctionId.value); // TODO: user defined conversions
-			}
-			else
-			{
-				setDecoration(id, gDependentObjectInstance);
+			setDecoration(id, gDependentObjectInstance);
 
-				expression = ExpressionWrapper(
-					makeExpression(DependentIdExpression(id->value, qualifying)),
-					true, // TODO: expression depending on template parameter may or may not be an integral constant expression
-					true,
-					true
-				);
-			}
+			expression = ExpressionWrapper(
+				makeExpression(DependentIdExpression(id->value, qualifying)),
+				true, // TODO: expression depending on template parameter may or may not be an integral constant expression
+				true,
+				true
+			);
 		}
 		else
 		{
+			SYMBOLS_ASSERT(declaration != 0);
+
 			if(declaration == &gUndeclared
 				|| !isObject(*declaration))
 			{
@@ -2109,7 +2147,7 @@ struct PrimaryExpressionWalker : public WalkerBase
 			// [temp.dep.expr] An id-expression is type-dependent if it contains:- an identifier that was declared with a dependent type
 			addDependentType(typeDependent, declaration);
 			// [temp.dep.expr] An id-expression is type-dependent if it contains: - a template-id that is dependent
-			setDependent(typeDependent, walker.arguments); // the id-expression may have an explicit template argument list
+			setDependent(typeDependent, arguments); // the id-expression may have an explicit template argument list
 			// [temp.dep.expr] An id-expression is type-dependent if it contains: - an identifier associated by name lookup with one or more declarations declared with a dependent type,
 			addDependentOverloads(typeDependent, declaration);
 
@@ -2452,6 +2490,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		TREEWALKER_WALK_SRC(walker, symbol);
 		setExpressionType(symbol, type);
 		id = walker.id; // perform overload resolution for a.m(x);
+		arguments.swap(walker.arguments);
 		type = gUniqueTypeNull;
 		LookupResultRef declaration = walker.declaration;
 		// [temp.dep.expr] An id-expression is type-dependent if it contains:- a nested-name-specifier that contains a class-name that names a dependent type
@@ -3319,8 +3358,9 @@ struct UnqualifiedDeclaratorIdWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	IdentifierPtr id;
+	TypeId conversionType; // the return-type, if this is a conversion-function declarator
 	UnqualifiedDeclaratorIdWalker(const WalkerState& state)
-		: WalkerBase(state), id(&gAnonymousId)
+		: WalkerBase(state), id(&gAnonymousId), conversionType(0, context)
 	{
 	}
 	void visit(cpp::identifier* symbol)
@@ -3346,10 +3386,13 @@ struct UnqualifiedDeclaratorIdWalker : public WalkerBase
 	}
 	void visit(cpp::conversion_function_id* symbol) 
 	{
+		Source source = parser->get_source();
 		TypeIdWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		// TODO
-		id = &gConversionFunctionId;
+		symbol->value = gConversionFunctionId;
+		symbol->value.source = source;
+		id = &symbol->value;
+		conversionType.swap(walker.type);
 	}
 	void visit(cpp::destructor_id* symbol) 
 	{
@@ -3390,8 +3433,9 @@ struct DeclaratorIdWalker : public WalkerQualified
 	TREEWALKER_DEFAULT;
 
 	IdentifierPtr id;
+	TypeId conversionType; // the return-type, if this is a conversion-function declarator
 	DeclaratorIdWalker(const WalkerState& state)
-		: WalkerQualified(state), id(&gAnonymousId)
+		: WalkerQualified(state), id(&gAnonymousId), conversionType(0, context)
 	{
 	}
 	void visit(cpp::qualified_id_default* symbol)
@@ -3413,6 +3457,7 @@ struct DeclaratorIdWalker : public WalkerQualified
 		UnqualifiedDeclaratorIdWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		id = walker.id;
+		conversionType.swap(walker.conversionType);
 	}
 };
 
@@ -3608,8 +3653,9 @@ struct DeclaratorWalker : public WalkerBase
 	CvQualifiers qualifiers;
 	Qualifying memberPointer;
 	Dependent dependent; // track which template parameters the declarator's type depends on. e.g. 'T::* memberPointer', 'void f(T)'
+	Type conversionType; // the return-type, if this is a conversion-function declarator
 	DeclaratorWalker(const WalkerState& state)
-		: WalkerBase(state), id(&gAnonymousId), paramScope(0), typeSequence(context), memberPointer(context)
+		: WalkerBase(state), id(&gAnonymousId), paramScope(0), typeSequence(context), memberPointer(context), conversionType(0, context)
 	{
 	}
 	void pushPointerType(cpp::ptr_operator* op)
@@ -3656,6 +3702,7 @@ struct DeclaratorWalker : public WalkerBase
 		qualifiers = walker.qualifiers;
 		memberPointer.swap(walker.memberPointer);
 		pushPointerType(symbol->op);
+		conversionType.swap(walker.conversionType);
 	}
 	void visit(cpp::declarator_ptr* symbol)
 	{
@@ -3689,10 +3736,19 @@ struct DeclaratorWalker : public WalkerBase
 		}
 
 		if(templateParams != 0
+			&& !templateParams->empty()
 			&& consumeTemplateParams(walker.qualifying))
 		{
 			templateParams = 0;
 		}
+
+		if(walker.conversionType.declaration != 0)
+		{
+			SEMANTIC_ASSERT(typeSequence.empty());
+			conversionType.swap(walker.conversionType);
+			typeSequence = walker.conversionType.typeSequence; // the empty parameter list will be added to the type-sequence
+		}
+		addDependent(dependent, conversionType); // TODO: check compliance: conversion-function declarator-id is dependent if it contains a dependent type?
 	}
 	template<typename T>
 	void walkDeclaratorArray(T* symbol)
@@ -3739,6 +3795,7 @@ struct DeclaratorWalker : public WalkerBase
 		addDependent(valueDependent, walker.valueDependent);
 		SYMBOLS_ASSERT(typeSequence.empty());
 		typeSequence = walker.typeSequence;
+		conversionType.swap(walker.conversionType);
 	}
 	void visit(cpp::direct_abstract_declarator* symbol)
 	{
@@ -3761,6 +3818,10 @@ struct DeclaratorWalker : public WalkerBase
 		return walkDeclarator(symbol);
 	}
 	void visit(cpp::new_declarator* symbol)
+	{
+		return walkDeclarator(symbol);
+	}
+	void visit(cpp::conversion_declarator* symbol)
 	{
 		return walkDeclarator(symbol);
 	}
@@ -3834,6 +3895,7 @@ struct ClassHeadWalker : public WalkerBase
 		}
 
 		if(templateParams != 0
+			&& !templateParams->empty()
 			&& consumeTemplateParams(walker.qualifying))
 		{
 			templateParams = 0;
@@ -4842,6 +4904,16 @@ struct TypeIdWalker : public WalkerBase
 		// [temp.dep.type] A type is dependent if it is an array type constructed from any dependent type or whose size is specified by a constant expression that is value-dependent
 		setDependent(type.dependent, walker.valueDependent);
 	}
+	void visit(cpp::conversion_declarator* symbol)
+	{
+		DeclaratorWalker walker(getState());
+		TREEWALKER_WALK(walker, symbol);
+		type.typeSequence = walker.typeSequence;
+		// [temp.dep.type] A type is dependent if it is a compound type constructed from any dependent type
+		setDependent(type.dependent, walker.dependent);
+		// [temp.dep.type] A type is dependent if it is an array type constructed from any dependent type or whose size is specified by a constant expression that is value-dependent
+		setDependent(type.dependent, walker.valueDependent);
+	}
 };
 
 struct NewTypeWalker : public WalkerBase
@@ -5042,6 +5114,12 @@ struct SimpleDeclarationWalker : public WalkerBase
 			addDependent(enclosingDependent, walker.enclosingDependent);
 		}
 		templateParams = walker.templateParams; // template-params may have been consumed by qualifying template-name
+
+		if(walker.conversionType.declaration != 0)
+		{
+			// [class.conv.fct] The type of a conversion function is "function taking no parameter returning conversion-type-id."
+			static_cast<Type*>(&type)->swap(walker.conversionType); // from conversion-function-id 'T*()' take 'T'; the '*()' is already parsed from the declarator
+		}
 	}
 	void visit(cpp::abstract_declarator* symbol)
 	{
@@ -5720,12 +5798,6 @@ struct NamespaceWalker : public WalkerBase
 
 };
 
-#if 0
-inline cpp::simple_template_id* parseSymbol(ParserGeneric<Walker::TemplateIdWalker>& parser, cpp::simple_template_id* result)
-{
-	return parseSymbol(parser, result, False());
-}
-#endif
 
 
 TreeAllocator<int> getAllocator(ParserContext& context)

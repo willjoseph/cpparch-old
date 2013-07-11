@@ -1,4 +1,247 @@
 
+#if 0
+// deferred name lookup
+namespace N504
+{
+	template<class T>
+	struct Iterator
+	{
+		typedef typename T::Ref Ref; // cannot be looked up without instantiating
+
+		Ref operator*()const
+		{
+		}
+	};
+
+	struct Value
+	{
+		int v;
+		typedef Value& Ref;
+	};
+
+	void f()
+	{
+		Iterator<Value> i;
+		(*i).v=0;
+	}
+}
+#endif
+
+
+namespace N231
+{
+	template<typename T>
+	struct S
+	{
+	};
+
+	template<>
+	struct S<wchar_t>
+	{
+		static int eof();
+		static int not_eof(const int&_Meta)
+		{
+			return (_Meta!=eof()?_Meta: !eof());
+		}
+	};
+}
+
+namespace N242
+{
+	struct S
+	{
+		operator int**()
+		{
+			return 0;
+		}
+	};
+	void f(S& s)
+	{
+		s.operator int**();
+	}
+}
+
+namespace N507
+{
+	struct S
+	{
+		struct Type
+		{
+		};
+		operator Type()
+		{
+			return Type();
+		}
+	};
+	void f(S& s)
+	{
+		s.operator Type(); // Type should be looked up in context of S
+	}
+}
+
+namespace N508
+{
+	struct Type
+	{
+	};
+
+	struct S
+	{
+		operator Type()
+		{
+			return Type();
+		}
+	};
+	void f(S& s)
+	{
+		s.operator Type(); // Type should be looked up in context of entire postfix-expression
+	}
+}
+
+
+namespace N241
+{
+	class locale;
+	template<class _Facet>
+	const _Facet& use_facet(const locale&);
+	template<class _Elem>
+	class ctype
+	{
+	};
+
+	template<class _Elem>
+	inline _Elem(tolower)(_Elem _Ch, const locale&_Loc)
+	{
+		return (use_facet<_Elem>(_Loc).tolower(_Ch)); // an explicit template argument list in a function call causes the expression to be dependent
+	}
+}
+
+
+
+namespace N001
+{
+	struct M
+	{
+		template<int i>
+		float dependent(int j)
+		{
+			return 0;
+		}
+	};
+
+	template<typename A>
+	struct C
+	{
+		typedef M Type;
+	};
+
+	template<typename T1>
+	struct O0
+	{
+		typename T1::Type f()
+		{
+			return typename T1::Type();
+		}
+	};
+
+	void f(int)
+	{
+	}
+
+	void f()
+	{
+		O0< C<int> > o;
+		o.f().dependent<0>(0); // type of expression should resolve to 'float'
+	}
+}
+
+
+namespace N049
+{
+	template<typename T>
+	struct Tmpl
+	{
+	};
+
+	template<>
+	struct Tmpl<int>
+	{
+		template<typename T>
+		void f(); // declaration
+	};
+
+	// omitting optional 'template<>'
+	template<typename T>
+	void Tmpl<int>::f() // definition
+	{
+	}
+}
+
+
+namespace N096
+{
+	template<typename T>
+	struct S
+	{
+		void f(T); // declaration
+	};
+
+	template<typename T>
+	inline void S<T>::f(T) // definition of previous declaration
+	{
+	}
+
+	void f()
+	{
+		S<int> s;
+		s.f(0);
+	}
+}
+
+namespace N234
+{
+	template<int i>
+	int f()
+	{
+		return 0;
+	}
+
+	template<typename T>
+	typename T::Result f()
+	{
+		return 0;
+	}
+
+	template<typename T>
+	struct S
+	{
+		typedef int Result;
+	};
+
+	int a = f<S<int> >();
+	int b = f<0>(); // SFINAE during overload resolution
+}
+
+namespace N123
+{
+	template<typename T>
+	struct S
+	{
+		typedef T Type;
+
+		Type f();
+	};
+
+	template<typename U>
+	typename S<U>::Type S<U>::f()
+	{
+	}
+
+	S<int> s;
+	int i = s.f(); // return type is 'int'
+}
+
+
 namespace N240
 {
 	template<class A>
@@ -11,7 +254,7 @@ namespace N240
 
 	template<>
 	template<class T>
-	struct S<int>::Inner // 'inner' is a template
+	struct S<int>::Inner // 'Inner' is a template
 	{
 		void f();
 	};
@@ -24,7 +267,7 @@ namespace N240
 
 	template<>
 	template<>
-	struct S<int>::Inner<int> // 'inner' is a template specialization
+	struct S<int>::Inner<int> // 'Inner' is a template specialization
 	{
 		void f();
 	};
@@ -147,31 +390,6 @@ namespace N177
 	}
 }
 
-
-namespace N234
-{
-	template<int i>
-	int f()
-	{
-		return 0;
-	}
-
-	template<typename T>
-	typename T::Result f()
-	{
-		return 0;
-	}
-
-	template<typename T>
-	struct S
-	{
-		typedef int Result;
-	};
-
-	int a = f<S<int> >();
-	int b = f<0>(); // SFNAE during overload resolution
-}
-
 namespace N233
 {
 	void f(char*)
@@ -238,23 +456,6 @@ namespace N230
 	}
 }
 
-namespace N231
-{
-	template<typename T>
-	struct S
-	{
-	};
-
-	template<>
-	struct S<wchar_t>
-	{
-		static int eof();
-		static int not_eof(const int&_Meta)
-		{
-			return (_Meta!=eof()?_Meta: !eof());
-		}
-	};
-}
 
 
 namespace N223

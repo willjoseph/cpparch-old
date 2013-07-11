@@ -1959,25 +1959,6 @@ namespace N125
 	S<M>* s; // does not require instantiation of S, but requires instantiation of default argument
 }
 
-namespace N123
-{
-	template<typename T>
-	struct S
-	{
-		typedef T Type;
-
-		Type f();
-	};
-
-	template<typename U>
-	typename S<U>::Type S<U>::f()
-	{
-	}
-
-	S<int> s;
-	int i = s.f(); // return type is 'int'
-}
-
 namespace N124
 {
 	struct S
@@ -2511,25 +2492,6 @@ namespace N053
 		template<class>
 		friend struct exception_detail::get_info;
 	};
-}
-namespace N096
-{
-	template<typename T>
-	struct S
-	{
-		void f(T); // declaration
-	};
-
-	template<typename T>
-	inline void S<T>::f(T) // definition of previous declaration
-	{
-	}
-
-	void f()
-	{
-		S<int> s;
-		s.f();
-	}
 }
 
 namespace N095
@@ -3289,28 +3251,6 @@ namespace N047
 
 
 
-namespace N049
-{
-	template<typename T>
-	struct Tmpl
-	{
-	};
-
-	template<>
-	struct Tmpl<int>
-	{
-		template<typename T>
-		void f(); // declaration
-	};
-
-	// omitting optional 'template<>'
-	template<typename T>
-	void Tmpl<int>::f() // definition
-	{
-	}
-}
-
-
 namespace N046
 {
 	template<typename T>
@@ -3587,44 +3527,6 @@ namespace N036 // test parsing of type-id
 	extern int (*arr4)[2]; // pointer to array(2) of int
 
 }
-
-namespace N001
-{
-	struct M
-	{
-		template<int i>
-		float dependent(int j)
-		{
-			return 0;
-		}
-	};
-
-	template<typename A>
-	struct C
-	{
-		typedef M Type;
-	};
-
-	template<typename T1>
-	struct O0
-	{
-		typename T1::Type f()
-		{
-			return typename T1::Type();
-		}
-	};
-
-	void f(int)
-	{
-	}
-
-	void f()
-	{
-		O0< C<int> > o;
-		o.f().dependent<0>(0); // type of expression should resolve to 'float'
-	}
-}
-
 
 
 
@@ -4058,24 +3960,6 @@ namespace N010
 
 
 
-namespace std
-{
-	class locale;
-	template<class _Facet>
-	const _Facet& use_facet(const locale&);
-	template<class _Elem>
-	class ctype
-	{
-	};
-
-	template<class _Elem>
-	inline _Elem(tolower)(_Elem _Ch, const locale&_Loc)
-	{
-		return (use_facet<_Elem>(_Loc).tolower(_Ch)); // an explicit template argument list in a function call causes the expression to be dependent
-	}
-}
-
-
 
 
 
@@ -4285,43 +4169,6 @@ namespace N009
 	}
 }
 
-namespace N507
-{
-	struct S
-	{
-		struct Type
-		{
-		};
-		operator Type()
-		{
-			return Type();
-		}
-	};
-	void f(S& s)
-	{
-		s.operator Type(); // Type should be looked up in context of S
-	}
-}
-
-namespace N508
-{
-	struct Type
-	{
-	};
-
-	struct S
-	{
-		operator Type()
-		{
-			return Type();
-		}
-	};
-	void f(S& s)
-	{
-		s.operator Type(); // Type should be looked up in context of entire postfix-expression
-	}
-}
-
 namespace N007
 {
 	template<class T>
@@ -4487,33 +4334,6 @@ namespace N506
 	class TmplFwd2;
 }
 
-
-
-// deferred name lookup
-namespace N504
-{
-	template<class T>
-	struct Iterator
-	{
-		typedef typename T::Ref Ref; // cannot be looked up without instantiating
-
-		Ref operator*()const
-		{
-		}
-	};
-
-	struct Value
-	{
-		int v;
-		typedef Value& Ref;
-	};
-
-	void f()
-	{
-		Iterator<Value> i;
-		(*i).v=0;
-	}
-}
 
 
 

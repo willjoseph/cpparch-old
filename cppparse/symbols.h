@@ -5074,6 +5074,13 @@ inline bool isEqual(const TypeId& l, const TypeId& r)
 	return l.unique == r.unique;
 }
 
+inline bool isEqual(const Type& left, const Type& right)
+{
+	SYMBOLS_ASSERT(left.unique != 0);
+	SYMBOLS_ASSERT(right.unique != 0);
+	return left.unique == right.unique;
+}
+
 inline bool isEqual(const TemplateArgument& l, const TemplateArgument& r)
 {
 	if((l.type.declaration == &gNonType)
@@ -6490,10 +6497,7 @@ struct OverloadResolver
 		CandidateFunction candidate(overload);
 		candidate.conversions.reserve(best.conversions.size());
 
-		if(!overload.type.isFunction())
-		{
-			return; // TODO: invoke operator() on object of class-type
-		}
+		SYMBOLS_ASSERT(overload.type.isFunction());  // TODO: invoke operator() on object of class-type
 		const ParameterTypes& parameters = getParameterTypes(overload.type.value);
 		Arguments::const_iterator a = arguments.begin();
 		const Parameters& defaults = getParameters(overload.declaration->type);

@@ -309,3 +309,29 @@
 				- much like when name of current-instantiation is used in class template definition
 
 - task: determine type of conditional-expression with differing second and third operands
+
+- issue: ignoring difference in return type means two template functions that differ only by return-type (and template-params) are considered equivalent
+	- this is a hack for case where return-type is a typename - template<typename U> typename S<U>::Type S<U>::f() {}
+	- ignore return type and compare template params instead
+
+- investigate: template_id_operator_function
+
+- investigate: conversion function lookup
+	- all overloads considered equivalent?
+
+- task: fix type of conversion function declaration: declarator-ptr not correctly parsed
+
+
+- investigate: how to reduce callstack depth in debug
+	- sample of small call-stack within expression-parsing
+		- 233 levels
+		- parseExpression: 11
+		+ parseSymbol: 37
+		- parseSymbolRequired: 38
+		+ ParserGeneric::parse: 38
+		- cpp::[symbol]::parse: 13
+		- ParsingVisitor::visit: 13
+		- *Walker::visit: 26
+		- Default.ChoiceParser::parseSymbol: 22
+
+- task: remove PARSE_EXPRESSION
