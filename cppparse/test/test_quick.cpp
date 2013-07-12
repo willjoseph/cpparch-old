@@ -463,19 +463,6 @@ namespace N201
 	T C2<X>::C3<T>::m = I();
 }
 
-namespace N200
-{
-	class C
-	{
-		C* f();
-	};
-
-	C* C::f()
-	{
-		f()->f();
-	}
-}
-
 namespace N199
 {
 	template<typename T>
@@ -2009,7 +1996,7 @@ namespace N122
 	}
 }
 
-namespace N117
+namespace N245
 {
 	void f(int);
 	void f(float);
@@ -2088,7 +2075,7 @@ namespace N063
 	};
 }
 
-namespace N115
+namespace N243
 {
 	const int x;
 
@@ -3977,18 +3964,6 @@ namespace N
 }
 #endif
 
-namespace N037
-{
-	class C
-	{
-	};
-
-	C& operator*(C& c)
-	{
-		return *c;
-	}
-}
-
 #if 0 //TODO: crash (pair not defined)
 template<class _Traits>
 class _Tree
@@ -4516,26 +4491,6 @@ namespace N46
 	}
 }
 
-namespace N45
-{
-	struct S
-	{
-		S operator()() const
-		{
-			return S();
-		}
-	};
-
-	void f()
-	{
-		S()(); // construct and call
-		S()()();
-		S s;
-		s()(); // nested call
-		s()()();
-	}
-
-}
 
 namespace N117
 {
@@ -4555,7 +4510,7 @@ namespace N117
 }
 
 
-namespace N116
+namespace N114
 {
 	template<typename T>
 	struct Tmpl
@@ -4570,7 +4525,7 @@ namespace N116
 }
 
 
-namespace N115
+namespace N244
 {
 	template<typename T>
 	struct Tmpl

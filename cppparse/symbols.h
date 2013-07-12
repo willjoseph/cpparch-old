@@ -5027,7 +5027,7 @@ inline bool isEnumerator(const UniqueTypeId& type)
 
 inline bool isEnumeration(const UniqueTypeId& type)
 {
-	return (type.isSimple() && getObjectType(type.value).declaration->type.declaration == &gEnum)
+	return isEnum(type)
 		|| isEnumerator(type); // TODO: remove when enumerators are correctly typed
 }
 
@@ -5548,9 +5548,9 @@ const ImplicitConversion IMPLICITCONVERSION_USERDEFINED = ImplicitConversion(Sta
 // [over.ics.rank]
 inline bool isBetter(const ImplicitConversion& l, const ImplicitConversion& r)
 {
-	if(l.type < r.type)
+	if(l.type != r.type)
 	{
-		return true;
+		return l.type < r.type;
 	}
 	return isBetter(l.sequence, r.sequence);
 }
@@ -6492,14 +6492,47 @@ struct OverloadResolver
 			ambiguous = candidate.declaration;
 		}
 	}
-	void add(const FunctionOverload& overload)
+	void add(const FunctionOverload& overload, const TypeInstance* memberEnclosing)
 	{
 		CandidateFunction candidate(overload);
 		candidate.conversions.reserve(best.conversions.size());
 
 		SYMBOLS_ASSERT(overload.type.isFunction());  // TODO: invoke operator() on object of class-type
-		const ParameterTypes& parameters = getParameterTypes(overload.type.value);
+
 		Arguments::const_iterator a = arguments.begin();
+
+		if(memberEnclosing != 0)
+		{
+			SYMBOLS_ASSERT(a != arguments.end());
+			const Argument& impliedObjectArgument = *a++;
+			// [over.match.funcs]
+			// a member function is considered to have an extra parameter, called the implicit object parameter, which
+			// represents the object for which the member function has been called. For the purposes of overload resolution,
+			// both static and non-static member functions have an implicit object parameter, but constructors do not.
+			SYMBOLS_ASSERT(isClass(*memberEnclosing->declaration));
+			if(!isStatic(*overload.declaration))
+			{
+				// For non-static member functions, the type of the implicit object parameter is "reference to cv X" where X is
+				// the class of which the function is a member and cv is the cv-qualification on the member function declaration.
+				// TODO: conversion-functions, non-conversions introduced by using-declaration
+				UniqueTypeWrapper to = makeUniqueObjectType(*memberEnclosing);
+				to.value.setQualifiers(overload.type.value.getQualifiers());
+				to.push_front(ReferenceType());
+				candidate.conversions.push_back(makeStandardConversionSequence(to, impliedObjectArgument.type, source, enclosing, false, true)); // TODO: l-value
+			}
+			else
+			{
+				// TODO: [over.match.funcs] static members:
+				// - no temporary object can be introduced to hold the argument for the implicit object parameter;
+				// - no user-defined conversions can be applied to achieve a type match with it; and
+				// - even if the implicit object parameter is not const-qualified, an rvalue temporary can be bound to the
+				//   parameter as long as in all other respects the temporary can be converted to the type of the implicit
+				//   object parameter.
+				candidate.conversions.push_back(StandardConversionSequence(SCSRANK_EXACT, CvQualifiers()));
+			}
+		}
+
+		const ParameterTypes& parameters = getParameterTypes(overload.type.value);
 		const Parameters& defaults = getParameters(overload.declaration->type);
 		Parameters::const_iterator p = defaults.begin();
 		// TODO: ellipsis
@@ -6510,7 +6543,7 @@ struct OverloadResolver
 			{
 				const Argument& from = *a;
 				bool isNullPointerConstant = from.isConstant && evaluateExpression(from, source, enclosing).value == 0;
-				candidate.conversions.push_back(makeStandardConversionSequence(to, from.type, source, enclosing, isNullPointerConstant)); // TODO: l-value
+				candidate.conversions.push_back(makeStandardConversionSequence(to, from.type, source, enclosing, isNullPointerConstant, true)); // TODO: l-value
 				++a;
 			}
 			else if((*p).argument == 0) // TODO: catch this earlier

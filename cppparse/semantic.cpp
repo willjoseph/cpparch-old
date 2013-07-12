@@ -1001,7 +1001,7 @@ struct WalkerBase : public WalkerState
 			if(!p->isTemplate)
 			{
 				UniqueTypeWrapper type = getUniqueType(p->type, source, enclosing);
-				resolver.add(FunctionOverload(p, type));
+				resolver.add(FunctionOverload(p, type), enclosing);
 			}
 			else
 			{
@@ -1013,8 +1013,10 @@ struct WalkerBase : public WalkerState
 				UniqueTypeWrapper type = getUniqueType(p->type, source, enclosing, true);
 				SYMBOLS_ASSERT(type.isFunction());
 				const ParameterTypes& parameters = getParameterTypes(type.value);
+				
+				std::size_t impliedObjectArgumentCount = std::size_t(enclosing != 0);
 
-				if(resolver.arguments.size() > parameters.size())
+				if(resolver.arguments.size() - impliedObjectArgumentCount > parameters.size())
 				{
 					continue; // more arguments than parameters. TODO: same for non-template?
 				}
@@ -1049,12 +1051,12 @@ struct WalkerBase : public WalkerState
 					ParameterTypes substituted;
 					substitute(substituted, parameters, source, specialization);
 
-					TemplateArgumentsInstance arguments;
-					arguments.reserve(resolver.arguments.size());
+					UniqueTypeArray arguments;
+					arguments.reserve(resolver.arguments.size() - impliedObjectArgumentCount);
 
 					{
-						TemplateArgumentsInstance::iterator p = substituted.begin();
-						for(Arguments::const_iterator a = resolver.arguments.begin(); a != resolver.arguments.end(); ++a, ++p)
+						ParameterTypes::iterator p = substituted.begin();
+						for(Arguments::const_iterator a = resolver.arguments.begin() + impliedObjectArgumentCount; a != resolver.arguments.end(); ++a, ++p)
 						{
 							SYMBOLS_ASSERT(p != substituted.end());
 							UniqueTypeWrapper argument = (*a).type;
@@ -1110,7 +1112,7 @@ struct WalkerBase : public WalkerState
 					type = substitute(type, source, specialization); // substitute the return type. TODO: should wait until overload is chosen?
 					type.push_front(signature);
 
-					resolver.add(FunctionOverload(p, type));
+					resolver.add(FunctionOverload(p, type), enclosing);
 				}
 				catch(TypeError&)
 				{
@@ -1175,7 +1177,7 @@ struct WalkerBase : public WalkerState
 				separator = true;
 			}
 			std::cout << ")" << std::endl;
-			std::cout << "candidates:";
+			std::cout << "candidates:" << std::endl;
 			printOverloads(declaration);
 		}
 
@@ -1185,8 +1187,7 @@ struct WalkerBase : public WalkerState
 	static FunctionOverload findBestOverloadedOperator(const Identifier& id, Argument operand, Scope* enclosing, Location source, const TypeInstance* enclosingType)
 	{
 		UniqueTypeWrapper type = operand.type;
-		if((isClass(type) || isEnumeration(type)) // if the operand has class or enum type
-			&& (type.isSimple() || type.isReference())) // and is a simple object or reference
+		if(isClass(type) || isEnumeration(type)) // if the operand has class or enum type
 		{
 			Arguments arguments(1, operand);
 			OverloadResolver resolver(arguments, source, enclosingType);
@@ -1237,11 +1238,11 @@ struct WalkerBase : public WalkerState
 			{
 				// [expr.unary.op]
 				// The result of the unary & operator is a pointer to its operand. The operand shall be an lvalue or a qualified-id.
-				// In the first case, if the type of the expression is “T,” the type of the result is “pointer to T.” In particular,
-				// the address of an object of type “cv T” is “pointer to cv T,” with the same cv-qualifiers.
-				// For a qualified-id, if the member is a static member of type “T”, the type of the result is plain “pointer to T.”
-				// If the member is a non-static member of class C of type T, the type of the result is “pointer to member of class C of type
-				// T.”
+				// In the first case, if the type of the expression is "T," the type of the result is "pointer to T." In particular,
+				// the address of an object of type "cv T" is "pointer to cv T," with the same cv-qualifiers.
+				// For a qualified-id, if the member is a static member of type "T", the type of the result is plain "pointer to T."
+				// If the member is a non-static member of class C of type T, the type of the result is "pointer to member of class C of type
+				// T."
 				UniqueTypeWrapper classType = makeUniqueObjectType(*getIdExpression(operand).enclosing);
 				UniqueTypeWrapper type = operand.type;
 				type.push_front(MemberPointerType(classType)); // produces a non-const pointer
@@ -1255,7 +1256,10 @@ struct WalkerBase : public WalkerState
 		else
 		{
 			SEMANTIC_ASSERT(overload.declaration != 0);
-			return overload.type;
+			UniqueTypeWrapper type = overload.type;
+			SEMANTIC_ASSERT(type.isFunction()); // the type of an expression naming a function is T()
+			type.pop_front(); // get the return type: T
+			return type;
 		}
 	}
 
@@ -1355,10 +1359,13 @@ struct WalkerBase : public WalkerState
 		else if(symbol->id == cpp::unary_operator::STAR) // dereference
 		{
 			UniqueTypeId result = type;
-			if(!result.empty()) // TODO: assert
-			{
-				result.pop_front();
-			}
+			SEMANTIC_ASSERT(!result.empty());
+			// TODO: array-to-pointer conversion?
+			// [expr.unary] The unary * operator performs indirection: the expression to which it is applied shall be a pointer to an
+			// object type, or a pointer to a function type and the result is an lvalue referring to the object or function to
+			// which the expression points.
+			SEMANTIC_ASSERT(result.isPointer() || result.isArray());
+			result.pop_front();
 			return result;
 		}
 		else if(symbol->id == cpp::unary_operator::PLUS
@@ -2243,6 +2250,7 @@ struct PostfixExpressionMemberWalker : public WalkerQualified
 		TREEWALKER_LEAF(symbol);
 		bool isArrow = symbol->id == cpp::member_operator::ARROW;
 
+		memberObject = 0;
 		if(memberType != gUniqueTypeNull // TODO: assert
 			&& !::isDependent(memberType)) // if the type of the object expression is not dependent
 		{
@@ -2458,6 +2466,31 @@ struct PostfixExpressionWalker : public WalkerBase
 		}
 		else
 		{
+			type = removeReference(type);
+			if(isClass(type))
+			{
+				// [over.call.object]
+				// If the primary-expression E in the function call syntax evaluates to a class object of type "cv T", then the set
+				// of candidate functions includes at least the function call operators of T. The function call operators of T are
+				//	obtained by ordinary lookup of the name operator() in the context of (E).operator().
+				SEMANTIC_ASSERT(isComplete(type)); // TODO: non-fatal parse error
+				const TypeInstance& object = getObjectType(type.value);
+				instantiateClass(object, getLocation(), enclosingType); // searching for overloads requires a complete type
+				Identifier tmp;
+				tmp.value = gOperatorFunctionId;
+				tmp.source = getLocation();
+				LookupResultRef declaration = ::findDeclaration(object, tmp, IsAny());
+				if(declaration != 0)
+				{
+					id = &declaration->getName();
+					idEnclosing = findEnclosingType(&object, declaration->scope); // find the base class which contains the member-declaration
+					SEMANTIC_ASSERT(idEnclosing != 0);
+					memberObject = &object;
+					// The argument list submitted to overload resolution consists of the argument expressions present in the function
+					// call syntax preceded by the implied object argument (E).
+				}
+			}
+
 			SEMANTIC_ASSERT(id == 0 || isDecorated(*id)); // id should be decorated with result of name lookup
 			SEMANTIC_ASSERT(id == 0 || getDeclaration(*id) != &gDependentObject); // the id-expression should not be dependent
 			if(id != 0 // if the prefix contains an id-expression
@@ -2467,7 +2500,29 @@ struct PostfixExpressionWalker : public WalkerBase
 				TemplateArgumentsInstance templateArguments;
 				makeUniqueTemplateArguments(arguments, templateArguments, Location(id->source, context.declarationCount), enclosingType);
 
-				FunctionOverload overload = findBestMatch(getDeclaration(*id), templateArguments, walker.arguments, Location(id->source, context.declarationCount), idEnclosing);
+				Arguments arguments;
+				SEMANTIC_ASSERT(isMemberFunction(*getDeclaration(*id)) == (idEnclosing != 0));
+				if(idEnclosing != 0)
+				{
+					// either the call is qualified, 'this' is valid, or the member is static
+					SEMANTIC_ASSERT(memberObject != 0 || enclosingType != 0 || isStatic(*getDeclaration(*id)));
+
+					arguments.push_back(Argument(ExpressionWrapper(0), makeUniqueObjectType(memberObject != 0
+						? *memberObject // qualified-function-call
+						// unqualified function call
+						: enclosingType != 0
+							// If the keyword 'this' is in scope and refers to the class of that member function, or a derived class thereof,
+							// then the function call is transformed into a normalized qualified function call using (*this) as the postfix-expression
+							// to the left of the . operator.
+							? *enclosingType
+							// If the keyword 'this' is not in scope or refers to another class, then name resolution found a static member of some
+							// class T. In this case, all overloaded declarations of the function name in T become candidate functions and
+							// a contrived object of type T becomes the implied object argument
+							: *idEnclosing)));
+				}
+
+				arguments.insert(arguments.end(), walker.arguments.begin(), walker.arguments.end());
+				FunctionOverload overload = findBestMatch(getDeclaration(*id), templateArguments, arguments, Location(id->source, context.declarationCount), idEnclosing);
 				SEMANTIC_ASSERT(overload.declaration != 0);
 				{
 					DeclarationInstanceRef instance = findLastDeclaration(getDeclaration(*id), overload.declaration);
@@ -2513,10 +2568,11 @@ struct PostfixExpressionWalker : public WalkerBase
 			SEMANTIC_ASSERT(memberType != gUniqueTypeNull);
 			SEMANTIC_ASSERT(!::isDependent(memberType)); // the object-expression should not be dependent
 			SEMANTIC_ASSERT(walker.memberObject != 0);
+			memberObject = walker.memberObject; // store the type of the implied object argument in a qualified function call.
 
 			SEMANTIC_ASSERT(declaration != &gUndeclared);
 			SEMANTIC_ASSERT(isObject(*declaration));
-
+#if 0
 			if(declaration == &gUndeclared
 				|| !isObject(*declaration))
 			{
@@ -2525,6 +2581,7 @@ struct PostfixExpressionWalker : public WalkerBase
 				clearMemberType();
 				return;
 			}
+#endif
 
 			// [temp.dep.expr] An id-expression is type-dependent if it contains:- an identifier that was declared with a dependent type
 			addDependentType(typeDependent, declaration);
@@ -2551,8 +2608,15 @@ struct PostfixExpressionWalker : public WalkerBase
 			SEMANTIC_ASSERT(idEnclosing != 0);
 
 			// TODO: overloaded operator->
-			if(!isFunction(*declaration)
-				&& !isDependent(typeDependent))
+			if(isDependent(typeDependent))
+			{
+				// type cannot be determined
+			}
+			else if(isFunction(*declaration))
+			{
+				// type determination is deferred until overload resolution is complete
+			}
+			else
 			{
 				type = getUniqueType(declaration->type, Location(id->source, context.declarationCount), idEnclosing);
 			}
@@ -2870,6 +2934,7 @@ struct ExpressionWalker : public WalkerBase
 			SEMANTIC_ASSERT(getQualifyingScope() == 0);
 			SEMANTIC_ASSERT(memberType == gUniqueTypeNull);
 
+			type = removeReference(type);
 			type = typeOfUnaryExpression(symbol->op, Argument(expression, type), enclosing, Location(source, context.declarationCount), enclosingType);
 			// TODO: decorate parse-tree with declaration
 		}

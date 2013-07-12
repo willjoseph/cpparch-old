@@ -1,5 +1,105 @@
 
-#if 0
+
+namespace N45
+{
+	struct S
+	{
+		S operator()() const
+		{
+			return S();
+		}
+	};
+
+	void f()
+	{
+		S()(); // construct and call
+		S()()();
+		S s;
+		s()(); // nested call
+		s()()();
+	}
+
+}
+
+namespace N001
+{
+	struct M
+	{
+		template<int i>
+		float dependent(int j)
+		{
+			return 0;
+		}
+	};
+
+	template<typename A>
+	struct C
+	{
+		typedef M Type;
+	};
+
+	template<typename T1>
+	struct O0
+	{
+		typename T1::Type f()
+		{
+			return typename T1::Type();
+		}
+	};
+
+	void f(int)
+	{
+	}
+
+	void f()
+	{
+		O0< C<int> > o;
+		o.f().dependent<0>(0); // type of expression should resolve to 'float'
+	}
+}
+
+namespace N037
+{
+	class C
+	{
+	};
+
+	C& operator*(C& c)
+	{
+		return *c; // calls itself
+	}
+}
+
+
+namespace N200
+{
+	class C
+	{
+		C* f();
+	};
+
+	C* C::f()
+	{
+		f()->f();
+	}
+}
+
+namespace N242
+{
+	struct S
+	{
+		operator int**()
+		{
+			return 0;
+		}
+	};
+	void f(S& s)
+	{
+		s.operator int**();
+	}
+}
+
+#if 1
 // deferred name lookup
 namespace N504
 {
@@ -44,21 +144,6 @@ namespace N231
 			return (_Meta!=eof()?_Meta: !eof());
 		}
 	};
-}
-
-namespace N242
-{
-	struct S
-	{
-		operator int**()
-		{
-			return 0;
-		}
-	};
-	void f(S& s)
-	{
-		s.operator int**();
-	}
 }
 
 namespace N507
@@ -113,45 +198,6 @@ namespace N241
 	inline _Elem(tolower)(_Elem _Ch, const locale&_Loc)
 	{
 		return (use_facet<_Elem>(_Loc).tolower(_Ch)); // an explicit template argument list in a function call causes the expression to be dependent
-	}
-}
-
-
-
-namespace N001
-{
-	struct M
-	{
-		template<int i>
-		float dependent(int j)
-		{
-			return 0;
-		}
-	};
-
-	template<typename A>
-	struct C
-	{
-		typedef M Type;
-	};
-
-	template<typename T1>
-	struct O0
-	{
-		typename T1::Type f()
-		{
-			return typename T1::Type();
-		}
-	};
-
-	void f(int)
-	{
-	}
-
-	void f()
-	{
-		O0< C<int> > o;
-		o.f().dependent<0>(0); // type of expression should resolve to 'float'
 	}
 }
 
