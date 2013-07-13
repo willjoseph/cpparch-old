@@ -1168,15 +1168,17 @@ namespace N166
 	I<S<37>::value> i; // instantiates 'I<37>'
 }
 
-
-template<int>
-struct S
+namespace N249
 {
-};
+	template<int>
+	struct S
+	{
+	};
 
-void f(S<1 * 5 / 3 + 7 & 15> s)
-{
-	f(s);
+	void f(S<1 * 5 / 3 + 7 & 15> s)
+	{
+		f(s);
+	}
 }
 
 namespace N170
@@ -1963,7 +1965,7 @@ namespace N124
 	int i = f(s); // return type is 'int'
 }
 
-namespace BLAH
+namespace N255
 {
 	template<bool b>
 	struct Tmpl
@@ -2148,7 +2150,7 @@ namespace N112
 	void test()
 	{
 		S<A> s;
-		s.f(0); // should link to N111.S.f(int)
+		s.f(0); // should link to N112.S.f(int)
 	}
 }
 
@@ -3799,36 +3801,6 @@ namespace N018
 	Tmpl<>::Type::Int i; // T should default to 'Wrapper'
 }
 
-namespace N016
-{
-	template<typename X /*, typename Y = X*/> // the type of Y should be correctly resolved
-	struct Tmpl
-	{
-	};
-	template<>
-	struct Tmpl<char>
-	{
-		static const char VALUE;
-	};
-
-	const char Tmpl<char>::VALUE = 0;
-
-	template<>
-	struct Tmpl<int>
-	{
-		static const int VALUE;
-	};
-	const int Tmpl<int>::VALUE = 0; // Tmpl<int>::VALUE should be distinct from Tmpl<char>::VALUE
-
-	template<typename X>
-	struct Tmpl<X*>
-	{
-		static const X* VALUE;
-	};
-	template<typename X>
-	const X* Tmpl<X*>::VALUE = 0; // Tmpl<X*>::VALUE should be distinct from Tmpl<char>::VALUE
-}
-
 
 namespace N015
 {
@@ -4041,20 +4013,21 @@ struct Traits<short> // accept 'short' as short-int
 {
 };
 
-
-
-template<typename T>
-struct C99
+namespace N250
 {
-	template<class _Other>
-	operator C99<_Other>()
+
+	template<typename T>
+	struct C99
 	{
-		return (C99<_Other>(*this));
-	}
-};
+		template<class _Other>
+		operator C99<_Other>()
+		{
+			return (C99<_Other>(*this));
+		}
+	};
 
-int f(void (*)(void));
-
+	int f(void (*)(void));
+}
 
 
 
@@ -4524,33 +4497,6 @@ namespace N114
 	};
 }
 
-
-namespace N244
-{
-	template<typename T>
-	struct Tmpl
-	{
-		Tmpl(int)
-		{
-		}
-	};
-
-	int f()
-	{
-		return 0;
-	}
-
-	struct S
-	{
-		S(const S& arguments = S(Tmpl<int>(f())))
-		{
-		}
-		S(const Tmpl<int>& arguments)
-		{
-		}
-	};
-}
-
 namespace N113
 {
 	template<typename T>
@@ -4573,7 +4519,7 @@ namespace N113
 // first declares a class or function (this implies that the name of the class or function is unqualified) the friend
 // class or function is a member of the innermost enclosing namespace.
 
-namespace N112
+namespace N247
 {
 	// Assume f and g have not yet been defined.
 	void h(int);
@@ -4597,15 +4543,6 @@ namespace N112
 	}
 }
 
-namespace N115
-{
-	template<unsigned _SizeFIXED>
-	inline char*gets_s(char(&_Buffer)[_SizeFIXED])
-	{
-		return gets_s(_Buffer, _SizeFIXED);
-	}
-}
-
 
 namespace N42
 {
@@ -4616,7 +4553,7 @@ namespace N42
 	};
 }
 
-namespace N111
+namespace N248
 {
 	struct S* f(void)
 	{
@@ -4835,18 +4772,6 @@ namespace N82
 			e = 0;
 		}
 	}
-}
-
-namespace N83
-{
-	class C
-	{
-		void f()
-		{
-			// [special] Programs may explicitly refer to implicitly declared special member functions.
-			operator=(*this); // explicit call of operator not supported
-		}
-	};
 }
 
 namespace N168
@@ -5207,7 +5132,7 @@ namespace stdTEST
 
 #if 1
 // default-template-parameter
-namespace N67
+namespace N251
 {
 	struct S
 	{
@@ -5285,7 +5210,7 @@ namespace N62
 }
 
 
-namespace N66
+namespace N252
 {
 	template<bool C>
 	struct Cond
@@ -5420,7 +5345,7 @@ namespace N61
 }
 
 #if 1
-namespace BLAH
+namespace N254
 {
 	template<bool b>
 	struct Tmpl
@@ -5532,20 +5457,6 @@ namespace N89
 	{
 		template<size_t N>
 		struct size_t;
-	}
-}
-
-
-// name-lookup for explicit argument-specification of overloaded function-template
-namespace N91
-{
-	template<typename T>
-	T f()
-	{
-	}
-	int f()
-	{
-		  return f<int>();
 	}
 }
 
@@ -5672,59 +5583,51 @@ namespace N
 	typedef Tmpl<int> I;
 }
 
-template<typename T>
-struct Spec4
+namespace N260
 {
-	typedef T I;
-};
+	template<typename T>
+	struct Spec4
+	{
+		typedef T I;
+	};
 
-void f()
-{
-	typedef int I;
-	typedef Spec4<I> Spec;
+	void f()
+	{
+		typedef int I;
+		typedef Spec4<I> Spec;
 
-	Spec::I i = 0;
+		Spec::I i = 0;
+	}
 }
 
-struct S
+namespace N258
 {
 	template<bool>
-	void operator()()
+	struct Tmpl
 	{
-	}
-};
-void f()
-{
+	};
+
 	enum { CONSTANT = 0 };
-	S s;
-	s.operator()<true>();
-	s.operator()<CONSTANT < 0>(); // older versions of Comeau fail to compile this
+
+	Tmpl< CONSTANT < 0 > t1;
+
 }
 
-
-template<bool>
-struct Tmpl
+namespace N259
 {
-};
+	typedef int I;
 
-enum { CONSTANT = 0 };
+	class C53
+	{
+		C53(I);
+		C53(I, bool b);
+	};
 
-Tmpl< CONSTANT < 0 > t1;
-
-
-
-typedef int I;
-
-class C53
-{
-	C53(I);
-	C53(I, bool b);
-};
-
-class C77
-{
-	C77(I = 0);
-};
+	class C77
+	{
+		C77(I = 0);
+	};
+}
 
 namespace N92
 {
@@ -5823,7 +5726,7 @@ namespace N15
 	D* d;
 }
 
-namespace N66
+namespace N253
 {
 	class C* f(union U* (*)(struct S*));
 
@@ -6037,17 +5940,13 @@ public:
 };
 #endif
 
-void f()
+namespace N261
 {
-	new int();
+	void f()
+	{
+		new int();
+	}
 }
-
-template <typename T>
-struct Tmpl3
-	: Tmpl3< T >::template Dependent<T>
-{
-};
-
 
 // pathological case for template-id ambiguity
 #if 0

@@ -1,5 +1,136 @@
 
 
+namespace N260
+{
+	template <typename T>
+	struct Tmpl3
+		: Tmpl3< T >::template Dependent<T>
+	{
+	};
+}
+
+namespace N257
+{
+	struct S
+	{
+		template<bool>
+		void operator()()
+		{
+		}
+	};
+	void f()
+	{
+		enum { CONSTANT = 0 };
+		S s;
+		s.operator()<true>();
+		s.operator()<CONSTANT < 0>(); // older versions of Comeau fail to compile this
+	}
+}
+
+namespace N256
+{
+	template<typename X>
+	struct Tmpl
+	{
+		static const X* VALUE;
+	};
+	template<typename X>
+	const X* Tmpl<X>::VALUE = 0; // 'VALUE' is not a template name
+}
+
+namespace N016
+{
+	template<typename X /*, typename Y = X*/> // the type of Y should be correctly resolved
+	struct Tmpl
+	{
+	};
+	template<>
+	struct Tmpl<char>
+	{
+		static const char VALUE;
+	};
+
+	const char Tmpl<char>::VALUE = 0;
+
+	template<>
+	struct Tmpl<int>
+	{
+		static const int VALUE;
+	};
+	const int Tmpl<int>::VALUE = 0; // Tmpl<int>::VALUE should be distinct from Tmpl<char>::VALUE
+
+	template<typename X>
+	struct Tmpl<X*>
+	{
+		static const X* VALUE;
+	};
+	template<typename X>
+	const X* Tmpl<X*>::VALUE = 0; // Tmpl<X*>::VALUE should be distinct from Tmpl<char>::VALUE
+}
+
+// name-lookup for explicit argument-specification of overloaded function-template
+namespace N91
+{
+	template<typename T>
+	T f()
+	{
+		return 0;
+	}
+	int f()
+	{
+		return f<int>();
+	}
+}
+
+namespace N83
+{
+	class C
+	{
+		void f()
+		{
+			// [special] Programs may explicitly refer to implicitly declared special member functions.
+			operator=(*this); // explicit call of operator not supported
+		}
+	};
+}
+
+
+namespace N115
+{
+	template<unsigned _SizeFIXED>
+	inline char*gets_s(char(&_Buffer)[_SizeFIXED])
+	{
+		return gets_s(_Buffer, _SizeFIXED); // '_Buffer' is type-dependent, '_SizeFIXED' is value-dependent
+	}
+}
+
+namespace N244
+{
+	template<typename T>
+	struct Tmpl
+	{
+		Tmpl(int)
+		{
+		}
+	};
+
+	int f()
+	{
+		return 0;
+	}
+
+	struct S
+	{
+		S(const S& arguments = S(Tmpl<int>(f())))
+		{
+		}
+		S(const Tmpl<int>& arguments)
+		{
+		}
+	};
+}
+
+
 namespace N45
 {
 	struct S

@@ -237,26 +237,6 @@ struct Dependent : DeclarationPtr
 	}
 };
 
-#if 0
-// ----------------------------------------------------------------------------
-// deferred lookup of dependent names
-
-typedef ListReference<struct DeferredLookupCallback, TreeAllocator<int> > DeferredLookup2;
-
-struct DeferredLookup : public DeferredLookup2
-{
-	DeferredLookup(const TreeAllocator<int>& allocator) : DeferredLookup2(allocator)
-	{
-	}
-	void splice(DeferredLookup& other)
-	{
-		DeferredLookup2::splice(begin(), other);
-	}
-private:
-	DeferredLookup();
-};
-#endif
-
 
 // ----------------------------------------------------------------------------
 // [expr.const]
@@ -787,6 +767,7 @@ public:
 	TemplateArguments templateArguments; // non-empty if this is an explicit (or partial) specialization
 	bool isComplete; // for class declarations, set to true when the closing brace is parsed.
 	bool isTemplate;
+	bool isTemplateName; // true if this is a template declaration, or an overload of a template declaration
 	bool isSpecialization;
 	bool isFunctionDefinition;
 	std::size_t instance;
@@ -818,6 +799,7 @@ public:
 		templateArguments(templateArguments),
 		isComplete(false),
 		isTemplate(isTemplate),
+		isTemplateName(isTemplate),
 		isSpecialization(isSpecialization),
 		isFunctionDefinition(false),
 		instance(INDEX_INVALID)
@@ -846,6 +828,7 @@ public:
 		templateArguments.swap(other.templateArguments);
 		std::swap(isComplete, other.isComplete);
 		std::swap(isTemplate, other.isTemplate);
+		std::swap(isTemplateName, other.isTemplateName);
 		std::swap(isSpecialization, other.isSpecialization);
 		std::swap(isFunctionDefinition, other.isFunctionDefinition);
 		std::swap(instance, other.instance);
@@ -1005,19 +988,10 @@ struct Scope : public ScopeCounter
 	Scopes usingDirectives;
 	typedef List<DeclarationPtr, TreeAllocator<int> > DeclarationList;
 	DeclarationList declarationList;
-
-#if 0
-	DeferredLookup deferred;
-	size_t deferredCount;
-#endif
 	size_t templateDepth;
 
 	Scope(const TreeAllocator<int>& allocator, const Identifier& name, ScopeType type = SCOPETYPE_UNKNOWN)
-		: parent(0), name(name), enclosedScopeCount(0), declarations(allocator), type(type), bases(allocator), usingDirectives(allocator), declarationList(allocator),
-#if 0
-		deferred(allocator), deferredCount(0),
-#endif
-		templateDepth(0)
+		: parent(0), name(name), enclosedScopeCount(0), declarations(allocator), type(type), bases(allocator), usingDirectives(allocator), declarationList(allocator), templateDepth(0)
 
 	{
 	}
@@ -1318,10 +1292,10 @@ inline bool isNamespaceName(const Declaration& declaration)
 typedef LookupFilterDefault<isNamespaceName> IsNamespaceName;
 
 
+// returns true if \p declaration is a template class, function or template-parameter
 inline bool isTemplateName(const Declaration& declaration)
 {
-	// returns true if \p declaration is a template class, function or template-parameter
-	return declaration.isTemplate && (isClass(declaration) || isFunction(declaration) || isTypedef(declaration));
+	return declaration.isTemplateName;
 }
 
 inline bool isNestedName(const Declaration& declaration)
@@ -3866,7 +3840,7 @@ inline const TypeInstance* makeUniqueEnclosing(const Qualifying& qualifying, Loc
 			return 0; // name is qualified by a namespace, therefore cannot be enclosed by a class
 		}
 		unique = getUniqueType(qualifying.back(), source, enclosing, allowDependent);
-		if(allowDependent && unique.isDependent())
+		if(allowDependent && qualifying.back().isDependent)
 		{
 			return 0;
 		}
@@ -6436,14 +6410,15 @@ typedef std::vector<Argument> Arguments;
 
 struct OverloadResolver
 {
-	Arguments arguments;
+	const Arguments& arguments;
+	const TemplateArgumentsInstance* templateArguments;
 	Location source;
 	const TypeInstance* enclosing;
 	CandidateFunction best;
 	Declaration* ambiguous;
 
-	OverloadResolver(const Arguments& arguments, Location source, const TypeInstance* enclosing)
-		: arguments(arguments), source(source), enclosing(enclosing), ambiguous(0)
+	OverloadResolver(const Arguments& arguments, const TemplateArgumentsInstance* templateArguments, Location source, const TypeInstance* enclosing)
+		: arguments(arguments), templateArguments(templateArguments), source(source), enclosing(enclosing), ambiguous(0)
 	{
 		best.conversions.resize(arguments.size(), ImplicitConversion(STANDARDCONVERSIONSEQUENCE_INVALID));
 	}
@@ -6501,7 +6476,7 @@ struct OverloadResolver
 
 		Arguments::const_iterator a = arguments.begin();
 
-		if(memberEnclosing != 0)
+		if(isMember(*overload.declaration))
 		{
 			SYMBOLS_ASSERT(a != arguments.end());
 			const Argument& impliedObjectArgument = *a++;

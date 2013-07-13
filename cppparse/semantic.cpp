@@ -432,6 +432,7 @@ struct WalkerState
 
 		SEMANTIC_ASSERT(!name.value.empty());
 		Declaration declaration(allocator, parent, name, type, enclosed, specifiers, isTemplate, params, isSpecialization, arguments, templateParameter, valueDependent);
+		SEMANTIC_ASSERT(!isTemplate || (isClass(declaration) || isFunction(declaration) || declaration.templateParameter != INDEX_INVALID)); // only a class, function or template-parameter can be a template
 		declaration.uniqueId = ++uniqueId;
 		DeclarationInstance instance;
 		const DeclarationInstance* existing = 0;
@@ -462,15 +463,11 @@ struct WalkerState
 				throw SemanticError();
 			}
 
-			if(!isNamespace(declaration)
-				&& !isType(declaration)
-				&& isFunction(declaration))
+			if(isFunction(declaration)
+				&& instance->isTemplateName)
 			{
-				// quick hack - if any template overload of a function has been declared, all subsequent declarations are template functions
-				if(instance->isTemplate)
-				{
-					declaration.isTemplate = true;
-				}
+				// quick hack - if any template overload of a function has been declared, all subsequent declarations are template names
+				declaration.isTemplateName = true;
 			}
 
 			declaration.overloaded = findOverloaded(instance); // the new declaration refers to the existing declaration
@@ -974,7 +971,8 @@ struct WalkerBase : public WalkerState
 
 	LookupResultRef lookupTemplate(const Identifier& id, LookupFilter filter)
 	{
-		if(!isDependent(qualifying_p))
+		if(!isDependent(qualifying_p)
+			&& !::isDependent(memberType))
 		{
 			return LookupResultRef(findDeclaration(id, filter));
 		}
@@ -989,7 +987,7 @@ struct WalkerBase : public WalkerState
 		}
 	}
 
-	static void addOverloads(OverloadResolver& resolver, Declaration* declaration, const TemplateArgumentsInstance& templateArguments, Location source, const TypeInstance* enclosing = 0)
+	static void addOverloads(OverloadResolver& resolver, Declaration* declaration, Location source, const TypeInstance* enclosing = 0)
 	{
 		for(Declaration* p = declaration; p != 0; p = p->overloaded)
 		{
@@ -1000,8 +998,14 @@ struct WalkerBase : public WalkerState
 
 			if(!p->isTemplate)
 			{
-				UniqueTypeWrapper type = getUniqueType(p->type, source, enclosing);
-				resolver.add(FunctionOverload(p, type), enclosing);
+				// [temp.arg.explicit] An empty template argument list can be used to indicate that a given use refers to a
+				// specialization of a function template even when a normal (i.e., non-template) function is visible that would
+				// otherwise be used.
+				if(resolver.templateArguments == 0)
+				{
+					UniqueTypeWrapper type = getUniqueType(p->type, source, enclosing);
+					resolver.add(FunctionOverload(p, type), enclosing);
+				}
 			}
 			else
 			{
@@ -1024,7 +1028,8 @@ struct WalkerBase : public WalkerState
 				try
 				{
 					// [temp.deduct] When an explicit template argument list is specified, the template arguments must be compatible with the template parameter list
-					if(templateArguments.size() > templateParameters.size())
+					if(resolver.templateArguments != 0
+						&& resolver.templateArguments->size() > templateParameters.size())
 					{
 						throw TypeErrorBase(source); // too many explicitly specified template arguments
 					}
@@ -1032,14 +1037,17 @@ struct WalkerBase : public WalkerState
 					specialization.instantiated = true;
 					{
 						TemplateArgumentsInstance::const_iterator p = templateParameters.begin();
-						for(TemplateArgumentsInstance::const_iterator a = templateArguments.begin(); a != templateArguments.end(); ++a, ++p)
+						if(resolver.templateArguments != 0)
 						{
-							SYMBOLS_ASSERT(p != templateParameters.end());
-							if((*a).isNonType() != (*p).isDependentNonType())
+							for(TemplateArgumentsInstance::const_iterator a = resolver.templateArguments->begin(); a != resolver.templateArguments->end(); ++a, ++p)
 							{
-								throw TypeErrorBase(source); // incompatible explicitly specified arguments
+								SYMBOLS_ASSERT(p != templateParameters.end());
+								if((*a).isNonType() != (*p).isDependentNonType())
+								{
+									throw TypeErrorBase(source); // incompatible explicitly specified arguments
+								}
+								specialization.templateArguments.push_back(*a);
 							}
-							specialization.templateArguments.push_back(*a);
 						}
 						for(; p != templateParameters.end(); ++p)
 						{
@@ -1095,7 +1103,7 @@ struct WalkerBase : public WalkerState
 						}
 					}
 
-					specialization.templateArguments.resize(templateArguments.size()); // preserve the explicitly specified arguments
+					specialization.templateArguments.resize(resolver.templateArguments == 0 ? 0 : resolver.templateArguments->size()); // preserve the explicitly specified arguments
 					specialization.templateArguments.resize(templateParameters.size(), gUniqueTypeNull);
 					// deduce the function's template arguments by comparing the original argument list with the substituted parameters
 					if(!deduce(substituted, arguments, specialization.templateArguments)
@@ -1139,10 +1147,10 @@ struct WalkerBase : public WalkerState
 
 	// source: where the overload resolution occurs (point of instantiation)
 	// enclosingType: the class of which the declaration is a member (along with all its overloads).
-	static FunctionOverload findBestMatch(Declaration* declaration, const TemplateArgumentsInstance& templateArguments, const Arguments& arguments, Location source, const TypeInstance* enclosingType)
+	static FunctionOverload findBestMatch(Declaration* declaration, const TemplateArgumentsInstance* templateArguments, const Arguments& arguments, Location source, const TypeInstance* enclosingType)
 	{
-		OverloadResolver resolver(arguments, source, enclosingType);
-		addOverloads(resolver, declaration, templateArguments, source, enclosingType);
+		OverloadResolver resolver(arguments, templateArguments, source, enclosingType);
+		addOverloads(resolver, declaration, source, enclosingType);
 
 		if(resolver.ambiguous != 0)
 		{
@@ -1190,7 +1198,7 @@ struct WalkerBase : public WalkerState
 		if(isClass(type) || isEnumeration(type)) // if the operand has class or enum type
 		{
 			Arguments arguments(1, operand);
-			OverloadResolver resolver(arguments, source, enclosingType);
+			OverloadResolver resolver(arguments, 0, source, enclosingType);
 
 			if(isClass(type))
 			{
@@ -1202,7 +1210,7 @@ struct WalkerBase : public WalkerState
 				{
 					const TypeInstance* memberEnclosing = findEnclosingType(&operand, declaration->scope); // find the base class which contains the member-declaration
 					SEMANTIC_ASSERT(memberEnclosing != 0);
-					addOverloads(resolver, declaration, TemplateArgumentsInstance(), source, memberEnclosing);
+					addOverloads(resolver, declaration, source, memberEnclosing);
 				}
 			}
 			// TODO: ignore non-member candidates if no operand has a class type, unless one or more params has enum (ref) type
@@ -1211,7 +1219,7 @@ struct WalkerBase : public WalkerState
 				&& !declaration->isTemplate // TODO: template argument deduction for overloaded operator
 				&& !declaration->specifiers.isFriend) // TODO: 14.5.3: friend function as member of a template-class, which depends on template arguments
 			{
-				addOverloads(resolver, declaration, TemplateArgumentsInstance(), source);
+				addOverloads(resolver, declaration, source);
 			}
 			{
 				// TODO: 13.3.1.2: built-in operators for overload resolution
@@ -1720,7 +1728,6 @@ struct UnqualifiedIdWalker : public WalkerBase
 	{
 		TemplateIdWalker walker(getState());
 		TREEWALKER_WALK_CACHED(walker, symbol);
-#if 0 // TODO: member lookup
 		if(!isTemplate // TODO: is this possible?
 			&& !isDependent(qualifying_p)
 			&& !::isDependent(memberType))
@@ -1731,9 +1738,8 @@ struct UnqualifiedIdWalker : public WalkerBase
 			{
 				return reportIdentifierMismatch(symbol, *walker.id, declaration, "template-name");
 			}
-			this->declaration = findTemplateSpecialization(declaration, walker.arguments);
+			this->declaration = declaration;
 		}
-#endif
 		id = walker.id;
 		arguments.swap(walker.arguments);
 	}
@@ -2464,6 +2470,22 @@ struct PostfixExpressionWalker : public WalkerBase
 			}
 			type = gUniqueTypeNull;
 		}
+		else if(id != 0
+			&& !isDecorated(*id)
+			&& id->value == gOperatorAssignId)
+		{
+			// [class.copy] If the class definition does not explicitly declare a copy assignment operator, one is declared implicitly.
+			// TODO: ignore using-declaration with same id.
+			// TODO: check correct lookup behaviour: base-class copy-assign should always be hidden by derived.
+			// TODO: correct argument type depending on base class copy-assign declarations.
+
+			// either the call is qualified or 'this' is valid
+			SEMANTIC_ASSERT(memberObject != 0 || enclosingType != 0);
+
+			// [class.copy] The implicitly-declared copy assignment operator for class X has the return type X&
+			type = makeUniqueObjectType(memberObject != 0 ? *memberObject : *enclosingType);
+			type.push_front(ReferenceType());
+		}
 		else
 		{
 			type = removeReference(type);
@@ -2501,8 +2523,7 @@ struct PostfixExpressionWalker : public WalkerBase
 				makeUniqueTemplateArguments(arguments, templateArguments, Location(id->source, context.declarationCount), enclosingType);
 
 				Arguments arguments;
-				SEMANTIC_ASSERT(isMemberFunction(*getDeclaration(*id)) == (idEnclosing != 0));
-				if(idEnclosing != 0)
+				if(isMember(*getDeclaration(*id)))
 				{
 					// either the call is qualified, 'this' is valid, or the member is static
 					SEMANTIC_ASSERT(memberObject != 0 || enclosingType != 0 || isStatic(*getDeclaration(*id)));
@@ -2522,7 +2543,8 @@ struct PostfixExpressionWalker : public WalkerBase
 				}
 
 				arguments.insert(arguments.end(), walker.arguments.begin(), walker.arguments.end());
-				FunctionOverload overload = findBestMatch(getDeclaration(*id), templateArguments, arguments, Location(id->source, context.declarationCount), idEnclosing);
+				// TODO: handle empty template-argument list '<>'. If specified, overload resolution should ignore non-templates
+				FunctionOverload overload = findBestMatch(getDeclaration(*id), templateArguments.empty() ? 0 : &templateArguments, arguments, Location(id->source, context.declarationCount), idEnclosing);
 				SEMANTIC_ASSERT(overload.declaration != 0);
 				{
 					DeclarationInstanceRef instance = findLastDeclaration(getDeclaration(*id), overload.declaration);
@@ -3759,6 +3781,7 @@ struct DeclaratorWalker : public WalkerBase
 		qualifying = walker.qualifying;
 		enclosing = walker.enclosing;
 		paramScope = walker.paramScope;
+		templateParams = walker.templateParams;
 		addDependent(dependent, walker.dependent);
 		addDependent(valueDependent, walker.valueDependent);
 		SYMBOLS_ASSERT(typeSequence.empty());
@@ -3820,6 +3843,8 @@ struct DeclaratorWalker : public WalkerBase
 	{
 		DeclaratorArrayWalker walker(getState());
 		TREEWALKER_WALK_CACHED(walker, symbol);
+		// [temp.dep.type] A type is dependent if it is - an array type [...] whose size is specified by a constant expression that is value-dependent
+		addDependent(dependent, walker.valueDependent);
 		addDependent(valueDependent, walker.valueDependent);
 		typeSequence.push_front(DeclaratorArrayType(walker.rank));
 	}
@@ -3856,6 +3881,7 @@ struct DeclaratorWalker : public WalkerBase
 		qualifying = walker.qualifying;
 		enclosing = walker.enclosing;
 		paramScope = walker.paramScope;
+		templateParams = walker.templateParams;
 		addDependent(dependent, walker.dependent);
 		addDependent(valueDependent, walker.valueDependent);
 		SYMBOLS_ASSERT(typeSequence.empty());
@@ -4966,8 +4992,6 @@ struct TypeIdWalker : public WalkerBase
 		type.typeSequence = walker.typeSequence;
 		// [temp.dep.type] A type is dependent if it is a compound type constructed from any dependent type
 		setDependent(type.dependent, walker.dependent);
-		// [temp.dep.type] A type is dependent if it is an array type constructed from any dependent type or whose size is specified by a constant expression that is value-dependent
-		setDependent(type.dependent, walker.valueDependent);
 	}
 	void visit(cpp::conversion_declarator* symbol)
 	{
@@ -4976,8 +5000,6 @@ struct TypeIdWalker : public WalkerBase
 		type.typeSequence = walker.typeSequence;
 		// [temp.dep.type] A type is dependent if it is a compound type constructed from any dependent type
 		setDependent(type.dependent, walker.dependent);
-		// [temp.dep.type] A type is dependent if it is an array type constructed from any dependent type or whose size is specified by a constant expression that is value-dependent
-		setDependent(type.dependent, walker.valueDependent);
 	}
 };
 

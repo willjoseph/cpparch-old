@@ -344,3 +344,17 @@
 	// argument to denote the object to be operated on.
 	- when calling a member function, must always supply an implicit-object-argument
 		- when that member is static and is called without a class object, the implied-object-argument is ???
+
+- investigate: when resolving unique type of a declaration named by an id-expression, do we need an enclosing-type if the id-expression names a non-member?
+	- if member, use type of enclosing class when resolving unique type of the member
+	- if non-member, type cannot be dependent on an enclosing class?
+		- could be dependent on template parameter of enclosing template function
+
+- investigate: is Declaration::valueDependent necessary? Why is it initialised with dependent-ness of it's type's array size?
+
+- task: declare copy-assign if not already declared
+	- name lookup fails for id-expression 'operator=' when it has not been declared
+	- correct behaviour: name lookup for 'operator=' within class should always return default, if not found
+		- need a proper declaration to find enclosing class, but implicit declaration has no associated identifier?
+			- too complex to manufacture declaration from nothing
+		- avoid conflict with overload declarations
