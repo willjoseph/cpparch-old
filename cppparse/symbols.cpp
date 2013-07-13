@@ -164,27 +164,31 @@ Identifier gOperatorFunctionTemplateId = makeIdentifier("operator () <>");
 // TODO: don't declare if id is anonymous?
 Identifier gAnonymousId = makeIdentifier("$anonymous");
 
+const TypeInstance gDependentObjectType(&gDependentType, 0);
 
 struct PointerTypeId : ObjectTypeId
 {
-	PointerTypeId(Declaration* declaration, const TreeAllocator<int>& allocator)
+	PointerTypeId(Declaration* declaration, const TreeAllocator<int>& allocator, CvQualifiers qualifiers = CvQualifiers())
 		: ObjectTypeId(declaration, allocator)
 	{
+		value.setQualifiers(qualifiers);
 		value = pushBuiltInType(value, PointerType());
 	}
 };
 
 struct PointerPointerTypeId : ObjectTypeId
 {
-	PointerPointerTypeId(Declaration* declaration, const TreeAllocator<int>& allocator)
+	PointerPointerTypeId(Declaration* declaration, const TreeAllocator<int>& allocator, CvQualifiers qualifiers = CvQualifiers())
 		: ObjectTypeId(declaration, allocator)
 	{
+		value.setQualifiers(qualifiers);
 		value = pushBuiltInType(value, PointerType());
 		value = pushBuiltInType(value, PointerType());
 	}
 };
 
 PointerTypeId gVoidPointer(&gVoidDeclaration, TREEALLOCATOR_NULL);
+PointerTypeId gConstVoidPointer(&gVoidDeclaration, TREEALLOCATOR_NULL, CvQualifiers(true, false));
 PointerTypeId gSignedIntPointer(&gSignedIntDeclaration, TREEALLOCATOR_NULL);
 PointerTypeId gSignedCharPointer(&gSignedCharDeclaration, TREEALLOCATOR_NULL);
 PointerTypeId gWCharTPointer(&gWCharTDeclaration, TREEALLOCATOR_NULL);
@@ -889,6 +893,10 @@ inline void testIcsRank()
 			IcsRank rank = getIcsRank(gVoidPointer, *type, Location(), 0);
 			SYMBOLS_ASSERT(rank == ICSRANK_STANDARDCONVERSION);
 		}
+		{
+			IcsRank rank = getIcsRank(gConstVoidPointer, *type, Location(), 0);
+			SYMBOLS_ASSERT(rank == ICSRANK_STANDARDCONVERSION);
+		}
 	}
 	for(const UniqueTypeIdConstPointer* i = gFloatingTypes; i != ARRAY_END(gFloatingTypes); ++i)
 	{
@@ -1108,7 +1116,6 @@ void testDeduction()
 }
 
 
-
 struct DeductionTest
 {
 	DeductionTest()
@@ -1116,6 +1123,49 @@ struct DeductionTest
 		testDeduction();
 	}
 } gDeductionTest;
+
+
+
+template<typename L, typename R>
+struct TestOrdering
+{
+	static void apply(bool expected)
+	{
+		UniqueTypeArray templateParameters(1, MakeType<T>::apply());
+		bool result = isMoreSpecialized(
+			FunctionTemplate(MakeType<void(L)>::apply(), templateParameters),
+			FunctionTemplate(MakeType<void(R)>::apply(), templateParameters));
+		SYMBOLS_ASSERT(result == expected);
+	}
+};
+
+void testOrdering()
+{
+	TestOrdering<T, T>::apply(false);
+	TestOrdering<T*, T>::apply(true);
+	TestOrdering<T, T*>::apply(false);
+	TestOrdering<const T*, T*>::apply(true);
+	TestOrdering<T*, const T*>::apply(false);
+	TestOrdering<const T&, T&>::apply(true);
+	TestOrdering<T&, const T&>::apply(false);
+
+	// ambiguous
+	TestOrdering<T&, T>::apply(false);
+	TestOrdering<T, T&>::apply(false);
+	TestOrdering<const T, T>::apply(false);
+	TestOrdering<T, const T>::apply(false);
+	TestOrdering<const T&, T>::apply(false);
+	TestOrdering<T, const T&>::apply(false);
+}
+
+
+struct OrderingTest
+{
+	OrderingTest()
+	{
+		testOrdering();
+	}
+} gOrderingTest;
 
 
 

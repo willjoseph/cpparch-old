@@ -3051,9 +3051,9 @@ inline bool isDependent(UniqueTypeWrapper type)
 // ----------------------------------------------------------------------------
 // template argument deduction
 
-inline bool deduce(UniqueTypeWrapper parameter, UniqueTypeWrapper argument, TemplateArgumentsInstance& result);
+inline bool deduce(UniqueTypeWrapper parameter, UniqueTypeWrapper argument, TemplateArgumentsInstance& result, bool isFunctionCall = false);
 
-inline bool deduce(const UniqueTypeArray& parameters, const UniqueTypeArray& arguments, TemplateArgumentsInstance& result)
+inline bool deduce(const UniqueTypeArray& parameters, const UniqueTypeArray& arguments, TemplateArgumentsInstance& result, bool isFunctionCall = false)
 {
 	UniqueTypeArray::const_iterator p = parameters.begin();
 	for(UniqueTypeArray::const_iterator a = arguments.begin();
@@ -3062,7 +3062,7 @@ inline bool deduce(const UniqueTypeArray& parameters, const UniqueTypeArray& arg
 		// more arguments than parameters: occurs when matching a specialization such as 'struct S<>'
 		++a, ++p)
 	{
-		if(!deduce(*p, *a, result))
+		if(!deduce(*p, *a, result, isFunctionCall))
 		{
 			return false;
 		}
@@ -3196,14 +3196,76 @@ struct DeduceVisitor : TypeElementVisitor
 	}
 };
 
-inline bool deduce(UniqueTypeWrapper parameter, UniqueTypeWrapper argument, TemplateArgumentsInstance& result)
+inline UniqueTypeWrapper applyArrayToPointerConversion(UniqueTypeWrapper type);
+inline UniqueTypeWrapper applyFunctionToPointerConversion(UniqueTypeWrapper type);
+
+inline bool deduce(UniqueTypeWrapper parameter, UniqueTypeWrapper argument, TemplateArgumentsInstance& result, bool isFunctionCall)
 {
+	// [temp.deduct.type]
+	// Template arguments can be deduced in several different contexts, but in each case a type that is specified in
+	// terms of template parameters (call it P) is compared with an actual type (call it A), and an attempt is made
+	// to find template argument values (a type for a type parameter, a value for a non-type parameter, or a template
+	// for a template parameter) that will make P, after substitution of the deduced values (call it the deduced
+	// A), compatible with A.
+	if(!isDependent(parameter))
+	{
+		// P is not specified in terms of template parameters
+		return true; // deduction succeeds, but does not deduce anything
+	}
+
+	if(isFunctionCall)
+	{
+		// [temp.deduct.call]
+		// If P is a cv-qualified type, the top level cv-qualifiers of P’s type are ignored for type deduction.
+		parameter.value.setQualifiers(CvQualifiers());
+		// If P is a  reference type, the type referred to by P is used for type deduction.
+		if(parameter.isReference())
+		{
+			parameter = removeReference(parameter);
+		}
+		// If P is not a reference type:
+		else
+		{
+			// - If A is an array type, the pointer type produced by the array-to-pointer standard conversion (4.2) is used
+			// in place of A for type deduction; otherwise,
+			if(argument.isArray())
+			{
+				argument = applyArrayToPointerConversion(argument);
+			}
+			// - If A is a function type, the pointer type produced by the function-to-pointer
+			// standard conversion (4.3) is used in place of A for type deduction; otherwise,
+			else if(argument.isFunction())
+			{
+				argument = applyFunctionToPointerConversion(argument);
+			}
+			// - If A is a cv-qualified type, the top level cv-qualifiers
+			// of A’s type are ignored for type deduction.
+			else
+			{
+				argument.value.setQualifiers(CvQualifiers());
+			}
+		}
+	}
+
 	for(; !parameter.empty() && !argument.empty(); parameter.pop_front(), argument.pop_front())
 	{
 		if(!parameter.isDependent()
 			&& (!isSameType(parameter, argument)
 				|| argument.value.getQualifiers() != parameter.value.getQualifiers()))
 		{
+#if 0
+			// [temp.deduct.call]
+			// In general, the deduction process attempts to find template argument values that will make the deduced A identical to A
+			if(isFunctionCall
+			// However, there are three cases that allow a difference:
+			// — If the original P is a reference type, the deduced A (i.e., the type referred to by the reference) can be
+			// more cv-qualified than A.
+			// 	— A can be another pointer or pointer to member type that can be converted to the deduced A via a qualification
+			// 	conversion (4.4).
+			// 	— If P is a class, and P has the form template-id, then A can be a derived class of the deduced A. Likewise,
+			// 	if P is a pointer to a class of the form template-id, A can be a pointer to a derived class pointed to
+			// 		by the deduced A.
+#endif
 			return false;
 		}
 		if(parameter.isDependent()) // TODO only relevant if this is a DependentType?
@@ -3878,6 +3940,13 @@ inline const TypeInstance* makeUniqueEnclosing(const Qualifying& qualifying, Loc
 	}
 }
 
+inline bool deduceFunctionCall(const ParameterTypes& parameters, const UniqueTypeArray& arguments, TemplateArgumentsInstance& templateArguments)
+{
+	// deduce the function's template arguments by comparing the original argument list with the substituted parameters
+	return deduce(parameters, arguments, templateArguments, true)
+		&& std::find(templateArguments.begin(), templateArguments.end(), gUniqueTypeNull) == templateArguments.end();
+}
+
 
 inline bool deduceAndSubstitute(const UniqueTypeArray& parameters, const UniqueTypeArray& arguments, Location source, TypeInstance& enclosing, TemplateArgumentsInstance& substituted)
 {
@@ -3914,6 +3983,8 @@ inline bool matchTemplatePartialSpecialization(Declaration* declaration, Templat
 	{
 		return false; // partial-specialization only matches if template-argument-deduction succeeds
 	}
+	// TODO: same as comparing deduced arguments with original template parameters?
+	// TODO: not necessary unless testing partial ordering?
 	if(std::equal(substituted.begin(), substituted.end(), arguments.begin()))
 	{
 		deducedArguments.swap(enclosing.deducedArguments);
@@ -5275,7 +5346,7 @@ inline StandardConversionSequence makeScsConversion(Location source, const TypeI
 	}
 	if(to.isSimplePointer()
 		&& from.isSimplePointer()
-		&& getInner(to.value) == gVoid.value)
+		&& getInner(to.value).getPointer() == gVoid.value.getPointer()) // ignore cv-qualifiers here!
 	{
 		to = UniqueTypeWrapper(getInner(to.value));
 		from = UniqueTypeWrapper(getInner(from.value));
@@ -5547,21 +5618,104 @@ struct FunctionOverload
 	}
 };
 
-struct CandidateFunction : FunctionOverload
+struct FunctionTemplate
 {
-	UniqueTypeWrapper type;
+	UniqueTypeWrapper originalType;
+	UniqueTypeArray templateParameters;
+	FunctionTemplate()
+	{
+	}
+	FunctionTemplate(UniqueTypeWrapper originalType, const UniqueTypeArray& templateParameters)
+		: originalType(originalType), templateParameters(templateParameters)
+	{
+	}
+};
+
+struct CandidateFunction : FunctionOverload, FunctionTemplate
+{
 	ArgumentConversions conversions;
 	bool isTemplate;
 	CandidateFunction()
 		: FunctionOverload(0, gUniqueTypeNull)
 	{
 	}
-	CandidateFunction(FunctionOverload overload)
-		: FunctionOverload(overload), isTemplate(false)
+	CandidateFunction(FunctionOverload overload, const FunctionTemplate& functionTemplate = FunctionTemplate())
+		: FunctionOverload(overload), FunctionTemplate(functionTemplate), isTemplate(overload.declaration->isTemplate)
 	{
 	}
 };
 
+inline bool isMoreSpecialized(const FunctionTemplate& left, const FunctionTemplate& right)
+{
+	bool isMoreCvQualified = false;
+	UniqueTypeArray leftDeduced(left.templateParameters.size(), gUniqueTypeNull);
+	UniqueTypeArray rightDeduced(right.templateParameters.size(), gUniqueTypeNull);
+	const ParameterTypes& leftParameters = getParameterTypes(left.originalType.value);
+	const ParameterTypes& rightParameters = getParameterTypes(right.originalType.value);
+	SYMBOLS_ASSERT(leftParameters.size() == rightParameters.size());
+	UniqueTypeArray::const_iterator l = leftParameters.begin();
+	for(UniqueTypeArray::const_iterator r = rightParameters.begin(); l != leftParameters.end(); ++l, ++r)
+	{
+		UniqueTypeWrapper leftType = *l;
+		UniqueTypeWrapper rightType = *r;
+		// [temp.deduct.partial] (C++11 n3242)
+		// Before the partial ordering is done, certain transformations are performed on the types used for partial
+		// ordering:
+		// - If P is a reference type, P is replaced by the type referred to.
+		// - If A is a reference type, A is replaced by the type referred to.
+		leftType = removeReference(leftType);
+		rightType = removeReference(rightType);
+		bool leftMoreCvQualified = isGreaterCvQualification(leftType, rightType);
+		bool rightMoreCvQualified = isGreaterCvQualification(rightType, leftType);
+		// Remove any top-level cv-qualifiers:
+		// - If P is a cv-qualified type, P is replaced by the cv-unqualified version of P.
+		// - If A is a cv-qualified type, A is replaced by the cv-unqualified version of A.
+		leftType.value.setQualifiers(CvQualifiers());
+		rightType.value.setQualifiers(CvQualifiers());
+
+		// Using the resulting types P and A the deduction is then done [..]. If deduction succeeds
+		// for a given type, the type from the argument template is considered to be at least as specialized as the type
+		// from the parameter template.
+		// If for each type being considered a given template is at least as specialized for all types and more specialized
+		// for some set of types and the other template is not more specialized for any types or is not at least as
+		// specialized for any types, then the given template is more specialized than the other template. Otherwise,
+		// neither template is more specialized than the other.
+		if(!deduce(rightType, leftType, rightDeduced)) // if left is not at least as specialized as right
+		{
+			return false;
+		}
+		if(!deduce(leftType, rightType, leftDeduced)) // if right is not at least as specialized as left
+		{
+			return true;
+		}
+		// If, for a given type, deduction succeeds in both directions (i.e., the types are identical after the transformations
+		// above) and both P and A were reference types (before being replaced with the type referred to above):
+		if((*l).isReference()
+			&& (*r).isReference())
+		{
+			// - if the type from the argument template was an lvalue reference and the type from the parameter
+			// template was not, the argument type is considered to be more specialized than the other; otherwise,
+			// - if the type from the argument template is more cv-qualified than the type from the parameter template
+			// (as described above), the argument type is considered to be more specialized than the other; otherwise,
+			// - neither type is more specialized than the other.
+			// TODO: rvalue reference?
+			isMoreCvQualified |= leftMoreCvQualified;
+			if(rightMoreCvQualified)
+			{
+				return false; // the template is only more specialized if the other template is not more specialized for any types.
+			}
+		}
+	}
+	return isMoreCvQualified; // after transformation, all parameters are identical; the template is more specialized if it is more specialized for any type.
+}
+
+// [over.match.best]
+// a viable function F1 is defined to be a better function than another viable function
+// F2 if for all arguments i, ICSi(F1) is not a worse conversion sequence than ICSi(F2), and then
+// - for some argument j, ICSj(F1) is a better conversion sequence than ICSj(F2), or, if not that,
+// - F1 is a non-template function and F2 is a function template specialization, or, if not that,
+// - F1 and F2 are function template specializations, and the function template for F1 is more specialized
+// - than the template for F2 according to the partial ordering rules
 inline bool isBetter(const CandidateFunction& l, const CandidateFunction& r)
 {
 	SYMBOLS_ASSERT(l.conversions.size() == r.conversions.size());
@@ -5583,7 +5737,11 @@ inline bool isBetter(const CandidateFunction& l, const CandidateFunction& r)
 	{
 		return true; // non-template better than template
 	}
-	// TODO: ordering of template specialisations
+	if(l.isTemplate && r.isTemplate
+		&& isMoreSpecialized(l, r))
+	{
+		return true;
+	}
 	// TODO: in context of initialisation by user defined conversion, consider return type
 	return false;
 }
@@ -6374,29 +6532,6 @@ inline void printType(UniqueTypeWrapper type, std::ostream& out, bool escape)
 	printer.printType(type);
 }
 
-inline bool deduceFunctionCall(UniqueTypeWrapper parameter, UniqueTypeWrapper argument, TemplateArgumentsInstance& result)
-{
-	// TODO: ignore top-level cv-qualifiers of P
-	if(parameter.isReference())
-	{
-		parameter = removeReference(parameter);
-	}
-	else
-	{
-		if(argument.isArray())
-		{
-			argument = applyArrayToPointerConversion(argument);
-		}
-		else if(argument.isFunction())
-		{
-			argument = applyFunctionToPointerConversion(argument);
-		}
-		// TODO: ignore top-level cv-qualifiers of A
-	}
-
-	return deduce(parameter, argument, result);
-}
-
 struct Argument : ExpressionWrapper
 {
 	UniqueTypeWrapper type;
@@ -6467,9 +6602,9 @@ struct OverloadResolver
 			ambiguous = candidate.declaration;
 		}
 	}
-	void add(const FunctionOverload& overload, const TypeInstance* memberEnclosing)
+	void add(const FunctionOverload& overload, const TypeInstance* memberEnclosing, FunctionTemplate& functionTemplate = FunctionTemplate())
 	{
-		CandidateFunction candidate(overload);
+		CandidateFunction candidate(overload, functionTemplate);
 		candidate.conversions.reserve(best.conversions.size());
 
 		SYMBOLS_ASSERT(overload.type.isFunction());  // TODO: invoke operator() on object of class-type
@@ -6503,6 +6638,9 @@ struct OverloadResolver
 				// - even if the implicit object parameter is not const-qualified, an rvalue temporary can be bound to the
 				//   parameter as long as in all other respects the temporary can be converted to the type of the implicit
 				//   object parameter.
+				// TODO: [over.match.best]
+				// If a function is a static member function [...] the first argument, the implied object parameter, has no effect
+				// in the determination of whether the function is better or worse than any other function
 				candidate.conversions.push_back(StandardConversionSequence(SCSRANK_EXACT, CvQualifiers()));
 			}
 		}
@@ -6662,6 +6800,8 @@ inline BinaryTypeTraitsOp getBinaryTypeTraitsOp(cpp::typetraits_binary* symbol)
 }
 
 // ----------------------------------------------------------------------------
+
+extern const TypeInstance gDependentObjectType;
 
 #endif
 

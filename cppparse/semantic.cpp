@@ -318,6 +318,20 @@ struct WalkerState
 		return Location(parser->get_source(), context.declarationCount);
 	}
 
+	bool allowNameLookup()
+	{
+		if(isDependent(qualifying_p))
+		{
+			return false;
+		}
+		if(memberType != gUniqueTypeNull
+			&& memberObject != 0
+			&& ::isDependent(memberType))
+		{
+			return false;
+		}
+		return true;
+	}
 	LookupResult findDeclaration(const Identifier& id, bool isDeclarator, LookupFilter filter = IsAny())
 	{
 		return isDeclarator
@@ -363,11 +377,13 @@ struct WalkerState
 		}
 		else
 		{
-			if(memberType != gUniqueTypeNull)
+			bool isQualified = memberType != gUniqueTypeNull
+				&& memberObject != 0;
+			if(isQualified)
 			{
 				// [basic.lookup.classref]
 				SYMBOLS_ASSERT(!::isDependent(memberType));
-				SYMBOLS_ASSERT(memberObject != 0);
+				SYMBOLS_ASSERT(memberObject != &gDependentObjectType);
 				if(result.append(::findDeclaration(*memberObject, id, filter)))
 				{
 #ifdef LOOKUP_DEBUG
@@ -378,7 +394,7 @@ struct WalkerState
 				// else if we're parsing a nested-name-specifier prefix, drop through, look up in the current context
 			}
 
-			if(memberType == gUniqueTypeNull || !isUnqualifiedId)
+			if(!isQualified || !isUnqualifiedId)
 			{
 				if(templateParamScope != 0)
 				{
@@ -825,6 +841,7 @@ inline const char* getIdentifierType(IdentifierFunc func)
 	return "<unknown>";
 }
 
+
 struct WalkerBase : public WalkerState
 {
 	typedef WalkerBase Base;
@@ -971,8 +988,7 @@ struct WalkerBase : public WalkerState
 
 	LookupResultRef lookupTemplate(const Identifier& id, LookupFilter filter)
 	{
-		if(!isDependent(qualifying_p)
-			&& !::isDependent(memberType))
+		if(allowNameLookup())
 		{
 			return LookupResultRef(findDeclaration(id, filter));
 		}
@@ -987,6 +1003,106 @@ struct WalkerBase : public WalkerState
 		}
 	}
 
+	static UniqueTypeWrapper addOverload(OverloadResolver& resolver, Declaration* p, Location source, const TypeInstance* enclosing = 0)
+	{
+		if(!p->isTemplate)
+		{
+			// [temp.arg.explicit] An empty template argument list can be used to indicate that a given use refers to a
+			// specialization of a function template even when a normal (i.e., non-template) function is visible that would
+			// otherwise be used.
+			if(resolver.templateArguments != 0)
+			{
+				return gUniqueTypeNull;
+			}
+			UniqueTypeWrapper type = getUniqueType(p->type, source, enclosing);
+			resolver.add(FunctionOverload(p, type), enclosing);
+			return type;
+		}
+
+		SYMBOLS_ASSERT(!p->isSpecialization); // function template specializations not supported
+
+		FunctionTemplate functionTemplate;
+		makeUniqueTemplateParameters(p->templateParams, functionTemplate.templateParameters, source, enclosing, true);
+
+		functionTemplate.originalType = getUniqueType(p->type, source, enclosing, true);
+		UniqueTypeWrapper type = functionTemplate.originalType;
+		SYMBOLS_ASSERT(type.isFunction());
+		const ParameterTypes& parameters = getParameterTypes(type.value);
+
+		std::size_t impliedObjectArgumentCount = std::size_t(enclosing != 0);
+
+		if(resolver.arguments.size() - impliedObjectArgumentCount > parameters.size())
+		{
+			return gUniqueTypeNull; // more arguments than parameters. TODO: same for non-template?
+		}
+
+		try
+		{
+			// [temp.deduct] When an explicit template argument list is specified, the template arguments must be compatible with the template parameter list
+			if(resolver.templateArguments != 0
+				&& resolver.templateArguments->size() > functionTemplate.templateParameters.size())
+			{
+				throw TypeErrorBase(source); // too many explicitly specified template arguments
+			}
+			TypeInstance specialization(p, enclosing);
+			specialization.instantiated = true;
+			{
+				UniqueTypeArray::const_iterator p = functionTemplate.templateParameters.begin();
+				if(resolver.templateArguments != 0)
+				{
+					for(TemplateArgumentsInstance::const_iterator a = resolver.templateArguments->begin(); a != resolver.templateArguments->end(); ++a, ++p)
+					{
+						SYMBOLS_ASSERT(p != functionTemplate.templateParameters.end());
+						if((*a).isNonType() != (*p).isDependentNonType())
+						{
+							throw TypeErrorBase(source); // incompatible explicitly specified arguments
+						}
+						specialization.templateArguments.push_back(*a);
+					}
+				}
+				for(; p != functionTemplate.templateParameters.end(); ++p)
+				{
+					specialization.templateArguments.push_back(*p);
+				}
+			}
+
+			// substitute the template-parameters in the function's parameter list with the explicitly specified template-arguments
+			ParameterTypes substituted;
+			substitute(substituted, parameters, source, specialization);
+
+			UniqueTypeArray arguments;
+			arguments.reserve(resolver.arguments.size() - impliedObjectArgumentCount);
+			for(Arguments::const_iterator a = resolver.arguments.begin() + impliedObjectArgumentCount; a != resolver.arguments.end(); ++a)
+			{
+				arguments.push_back((*a).type);
+			}
+
+			specialization.templateArguments.resize(resolver.templateArguments == 0 ? 0 : resolver.templateArguments->size()); // preserve the explicitly specified arguments
+			specialization.templateArguments.resize(functionTemplate.templateParameters.size(), gUniqueTypeNull);
+			if(!deduceFunctionCall(substituted, arguments, specialization.templateArguments))
+			{
+				throw TypeErrorBase(source); // deduction failed
+			}
+
+
+			// substitute the template-parameters in the function's parameter list with the deduced template-arguments
+			FunctionType signature;
+			substitute(signature.parameterTypes, parameters, source, specialization);
+			type.pop_front();
+			type = substitute(type, source, specialization); // substitute the return type. TODO: should wait until overload is chosen?
+			type.push_front(signature);
+
+			resolver.add(FunctionOverload(p, type), enclosing, functionTemplate);
+			return type;
+		}
+		catch(TypeError&)
+		{
+			// deduction and checking failed
+		}
+
+		return gUniqueTypeNull;
+	}
+
 	static void addOverloads(OverloadResolver& resolver, Declaration* declaration, Location source, const TypeInstance* enclosing = 0)
 	{
 		for(Declaration* p = declaration; p != 0; p = p->overloaded)
@@ -996,141 +1112,11 @@ struct WalkerBase : public WalkerState
 				continue;
 			}
 
-			if(!p->isTemplate)
-			{
-				// [temp.arg.explicit] An empty template argument list can be used to indicate that a given use refers to a
-				// specialization of a function template even when a normal (i.e., non-template) function is visible that would
-				// otherwise be used.
-				if(resolver.templateArguments == 0)
-				{
-					UniqueTypeWrapper type = getUniqueType(p->type, source, enclosing);
-					resolver.add(FunctionOverload(p, type), enclosing);
-				}
-			}
-			else
-			{
-				SYMBOLS_ASSERT(!p->isSpecialization); // function template specializations not supported
-
-				TemplateArgumentsInstance templateParameters;
-				makeUniqueTemplateParameters(p->templateParams, templateParameters, source, enclosing, true);
-
-				UniqueTypeWrapper type = getUniqueType(p->type, source, enclosing, true);
-				SYMBOLS_ASSERT(type.isFunction());
-				const ParameterTypes& parameters = getParameterTypes(type.value);
-				
-				std::size_t impliedObjectArgumentCount = std::size_t(enclosing != 0);
-
-				if(resolver.arguments.size() - impliedObjectArgumentCount > parameters.size())
-				{
-					continue; // more arguments than parameters. TODO: same for non-template?
-				}
-
-				try
-				{
-					// [temp.deduct] When an explicit template argument list is specified, the template arguments must be compatible with the template parameter list
-					if(resolver.templateArguments != 0
-						&& resolver.templateArguments->size() > templateParameters.size())
-					{
-						throw TypeErrorBase(source); // too many explicitly specified template arguments
-					}
-					TypeInstance specialization(p, enclosing);
-					specialization.instantiated = true;
-					{
-						TemplateArgumentsInstance::const_iterator p = templateParameters.begin();
-						if(resolver.templateArguments != 0)
-						{
-							for(TemplateArgumentsInstance::const_iterator a = resolver.templateArguments->begin(); a != resolver.templateArguments->end(); ++a, ++p)
-							{
-								SYMBOLS_ASSERT(p != templateParameters.end());
-								if((*a).isNonType() != (*p).isDependentNonType())
-								{
-									throw TypeErrorBase(source); // incompatible explicitly specified arguments
-								}
-								specialization.templateArguments.push_back(*a);
-							}
-						}
-						for(; p != templateParameters.end(); ++p)
-						{
-							specialization.templateArguments.push_back(*p);
-						}
-					}
-
-					// substitute the template-parameters in the function's parameter list with the explicitly specified template-arguments
-					ParameterTypes substituted;
-					substitute(substituted, parameters, source, specialization);
-
-					UniqueTypeArray arguments;
-					arguments.reserve(resolver.arguments.size() - impliedObjectArgumentCount);
-
-					{
-						ParameterTypes::iterator p = substituted.begin();
-						for(Arguments::const_iterator a = resolver.arguments.begin() + impliedObjectArgumentCount; a != resolver.arguments.end(); ++a, ++p)
-						{
-							SYMBOLS_ASSERT(p != substituted.end());
-							UniqueTypeWrapper argument = (*a).type;
-
-							// [temp.deduct.call]
-							// If P is a cv-qualified type, the top level cv-qualifiers of P’s type are ignored for type deduction.
-							(*p).value.setQualifiers(CvQualifiers());
-							// If P is a  reference type, the type referred to by P is used for type deduction.
-							if((*p).isReference())
-							{
-								*p = removeReference(*p);
-							}
-							// If P is not a reference type:
-							else
-							{
-								// - If A is an array type, the pointer type produced by the array-to-pointer standard conversion (4.2) is used
-								// in place of A for type deduction; otherwise,
-								if(argument.isArray())
-								{
-									argument = applyArrayToPointerConversion(argument);
-								}
-								// - If A is a function type, the pointer type produced by the function-to-pointer
-								// standard conversion (4.3) is used in place of A for type deduction; otherwise,
-								else if(argument.isFunction())
-								{
-									argument = applyFunctionToPointerConversion(argument);
-								}
-								// - If A is a cv-qualified type, the top level cv-qualifiers
-								// of A’s type are ignored for type deduction.
-								else
-								{
-									argument.value.setQualifiers(CvQualifiers());
-								}
-							}
-							arguments.push_back(argument);
-						}
-					}
-
-					specialization.templateArguments.resize(resolver.templateArguments == 0 ? 0 : resolver.templateArguments->size()); // preserve the explicitly specified arguments
-					specialization.templateArguments.resize(templateParameters.size(), gUniqueTypeNull);
-					// deduce the function's template arguments by comparing the original argument list with the substituted parameters
-					if(!deduce(substituted, arguments, specialization.templateArguments)
-						|| std::find(specialization.templateArguments.begin(), specialization.templateArguments.end(), gUniqueTypeNull) != specialization.templateArguments.end())
-					{
-						throw TypeErrorBase(source); // deduction failed
-					}
-
-
-					// substitute the template-parameters in the function's parameter list with the deduced template-arguments
-					FunctionType signature;
-					substitute(signature.parameterTypes, parameters, source, specialization);
-					type.pop_front();
-					type = substitute(type, source, specialization); // substitute the return type. TODO: should wait until overload is chosen?
-					type.push_front(signature);
-
-					resolver.add(FunctionOverload(p, type), enclosing);
-				}
-				catch(TypeError&)
-				{
-					// deduction and checking failed
-				}
-			}
+			addOverload(resolver, p, source, enclosing);
 		}
 	}
 
-	static void printOverloads(Declaration* declaration)
+	static void printOverloads(OverloadResolver& resolver, Declaration* declaration, Location source, const TypeInstance* enclosing = 0)
 	{
 		for(Declaration* p = declaration; p != 0; p = p->overloaded)
 		{
@@ -1139,9 +1125,17 @@ struct WalkerBase : public WalkerState
 				continue;
 			}
 
+			UniqueTypeWrapper type = addOverload(resolver, p, source, enclosing);
 			printPosition(p->getName().source);
-			printName(p);
-			std::cout << std::endl;
+			if(type != gUniqueTypeNull)
+			{
+				printType(type);
+				std::cout << std::endl;
+			}
+			else
+			{
+				std::cout << (p->isTemplate ? "deduction failed" : "ignored non-template") << std::endl;
+			}
 		}
 	}
 
@@ -1185,8 +1179,11 @@ struct WalkerBase : public WalkerState
 				separator = true;
 			}
 			std::cout << ")" << std::endl;
-			std::cout << "candidates:" << std::endl;
-			printOverloads(declaration);
+			std::cout << "candidates for ";
+			printName(declaration->scope);
+			std::cout << getValue(declaration->getName());
+			std::cout << std::endl;
+			printOverloads(resolver, declaration, source, enclosingType);
 		}
 
 		return resolver.get();
@@ -1403,6 +1400,7 @@ struct WalkerBase : public WalkerState
 	void makeUniqueTypeImpl(T& type, Location source)
 	{
 		if(memberType != gUniqueTypeNull
+			&& memberObject != 0
 			&& ::isDependent(memberType))
 		{
 			type.isDependent = true;
@@ -1470,8 +1468,7 @@ struct WalkerQualified : public WalkerBase
 			{
 				qualifyingScope = declaration;
 			}
-			else if(isDependent(qualifying_p)
-				|| ::isDependent(memberType))
+			else if(!allowNameLookup())
 			{
 				qualifyingScope = 0;
 			}
@@ -1699,8 +1696,7 @@ struct UnqualifiedIdWalker : public WalkerBase
 		TREEWALKER_LEAF_CACHED(symbol);
 		id = &symbol->value;
 		isIdentifier = true;
-		if(!isDependent(qualifying_p)
-			&& !::isDependent(memberType))
+		if(allowNameLookup())
 		{
 			declaration = findDeclaration(*id, IsAny(), true);
 		}
@@ -1710,8 +1706,7 @@ struct UnqualifiedIdWalker : public WalkerBase
 		TemplateIdWalker walker(getState());
 		TREEWALKER_WALK_CACHED(walker, symbol);
 		if(!isTemplate
-			&& !isDependent(qualifying_p)
-			&& !::isDependent(memberType))
+			&& allowNameLookup())
 		{
 			LookupResultRef declaration = findDeclaration(*walker.id, IsAny(), true);
 			if(declaration == &gUndeclared
@@ -1729,8 +1724,7 @@ struct UnqualifiedIdWalker : public WalkerBase
 		TemplateIdWalker walker(getState());
 		TREEWALKER_WALK_CACHED(walker, symbol);
 		if(!isTemplate // TODO: is this possible?
-			&& !isDependent(qualifying_p)
-			&& !::isDependent(memberType))
+			&& allowNameLookup())
 		{
 			LookupResultRef declaration = findDeclaration(*walker.id, IsAny(), true);
 			if(declaration == &gUndeclared
@@ -1751,8 +1745,7 @@ struct UnqualifiedIdWalker : public WalkerBase
 		symbol->value.value = walker.name;
 		symbol->value.source = source;
 		id = &symbol->value;
-		if(!isDependent(qualifying_p)
-			&& !::isDependent(memberType))
+		if(allowNameLookup())
 		{
 			declaration = findDeclaration(*id, IsAny(), true);
 		}
@@ -1766,8 +1759,7 @@ struct UnqualifiedIdWalker : public WalkerBase
 		symbol->value = gConversionFunctionId;
 		symbol->value.source = source;
 		id = &symbol->value;
-		if(!isDependent(qualifying_p)
-			&& !::isDependent(memberType))
+		if(allowNameLookup())
 		{
 			declaration = findDeclaration(*id, IsAny(), true);
 		}
@@ -2256,7 +2248,7 @@ struct PostfixExpressionMemberWalker : public WalkerQualified
 		TREEWALKER_LEAF(symbol);
 		bool isArrow = symbol->id == cpp::member_operator::ARROW;
 
-		memberObject = 0;
+		memberObject = &gDependentObjectType;
 		if(memberType != gUniqueTypeNull // TODO: assert
 			&& !::isDependent(memberType)) // if the type of the object expression is not dependent
 		{
@@ -2481,6 +2473,7 @@ struct PostfixExpressionWalker : public WalkerBase
 
 			// either the call is qualified or 'this' is valid
 			SEMANTIC_ASSERT(memberObject != 0 || enclosingType != 0);
+			SEMANTIC_ASSERT(memberObject == 0 || memberObject != &gDependentObjectType);
 
 			// [class.copy] The implicitly-declared copy assignment operator for class X has the return type X&
 			type = makeUniqueObjectType(memberObject != 0 ? *memberObject : *enclosingType);
@@ -2527,6 +2520,7 @@ struct PostfixExpressionWalker : public WalkerBase
 				{
 					// either the call is qualified, 'this' is valid, or the member is static
 					SEMANTIC_ASSERT(memberObject != 0 || enclosingType != 0 || isStatic(*getDeclaration(*id)));
+					SEMANTIC_ASSERT(memberObject == 0 || memberObject != &gDependentObjectType);
 
 					arguments.push_back(Argument(ExpressionWrapper(0), makeUniqueObjectType(memberObject != 0
 						? *memberObject // qualified-function-call
@@ -2590,6 +2584,7 @@ struct PostfixExpressionWalker : public WalkerBase
 			SEMANTIC_ASSERT(memberType != gUniqueTypeNull);
 			SEMANTIC_ASSERT(!::isDependent(memberType)); // the object-expression should not be dependent
 			SEMANTIC_ASSERT(walker.memberObject != 0);
+			SEMANTIC_ASSERT(walker.memberObject != &gDependentObjectType);
 			memberObject = walker.memberObject; // store the type of the implied object argument in a qualified function call.
 
 			SEMANTIC_ASSERT(declaration != &gUndeclared);
@@ -3135,8 +3130,7 @@ struct TypeNameWalker : public WalkerBase
 	{
 		TREEWALKER_LEAF_CACHED(symbol);
 		LookupResultRef declaration = gDependentTypeInstance;
-		if(!isDependent(qualifying_p)
-			&& !::isDependent(memberType))
+		if(allowNameLookup())
 		{
 			declaration = findDeclaration(symbol->value, makeLookupFilter(filter));
 			if(declaration == &gUndeclared)
@@ -3221,8 +3215,7 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 		TREEWALKER_LEAF_CACHED(symbol);
 		LookupResultRef declaration = gDependentNestedInstance;
 		if(isDeclarator
-			|| (!isDependent(qualifying_p)
-				&& !::isDependent(memberType)))
+			|| allowNameLookup())
 		{
 			declaration = findDeclaration(symbol->value, isDeclarator, IsNestedName());
 			if(declaration == &gUndeclared)
@@ -3245,8 +3238,7 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 		LookupResultRef declaration = gDependentNestedTemplateInstance;
 		if(!isTemplate // TODO: should perform name lookup anyway, even if 'qualifying_p' not dependent!
 			&& (isDeclarator
-				|| (!isDependent(qualifying_p))
-					&& !::isDependent(memberType)))
+				|| allowNameLookup()))
 		{
 			declaration = findDeclaration(*walker.id, isDeclarator, IsNestedName());
 			if(declaration == &gUndeclared)

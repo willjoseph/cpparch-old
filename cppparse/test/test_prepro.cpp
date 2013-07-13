@@ -1,4 +1,56 @@
 
+namespace N264
+{
+	template<typename T>
+	int f(const T*, const wchar_t*, unsigned int)
+	{
+		return 0;
+	}
+	template<typename T>
+	int f(T*, const wchar_t*, unsigned int)
+	{
+		return 0;
+	}
+
+	const char* p;
+	int i = f(p, L"", 0);
+}
+
+
+namespace N232
+{
+	template<typename T>
+	struct S
+	{
+		T m;
+		void f()
+		{
+			m.Dependent::dependent();
+			m.dependent();
+			m->dependent();
+		}
+	};
+}
+
+namespace N263
+{
+	template<class _Pr, class _Ty1>
+	inline bool _Debug_lt_pred(_Pr _Pred, const _Ty1&_Left)
+	{
+		if(!_Pred(_Left))return (false);
+		return (true);
+	}
+}
+
+namespace N262
+{
+	void* memcpy(void*, const void*, unsigned int);
+
+	wchar_t * wmemcpy(wchar_t *_S1, const wchar_t *_S2, unsigned int _N)
+	{
+		return (wchar_t *)memcpy(_S1, _S2, _N*sizeof(wchar_t));
+	}
+}
 
 namespace N260
 {
@@ -573,21 +625,6 @@ namespace N233
 	{
 		f(0); // null-pointer-constant matches T*
 	}
-}
-
-namespace N232
-{
-	template<typename T>
-	struct S
-	{
-		T m;
-		void f()
-		{
-			m.dependent();
-			m->dependent();
-			m.Dependent::dependent();
-		}
-	};
 }
 
 namespace N222

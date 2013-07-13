@@ -358,3 +358,7 @@
 		- need a proper declaration to find enclosing class, but implicit declaration has no associated identifier?
 			- too complex to manufacture declaration from nothing
 		- avoid conflict with overload declarations
+
+- investigate: deduction:
+	- P = const T*
+	- A = T*
