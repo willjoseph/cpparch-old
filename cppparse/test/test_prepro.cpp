@@ -1,4 +1,60 @@
 
+namespace N277
+{
+	template<class T>
+	struct S
+	{
+		void f()
+		{
+			this->dependent();
+		}
+	};
+}
+
+namespace N276
+{
+	typedef void(*event_callback)(int);
+	struct _Fnarray
+	{
+		event_callback _Pfn;
+	};
+	struct S
+	{
+		void _Callfns()
+		{
+			_Fnarray*_Ptr = 0;
+			(*_Ptr->_Pfn)(0);
+		}
+	};
+}
+
+namespace N275
+{
+	template<class _InIt>
+	inline void _Debug_pointer(_InIt&)
+	{
+	}
+	template<class _Ty>
+	inline void _Debug_pointer(const _Ty*_First)
+	{
+	}
+	template<class _Ty>
+	inline void _Debug_pointer(_Ty*_First)
+	{
+	}
+
+	struct ios_base;
+
+	template<class _Elem, class _Traits>
+	class basic_ostream
+	{
+		void operator<<(ios_base&(*_Pfn)(ios_base&))
+		{
+			_Debug_pointer(_Pfn);
+		}
+	};
+}
+
 namespace N274
 {
 	struct C

@@ -2228,10 +2228,10 @@ struct PrimaryExpressionWalker : public WalkerBase
 				SEMANTIC_ASSERT(idEnclosing != 0);
 			}
 
-			if(!isFunction(*declaration)) // if the id-expression refers to a function, overload resolution depends on the parameter types; defer evaluation of type
-			{
-				type = getUniqueType(declaration->type, Location(id->source, context.declarationCount), idEnclosing, expression.isTypeDependent);
+			type = getUniqueType(declaration->type, Location(id->source, context.declarationCount), idEnclosing, expression.isTypeDependent || declaration->isTemplate);
 
+			if(!type.isFunction()) // if the id-expression refers to a function, overload resolution depends on the parameter types; defer evaluation of type
+			{
 				// [expr.const]
 				// An integral constant-expression can involve only ... enumerators, const variables or static
 				// data members of integral or enumeration types initialized with constant expressions, non-type template
@@ -2375,7 +2375,7 @@ struct PostfixExpressionWalker : public WalkerBase
 	}
 	void updateMemberType()
 	{
-		memberType = type;
+		memberType = type.isFunction() ? gUniqueTypeNull : type;
 	}
 	void visit(cpp::primary_expression* symbol)
 	{
@@ -2568,16 +2568,17 @@ struct PostfixExpressionWalker : public WalkerBase
 				memberObject = &object;
 			}
 
-			SEMANTIC_ASSERT(id == 0 || isDecorated(*id)); // id should be decorated with result of name lookup
-			SEMANTIC_ASSERT(id == 0 || getDeclaration(*id) != &gDependentObject); // the id-expression should not be dependent
 			if(id == 0) // if the left-hand expression does not contain an id-expression (or is not a class which supports 'operator()')
 			{
 				// the call does not require overload resolution
 				SEMANTIC_ASSERT(type.isFunction()); // the type of a function is T()
 				type.pop_front(); // get the return type: T
 			}
-			else if(isFunction(*getDeclaration(*id))) // and the identifier names an overloadable function (i.e. requires overload resolution)
+			else if(type.isFunction()) // and the identifier names an overloadable function (i.e. requires overload resolution)
 			{
+				SEMANTIC_ASSERT(isDecorated(*id)); // id should be decorated with result of name lookup
+				SEMANTIC_ASSERT(getDeclaration(*id) != &gDependentObject); // the id-expression should not be dependent
+
 				// [over.call.func] Call to named function
 				TemplateArgumentsInstance templateArguments;
 				makeUniqueTemplateArguments(arguments, templateArguments, Location(id->source, context.declarationCount), enclosingType);
@@ -2689,18 +2690,12 @@ struct PostfixExpressionWalker : public WalkerBase
 			SEMANTIC_ASSERT(idEnclosing != 0);
 
 			// TODO: overloaded operator->
-			if(isDependent(typeDependent))
-			{
-				// type cannot be determined
-			}
-			else if(isFunction(*declaration))
+			type = getUniqueType(declaration->type, Location(id->source, context.declarationCount), idEnclosing, isDependent(typeDependent) || declaration->isTemplate);
+
+			if(type.isFunction())
 			{
 				// type determination is deferred until overload resolution is complete
 				memberObject = walker.memberObject; // store the type of the implied object argument in a qualified function call.
-			}
-			else
-			{
-				type = getUniqueType(declaration->type, Location(id->source, context.declarationCount), idEnclosing);
 			}
 		}
 
@@ -3010,7 +3005,8 @@ struct ExpressionWalker : public WalkerBase
 	void visit(cpp::unary_expression_op* symbol)
 	{
 		Source source = parser->get_source();
-		TREEWALKER_LEAF_SRC(symbol); 
+		TREEWALKER_LEAF_SRC(symbol);
+		id = 0; // not a parenthesised id-expression, expression is not 'call to named function' [over.call.func]
 		if(!::isDependent(type) // can't resolve operator overloads if type is dependent
 			&& type.value != UNIQUETYPE_NULL) // TODO: assert
 		{
