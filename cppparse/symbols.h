@@ -5620,13 +5620,13 @@ struct FunctionOverload
 
 struct FunctionTemplate
 {
-	UniqueTypeWrapper originalType;
+	ParameterTypes parameters;
 	UniqueTypeArray templateParameters;
 	FunctionTemplate()
 	{
 	}
-	FunctionTemplate(UniqueTypeWrapper originalType, const UniqueTypeArray& templateParameters)
-		: originalType(originalType), templateParameters(templateParameters)
+	FunctionTemplate(const ParameterTypes& parameters, const UniqueTypeArray& templateParameters)
+		: parameters(parameters), templateParameters(templateParameters)
 	{
 	}
 };
@@ -5650,11 +5650,17 @@ inline bool isMoreSpecialized(const FunctionTemplate& left, const FunctionTempla
 	bool isMoreCvQualified = false;
 	UniqueTypeArray leftDeduced(left.templateParameters.size(), gUniqueTypeNull);
 	UniqueTypeArray rightDeduced(right.templateParameters.size(), gUniqueTypeNull);
-	const ParameterTypes& leftParameters = getParameterTypes(left.originalType.value);
-	const ParameterTypes& rightParameters = getParameterTypes(right.originalType.value);
-	SYMBOLS_ASSERT(leftParameters.size() == rightParameters.size());
-	UniqueTypeArray::const_iterator l = leftParameters.begin();
-	for(UniqueTypeArray::const_iterator r = rightParameters.begin(); l != leftParameters.end(); ++l, ++r)
+	SYMBOLS_ASSERT(left.parameters.size() == right.parameters.size());
+	UniqueTypeArray::const_iterator l = left.parameters.begin();
+	UniqueTypeArray::const_iterator r = right.parameters.begin();
+	if(*l == gUniqueTypeNull // if the left template is a static member
+		|| *r == gUniqueTypeNull) // or the right template is a static member
+	{
+		// ignore the first parameter
+		++l;
+		++r;
+	}
+	for(; l != left.parameters.end(); ++l, ++r)
 	{
 		UniqueTypeWrapper leftType = *l;
 		UniqueTypeWrapper rightType = *r;
@@ -6602,17 +6608,18 @@ struct OverloadResolver
 			ambiguous = candidate.declaration;
 		}
 	}
-	void add(const FunctionOverload& overload, const TypeInstance* memberEnclosing, FunctionTemplate& functionTemplate = FunctionTemplate())
+	void add(const FunctionOverload& overload, const ParameterTypes& parameters, const TypeInstance* memberEnclosing, FunctionTemplate& functionTemplate = FunctionTemplate())
 	{
 		CandidateFunction candidate(overload, functionTemplate);
 		candidate.conversions.reserve(best.conversions.size());
 
-		SYMBOLS_ASSERT(overload.type.isFunction());  // TODO: invoke operator() on object of class-type
-
+		ParameterTypes::const_iterator p = parameters.begin();
 		Arguments::const_iterator a = arguments.begin();
 
 		if(isMember(*overload.declaration))
 		{
+			SYMBOLS_ASSERT(p != parameters.end());
+			UniqueTypeWrapper implicitObjectParameter = *p++;
 			SYMBOLS_ASSERT(a != arguments.end());
 			const Argument& impliedObjectArgument = *a++;
 			// [over.match.funcs]
@@ -6622,13 +6629,7 @@ struct OverloadResolver
 			SYMBOLS_ASSERT(isClass(*memberEnclosing->declaration));
 			if(!isStatic(*overload.declaration))
 			{
-				// For non-static member functions, the type of the implicit object parameter is "reference to cv X" where X is
-				// the class of which the function is a member and cv is the cv-qualification on the member function declaration.
-				// TODO: conversion-functions, non-conversions introduced by using-declaration
-				UniqueTypeWrapper to = makeUniqueObjectType(*memberEnclosing);
-				to.value.setQualifiers(overload.type.value.getQualifiers());
-				to.push_front(ReferenceType());
-				candidate.conversions.push_back(makeStandardConversionSequence(to, impliedObjectArgument.type, source, enclosing, false, true)); // TODO: l-value
+				candidate.conversions.push_back(makeStandardConversionSequence(implicitObjectParameter, impliedObjectArgument.type, source, enclosing, false, true)); // TODO: l-value
 			}
 			else
 			{
@@ -6645,13 +6646,12 @@ struct OverloadResolver
 			}
 		}
 
-		const ParameterTypes& parameters = getParameterTypes(overload.type.value);
 		const Parameters& defaults = getParameters(overload.declaration->type);
-		Parameters::const_iterator p = defaults.begin();
+		Parameters::const_iterator d = defaults.begin();
 		// TODO: ellipsis
-		for(ParameterTypes::const_iterator i = parameters.begin(); i != parameters.end(); ++i)
+		for(; p != parameters.end(); ++p)
 		{
-			UniqueTypeWrapper to = (*i);
+			UniqueTypeWrapper to = (*p);
 			if(a != arguments.end())
 			{
 				const Argument& from = *a;
@@ -6659,15 +6659,15 @@ struct OverloadResolver
 				candidate.conversions.push_back(makeStandardConversionSequence(to, from.type, source, enclosing, isNullPointerConstant, true)); // TODO: l-value
 				++a;
 			}
-			else if((*p).argument == 0) // TODO: catch this earlier
+			else if((*d).argument == 0) // TODO: catch this earlier
 			{
 				return; // [over.match.viable] no default-argument available, this candidate is not viable
 			}
 			else
 			{
-				SYMBOLS_ASSERT((*p).argument->expr != 0); // TODO: non-fatal error: trying to use a default-argument before it has been declared. 
+				SYMBOLS_ASSERT((*d).argument->expr != 0); // TODO: non-fatal error: trying to use a default-argument before it has been declared. 
 			}
-			++p;
+			++d;
 		}
 
 		add(candidate);

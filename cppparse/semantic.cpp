@@ -1003,8 +1003,34 @@ struct WalkerBase : public WalkerState
 		}
 	}
 
-	static UniqueTypeWrapper addOverload(OverloadResolver& resolver, Declaration* p, Location source, const TypeInstance* enclosing = 0)
+	static ParameterTypes addOverload(OverloadResolver& resolver, Declaration* p, Location source, const TypeInstance* enclosing = 0)
 	{
+		UniqueTypeWrapper type = getUniqueType(p->type, source, enclosing, p->isTemplate);
+		SYMBOLS_ASSERT(type.isFunction());
+
+		ParameterTypes parameters;
+		if(isMember(*p))
+		{
+			// [over.match.funcs]
+			// a member function is considered to have an extra parameter, called the implicit object parameter, which
+			// represents the object for which the member function has been called. For the purposes of overload resolution,
+			// both static and non-static member functions have an implicit object parameter, but constructors do not.
+			SYMBOLS_ASSERT(isClass(*enclosing->declaration));
+			UniqueTypeWrapper implicitObjectParameter = gUniqueTypeNull;
+			if(!isStatic(*p))
+			{
+				// For non-static member functions, the type of the implicit object parameter is "reference to cv X" where X is
+				// the class of which the function is a member and cv is the cv-qualification on the member function declaration.
+				// TODO: conversion-functions, non-conversions introduced by using-declaration
+				implicitObjectParameter = makeUniqueObjectType(*enclosing);
+				implicitObjectParameter.value.setQualifiers(type.value.getQualifiers());
+				implicitObjectParameter.push_front(ReferenceType());
+			}
+			parameters.push_back(implicitObjectParameter);
+		}
+		parameters.insert(parameters.end(), getParameterTypes(type.value).begin(), getParameterTypes(type.value).end());
+		type.pop_front();
+
 		if(!p->isTemplate)
 		{
 			// [temp.arg.explicit] An empty template argument list can be used to indicate that a given use refers to a
@@ -1012,28 +1038,21 @@ struct WalkerBase : public WalkerState
 			// otherwise be used.
 			if(resolver.templateArguments != 0)
 			{
-				return gUniqueTypeNull;
+				return ParameterTypes();
 			}
-			UniqueTypeWrapper type = getUniqueType(p->type, source, enclosing);
-			resolver.add(FunctionOverload(p, type), enclosing);
-			return type;
+			resolver.add(FunctionOverload(p, type), parameters, enclosing);
+			return parameters;
 		}
 
 		SYMBOLS_ASSERT(!p->isSpecialization); // function template specializations not supported
 
 		FunctionTemplate functionTemplate;
+		functionTemplate.parameters.swap(parameters);
 		makeUniqueTemplateParameters(p->templateParams, functionTemplate.templateParameters, source, enclosing, true);
 
-		functionTemplate.originalType = getUniqueType(p->type, source, enclosing, true);
-		UniqueTypeWrapper type = functionTemplate.originalType;
-		SYMBOLS_ASSERT(type.isFunction());
-		const ParameterTypes& parameters = getParameterTypes(type.value);
-
-		std::size_t impliedObjectArgumentCount = std::size_t(enclosing != 0);
-
-		if(resolver.arguments.size() - impliedObjectArgumentCount > parameters.size())
+		if(resolver.arguments.size() > functionTemplate.parameters.size())
 		{
-			return gUniqueTypeNull; // more arguments than parameters. TODO: same for non-template?
+			return ParameterTypes(); // more arguments than parameters. TODO: same for non-template?
 		}
 
 		try
@@ -1067,40 +1086,38 @@ struct WalkerBase : public WalkerState
 			}
 
 			// substitute the template-parameters in the function's parameter list with the explicitly specified template-arguments
-			ParameterTypes substituted;
-			substitute(substituted, parameters, source, specialization);
+			ParameterTypes substituted1;
+			substitute(substituted1, functionTemplate.parameters, source, specialization);
 
 			UniqueTypeArray arguments;
-			arguments.reserve(resolver.arguments.size() - impliedObjectArgumentCount);
-			for(Arguments::const_iterator a = resolver.arguments.begin() + impliedObjectArgumentCount; a != resolver.arguments.end(); ++a)
+			arguments.reserve(resolver.arguments.size());
+			for(Arguments::const_iterator a = resolver.arguments.begin(); a != resolver.arguments.end(); ++a)
 			{
 				arguments.push_back((*a).type);
 			}
 
 			specialization.templateArguments.resize(resolver.templateArguments == 0 ? 0 : resolver.templateArguments->size()); // preserve the explicitly specified arguments
 			specialization.templateArguments.resize(functionTemplate.templateParameters.size(), gUniqueTypeNull);
-			if(!deduceFunctionCall(substituted, arguments, specialization.templateArguments))
+			if(!deduceFunctionCall(substituted1, arguments, specialization.templateArguments))
 			{
 				throw TypeErrorBase(source); // deduction failed
 			}
 
 
 			// substitute the template-parameters in the function's parameter list with the deduced template-arguments
-			FunctionType signature;
-			substitute(signature.parameterTypes, parameters, source, specialization);
-			type.pop_front();
+			ParameterTypes substituted2;
+			substitute(substituted2, substituted1, source, specialization);
 			type = substitute(type, source, specialization); // substitute the return type. TODO: should wait until overload is chosen?
-			type.push_front(signature);
 
-			resolver.add(FunctionOverload(p, type), enclosing, functionTemplate);
-			return type;
+			resolver.add(FunctionOverload(p, type), substituted2, enclosing, functionTemplate);
+			return substituted2;
 		}
 		catch(TypeError&)
 		{
 			// deduction and checking failed
 		}
 
-		return gUniqueTypeNull;
+		return ParameterTypes();
 	}
 
 	static void addOverloads(OverloadResolver& resolver, Declaration* declaration, Location source, const TypeInstance* enclosing = 0)
@@ -1125,17 +1142,20 @@ struct WalkerBase : public WalkerState
 				continue;
 			}
 
-			UniqueTypeWrapper type = addOverload(resolver, p, source, enclosing);
+			ParameterTypes parameters = addOverload(resolver, p, source, enclosing);
 			printPosition(p->getName().source);
-			if(type != gUniqueTypeNull)
+			std::cout << "(";
+			bool separator = false;
+			for(ParameterTypes::const_iterator i = parameters.begin(); i != parameters.end(); ++i)
 			{
-				printType(type);
-				std::cout << std::endl;
+				if(separator)
+				{
+					std::cout << ", ";
+				}
+				printType(*i);
+				separator = true;
 			}
-			else
-			{
-				std::cout << (p->isTemplate ? "deduction failed" : "ignored non-template") << std::endl;
-			}
+			std::cout << ")" << std::endl;
 		}
 	}
 
@@ -1261,10 +1281,7 @@ struct WalkerBase : public WalkerState
 		else
 		{
 			SEMANTIC_ASSERT(overload.declaration != 0);
-			UniqueTypeWrapper type = overload.type;
-			SEMANTIC_ASSERT(type.isFunction()); // the type of an expression naming a function is T()
-			type.pop_front(); // get the return type: T
-			return type;
+			return overload.type;
 		}
 	}
 
@@ -2508,8 +2525,13 @@ struct PostfixExpressionWalker : public WalkerBase
 
 			SEMANTIC_ASSERT(id == 0 || isDecorated(*id)); // id should be decorated with result of name lookup
 			SEMANTIC_ASSERT(id == 0 || getDeclaration(*id) != &gDependentObject); // the id-expression should not be dependent
-			if(id != 0 // if the prefix contains an id-expression
-				&& isFunction(*getDeclaration(*id))) // and the identifier names an overloadable function (i.e. requires overload resolution)
+			if(id == 0) // if the left-hand expression does not contain an id-expression (or not a class which supports 'operator()')
+			{
+				// the call does not require overload resolution
+				SEMANTIC_ASSERT(type.isFunction()); // the type of a function is T()
+				type.pop_front(); // get the return type: T
+			}
+			else if(isFunction(*getDeclaration(*id))) // and the identifier names an overloadable function (i.e. requires overload resolution)
 			{
 				// [over.call.func] Call to named function
 				TemplateArgumentsInstance templateArguments;
@@ -2547,8 +2569,6 @@ struct PostfixExpressionWalker : public WalkerBase
 				}
 				type = overload.type;
 			}
-			SEMANTIC_ASSERT(type.isFunction()); // the type of an expression naming a function is T()
-			type.pop_front(); // get the return type: T
 		}
 		// TODO: 13.3.1.1.2  Call to object of class type
 		// TODO: set of pointers-to-function

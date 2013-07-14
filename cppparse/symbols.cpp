@@ -1133,8 +1133,8 @@ struct TestOrdering
 	{
 		UniqueTypeArray templateParameters(1, MakeType<T>::apply());
 		bool result = isMoreSpecialized(
-			FunctionTemplate(MakeType<void(L)>::apply(), templateParameters),
-			FunctionTemplate(MakeType<void(R)>::apply(), templateParameters));
+			FunctionTemplate(ParameterTypes(1, MakeType<L>::apply()), templateParameters),
+			FunctionTemplate(ParameterTypes(1, MakeType<R>::apply()), templateParameters));
 		SYMBOLS_ASSERT(result == expected);
 	}
 };
