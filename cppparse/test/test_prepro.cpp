@@ -1,4 +1,154 @@
 
+namespace N274
+{
+	struct C
+	{
+		int m1;
+		static int m2;
+	};
+
+	template<int i>
+	struct S
+	{
+		typedef int Type;
+	};
+
+
+	template<typename T>
+	struct B : C
+	{
+	};
+
+	template<typename T>
+	struct A : B<T>
+	{
+		void f()
+		{
+			typedef typename S<sizeof(C::m1)>::Type Type1; // typename required: implicitly '(*this).C::m1'
+			typedef S<sizeof(C::m2)>::Type Type2; // typename not required
+		}
+	};
+}
+
+namespace N273
+{
+	struct A
+	{
+		int operator[](int);
+	};
+
+	A a;
+	int i = a[0];
+}
+
+namespace N272
+{
+	int f(...);
+
+	int i = f(1);
+}
+
+namespace N271
+{
+	void f()
+	{
+		char *_Ptr;
+		*_Ptr++;
+	}
+}
+namespace N270
+{
+	enum E
+	{
+		VALUE = 0
+	};
+}
+
+namespace N269
+{
+	struct A
+	{
+		int* p;
+	};
+
+	struct B
+	{
+		void f(int* i)
+		{
+			m->p[*i]; // only names after -> or . are looked up in 'm'
+		}
+		A* m;
+	};
+}
+
+namespace N257
+{
+	struct S
+	{
+		template<bool>
+		void operator()()
+		{
+		}
+	};
+	void f()
+	{
+		enum { CONSTANT = 0 };
+		S s;
+		s.operator()<true>();
+		s.operator()<CONSTANT < 0>(); // older versions of Comeau fail to compile this
+	}
+}
+
+
+namespace N268
+{
+	struct A
+	{
+		void f(int);
+	};
+	template<class T>
+	void f(A a)
+	{
+		int i = T::dependent;
+		a.f(i); // 'i' is not a constant expression and should not be evaluated
+	}
+}
+
+namespace N267
+{
+	struct A
+	{
+		void f(int);
+	};
+
+	struct B
+	{
+		void f(int i)
+		{
+			m->f(i); // only names after -> or . are looked up in 'm'
+		}
+		A* m;
+	};
+}
+
+namespace N265
+{
+	template<typename T>
+	struct S
+	{
+		union Inner
+		{
+			int* p;
+		} m;
+
+		void f()
+		{
+			m.p = 0; // 'p' not resolved until instantiation; type of 'm' is dependent
+			m.y = 0; // 'y' not resolved until instantiation; type of 'm' is dependent
+		}
+	};
+}
+
 namespace N264
 {
 	template<typename T>
@@ -60,25 +210,6 @@ namespace N260
 	{
 	};
 }
-
-namespace N257
-{
-	struct S
-	{
-		template<bool>
-		void operator()()
-		{
-		}
-	};
-	void f()
-	{
-		enum { CONSTANT = 0 };
-		S s;
-		s.operator()<true>();
-		s.operator()<CONSTANT < 0>(); // older versions of Comeau fail to compile this
-	}
-}
-
 namespace N256
 {
 	template<typename X>

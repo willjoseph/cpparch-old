@@ -157,7 +157,7 @@ Name gOperatorCommaId = Name("operator,");
 Name gOperatorArrowStarId = Name("operator->*");
 Name gOperatorArrowId = Name("operator->");
 Name gOperatorFunctionId = Name("operator()");
-Name gOperatorArrayId = Name("operator[]");
+Name gOperatorSubscriptId = Name("operator[]");
 
 Identifier gConversionFunctionId = makeIdentifier("operator T");
 Identifier gOperatorFunctionTemplateId = makeIdentifier("operator () <>");

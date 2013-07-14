@@ -359,6 +359,29 @@
 			- too complex to manufacture declaration from nothing
 		- avoid conflict with overload declarations
 
-- investigate: deduction:
-	- P = const T*
-	- A = T*
++ task: correct implementation of partial ordering for function templates
+	- use C++11 [temp.deduct.partial]
+
+- task: implement types for enumerators
+	- declare unique type for each enum
+	- give its enumerators that type
+	- integral promotion
+	[ dcl.enum]
+	Each enumeration defines a type that is different from all other types. Following the closing brace of an
+	enum-specifier, each enumerator has the type of its enumeration. Prior to the closing brace, the type of
+	each enumerator is the type of its initializing value. If an initializer is specified for an enumerator, the initializing
+	value has the same type as the expression. If no initializer is specified for the first enumerator, the
+	type is an unspecified integral type. Otherwise the type is the same as the type of the initializing value of
+	the preceding enumerator unless the incremented value is not representable in that type, in which case the
+	type is an unspecified integral type sufficient to contain the incremented value.
+
+- task: implement function template explicit specialization
+
+- task: type of overloaded operators
+	- postfix operator[]
+	- postfix operator++
+
+- task: ellipsis in overload resolution
+	- if more arguments than parameters, excess arguments become ellipsis-conversion-sequence
+
+- investigate: need to compare two function templates with different numbers of parameters when determining partial ordering?

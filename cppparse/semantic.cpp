@@ -441,6 +441,8 @@ struct WalkerState
 		SEMANTIC_ASSERT(templateParameter == INDEX_INVALID || ::isTemplate(*parent));
 		SEMANTIC_ASSERT(isTemplate || params.empty());
 		SEMANTIC_ASSERT(isClassKey(*type.declaration) || !hasTemplateParamDefaults(params)); // 14.1-9: a default template-arguments may be specified in a class template declaration/definition (not for a function or class-member)
+		SEMANTIC_ASSERT(!isSpecialization || isTemplate); // only a template can be a specialization
+		SEMANTIC_ASSERT(!isTemplate || isSpecialization || !params.empty()); // only a specialization may have an empty template parameter clause <>
 
 		parser->context.allocator.deferredBacktrack(); // flush cached parse-tree
 
@@ -932,7 +934,9 @@ struct WalkerBase : public WalkerState
 			}
 		}
 
-		DeclarationInstanceRef declaration = pointOfDeclaration(context, parent, *id, type, enclosed, specifiers, templateParams != 0, getTemplateParams(), false, TEMPLATEARGUMENTS_NULL, templateParameter, valueDependent); // 3.3.1.1
+		bool isTemplate = templateParams != 0;
+		bool isExplicitSpecialization = isTemplate && templateParams->empty();
+		DeclarationInstanceRef declaration = pointOfDeclaration(context, parent, *id, type, enclosed, specifiers, isTemplate, getTemplateParams(), isExplicitSpecialization, TEMPLATEARGUMENTS_NULL, templateParameter, valueDependent); // 3.3.1.1
 #ifdef ALLOCATOR_DEBUG
 		trackDeclaration(declaration);
 #endif
@@ -1028,6 +1032,7 @@ struct WalkerBase : public WalkerState
 			}
 			parameters.push_back(implicitObjectParameter);
 		}
+		bool isEllipsis = getFunctionType(type.value).isEllipsis;
 		parameters.insert(parameters.end(), getParameterTypes(type.value).begin(), getParameterTypes(type.value).end());
 		type.pop_front();
 
@@ -1040,11 +1045,14 @@ struct WalkerBase : public WalkerState
 			{
 				return ParameterTypes();
 			}
-			resolver.add(FunctionOverload(p, type), parameters, enclosing);
+			resolver.add(FunctionOverload(p, type), parameters, isEllipsis, enclosing);
 			return parameters;
 		}
 
-		SYMBOLS_ASSERT(!p->isSpecialization); // function template specializations not supported
+		if(p->isSpecialization) // function template specializations don't take part in overload resolution?
+		{
+			return ParameterTypes();
+		}
 
 		FunctionTemplate functionTemplate;
 		functionTemplate.parameters.swap(parameters);
@@ -1109,7 +1117,7 @@ struct WalkerBase : public WalkerState
 			substitute(substituted2, substituted1, source, specialization);
 			type = substitute(type, source, specialization); // substitute the return type. TODO: should wait until overload is chosen?
 
-			resolver.add(FunctionOverload(p, type), substituted2, enclosing, functionTemplate);
+			resolver.add(FunctionOverload(p, type), substituted2, isEllipsis, enclosing, functionTemplate);
 			return substituted2;
 		}
 		catch(TypeError&)
@@ -2172,6 +2180,15 @@ struct PrimaryExpressionWalker : public WalkerBase
 			setDependent(typeDependent, arguments); // the id-expression may have an explicit template argument list
 			// [temp.dep.expr] An id-expression is type-dependent if it contains: - an identifier associated by name lookup with one or more declarations declared with a dependent type,
 			addDependentOverloads(typeDependent, declaration);
+			if(memberObject == 0 // if the id-expression is not part of a class-member-access
+				&& isMember(*declaration) // names a member
+				&& !isStatic(*declaration) // that is nonstatic
+				&& enclosingType != 0) // TODO: check that the id-expression is found in the context of a non-static member
+			{
+				// [class.mfct.nonstatic] An id-expression (that is not part of a class-member-access expression, and is found in the context of a nonstatic member)
+				// that names a nonstatic member is transformed to a class-member-access expression prefixed by (*this)
+				addDependent(typeDependent, enclosingDependent);
+			}
 
 			// [temp.dep.constexpr] An identifier is value-dependent if it is:- a name declared with a dependent type
 			addDependentType(valueDependent, declaration);
@@ -2214,15 +2231,23 @@ struct PrimaryExpressionWalker : public WalkerBase
 			if(!isFunction(*declaration)) // if the id-expression refers to a function, overload resolution depends on the parameter types; defer evaluation of type
 			{
 				type = getUniqueType(declaration->type, Location(id->source, context.declarationCount), idEnclosing, expression.isTypeDependent);
-			}
 
-			// [expr.const]
-			// An integral constant-expression can involve only ... enumerators, const variables or static
-			// data members of integral or enumeration types initialized with constant expressions, non-type template
-			// parameters of integral or enumeration types
-			expression.isConstant = declaration->templateParameter != INDEX_INVALID
-				|| declaration->initializer.isConstant; // TODO: determining whether the expression is constant depends on the type of the expression!
+				// [expr.const]
+				// An integral constant-expression can involve only ... enumerators, const variables or static
+				// data members of integral or enumeration types initialized with constant expressions, non-type template
+				// parameters of integral or enumeration types
+				expression.isConstant = declaration->templateParameter != INDEX_INVALID
+					|| (isIntegralConstant(type) && declaration->initializer.isConstant); // TODO: determining whether the expression is constant depends on the type of the expression!
+			}
 		}
+	}
+
+	inline bool isIntegralConstant(UniqueTypeWrapper type)
+	{
+		return type.isSimple()
+			&& type.value.getQualifiers().isConst
+			&& (isIntegral(type)
+				|| isEnumeration(type));
 	}
 	void visit(cpp::primary_expression_parenthesis* symbol)
 	{
@@ -2447,17 +2472,38 @@ struct PostfixExpressionWalker : public WalkerBase
 			SEMANTIC_ASSERT(type != gUniqueTypeNull);
 			// [expr] If an expression initially has the type "reference to T", the type is adjusted to "T" prior to any further analysis.
 			type = removeReference(type);
-			if(type.isArray()
-				|| type.isPointer())
+			if(isClass(type))
 			{
+				// [over.sub]
+				// operator[] shall be a non-static member function with exactly one parameter.
+				SEMANTIC_ASSERT(isComplete(type)); // TODO: non-fatal parse error
+				const TypeInstance& object = getObjectType(type.value);
+				instantiateClass(object, getLocation(), enclosingType); // searching for overloads requires a complete type
+				Identifier tmp;
+				tmp.value = gOperatorSubscriptId;
+				tmp.source = getLocation();
+				LookupResultRef declaration = ::findDeclaration(object, tmp, IsAny());
+				SEMANTIC_ASSERT(declaration != 0); // TODO: non-fatal error: expected array
+	
+				const TypeInstance* idEnclosing = findEnclosingType(&object, declaration->scope); // find the base class which contains the member-declaration
+				SEMANTIC_ASSERT(idEnclosing != 0);
+
+				// The argument list submitted to overload resolution consists of the argument expressions present in the function
+				// call syntax preceded by the implied object argument (E).
+				Arguments arguments;
+				arguments.push_back(Argument(ExpressionWrapper(0), type));
+				arguments.push_back(Argument(walker.expression, walker.type));
+
+				FunctionOverload overload = findBestMatch(declaration, 0, arguments, getLocation(), idEnclosing);
+				SEMANTIC_ASSERT(overload.declaration != 0);
+				type = overload.type;
+			}
+			else
+			{
+				SEMANTIC_ASSERT(type.isArray() || type.isPointer()); // TODO: non-fatal error: attempting to dereference non-array/pointer
 				type.pop_front(); // dereference left-hand side
 				// [expr.sub] The result is an lvalue of type T. The type "T" shall be a completely defined object type.
 				requireCompleteObjectType(type, Location(symbol->source, context.declarationCount), enclosingType);
-			}
-			else // TODO: overloaded operator[]
-			{
-				// TODO: non-fatal error: attempting to dereference non-array/pointer
-				type = gUniqueTypeNull;
 			}
 		}
 		setExpressionType(symbol, type);
@@ -2512,20 +2558,19 @@ struct PostfixExpressionWalker : public WalkerBase
 				tmp.value = gOperatorFunctionId;
 				tmp.source = getLocation();
 				LookupResultRef declaration = ::findDeclaration(object, tmp, IsAny());
-				if(declaration != 0)
-				{
-					id = &declaration->getName();
-					idEnclosing = findEnclosingType(&object, declaration->scope); // find the base class which contains the member-declaration
-					SEMANTIC_ASSERT(idEnclosing != 0);
-					memberObject = &object;
-					// The argument list submitted to overload resolution consists of the argument expressions present in the function
-					// call syntax preceded by the implied object argument (E).
-				}
+				SEMANTIC_ASSERT(declaration != 0); // TODO: non-fatal error: expected function
+
+				id = &declaration->getName();
+				idEnclosing = findEnclosingType(&object, declaration->scope); // find the base class which contains the member-declaration
+				SEMANTIC_ASSERT(idEnclosing != 0);
+				// The argument list submitted to overload resolution consists of the argument expressions present in the function
+				// call syntax preceded by the implied object argument (E).
+				memberObject = &object;
 			}
 
 			SEMANTIC_ASSERT(id == 0 || isDecorated(*id)); // id should be decorated with result of name lookup
 			SEMANTIC_ASSERT(id == 0 || getDeclaration(*id) != &gDependentObject); // the id-expression should not be dependent
-			if(id == 0) // if the left-hand expression does not contain an id-expression (or not a class which supports 'operator()')
+			if(id == 0) // if the left-hand expression does not contain an id-expression (or is not a class which supports 'operator()')
 			{
 				// the call does not require overload resolution
 				SEMANTIC_ASSERT(type.isFunction()); // the type of a function is T()
@@ -2605,7 +2650,6 @@ struct PostfixExpressionWalker : public WalkerBase
 			SEMANTIC_ASSERT(!::isDependent(memberType)); // the object-expression should not be dependent
 			SEMANTIC_ASSERT(walker.memberObject != 0);
 			SEMANTIC_ASSERT(walker.memberObject != &gDependentObjectType);
-			memberObject = walker.memberObject; // store the type of the implied object argument in a qualified function call.
 
 			SEMANTIC_ASSERT(declaration != &gUndeclared);
 			SEMANTIC_ASSERT(isObject(*declaration));
@@ -2652,6 +2696,7 @@ struct PostfixExpressionWalker : public WalkerBase
 			else if(isFunction(*declaration))
 			{
 				// type determination is deferred until overload resolution is complete
+				memberObject = walker.memberObject; // store the type of the implied object argument in a qualified function call.
 			}
 			else
 			{
@@ -2677,8 +2722,9 @@ struct PostfixExpressionWalker : public WalkerBase
 		// [expr.post.incr] The type of the operand shall be an arithmetic type or a pointer to a complete object type.
 		if(type.isPointer())
 		{
-			type.pop_front();
-			requireCompleteObjectType(type, Location(symbol->source, context.declarationCount), enclosingType);
+			UniqueTypeWrapper deref = type;
+			deref.pop_front();
+			requireCompleteObjectType(deref, Location(symbol->source, context.declarationCount), enclosingType);
 		}
 		setExpressionType(symbol, type);
 		id = 0;
@@ -2969,7 +3015,7 @@ struct ExpressionWalker : public WalkerBase
 			&& type.value != UNIQUETYPE_NULL) // TODO: assert
 		{
 			SEMANTIC_ASSERT(getQualifyingScope() == 0);
-			SEMANTIC_ASSERT(memberType == gUniqueTypeNull);
+			SEMANTIC_ASSERT(!(memberType != gUniqueTypeNull && memberObject != 0));
 
 			type = removeReference(type);
 			type = typeOfUnaryExpression(symbol->op, Argument(expression, type), enclosing, Location(source, context.declarationCount), enclosingType);
@@ -4381,6 +4427,9 @@ struct EnumSpecifierWalker : public WalkerBase
 		}
 		EnumeratorDefinitionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
+		walker.declaration->type = declaration; // give the enumerator the type of its enumeration
+		walker.declaration->type.qualifiers = CvQualifiers(true, false); // an enumerator may be used in an integral constant expression
+		makeUniqueTypeSafe(walker.declaration->type, getLocation());
 		if(walker.isInitialized)
 		{
 			SEMANTIC_ASSERT(isDependent(walker.declaration->valueDependent) || walker.declaration->initializer.isConstant);
@@ -4634,6 +4683,7 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 		ClassSpecifierWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		type = walker.declaration;
+		setDependent(type); // a class-specifier is dependent if it declares a nested class of a template class
 		templateParams = walker.templateParams;
 		isUnion = walker.isUnion;
 	}

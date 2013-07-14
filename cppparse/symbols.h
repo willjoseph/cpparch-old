@@ -1948,10 +1948,14 @@ inline const Parameters& getParameters(const TypeId& type)
 	return static_cast<const SequenceNodeGeneric<DeclaratorFunctionType, TypeSequenceVisitor>*>(node)->value.parameters;
 }
 
-inline const ParameterTypes& getParameterTypes(UniqueType type)
+inline const FunctionType& getFunctionType(UniqueType type)
 {
 	SYMBOLS_ASSERT(typeid(*type) == typeid(TypeElementGeneric<FunctionType>));
-	return static_cast<const TypeElementGeneric<FunctionType>*>(type.getPointer())->value.parameterTypes;
+	return static_cast<const TypeElementGeneric<FunctionType>*>(type.getPointer())->value;
+}
+inline const ParameterTypes& getParameterTypes(UniqueType type)
+{
+	return getFunctionType(type).parameterTypes;
 }
 
 
@@ -3593,9 +3597,11 @@ extern ObjectTypeId gSignedInt;
 template<typename T>
 inline UniqueTypeWrapper getUniqueTypeImpl(const T& type, Location source, const TypeInstance* enclosing, bool allowDependent)
 {
-	if(type.declaration == &gEnumerator)
+	if(type.declaration == &gEnumerator) // HACK: enumerator becomes 'const int'
 	{
-		return gSignedInt;
+		UniqueTypeWrapper result = gSignedInt;
+		result.value.setQualifiers(CvQualifiers(true, false));
+		return result;
 	}
 	SYMBOLS_ASSERT(type.unique != 0);
 	UniqueTypeWrapper result = UniqueTypeWrapper(type.unique);
@@ -4906,7 +4912,7 @@ extern Name gOperatorCommaId;
 extern Name gOperatorArrowStarId;
 extern Name gOperatorArrowId;
 extern Name gOperatorFunctionId;
-extern Name gOperatorArrayId;
+extern Name gOperatorSubscriptId;
 
 inline Name getOverloadableOperatorId(cpp::overloadable_operator_default* symbol)
 {
@@ -4978,7 +4984,7 @@ inline Name getOverloadableOperatorId(cpp::function_operator* symbol)
 
 inline Name getOverloadableOperatorId(cpp::array_operator* symbol)
 {
-	return gOperatorArrayId;
+	return gOperatorSubscriptId;
 }
 
 inline Name getUnaryOperatorName(cpp::unary_operator* symbol)
@@ -5065,15 +5071,9 @@ inline bool isIntegral(const UniqueTypeId& type)
 	return isArithmetic(type) && !isFloating(type);
 }
 
-inline bool isEnumerator(const UniqueTypeId& type)
-{
-	return type.isSimple() && getObjectType(type.value).declaration == &gEnumerator;
-}
-
 inline bool isEnumeration(const UniqueTypeId& type)
 {
-	return isEnum(type)
-		|| isEnumerator(type); // TODO: remove when enumerators are correctly typed
+	return isEnum(type);
 }
 
 
@@ -5589,6 +5589,7 @@ struct ImplicitConversion
 };
 
 const ImplicitConversion IMPLICITCONVERSION_USERDEFINED = ImplicitConversion(StandardConversionSequence(SCSRANK_IDENTITY, CvQualifiers()), ICSTYPE_USERDEFINED); // TODO
+const ImplicitConversion IMPLICITCONVERSION_ELLIPSIS = ImplicitConversion(StandardConversionSequence(SCSRANK_IDENTITY, CvQualifiers()), ICSTYPE_ELLIPSIS); // TODO
 
 // [over.ics.rank]
 inline bool isBetter(const ImplicitConversion& l, const ImplicitConversion& r)
@@ -6608,7 +6609,7 @@ struct OverloadResolver
 			ambiguous = candidate.declaration;
 		}
 	}
-	void add(const FunctionOverload& overload, const ParameterTypes& parameters, const TypeInstance* memberEnclosing, FunctionTemplate& functionTemplate = FunctionTemplate())
+	void add(const FunctionOverload& overload, const ParameterTypes& parameters, bool isEllipsis, const TypeInstance* memberEnclosing, FunctionTemplate& functionTemplate = FunctionTemplate())
 	{
 		CandidateFunction candidate(overload, functionTemplate);
 		candidate.conversions.reserve(best.conversions.size());
@@ -6648,7 +6649,6 @@ struct OverloadResolver
 
 		const Parameters& defaults = getParameters(overload.declaration->type);
 		Parameters::const_iterator d = defaults.begin();
-		// TODO: ellipsis
 		for(; p != parameters.end(); ++p)
 		{
 			UniqueTypeWrapper to = (*p);
@@ -6668,6 +6668,19 @@ struct OverloadResolver
 				SYMBOLS_ASSERT((*d).argument->expr != 0); // TODO: non-fatal error: trying to use a default-argument before it has been declared. 
 			}
 			++d;
+		}
+		// [over.match.viable]
+		// A candidate function having fewer than m parameters is viable only if it has an ellipsis in its parameter
+		// list. For the purposes of overload resolution, any argument for which there is no corresponding
+		// parameter is considered to "match the ellipsis"
+		if(!isEllipsis
+			&& a != arguments.end())
+		{
+			return;
+		}
+		for(; a != arguments.end(); ++a)
+		{
+			candidate.conversions.push_back(IMPLICITCONVERSION_ELLIPSIS);
 		}
 
 		add(candidate);
