@@ -1,4 +1,5 @@
 
+#if 0
 namespace N277
 {
 	template<class T>
@@ -10,6 +11,7 @@ namespace N277
 		}
 	};
 }
+#endif
 
 namespace N276
 {

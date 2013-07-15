@@ -230,6 +230,22 @@ inline const DeclarationInstance* findRedeclared(const Declaration& declaration,
 	return 0;
 }
 
+class ScopedBool
+{
+	bool& b;
+	ScopedBool(const ScopedBool&);
+	ScopedBool operator=(const ScopedBool&);
+public:
+	ScopedBool(bool& b) : b(b)
+	{
+		b = true;
+	}
+	~ScopedBool()
+	{
+		b = false;
+	}
+};
+
 
 Identifier gGlobalId = makeIdentifier("$global");
 
@@ -2118,8 +2134,9 @@ struct PrimaryExpressionWalker : public WalkerBase
 	const TypeInstance* idEnclosing; // may be valid when the above id-expression is a qualified-id
 	Dependent typeDependent;
 	Dependent valueDependent;
-	PrimaryExpressionWalker(const WalkerState& state)
-		: WalkerBase(state), id(0), arguments(context), idEnclosing(0)
+	bool isUnaryExpression;
+	PrimaryExpressionWalker(const WalkerState& state, bool isUnaryExpression)
+		: WalkerBase(state), id(0), arguments(context), idEnclosing(0), isUnaryExpression(isUnaryExpression)
 	{
 	}
 	void visit(cpp::literal* symbol)
@@ -2180,8 +2197,9 @@ struct PrimaryExpressionWalker : public WalkerBase
 			setDependent(typeDependent, arguments); // the id-expression may have an explicit template argument list
 			// [temp.dep.expr] An id-expression is type-dependent if it contains: - an identifier associated by name lookup with one or more declarations declared with a dependent type,
 			addDependentOverloads(typeDependent, declaration);
-			if(memberObject == 0 // if the id-expression is not part of a class-member-access
-				&& isMember(*declaration) // names a member
+			if(!isUnaryExpression // if the id-expression is the operand of a unary expression
+				&& memberObject == 0 // and the id-expression is not part of a class-member-access
+				&& isMember(*declaration) // and names a member
 				&& !isStatic(*declaration) // that is nonstatic
 				&& enclosingType != 0) // TODO: check that the id-expression is found in the context of a non-static member
 			{
@@ -2365,8 +2383,9 @@ struct PostfixExpressionWalker : public WalkerBase
 	const TypeInstance* idEnclosing; // may be valid when the above id-expression is a qualified-id
 	Dependent typeDependent;
 	Dependent valueDependent;
-	PostfixExpressionWalker(const WalkerState& state)
-		: WalkerBase(state), id(0), arguments(context), idEnclosing(0)
+	bool isUnaryExpression;
+	PostfixExpressionWalker(const WalkerState& state, bool isUnaryExpression)
+		: WalkerBase(state), id(0), arguments(context), idEnclosing(0), isUnaryExpression(isUnaryExpression)
 	{
 	}
 	void clearMemberType()
@@ -2379,7 +2398,7 @@ struct PostfixExpressionWalker : public WalkerBase
 	}
 	void visit(cpp::primary_expression* symbol)
 	{
-		PrimaryExpressionWalker walker(getState());
+		PrimaryExpressionWalker walker(getState(), isUnaryExpression);
 		TREEWALKER_WALK(walker, symbol);
 		type.swap(walker.type);
 		expression = walker.expression;
@@ -2818,8 +2837,9 @@ struct ExpressionWalker : public WalkerBase
 	*/
 	Dependent typeDependent;
 	Dependent valueDependent;
+	bool isUnaryExpression;
 	ExpressionWalker(const WalkerState& state)
-		: WalkerBase(state), id(0)
+		: WalkerBase(state), id(0), isUnaryExpression(false)
 	{
 	}
 
@@ -2992,7 +3012,7 @@ struct ExpressionWalker : public WalkerBase
 	}
 	void visit(cpp::postfix_expression* symbol)
 	{
-		PostfixExpressionWalker walker(getState());
+		PostfixExpressionWalker walker(getState(), isUnaryExpression);
 		TREEWALKER_WALK_SRC(walker, symbol);
 		id = walker.id;
 		type.swap(walker.type);
@@ -3005,6 +3025,7 @@ struct ExpressionWalker : public WalkerBase
 	void visit(cpp::unary_expression_op* symbol)
 	{
 		Source source = parser->get_source();
+		ScopedBool guard(isUnaryExpression);
 		TREEWALKER_LEAF_SRC(symbol);
 		id = 0; // not a parenthesised id-expression, expression is not 'call to named function' [over.call.func]
 		if(!::isDependent(type) // can't resolve operator overloads if type is dependent
