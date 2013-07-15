@@ -230,22 +230,6 @@ inline const DeclarationInstance* findRedeclared(const Declaration& declaration,
 	return 0;
 }
 
-class ScopedBool
-{
-	bool& b;
-	ScopedBool(const ScopedBool&);
-	ScopedBool operator=(const ScopedBool&);
-public:
-	ScopedBool(bool& b) : b(b)
-	{
-		b = true;
-	}
-	~ScopedBool()
-	{
-		b = false;
-	}
-};
-
 
 Identifier gGlobalId = makeIdentifier("$global");
 
@@ -617,6 +601,7 @@ struct WalkerState
 		qualifyingScope = 0;
 		qualifyingType = 0;
 		memberType = gUniqueTypeNull;
+		memberObject = 0;
 	}
 
 	const TemplateParameters& getTemplateParams() const
@@ -739,6 +724,20 @@ struct WalkerState
 		}
 		dependent = candidate; // the candidate template-parameter is within the current dependent-scope
 	}
+	void setDependentEnclosingTemplate(DeclarationPtr& dependent, Declaration* enclosingTemplate) const
+	{
+		if(enclosingTemplate != 0)
+		{
+			SEMANTIC_ASSERT(enclosingTemplate->isTemplate);
+			// 'declaration' is a class that is dependent because it is a (possibly specialized) member of an enclosing template class
+			SEMANTIC_ASSERT(enclosingTemplate->isSpecialization || !enclosingTemplate->templateParams.empty());
+			if(!enclosingTemplate->templateParams.empty()) // if the enclosing template class is not an explicit specialization
+			{
+				// depend on the template parameter(s) of the enclosing template class
+				setDependent(dependent, enclosingTemplate->templateParams.back().declaration);
+			}
+		}
+	}
 	void setDependent(DeclarationPtr& dependent, Declaration& declaration) const
 	{
 		if(declaration.templateParameter != INDEX_INVALID)
@@ -755,19 +754,7 @@ struct WalkerState
 			setDependent(dependent, declaration.enclosed->bases);
 		}
 
-		{
-			Declaration* enclosingTemplate = findEnclosingClassTemplate(&declaration);
-			if(enclosingTemplate != 0)
-			{
-				// 'declaration' is a class that is dependent because it is a (possibly specialized) member of an enclosing template class
-				SEMANTIC_ASSERT(enclosingTemplate->isSpecialization || !enclosingTemplate->templateParams.empty());
-				if(!enclosingTemplate->templateParams.empty()) // if the enclosing template class is not an explicit specialization
-				{
-					// depend on the template parameter(s) of the enclosing template class
-					setDependent(dependent, enclosingTemplate->templateParams.back().declaration);
-				}
-			}
-		}
+		setDependentEnclosingTemplate(dependent, findEnclosingClassTemplate(&declaration));
 
 		setDependent(dependent, declaration.valueDependent);
 	}
@@ -1985,6 +1972,7 @@ struct ArgumentListWalker : public WalkerBase
 	ArgumentListWalker(const WalkerState& state)
 		: WalkerBase(state)
 	{
+		clearQualifying();
 	}
 	void visit(cpp::assignment_expression* symbol)
 	{
@@ -2134,9 +2122,8 @@ struct PrimaryExpressionWalker : public WalkerBase
 	const TypeInstance* idEnclosing; // may be valid when the above id-expression is a qualified-id
 	Dependent typeDependent;
 	Dependent valueDependent;
-	bool isUnaryExpression;
-	PrimaryExpressionWalker(const WalkerState& state, bool isUnaryExpression)
-		: WalkerBase(state), id(0), arguments(context), idEnclosing(0), isUnaryExpression(isUnaryExpression)
+	PrimaryExpressionWalker(const WalkerState& state)
+		: WalkerBase(state), id(0), arguments(context), idEnclosing(0)
 	{
 	}
 	void visit(cpp::literal* symbol)
@@ -2183,7 +2170,8 @@ struct PrimaryExpressionWalker : public WalkerBase
 		}
 		else
 		{
-			SYMBOLS_ASSERT(declaration != 0);
+			SEMANTIC_ASSERT(declaration != 0);
+			SEMANTIC_ASSERT(memberObject == 0) // assert that the id-expression is not part of a class-member-access
 
 			if(declaration == &gUndeclared
 				|| !isObject(*declaration))
@@ -2197,16 +2185,6 @@ struct PrimaryExpressionWalker : public WalkerBase
 			setDependent(typeDependent, arguments); // the id-expression may have an explicit template argument list
 			// [temp.dep.expr] An id-expression is type-dependent if it contains: - an identifier associated by name lookup with one or more declarations declared with a dependent type,
 			addDependentOverloads(typeDependent, declaration);
-			if(!isUnaryExpression // if the id-expression is the operand of a unary expression
-				&& memberObject == 0 // and the id-expression is not part of a class-member-access
-				&& isMember(*declaration) // and names a member
-				&& !isStatic(*declaration) // that is nonstatic
-				&& enclosingType != 0) // TODO: check that the id-expression is found in the context of a non-static member
-			{
-				// [class.mfct.nonstatic] An id-expression (that is not part of a class-member-access expression, and is found in the context of a nonstatic member)
-				// that names a nonstatic member is transformed to a class-member-access expression prefixed by (*this)
-				addDependent(typeDependent, enclosingDependent);
-			}
 
 			// [temp.dep.constexpr] An identifier is value-dependent if it is:- a name declared with a dependent type
 			addDependentType(valueDependent, declaration);
@@ -2232,9 +2210,8 @@ struct PrimaryExpressionWalker : public WalkerBase
 				isDependent(valueDependent)
 			);
 
-			expression.isQualifiedNonStaticMemberName = qualifying != gUniqueTypeNull
-				&& isMember(*declaration)
-				&& !isStatic(*declaration);
+			expression.isNonStaticMemberName = isMember(*declaration) && !isStatic(*declaration);
+			expression.isQualifiedNonStaticMemberName = expression.isNonStaticMemberName && qualifying != gUniqueTypeNull;
 
 			// further type resolution (including overloads) should be made in the context of the enclosing type (if present)
 			idEnclosing = makeUniqueEnclosing(walker.qualifying, Location(id->source, context.declarationCount), enclosingType);
@@ -2383,9 +2360,8 @@ struct PostfixExpressionWalker : public WalkerBase
 	const TypeInstance* idEnclosing; // may be valid when the above id-expression is a qualified-id
 	Dependent typeDependent;
 	Dependent valueDependent;
-	bool isUnaryExpression;
-	PostfixExpressionWalker(const WalkerState& state, bool isUnaryExpression)
-		: WalkerBase(state), id(0), arguments(context), idEnclosing(0), isUnaryExpression(isUnaryExpression)
+	PostfixExpressionWalker(const WalkerState& state)
+		: WalkerBase(state), id(0), arguments(context), idEnclosing(0)
 	{
 	}
 	void clearMemberType()
@@ -2398,7 +2374,7 @@ struct PostfixExpressionWalker : public WalkerBase
 	}
 	void visit(cpp::primary_expression* symbol)
 	{
-		PrimaryExpressionWalker walker(getState(), isUnaryExpression);
+		PrimaryExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		type.swap(walker.type);
 		expression = walker.expression;
@@ -2535,6 +2511,17 @@ struct PostfixExpressionWalker : public WalkerBase
 		setExpressionType(symbol, type);
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
+
+		if(expression.isNonStaticMemberName)
+		{
+			SEMANTIC_ASSERT(enclosingType != 0); // TODO: check that the id-expression is found in the context of a non-static member
+			// [class.mfct.nonstatic] An id-expression (that is not part of a class-member-access expression, and is found in the context of a nonstatic member)
+			// that names a nonstatic member is transformed to a class-member-access expression prefixed by (*this)
+
+			addDependent(typeDependent, enclosingDependent);
+			// when a nonstatic member name is used in a function call, overload resolution is dependent on the type of the implicit object parameter
+		}
+
 		if(isDependent(typeDependent)) // if either the argument list or the id-expression are dependent
 			// TODO: check valueDependent too?
 		{
@@ -2837,9 +2824,8 @@ struct ExpressionWalker : public WalkerBase
 	*/
 	Dependent typeDependent;
 	Dependent valueDependent;
-	bool isUnaryExpression;
 	ExpressionWalker(const WalkerState& state)
-		: WalkerBase(state), id(0), isUnaryExpression(false)
+		: WalkerBase(state), id(0)
 	{
 	}
 
@@ -3012,7 +2998,7 @@ struct ExpressionWalker : public WalkerBase
 	}
 	void visit(cpp::postfix_expression* symbol)
 	{
-		PostfixExpressionWalker walker(getState(), isUnaryExpression);
+		PostfixExpressionWalker walker(getState());
 		TREEWALKER_WALK_SRC(walker, symbol);
 		id = walker.id;
 		type.swap(walker.type);
@@ -3025,7 +3011,6 @@ struct ExpressionWalker : public WalkerBase
 	void visit(cpp::unary_expression_op* symbol)
 	{
 		Source source = parser->get_source();
-		ScopedBool guard(isUnaryExpression);
 		TREEWALKER_LEAF_SRC(symbol);
 		id = 0; // not a parenthesised id-expression, expression is not 'call to named function' [over.call.func]
 		if(!::isDependent(type) // can't resolve operator overloads if type is dependent
@@ -4332,6 +4317,10 @@ struct ClassSpecifierWalker : public WalkerBase
 		Type type(declaration, context);
 		type.id = &declaration->getName();
 		setDependent(type);
+		if(declaration->isTemplate)
+		{
+			setDependentEnclosingTemplate(type.dependent, declaration);
+		}
 		type.isDependent = isDependent(type);
 		type.isImplicitTemplateId = declaration->isTemplate;
 		type.isEnclosingClass = true;

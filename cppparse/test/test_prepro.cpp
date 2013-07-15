@@ -1,5 +1,37 @@
 
-#if 0
+namespace N278
+{
+	struct C
+	{
+		int f();
+		int m;
+	};
+
+	template<int i>
+	struct S
+	{
+		typedef int Type;
+	};
+
+
+	template<typename T>
+	struct B : C
+	{
+	};
+
+	template<typename T>
+	struct A : B<T>
+	{
+		void f()
+		{
+			!C::f().dependent; // dependent
+			&C::f().dependent; // dependent
+			typedef S<sizeof(C::m)>::Type Type1; // typename not required
+			typedef S<sizeof(&C::m)>::Type Type2; // typename not required
+		}
+	};
+}
+
 namespace N277
 {
 	template<class T>
@@ -11,7 +43,6 @@ namespace N277
 		}
 	};
 }
-#endif
 
 namespace N276
 {

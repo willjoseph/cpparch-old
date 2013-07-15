@@ -655,13 +655,14 @@ struct ExpressionWrapper : ExpressionPtr
 	bool isTypeDependent;
 	bool isValueDependent;
 	bool isTemplateArgumentAmbiguity; // [temp.arg] In a template argument, an ambiguity between a typeid and an expression is resolved to a typeid
+	bool isNonStaticMemberName;
 	bool isQualifiedNonStaticMemberName;
 	ExpressionWrapper()
-		: ExpressionPtr(0), isConstant(false), isTypeDependent(false), isValueDependent(false), isTemplateArgumentAmbiguity(false), isQualifiedNonStaticMemberName(false)
+		: ExpressionPtr(0), isConstant(false), isTypeDependent(false), isValueDependent(false), isTemplateArgumentAmbiguity(false), isNonStaticMemberName(false), isQualifiedNonStaticMemberName(false)
 	{
 	}
 	ExpressionWrapper(ExpressionNode* node, bool isConstant = true, bool isTypeDependent = false, bool isValueDependent = false)
-		: ExpressionPtr(node), isConstant(isConstant), isTypeDependent(isTypeDependent), isValueDependent(isValueDependent), isTemplateArgumentAmbiguity(false), isQualifiedNonStaticMemberName(false)
+		: ExpressionPtr(node), isConstant(isConstant), isTypeDependent(isTypeDependent), isValueDependent(isValueDependent), isTemplateArgumentAmbiguity(false), isNonStaticMemberName(false), isQualifiedNonStaticMemberName(false)
 	{
 	}
 };
@@ -2861,6 +2862,15 @@ struct EvaluateVisitor : ExpressionNodeVisitor
 		{
 			std::cout << "sizeof expression with dependent type!" << std::endl;
 			return;
+		}
+
+		if(isPointerToMemberExpression(node.operand))
+		{
+			return; // TODO
+		}
+		if(isPointerToFunctionExpression(node.operand))
+		{
+			return; // TODO
 		}
 
 		UniqueTypeWrapper type = typeofExpression(node.operand, source);
