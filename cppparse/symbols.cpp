@@ -93,6 +93,39 @@ ObjectTypeId gVoid(&gVoidDeclaration, TREEALLOCATOR_NULL);
 StringLiteralTypeId gStringLiteral(&gCharDeclaration, TREEALLOCATOR_NULL);
 StringLiteralTypeId gWideStringLiteral(&gWCharTDeclaration, TREEALLOCATOR_NULL);
 
+// built-in operator placeholders
+Identifier gAnyTypePlaceholderId = makeIdentifier("$any-placeholder");
+BuiltInTypeDeclaration gAnyTypePlaceholderDeclaration(gAnyTypePlaceholderId, TYPE_UNKNOWN);
+ObjectTypeId gAnyTypePlaceholder(&gAnyTypePlaceholderDeclaration, TREEALLOCATOR_NULL);
+Identifier gArithmeticPlaceholderId = makeIdentifier("$arithmetic-placeholder");
+BuiltInTypeDeclaration gArithmeticPlaceholderDeclaration(gArithmeticPlaceholderId, TYPE_UNKNOWN);
+ObjectTypeId gArithmeticPlaceholder(&gArithmeticPlaceholderDeclaration, TREEALLOCATOR_NULL);
+Identifier gIntegralPlaceholderId = makeIdentifier("$integral-placeholder");
+BuiltInTypeDeclaration gIntegralPlaceholderDeclaration(gIntegralPlaceholderId, TYPE_UNKNOWN);
+ObjectTypeId gIntegralPlaceholder(&gIntegralPlaceholderDeclaration, TREEALLOCATOR_NULL);
+Identifier gEnumerationPlaceholderId = makeIdentifier("$enumeration-placeholder");
+BuiltInTypeDeclaration gEnumerationPlaceholderDeclaration(gEnumerationPlaceholderId, TYPE_UNKNOWN);
+ObjectTypeId gEnumerationPlaceholder(&gEnumerationPlaceholderDeclaration, TREEALLOCATOR_NULL);
+Identifier gPromotedArithmeticPlaceholderId = makeIdentifier("$promoted-arithmetic-placeholder");
+BuiltInTypeDeclaration gPromotedArithmeticPlaceholderDeclaration(gPromotedArithmeticPlaceholderId, TYPE_UNKNOWN);
+ObjectTypeId gPromotedArithmeticPlaceholder(&gPromotedArithmeticPlaceholderDeclaration, TREEALLOCATOR_NULL);
+Identifier gPromotedIntegralPlaceholderId = makeIdentifier("$promoted-integral-placeholder");
+BuiltInTypeDeclaration gPromotedIntegralPlaceholderDeclaration(gPromotedIntegralPlaceholderId, TYPE_UNKNOWN);
+ObjectTypeId gPromotedIntegralPlaceholder(&gPromotedIntegralPlaceholderDeclaration, TREEALLOCATOR_NULL);
+Identifier gObjectTypePlaceholderId = makeIdentifier("$object-type-placeholder");
+BuiltInTypeDeclaration gObjectTypePlaceholderDeclaration(gObjectTypePlaceholderId, TYPE_UNKNOWN);
+ObjectTypeId gObjectTypePlaceholder(&gObjectTypePlaceholderDeclaration, TREEALLOCATOR_NULL);
+Identifier gClassTypePlaceholderId = makeIdentifier("$class-type-placeholder");
+BuiltInTypeDeclaration gClassTypePlaceholderDeclaration(gClassTypePlaceholderId, TYPE_UNKNOWN);
+ObjectTypeId gClassTypePlaceholder(&gClassTypePlaceholderDeclaration, TREEALLOCATOR_NULL);
+Identifier gFunctionTypePlaceholderId = makeIdentifier("$function-type-placeholder");
+BuiltInTypeDeclaration gFunctionTypePlaceholderDeclaration(gFunctionTypePlaceholderId, TYPE_UNKNOWN);
+ObjectTypeId gFunctionTypePlaceholder(&gFunctionTypePlaceholderDeclaration, TREEALLOCATOR_NULL);
+Identifier gMemberPointerPlaceholderId = makeIdentifier("$member-pointer-placeholder");
+BuiltInTypeDeclaration gMemberPointerPlaceholderDeclaration(gMemberPointerPlaceholderId, TYPE_UNKNOWN);
+ObjectTypeId gMemberPointerPlaceholder(&gMemberPointerPlaceholderDeclaration, TREEALLOCATOR_NULL);
+
+
 // template placeholders
 Identifier gDependentTypeId = makeIdentifier("$type");
 Declaration gDependentType(TREEALLOCATOR_NULL, 0, gDependentTypeId, TYPE_SPECIAL, 0);
@@ -300,6 +333,46 @@ struct Derived : Base
 {
 };
 
+class Any
+{
+};
+
+class Object
+{
+};
+
+class Class
+{
+};
+
+class Function
+{
+};
+
+class MemberPointer
+{
+};
+
+class Enumeration
+{
+};
+
+class Arithmetic
+{
+};
+
+class Integral
+{
+};
+
+class PromotedArithmetic
+{
+};
+
+class PromotedIntegral
+{
+};
+
 template<typename T, int i>
 struct Template
 {
@@ -392,6 +465,96 @@ struct MakeType<Derived>
 	static UniqueTypeWrapper apply()
 	{
 		return gDerivedClass;
+	}
+};
+
+template<>
+struct MakeType<Any>
+{
+	static UniqueTypeWrapper apply()
+	{
+		return gAnyTypePlaceholder;
+	}
+};
+
+template<>
+struct MakeType<Object>
+{
+	static UniqueTypeWrapper apply()
+	{
+		return gObjectTypePlaceholder;
+	}
+};
+
+template<>
+struct MakeType<Class>
+{
+	static UniqueTypeWrapper apply()
+	{
+		return gClassTypePlaceholder;
+	}
+};
+
+template<>
+struct MakeType<Function>
+{
+	static UniqueTypeWrapper apply()
+	{
+		return gFunctionTypePlaceholder;
+	}
+};
+
+template<>
+struct MakeType<MemberPointer>
+{
+	static UniqueTypeWrapper apply()
+	{
+		return gMemberPointerPlaceholder;
+	}
+};
+
+template<>
+struct MakeType<Enumeration>
+{
+	static UniqueTypeWrapper apply()
+	{
+		return gEnumerationPlaceholder;
+	}
+};
+
+template<>
+struct MakeType<Arithmetic>
+{
+	static UniqueTypeWrapper apply()
+	{
+		return gArithmeticPlaceholder;
+	}
+};
+
+template<>
+struct MakeType<Integral>
+{
+	static UniqueTypeWrapper apply()
+	{
+		return gIntegralPlaceholder;
+	}
+};
+
+template<>
+struct MakeType<PromotedArithmetic>
+{
+	static UniqueTypeWrapper apply()
+	{
+		return gPromotedArithmeticPlaceholder;
+	}
+};
+
+template<>
+struct MakeType<PromotedIntegral>
+{
+	static UniqueTypeWrapper apply()
+	{
+		return gPromotedIntegralPlaceholder;
 	}
 };
 
@@ -971,6 +1134,36 @@ inline void testIcsRank()
 	TestIcsRank<Base&, Base>::apply(ICSRANK_STANDARDEXACT, false, true);
 	// rvalue T -> T&
 	TestIcsRank<Base&, Base>::apply(ICSRANK_INVALID, false, false);
+
+	// placeholders
+	TestIcsRank<Any*, Base*>::apply(ICSRANK_STANDARDEXACT);
+	TestIcsRank<Any*, int*>::apply(ICSRANK_STANDARDEXACT);
+	TestIcsRank<Any*, float*>::apply(ICSRANK_STANDARDEXACT);
+	TestIcsRank<Any*, void(*)()>::apply(ICSRANK_STANDARDEXACT);
+
+	TestIcsRank<Object*, Base*>::apply(ICSRANK_STANDARDEXACT);
+	TestIcsRank<Object*, int*>::apply(ICSRANK_STANDARDEXACT);
+	TestIcsRank<Object*, void**>::apply(ICSRANK_STANDARDEXACT);
+
+	TestIcsRank<Function*, void(*)()>::apply(ICSRANK_STANDARDEXACT);
+
+	TestIcsRank<Arithmetic, int>::apply(ICSRANK_STANDARDEXACT);
+	TestIcsRank<Arithmetic, float>::apply(ICSRANK_STANDARDEXACT);
+	TestIcsRank<Arithmetic, bool>::apply(ICSRANK_STANDARDEXACT);
+
+	TestIcsRank<PromotedArithmetic, int>::apply(ICSRANK_STANDARDEXACT);
+	TestIcsRank<PromotedArithmetic, float>::apply(ICSRANK_STANDARDEXACT);
+	TestIcsRank<PromotedArithmetic, bool>::apply(ICSRANK_STANDARDPROMOTION);
+
+	TestIcsRank<PromotedIntegral, int>::apply(ICSRANK_STANDARDEXACT);
+	TestIcsRank<PromotedIntegral, bool>::apply(ICSRANK_STANDARDPROMOTION);
+
+	TestIcsRank<MemberPointer, int Base::*>::apply(ICSRANK_STANDARDEXACT);
+	TestIcsRank<MemberPointer&, int Base::*&>::apply(ICSRANK_STANDARDEXACT);
+	TestIcsRank<MemberPointer volatile&, int Base::* volatile&>::apply(ICSRANK_STANDARDEXACT);
+
+	TestIcsRank<Any*&, Base*&>::apply(ICSRANK_STANDARDEXACT);
+	TestIcsRank<Any* volatile&, Base* volatile&>::apply(ICSRANK_STANDARDEXACT);
 }
 
 struct IcsRankTest

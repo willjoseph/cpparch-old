@@ -1,4 +1,15 @@
 
+namespace N279
+{
+	template<class T>
+	inline int f(T _First, T _Last)
+	{
+	}
+
+	char buffer[1];
+	int i = f(buffer, buffer+1);
+}
+
 namespace N278
 {
 	struct C

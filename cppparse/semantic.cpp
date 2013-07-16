@@ -231,6 +231,7 @@ inline const DeclarationInstance* findRedeclared(const Declaration& declaration,
 }
 
 
+
 Identifier gGlobalId = makeIdentifier("$global");
 
 

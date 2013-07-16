@@ -5059,6 +5059,11 @@ inline bool isEnum(UniqueTypeWrapper type)
 	return type.isSimple() && getObjectType(type.value).declaration->type.declaration == &gEnum;
 }
 
+inline bool isObject(UniqueTypeWrapper type)
+{
+	return type != gVoid && !type.isReference() && !type.isFunction();
+}
+
 inline bool isComplete(const UniqueTypeId& type)
 {
 	return type.isSimple() && isComplete(*getObjectType(type.value).declaration);
@@ -5080,6 +5085,22 @@ inline bool isIntegral(const UniqueTypeId& type)
 {
 	return isArithmetic(type) && !isFloating(type);
 }
+
+inline bool isPromotedIntegral(UniqueTypeWrapper type)
+{
+	return type == gSignedInt
+		|| type == gUnsignedInt
+		|| type == gSignedLongInt
+		|| type == gUnsignedLongInt
+		|| type == gSignedLongLongInt
+		|| type == gUnsignedLongLongInt;
+}
+
+inline bool isPromotedArithmetic(UniqueTypeWrapper type)
+{
+	return isPromotedIntegral(type) || isFloating(type);
+}
+
 
 inline bool isEnumeration(const UniqueTypeId& type)
 {
@@ -5210,8 +5231,9 @@ struct StandardConversionSequence
 {
 	ScsRank rank;
 	CvQualifiers adjustment; // TODO: cv-qualification signature for multi-level pointer type
-	StandardConversionSequence(ScsRank rank, CvQualifiers adjustment)
-		: rank(rank), adjustment(adjustment)
+	UniqueTypeWrapper matched;
+	StandardConversionSequence(ScsRank rank, CvQualifiers adjustment, UniqueTypeWrapper matched = gUniqueTypeNull)
+		: rank(rank), adjustment(adjustment), matched(matched)
 	{
 	}
 };
@@ -5325,28 +5347,139 @@ inline bool isEqualCvQualification(UniqueTypeId to, UniqueTypeId from)
 }
 
 
-
-inline StandardConversionSequence makeScsPromotion(UniqueTypeId to, UniqueTypeId from)
+struct TargetType : UniqueTypeWrapper
 {
-	if(isArithmetic(from) && from.isSimple()
-		&& isArithmetic(to) && to.isSimple()
-		&& (isEqual(from, gFloat) && isEqual(to, gDouble))
-			|| (isEqual(promoteToIntegralType(from), to)))
+	TargetType(UniqueTypeWrapper type)
+		: UniqueTypeWrapper(type)
 	{
-		return StandardConversionSequence(SCSRANK_PROMOTION, CvQualifiers());
+	}
+};
+
+extern ObjectTypeId gAnyTypePlaceholder;
+extern ObjectTypeId gArithmeticPlaceholder;
+extern ObjectTypeId gIntegralPlaceholder;
+extern ObjectTypeId gEnumerationPlaceholder;
+extern ObjectTypeId gPromotedIntegralPlaceholder;
+extern ObjectTypeId gPromotedArithmeticPlaceholder;
+extern ObjectTypeId gObjectTypePlaceholder;
+extern ObjectTypeId gClassTypePlaceholder;
+extern ObjectTypeId gFunctionTypePlaceholder;
+extern ObjectTypeId gMemberPointerPlaceholder;
+
+inline bool isEqual(TargetType to, UniqueTypeWrapper from)
+{
+	if(to == gAnyTypePlaceholder)
+	{
+		return true;
+	}
+	if(to == gPromotedArithmeticPlaceholder
+		&& isPromotedArithmetic(from))
+	{
+		return true;
+	}
+	if(to == gArithmeticPlaceholder
+		&& isArithmetic(from))
+	{
+		return true;
+	}
+	if(to == gIntegralPlaceholder
+		&& isIntegral(from))
+	{
+		return true;
+	}
+	if(to == gPromotedIntegralPlaceholder
+		&& isPromotedIntegral(from))
+	{
+		return true;
+	}
+	if(to == gEnumerationPlaceholder
+		&& isEnumeration(from))
+	{
+		return true;
+	}
+	if(to == gObjectTypePlaceholder
+		&& isObject(from))
+	{
+		return true;
+	}
+	if(to == gClassTypePlaceholder
+		&& isClass(from))
+	{
+		return true;
+	}
+	if(to == gFunctionTypePlaceholder
+		&& from.isFunction())
+	{
+		return true;
+	}
+	if(to == gMemberPointerPlaceholder
+		&& from.isMemberPointer())
+	{
+		return true;
+	}
+	return isEqual(UniqueTypeWrapper(to), from);
+}
+
+inline bool isEqualNoQualifiers(TargetType to, UniqueTypeWrapper from)
+{
+	to.value.setQualifiers(CvQualifiers());
+	from.value.setQualifiers(CvQualifiers());
+	// handle a placeholder target type of the form 'T*'
+	if(to.isPointer()
+		&& from.isPointer())
+	{
+		to.pop_front();
+		from.pop_front();
+	}
+	return isEqual(to, from);
+}
+
+inline bool isEqualMemberPointer(TargetType to, UniqueTypeWrapper from)
+{
+	to.value.setQualifiers(CvQualifiers());
+	from.value.setQualifiers(CvQualifiers());
+	return isEqual(to, from);
+}
+
+inline bool isArithmetic(TargetType to)
+{
+	if(to == gArithmeticPlaceholder
+		|| to == gPromotedArithmeticPlaceholder
+		|| to == gIntegralPlaceholder
+		|| to == gPromotedIntegralPlaceholder)
+	{
+		return true;
+	}
+	return isArithmetic(UniqueTypeWrapper(to));
+}
+
+inline StandardConversionSequence makeScsPromotion(TargetType to, UniqueTypeWrapper from)
+{
+	if(isArithmetic(from)
+		&& isArithmetic(to))
+	{
+		if(isEqual(from, gFloat)
+			&& isEqual(to, gDouble))
+		{
+			return StandardConversionSequence(SCSRANK_PROMOTION, CvQualifiers(), gDouble);
+		}
+		if(isEqual(to, promoteToIntegralType(from)))
+		{
+			return StandardConversionSequence(SCSRANK_PROMOTION, CvQualifiers(), promoteToIntegralType(from));
+		}	
 	}
 	return STANDARDCONVERSIONSEQUENCE_INVALID;
 }
 
-inline StandardConversionSequence makeScsConversion(Location source, const TypeInstance* enclosing, UniqueTypeId to, UniqueTypeId from, bool isNullPointerConstant = false) // TODO: detect null pointer constant
+inline StandardConversionSequence makeScsConversion(Location source, const TypeInstance* enclosing, TargetType to, UniqueTypeWrapper from, bool isNullPointerConstant = false) // TODO: detect null pointer constant
 {
 	SYMBOLS_ASSERT(to.value.getQualifiers() == CvQualifiers());
 	SYMBOLS_ASSERT(from.value.getQualifiers() == CvQualifiers());
-	if((isArithmetic(from) || isEnumeration(from)) && from.isSimple()
-		&& isArithmetic(to) && to.isSimple())
+	if((isArithmetic(from) || isEnumeration(from))
+		&& isArithmetic(to))
 	{
 		// can convert from enumeration to integer/floating/bool, but not in reverse
-		return StandardConversionSequence(SCSRANK_CONVERSION, CvQualifiers());
+		return StandardConversionSequence(SCSRANK_CONVERSION, CvQualifiers(), gSignedInt); // TODO: correct type of integral conversion
 	}
 	if((to.isPointer() || to.isMemberPointer())
 		&& isIntegral(from)
@@ -5358,21 +5491,21 @@ inline StandardConversionSequence makeScsConversion(Location source, const TypeI
 		&& from.isSimplePointer()
 		&& getInner(to.value).getPointer() == gVoid.value.getPointer()) // ignore cv-qualifiers here!
 	{
-		to = UniqueTypeWrapper(getInner(to.value));
-		from = UniqueTypeWrapper(getInner(from.value));
+		to.pop_front();
+		from.pop_front();
 		return isEqualCvQualification(to, from) || isGreaterCvQualification(to, from)
-			? StandardConversionSequence(SCSRANK_CONVERSION, makeQualificationAdjustment(to, from))
-			: STANDARDCONVERSIONSEQUENCE_INVALID; // T* -> void*
+			? StandardConversionSequence(SCSRANK_CONVERSION, makeQualificationAdjustment(to, from)) // T* -> void*
+			: STANDARDCONVERSIONSEQUENCE_INVALID;
 	}
 	if(to.isSimplePointer()
 		&& from.isSimplePointer()
 		&& isBaseOf(getObjectType(getInner(to.value)), getObjectType(getInner(from.value)), source, enclosing))
 	{
-		to = UniqueTypeWrapper(getInner(to.value));
-		from = UniqueTypeWrapper(getInner(from.value));
+		to.pop_front();
+		from.pop_front();
 		return isEqualCvQualification(to, from) || isGreaterCvQualification(to, from)
-			? StandardConversionSequence(SCSRANK_CONVERSION, makeQualificationAdjustment(to, from))
-			: STANDARDCONVERSIONSEQUENCE_INVALID; // D* -> B*
+			? StandardConversionSequence(SCSRANK_CONVERSION, makeQualificationAdjustment(to, from)) // D* -> B*
+			: STANDARDCONVERSIONSEQUENCE_INVALID;
 	}
 	if(to.isMemberPointer()
 		&& from.isMemberPointer()
@@ -5421,14 +5554,14 @@ inline StandardConversionSequence makeScsConversion(Location source, const TypeI
 // derived to base conversion
 // B <- D
 
-inline StandardConversionSequence makeScsExactMatch(UniqueTypeWrapper to, UniqueTypeWrapper from)
+inline StandardConversionSequence makeScsExactMatch(TargetType to, UniqueTypeWrapper from)
 {
 	for(;;)
 	{
-		if(to.value.getPointer() == from.value.getPointer())
+		if(isEqualNoQualifiers(to, from))
 		{
 			return isEqualCvQualification(to, from) || isGreaterCvQualification(to, from)
-				? StandardConversionSequence(SCSRANK_EXACT, makeQualificationAdjustment(to, from))
+				? StandardConversionSequence(SCSRANK_EXACT, makeQualificationAdjustment(to, from), from)
 				: STANDARDCONVERSIONSEQUENCE_INVALID;
 		}
 		if(to.isPointer()
@@ -5437,21 +5570,21 @@ inline StandardConversionSequence makeScsExactMatch(UniqueTypeWrapper to, Unique
 		}
 		else if(to.isMemberPointer()
 			&& from.isMemberPointer()
-			&& &getMemberPointerClass(to.value) == &getMemberPointerClass(from.value))
+			&& isEqual(getMemberPointerType(to.value).type, getMemberPointerType(from.value).type))
 		{
 		}
 		else
 		{
 			break;
 		}
-		to = UniqueTypeWrapper(getInner(to.value));
-		from = UniqueTypeWrapper(getInner(from.value));
+		to.pop_front();
+		from.pop_front();
 	}
 	return STANDARDCONVERSIONSEQUENCE_INVALID;
 }
 
 // 13.3.3.1 [over.best.ics]
-inline StandardConversionSequence makeStandardConversionSequence(UniqueTypeWrapper to, UniqueTypeWrapper from, Location source, const TypeInstance* enclosing, bool isNullPointerConstant = false, bool isLvalue = false)
+inline StandardConversionSequence makeStandardConversionSequence(TargetType to, UniqueTypeWrapper from, Location source, const TypeInstance* enclosing, bool isNullPointerConstant = false, bool isLvalue = false)
 {
 	// TODO: user-defined conversion
 	if(from.value == UNIQUETYPE_NULL)
@@ -5461,11 +5594,11 @@ inline StandardConversionSequence makeStandardConversionSequence(UniqueTypeWrapp
 	// 13.3.3.1.4 [over.ics.ref]: reference binding
 	if(to.isReference()) 
 	{
-		to = UniqueTypeWrapper(getInner(to.value));
+		to.pop_front();
 		if(from.isReference())
 		{
 			isLvalue = true;
-			from = UniqueTypeWrapper(getInner(from.value)); // TODO: removal of reference won't be detected later
+			from.pop_front(); // TODO: removal of reference won't be detected later
 		}
 		// 8.5.3 [dcl.init.ref]
 		// does it directly bind?
@@ -5473,7 +5606,7 @@ inline StandardConversionSequence makeStandardConversionSequence(UniqueTypeWrapp
 			&& (isEqualCvQualification(to, from)
 				|| isGreaterCvQualification(to, from))) // TODO: track 'added qualification' if qualification is greater
 		{
-			if(to.value.getPointer() == from.value.getPointer())
+			if(isEqualNoQualifiers(to, from))
 			{
 				return StandardConversionSequence(SCSRANK_EXACT, makeQualificationAdjustment(to, from));
 			}
@@ -5496,7 +5629,7 @@ inline StandardConversionSequence makeStandardConversionSequence(UniqueTypeWrapp
 	if(!to.isReference()
 		&& from.isReference())
 	{
-		from = UniqueTypeWrapper(getInner(from.value)); // T& -> T
+		from.pop_front(); // T& -> T
 	}
 
 	// ignore top level cv-qualifiers

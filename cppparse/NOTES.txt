@@ -385,3 +385,89 @@
 	- if more arguments than parameters, excess arguments become ellipsis-conversion-sequence
 
 - investigate: need to compare two function templates with different numbers of parameters when determining partial ordering?
+
+- task: array-to-pointer conversion in binary expression
+	[conv]
+	expressions with a given type will be implicitly converted to other types in several contexts:
+	- When used as operands of operators. The operator’s requirements for its operands dictate the destination type
+	[expr.add]
+	For addition, either both operands shall have arithmetic or enumeration type, or one operand shall be a
+	pointer to a completely defined object type and the other shall have integral or enumeration type.	
+
+	- overload resolution for built-in operators
+		- how to create infinite number of built-in overloads? e.g. match any pointer type
+		- special parameter type that matches all pointers (or ptr-to-function)
+			- how to deduce type that was matched?
+		- types:
+			O=object (not reference, not function, not void)
+			F=Function
+			G=object-or-function
+			A=Arithmetic
+			I=Integral
+			T=Type
+			C=class
+			E=enum
+			P=pointer
+			M=pointer-to-member
+		- forms
+			O*
+			[const] [volatile] O*
+			F* (operator*)
+			T*
+			A
+			I
+			E
+			P
+			M
+			[volatile] I&
+			[volatile] E&
+			[volatile] M&
+			[volatile] A&
+			[volatile] A& (not bool)
+			O*[volatile]&
+			P[volatile]&
+			[const] [volatile] C*
+			[const] [volatile] G C::*
+		- multiple conversion functions may match?
+		- other ambiguities?
+		- what conversions should be detected?
+			- reference binding
+			- exact: pointer qualification adjustment
+			- promotion: float -> double, I -> int
+			- conversion: A/E -> A
+		- which match-all types required?
+			- could match all T and reject later?
+				- no, would not get correct conversion result
+		- placeholder types
+			- any
+				- T* (unary-plus, relation, equality, assign-r)
+				- T*[volatile]& (assign-l)
+			- arithmetic
+				- [volatile]T& (incr, decr, assign-l)
+			- integral
+				- [volatile]T& (assign-l)
+			- object
+				- T*[volatile]& (incr, decr)
+				- T* (deref, ptr-add, subscript)
+			- function
+				- T* (deref)
+			- promoted-arithmetic
+				- T (assign-r, unary-plus, unary-minus, mul, add, relational, equality, conditional)
+			- promoted-integral
+				- T (compl, bitwise, remainder)
+			- class
+				- T* (mptr-call)
+			- mptr
+				- T (mptr-call, equality, assign-r)
+				- [volatile]T& (assign-l)
+
+
+
+- task: test conversion function parse special-case
+	The conversion-type-id shall not represent a function type nor an array type. The conversion-type-id in a
+	conversion-function-id is the longest possible sequence of conversion-declarators. [Note: this prevents
+	ambiguities between the declarator operator * and its expression counterparts. [Example:
+	&ac.operator int*i; // syntax error:
+	// parsed as: &(ac.operator int *) i
+	// not as: &(ac.operator int)*i
+	The * is the pointer declarator and not the multiplication operator. ] ]
