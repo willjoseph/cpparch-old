@@ -5302,31 +5302,34 @@ inline const UniqueTypeId& promoteToIntegralType(const UniqueTypeId& type)
 	return type;
 }
 
+// T[] -> T*
 inline UniqueTypeWrapper applyArrayToPointerConversion(UniqueTypeWrapper type)
 {
 	SYMBOLS_ASSERT(type.isArray());
-	return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, getInner(type.value), PointerType())); // T[] -> T*
+	type.pop_front();
+	type.push_front(PointerType());
+	return type;
 }
 
+// T() -> T(*)()
 inline UniqueTypeWrapper applyFunctionToPointerConversion(UniqueTypeWrapper type)
 {
 	SYMBOLS_ASSERT(type.isFunction());
-	return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, type.value, PointerType())); // T() -> T(*)()
+	type.push_front(PointerType());
+	return type;
 }
 
-inline UniqueTypeWrapper applyLvalueTransformation(UniqueTypeWrapper to, UniqueTypeWrapper from)
+inline UniqueTypeWrapper applyLvalueToRvalueConversion(UniqueTypeWrapper type)
 {
-	if(to.isPointer()
-		&& from.isArray())
+	if(type.isArray())
 	{
-		return applyArrayToPointerConversion(from);
+		return applyArrayToPointerConversion(type);
 	}
-	if(to.isFunctionPointer()
-		&& from.isFunction())
+	if(type.isFunction())
 	{
-		return applyFunctionToPointerConversion(from);
+		return applyFunctionToPointerConversion(type);
 	}
-	return from;
+	return type;
 }
 
 inline CvQualifiers makeQualificationAdjustment(UniqueTypeId to, UniqueTypeId from)
@@ -5366,79 +5369,80 @@ extern ObjectTypeId gClassTypePlaceholder;
 extern ObjectTypeId gFunctionTypePlaceholder;
 extern ObjectTypeId gMemberPointerPlaceholder;
 
-inline bool isEqual(TargetType to, UniqueTypeWrapper from)
+inline UniqueTypeWrapper getExactMatch(UniqueTypeWrapper to, UniqueTypeWrapper from)
+{
+	return isEqual(to, from) ? from : gUniqueTypeNull;
+}
+
+inline UniqueTypeWrapper getExactMatch(TargetType to, UniqueTypeWrapper from)
 {
 	if(to == gAnyTypePlaceholder)
 	{
-		return true;
+		return from;
 	}
 	if(to == gPromotedArithmeticPlaceholder
 		&& isPromotedArithmetic(from))
 	{
-		return true;
+		return from;
 	}
 	if(to == gArithmeticPlaceholder
 		&& isArithmetic(from))
 	{
-		return true;
+		return from;
 	}
 	if(to == gIntegralPlaceholder
 		&& isIntegral(from))
 	{
-		return true;
+		return from;
 	}
 	if(to == gPromotedIntegralPlaceholder
 		&& isPromotedIntegral(from))
 	{
-		return true;
+		return from;
 	}
 	if(to == gEnumerationPlaceholder
 		&& isEnumeration(from))
 	{
-		return true;
+		return from;
 	}
 	if(to == gObjectTypePlaceholder
 		&& isObject(from))
 	{
-		return true;
+		return from;
 	}
 	if(to == gClassTypePlaceholder
 		&& isClass(from))
 	{
-		return true;
+		return from;
 	}
 	if(to == gFunctionTypePlaceholder
 		&& from.isFunction())
 	{
-		return true;
+		return from;
 	}
 	if(to == gMemberPointerPlaceholder
 		&& from.isMemberPointer())
 	{
-		return true;
+		return from;
 	}
-	return isEqual(UniqueTypeWrapper(to), from);
-}
-
-inline bool isEqualNoQualifiers(TargetType to, UniqueTypeWrapper from)
-{
-	to.value.setQualifiers(CvQualifiers());
-	from.value.setQualifiers(CvQualifiers());
 	// handle a placeholder target type of the form 'T*'
-	if(to.isPointer()
+	if(isEqualCvQualification(to, from)
+		&& to.isPointer()
 		&& from.isPointer())
 	{
 		to.pop_front();
 		from.pop_front();
+		return getExactMatch(to, from);
 	}
-	return isEqual(to, from);
+	return getExactMatch(UniqueTypeWrapper(to), from);
 }
 
-inline bool isEqualMemberPointer(TargetType to, UniqueTypeWrapper from)
+template<typename To>
+inline UniqueTypeWrapper getExactMatchNoQualifiers(To to, UniqueTypeWrapper from)
 {
 	to.value.setQualifiers(CvQualifiers());
 	from.value.setQualifiers(CvQualifiers());
-	return isEqual(to, from);
+	return getExactMatch(to, from);
 }
 
 inline bool isArithmetic(TargetType to)
@@ -5453,25 +5457,31 @@ inline bool isArithmetic(TargetType to)
 	return isArithmetic(UniqueTypeWrapper(to));
 }
 
-inline StandardConversionSequence makeScsPromotion(TargetType to, UniqueTypeWrapper from)
+template<typename To>
+inline StandardConversionSequence makeScsPromotion(To to, UniqueTypeWrapper from)
 {
 	if(isArithmetic(from)
 		&& isArithmetic(to))
 	{
-		if(isEqual(from, gFloat)
-			&& isEqual(to, gDouble))
+		if(from == gFloat)
 		{
-			return StandardConversionSequence(SCSRANK_PROMOTION, CvQualifiers(), gDouble);
+			UniqueTypeWrapper matched = getExactMatch(to, gDouble);
+			if(matched != gUniqueTypeNull)
+			{
+				return StandardConversionSequence(SCSRANK_PROMOTION, CvQualifiers(), matched);
+			}
 		}
-		if(isEqual(to, promoteToIntegralType(from)))
+		UniqueTypeWrapper matched = getExactMatch(to, promoteToIntegralType(from));
+		if(matched != gUniqueTypeNull)
 		{
-			return StandardConversionSequence(SCSRANK_PROMOTION, CvQualifiers(), promoteToIntegralType(from));
+			return StandardConversionSequence(SCSRANK_PROMOTION, CvQualifiers(), matched);
 		}	
 	}
 	return STANDARDCONVERSIONSEQUENCE_INVALID;
 }
 
-inline StandardConversionSequence makeScsConversion(Location source, const TypeInstance* enclosing, TargetType to, UniqueTypeWrapper from, bool isNullPointerConstant = false) // TODO: detect null pointer constant
+template<typename To>
+inline StandardConversionSequence makeScsConversion(Location source, const TypeInstance* enclosing, To to, UniqueTypeWrapper from, bool isNullPointerConstant = false) // TODO: detect null pointer constant
 {
 	SYMBOLS_ASSERT(to.value.getQualifiers() == CvQualifiers());
 	SYMBOLS_ASSERT(from.value.getQualifiers() == CvQualifiers());
@@ -5513,7 +5523,7 @@ inline StandardConversionSequence makeScsConversion(Location source, const TypeI
 	{
 		return StandardConversionSequence(SCSRANK_CONVERSION, CvQualifiers()); // D::* -> B::*
 	}
-	if(isEqual(to, gBool)
+	if(to == gBool
 		&& (from.isPointer() || from.isMemberPointer()))
 	{
 		return StandardConversionSequence(SCSRANK_CONVERSION, CvQualifiers()); // T* -> bool, T::* -> bool
@@ -5554,14 +5564,16 @@ inline StandardConversionSequence makeScsConversion(Location source, const TypeI
 // derived to base conversion
 // B <- D
 
-inline StandardConversionSequence makeScsExactMatch(TargetType to, UniqueTypeWrapper from)
+template<typename To>
+inline StandardConversionSequence makeScsExactMatch(To to, UniqueTypeWrapper from)
 {
 	for(;;)
 	{
-		if(isEqualNoQualifiers(to, from))
+		UniqueTypeWrapper matched = getExactMatchNoQualifiers(to, from);
+		if(matched != gUniqueTypeNull)
 		{
 			return isEqualCvQualification(to, from) || isGreaterCvQualification(to, from)
-				? StandardConversionSequence(SCSRANK_EXACT, makeQualificationAdjustment(to, from), from)
+				? StandardConversionSequence(SCSRANK_EXACT, makeQualificationAdjustment(to, from), matched)
 				: STANDARDCONVERSIONSEQUENCE_INVALID;
 		}
 		if(to.isPointer()
@@ -5570,7 +5582,7 @@ inline StandardConversionSequence makeScsExactMatch(TargetType to, UniqueTypeWra
 		}
 		else if(to.isMemberPointer()
 			&& from.isMemberPointer()
-			&& isEqual(getMemberPointerType(to.value).type, getMemberPointerType(from.value).type))
+			&& getMemberPointerType(to.value).type == getMemberPointerType(from.value).type)
 		{
 		}
 		else
@@ -5584,7 +5596,8 @@ inline StandardConversionSequence makeScsExactMatch(TargetType to, UniqueTypeWra
 }
 
 // 13.3.3.1 [over.best.ics]
-inline StandardConversionSequence makeStandardConversionSequence(TargetType to, UniqueTypeWrapper from, Location source, const TypeInstance* enclosing, bool isNullPointerConstant = false, bool isLvalue = false)
+template<typename To>
+inline StandardConversionSequence makeStandardConversionSequence(To to, UniqueTypeWrapper from, Location source, const TypeInstance* enclosing, bool isNullPointerConstant = false, bool isLvalue = false)
 {
 	// TODO: user-defined conversion
 	if(from.value == UNIQUETYPE_NULL)
@@ -5606,9 +5619,10 @@ inline StandardConversionSequence makeStandardConversionSequence(TargetType to, 
 			&& (isEqualCvQualification(to, from)
 				|| isGreaterCvQualification(to, from))) // TODO: track 'added qualification' if qualification is greater
 		{
-			if(isEqualNoQualifiers(to, from))
+			UniqueTypeWrapper matched = getExactMatchNoQualifiers(to, from);
+			if(matched != gUniqueTypeNull)
 			{
-				return StandardConversionSequence(SCSRANK_EXACT, makeQualificationAdjustment(to, from));
+				return StandardConversionSequence(SCSRANK_EXACT, makeQualificationAdjustment(to, from), matched);
 			}
 			if(to.isSimple()
 				&& from.isSimple()
@@ -5637,9 +5651,9 @@ inline StandardConversionSequence makeStandardConversionSequence(TargetType to, 
 	from.value.setQualifiers(CvQualifiers());
 
 	UniqueTypeWrapper tmp = from;
-	from = applyLvalueTransformation(to, from);
+	from = applyLvalueToRvalueConversion(from); // TODO: lvalue-ness
 
-	if(tmp == from // no l-value transformation
+	if(tmp == from // no l-value to rvalue conversion
 		&& to == from) // no other conversions required
 	{
 		return StandardConversionSequence(SCSRANK_IDENTITY, CvQualifiers());
@@ -5672,10 +5686,9 @@ inline StandardConversionSequence makeStandardConversionSequence(TargetType to, 
 	return STANDARDCONVERSIONSEQUENCE_INVALID;
 }
 
-inline IcsRank getIcsRank(UniqueTypeWrapper to, UniqueTypeWrapper from, Location source, const TypeInstance* enclosing, bool isNullPointerConstant = false, bool isLvalue = false)
+inline IcsRank getIcsRank(ScsRank rank)
 {
-	StandardConversionSequence sequence = makeStandardConversionSequence(to, from, source, enclosing, isNullPointerConstant, isLvalue);
-	switch(sequence.rank)
+	switch(rank)
 	{
 	case SCSRANK_IDENTITY:
 	case SCSRANK_EXACT: return ICSRANK_STANDARDEXACT;
@@ -5683,6 +5696,12 @@ inline IcsRank getIcsRank(UniqueTypeWrapper to, UniqueTypeWrapper from, Location
 	case SCSRANK_CONVERSION: return ICSRANK_STANDARDCONVERSION;
 	}
 	return ICSRANK_INVALID;
+}
+
+inline IcsRank getIcsRank(UniqueTypeWrapper to, UniqueTypeWrapper from, Location source, const TypeInstance* enclosing, bool isNullPointerConstant = false, bool isLvalue = false)
+{
+	StandardConversionSequence sequence = makeStandardConversionSequence(to, from, source, enclosing, isNullPointerConstant, isLvalue);
+	return getIcsRank(sequence.rank);
 }
 
 inline bool isProperSubsequence(CvQualifiers l, CvQualifiers r)
@@ -6693,6 +6712,8 @@ struct Argument : ExpressionWrapper
 
 typedef std::vector<Argument> Arguments;
 
+const CandidateFunction gOverloadNull;
+
 struct OverloadResolver
 {
 	const Arguments& arguments;
@@ -6707,9 +6728,9 @@ struct OverloadResolver
 	{
 		best.conversions.resize(arguments.size(), ImplicitConversion(STANDARDCONVERSIONSEQUENCE_INVALID));
 	}
-	FunctionOverload get() const
+	const CandidateFunction& get() const
 	{
-		return ambiguous != 0 ? FunctionOverload(0, gUniqueTypeNull) : best;
+		return ambiguous != 0 ? gOverloadNull : best;
 	}
 	bool isViable(const CandidateFunction& candidate)
 	{

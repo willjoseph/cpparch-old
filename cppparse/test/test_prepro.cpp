@@ -1,4 +1,6 @@
 
+
+#if 1
 namespace N279
 {
 	template<class T>
@@ -9,6 +11,7 @@ namespace N279
 	char buffer[1];
 	int i = f(buffer, buffer+1);
 }
+#endif
 
 namespace N278
 {

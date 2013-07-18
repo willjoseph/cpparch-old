@@ -1100,6 +1100,8 @@ struct WalkerBase : public WalkerState
 			// substitute the template-parameters in the function's parameter list with the explicitly specified template-arguments
 			ParameterTypes substituted1;
 			substitute(substituted1, functionTemplate.parameters, source, specialization);
+			// TODO: [temp.deduct]
+			// After this substitution is performed, the function parameter type adjustments described in 8.3.5 are performed.
 
 			UniqueTypeArray arguments;
 			arguments.reserve(resolver.arguments.size());
@@ -1221,11 +1223,15 @@ struct WalkerBase : public WalkerState
 		return resolver.get();
 	}
 
-	static FunctionOverload findBestOverloadedOperator(const Identifier& id, Argument operand, Scope* enclosing, Location source, const TypeInstance* enclosingType)
+	static FunctionOverload findBestOverloadedOperator(cpp::unary_operator* op, Argument operand, Scope* enclosing, Location source, const TypeInstance* enclosingType)
 	{
 		UniqueTypeWrapper type = operand.type;
 		if(isClass(type) || isEnumeration(type)) // if the operand has class or enum type
 		{
+			Identifier id;
+			id.value = getUnaryOperatorName(op);
+			id.source = source;
+
 			Arguments arguments(1, operand);
 			OverloadResolver resolver(arguments, 0, source, enclosingType);
 
@@ -1264,10 +1270,7 @@ struct WalkerBase : public WalkerState
 	}
 	static UniqueTypeWrapper typeOfUnaryExpression(cpp::unary_operator* op, Argument operand, Scope* enclosing, Location source, const TypeInstance* enclosingType)
 	{
-		Identifier id;
-		id.value = getUnaryOperatorName(op);
-		id.source = source;
-		FunctionOverload overload = findBestOverloadedOperator(id, operand, enclosing, source, enclosingType);
+		FunctionOverload overload = findBestOverloadedOperator(op, operand, enclosing, source, enclosingType);
 		if(overload.declaration == &gUnknown)
 		{
 			if(op->id == cpp::unary_operator::AND
@@ -1301,12 +1304,8 @@ struct WalkerBase : public WalkerState
 	// paragraph 9: usual arithmetic conversions
 	static UniqueTypeWrapper binaryOperatorIntegralType(UniqueTypeWrapper left, UniqueTypeWrapper right)
 	{
-		if(left.value == UNIQUETYPE_NULL
-			|| right.value == UNIQUETYPE_NULL)
-		{
-			// TODO: assert
-			return gUniqueTypeNull;
-		}
+		SEMANTIC_ASSERT(left != gUniqueTypeNull);
+		SEMANTIC_ASSERT(right != gUniqueTypeNull);
 
 		if(isEqual(left, gUnsignedLongInt)
 			|| isEqual(right, gUnsignedLongInt))
@@ -1334,12 +1333,8 @@ struct WalkerBase : public WalkerState
 	}
 	static UniqueTypeWrapper binaryOperatorArithmeticType(UniqueTypeWrapper left, UniqueTypeWrapper right)
 	{
-		if(left.value == UNIQUETYPE_NULL
-			|| right.value == UNIQUETYPE_NULL)
-		{
-			// TODO: assert
-			return gUniqueTypeNull;
-		}
+		SEMANTIC_ASSERT(left != gUniqueTypeNull);
+		SEMANTIC_ASSERT(right != gUniqueTypeNull);
 
 		//TODO: SEMANTIC_ASSERT(isArithmetic(left) && isArithmetic(right));
 		if(isEqual(left, gLongDouble)
@@ -1361,12 +1356,10 @@ struct WalkerBase : public WalkerState
 	}
 	static UniqueTypeWrapper binaryOperatorAdditiveType(UniqueTypeWrapper left, UniqueTypeWrapper right)
 	{
-		if(left.value == UNIQUETYPE_NULL
-			|| right.value == UNIQUETYPE_NULL)
-		{
-			// TODO: assert
-			return gUniqueTypeNull;
-		}
+		SEMANTIC_ASSERT(left != gUniqueTypeNull);
+		SEMANTIC_ASSERT(right != gUniqueTypeNull);
+		left = applyLvalueToRvalueConversion(left);
+		right = applyLvalueToRvalueConversion(right);
 
 		if(left.isPointer())
 		{
@@ -1377,7 +1370,7 @@ struct WalkerBase : public WalkerState
 			}
 			if(right.isPointer())
 			{
-				return gSignedLongInt; // TODO: ptrdiff_t
+				return gSignedLongLongInt; // TODO: ptrdiff_t
 			}
 		}
 		return binaryOperatorArithmeticType(left, right);
@@ -1392,13 +1385,12 @@ struct WalkerBase : public WalkerState
 		}
 		else if(symbol->id == cpp::unary_operator::STAR) // dereference
 		{
-			UniqueTypeId result = type;
+			UniqueTypeId result = applyLvalueToRvalueConversion(type);
 			SEMANTIC_ASSERT(!result.empty());
-			// TODO: array-to-pointer conversion?
 			// [expr.unary] The unary * operator performs indirection: the expression to which it is applied shall be a pointer to an
 			// object type, or a pointer to a function type and the result is an lvalue referring to the object or function to
 			// which the expression points.
-			SEMANTIC_ASSERT(result.isPointer() || result.isArray());
+			SEMANTIC_ASSERT(result.isPointer());
 			result.pop_front();
 			return result;
 		}
@@ -2851,7 +2843,9 @@ struct ExpressionWalker : public WalkerBase
 		);
 		if(!expression.isTypeDependent)
 		{
-			type = typeOp(type, walker.type); // TODO: call typeofExpression
+			UniqueTypeWrapper left = removeReference(type);
+			UniqueTypeWrapper right = removeReference(walker.type);
+			type = typeOp(left, right); // TODO: call typeofExpression
 			// TODO: conditional-expression: SYMBOLS_ASSERT(type != gUniqueTypeNull);
 		}
 		ExpressionType<T>::set(symbol, type);

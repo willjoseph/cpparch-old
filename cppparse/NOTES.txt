@@ -386,18 +386,37 @@
 
 - investigate: need to compare two function templates with different numbers of parameters when determining partial ordering?
 
+- task: function parameter type transformations
+	[dcl.fct] After determining the
+	type of each parameter, any parameter of type “array of T” or “function returning T” is adjusted to be
+	“pointer to T” or “pointer to function returning T,” respectively. After producing the list of parameter
+	types, several transformations take place upon these types to determine the function type. Any cv-qualifier
+	modifying a parameter type is deleted. The resulting list of transformed parameter types is the function’s parameter
+	type list.
+	[temp.deduct]
+	After this substitution is performed, the function parameter type adjustments described in 8.3.5 are performed.
+	[Example: A parameter type of “void ()(const int, int[5])” becomes “void(*)(int,int*)”. ]
+
 - task: array-to-pointer conversion in binary expression
 	[conv]
 	expressions with a given type will be implicitly converted to other types in several contexts:
 	- When used as operands of operators. The operator’s requirements for its operands dictate the destination type
+	[expr]
+	Whenever an lvalue expression appears as an operand of an operator that expects an rvalue for that operand,
+	the lvalue-to-rvalue (4.1), array-to-pointer (4.2), or function-to-pointer (4.3) standard conversions are
+	applied to convert the expression to an rvalue. [Note: because cv-qualifiers are removed from the type of
+	an expression of non-class type when the expression is converted to an rvalue, an lvalue expression of type
+	const int can, for example, be used where an rvalue expression of type int is required. ]	
 	[expr.add]
 	For addition, either both operands shall have arithmetic or enumeration type, or one operand shall be a
-	pointer to a completely defined object type and the other shall have integral or enumeration type.	
+	pointer to a completely defined object type and the other shall have integral or enumeration type.
+
+	- 
 
 	- overload resolution for built-in operators
+		- required only when an operand has class or enumeration type
 		- how to create infinite number of built-in overloads? e.g. match any pointer type
-		- special parameter type that matches all pointers (or ptr-to-function)
-			- how to deduce type that was matched?
+		- hide user-written candidates that match built-in overload parameters exactly
 		- types:
 			O=object (not reference, not function, not void)
 			F=Function
@@ -454,12 +473,28 @@
 			- promoted-arithmetic
 				- T (assign-r, unary-plus, unary-minus, mul, add, relational, equality, conditional)
 			- promoted-integral
-				- T (compl, bitwise, remainder)
+				- T (compl, bitwise, shift, remainder)
 			- class
 				- T* (mptr-call)
 			- mptr
 				- T (mptr-call, equality, assign-r)
 				- [volatile]T& (assign-l)
+		- add overloads
+			- deref: T* -> T&
+			- unary-add: T* -> T* or T -> T
+			- compl: -> T -> T
+			- mptr-call: CV1 C1*, CV2 T C2::* -> CV12 T&
+			- mul, add: L, R -> LR
+			- relational, equality: L, R -> bool
+			- ptr-add: T*, ptrdiff_t -> T*
+			- subscript: T*, ptrdiff_t -> T&
+			- ptr-sub: T, T -> bool
+			- relational, equality: T, T -> bool
+			- bitwise: L, R -> LR
+			- shift: L, R -> L
+			- assign: [volatile]L&, R -> [volatile]L&
+			- 
+		- issue: how to ensure both arguments are same type when matching (T, T) ?
 
 
 

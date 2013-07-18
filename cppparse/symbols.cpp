@@ -988,13 +988,24 @@ IcsRank getArithmeticIcsRank(const UniqueTypeId& to, const UniqueTypeId& from)
 	return ICSRANK_STANDARDCONVERSION;
 }
 
-template<typename To, typename From>
+template<typename To, typename From, typename Matched = void>
 struct TestIcsRank
 {
 	static void apply(IcsRank expected, bool isNullPointerConstant = false, bool isLvalue = false)
 	{
 		IcsRank rank = getIcsRank(MakeType<To>::apply(), MakeType<From>::apply(), Location(), 0, isNullPointerConstant, isLvalue);
 		SYMBOLS_ASSERT(rank == expected);
+	}
+	static void match(IcsRank expected)
+	{
+		StandardConversionSequence sequence = makeStandardConversionSequence(TargetType(MakeType<To>::apply()), MakeType<From>::apply(), Location(), 0);
+		IcsRank rank = getIcsRank(sequence.rank);
+		SYMBOLS_ASSERT(rank == expected);
+		if(expected != ICSRANK_INVALID)
+		{
+			UniqueTypeWrapper matched = MakeType<Matched>::apply();
+			SYMBOLS_ASSERT(sequence.matched == matched);
+		}
 	}
 };
 
@@ -1136,34 +1147,47 @@ inline void testIcsRank()
 	TestIcsRank<Base&, Base>::apply(ICSRANK_INVALID, false, false);
 
 	// placeholders
-	TestIcsRank<Any*, Base*>::apply(ICSRANK_STANDARDEXACT);
-	TestIcsRank<Any*, int*>::apply(ICSRANK_STANDARDEXACT);
-	TestIcsRank<Any*, float*>::apply(ICSRANK_STANDARDEXACT);
-	TestIcsRank<Any*, void(*)()>::apply(ICSRANK_STANDARDEXACT);
+	TestIcsRank<Any*, Base*, Base>::match(ICSRANK_STANDARDEXACT);
+	TestIcsRank<Any*, int*, int>::match(ICSRANK_STANDARDEXACT);
+	TestIcsRank<Any*, float*, float>::match(ICSRANK_STANDARDEXACT);
+	TestIcsRank<Any*, void(*)(), void()>::match(ICSRANK_STANDARDEXACT);
+	TestIcsRank<Any*, int>::match(ICSRANK_INVALID);
 
-	TestIcsRank<Object*, Base*>::apply(ICSRANK_STANDARDEXACT);
-	TestIcsRank<Object*, int*>::apply(ICSRANK_STANDARDEXACT);
-	TestIcsRank<Object*, void**>::apply(ICSRANK_STANDARDEXACT);
+	TestIcsRank<Class*, Base*, Base>::match(ICSRANK_STANDARDEXACT);
+	TestIcsRank<Class*, int*>::match(ICSRANK_INVALID);
 
-	TestIcsRank<Function*, void(*)()>::apply(ICSRANK_STANDARDEXACT);
+	TestIcsRank<Object*, Base*, Base>::match(ICSRANK_STANDARDEXACT);
+	TestIcsRank<Object*, int*, int>::match(ICSRANK_STANDARDEXACT);
+	TestIcsRank<Object*, void**, void*>::match(ICSRANK_STANDARDEXACT);
+	TestIcsRank<Object*, void(*)()>::match(ICSRANK_INVALID);
+	TestIcsRank<Object*, void*>::match(ICSRANK_INVALID);
 
-	TestIcsRank<Arithmetic, int>::apply(ICSRANK_STANDARDEXACT);
-	TestIcsRank<Arithmetic, float>::apply(ICSRANK_STANDARDEXACT);
-	TestIcsRank<Arithmetic, bool>::apply(ICSRANK_STANDARDEXACT);
+	TestIcsRank<Function*, void(*)(), void()>::match(ICSRANK_STANDARDEXACT);
+	TestIcsRank<Function*, Base*, void()>::apply(ICSRANK_INVALID);
+	TestIcsRank<Function*, int*>::match(ICSRANK_INVALID);
 
-	TestIcsRank<PromotedArithmetic, int>::apply(ICSRANK_STANDARDEXACT);
-	TestIcsRank<PromotedArithmetic, float>::apply(ICSRANK_STANDARDEXACT);
-	TestIcsRank<PromotedArithmetic, bool>::apply(ICSRANK_STANDARDPROMOTION);
+	TestIcsRank<Arithmetic, int, int>::match(ICSRANK_STANDARDEXACT);
+	TestIcsRank<Arithmetic, float, float>::match(ICSRANK_STANDARDEXACT);
+	TestIcsRank<Arithmetic, bool, bool>::match(ICSRANK_STANDARDEXACT);
+	TestIcsRank<Arithmetic, int*>::match(ICSRANK_INVALID);
 
-	TestIcsRank<PromotedIntegral, int>::apply(ICSRANK_STANDARDEXACT);
-	TestIcsRank<PromotedIntegral, bool>::apply(ICSRANK_STANDARDPROMOTION);
+	TestIcsRank<PromotedArithmetic, int, int>::match(ICSRANK_STANDARDEXACT);
+	TestIcsRank<PromotedArithmetic, float, float>::match(ICSRANK_STANDARDEXACT);
+	TestIcsRank<PromotedArithmetic, bool, int>::match(ICSRANK_STANDARDPROMOTION);
+	TestIcsRank<PromotedArithmetic, int*>::match(ICSRANK_INVALID);
 
-	TestIcsRank<MemberPointer, int Base::*>::apply(ICSRANK_STANDARDEXACT);
-	TestIcsRank<MemberPointer&, int Base::*&>::apply(ICSRANK_STANDARDEXACT);
-	TestIcsRank<MemberPointer volatile&, int Base::* volatile&>::apply(ICSRANK_STANDARDEXACT);
+	TestIcsRank<PromotedIntegral, int, int>::match(ICSRANK_STANDARDEXACT);
+	TestIcsRank<PromotedIntegral, bool, int>::match(ICSRANK_STANDARDPROMOTION);
+	TestIcsRank<PromotedIntegral, float, int>::match(ICSRANK_STANDARDCONVERSION);
+	TestIcsRank<PromotedIntegral, int*>::match(ICSRANK_INVALID);
 
-	TestIcsRank<Any*&, Base*&>::apply(ICSRANK_STANDARDEXACT);
-	TestIcsRank<Any* volatile&, Base* volatile&>::apply(ICSRANK_STANDARDEXACT);
+	TestIcsRank<MemberPointer, int Base::*, int Base::*>::match(ICSRANK_STANDARDEXACT);
+	TestIcsRank<MemberPointer&, int Base::*&, int Base::*>::match(ICSRANK_STANDARDEXACT);
+	TestIcsRank<MemberPointer volatile&, int Base::* volatile&, int Base::*>::match(ICSRANK_STANDARDEXACT);
+	TestIcsRank<MemberPointer, int*>::match(ICSRANK_INVALID);
+
+	TestIcsRank<Any*&, Base*&,Base>::match(ICSRANK_STANDARDEXACT);
+	TestIcsRank<Any* volatile&, Base* volatile&, Base>::match(ICSRANK_STANDARDEXACT);
 }
 
 struct IcsRankTest
