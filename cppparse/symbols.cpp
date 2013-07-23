@@ -1203,10 +1203,10 @@ struct IcsRankTest
 template<typename P, typename A, typename R = void>
 struct TestDeduction
 {
-	static void apply(const TemplateArgumentsInstance& expected)
+	static void apply(const TemplateArgumentsInstance& expected, bool isFunctionCall)
 	{
 		TemplateArgumentsInstance templateArguments(expected.size(), gUniqueTypeNull);
-		bool result = deduce(MakeType<P>::apply(), MakeType<A>::apply(), templateArguments);
+		bool result = deduce(MakeType<P>::apply(), MakeType<A>::apply(), templateArguments, isFunctionCall);
 		if(result)
 		{
 			SYMBOLS_ASSERT(templateArguments == expected);
@@ -1216,18 +1216,22 @@ struct TestDeduction
 			SYMBOLS_ASSERT(gUniqueTypeNull == expected[0]);
 		}
 	}
-	static void apply(UniqueTypeWrapper expected = MakeType<R>::apply())
+	static void apply(UniqueTypeWrapper expected, bool isFunctionCall = false)
 	{
 		TemplateArgumentsInstance tmp;
 		tmp.push_back(expected);
-		apply(tmp);
+		apply(tmp, isFunctionCall);
 	}
-	static void apply(UniqueTypeWrapper expected, UniqueTypeWrapper expected2)
+	static void apply(bool isFunctionCall = false)
+	{
+		apply(MakeType<R>::apply(), isFunctionCall);
+	}
+	static void apply(UniqueTypeWrapper expected, UniqueTypeWrapper expected2, bool isFunctionCall = false)
 	{
 		TemplateArgumentsInstance tmp;
 		tmp.push_back(expected);
 		tmp.push_back(expected2);
-		apply(tmp);
+		apply(tmp, isFunctionCall);
 	}
 };
 
@@ -1330,6 +1334,12 @@ void testDeduction()
 
 	// expected to fail due to multiple deductions of T
 	TestDeduction<T(*)(T), int(*)(float)>::apply(gUniqueTypeNull);
+
+	// function call
+	TestDeduction<const T&, int, int>::apply(true);
+	TestDeduction<T&, int, int>::apply(true);
+	TestDeduction<T, int[1], int*>::apply(true);
+	TestDeduction<T, const int[1], const int*>::apply(true);
 }
 
 

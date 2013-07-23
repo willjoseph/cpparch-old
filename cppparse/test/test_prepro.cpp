@@ -1,14 +1,13 @@
 
-namespace N280
-{
-	enum E
-	{
-	};
 
-	int f(int);
-	int f(unsigned int);
-	
-	int i = f(E(0));
+namespace N281
+{
+	template<class U>
+	inline int f(const U&_Val)
+	{
+	}
+
+	int i = f(char(0xba));
 }
 
 namespace N279
@@ -20,6 +19,18 @@ namespace N279
 
 	char buffer[1];
 	int i = f(buffer, buffer+1);
+}
+
+namespace N280
+{
+	enum E
+	{
+	};
+
+	int f(int);
+	int f(unsigned int);
+	
+	int i = f(E(0));
 }
 
 namespace N278

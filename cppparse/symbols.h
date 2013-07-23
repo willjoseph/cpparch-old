@@ -1554,6 +1554,18 @@ inline bool operator<(UniqueTypeWrapper l, UniqueTypeWrapper r)
 	return l.value < r.value;
 }
 
+
+inline bool isGreaterCvQualification(UniqueTypeWrapper to, UniqueTypeWrapper from)
+{
+	return to.value.getQualifiers().isConst > from.value.getQualifiers().isConst
+		|| to.value.getQualifiers().isVolatile > from.value.getQualifiers().isVolatile;
+}
+
+inline bool isEqualCvQualification(UniqueTypeWrapper to, UniqueTypeWrapper from)
+{
+	return to.value.getQualifiers() == from.value.getQualifiers();
+}
+
 // ----------------------------------------------------------------------------
 struct Parameter
 {
@@ -3227,6 +3239,7 @@ inline bool deduce(UniqueTypeWrapper parameter, UniqueTypeWrapper argument, Temp
 		return true; // deduction succeeds, but does not deduce anything
 	}
 
+	bool isReference = false;
 	if(isFunctionCall)
 	{
 		// [temp.deduct.call]
@@ -3235,6 +3248,7 @@ inline bool deduce(UniqueTypeWrapper parameter, UniqueTypeWrapper argument, Temp
 		// If P is a  reference type, the type referred to by P is used for type deduction.
 		if(parameter.isReference())
 		{
+			isReference = true;
 			parameter = removeReference(parameter);
 		}
 		// If P is not a reference type:
@@ -3261,41 +3275,39 @@ inline bool deduce(UniqueTypeWrapper parameter, UniqueTypeWrapper argument, Temp
 		}
 	}
 
+	// [temp.deduct.call]
+	// In general, the deduction process attempts to find template argument values that will make the deduced A identical to A
+	// However, there are three cases that allow a difference:
+	// — If the original P is a reference type, the deduced A (i.e., the type referred to by the reference) can be
+	// more cv-qualified than A.
+	// 	— A can be another pointer or pointer to member type that can be converted to the deduced A via a qualification
+	// 	conversion (4.4).
+	// 	— If P is a class, and P has the form template-id, then A can be a derived class of the deduced A. Likewise,
+	// 	if P is a pointer to a class of the form template-id, A can be a pointer to a derived class pointed to
+	// 		by the deduced A.
 	for(; !parameter.empty() && !argument.empty(); parameter.pop_front(), argument.pop_front())
 	{
 		if(!parameter.isDependent()
 			&& (!isSameType(parameter, argument)
 				|| argument.value.getQualifiers() != parameter.value.getQualifiers()))
 		{
-#if 0
-			// [temp.deduct.call]
-			// In general, the deduction process attempts to find template argument values that will make the deduced A identical to A
-			if(isFunctionCall
-			// However, there are three cases that allow a difference:
-			// — If the original P is a reference type, the deduced A (i.e., the type referred to by the reference) can be
-			// more cv-qualified than A.
-			// 	— A can be another pointer or pointer to member type that can be converted to the deduced A via a qualification
-			// 	conversion (4.4).
-			// 	— If P is a class, and P has the form template-id, then A can be a derived class of the deduced A. Likewise,
-			// 	if P is a pointer to a class of the form template-id, A can be a pointer to a derived class pointed to
-			// 		by the deduced A.
-#endif
 			return false;
 		}
 		if(parameter.isDependent()) // TODO only relevant if this is a DependentType?
 		{
-			CvQualifiers qualifiers = argument.value.getQualifiers();
-			if(parameter.value.getQualifiers().isConst
-				&& !qualifiers.isConst)
+			if(isGreaterCvQualification(parameter, argument))
 			{
-				return false;
-			}
-			if(parameter.value.getQualifiers().isVolatile
-				&& !qualifiers.isVolatile)
-			{
-				return false;
+				if(isReference) // if this is a function-call, the original P is a reference, and the deduced A is more qualified
+				{
+					parameter.value.setQualifiers(CvQualifiers()); // ignore cv-qualification of more-qualified A
+				}
+				else
+				{
+					return false;
+				}
 			}
 			// if both are const, remove const
+			CvQualifiers qualifiers = argument.value.getQualifiers();
 			qualifiers.isConst ^= parameter.value.getQualifiers().isConst;
 			qualifiers.isVolatile ^= parameter.value.getQualifiers().isVolatile;
 			argument.value.setQualifiers(qualifiers);
@@ -5336,17 +5348,6 @@ inline CvQualifiers makeQualificationAdjustment(UniqueTypeId to, UniqueTypeId fr
 {
 	return CvQualifiers(to.value.getQualifiers().isConst > from.value.getQualifiers().isConst,
 		to.value.getQualifiers().isVolatile > from.value.getQualifiers().isVolatile);
-}
-
-inline bool isGreaterCvQualification(UniqueTypeId to, UniqueTypeId from)
-{
-	return to.value.getQualifiers().isConst > from.value.getQualifiers().isConst
-		|| to.value.getQualifiers().isVolatile > from.value.getQualifiers().isVolatile;
-}
-
-inline bool isEqualCvQualification(UniqueTypeId to, UniqueTypeId from)
-{
-	return to.value.getQualifiers() == from.value.getQualifiers();
 }
 
 
