@@ -5477,6 +5477,11 @@ inline StandardConversionSequence makeScsPromotion(To to, UniqueTypeWrapper from
 			return StandardConversionSequence(SCSRANK_PROMOTION, CvQualifiers(), matched);
 		}	
 	}
+	if(isEnum(from)
+		&& getExactMatch(to, gSignedInt) != gUniqueTypeNull) // TODO: correct type of integral promotion for enum
+	{
+		return StandardConversionSequence(SCSRANK_PROMOTION, CvQualifiers(), gSignedInt);
+	}
 	return STANDARDCONVERSIONSEQUENCE_INVALID;
 }
 

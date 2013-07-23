@@ -1,6 +1,16 @@
 
+namespace N280
+{
+	enum E
+	{
+	};
 
-#if 1
+	int f(int);
+	int f(unsigned int);
+	
+	int i = f(E(0));
+}
+
 namespace N279
 {
 	template<class T>
@@ -11,7 +21,6 @@ namespace N279
 	char buffer[1];
 	int i = f(buffer, buffer+1);
 }
-#endif
 
 namespace N278
 {
