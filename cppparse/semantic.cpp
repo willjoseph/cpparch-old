@@ -230,6 +230,389 @@ inline const DeclarationInstance* findRedeclared(const Declaration& declaration,
 	return 0;
 }
 
+inline ParameterTypes addOverload(OverloadResolver& resolver, Declaration* p, Location source, const TypeInstance* enclosing = 0)
+{
+	UniqueTypeWrapper type = getUniqueType(p->type, source, enclosing, p->isTemplate);
+	SYMBOLS_ASSERT(type.isFunction());
+
+	ParameterTypes parameters;
+	if(isMember(*p)
+		&& p->type.declaration != &gCtor)
+	{
+		// [over.match.funcs]
+		// a member function is considered to have an extra parameter, called the implicit object parameter, which
+		// represents the object for which the member function has been called. For the purposes of overload resolution,
+		// both static and non-static member functions have an implicit object parameter, but constructors do not.
+		SYMBOLS_ASSERT(isClass(*enclosing->declaration));
+		UniqueTypeWrapper implicitObjectParameter = gUniqueTypeNull;
+		if(!isStatic(*p))
+		{
+			// For non-static member functions, the type of the implicit object parameter is "reference to cv X" where X is
+			// the class of which the function is a member and cv is the cv-qualification on the member function declaration.
+			// TODO: conversion-functions, non-conversions introduced by using-declaration
+			implicitObjectParameter = makeUniqueObjectType(*enclosing);
+			implicitObjectParameter.value.setQualifiers(type.value.getQualifiers());
+			implicitObjectParameter.push_front(ReferenceType());
+		}
+		parameters.push_back(implicitObjectParameter);
+	}
+	bool isEllipsis = getFunctionType(type.value).isEllipsis;
+	parameters.insert(parameters.end(), getParameterTypes(type.value).begin(), getParameterTypes(type.value).end());
+	type.pop_front();
+
+	if(!p->isTemplate)
+	{
+		// [temp.arg.explicit] An empty template argument list can be used to indicate that a given use refers to a
+		// specialization of a function template even when a normal (i.e., non-template) function is visible that would
+		// otherwise be used.
+		if(resolver.templateArguments != 0)
+		{
+			return ParameterTypes();
+		}
+		resolver.add(FunctionOverload(p, type), parameters, isEllipsis, enclosing);
+		return parameters;
+	}
+
+	if(p->isSpecialization) // function template specializations don't take part in overload resolution?
+	{
+		return ParameterTypes();
+	}
+
+	FunctionTemplate functionTemplate;
+	functionTemplate.parameters.swap(parameters);
+	makeUniqueTemplateParameters(p->templateParams, functionTemplate.templateParameters, source, enclosing, true);
+
+	if(resolver.arguments.size() > functionTemplate.parameters.size())
+	{
+		return ParameterTypes(); // more arguments than parameters. TODO: same for non-template?
+	}
+
+	try
+	{
+		// [temp.deduct] When an explicit template argument list is specified, the template arguments must be compatible with the template parameter list
+		if(resolver.templateArguments != 0
+			&& resolver.templateArguments->size() > functionTemplate.templateParameters.size())
+		{
+			throw TypeErrorBase(source); // too many explicitly specified template arguments
+		}
+		TypeInstance specialization(p, enclosing);
+		specialization.instantiated = true;
+		{
+			UniqueTypeArray::const_iterator p = functionTemplate.templateParameters.begin();
+			if(resolver.templateArguments != 0)
+			{
+				for(TemplateArgumentsInstance::const_iterator a = resolver.templateArguments->begin(); a != resolver.templateArguments->end(); ++a, ++p)
+				{
+					SYMBOLS_ASSERT(p != functionTemplate.templateParameters.end());
+					if((*a).isNonType() != (*p).isDependentNonType())
+					{
+						throw TypeErrorBase(source); // incompatible explicitly specified arguments
+					}
+					specialization.templateArguments.push_back(*a);
+				}
+			}
+			for(; p != functionTemplate.templateParameters.end(); ++p)
+			{
+				specialization.templateArguments.push_back(*p);
+			}
+		}
+
+		// substitute the template-parameters in the function's parameter list with the explicitly specified template-arguments
+		ParameterTypes substituted1;
+		substitute(substituted1, functionTemplate.parameters, source, specialization);
+		// TODO: [temp.deduct]
+		// After this substitution is performed, the function parameter type adjustments described in 8.3.5 are performed.
+
+		UniqueTypeArray arguments;
+		arguments.reserve(resolver.arguments.size());
+		for(Arguments::const_iterator a = resolver.arguments.begin(); a != resolver.arguments.end(); ++a)
+		{
+			arguments.push_back((*a).type);
+		}
+
+		specialization.templateArguments.resize(resolver.templateArguments == 0 ? 0 : resolver.templateArguments->size()); // preserve the explicitly specified arguments
+		specialization.templateArguments.resize(functionTemplate.templateParameters.size(), gUniqueTypeNull);
+		if(!deduceFunctionCall(substituted1, arguments, specialization.templateArguments))
+		{
+			throw TypeErrorBase(source); // deduction failed
+		}
+
+
+		// substitute the template-parameters in the function's parameter list with the deduced template-arguments
+		ParameterTypes substituted2;
+		substitute(substituted2, substituted1, source, specialization);
+		type = substitute(type, source, specialization); // substitute the return type. TODO: should wait until overload is chosen?
+
+		resolver.add(FunctionOverload(p, type), substituted2, isEllipsis, enclosing, functionTemplate);
+		return substituted2;
+	}
+	catch(TypeError&)
+	{
+		// deduction and checking failed
+	}
+
+	return ParameterTypes();
+}
+
+inline void addOverloads(OverloadResolver& resolver, Declaration* declaration, Location source, const TypeInstance* enclosing = 0)
+{
+	for(Declaration* p = declaration; p != 0; p = p->overloaded)
+	{
+		SYMBOLS_ASSERT(p->enclosed != 0);
+
+		addOverload(resolver, p, source, enclosing);
+	}
+}
+
+inline void printOverloads(OverloadResolver& resolver, Declaration* declaration, Location source, const TypeInstance* enclosing = 0)
+{
+	for(Declaration* p = declaration; p != 0; p = p->overloaded)
+	{
+		SYMBOLS_ASSERT(p->enclosed != 0);
+
+		ParameterTypes parameters = addOverload(resolver, p, source, enclosing);
+		printPosition(p->getName().source);
+		std::cout << "(";
+		bool separator = false;
+		for(ParameterTypes::const_iterator i = parameters.begin(); i != parameters.end(); ++i)
+		{
+			if(separator)
+			{
+				std::cout << ", ";
+			}
+			printType(*i);
+			separator = true;
+		}
+		std::cout << ")" << std::endl;
+	}
+}
+
+// source: where the overload resolution occurs (point of instantiation)
+// enclosingType: the class of which the declaration is a member (along with all its overloads).
+inline FunctionOverload findBestMatch(Declaration* declaration, const TemplateArgumentsInstance* templateArguments, const Arguments& arguments, Location source, const TypeInstance* enclosingType)
+{
+	OverloadResolver resolver(arguments, templateArguments, source, enclosingType);
+	addOverloads(resolver, declaration, source, enclosingType);
+
+	if(resolver.ambiguous != 0)
+	{
+#if 0
+		std::cout << "overload resolution failed:" << std::endl;
+		std::cout << "  ";
+		printPosition(resolver.ambiguous->getName().position);
+		printName(resolver.ambiguous);
+		std::cout << std::endl;
+		if(resolver.best.declaration != 0)
+		{
+			std::cout << "  ";
+			printPosition(resolver.best.declaration->getName().position);
+			printName(resolver.best.declaration);
+			std::cout << std::endl;
+		}
+#endif
+	}
+
+	if(resolver.get().declaration == 0)
+	{
+		printPosition(source);
+		std::cout << "overload resolution failed when matching arguments (";
+		bool separator = false;
+		for(Arguments::const_iterator i = arguments.begin(); i != arguments.end(); ++i)
+		{
+			if(separator)
+			{
+				std::cout << ", ";
+			}
+			printType((*i).type);
+			separator = true;
+		}
+		std::cout << ")" << std::endl;
+		std::cout << "candidates for ";
+		printName(declaration->scope);
+		std::cout << getValue(declaration->getName());
+		std::cout << std::endl;
+		printOverloads(resolver, declaration, source, enclosingType);
+	}
+
+	return resolver.get();
+}
+
+inline FunctionOverload findBestOverloadedOperator(cpp::unary_operator* op, Argument operand, Scope* enclosing, Location source, const TypeInstance* enclosingType)
+{
+	UniqueTypeWrapper type = operand.type;
+	if(isClass(type) || isEnumeration(type)) // if the operand has class or enum type
+	{
+		Identifier id;
+		id.value = getUnaryOperatorName(op);
+		id.source = source;
+
+		Arguments arguments(1, operand);
+		OverloadResolver resolver(arguments, 0, source, enclosingType);
+
+		if(isClass(type))
+		{
+			SEMANTIC_ASSERT(isComplete(type)); // TODO: non-fatal parse error
+			const TypeInstance& operand = getObjectType(type.value);
+			instantiateClass(operand, source, enclosingType); // searching for overloads requires a complete type
+			LookupResultRef declaration = ::findDeclaration(operand, id, IsAny());
+			if(declaration != 0)
+			{
+				const TypeInstance* memberEnclosing = findEnclosingType(&operand, declaration->scope); // find the base class which contains the member-declaration
+				SEMANTIC_ASSERT(memberEnclosing != 0);
+				addOverloads(resolver, declaration, source, memberEnclosing);
+			}
+		}
+		// TODO: ignore non-member candidates if no operand has a class type, unless one or more params has enum (ref) type
+		LookupResultRef declaration = findClassOrNamespaceMemberDeclaration(*enclosing, id, IsNonMemberName()); // look up non-member candidates in the enclosing scope (ignoring members)
+		if(declaration != 0
+			&& !declaration->isTemplate // TODO: template argument deduction for overloaded operator
+			&& !declaration->specifiers.isFriend) // TODO: 14.5.3: friend function as member of a template-class, which depends on template arguments
+		{
+			addOverloads(resolver, declaration, source);
+		}
+		{
+			// TODO: 13.3.1.2: built-in operators for overload resolution
+			// These are relevant either when the operand has a user-defined conversion to a non-class type, or is an enum that can be converted to an arithmetic type
+			CandidateFunction candidate(FunctionOverload(&gUnknown, gUniqueTypeNull));
+			candidate.conversions.reserve(1);
+			candidate.conversions.push_back(IMPLICITCONVERSION_USERDEFINED);//getIcsRank(???, type)); // TODO: cv-qualified overloads
+			resolver.add(candidate); // TODO: ignore built-in overloads that have same signature as a non-member
+		}
+		return resolver.get();
+	}
+	return FunctionOverload(&gUnknown, gUniqueTypeNull);
+}
+
+inline UniqueTypeWrapper getBuiltInUnaryOperatorReturnType(cpp::unary_operator* symbol, UniqueTypeWrapper type)
+{
+	if(symbol->id == cpp::unary_operator::AND) // address-of
+	{
+		UniqueTypeId result = type;
+		result.push_front(PointerType()); // produces a non-const pointer
+		return result;
+	}
+	else if(symbol->id == cpp::unary_operator::STAR) // dereference
+	{
+		UniqueTypeId result = applyLvalueToRvalueConversion(type);
+		SEMANTIC_ASSERT(!result.empty());
+		// [expr.unary] The unary * operator performs indirection: the expression to which it is applied shall be a pointer to an
+		// object type, or a pointer to a function type and the result is an lvalue referring to the object or function to
+		// which the expression points.
+		SEMANTIC_ASSERT(result.isPointer());
+		result.pop_front();
+		return result;
+	}
+	else if(symbol->id == cpp::unary_operator::PLUS
+		|| symbol->id == cpp::unary_operator::MINUS)
+	{
+		if(!isFloating(type))
+		{
+			// TODO: check type is integral or enumeration
+			return promoteToIntegralType(type);
+		}
+		return type;
+	}
+	else if(symbol->id == cpp::unary_operator::NOT)
+	{
+		return gBool;
+	}
+	else if(symbol->id == cpp::unary_operator::COMPL)
+	{
+		// TODO: check type is integral or enumeration
+		return promoteToIntegralType(type);
+	}
+	SEMANTIC_ASSERT(symbol->id == cpp::unary_operator::PLUSPLUS || symbol->id == cpp::unary_operator::MINUSMINUS);
+	return type;
+}
+
+inline UniqueTypeWrapper typeOfUnaryExpression(cpp::unary_operator* op, Argument operand, Scope* enclosing, Location source, const TypeInstance* enclosingType)
+{
+	FunctionOverload overload = findBestOverloadedOperator(op, operand, enclosing, source, enclosingType);
+	if(overload.declaration == &gUnknown)
+	{
+		if(op->id == cpp::unary_operator::AND
+			&& operand.isQualifiedNonStaticMemberName)
+		{
+			// [expr.unary.op]
+			// The result of the unary & operator is a pointer to its operand. The operand shall be an lvalue or a qualified-id.
+			// In the first case, if the type of the expression is "T," the type of the result is "pointer to T." In particular,
+			// the address of an object of type "cv T" is "pointer to cv T," with the same cv-qualifiers.
+			// For a qualified-id, if the member is a static member of type "T", the type of the result is plain "pointer to T."
+			// If the member is a non-static member of class C of type T, the type of the result is "pointer to member of class C of type
+			// T."
+			UniqueTypeWrapper classType = makeUniqueObjectType(*getIdExpression(operand).enclosing);
+			UniqueTypeWrapper type = operand.type;
+			type.push_front(MemberPointerType(classType)); // produces a non-const pointer
+			return type;
+		}
+		else
+		{
+			return getBuiltInUnaryOperatorReturnType(op, operand.type);
+		}
+	}
+	else
+	{
+		SEMANTIC_ASSERT(overload.declaration != 0);
+		return overload.type;
+	}
+}
+
+inline FunctionOverload findBestConversionFunction(UniqueTypeWrapper to, UniqueTypeWrapper from, Location source, const TypeInstance* enclosing, bool isNullPointerConstant, bool isLvalue)
+{
+	UniqueExpression nullPointerConstantExpression = makeExpression(IntegralConstantExpression(gSignedInt, IntegralConstant(0)));
+	ExpressionWrapper expression(isNullPointerConstant ? nullPointerConstantExpression : 0, isNullPointerConstant);
+	Arguments arguments;
+	arguments.push_back(Argument(expression, from));
+
+	OverloadResolver resolver(arguments, 0, source, enclosing);
+
+	// [dcl.init]\14
+	if(isClass(to))
+	{
+		// add converting constructors of 'to'
+		SEMANTIC_ASSERT(isComplete(to)); // TODO: non-fatal parse error
+		const TypeInstance& classType = getObjectType(to.value);
+		instantiateClass(classType, source, enclosing); // searching for overloads requires a complete type
+		Identifier tmp;
+		tmp.value = classType.declaration->getName().value;
+		tmp.source = source;
+		LookupResultRef declaration = ::findDeclaration(classType, tmp, IsConstructor());
+
+		if(declaration != 0) // TODO: add implicit copy constructor!
+		{
+			const TypeInstance* memberEnclosing = findEnclosingType(&classType, declaration->scope); // find the base class which contains the member-declaration
+			SEMANTIC_ASSERT(memberEnclosing != 0);
+
+			for(Declaration* p = declaration; p != 0; p = p->overloaded)
+			{
+				SYMBOLS_ASSERT(p->enclosed != 0);
+
+				// [class.conv.ctor]
+				// A constructor declared without the function-specifier explicit that can be called with a single parameter
+				// specifies a conversion from the type of its first parameter to the type of its class. Such a constructor is
+				// called a converting constructor.
+				if(declaration->specifiers.isExplicit)
+				{
+					continue;
+				}
+
+				addOverload(resolver, p, source, memberEnclosing); // will reject constructors that cannot be called with a single argument, because they are not viable.
+			}
+		}
+	}
+
+	if(isClass(from))
+	{
+		// TODO
+		// add conversion functions of 'from' (and bases) that yield 'to' (after removing reference and cv-qualifiers)
+		// or (non-class) a type that can be converted via standard conversion
+		// or (class) a derived class of 'to'
+	}
+
+	// TODO: return-type of constructor should be 'to' .. remove cv-qualifiers?
+	to.value.setQualifiers(CvQualifiers());
+	return FunctionOverload(resolver.get().declaration, to);
+}
 
 
 Identifier gGlobalId = makeIdentifier("$global");
@@ -457,7 +840,12 @@ struct WalkerState
 		const DeclarationInstance* existing = 0;
 		if(!isAnonymous(declaration)) // unnamed class/struct/union/enum
 		{
-			existing = ::findDeclaration(parent->declarations, name);
+			LookupFilter filter = IsAny();
+			if(type.declaration == &gCtor)
+			{
+				filter = IsConstructor(); // find existing constructor declaration
+			}
+			existing = ::findDeclaration(parent->declarations, name, filter);
 		}
 		/* 3.4.4-1
 		An elaborated-type-specifier (7.1.6.3) may be used to refer to a previously declared class-name or enum-name
@@ -1011,295 +1399,6 @@ struct WalkerBase : public WalkerState
 		}
 	}
 
-	static ParameterTypes addOverload(OverloadResolver& resolver, Declaration* p, Location source, const TypeInstance* enclosing = 0)
-	{
-		UniqueTypeWrapper type = getUniqueType(p->type, source, enclosing, p->isTemplate);
-		SYMBOLS_ASSERT(type.isFunction());
-
-		ParameterTypes parameters;
-		if(isMember(*p))
-		{
-			// [over.match.funcs]
-			// a member function is considered to have an extra parameter, called the implicit object parameter, which
-			// represents the object for which the member function has been called. For the purposes of overload resolution,
-			// both static and non-static member functions have an implicit object parameter, but constructors do not.
-			SYMBOLS_ASSERT(isClass(*enclosing->declaration));
-			UniqueTypeWrapper implicitObjectParameter = gUniqueTypeNull;
-			if(!isStatic(*p))
-			{
-				// For non-static member functions, the type of the implicit object parameter is "reference to cv X" where X is
-				// the class of which the function is a member and cv is the cv-qualification on the member function declaration.
-				// TODO: conversion-functions, non-conversions introduced by using-declaration
-				implicitObjectParameter = makeUniqueObjectType(*enclosing);
-				implicitObjectParameter.value.setQualifiers(type.value.getQualifiers());
-				implicitObjectParameter.push_front(ReferenceType());
-			}
-			parameters.push_back(implicitObjectParameter);
-		}
-		bool isEllipsis = getFunctionType(type.value).isEllipsis;
-		parameters.insert(parameters.end(), getParameterTypes(type.value).begin(), getParameterTypes(type.value).end());
-		type.pop_front();
-
-		if(!p->isTemplate)
-		{
-			// [temp.arg.explicit] An empty template argument list can be used to indicate that a given use refers to a
-			// specialization of a function template even when a normal (i.e., non-template) function is visible that would
-			// otherwise be used.
-			if(resolver.templateArguments != 0)
-			{
-				return ParameterTypes();
-			}
-			resolver.add(FunctionOverload(p, type), parameters, isEllipsis, enclosing);
-			return parameters;
-		}
-
-		if(p->isSpecialization) // function template specializations don't take part in overload resolution?
-		{
-			return ParameterTypes();
-		}
-
-		FunctionTemplate functionTemplate;
-		functionTemplate.parameters.swap(parameters);
-		makeUniqueTemplateParameters(p->templateParams, functionTemplate.templateParameters, source, enclosing, true);
-
-		if(resolver.arguments.size() > functionTemplate.parameters.size())
-		{
-			return ParameterTypes(); // more arguments than parameters. TODO: same for non-template?
-		}
-
-		try
-		{
-			// [temp.deduct] When an explicit template argument list is specified, the template arguments must be compatible with the template parameter list
-			if(resolver.templateArguments != 0
-				&& resolver.templateArguments->size() > functionTemplate.templateParameters.size())
-			{
-				throw TypeErrorBase(source); // too many explicitly specified template arguments
-			}
-			TypeInstance specialization(p, enclosing);
-			specialization.instantiated = true;
-			{
-				UniqueTypeArray::const_iterator p = functionTemplate.templateParameters.begin();
-				if(resolver.templateArguments != 0)
-				{
-					for(TemplateArgumentsInstance::const_iterator a = resolver.templateArguments->begin(); a != resolver.templateArguments->end(); ++a, ++p)
-					{
-						SYMBOLS_ASSERT(p != functionTemplate.templateParameters.end());
-						if((*a).isNonType() != (*p).isDependentNonType())
-						{
-							throw TypeErrorBase(source); // incompatible explicitly specified arguments
-						}
-						specialization.templateArguments.push_back(*a);
-					}
-				}
-				for(; p != functionTemplate.templateParameters.end(); ++p)
-				{
-					specialization.templateArguments.push_back(*p);
-				}
-			}
-
-			// substitute the template-parameters in the function's parameter list with the explicitly specified template-arguments
-			ParameterTypes substituted1;
-			substitute(substituted1, functionTemplate.parameters, source, specialization);
-			// TODO: [temp.deduct]
-			// After this substitution is performed, the function parameter type adjustments described in 8.3.5 are performed.
-
-			UniqueTypeArray arguments;
-			arguments.reserve(resolver.arguments.size());
-			for(Arguments::const_iterator a = resolver.arguments.begin(); a != resolver.arguments.end(); ++a)
-			{
-				arguments.push_back((*a).type);
-			}
-
-			specialization.templateArguments.resize(resolver.templateArguments == 0 ? 0 : resolver.templateArguments->size()); // preserve the explicitly specified arguments
-			specialization.templateArguments.resize(functionTemplate.templateParameters.size(), gUniqueTypeNull);
-			if(!deduceFunctionCall(substituted1, arguments, specialization.templateArguments))
-			{
-				throw TypeErrorBase(source); // deduction failed
-			}
-
-
-			// substitute the template-parameters in the function's parameter list with the deduced template-arguments
-			ParameterTypes substituted2;
-			substitute(substituted2, substituted1, source, specialization);
-			type = substitute(type, source, specialization); // substitute the return type. TODO: should wait until overload is chosen?
-
-			resolver.add(FunctionOverload(p, type), substituted2, isEllipsis, enclosing, functionTemplate);
-			return substituted2;
-		}
-		catch(TypeError&)
-		{
-			// deduction and checking failed
-		}
-
-		return ParameterTypes();
-	}
-
-	static void addOverloads(OverloadResolver& resolver, Declaration* declaration, Location source, const TypeInstance* enclosing = 0)
-	{
-		for(Declaration* p = declaration; p != 0; p = p->overloaded)
-		{
-			if(p->enclosed == 0)
-			{
-				continue;
-			}
-
-			addOverload(resolver, p, source, enclosing);
-		}
-	}
-
-	static void printOverloads(OverloadResolver& resolver, Declaration* declaration, Location source, const TypeInstance* enclosing = 0)
-	{
-		for(Declaration* p = declaration; p != 0; p = p->overloaded)
-		{
-			if(p->enclosed == 0) // TODO: error?
-			{
-				continue;
-			}
-
-			ParameterTypes parameters = addOverload(resolver, p, source, enclosing);
-			printPosition(p->getName().source);
-			std::cout << "(";
-			bool separator = false;
-			for(ParameterTypes::const_iterator i = parameters.begin(); i != parameters.end(); ++i)
-			{
-				if(separator)
-				{
-					std::cout << ", ";
-				}
-				printType(*i);
-				separator = true;
-			}
-			std::cout << ")" << std::endl;
-		}
-	}
-
-	// source: where the overload resolution occurs (point of instantiation)
-	// enclosingType: the class of which the declaration is a member (along with all its overloads).
-	static FunctionOverload findBestMatch(Declaration* declaration, const TemplateArgumentsInstance* templateArguments, const Arguments& arguments, Location source, const TypeInstance* enclosingType)
-	{
-		OverloadResolver resolver(arguments, templateArguments, source, enclosingType);
-		addOverloads(resolver, declaration, source, enclosingType);
-
-		if(resolver.ambiguous != 0)
-		{
-#if 0
-			std::cout << "overload resolution failed:" << std::endl;
-			std::cout << "  ";
-			printPosition(resolver.ambiguous->getName().position);
-			printName(resolver.ambiguous);
-			std::cout << std::endl;
-			if(resolver.best.declaration != 0)
-			{
-				std::cout << "  ";
-				printPosition(resolver.best.declaration->getName().position);
-				printName(resolver.best.declaration);
-				std::cout << std::endl;
-			}
-#endif
-		}
-
-		if(resolver.get().declaration == 0)
-		{
-			printPosition(source);
-			std::cout << "overload resolution failed when matching arguments (";
-			bool separator = false;
-			for(Arguments::const_iterator i = arguments.begin(); i != arguments.end(); ++i)
-			{
-				if(separator)
-				{
-					std::cout << ", ";
-				}
-				printType((*i).type);
-				separator = true;
-			}
-			std::cout << ")" << std::endl;
-			std::cout << "candidates for ";
-			printName(declaration->scope);
-			std::cout << getValue(declaration->getName());
-			std::cout << std::endl;
-			printOverloads(resolver, declaration, source, enclosingType);
-		}
-
-		return resolver.get();
-	}
-
-	static FunctionOverload findBestOverloadedOperator(cpp::unary_operator* op, Argument operand, Scope* enclosing, Location source, const TypeInstance* enclosingType)
-	{
-		UniqueTypeWrapper type = operand.type;
-		if(isClass(type) || isEnumeration(type)) // if the operand has class or enum type
-		{
-			Identifier id;
-			id.value = getUnaryOperatorName(op);
-			id.source = source;
-
-			Arguments arguments(1, operand);
-			OverloadResolver resolver(arguments, 0, source, enclosingType);
-
-			if(isClass(type))
-			{
-				SEMANTIC_ASSERT(isComplete(type)); // TODO: non-fatal parse error
-				const TypeInstance& operand = getObjectType(type.value);
-				instantiateClass(operand, source, enclosingType); // searching for overloads requires a complete type
-				LookupResultRef declaration = ::findDeclaration(operand, id, IsAny());
-				if(declaration != 0)
-				{
-					const TypeInstance* memberEnclosing = findEnclosingType(&operand, declaration->scope); // find the base class which contains the member-declaration
-					SEMANTIC_ASSERT(memberEnclosing != 0);
-					addOverloads(resolver, declaration, source, memberEnclosing);
-				}
-			}
-			// TODO: ignore non-member candidates if no operand has a class type, unless one or more params has enum (ref) type
-			LookupResultRef declaration = findClassOrNamespaceMemberDeclaration(*enclosing, id, IsNonMemberName()); // look up non-member candidates in the enclosing scope (ignoring members)
-			if(declaration != 0
-				&& !declaration->isTemplate // TODO: template argument deduction for overloaded operator
-				&& !declaration->specifiers.isFriend) // TODO: 14.5.3: friend function as member of a template-class, which depends on template arguments
-			{
-				addOverloads(resolver, declaration, source);
-			}
-			{
-				// TODO: 13.3.1.2: built-in operators for overload resolution
-				// These are relevant either when the operand has a user-defined conversion to a non-class type, or is an enum that can be converted to an arithmetic type
-				CandidateFunction candidate(FunctionOverload(&gUnknown, gUniqueTypeNull));
-				candidate.conversions.reserve(1);
-				candidate.conversions.push_back(IMPLICITCONVERSION_USERDEFINED);//getIcsRank(???, type)); // TODO: cv-qualified overloads
-				resolver.add(candidate); // TODO: ignore built-in overloads that have same signature as a non-member
-			}
-			return resolver.get();
-		}
-		return FunctionOverload(&gUnknown, gUniqueTypeNull);
-	}
-	static UniqueTypeWrapper typeOfUnaryExpression(cpp::unary_operator* op, Argument operand, Scope* enclosing, Location source, const TypeInstance* enclosingType)
-	{
-		FunctionOverload overload = findBestOverloadedOperator(op, operand, enclosing, source, enclosingType);
-		if(overload.declaration == &gUnknown)
-		{
-			if(op->id == cpp::unary_operator::AND
-				&& operand.isQualifiedNonStaticMemberName)
-			{
-				// [expr.unary.op]
-				// The result of the unary & operator is a pointer to its operand. The operand shall be an lvalue or a qualified-id.
-				// In the first case, if the type of the expression is "T," the type of the result is "pointer to T." In particular,
-				// the address of an object of type "cv T" is "pointer to cv T," with the same cv-qualifiers.
-				// For a qualified-id, if the member is a static member of type "T", the type of the result is plain "pointer to T."
-				// If the member is a non-static member of class C of type T, the type of the result is "pointer to member of class C of type
-				// T."
-				UniqueTypeWrapper classType = makeUniqueObjectType(*getIdExpression(operand).enclosing);
-				UniqueTypeWrapper type = operand.type;
-				type.push_front(MemberPointerType(classType)); // produces a non-const pointer
-				return type;
-			}
-			else
-			{
-				return getBuiltInUnaryOperatorReturnType(op, operand.type);
-			}
-		}
-		else
-		{
-			SEMANTIC_ASSERT(overload.declaration != 0);
-			return overload.type;
-		}
-	}
-
 	// 5 Expressions
 	// paragraph 9: usual arithmetic conversions
 	static UniqueTypeWrapper binaryOperatorIntegralType(UniqueTypeWrapper left, UniqueTypeWrapper right)
@@ -1374,47 +1473,6 @@ struct WalkerBase : public WalkerState
 			}
 		}
 		return binaryOperatorArithmeticType(left, right);
-	}
-	static UniqueTypeWrapper getBuiltInUnaryOperatorReturnType(cpp::unary_operator* symbol, UniqueTypeWrapper type)
-	{
-		if(symbol->id == cpp::unary_operator::AND) // address-of
-		{
-			UniqueTypeId result = type;
-			result.push_front(PointerType()); // produces a non-const pointer
-			return result;
-		}
-		else if(symbol->id == cpp::unary_operator::STAR) // dereference
-		{
-			UniqueTypeId result = applyLvalueToRvalueConversion(type);
-			SEMANTIC_ASSERT(!result.empty());
-			// [expr.unary] The unary * operator performs indirection: the expression to which it is applied shall be a pointer to an
-			// object type, or a pointer to a function type and the result is an lvalue referring to the object or function to
-			// which the expression points.
-			SEMANTIC_ASSERT(result.isPointer());
-			result.pop_front();
-			return result;
-		}
-		else if(symbol->id == cpp::unary_operator::PLUS
-			|| symbol->id == cpp::unary_operator::MINUS)
-		{
-			if(!isFloating(type))
-			{
-				// TODO: check type is integral or enumeration
-				return promoteToIntegralType(type);
-			}
-			return type;
-		}
-		else if(symbol->id == cpp::unary_operator::NOT)
-		{
-			return gBool;
-		}
-		else if(symbol->id == cpp::unary_operator::COMPL)
-		{
-			// TODO: check type is integral or enumeration
-			return promoteToIntegralType(type);
-		}
-		SEMANTIC_ASSERT(symbol->id == cpp::unary_operator::PLUSPLUS || symbol->id == cpp::unary_operator::MINUSMINUS);
-		return type;
 	}
 
 	template<typename T>
@@ -5225,6 +5283,14 @@ struct SimpleDeclarationWalker : public WalkerBase
 		forward = walker.forward;
 		templateParams = walker.templateParams;
 		isUnion = walker.isUnion;
+	}
+	void visit(cpp::function_specifier* symbol) // in constructor_definition/member_declaration_implicit -> function_specifier_seq
+	{
+		TREEWALKER_LEAF(symbol);
+		if(symbol->id == cpp::function_specifier::EXPLICIT)
+		{
+			specifiers.isExplicit = true;
+		}
 	}
 
 	void visit(cpp::declarator* symbol)

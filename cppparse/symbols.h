@@ -24,12 +24,13 @@ struct DeclSpecifiers
 	bool isFriend;
 	bool isStatic;
 	bool isExtern;
+	bool isExplicit;
 	DeclSpecifiers()
-		: isTypedef(false), isFriend(false), isStatic(false), isExtern(false)
+		: isTypedef(false), isFriend(false), isStatic(false), isExtern(false), isExplicit(false)
 	{
 	}
 	DeclSpecifiers(bool isTypedef, bool isFriend, bool isStatic, bool isExtern)
-		: isTypedef(isTypedef), isFriend(isFriend), isStatic(isStatic), isExtern(isExtern)
+		: isTypedef(isTypedef), isFriend(isFriend), isStatic(isStatic), isExtern(isExtern), isExplicit(false)
 	{
 	}
 };
@@ -1277,6 +1278,12 @@ struct LookupFilterDefault : LookupFilter
 
 typedef LookupFilterDefault<isAny> IsAny;
 
+inline bool isConstructor(const Declaration& declaration)
+{
+	return declaration.type.declaration == &gCtor;
+}
+
+typedef LookupFilterDefault<isConstructor> IsConstructor;
 
 inline bool isTypeName(const Declaration& declaration)
 {
@@ -5605,52 +5612,8 @@ inline StandardConversionSequence makeScsExactMatch(To to, UniqueTypeWrapper fro
 template<typename To>
 inline StandardConversionSequence makeStandardConversionSequence(To to, UniqueTypeWrapper from, Location source, const TypeInstance* enclosing, bool isNullPointerConstant = false, bool isLvalue = false)
 {
-	// TODO: user-defined conversion
-	if(from.value == UNIQUETYPE_NULL)
-	{
-		return STANDARDCONVERSIONSEQUENCE_INVALID; // TODO: assert
-	}
-	// 13.3.3.1.4 [over.ics.ref]: reference binding
-	if(to.isReference()) 
-	{
-		to.pop_front();
-		if(from.isReference())
-		{
-			isLvalue = true;
-			from.pop_front(); // TODO: removal of reference won't be detected later
-		}
-		// 8.5.3 [dcl.init.ref]
-		// does it directly bind?
-		if(isLvalue
-			&& (isEqualCvQualification(to, from)
-				|| isGreaterCvQualification(to, from))) // TODO: track 'added qualification' if qualification is greater
-		{
-			UniqueTypeWrapper matched = getExactMatchNoQualifiers(to, from);
-			if(matched != gUniqueTypeNull)
-			{
-				return StandardConversionSequence(SCSRANK_EXACT, makeQualificationAdjustment(to, from), matched);
-			}
-			if(to.isSimple()
-				&& from.isSimple()
-				&& isBaseOf(getObjectType(to.value), getObjectType(from.value), source, enclosing))
-			{
-				return StandardConversionSequence(SCSRANK_CONVERSION, makeQualificationAdjustment(to, from));
-			}
-		}
-		// if not bound directly, a standard conversion is required (which produces an rvalue)
-		if(!to.value.getQualifiers().isConst
-			|| to.value.getQualifiers().isVolatile) // 8.5.3-5: otherwise, the reference shall be to a non-volatile const type
-		{
-			// can't bind rvalue to a non-const reference
-			return STANDARDCONVERSIONSEQUENCE_INVALID;
-		}
-	}
-
-	if(!to.isReference()
-		&& from.isReference())
-	{
-		from.pop_front(); // T& -> T
-	}
+	SYMBOLS_ASSERT(to != gUniqueTypeNull);
+	SYMBOLS_ASSERT(from != gUniqueTypeNull);
 
 	// ignore top level cv-qualifiers
 	to.value.setQualifiers(CvQualifiers());
@@ -5692,24 +5655,6 @@ inline StandardConversionSequence makeStandardConversionSequence(To to, UniqueTy
 	return STANDARDCONVERSIONSEQUENCE_INVALID;
 }
 
-inline IcsRank getIcsRank(ScsRank rank)
-{
-	switch(rank)
-	{
-	case SCSRANK_IDENTITY:
-	case SCSRANK_EXACT: return ICSRANK_STANDARDEXACT;
-	case SCSRANK_PROMOTION: return ICSRANK_STANDARDPROMOTION;
-	case SCSRANK_CONVERSION: return ICSRANK_STANDARDCONVERSION;
-	}
-	return ICSRANK_INVALID;
-}
-
-inline IcsRank getIcsRank(UniqueTypeWrapper to, UniqueTypeWrapper from, Location source, const TypeInstance* enclosing, bool isNullPointerConstant = false, bool isLvalue = false)
-{
-	StandardConversionSequence sequence = makeStandardConversionSequence(to, from, source, enclosing, isNullPointerConstant, isLvalue);
-	return getIcsRank(sequence.rank);
-}
-
 inline bool isProperSubsequence(CvQualifiers l, CvQualifiers r)
 {
 	return (!l.isConst && r.isConst)
@@ -5748,10 +5693,11 @@ enum IcsType
 
 struct ImplicitConversion
 {
-	StandardConversionSequence sequence;
+	StandardConversionSequence sequence; // if user-defined, this is the second standard conversion
 	IcsType type;
-	ImplicitConversion(StandardConversionSequence sequence, IcsType type = ICSTYPE_STANDARD)
-		: sequence(sequence), type(type)
+	Declaration* conversion; // if user-defined, this is the declaration of the conversion function
+	explicit ImplicitConversion(StandardConversionSequence sequence, IcsType type = ICSTYPE_STANDARD, Declaration* conversion = 0)
+		: sequence(sequence), type(type), conversion(conversion)
 	{
 	}
 };
@@ -5759,23 +5705,6 @@ struct ImplicitConversion
 const ImplicitConversion IMPLICITCONVERSION_USERDEFINED = ImplicitConversion(StandardConversionSequence(SCSRANK_IDENTITY, CvQualifiers()), ICSTYPE_USERDEFINED); // TODO
 const ImplicitConversion IMPLICITCONVERSION_ELLIPSIS = ImplicitConversion(StandardConversionSequence(SCSRANK_IDENTITY, CvQualifiers()), ICSTYPE_ELLIPSIS); // TODO
 
-// [over.ics.rank]
-inline bool isBetter(const ImplicitConversion& l, const ImplicitConversion& r)
-{
-	if(l.type != r.type)
-	{
-		return l.type < r.type;
-	}
-	return isBetter(l.sequence, r.sequence);
-}
-
-inline bool isValid(const ImplicitConversion& conversion)
-{
-	return conversion.sequence.rank != SCSRANK_INVALID;
-}
-
-
-typedef std::vector<ImplicitConversion> ArgumentConversions;
 
 struct FunctionOverload
 {
@@ -5786,6 +5715,201 @@ struct FunctionOverload
 	{
 	}
 };
+
+inline FunctionOverload findBestConversionFunction(UniqueTypeWrapper to, UniqueTypeWrapper from, Location source, const TypeInstance* enclosing, bool isNullPointerConstant = false, bool isLvalue = false);
+
+template<typename To>
+inline ImplicitConversion makeImplicitConversionSequence(To to, UniqueTypeWrapper from, Location source, const TypeInstance* enclosing, bool isNullPointerConstant = false, bool isLvalue = false)
+{
+	SYMBOLS_ASSERT(to != gUniqueTypeNull);
+	SYMBOLS_ASSERT(from != gUniqueTypeNull);
+
+	// 13.3.3.1.4 [over.ics.ref]: reference binding
+	if(to.isReference()) 
+	{
+		to.pop_front();
+		if(from.isReference())
+		{
+			isLvalue = true;
+			from.pop_front(); // TODO: removal of reference won't be detected later
+		}
+		// [dcl.init.ref]
+		// Given types "cv1 T1" and "cv2 T2," "cv1 T1" is reference-related to "cv2 T2" if T1 is the same type as
+		// T2, or T1 is a base class of T2. "cv1 T1" is reference-compatible with "cv2 T2" if T1 is reference-related
+		// to T2 and cv1 is the same cv-qualification as, or greater cv-qualification than, cv2. For purposes of overload
+		// resolution, cases for which cv1 is greater cv-qualification than cv2 are identified as reference-compatible
+		// with added qualification (see 13.3.3.2).
+		// 
+		// A reference to type "cv1 T1" is initialized by an expression of type "cv2 T2" as follows:
+		// If the initializer expression
+		// - is an lvalue (but is not a bit-field), and "cv1 T1" is reference-compatible with "cv2 T2," or
+		// TODO: - has a class type (i.e., T2 is a class type) and can be implicitly converted to an lvalue of type
+		// "cv3 T3," where "cv1 T1" is reference-compatible with "cv3 T3"
+		// then the reference is bound directly to the initializer expression lvalue in the first case, and the reference
+		// is bound to the lvalue result of the conversion in the second case. In these cases the reference is said to
+		// bind directly to the initializer expression.
+		// 
+		// TODO: [over.match.ref] Assuming that "cv1 T" is the underlying type of the reference being initialized,
+		// and "cv S" is the type of the initializer expression, with S a class type, the candidate functions are
+		// selected as follows:
+		// - The conversion functions of S and its base classes are considered. Those that are not hidden within S
+		// and yield type "reference to cv2 T2", where "cv1 T" is reference-compatible (8.5.3) with "cv2 T2", are
+		// candidate functions.
+		if(isLvalue
+			&& (isEqualCvQualification(to, from)
+			|| isGreaterCvQualification(to, from))) // TODO: track 'added qualification' if qualification is greater
+		{
+			// [over.ics.ref]
+			// When a parameter of reference type binds directly (8.5.3) to an argument expression, the implicit conversion
+			// sequence is the identity conversion, unless the argument expression has a type that is a derived class of
+			// the parameter type, in which case the implicit conversion sequence is a derived-to-base Conversion
+			UniqueTypeWrapper matched = getExactMatchNoQualifiers(to, from);
+			if(matched != gUniqueTypeNull)
+			{
+				return ImplicitConversion(StandardConversionSequence(SCSRANK_IDENTITY, makeQualificationAdjustment(to, from), matched));
+			}
+			if(to.isSimple()
+				&& from.isSimple()
+				&& isBaseOf(getObjectType(to.value), getObjectType(from.value), source, enclosing))
+			{
+				return ImplicitConversion(StandardConversionSequence(SCSRANK_CONVERSION, makeQualificationAdjustment(to, from)));
+			}
+			// TODO
+			// If the parameter binds directly to the result of applying a conversion function to the argument
+			// expression, the implicit conversion sequence is a user-defined conversion sequence (13.3.3.1.2), with
+			// the second standard conversion sequence either an identity conversion or, if the conversion function returns
+			// an entity of a type that is a derived class of the parameter type, a derived-to-base Conversion.
+		}
+		// if not bound directly, a standard conversion is required (which produces an rvalue)
+		if(!to.value.getQualifiers().isConst
+			|| to.value.getQualifiers().isVolatile) // 8.5.3-5: otherwise, the reference shall be to a non-volatile const type
+		{
+			// can't bind rvalue to a non-const reference
+			return ImplicitConversion(STANDARDCONVERSIONSEQUENCE_INVALID);
+		}
+	}
+
+	if(!to.isReference()
+		&& from.isReference())
+	{
+		from.pop_front(); // T& -> T
+	}
+
+	// [over.best.ics]
+	// When the parameter type is not a reference, the implicit conversion sequence models a copy-initialization
+	// of the parameter from the argument expression. The implicit conversion sequence is the one required to
+	// convert the argument expression to an rvalue of the type of the parameter. [Note: when the parameter has a
+	// class type, this is a conceptual conversion defined for the purposes of clause 13; the actual initialization is
+	// defined in terms of constructors and is not a conversion. ] Any difference in top-level cv-qualification is
+	// subsumed by the initialization itself and does not constitute a conversion. [Example: a parameter of type A
+	// can be initialized from an argument of type const A. The implicit conversion sequence for that case is
+	// the identity sequence; it contains no "conversion" from const A to A. ] When the parameter has a class
+	// type and the argument expression has the same type, the implicit conversion sequence is an identity conversion.
+	// When the parameter has a class type and the argument expression has a derived class type, the
+	// implicit conversion sequence is a derived-to-base Conversion from the derived class to the base class.
+	// [Note: there is no such standard conversion; this derived-to-base Conversion exists only in the description
+	// of implicit conversion sequences. ] A derived-to-base Conversion has Conversion rank
+
+	if(isClass(to))
+	{
+		// [dcl.init] If the destination type is a (possibly cv-qualified) class type: [..] where the cv-unqualified version
+		// of the source type is the same class as, or a derived class of, the class of the destination, constructors
+		// are considered.
+		// TODO: perform overload resolution to choose a constructor
+		// TODO: add implicit copy constructor if not already declared
+		// for now, always allow conversion if 'from' is same or derived
+		UniqueTypeWrapper matched = getExactMatchNoQualifiers(to, from);
+		if(matched != gUniqueTypeNull)
+		{
+			return ImplicitConversion(StandardConversionSequence(SCSRANK_IDENTITY, CvQualifiers(), matched));
+		}
+		if(to.isSimple()
+			&& from.isSimple()
+			&& isBaseOf(getObjectType(to.value), getObjectType(from.value), source, enclosing))
+		{
+			return ImplicitConversion(StandardConversionSequence(SCSRANK_CONVERSION, CvQualifiers()));
+		}
+	}
+
+	if(isClass(to)
+		|| isClass(from))
+	{
+
+		// [over.ics.user]
+		// A user-defined conversion sequence consists of an initial standard conversion sequence followed by a
+		// user-defined conversion (12.3) followed by a second standard conversion sequence. If the user-defined
+		// conversion is specified by a constructor (12.3.1), the initial standard conversion sequence converts the
+		// source type to the type required by the argument of the constructor. If the user-defined conversion is specified
+		// by a conversion function (12.3.2), the initial standard conversion sequence converts the source type to
+		// the implicit object parameter of the conversion function.
+
+		// [dcl.init]
+		// Otherwise (i.e., for the remaining copy-initialization cases), user-defined conversion sequences that
+		// can convert from the source type to the destination type or (when a conversion function is used) to a
+		// derived class thereof are enumerated as described in 13.3.1.4, and the best one is chosen through
+		// overload resolution (13.3). If the conversion cannot be done or is ambiguous, the initialization is
+		// ill-formed.
+		//
+		// TODO: do not allow user defined conversion sequence when converting argument during overload resolution!
+		FunctionOverload overload = findBestConversionFunction(to, from, source, enclosing, isNullPointerConstant, isLvalue);
+
+		if(overload.declaration == 0)
+		{
+			return ImplicitConversion(STANDARDCONVERSIONSEQUENCE_INVALID);
+		}
+
+		// The second standard conversion sequence converts the result of the user-defined conversion to the target
+		// type for the sequence.
+
+		StandardConversionSequence second = makeStandardConversionSequence(to, overload.type, source, enclosing);
+
+		return ImplicitConversion(second, ICSTYPE_USERDEFINED, overload.declaration);
+	}
+
+	// standard conversion
+	return ImplicitConversion(makeStandardConversionSequence(to, from, source, enclosing, isNullPointerConstant, isLvalue));
+}
+
+
+inline IcsRank getIcsRank(ScsRank rank)
+{
+	switch(rank)
+	{
+	case SCSRANK_IDENTITY:
+	case SCSRANK_EXACT: return ICSRANK_STANDARDEXACT;
+	case SCSRANK_PROMOTION: return ICSRANK_STANDARDPROMOTION;
+	case SCSRANK_CONVERSION: return ICSRANK_STANDARDCONVERSION;
+	}
+	return ICSRANK_INVALID;
+}
+
+inline IcsRank getIcsRank(UniqueTypeWrapper to, UniqueTypeWrapper from, Location source, const TypeInstance* enclosing, bool isNullPointerConstant = false, bool isLvalue = false)
+{
+	ImplicitConversion conversion = makeImplicitConversionSequence(to, from, source, enclosing, isNullPointerConstant, isLvalue);
+	return getIcsRank(conversion.sequence.rank);
+}
+
+// [over.ics.rank]
+inline bool isBetter(const ImplicitConversion& l, const ImplicitConversion& r)
+{
+	if(l.type != r.type)
+	{
+		return l.type < r.type;
+	}
+	// TODO: User-defined conversion sequence U1 is a better conversion sequence than another user-defined conversion
+	// sequence U2 if they contain the same user-defined conversion function or constructor and if the
+	// second standard conversion sequence of U1 is better than the second standard conversion sequence of
+	// U2.
+	return isBetter(l.sequence, r.sequence);
+}
+
+inline bool isValid(const ImplicitConversion& conversion)
+{
+	return conversion.sequence.rank != SCSRANK_INVALID;
+}
+
+
+typedef std::vector<ImplicitConversion> ArgumentConversions;
 
 struct FunctionTemplate
 {
@@ -6787,7 +6911,8 @@ struct OverloadResolver
 		ParameterTypes::const_iterator p = parameters.begin();
 		Arguments::const_iterator a = arguments.begin();
 
-		if(isMember(*overload.declaration))
+		if(isMember(*overload.declaration)
+			&& overload.declaration->type.declaration != &gCtor)
 		{
 			SYMBOLS_ASSERT(p != parameters.end());
 			UniqueTypeWrapper implicitObjectParameter = *p++;
@@ -6800,7 +6925,7 @@ struct OverloadResolver
 			SYMBOLS_ASSERT(isClass(*memberEnclosing->declaration));
 			if(!isStatic(*overload.declaration))
 			{
-				candidate.conversions.push_back(makeStandardConversionSequence(implicitObjectParameter, impliedObjectArgument.type, source, enclosing, false, true)); // TODO: l-value
+				candidate.conversions.push_back(makeImplicitConversionSequence(implicitObjectParameter, impliedObjectArgument.type, source, enclosing, false, true)); // TODO: l-value
 			}
 			else
 			{
@@ -6813,7 +6938,7 @@ struct OverloadResolver
 				// TODO: [over.match.best]
 				// If a function is a static member function [...] the first argument, the implied object parameter, has no effect
 				// in the determination of whether the function is better or worse than any other function
-				candidate.conversions.push_back(StandardConversionSequence(SCSRANK_EXACT, CvQualifiers()));
+				candidate.conversions.push_back(ImplicitConversion(StandardConversionSequence(SCSRANK_EXACT, CvQualifiers())));
 			}
 		}
 
@@ -6826,7 +6951,7 @@ struct OverloadResolver
 			{
 				const Argument& from = *a;
 				bool isNullPointerConstant = from.isConstant && evaluateExpression(from, source, enclosing).value == 0;
-				candidate.conversions.push_back(makeStandardConversionSequence(to, from.type, source, enclosing, isNullPointerConstant, true)); // TODO: l-value
+				candidate.conversions.push_back(makeImplicitConversionSequence(to, from.type, source, enclosing, isNullPointerConstant, true)); // TODO: l-value
 				++a;
 			}
 			else if((*d).argument == 0) // TODO: catch this earlier

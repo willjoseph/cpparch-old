@@ -1,4 +1,16 @@
 
+namespace N282
+{
+	struct S
+	{
+		S(int);
+		S(float);
+	};
+
+	int f(S);
+
+	int i = f(0); // conversion to S(int)
+}
 
 namespace N281
 {

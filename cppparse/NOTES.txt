@@ -377,12 +377,36 @@
 
 - task: implement function template explicit specialization
 
-- task: type of overloaded operators
+- task: implement user-defined-conversion: required for overload resolution
+	- over.best.ics] An implicit conversion sequence is a sequence of conversions used to convert an argument in a function
+		call to the type of the corresponding parameter of the function being called. The sequence of conversions is
+		an implicit conversion as defined in clause 4, which means it is governed by the rules for initialization of an
+		object or reference by a single expression (8.5, 8.5.3).
+	- [over.ics.user] Since an implicit conversion sequence is an initialization, the special rules for
+		initialization by user-defined conversion apply when selecting the best user-defined conversion for a user-
+		defined conversion sequence
+	- [over.match.ctor], [over.match.copy], [over.match.conv]
+	- [class.conv] Function overload resolution selects the best conversion function to perform the conversion.
+	- what prevents two user-defined conversions occurring in sequence?
+	- constructor call
+	- conversion function
+	- semantics of initializers
+		- references?
+		- if destination is class-type (non-reference)
+			- if source is same or derived class-type, gather converting constructors, perform overload resolution
+			- else gather conversion functions and converting constructors, perform overload resolution
+		- else if source is class-type (non-reference)
+			- gather conversion functions, perform overload resolution
+	- what second standard-conversion is required in user-defined conversion involving constructor-call?
+		- is result of constructor-call an lvalue/rvalue?
+
+- task: type of overloaded operators: required to determine type of expression
 	- postfix operator[]
 	- postfix operator++
+	- operator->
 
-- task: ellipsis in overload resolution
-	- if more arguments than parameters, excess arguments become ellipsis-conversion-sequence
++ task: ellipsis in overload resolution
+	+ if more arguments than parameters, excess arguments become ellipsis-conversion-sequence
 
 - investigate: need to compare two function templates with different numbers of parameters when determining partial ordering?
 
@@ -411,90 +435,88 @@
 	For addition, either both operands shall have arithmetic or enumeration type, or one operand shall be a
 	pointer to a completely defined object type and the other shall have integral or enumeration type.
 
-	- 
-
-	- overload resolution for built-in operators
-		- required only when an operand has class or enumeration type
-		- how to create infinite number of built-in overloads? e.g. match any pointer type
-		- hide user-written candidates that match built-in overload parameters exactly
-		- types:
-			O=object (not reference, not function, not void)
-			F=Function
-			G=object-or-function
-			A=Arithmetic
-			I=Integral
-			T=Type
-			C=class
-			E=enum
-			P=pointer
-			M=pointer-to-member
-		- forms
-			O*
-			[const] [volatile] O*
-			F* (operator*)
-			T*
-			A
-			I
-			E
-			P
-			M
-			[volatile] I&
-			[volatile] E&
-			[volatile] M&
-			[volatile] A&
-			[volatile] A& (not bool)
-			O*[volatile]&
-			P[volatile]&
-			[const] [volatile] C*
-			[const] [volatile] G C::*
-		- multiple conversion functions may match?
-		- other ambiguities?
-		- what conversions should be detected?
-			- reference binding
-			- exact: pointer qualification adjustment
-			- promotion: float -> double, I -> int
-			- conversion: A/E -> A
-		- which match-all types required?
-			- could match all T and reject later?
-				- no, would not get correct conversion result
-		- placeholder types
-			- any
-				- T* (unary-plus, relation, equality, assign-r)
-				- T*[volatile]& (assign-l)
-			- arithmetic
-				- [volatile]T& (incr, decr, assign-l)
-			- integral
-				- [volatile]T& (assign-l)
-			- object
-				- T*[volatile]& (incr, decr)
-				- T* (deref, ptr-add, subscript)
-			- function
-				- T* (deref)
-			- promoted-arithmetic
-				- T (assign-r, unary-plus, unary-minus, mul, add, relational, equality, conditional)
-			- promoted-integral
-				- T (compl, bitwise, shift, remainder)
-			- class
-				- T* (mptr-call)
-			- mptr
-				- T (mptr-call, equality, assign-r)
-				- [volatile]T& (assign-l)
-		- add overloads
-			- deref: T* -> T&
-			- unary-add: T* -> T* or T -> T
-			- compl: -> T -> T
-			- mptr-call: CV1 C1*, CV2 T C2::* -> CV12 T&
-			- mul, add: L, R -> LR
-			- relational, equality: L, R -> bool
-			- ptr-add: T*, ptrdiff_t -> T*
-			- subscript: T*, ptrdiff_t -> T&
-			- ptr-sub: T, T -> bool
-			- relational, equality: T, T -> bool
-			- bitwise: L, R -> LR
-			- shift: L, R -> L
-			- assign: [volatile]L&, R -> [volatile]L&
-			- 
-		- issue: how to ensure both arguments are same type when matching (T, T) ?
+- task: overload resolution for built-in operators
+	- required only when an operand has class or enumeration type
+	- how to create infinite number of built-in overloads? e.g. match any pointer type
+	- hide user-written candidates that match built-in overload parameters exactly
+	- types:
+		O=object (not reference, not function, not void)
+		F=Function
+		G=object-or-function
+		A=Arithmetic
+		I=Integral
+		T=Type
+		C=class
+		E=enum
+		P=pointer
+		M=pointer-to-member
+	- forms
+		O*
+		[const] [volatile] O*
+		F* (operator*)
+		T*
+		A
+		I
+		E
+		P
+		M
+		[volatile] I&
+		[volatile] E&
+		[volatile] M&
+		[volatile] A&
+		[volatile] A& (not bool)
+		O*[volatile]&
+		P[volatile]&
+		[const] [volatile] C*
+		[const] [volatile] G C::*
+	- multiple conversion functions may match?
+	- other ambiguities?
+	- what conversions should be detected?
+		- reference binding
+		- exact: pointer qualification adjustment
+		- promotion: float -> double, I -> int
+		- conversion: A/E -> A
+	- which match-all types required?
+		- could match all T and reject later?
+			- no, would not get correct conversion result
+	- placeholder types
+		- any
+			- T* (unary-plus, relation, equality, assign-r)
+			- T*[volatile]& (assign-l)
+		- arithmetic
+			- [volatile]T& (incr, decr, assign-l)
+		- integral
+			- [volatile]T& (assign-l)
+		- object
+			- T*[volatile]& (incr, decr)
+			- T* (deref, ptr-add, subscript)
+		- function
+			- T* (deref)
+		- promoted-arithmetic
+			- T (assign-r, unary-plus, unary-minus, mul, add, relational, equality, conditional)
+		- promoted-integral
+			- T (compl, bitwise, shift, remainder)
+		- class
+			- T* (mptr-call)
+		- mptr
+			- T (mptr-call, equality, assign-r)
+			- [volatile]T& (assign-l)
+	- add overloads
+		- deref: T* -> T&
+		- unary-add: T* -> T* or T -> T
+		- compl: -> T -> T
+		- mptr-call: CV1 C1*, CV2 T C2::* -> CV12 T&
+		- mul, add: L, R -> LR
+		- relational, equality: L, R -> bool
+		- ptr-add: T*, ptrdiff_t -> T*
+		- subscript: T*, ptrdiff_t -> T&
+		- ptr-sub: T, T -> bool
+		- relational, equality: T, T -> bool
+		- bitwise: L, R -> LR
+		- shift: L, R -> L
+		- assign: [volatile]L&, R -> [volatile]L&
+		- 
+	- issue: how to ensure both arguments are same type when matching (T, T) ?
 
 
 

@@ -998,13 +998,13 @@ struct TestIcsRank
 	}
 	static void match(IcsRank expected)
 	{
-		StandardConversionSequence sequence = makeStandardConversionSequence(TargetType(MakeType<To>::apply()), MakeType<From>::apply(), Location(), 0);
-		IcsRank rank = getIcsRank(sequence.rank);
+		ImplicitConversion conversion = makeImplicitConversionSequence(TargetType(MakeType<To>::apply()), MakeType<From>::apply(), Location(), 0);
+		IcsRank rank = getIcsRank(conversion.sequence.rank);
 		SYMBOLS_ASSERT(rank == expected);
 		if(expected != ICSRANK_INVALID)
 		{
 			UniqueTypeWrapper matched = MakeType<Matched>::apply();
-			SYMBOLS_ASSERT(sequence.matched == matched);
+			SYMBOLS_ASSERT(conversion.sequence.matched == matched);
 		}
 	}
 };
