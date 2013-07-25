@@ -637,6 +637,7 @@ namespace N231
 	};
 }
 
+#if 0 // this appears to be incorrect, type should be looked up in context of entire postfix-expression
 namespace N507
 {
 	struct S
@@ -654,6 +655,7 @@ namespace N507
 		s.operator Type(); // Type should be looked up in context of S
 	}
 }
+#endif
 
 namespace N508
 {

@@ -1833,6 +1833,8 @@ struct UnqualifiedIdWalker : public WalkerBase
 	{
 		Source source = parser->get_source();
 		TypeIdWalker walker(getState());
+		// do not look up type-name within qualifying scope: e.g. x.operator T(): T is looked up scope of entire postfix-expression, not within 'x'
+		walker.clearQualifying();
 		TREEWALKER_WALK(walker, symbol);
 		UniqueTypeWrapper type = makeUniqueTypeSafe(walker.type, getLocation());
 		symbol->value = gConversionFunctionId;

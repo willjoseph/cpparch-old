@@ -528,3 +528,5 @@
 	// parsed as: &(ac.operator int *) i
 	// not as: &(ac.operator int)*i
 	The * is the pointer declarator and not the multiplication operator. ] ]
+
+- investigate: is typename required when operator T
