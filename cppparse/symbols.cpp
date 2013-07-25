@@ -197,6 +197,8 @@ Identifier gOperatorFunctionTemplateId = makeIdentifier("operator () <>");
 // TODO: don't declare if id is anonymous?
 Identifier gAnonymousId = makeIdentifier("$anonymous");
 
+Identifier gDestructorId = makeIdentifier("$destructor");
+
 const TypeInstance gDependentObjectType(&gDependentType, 0);
 
 struct PointerTypeId : ObjectTypeId
@@ -1337,6 +1339,7 @@ void testDeduction()
 
 	// function call
 	TestDeduction<const T&, int, int>::apply(true);
+	TestDeduction<const T&, const int&, int>::apply(true);
 	TestDeduction<T&, int, int>::apply(true);
 	TestDeduction<T, int[1], int*>::apply(true);
 	TestDeduction<T, const int[1], const int*>::apply(true);

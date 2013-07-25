@@ -3249,10 +3249,12 @@ inline bool deduce(UniqueTypeWrapper parameter, UniqueTypeWrapper argument, Temp
 	bool isReference = false;
 	if(isFunctionCall)
 	{
+		argument = removeReference(argument);
+
 		// [temp.deduct.call]
 		// If P is a cv-qualified type, the top level cv-qualifiers of P’s type are ignored for type deduction.
 		parameter.value.setQualifiers(CvQualifiers());
-		// If P is a  reference type, the type referred to by P is used for type deduction.
+		// If P is a reference type, the type referred to by P is used for type deduction.
 		if(parameter.isReference())
 		{
 			isReference = true;
@@ -5039,6 +5041,7 @@ extern Identifier gConversionFunctionId;
 extern Identifier gOperatorFunctionTemplateId;
 // TODO: don't declare if id is anonymous?
 extern Identifier gAnonymousId;
+extern Identifier gDestructorId;
 
 
 inline UniqueTypeWrapper binaryOperatorAssignment(UniqueTypeWrapper left, UniqueTypeWrapper right)
@@ -5724,15 +5727,16 @@ inline ImplicitConversion makeImplicitConversionSequence(To to, UniqueTypeWrappe
 	SYMBOLS_ASSERT(to != gUniqueTypeNull);
 	SYMBOLS_ASSERT(from != gUniqueTypeNull);
 
+	if(from.isReference())
+	{
+		isLvalue = true;
+		from.pop_front(); // TODO: removal of reference won't be detected later
+	}
+
 	// 13.3.3.1.4 [over.ics.ref]: reference binding
 	if(to.isReference()) 
 	{
 		to.pop_front();
-		if(from.isReference())
-		{
-			isLvalue = true;
-			from.pop_front(); // TODO: removal of reference won't be detected later
-		}
 		// [dcl.init.ref]
 		// Given types "cv1 T1" and "cv2 T2," "cv1 T1" is reference-related to "cv2 T2" if T1 is the same type as
 		// T2, or T1 is a base class of T2. "cv1 T1" is reference-compatible with "cv2 T2" if T1 is reference-related
@@ -5789,11 +5793,6 @@ inline ImplicitConversion makeImplicitConversionSequence(To to, UniqueTypeWrappe
 		}
 	}
 
-	if(!to.isReference()
-		&& from.isReference())
-	{
-		from.pop_front(); // T& -> T
-	}
 
 	// [over.best.ics]
 	// When the parameter type is not a reference, the implicit conversion sequence models a copy-initialization

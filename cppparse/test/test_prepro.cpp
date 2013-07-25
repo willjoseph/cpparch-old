@@ -1,4 +1,46 @@
 
+namespace N285
+{
+	enum E
+	{
+	};
+	template<typename T>
+	struct A
+	{
+		struct S
+		{
+			operator E() const;
+			void f(const S& s)
+			{
+				s.operator E();
+			}
+		};
+	};
+}
+
+namespace N284
+{
+	template<class T>
+	void f(const T&)
+	{
+	}
+	void g(const int& i)
+	{
+		f(i);
+	}
+}
+
+namespace N283
+{
+	struct S
+	{
+		void f()
+		{
+			this->~S();
+		}
+	};
+}
+
 namespace N282
 {
 	struct S

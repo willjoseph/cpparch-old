@@ -1847,7 +1847,7 @@ struct UnqualifiedIdWalker : public WalkerBase
 	{
 		// TODO: can destructor-id be dependent?
 		TREEWALKER_LEAF(symbol);
-		id = &symbol->name->value;
+		id = &gDestructorId;
 	}
 };
 
@@ -2700,6 +2700,10 @@ struct PostfixExpressionWalker : public WalkerBase
 			SEMANTIC_ASSERT(declaration != 0 || isDependent(walker.qualifying.get_ref()) || ::isDependent(memberType));
 
 			setDecoration(id, gDependentObjectInstance);
+		}
+		else if(id == &gDestructorId)
+		{
+			// a.~A()
 		}
 		else
 		{
