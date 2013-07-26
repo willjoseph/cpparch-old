@@ -1,4 +1,120 @@
 
+namespace N222
+{
+	template<typename T>
+	struct B : T
+	{
+	};
+
+	struct Outer
+	{
+		template <typename T>
+		struct Inner;
+	};
+
+	template<typename T>
+	struct Outer::Inner : B<T>
+	{
+		void f();
+	};
+
+	template<typename T>
+	void Outer::Inner<T>::f()
+	{
+		this->dependent(); // 'this' is dependent
+	}
+}
+
+namespace N289
+{
+	namespace N
+	{
+		template<typename T>
+		struct A
+		{
+		};
+	}
+
+	template<typename T>
+	struct B
+	{
+		friend struct N::A<B<T> >; // 'B<T>' is dependent
+	};
+}
+
+namespace N287 // TODO: the prototype of the friend declaration finds names within both the scope of A and B
+{
+	struct A
+	{
+		void f(A);
+	};
+
+	struct C
+	{
+		typedef A B;
+		friend void A::f(B);
+	};
+}
+
+namespace N016
+{
+	template<typename X /*, typename Y = X*/> // the type of Y should be correctly resolved
+	struct Tmpl
+	{
+	};
+	template<>
+	struct Tmpl<char>
+	{
+		static const char VALUE;
+	};
+
+	const char Tmpl<char>::VALUE = 0;
+
+	template<>
+	struct Tmpl<int>
+	{
+		static const int VALUE;
+	};
+	const int Tmpl<int>::VALUE = 0; // Tmpl<int>::VALUE should be distinct from Tmpl<char>::VALUE
+
+	template<typename X>
+	struct Tmpl<X*>
+	{
+		static const X* VALUE;
+	};
+	template<typename X>
+	const X* Tmpl<X*>::VALUE = 0; // Tmpl<X*>::VALUE should be distinct from Tmpl<char>::VALUE
+}
+
+
+namespace N286
+{
+	template<typename T>
+	struct S
+	{
+		void f1(S&); // S<T>
+		int m1;
+	};
+
+	template<>
+	struct S<int>
+	{
+		void f2(S&); // S<int>
+		int m2;
+	};
+
+	template<typename T>
+	void S<T>::f1(S& other) // 'S' is interpreted as template-id 'S<T>', not template-name 'S'
+	{
+		other.m1 = 0;
+	}
+
+	void S<int>::f2(S& other) // 'S' is interpreted as template-id 'S<int>', not template-name 'S'
+	{
+		other.m2 = 0;
+	}
+}
+
 namespace N285
 {
 	enum E
@@ -12,7 +128,7 @@ namespace N285
 			operator E() const;
 			void f(const S& s)
 			{
-				s.operator E();
+				s.operator E(); // E is looked up in the context of the entire postfix expression, not only within the qualifying type 'S'
 			}
 		};
 	};
@@ -396,36 +512,6 @@ namespace N256
 	};
 	template<typename X>
 	const X* Tmpl<X>::VALUE = 0; // 'VALUE' is not a template name
-}
-
-namespace N016
-{
-	template<typename X /*, typename Y = X*/> // the type of Y should be correctly resolved
-	struct Tmpl
-	{
-	};
-	template<>
-	struct Tmpl<char>
-	{
-		static const char VALUE;
-	};
-
-	const char Tmpl<char>::VALUE = 0;
-
-	template<>
-	struct Tmpl<int>
-	{
-		static const int VALUE;
-	};
-	const int Tmpl<int>::VALUE = 0; // Tmpl<int>::VALUE should be distinct from Tmpl<char>::VALUE
-
-	template<typename X>
-	struct Tmpl<X*>
-	{
-		static const X* VALUE;
-	};
-	template<typename X>
-	const X* Tmpl<X*>::VALUE = 0; // Tmpl<X*>::VALUE should be distinct from Tmpl<char>::VALUE
 }
 
 // name-lookup for explicit argument-specification of overloaded function-template
@@ -934,32 +1020,6 @@ namespace N233
 	void f(char*)
 	{
 		f(0); // null-pointer-constant matches T*
-	}
-}
-
-namespace N222
-{
-	template<typename T>
-	struct B : T
-	{
-	};
-
-	struct Outer
-	{
-		template <typename T>
-		struct Inner;
-	};
-
-	template<typename T>
-	struct Outer::Inner : B<T>
-	{
-		void f();
-	};
-
-	template<typename T>
-	void Outer::Inner<T>::f()
-	{
-		this->dependent(); // 'this' is dependent
 	}
 }
 

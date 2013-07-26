@@ -2760,6 +2760,23 @@ inline bool isDependent(const TypeInstance& type);
 inline UniqueTypeWrapper substitute(UniqueTypeWrapper dependent, Location source, const TypeInstance& enclosingType);
 
 
+inline const TypeInstance* findEnclosingTemplate(const TypeInstance* enclosing, Declaration* declaration)
+{
+	Declaration* primary = findPrimaryTemplate(declaration);
+	SYMBOLS_ASSERT(primary->isTemplate);
+	SYMBOLS_ASSERT(!primary->isSpecialization);
+	for(const TypeInstance* i = enclosing; i != 0; i = (*i).enclosing)
+	{
+		SYMBOLS_ASSERT(!(*i).primary->isSpecialization);
+		if((*i).primary->isTemplate
+			&& (*i).primary == primary)
+		{
+			return i;
+		}
+	}
+	return 0;
+}
+
 inline const TypeInstance* findEnclosingTemplate(const TypeInstance* enclosing, Scope* scope)
 {
 	SYMBOLS_ASSERT(scope != 0);

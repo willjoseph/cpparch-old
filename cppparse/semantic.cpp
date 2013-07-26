@@ -459,7 +459,7 @@ inline FunctionOverload findBestOverloadedOperator(cpp::unary_operator* op, Argu
 			{
 				const TypeInstance* memberEnclosing = findEnclosingType(&operand, declaration->scope); // find the base class which contains the member-declaration
 				SEMANTIC_ASSERT(memberEnclosing != 0);
-				addOverloads(resolver, declaration, source, memberEnclosing);
+				addOverloads(resolver, findOverloaded(declaration), source, memberEnclosing);
 			}
 		}
 		// TODO: ignore non-member candidates if no operand has a class type, unless one or more params has enum (ref) type
@@ -468,7 +468,7 @@ inline FunctionOverload findBestOverloadedOperator(cpp::unary_operator* op, Argu
 			&& !declaration->isTemplate // TODO: template argument deduction for overloaded operator
 			&& !declaration->specifiers.isFriend) // TODO: 14.5.3: friend function as member of a template-class, which depends on template arguments
 		{
-			addOverloads(resolver, declaration, source);
+			addOverloads(resolver, findOverloaded(declaration), source);
 		}
 		{
 			// TODO: 13.3.1.2: built-in operators for overload resolution
@@ -1265,10 +1265,10 @@ struct WalkerBase : public WalkerState
 		parser->addBacktrackCallback(makeUndeclareCallback(&declaration));
 	}
 
-	Declaration* declareClass(Identifier* id, bool isSpecialization, TemplateArguments& arguments)
+	Declaration* declareClass(Scope* parent, Identifier* id, bool isSpecialization, TemplateArguments& arguments)
 	{
 		Scope* enclosed = newScope(makeIdentifier("$class"), SCOPETYPE_CLASS);
-		DeclarationInstanceRef declaration = pointOfDeclaration(context, enclosing, id == 0 ? enclosing->getUniqueName() : *id, TYPE_CLASS, enclosed, DeclSpecifiers(), templateParams != 0, getTemplateParams(), isSpecialization, arguments);
+		DeclarationInstanceRef declaration = pointOfDeclaration(context, parent, id == 0 ? parent->getUniqueName() : *id, TYPE_CLASS, enclosed, DeclSpecifiers(), templateParams != 0, getTemplateParams(), isSpecialization, arguments);
 #ifdef ALLOCATOR_DEBUG
 		trackDeclaration(declaration);
 #endif
@@ -2665,7 +2665,7 @@ struct PostfixExpressionWalker : public WalkerBase
 
 				arguments.insert(arguments.end(), walker.arguments.begin(), walker.arguments.end());
 				// TODO: handle empty template-argument list '<>'. If specified, overload resolution should ignore non-templates
-				FunctionOverload overload = findBestMatch(getDeclaration(*id), templateArguments.empty() ? 0 : &templateArguments, arguments, Location(id->source, context.declarationCount), idEnclosing);
+				FunctionOverload overload = findBestMatch(findOverloaded(getDeclaration(*id)), templateArguments.empty() ? 0 : &templateArguments, arguments, Location(id->source, context.declarationCount), idEnclosing);
 				SEMANTIC_ASSERT(overload.declaration != 0);
 				{
 					DeclarationInstanceRef instance = findLastDeclaration(getDeclaration(*id), overload.declaration);
@@ -3272,24 +3272,30 @@ struct TypeNameWalker : public WalkerBase
 		}
 		type.id = &symbol->value;
 		type.declaration = declaration;
-		type.isImplicitTemplateId = declaration->isTemplate;
-		type.isEnclosingClass = isClass(*declaration)
-			&& isComplete(*declaration)
-			&& findScope(enclosing, declaration->enclosed); // is this the type of an enclosing class?
+		if(type.declaration->isTemplate)
+		{
+			type.isImplicitTemplateId = true; // this is either a template-name or an implicit template-id
+			const TypeInstance* enclosingTemplate = findEnclosingTemplate(enclosingType, type.declaration);
+			if(enclosingTemplate != 0) // if this is the name of an enclosing class-template definition (which may be an explicit/partial specialization)
+			{
+				type.isEnclosingClass = true; // this is an implicit template-id
+				type.declaration = enclosingTemplate->declaration; // the type should refer to the enclosing class-template definition (which may be an explicit/partial specialization)
+			}
+		}
 		setDecoration(&symbol->value, declaration);
 		setDependent(type);
 #if 1 // temp hack, imitate previous isDependent behaviour
-		if(declaration->isTemplate
-			&& declaration->templateParameter == INDEX_INVALID) // ignore template-template-parameter
+		if(type.declaration->isTemplate
+			&& type.declaration->templateParameter == INDEX_INVALID) // ignore template-template-parameter
 		{
-			if(declaration->isSpecialization)
+			if(type.declaration->isSpecialization)
 			{
-				setDependent(type.dependent, declaration->templateArguments);
+				setDependent(type.dependent, type.declaration->templateArguments);
 			}
 			else
 			{
-				SEMANTIC_ASSERT(!declaration->templateParams.empty());
-				setDependent(type.dependent, *declaration->templateParams.front().declaration); // depend on first template param
+				SEMANTIC_ASSERT(!type.declaration->templateParams.empty());
+				setDependent(type.dependent, *type.declaration->templateParams.front().declaration); // depend on first template param
 			}
 		}
 #endif
@@ -3315,7 +3321,7 @@ struct TypeNameWalker : public WalkerBase
 
 		setDecoration(walker.id, declaration);
 		type.id = walker.id;
-		type.declaration = declaration;
+		type.declaration = findOverloaded(declaration); // NOTE: stores the declaration from which all explicit/partial specializations are visible via 'Declaration::overloaded'
 		type.templateArguments.swap(walker.arguments);
 		setDependent(type); // a template-id is dependent if the 'identifier' is a template-parameter
 		setDependent(type.dependent, type.templateArguments); // a template-id is dependent if any of its arguments are dependent
@@ -3430,7 +3436,6 @@ struct NestedNameSpecifierPrefixWalker : public WalkerBase
 			return reportIdentifierMismatch(symbol, walker.type.declaration->getName(), walker.type.declaration, "class-name");
 		}
 		type.swap(walker.type);
-		makeUniqueTypeSafe(type, getLocation());
 	}
 };
 
@@ -3932,14 +3937,15 @@ struct DeclaratorWalker : public WalkerBase
 		qualifying = walker.qualifying.empty() || isNamespace(*walker.qualifying.back().declaration)
 			? gUniqueTypeNull : UniqueTypeWrapper(walker.qualifying.back().unique);
 
+		if(qualifying != gUniqueTypeNull)
+		{
+			enclosingType = &getObjectType(qualifying.value);
+		}
+
 		if(walker.getQualifyingScope()
-			&& enclosing->type != SCOPETYPE_CLASS) // in 'class C { friend void Q::N(X); };' X should be looked up in the scope of C rather than Q
+			&& enclosing->type != SCOPETYPE_CLASS) // in 'class C { friend void Q::N(X); };' X should be looked up in the scope of Q rather than C (if Q is a class)
 		{
 			enclosing = walker.getQualifyingScope(); // names in declarator suffix (array-size, parameter-declaration) are looked up in declarator-id's qualifying scope
-			if(qualifying != gUniqueTypeNull)
-			{
-				enclosingType = &getObjectType(qualifying.value);
-			}
 		}
 
 		if(templateParams != 0
@@ -4075,11 +4081,12 @@ struct ClassHeadWalker : public WalkerBase
 
 	DeclarationPtr declaration;
 	IdentifierPtr id;
+	ScopePtr parent;
 	TemplateArguments arguments;
 	bool isUnion;
 	bool isSpecialization;
 	ClassHeadWalker(const WalkerState& state)
-		: WalkerBase(state), declaration(0), id(0), arguments(context), isUnion(false), isSpecialization(false)
+		: WalkerBase(state), declaration(0), id(0), parent(enclosing), arguments(context), isUnion(false), isSpecialization(false)
 	{
 	}
 
@@ -4101,7 +4108,7 @@ struct ClassHeadWalker : public WalkerBase
 		// resolve the (possibly dependent) qualifying scope
 		if(walker.getDeclaratorQualifying() != 0)
 		{
-			enclosing = walker.getDeclaratorQualifying()->enclosed; // names in declaration of nested-class are looked up in scope of enclosing class
+			parent = walker.getDeclaratorQualifying()->enclosed; // class is declared in scope of qualifying class/namespace
 		}
 
 		if(templateParams != 0
@@ -4124,7 +4131,7 @@ struct ClassHeadWalker : public WalkerBase
 	{
 		// defer class declaration until we know this is a class-specifier - it may be an elaborated-type-specifier until ':' is discovered
 		// 3.3.1.3 The point of declaration for a class first declared by a class-specifier is immediately after the identifier or simple-template-id (if any) in its class-head
-		declaration = declareClass(id, isSpecialization, arguments);
+		declaration = declareClass(parent, id, isSpecialization, arguments);
 	}
 	void visit(cpp::base_specifier* symbol) 
 	{
@@ -4340,7 +4347,7 @@ struct ClassSpecifierWalker : public WalkerBase
 		isUnion = walker.isUnion;
 		isSpecialization = walker.isSpecialization;
 		arguments.swap(walker.arguments);
-		enclosing = walker.enclosing;
+		enclosing = walker.parent;
 		templateParams = walker.templateParams; // template-params may have been consumed by qualifying template-name
 	}
 	void visit(cpp::terminal<boost::wave::T_LEFTBRACE> symbol)
@@ -4349,7 +4356,7 @@ struct ClassSpecifierWalker : public WalkerBase
 		if(declaration == 0)
 		{
 			// 3.3.1.3 The point of declaration for a class first declared by a class-specifier is immediately after the identifier or simple-template-id (if any) in its class-head
-			declaration = declareClass(id, isSpecialization, arguments);
+			declaration = declareClass(enclosing, id, isSpecialization, arguments);
 		}
 
 		/* basic.scope.class-1
