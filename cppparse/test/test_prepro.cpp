@@ -1,4 +1,36 @@
 
+namespace N302
+{
+	struct S
+	{
+		template<typename T>
+		const T* f()const
+		{
+		}
+		template<typename F>
+		void g(const F&)const
+		{
+			this->template f<F>();
+		}
+	};
+}
+
+namespace N303
+{
+	struct S
+	{
+		template<typename T>
+		const T* operator*()const
+		{
+		}
+		template<typename F>
+		void g(const F&)const
+		{
+			this->template operator*<F>();
+		}
+	};
+}
+
 // [expr.typeid] The result of a typeid expression is an lvalue of static type const std::type_info
 namespace std
 {
@@ -6,7 +38,6 @@ namespace std
 	{
 	};
 }
-
 namespace N301
 {
 

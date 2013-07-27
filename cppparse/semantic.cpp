@@ -1815,8 +1815,7 @@ struct UnqualifiedIdWalker : public WalkerBase
 	{
 		TemplateIdWalker walker(getState());
 		TREEWALKER_WALK_CACHED(walker, symbol);
-		if(!isTemplate
-			&& allowNameLookup())
+		if(allowNameLookup())
 		{
 			LookupResultRef declaration = findDeclaration(*walker.id, IsAny(), true);
 			if(declaration == &gUndeclared
@@ -1833,8 +1832,7 @@ struct UnqualifiedIdWalker : public WalkerBase
 	{
 		TemplateIdWalker walker(getState());
 		TREEWALKER_WALK_CACHED(walker, symbol);
-		if(!isTemplate // TODO: is this possible?
-			&& allowNameLookup())
+		if(allowNameLookup())
 		{
 			LookupResultRef declaration = findDeclaration(*walker.id, IsAny(), true);
 			if(declaration == &gUndeclared
@@ -2760,7 +2758,7 @@ struct PostfixExpressionWalker : public WalkerBase
 			// [temp.dep.expr] An id-expression is type-dependent if it contains:- an identifier that was declared with a dependent type
 			addDependentType(typeDependent, declaration);
 			// [temp.dep.expr] An id-expression is type-dependent if it contains: - a template-id that is dependent
-			setDependent(typeDependent, walker.arguments); // the id-expression may have an explicit template argument list
+			setDependent(typeDependent, arguments); // the id-expression may have an explicit template argument list
 			// [temp.dep.expr] An id-expression is type-dependent if it contains: - an identifier associated by name lookup with one or more declarations declared with a dependent type,
 			addDependentOverloads(typeDependent, declaration);
 
@@ -3399,9 +3397,8 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 		TemplateIdWalker walker(getState());
 		TREEWALKER_WALK_CACHED(walker, symbol);
 		LookupResultRef declaration = gDependentNestedTemplateInstance;
-		if(!isTemplate // TODO: should perform name lookup anyway, even if 'qualifying_p' not dependent!
-			&& (isDeclarator
-				|| allowNameLookup()))
+		if(isDeclarator
+			|| allowNameLookup())
 		{
 			declaration = findDeclaration(*walker.id, isDeclarator, IsNestedName());
 			if(declaration == &gUndeclared)
