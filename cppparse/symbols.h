@@ -3263,7 +3263,7 @@ inline bool deduce(UniqueTypeWrapper parameter, UniqueTypeWrapper argument, Temp
 		return true; // deduction succeeds, but does not deduce anything
 	}
 
-	bool isReference = false;
+	bool allowGreaterCvQualification = false;
 	if(isFunctionCall)
 	{
 		argument = removeReference(argument);
@@ -3274,7 +3274,7 @@ inline bool deduce(UniqueTypeWrapper parameter, UniqueTypeWrapper argument, Temp
 		// If P is a reference type, the type referred to by P is used for type deduction.
 		if(parameter.isReference())
 		{
-			isReference = true;
+			allowGreaterCvQualification = true;
 			parameter = removeReference(parameter);
 		}
 		// If P is not a reference type:
@@ -3311,28 +3311,43 @@ inline bool deduce(UniqueTypeWrapper parameter, UniqueTypeWrapper argument, Temp
 	// 	— If P is a class, and P has the form template-id, then A can be a derived class of the deduced A. Likewise,
 	// 	if P is a pointer to a class of the form template-id, A can be a pointer to a derived class pointed to
 	// 		by the deduced A.
+
+	// compare P and A, to find a deduced A that matches P.
+	// 'parameter' becomes the deduced A, while 'argument' is the original A.
 	for(; !parameter.empty() && !argument.empty(); parameter.pop_front(), argument.pop_front())
 	{
-		if(!parameter.isDependent()
-			&& (!isSameType(parameter, argument)
-				|| argument.value.getQualifiers() != parameter.value.getQualifiers()))
+		if(!parameter.isDependent())
 		{
-			return false;
-		}
-		if(parameter.isDependent()) // TODO only relevant if this is a DependentType?
-		{
-			if(isGreaterCvQualification(parameter, argument))
+			if(!isSameType(parameter, argument))
 			{
-				if(isReference) // if this is a function-call, the original P is a reference, and the deduced A is more qualified
-				{
-					parameter.value.setQualifiers(CvQualifiers()); // ignore cv-qualification of more-qualified A
-				}
-				else
-				{
-					return false;
-				}
+				return false;
 			}
-			// if both are const, remove const
+		}
+
+		if(!isEqualCvQualification(parameter, argument))
+		{
+			if(isGreaterCvQualification(parameter, argument)) // if the deduced A is more qualified than A
+			{
+				if(!allowGreaterCvQualification) // unless this is a function-call and the original P is a reference
+				{
+					return false; // the deduced A may not be more cv-qualified than A
+				}
+				parameter.value.setQualifiers(CvQualifiers()); // ignore cv-qualification of deduced A for later..
+			}
+			else if(!parameter.isDependent()) // unless template-parameter 'T' is found
+			{
+				return false; // the deduced A may not be differently cv-qualified than A
+			}
+		}
+
+		allowGreaterCvQualification = false; // only "the type referred to by the reference" may be more cv-qualified
+
+		if(parameter.isDependent()) // if template-parameter 'T' is found
+		{
+			// if only P is qualified, fail!: e.g. const T <- int
+			SYMBOLS_ASSERT(!isGreaterCvQualification(parameter, argument));
+			// if both are qualified, remove qualification: e.g. const T <- const int = int
+			// if only A is qualified, add qualification: e.g. T <- const int = const int
 			CvQualifiers qualifiers = argument.value.getQualifiers();
 			qualifiers.isConst ^= parameter.value.getQualifiers().isConst;
 			qualifiers.isVolatile ^= parameter.value.getQualifiers().isVolatile;
@@ -4849,7 +4864,10 @@ inline IntegralConstantExpression parseFloatingLiteral(const char* value)
 
 inline const UniqueTypeId& getCharacterLiteralType(const char* value)
 {
-	return *value == 'L' ? gWCharT : gSignedChar; // TODO: multicharacter literal
+	// [lex.ccon]
+	// An ordinary character literal that contains a single c-char has type char.
+	// A wide-character literal has type wchar_t.
+	return *value == 'L' ? gWCharT : gChar; // TODO: multicharacter literal
 }
 
 inline IntegralConstantExpression parseCharacterLiteral(const char* value)

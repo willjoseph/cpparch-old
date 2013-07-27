@@ -465,7 +465,6 @@ inline FunctionOverload findBestOverloadedOperator(cpp::unary_operator* op, Argu
 		// TODO: ignore non-member candidates if no operand has a class type, unless one or more params has enum (ref) type
 		LookupResultRef declaration = findClassOrNamespaceMemberDeclaration(*enclosing, id, IsNonMemberName()); // look up non-member candidates in the enclosing scope (ignoring members)
 		if(declaration != 0
-			&& !declaration->isTemplate // TODO: template argument deduction for overloaded operator
 			&& !declaration->specifiers.isFriend) // TODO: 14.5.3: friend function as member of a template-class, which depends on template arguments
 		{
 			addOverloads(resolver, findOverloaded(declaration), source);
@@ -3072,9 +3071,10 @@ struct ExpressionWalker : public WalkerBase
 		Source source = parser->get_source();
 		TREEWALKER_LEAF_SRC(symbol);
 		id = 0; // not a parenthesised id-expression, expression is not 'call to named function' [over.call.func]
-		if(!::isDependent(type) // can't resolve operator overloads if type is dependent
-			&& type.value != UNIQUETYPE_NULL) // TODO: assert
+		if(!isDependent(typeDependent))
 		{
+			SEMANTIC_ASSERT(type != gUniqueTypeNull);
+			SEMANTIC_ASSERT(!::isDependent(type)); // can't resolve operator overloads if type is dependent
 			SEMANTIC_ASSERT(getQualifyingScope() == 0);
 			SEMANTIC_ASSERT(!(memberType != gUniqueTypeNull && memberObject != 0));
 
@@ -3908,6 +3908,7 @@ struct DeclaratorWalker : public WalkerBase
 		templateParams = walker.templateParams;
 		addDependent(dependent, walker.dependent);
 		addDependent(valueDependent, walker.valueDependent);
+		addDependent(enclosingDependent, walker.enclosingDependent);
 		SYMBOLS_ASSERT(typeSequence.empty());
 		typeSequence = walker.typeSequence;
 
@@ -3933,20 +3934,28 @@ struct DeclaratorWalker : public WalkerBase
 		DeclaratorIdWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		id = walker.id;
-		setDependent(enclosingDependent, walker.qualifying);
 		qualifying = walker.qualifying.empty() || isNamespace(*walker.qualifying.back().declaration)
 			? gUniqueTypeNull : UniqueTypeWrapper(walker.qualifying.back().unique);
 
-		if(qualifying != gUniqueTypeNull)
-		{
-			enclosingType = &getObjectType(qualifying.value);
-		}
-
 		if(walker.getQualifyingScope()
-			&& enclosing->type != SCOPETYPE_CLASS) // in 'class C { friend void Q::N(X); };' X should be looked up in the scope of Q rather than C (if Q is a class)
+			&& enclosing->type != SCOPETYPE_CLASS) // //TODO: in 'class C { friend void Q::N(X); };' X should be looked up in the scope of Q rather than C (if Q is a class)
 		{
 			enclosing = walker.getQualifyingScope(); // names in declarator suffix (array-size, parameter-declaration) are looked up in declarator-id's qualifying scope
 		}
+
+		if(qualifying != gUniqueTypeNull)// if the declarator is qualified by a class-name
+		{
+			// represents the type of 'this'
+			enclosingType = &getObjectType(qualifying.value);
+			if(enclosingType->declaration->isTemplate // if the declarator is qualified with a template-id
+				&& !enclosingType->declaration->templateParams.empty()) // and the template is not an explicit-specialization
+			{
+				// 'this' is dependent within a template-definition (except for an explicit-specialization)
+				// NOTE: depends on state of 'enclosing', modified above!
+				setDependent(enclosingDependent, enclosingType->declaration->templateParams.back().declaration);
+			}
+		}
+
 
 		if(templateParams != 0
 			&& !templateParams->empty()
@@ -4009,6 +4018,7 @@ struct DeclaratorWalker : public WalkerBase
 		templateParams = walker.templateParams;
 		addDependent(dependent, walker.dependent);
 		addDependent(valueDependent, walker.valueDependent);
+		addDependent(enclosingDependent, walker.enclosingDependent);
 		SYMBOLS_ASSERT(typeSequence.empty());
 		typeSequence = walker.typeSequence;
 		conversionType.swap(walker.conversionType);
@@ -5340,7 +5350,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		{
 			SEMANTIC_ASSERT(walker.qualifying.isSimple());
 			enclosingType = &getObjectType(walker.qualifying.value);
-			addDependent(enclosingDependent, walker.enclosingDependent);
+			enclosingDependent = walker.enclosingDependent; // not using addDependent, workaround for issue when 'enclosing' is not (yet) referring to qualifying class in declarator 'S<T>::f()' 
 		}
 		templateParams = walker.templateParams; // template-params may have been consumed by qualifying template-name
 

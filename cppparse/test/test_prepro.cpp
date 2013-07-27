@@ -1,4 +1,81 @@
 
+namespace N294
+{
+	template<typename T>
+	struct S
+	{
+	};
+
+	template<typename T>
+	T operator*(const S<T>&);
+
+	struct A : S<int>
+	{
+	};
+
+	A a;
+	int i = *a;
+}
+
+namespace N293
+{
+	template<typename T>
+	struct S
+	{
+	};
+
+	template<typename T>
+	T operator*(const S<T>&);
+
+	S<int> s;
+	int i = *s;
+}
+
+namespace N292
+{
+	template<class T>
+	class S
+	{
+		void f();
+	};
+
+	template<class T>
+	template<class U>
+	S<T>& S<T>::f(U)
+	{
+		return *this;
+	}
+}
+
+namespace N291
+{
+	template<class T>
+	class S
+	{
+		void f();
+	};
+
+	template<class T>
+	S<T>& S<T>::f()
+	{
+		return *this;
+	}
+}
+
+namespace N290
+{
+	template<typename A>
+	struct parser
+	{
+	};
+
+	template<typename A>
+	inline void operator%(parser<A>const&a, char b)
+	{
+		*(b>>a.derived());
+	}
+}
+
 namespace N222
 {
 	template<typename T>

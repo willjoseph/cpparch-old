@@ -1343,6 +1343,7 @@ void testDeduction()
 	TestDeduction<T&, int, int>::apply(true);
 	TestDeduction<T, int[1], int*>::apply(true);
 	TestDeduction<T, const int[1], const int*>::apply(true);
+	TestDeduction<const Template<T, i>&, Template<int, 1> >::apply(gSignedInt, gOne, true);
 }
 
 
