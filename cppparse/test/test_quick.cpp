@@ -406,24 +406,6 @@ namespace N204
 	}
 }
 
-namespace N203
-{
-
-	struct Q
-	{
-		struct X;
-		void N(X*);
-	};
-
-	struct C
-	{
-		typedef Q::X Y;
-		static const int c = 0;
-		friend void Q::N(Y* = c); // 'Y' and 'c' should be looked up in the scope of C rather than Q
-	};
-
-}
-
 namespace N202
 {
 	// testing name-lookup within declarator-suffix
@@ -4774,15 +4756,6 @@ namespace N82
 	}
 }
 
-namespace N168
-{
-	// [expr.new] an implementation shall provide default definitions for the global allocation functions
-	inline void operator delete(void * _P, int, const char *, int)
-	{
-		::operator delete(_P);
-	}
-}
-
 namespace N80
 {
 	// Comeau/VC8 compiles this, but fails if g() is moved from N1::impl to N2::impl
@@ -4881,22 +4854,6 @@ namespace N77
 		void f(T) // template-param T should be visible here
 		{
 		}
-	};
-}
-
-namespace N76
-{
-	struct C
-	{
-		struct R
-		{
-		};
-		struct S;
-	};
-
-	 // out-of-line declaration of nested class
-	struct C::S : public R // C:: is not required to find R
-	{
 	};
 }
 
@@ -6555,3 +6512,12 @@ struct Y
 
 
 
+
+namespace N168
+{
+	// [expr.new] an implementation shall provide default definitions for the global allocation functions
+	inline void operator delete(void * _P, int, const char *, int)
+	{
+		::operator delete(_P);
+	}
+}

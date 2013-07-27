@@ -1363,6 +1363,43 @@ void testDeduction()
 	TestDeduction<T, int[1], int*>::applyFunction();
 	TestDeduction<T, const int[1], const int*>::applyFunction();
 	TestDeduction<const Template<T, i>&, Template<int, 1> >::applyFunction(gSignedInt, gOne);
+
+	typedef const int ConstInt;
+	typedef int* PointerToInt;
+	typedef ConstInt* PointerToConstInt;
+	typedef const PointerToInt ConstPointerToInt;
+	typedef const PointerToConstInt ConstPointerToConstInt;
+	typedef PointerToInt* PointerToPointerToInt;
+	typedef PointerToConstInt* PointerToPointerToConstInt;
+	typedef ConstPointerToInt* PointerToConstPointerToInt;
+	typedef ConstPointerToConstInt* PointerToConstPointerToConstInt;
+	typedef const T ConstT;
+	typedef T* PointerToT;
+	typedef ConstT* PointerToConstT;
+	typedef const PointerToT ConstPointerToT;
+	typedef const PointerToConstT ConstPointerToConstT;
+	typedef PointerToT* PointerToPointerToT;
+	typedef PointerToConstT* PointerToPointerToConstT;
+	typedef ConstPointerToT* PointerToConstPointerToT;
+	typedef ConstPointerToConstT* PointerToConstPointerToConstT;
+
+	TestDeduction<PointerToConstT, PointerToInt, int>::applyFunction(); // 1, 0
+	TestDeduction<PointerToT, PointerToInt, int>::applyFunction(); // 0, 0
+	TestDeduction<PointerToT, PointerToConstInt, const int>::applyFunction(); // 0, 1
+	TestDeduction<PointerToConstT, PointerToInt, int>::applyFunction(); // 1, 0
+	TestDeduction<PointerToConstT, PointerToConstInt, int>::applyFunction(); // 1, 1
+	TestDeduction<PointerToPointerToT, PointerToPointerToInt, int>::applyFunction(); // 00, 00
+	TestDeduction<PointerToPointerToT, PointerToPointerToConstInt, const int>::applyFunction(); // 00, 01
+	TestDeduction<PointerToPointerToConstT, PointerToPointerToInt>::applyFunction(gUniqueTypeNull); // 01, 00
+	TestDeduction<PointerToPointerToConstT, PointerToPointerToConstInt, int>::applyFunction(); // 01, 01
+	TestDeduction<PointerToConstPointerToT, PointerToPointerToInt, int>::applyFunction(); // 10, 00
+	TestDeduction<PointerToConstPointerToT, PointerToPointerToConstInt, const int>::applyFunction(); // 10, 01
+	TestDeduction<PointerToConstPointerToT, PointerToConstPointerToInt, int>::applyFunction(); // 10, 10
+	TestDeduction<PointerToConstPointerToT, PointerToConstPointerToConstInt, const int>::applyFunction(); // 10, 11
+	TestDeduction<PointerToConstPointerToConstT, PointerToPointerToInt, int>::applyFunction(); // 11, 00
+	TestDeduction<PointerToConstPointerToConstT, PointerToPointerToConstInt, int>::applyFunction(); // 11, 01
+	TestDeduction<PointerToConstPointerToConstT, PointerToConstPointerToInt, int>::applyFunction(); // 11, 10
+	TestDeduction<PointerToConstPointerToConstT, PointerToConstPointerToConstInt, int>::applyFunction(); // 11, 11
 }
 
 

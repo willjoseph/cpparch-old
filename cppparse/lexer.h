@@ -443,6 +443,7 @@ struct Lexer
 	}
 
 	const IncludeDependencyGraph& getIncludeGraph() const;
+	const char* makeIdentifier(const char* value);
 };
 
 #if 0

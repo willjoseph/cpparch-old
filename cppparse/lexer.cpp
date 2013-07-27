@@ -851,6 +851,13 @@ const IncludeDependencyGraph& Lexer::getIncludeGraph() const
 	return context.get_hooks().includeGraph;
 }
 
+const char* Lexer::makeIdentifier(const char* value)
+{
+	return context.makeIdentifier(value);
+}
+
+
+
 #ifdef _DEBUG
 void Lexer::debugEvents(IncludeEvents events, Name source)
 {

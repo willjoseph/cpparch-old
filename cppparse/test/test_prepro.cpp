@@ -1,4 +1,121 @@
 
+// [expr.typeid] The result of a typeid expression is an lvalue of static type const std::type_info
+namespace std
+{
+	struct type_info
+	{
+	};
+}
+
+namespace N301
+{
+
+	struct S
+	{
+	};
+
+	const std::type_info* p = &typeid(S);
+}
+
+#if 0 // TODO!
+namespace N76
+{
+	struct C
+	{
+		struct R
+		{
+		};
+		struct S;
+	};
+
+	// out-of-line declaration of nested class
+	struct C::S : public R // C:: is not required to find R
+	{
+	};
+}
+#endif
+
+
+#if 0 // TODO!
+namespace N203
+{
+
+	struct Q
+	{
+		struct X;
+		void N(X*);
+	};
+
+	struct C
+	{
+		typedef Q::X Y;
+		static const int c = 0;
+		friend void Q::N(Y* = c); // 'Y' and 'c' should be looked up in the scope of C after looking within Q
+	};
+
+}
+#endif
+
+namespace N300
+{
+	template<typename T>
+	T f(const T*const*);
+
+	int** a;
+	int i = f(a); // calls f(const int*const*)
+}
+
+namespace N298
+{
+	template<typename T>
+	T f(const T*);
+
+	int a;
+	int i = f(&a); // calls f(const int*)
+}
+
+namespace N296
+{
+	template<typename T>
+	struct S
+	{
+	};
+
+	template<typename T>
+	T f(const S<T>*);
+
+	struct A : S<int>
+	{
+	};
+
+	A a;
+	int i = f(&a); // calls f(const S<int>*)
+}
+
+namespace N297
+{
+	template<typename DerivedT>
+	struct parser
+	{
+	};
+	template<typename DerivedT>
+	struct char_parser: public parser<DerivedT>
+	{
+	};
+	struct anychar_parser: public char_parser<anychar_parser>
+	{
+	};
+	anychar_parser const anychar_p=anychar_parser();
+
+	template<typename S>
+	S operator*(parser<S>const&a);
+
+	void f()
+	{
+		*anychar_p;
+	}
+}
+
 namespace N295
 {
 	struct S
@@ -12,8 +129,6 @@ namespace N295
 	int i = *s; // calls operator*(const S&);
 }
 
-
-#if 1
 namespace N294
 {
 	template<typename T>
@@ -31,7 +146,6 @@ namespace N294
 	A a;
 	int i = f(a); // calls f(const S<int>&)
 }
-#endif
 
 namespace N293
 {

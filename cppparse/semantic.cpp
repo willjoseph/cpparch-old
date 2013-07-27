@@ -624,6 +624,7 @@ struct WalkerContext : public TreeAllocator<int>
 	Declaration globalDecl;
 	TypeRef globalType;
 	std::size_t declarationCount;
+	UniqueTypeWrapper typeInfoType;
 
 	WalkerContext(const TreeAllocator<int>& allocator) :
 		TreeAllocator<int>(allocator),
@@ -700,6 +701,26 @@ struct WalkerState
 	Location getLocation() const
 	{
 		return Location(parser->get_source(), context.declarationCount);
+	}
+
+	UniqueTypeWrapper getTypeInfoType()
+	{
+		if(context.typeInfoType == gUniqueTypeNull)
+		{
+			Identifier stdId = makeIdentifier(parser->context.makeIdentifier("std"));
+			LookupResultRef declaration = ::findDeclaration(context.global, stdId, IsNestedName());
+			SEMANTIC_ASSERT(declaration != 0);
+			SEMANTIC_ASSERT(declaration->enclosed != 0);
+			SEMANTIC_ASSERT(declaration->enclosed->type == SCOPETYPE_NAMESPACE);
+			Identifier typeInfoId = makeIdentifier(parser->context.makeIdentifier("type_info"));
+			declaration = ::findDeclaration(*declaration->enclosed, typeInfoId);
+			SEMANTIC_ASSERT(declaration != 0);
+			SEMANTIC_ASSERT(isClass(*declaration));
+			Type type(declaration, context);
+			context.typeInfoType = makeUniqueType(type, Location(), 0);
+			context.typeInfoType.value.setQualifiers(CvQualifiers(true, false));
+		}
+		return context.typeInfoType;
 	}
 
 	bool allowNameLookup()
@@ -1069,7 +1090,7 @@ struct WalkerState
 
 	bool isDependent(Declaration* dependent) const
 	{
-		return ::isDependent(dependent, enclosing, templateParamScope);
+		return ::isDependentImpl(dependent, enclosing, templateParamScope);
 	}
 	bool isDependent(const Type& type) const
 	{
@@ -1193,23 +1214,33 @@ struct WalkerState
 
 	void addDependentName(Dependent& dependent, Declaration* declaration)
 	{
+		Declaration* old = dependent.p;
 		setDependent(dependent, *declaration);
+		SEMANTIC_ASSERT(old == 0 || dependent.p != 0);
 	}
 	void addDependentType(Dependent& dependent, Declaration* declaration)
 	{
+		Declaration* old = dependent.p;
 		setDependent(dependent, declaration->type.dependent);
+		SEMANTIC_ASSERT(old == 0 || dependent.p != 0);
 	}
 	void addDependent(Dependent& dependent, const Type& type)
 	{
+		Declaration* old = dependent.p;
 		setDependent(dependent, type.dependent);
+		SEMANTIC_ASSERT(old == 0 || dependent.p != 0);
 	}
 	void addDependent(Dependent& dependent, Scope* scope)
 	{
+		Declaration* old = dependent.p;
 		setDependent(dependent, scope->bases);
+		SEMANTIC_ASSERT(old == 0 || dependent.p != 0);
 	}
 	void addDependent(Dependent& dependent, Dependent& other)
 	{
+		Declaration* old = dependent.p;
 		setDependent(dependent, other);
+		SEMANTIC_ASSERT(old == 0 || dependent.p != 0);
 	}
 };
 
@@ -1395,7 +1426,7 @@ struct WalkerBase : public WalkerState
 	{
 		for(Declaration* p = declaration; p != 0; p = p->overloaded)
 		{
-			addDependent(dependent, p->type);
+			setDependent(dependent, p->type.dependent);
 		}
 	}
 
@@ -2491,16 +2522,14 @@ struct PostfixExpressionWalker : public WalkerBase
 	{
 		ExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		// TODO: type = std::type_info
-		// not dependent
+		type = getTypeInfoType();
 		clearMemberType();
 	}
 	void visit(cpp::postfix_expression_typeidtype* symbol)
 	{
 		TypeIdWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		// TODO: type = std::type_info
-		// not dependent
+		type = getTypeInfoType();
 		clearMemberType();
 	}
 	// suffix

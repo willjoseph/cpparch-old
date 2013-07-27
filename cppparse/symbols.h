@@ -3101,7 +3101,7 @@ inline bool isDependent(UniqueTypeWrapper type)
 // ----------------------------------------------------------------------------
 // template argument deduction
 
-inline bool deduce(UniqueTypeWrapper parameter, UniqueTypeWrapper argument, TemplateArgumentsInstance& result);
+inline bool deduce(UniqueTypeWrapper parameter, UniqueTypeWrapper argument, TemplateArgumentsInstance& result, bool allowGreaterCvQualification = false);
 
 inline bool deducePairs(const UniqueTypeArray& parameters, const UniqueTypeArray& arguments, TemplateArgumentsInstance& result)
 {
@@ -3276,9 +3276,31 @@ inline const TypeInstance* findUniqueBase(const TypeInstance& derived, const Dec
 	return result;
 }
 
+inline UniqueTypeWrapper removePointer(UniqueTypeWrapper type)
+{
+	if(type.isPointer())
+	{
+		type.pop_front();
+	}
+	return type;
+}
+
+inline const TypeInstance* getClassType(UniqueTypeWrapper type)
+{
+	if(!type.isSimple())
+	{
+		return 0;
+	}
+	const TypeInstance* result = &getObjectType(type.value);
+	if(!isClass(*result->declaration))
+	{
+		return 0;
+	}
+	return result;
+}
+
 inline void adjustFunctionCallDeductionPair(UniqueTypeWrapper& parameter, UniqueTypeWrapper& argument, Location source, const TypeInstance* enclosing)
 {
-	bool allowGreaterCvQualification = false;
 	argument = removeReference(argument);
 
 	// [temp.deduct.call]
@@ -3287,7 +3309,6 @@ inline void adjustFunctionCallDeductionPair(UniqueTypeWrapper& parameter, Unique
 	// If P is a reference type, the type referred to by P is used for type deduction.
 	if(parameter.isReference())
 	{
-		allowGreaterCvQualification = true;
 		parameter = removeReference(parameter);
 	}
 	// If P is not a reference type:
@@ -3326,16 +3347,11 @@ inline void adjustFunctionCallDeductionPair(UniqueTypeWrapper& parameter, Unique
 	// These alternatives are considered only if type deduction would otherwise fail. If they yield more than one
 	// possible deduced A, the type deduction fails.
 
-	if(allowGreaterCvQualification // if this is a function-call and the original P is a reference
-		&& isGreaterCvQualification(parameter, argument)) // and the deduced A is more qualified than A (i.e. deduction would fail)
-	{
-		parameter.value.setQualifiers(CvQualifiers()); // ignore cv-qualification of deduced A during deduction
-	}
-
-	const TypeInstance* parameterType = parameter.isSimple() ? &getObjectType(parameter.value) : 0;
-	const TypeInstance* argumentType = argument.isSimple() ? &getObjectType(argument.value) : 0;
-	if(parameterType != 0 && isClass(*parameterType->declaration) && parameterType->declaration->isTemplate // if P is a class-template
-		&& argumentType != 0 && isClass(*argumentType->declaration) // and A is a class
+	const TypeInstance* parameterType = getClassType(removePointer(parameter));
+	const TypeInstance* argumentType = getClassType(removePointer(argument));
+	if(parameterType != 0 && parameterType->declaration->isTemplate // if P is a class-template
+		&& argumentType != 0 // and A is a class
+		&& parameter.isPointer() == argument.isPointer() // and neither (or both) are pointers
 		&& argumentType->primary != parameterType->primary) // and deduction would fail
 	{
 		instantiateClass(*argumentType, source, enclosing); // A must be instantiated before searching its bases
@@ -3343,12 +3359,19 @@ inline void adjustFunctionCallDeductionPair(UniqueTypeWrapper& parameter, Unique
 		if(base != 0) // if P is an unambiguous base-class of A
 		{
 			// A can be a derived class of the deduced A
+			bool isPointer = argument.isPointer();
+			CvQualifiers qualifiers = removePointer(argument).value.getQualifiers();
 			argument = makeUniqueObjectType(*base); // use the base-class in place of A for deduction
+			argument.value.setQualifiers(qualifiers); // preserve the cv-qualification of the original A
+			if(isPointer)
+			{
+				argument.push_front(PointerType());
+			}
 		}
 	}
 }
 
-inline bool deduce(UniqueTypeWrapper parameter, UniqueTypeWrapper argument, TemplateArgumentsInstance& result)
+inline bool deduce(UniqueTypeWrapper parameter, UniqueTypeWrapper argument, TemplateArgumentsInstance& result, bool allowGreaterCvQualification)
 {
 	// [temp.deduct.type]
 	// Template arguments can be deduced in several different contexts, but in each case a type that is specified in
@@ -3362,10 +3385,23 @@ inline bool deduce(UniqueTypeWrapper parameter, UniqueTypeWrapper argument, Temp
 		return true; // deduction succeeds, but does not deduce anything
 	}
 
+	std::size_t depth = 0;
 	// compare P and A, to find a deduced A that matches P.
 	// 'parameter' becomes the deduced A, while 'argument' is the original A.
-	for(; !parameter.empty() && !argument.empty(); parameter.pop_front(), argument.pop_front())
+	for(; !parameter.empty() && !argument.empty(); parameter.pop_front(), argument.pop_front(), ++depth)
 	{
+		if(allowGreaterCvQualification) // if this is a function-call and we are comparing either the outermost elements, or the outer elements form a const pointer/member-pointer sequence
+		{
+			// greater cv-qualification of the inner elements is allowed only if the outer elements form a const pointer/member-pointer sequence
+			allowGreaterCvQualification = (parameter.isPointer() || parameter.isMemberPointer())
+				&& (depth == 0 || parameter.value.getQualifiers().isConst);
+
+			if(isGreaterCvQualification(parameter, argument)) // and the deduced A is more qualified than A (i.e. deduction would fail)
+			{
+				parameter.value.setQualifiers(argument.value.getQualifiers()); // use cv-qualification of A to ensure deduction succeeds
+			}
+		}
+
 		if(!parameter.isDependent())
 		{
 			if(!isSameType(parameter, argument))
@@ -3418,7 +3454,7 @@ inline bool deduceFunctionCall(const ParameterTypes& parameters, const UniqueTyp
 			UniqueTypeWrapper parameter = *p;
 			UniqueTypeWrapper argument = *a;
 			adjustFunctionCallDeductionPair(parameter, argument, source, enclosing);
-			if(!deduce(parameter, argument, result))
+			if(!deduce(parameter, argument, result, true))
 			{
 				throw DeductionFailure();
 			}
@@ -3843,7 +3879,7 @@ inline Declaration* findEnclosingClassTemplate(Declaration* dependent)
 	return 0;
 }
 
-inline bool isDependent(Declaration* dependent, Scope* enclosing, Scope* templateParamScope)
+inline bool isDependentImpl(Declaration* dependent, Scope* enclosing, Scope* templateParamScope)
 {
 	return dependent != 0
 		&& (findScope(enclosing, dependent->scope) != 0
