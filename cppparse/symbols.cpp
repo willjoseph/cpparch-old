@@ -1201,14 +1201,16 @@ struct IcsRankTest
 } gIcsRankTest;
 
 
-
 template<typename P, typename A, typename R = void>
 struct TestDeduction
 {
-	static void apply(const TemplateArgumentsInstance& expected, bool isFunctionCall)
+	typedef bool (*DeduceFunction)(const ParameterTypes& parameters, const UniqueTypeArray& arguments, TemplateArgumentsInstance& result);
+	static void apply(const TemplateArgumentsInstance& expected, DeduceFunction deduce = deducePairs)
 	{
 		TemplateArgumentsInstance templateArguments(expected.size(), gUniqueTypeNull);
-		bool result = deduce(MakeType<P>::apply(), MakeType<A>::apply(), templateArguments, isFunctionCall);
+		ParameterTypes parameters(1, MakeType<P>::apply());
+		UniqueTypeArray arguments(1, MakeType<A>::apply());
+		bool result = deduce(parameters, arguments, templateArguments);
 		if(result)
 		{
 			SYMBOLS_ASSERT(templateArguments == expected);
@@ -1218,22 +1220,39 @@ struct TestDeduction
 			SYMBOLS_ASSERT(gUniqueTypeNull == expected[0]);
 		}
 	}
-	static void apply(UniqueTypeWrapper expected, bool isFunctionCall = false)
+	static bool deduceFunctionCallWrapper(const ParameterTypes& parameters, const UniqueTypeArray& arguments, TemplateArgumentsInstance& result)
+	{
+		return deduceFunctionCall(parameters, arguments, result, Location(), 0);
+	}
+
+	static void apply(UniqueTypeWrapper expected, DeduceFunction deduce = deducePairs)
 	{
 		TemplateArgumentsInstance tmp;
 		tmp.push_back(expected);
-		apply(tmp, isFunctionCall);
+		apply(tmp, deduce);
 	}
-	static void apply(bool isFunctionCall = false)
+	static void applyFunction(UniqueTypeWrapper expected)
 	{
-		apply(MakeType<R>::apply(), isFunctionCall);
+		apply(expected, deduceFunctionCallWrapper);
 	}
-	static void apply(UniqueTypeWrapper expected, UniqueTypeWrapper expected2, bool isFunctionCall = false)
+	static void apply(DeduceFunction deduceFunction = deducePairs)
+	{
+		apply(MakeType<R>::apply(), deduceFunction);
+	}
+	static void applyFunction()
+	{
+		apply(deduceFunctionCallWrapper);
+	}
+	static void apply(UniqueTypeWrapper expected, UniqueTypeWrapper expected2, DeduceFunction deduce = deducePairs)
 	{
 		TemplateArgumentsInstance tmp;
 		tmp.push_back(expected);
 		tmp.push_back(expected2);
-		apply(tmp, isFunctionCall);
+		apply(tmp, deduce);
+	}
+	static void applyFunction(UniqueTypeWrapper expected, UniqueTypeWrapper expected2)
+	{
+		apply(expected, expected2, deduceFunctionCallWrapper);
 	}
 };
 
@@ -1338,12 +1357,12 @@ void testDeduction()
 	TestDeduction<T(*)(T), int(*)(float)>::apply(gUniqueTypeNull);
 
 	// function call
-	TestDeduction<const T&, int, int>::apply(true);
-	TestDeduction<const T&, const int&, int>::apply(true);
-	TestDeduction<T&, int, int>::apply(true);
-	TestDeduction<T, int[1], int*>::apply(true);
-	TestDeduction<T, const int[1], const int*>::apply(true);
-	TestDeduction<const Template<T, i>&, Template<int, 1> >::apply(gSignedInt, gOne, true);
+	TestDeduction<const T&, int, int>::applyFunction();
+	TestDeduction<const T&, const int&, int>::applyFunction();
+	TestDeduction<T&, int, int>::applyFunction();
+	TestDeduction<T, int[1], int*>::applyFunction();
+	TestDeduction<T, const int[1], const int*>::applyFunction();
+	TestDeduction<const Template<T, i>&, Template<int, 1> >::applyFunction(gSignedInt, gOne);
 }
 
 

@@ -3101,9 +3101,9 @@ inline bool isDependent(UniqueTypeWrapper type)
 // ----------------------------------------------------------------------------
 // template argument deduction
 
-inline bool deduce(UniqueTypeWrapper parameter, UniqueTypeWrapper argument, TemplateArgumentsInstance& result, bool isFunctionCall = false);
+inline bool deduce(UniqueTypeWrapper parameter, UniqueTypeWrapper argument, TemplateArgumentsInstance& result);
 
-inline bool deduce(const UniqueTypeArray& parameters, const UniqueTypeArray& arguments, TemplateArgumentsInstance& result, bool isFunctionCall = false)
+inline bool deducePairs(const UniqueTypeArray& parameters, const UniqueTypeArray& arguments, TemplateArgumentsInstance& result)
 {
 	UniqueTypeArray::const_iterator p = parameters.begin();
 	for(UniqueTypeArray::const_iterator a = arguments.begin();
@@ -3112,7 +3112,7 @@ inline bool deduce(const UniqueTypeArray& parameters, const UniqueTypeArray& arg
 		// more arguments than parameters: occurs when matching a specialization such as 'struct S<>'
 		++a, ++p)
 	{
-		if(!deduce(*p, *a, result, isFunctionCall))
+		if(!deduce(*p, *a, result))
 		{
 			return false;
 		}
@@ -3174,7 +3174,7 @@ struct DeduceVisitor : TypeElementVisitor
 				}
 				const TypeInstance& type = getObjectType(argument.value);
 				if(!type.declaration->isTemplate
-					|| !deduce(element.templateArguments, type.templateArguments, templateArguments)) // template-template-parameter may have template-arguments that refer to a template parameter
+					|| !deducePairs(element.templateArguments, type.templateArguments, templateArguments)) // template-template-parameter may have template-arguments that refer to a template parameter
 				{
 					result = false;
 					return;
@@ -3219,7 +3219,7 @@ struct DeduceVisitor : TypeElementVisitor
 		// not attempting to deduce from enclosing type
 		if(!isNonDeduced(element.type))
 		{
-			result = deduce(element.type.templateArguments, type.templateArguments, templateArguments);
+			result = deducePairs(element.type.templateArguments, type.templateArguments, templateArguments);
 		}
 	}
 	virtual void visit(const PointerType&)
@@ -3242,62 +3242,74 @@ struct DeduceVisitor : TypeElementVisitor
 	virtual void visit(const FunctionType& element)
 	{
 		SYMBOLS_ASSERT(argument.isFunction());
-		result = deduce(element.parameterTypes, getParameterTypes(argument.value), templateArguments);
+		result = deducePairs(element.parameterTypes, getParameterTypes(argument.value), templateArguments);
 	}
 };
 
 inline UniqueTypeWrapper applyArrayToPointerConversion(UniqueTypeWrapper type);
 inline UniqueTypeWrapper applyFunctionToPointerConversion(UniqueTypeWrapper type);
+inline UniqueTypeWrapper makeUniqueObjectType(const TypeInstance& type);
 
-inline bool deduce(UniqueTypeWrapper parameter, UniqueTypeWrapper argument, TemplateArgumentsInstance& result, bool isFunctionCall)
+struct DeductionFailure
 {
-	// [temp.deduct.type]
-	// Template arguments can be deduced in several different contexts, but in each case a type that is specified in
-	// terms of template parameters (call it P) is compared with an actual type (call it A), and an attempt is made
-	// to find template argument values (a type for a type parameter, a value for a non-type parameter, or a template
-	// for a template parameter) that will make P, after substitution of the deduced values (call it the deduced
-	// A), compatible with A.
-	if(!isDependent(parameter))
-	{
-		// P is not specified in terms of template parameters
-		return true; // deduction succeeds, but does not deduce anything
-	}
+};
 
-	bool allowGreaterCvQualification = false;
-	if(isFunctionCall)
+inline const TypeInstance* findUniqueBase(const TypeInstance& derived, const Declaration& type, const TypeInstance* result = 0)
+{
+	SYMBOLS_ASSERT(derived.instantiated);
+	SYMBOLS_ASSERT(derived.declaration->enclosed != 0);
+	SYMBOLS_ASSERT(isClass(type));
+	for(UniqueBases::const_iterator i = derived.bases.begin(); i != derived.bases.end(); ++i)
 	{
-		argument = removeReference(argument);
-
-		// [temp.deduct.call]
-		// If P is a cv-qualified type, the top level cv-qualifiers of P’s type are ignored for type deduction.
-		parameter.value.setQualifiers(CvQualifiers());
-		// If P is a reference type, the type referred to by P is used for type deduction.
-		if(parameter.isReference())
+		const TypeInstance& base = *(*i);
+		SYMBOLS_ASSERT(isClass(*base.declaration));
+		if(base.primary == &type)
 		{
-			allowGreaterCvQualification = true;
-			parameter = removeReference(parameter);
+			if(result != 0)
+			{
+				throw DeductionFailure();
+			}
+			result = &base;
 		}
-		// If P is not a reference type:
+		result = findUniqueBase(base, type, result);
+	}
+	return result;
+}
+
+inline void adjustFunctionCallDeductionPair(UniqueTypeWrapper& parameter, UniqueTypeWrapper& argument, Location source, const TypeInstance* enclosing)
+{
+	bool allowGreaterCvQualification = false;
+	argument = removeReference(argument);
+
+	// [temp.deduct.call]
+	// If P is a cv-qualified type, the top level cv-qualifiers of P’s type are ignored for type deduction.
+	parameter.value.setQualifiers(CvQualifiers());
+	// If P is a reference type, the type referred to by P is used for type deduction.
+	if(parameter.isReference())
+	{
+		allowGreaterCvQualification = true;
+		parameter = removeReference(parameter);
+	}
+	// If P is not a reference type:
+	else
+	{
+		// - If A is an array type, the pointer type produced by the array-to-pointer standard conversion (4.2) is used
+		// in place of A for type deduction; otherwise,
+		if(argument.isArray())
+		{
+			argument = applyArrayToPointerConversion(argument);
+		}
+		// - If A is a function type, the pointer type produced by the function-to-pointer
+		// standard conversion (4.3) is used in place of A for type deduction; otherwise,
+		else if(argument.isFunction())
+		{
+			argument = applyFunctionToPointerConversion(argument);
+		}
+		// - If A is a cv-qualified type, the top level cv-qualifiers
+		// of A’s type are ignored for type deduction.
 		else
 		{
-			// - If A is an array type, the pointer type produced by the array-to-pointer standard conversion (4.2) is used
-			// in place of A for type deduction; otherwise,
-			if(argument.isArray())
-			{
-				argument = applyArrayToPointerConversion(argument);
-			}
-			// - If A is a function type, the pointer type produced by the function-to-pointer
-			// standard conversion (4.3) is used in place of A for type deduction; otherwise,
-			else if(argument.isFunction())
-			{
-				argument = applyFunctionToPointerConversion(argument);
-			}
-			// - If A is a cv-qualified type, the top level cv-qualifiers
-			// of A’s type are ignored for type deduction.
-			else
-			{
-				argument.value.setQualifiers(CvQualifiers());
-			}
+			argument.value.setQualifiers(CvQualifiers());
 		}
 	}
 
@@ -3311,6 +3323,44 @@ inline bool deduce(UniqueTypeWrapper parameter, UniqueTypeWrapper argument, Temp
 	// 	— If P is a class, and P has the form template-id, then A can be a derived class of the deduced A. Likewise,
 	// 	if P is a pointer to a class of the form template-id, A can be a pointer to a derived class pointed to
 	// 		by the deduced A.
+	// These alternatives are considered only if type deduction would otherwise fail. If they yield more than one
+	// possible deduced A, the type deduction fails.
+
+	if(allowGreaterCvQualification // if this is a function-call and the original P is a reference
+		&& isGreaterCvQualification(parameter, argument)) // and the deduced A is more qualified than A (i.e. deduction would fail)
+	{
+		parameter.value.setQualifiers(CvQualifiers()); // ignore cv-qualification of deduced A during deduction
+	}
+
+	const TypeInstance* parameterType = parameter.isSimple() ? &getObjectType(parameter.value) : 0;
+	const TypeInstance* argumentType = argument.isSimple() ? &getObjectType(argument.value) : 0;
+	if(parameterType != 0 && isClass(*parameterType->declaration) && parameterType->declaration->isTemplate // if P is a class-template
+		&& argumentType != 0 && isClass(*argumentType->declaration) // and A is a class
+		&& argumentType->primary != parameterType->primary) // and deduction would fail
+	{
+		instantiateClass(*argumentType, source, enclosing); // A must be instantiated before searching its bases
+		const TypeInstance* base = findUniqueBase(*argumentType, *parameterType->primary);
+		if(base != 0) // if P is an unambiguous base-class of A
+		{
+			// A can be a derived class of the deduced A
+			argument = makeUniqueObjectType(*base); // use the base-class in place of A for deduction
+		}
+	}
+}
+
+inline bool deduce(UniqueTypeWrapper parameter, UniqueTypeWrapper argument, TemplateArgumentsInstance& result)
+{
+	// [temp.deduct.type]
+	// Template arguments can be deduced in several different contexts, but in each case a type that is specified in
+	// terms of template parameters (call it P) is compared with an actual type (call it A), and an attempt is made
+	// to find template argument values (a type for a type parameter, a value for a non-type parameter, or a template
+	// for a template parameter) that will make P, after substitution of the deduced values (call it the deduced
+	// A), compatible with A.
+	if(!isDependent(parameter))
+	{
+		// P is not specified in terms of template parameters
+		return true; // deduction succeeds, but does not deduce anything
+	}
 
 	// compare P and A, to find a deduced A that matches P.
 	// 'parameter' becomes the deduced A, while 'argument' is the original A.
@@ -3320,32 +3370,22 @@ inline bool deduce(UniqueTypeWrapper parameter, UniqueTypeWrapper argument, Temp
 		{
 			if(!isSameType(parameter, argument))
 			{
-				return false;
+				return false; // the deduced A must be identical to A: e.g. T* <- int*, S<T> <- S<int>
+			}
+
+			if(!isEqualCvQualification(parameter, argument))
+			{
+				return false; // the deduced A can not be differently cv-qualified than A
 			}
 		}
-
-		if(!isEqualCvQualification(parameter, argument))
-		{
-			if(isGreaterCvQualification(parameter, argument)) // if the deduced A is more qualified than A
-			{
-				if(!allowGreaterCvQualification) // unless this is a function-call and the original P is a reference
-				{
-					return false; // the deduced A may not be more cv-qualified than A
-				}
-				parameter.value.setQualifiers(CvQualifiers()); // ignore cv-qualification of deduced A for later..
-			}
-			else if(!parameter.isDependent()) // unless template-parameter 'T' is found
-			{
-				return false; // the deduced A may not be differently cv-qualified than A
-			}
-		}
-
-		allowGreaterCvQualification = false; // only "the type referred to by the reference" may be more cv-qualified
 
 		if(parameter.isDependent()) // if template-parameter 'T' is found
 		{
 			// if only P is qualified, fail!: e.g. const T <- int
-			SYMBOLS_ASSERT(!isGreaterCvQualification(parameter, argument));
+			if(isGreaterCvQualification(parameter, argument))
+			{
+				return false;
+			}
 			// if both are qualified, remove qualification: e.g. const T <- const int = int
 			// if only A is qualified, add qualification: e.g. T <- const int = const int
 			CvQualifiers qualifiers = argument.value.getQualifiers();
@@ -3363,6 +3403,38 @@ inline bool deduce(UniqueTypeWrapper parameter, UniqueTypeWrapper argument, Temp
 	return true;
 }
 
+// deduce the function's template arguments by comparing the original argument list with the substituted parameters
+inline bool deduceFunctionCall(const ParameterTypes& parameters, const UniqueTypeArray& arguments, TemplateArgumentsInstance& result, Location source, const TypeInstance* enclosing)
+{
+	try
+	{
+		UniqueTypeArray::const_iterator p = parameters.begin();
+		for(UniqueTypeArray::const_iterator a = arguments.begin();
+			a != arguments.end() && p != parameters.end(); // for each pair P, A
+			// fewer arguments than parameters: occurs when some parameters are defaulted
+			// TODO: more arguments than parameters: occurs when ???
+			++a, ++p)
+		{
+			UniqueTypeWrapper parameter = *p;
+			UniqueTypeWrapper argument = *a;
+			adjustFunctionCallDeductionPair(parameter, argument, source, enclosing);
+			if(!deduce(parameter, argument, result))
+			{
+				throw DeductionFailure();
+			}
+		}
+		if(std::find(result.begin(), result.end(), gUniqueTypeNull) != result.end())
+		{
+			throw DeductionFailure();
+		}
+	}
+	catch(DeductionFailure)
+	{
+		return false;
+	}
+	return true;
+}
+
 
 extern ObjectTypeId gVoid;
 
@@ -3376,7 +3448,6 @@ inline void substitute(UniqueTypeArray& substituted, const UniqueTypeArray& depe
 	}
 }
 
-inline UniqueTypeWrapper makeUniqueObjectType(const TypeInstance& type);
 inline Declaration* findTemplateSpecialization(Declaration* declaration, TemplateArgumentsInstance& deducedArguments, const TemplateArgumentsInstance& arguments, Location source, const TypeInstance* enclosing, bool allowDependent);
 
 // 'enclosing' is already substituted
@@ -4009,18 +4080,10 @@ inline const TypeInstance* makeUniqueEnclosing(const Qualifying& qualifying, Loc
 	}
 }
 
-inline bool deduceFunctionCall(const ParameterTypes& parameters, const UniqueTypeArray& arguments, TemplateArgumentsInstance& templateArguments)
-{
-	// deduce the function's template arguments by comparing the original argument list with the substituted parameters
-	return deduce(parameters, arguments, templateArguments, true)
-		&& std::find(templateArguments.begin(), templateArguments.end(), gUniqueTypeNull) == templateArguments.end();
-}
-
-
 inline bool deduceAndSubstitute(const UniqueTypeArray& parameters, const UniqueTypeArray& arguments, Location source, TypeInstance& enclosing, TemplateArgumentsInstance& substituted)
 {
 	// deduce the partial-specialization's template arguments from the original argument list
-	if(!deduce(parameters, arguments, enclosing.deducedArguments)
+	if(!deducePairs(parameters, arguments, enclosing.deducedArguments)
 		|| std::find(enclosing.deducedArguments.begin(), enclosing.deducedArguments.end(), gUniqueTypeNull) != enclosing.deducedArguments.end())
 	{
 		return false; // cannot deduce

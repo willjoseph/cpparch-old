@@ -332,7 +332,8 @@ inline ParameterTypes addOverload(OverloadResolver& resolver, Declaration* p, Lo
 
 		specialization.templateArguments.resize(resolver.templateArguments == 0 ? 0 : resolver.templateArguments->size()); // preserve the explicitly specified arguments
 		specialization.templateArguments.resize(functionTemplate.templateParameters.size(), gUniqueTypeNull);
-		if(!deduceFunctionCall(substituted1, arguments, specialization.templateArguments))
+		// NOTE: in rare circumstances, deduction may cause implicit instantiations, which occur at the point of overload resolution 
+		if(!deduceFunctionCall(substituted1, arguments, specialization.templateArguments, resolver.source, resolver.enclosing))
 		{
 			throw TypeErrorBase(source); // deduction failed
 		}

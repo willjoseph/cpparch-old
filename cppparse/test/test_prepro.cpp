@@ -1,4 +1,19 @@
 
+namespace N295
+{
+	struct S
+	{
+	};
+
+	template<typename T>
+	int operator*(const T&);
+
+	S s;
+	int i = *s; // calls operator*(const S&);
+}
+
+
+#if 1
 namespace N294
 {
 	template<typename T>
@@ -7,15 +22,16 @@ namespace N294
 	};
 
 	template<typename T>
-	T operator*(const S<T>&);
+	T f(const S<T>&);
 
 	struct A : S<int>
 	{
 	};
 
 	A a;
-	int i = *a;
+	int i = f(a); // calls f(const S<int>&)
 }
+#endif
 
 namespace N293
 {
@@ -25,10 +41,10 @@ namespace N293
 	};
 
 	template<typename T>
-	T operator*(const S<T>&);
+	T f(const S<T>&);
 
 	S<int> s;
-	int i = *s;
+	int i = f(s); // calls f(const S<int>&)
 }
 
 namespace N292
