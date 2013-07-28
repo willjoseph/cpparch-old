@@ -1324,18 +1324,37 @@ struct WalkerBase : public WalkerState
 			parent = getFriendScope();
 		}
 
+		bool isTemplate = templateParams != 0;
+		bool isExplicitSpecialization = isTemplate && templateParams->empty();
+		DeclarationInstanceRef declaration = pointOfDeclaration(context, parent, *id, type, enclosed, specifiers, isTemplate, getTemplateParams(), isExplicitSpecialization, TEMPLATEARGUMENTS_NULL, templateParameter, valueDependent); // 3.3.1.1
+#ifdef ALLOCATOR_DEBUG
+		trackDeclaration(declaration);
+#endif
+		if(id != &gAnonymousId)
+		{
+			setDecoration(id, declaration);
+		}
+
+		if(declaration->templateParamScope == 0)
+		{
+			declaration->templateParamScope = templateParamScope; // required by findEnclosingType
+		}
+
 		// the type of an object is required to be complete
 		// a member's type must be instantiated before the point of declaration of the member, to prevent the member being found by name lookup during the instantiation
 		SEMANTIC_ASSERT(type.unique != 0);
 		UniqueTypeWrapper uniqueType = UniqueTypeWrapper(type.unique);
+		// NOTE: these checks must occur after the declaration because an out-of-line definition of a static member is otherwise not known to be static
 		if(parent->type == SCOPETYPE_CLASS // just members, for now
+			&& !uniqueType.isFunction() // member functions are not instantiated when class is implicitly instantiated
+			&& !isStatic(*declaration) // static members are not instantiated when class is implicitly instantiated
 			&& type.declaration != &gCtor) // ignore constructor
 		{
 			TypeInstance* enclosingClass = const_cast<TypeInstance*>(getEnclosingType(enclosingType));
 			std::size_t size = 0;
 			if(!type.isDependent)
 			{
-				if(!(parent->type == SCOPETYPE_CLASS && specifiers.isStatic) // ignore static member
+				if(!(parent->type == SCOPETYPE_CLASS && isStatic(*declaration)) // ignore static member
 					&& !specifiers.isTypedef // ignore typedef
 					&& (uniqueType.isSimple() || uniqueType.isArray()))
 				{
@@ -1355,22 +1374,6 @@ struct WalkerBase : public WalkerState
 			{
 				enclosingClass->size += size;
 			}
-		}
-
-		bool isTemplate = templateParams != 0;
-		bool isExplicitSpecialization = isTemplate && templateParams->empty();
-		DeclarationInstanceRef declaration = pointOfDeclaration(context, parent, *id, type, enclosed, specifiers, isTemplate, getTemplateParams(), isExplicitSpecialization, TEMPLATEARGUMENTS_NULL, templateParameter, valueDependent); // 3.3.1.1
-#ifdef ALLOCATOR_DEBUG
-		trackDeclaration(declaration);
-#endif
-		if(id != &gAnonymousId)
-		{
-			setDecoration(id, declaration);
-		}
-
-		if(declaration->templateParamScope == 0)
-		{
-			declaration->templateParamScope = templateParamScope; // required by findEnclosingType
 		}
 
 		return declaration;

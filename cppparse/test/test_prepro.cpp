@@ -1,4 +1,48 @@
 
+namespace N307
+{
+	template<typename T>
+	struct B
+	{
+		typedef typename T::M Type;
+	};
+
+	template<typename T>
+	struct A
+	{
+		typedef T M;
+		M f();
+	};
+
+	template<typename T>
+	typename A<T>::M A<T>::f()
+	{
+	}
+
+	typedef B<A<int> >::Type Type; // implicit instantiation of 'A<int>' via 'B' should not cause instantiation of member function 'A<int>::f'
+}
+
+namespace N306
+{
+	template<typename T>
+	struct B
+	{
+		typedef typename T::M Type;
+	};
+
+	template<typename T>
+	struct A
+	{
+		typedef T M;
+		static M const m;
+	};
+
+	template<typename T>
+	typename A<T>::M const A<T>::m;
+
+	typedef B<A<int> >::Type Type; // implicit instantiation of 'A<int>' via 'B' should not cause instantiation of static member 'A<int>::m'
+}
+
 namespace N305
 {
 	template<class _Elem>

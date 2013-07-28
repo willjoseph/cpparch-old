@@ -266,7 +266,10 @@
 	- avoid duplicates: use dependent unique-type to distinguish?
 	- do this whenever complete type is required, but type is dependent
 
-
+- issue: for class-template, out of line definition of static member is (incorrectly) added to list of child instantiations
+	- not usually a problem, except that class-template is 'partially instantiated' during instantiation of its children
+		- side effects of child instantiation may require name-lookup within the partially-instantiated class, will fail if names do not 
+	- static members should not be instantiated until they are used?
 
 - investigate: can explicit/partial-specializations omit template arguments where there are defaults in the primary template?
 	- clang allows with c++98

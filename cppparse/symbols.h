@@ -2247,6 +2247,12 @@ struct MemberNotFoundError : TypeErrorBase
 	{
 		TypeErrorBase::report();
 		std::cout << "member '" << name.c_str() << "' not found in ";
+#if 1
+		if(getObjectType(qualifying.value).instantiating)
+		{
+			std::cout << "(partially instantiated) ";
+		}
+#endif
 		printType(qualifying);
 		std::cout << std::endl;
 	}
@@ -3606,6 +3612,14 @@ struct SubstituteVisitor : TypeElementVisitor
 		//   required.
 		if(declaration == 0)
 		{
+#if 1
+			LookupResultRef declaration = findDeclaration(*enclosing, id, element.isNested ? LookupFilter(IsNestedName(VISIBILITY_ALL)) : LookupFilter(IsAny(VISIBILITY_ALL)));
+			if(declaration != 0)
+			{
+				std::cout << "visibility: " << visibility << std::endl;
+				std::cout << "found with VISIBILITY_ALL: " << declaration.p->visibility << std::endl;
+			}
+#endif
 			throw MemberNotFoundError(source, element.name, qualifying);
 		}
 		if(!isType(*declaration))
