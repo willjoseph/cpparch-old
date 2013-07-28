@@ -1,4 +1,17 @@
 
+namespace N308
+{
+	struct S
+	{
+		operator int();
+		operator float();
+	};
+
+	int f(int);
+
+	int i = f(S()); // overload resolution chooses conversion 'S::operator int()'
+}
+
 namespace N307
 {
 	template<typename T>

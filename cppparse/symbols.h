@@ -5870,7 +5870,7 @@ struct FunctionOverload
 inline FunctionOverload findBestConversionFunction(UniqueTypeWrapper to, UniqueTypeWrapper from, Location source, const TypeInstance* enclosing, bool isNullPointerConstant = false, bool isLvalue = false);
 
 template<typename To>
-inline ImplicitConversion makeImplicitConversionSequence(To to, UniqueTypeWrapper from, Location source, const TypeInstance* enclosing, bool isNullPointerConstant = false, bool isLvalue = false, bool allowUserDefinedConversion = true)
+inline ImplicitConversion makeImplicitConversionSequence(To to, UniqueTypeWrapper from, Location source, const TypeInstance* enclosing, bool isNullPointerConstant = false, bool isLvalue = false, bool isUserDefinedConversion = false)
 {
 	SYMBOLS_ASSERT(to != gUniqueTypeNull);
 	SYMBOLS_ASSERT(from != gUniqueTypeNull);
@@ -5978,7 +5978,7 @@ inline ImplicitConversion makeImplicitConversionSequence(To to, UniqueTypeWrappe
 		}
 	}
 
-	if(allowUserDefinedConversion
+	if(!isUserDefinedConversion
 		&& (isClass(to)
 			|| isClass(from)))
 	{
@@ -6979,10 +6979,10 @@ struct OverloadResolver
 	const TypeInstance* enclosing;
 	CandidateFunction best;
 	Declaration* ambiguous;
-	bool allowUserDefinedConversion;
+	bool isUserDefinedConversion;
 
-	OverloadResolver(const Arguments& arguments, const TemplateArgumentsInstance* templateArguments, Location source, const TypeInstance* enclosing, bool allowUserDefinedConversion = true)
-		: arguments(arguments), templateArguments(templateArguments), source(source), enclosing(enclosing), ambiguous(0), allowUserDefinedConversion(allowUserDefinedConversion)
+	OverloadResolver(const Arguments& arguments, const TemplateArgumentsInstance* templateArguments, Location source, const TypeInstance* enclosing, bool isUserDefinedConversion = false)
+		: arguments(arguments), templateArguments(templateArguments), source(source), enclosing(enclosing), ambiguous(0), isUserDefinedConversion(isUserDefinedConversion)
 	{
 		best.conversions.resize(arguments.size(), ImplicitConversion(STANDARDCONVERSIONSEQUENCE_INVALID));
 	}
@@ -7079,7 +7079,7 @@ struct OverloadResolver
 			{
 				const Argument& from = *a;
 				bool isNullPointerConstant = from.isConstant && evaluateExpression(from, source, enclosing).value == 0;
-				candidate.conversions.push_back(makeImplicitConversionSequence(to, from.type, source, enclosing, isNullPointerConstant, true, allowUserDefinedConversion)); // TODO: l-value
+				candidate.conversions.push_back(makeImplicitConversionSequence(to, from.type, source, enclosing, isNullPointerConstant, true, isUserDefinedConversion)); // TODO: l-value
 				++a;
 			}
 			else if((*d).argument == 0) // TODO: catch this earlier
@@ -7192,7 +7192,7 @@ inline bool isBaseOf(UniqueTypeWrapper base, UniqueTypeWrapper derived, Location
 	{
 		return true;
 	}
-	SYMBOLS_ASSERT(!isIncomplete(*derivedType.declaration)); // TODO: does SFINAE apply?
+	SYMBOLS_ASSERT(!isClass(*derivedType.declaration) || !isIncomplete(*derivedType.declaration)); // TODO: does SFINAE apply?
 	return isBaseOf(baseType, derivedType, source, enclosing);
 }
 

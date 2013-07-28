@@ -564,7 +564,9 @@ inline FunctionOverload findBestConversionFunction(UniqueTypeWrapper to, UniqueT
 	Arguments arguments;
 	arguments.push_back(Argument(expression, from));
 
-	OverloadResolver resolver(arguments, 0, source, enclosing, false); // disallow user-defined conversion when considering argument to conversion function
+	OverloadResolver resolver(arguments, 0, source, enclosing, true); // disallow user-defined conversion when considering argument to conversion function
+
+	// TODO: [over.match.ref] Initialization by conversion function for direct reference binding.
 
 	// [dcl.init]\14
 	if(isClass(to))
@@ -603,15 +605,62 @@ inline FunctionOverload findBestConversionFunction(UniqueTypeWrapper to, UniqueT
 
 	if(isClass(from))
 	{
-		// TODO
 		// add conversion functions of 'from' (and bases) that yield 'to' (after removing reference and cv-qualifiers)
 		// or (non-class) a type that can be converted via standard conversion
 		// or (class) a derived class of 'to'
+		SEMANTIC_ASSERT(isComplete(from)); // TODO: non-fatal parse error
+		const TypeInstance& classType = getObjectType(from.value);
+		instantiateClass(classType, source, enclosing); // searching for overloads requires a complete type
+		LookupResultRef declaration = ::findDeclaration(classType, gConversionFunctionId, IsAny());
+		// TODO: search bases
+		if(declaration != 0)
+		{
+			const TypeInstance* memberEnclosing = findEnclosingType(&classType, declaration->scope); // find the base class which contains the member-declaration
+			SEMANTIC_ASSERT(memberEnclosing != 0);
+
+			for(Declaration* p = findOverloaded(declaration); p != 0; p = p->overloaded)
+			{
+				SYMBOLS_ASSERT(p->enclosed != 0);
+
+				SYMBOLS_ASSERT(!p->isTemplate); // TODO: template-argument-deduction for conversion function
+				
+				UniqueTypeWrapper type = getUniqueType(p->type, source, memberEnclosing);
+				type.pop_front();
+				type = removeReference(type);
+				type.value.setQualifiers(CvQualifiers());
+
+				if(type.value.getPointer() != to.value.getPointer())
+				{
+					if(isClass(to))
+					{
+						if(!isBaseOf(to, type, source, enclosing))
+						{
+							continue;
+						}
+					}
+					else
+					{
+						if(makeStandardConversionSequence(to, type, source, enclosing).rank == SCSRANK_INVALID)
+						{
+							continue;
+						}
+					}
+				}
+
+				addOverload(resolver, p, source, memberEnclosing);
+			}
+		}
 	}
 
-	// TODO: return-type of constructor should be 'to' .. remove cv-qualifiers?
-	to.value.setQualifiers(CvQualifiers());
-	return FunctionOverload(resolver.get().declaration, to);
+	// TODO: return-type of constructor should be 'to'
+	FunctionOverload result = resolver.get();
+	if(result.type.isSimple()
+		&& getObjectType(result.type.value).declaration == &gCtor)
+	{
+		result.type = to;
+		result.type.value.setQualifiers(CvQualifiers());
+	}
+	return result;
 }
 
 
