@@ -2133,17 +2133,17 @@ struct DeclarationInstanceRef
 
 struct LookupResultRef : DeclarationInstanceRef
 {
-	const TypeInstance* enclosing;
+	//const TypeInstance* enclosing;
 	LookupResultRef()
-		: enclosing(0)
+		//: enclosing(0)
 	{
 	}
 	LookupResultRef(const DeclarationInstance& p)
-		: DeclarationInstanceRef(p), enclosing(0)
+		: DeclarationInstanceRef(p)//, enclosing(0)
 	{
 	}
 	LookupResultRef(const LookupResult& result)
-		: DeclarationInstanceRef(*result.filtered), enclosing(result.enclosing)
+		: DeclarationInstanceRef(*result.filtered)//, enclosing(result.enclosing)
 	{
 	}
 };
@@ -5856,7 +5856,7 @@ struct FunctionOverload
 inline FunctionOverload findBestConversionFunction(UniqueTypeWrapper to, UniqueTypeWrapper from, Location source, const TypeInstance* enclosing, bool isNullPointerConstant = false, bool isLvalue = false);
 
 template<typename To>
-inline ImplicitConversion makeImplicitConversionSequence(To to, UniqueTypeWrapper from, Location source, const TypeInstance* enclosing, bool isNullPointerConstant = false, bool isLvalue = false)
+inline ImplicitConversion makeImplicitConversionSequence(To to, UniqueTypeWrapper from, Location source, const TypeInstance* enclosing, bool isNullPointerConstant = false, bool isLvalue = false, bool allowUserDefinedConversion = true)
 {
 	SYMBOLS_ASSERT(to != gUniqueTypeNull);
 	SYMBOLS_ASSERT(from != gUniqueTypeNull);
@@ -5964,8 +5964,9 @@ inline ImplicitConversion makeImplicitConversionSequence(To to, UniqueTypeWrappe
 		}
 	}
 
-	if(isClass(to)
-		|| isClass(from))
+	if(allowUserDefinedConversion
+		&& (isClass(to)
+			|| isClass(from)))
 	{
 
 		// [over.ics.user]
@@ -5983,6 +5984,12 @@ inline ImplicitConversion makeImplicitConversionSequence(To to, UniqueTypeWrappe
 		// overload resolution (13.3). If the conversion cannot be done or is ambiguous, the initialization is
 		// ill-formed.
 		//
+
+		// [over.best.ics]
+		// However, when considering the argument of a user-defined conversion function that is a candidate by
+		// 13.3.1.3 when invoked for the copying of the temporary in the second step of a class copy-initialization, or
+		// by 13.3.1.4, 13.3.1.5, or 13.3.1.6 in all cases, only standard conversion sequences and ellipsis conversion
+		// sequences are allowed.
 		// TODO: do not allow user defined conversion sequence when converting argument during overload resolution!
 		FunctionOverload overload = findBestConversionFunction(to, from, source, enclosing, isNullPointerConstant, isLvalue);
 
@@ -6814,12 +6821,6 @@ struct SymbolPrinter : TypeElementVisitor, ExpressionNodeVisitor
 		printType(UniqueTypeWrapper(type.unique));
 	}
 
-	void printType(const Declaration& declaration)
-	{
-		SYMBOLS_ASSERT(declaration.type.unique != 0);
-		printType(UniqueTypeWrapper(declaration.type.unique));
-	}
-
 	void printType(const TypeInstance& type)
 	{
 		if(type.enclosing != 0)
@@ -6845,27 +6846,6 @@ struct SymbolPrinter : TypeElementVisitor, ExpressionNodeVisitor
 			typeElements.push_front(i);
 		}
 		visitTypeElement();
-	}
-
-	void printParameters(const Scope::DeclarationList& parameters)
-	{
-		printer.out << "(";
-		bool separator = false;
-		for(Scope::DeclarationList::const_iterator i = parameters.begin(); i != parameters.end(); ++i)
-		{
-			const Declaration* declaration = *i;
-			if(declaration->templateParameter == INDEX_INVALID)
-			{
-				if(separator)
-				{
-					printer.out << ",";
-				}
-				SymbolPrinter walker(printer, escape);
-				walker.printType(*declaration);
-				separator = true;
-			}
-		}
-		printer.out << ")";
 	}
 	void printParameters(const ParameterTypes& parameters)
 	{
@@ -6985,9 +6965,10 @@ struct OverloadResolver
 	const TypeInstance* enclosing;
 	CandidateFunction best;
 	Declaration* ambiguous;
+	bool allowUserDefinedConversion;
 
-	OverloadResolver(const Arguments& arguments, const TemplateArgumentsInstance* templateArguments, Location source, const TypeInstance* enclosing)
-		: arguments(arguments), templateArguments(templateArguments), source(source), enclosing(enclosing), ambiguous(0)
+	OverloadResolver(const Arguments& arguments, const TemplateArgumentsInstance* templateArguments, Location source, const TypeInstance* enclosing, bool allowUserDefinedConversion = true)
+		: arguments(arguments), templateArguments(templateArguments), source(source), enclosing(enclosing), ambiguous(0), allowUserDefinedConversion(allowUserDefinedConversion)
 	{
 		best.conversions.resize(arguments.size(), ImplicitConversion(STANDARDCONVERSIONSEQUENCE_INVALID));
 	}
@@ -7084,7 +7065,7 @@ struct OverloadResolver
 			{
 				const Argument& from = *a;
 				bool isNullPointerConstant = from.isConstant && evaluateExpression(from, source, enclosing).value == 0;
-				candidate.conversions.push_back(makeImplicitConversionSequence(to, from.type, source, enclosing, isNullPointerConstant, true)); // TODO: l-value
+				candidate.conversions.push_back(makeImplicitConversionSequence(to, from.type, source, enclosing, isNullPointerConstant, true, allowUserDefinedConversion)); // TODO: l-value
 				++a;
 			}
 			else if((*d).argument == 0) // TODO: catch this earlier

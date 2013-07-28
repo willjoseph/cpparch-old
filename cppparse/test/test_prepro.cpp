@@ -1,4 +1,58 @@
 
+namespace N305
+{
+	template<class _Elem>
+	class basic_string
+	{
+	public:
+		basic_string();
+		basic_string(const _Elem*_Ptr);
+		~basic_string();
+	};
+
+	int f(basic_string<char>);
+
+	const char* s = "";
+	int i = f(s); // conversion to basic_string<char>(int)
+}
+
+namespace N304
+{
+	template<class _Elem>
+	class basic_string
+	{
+	public:
+		typedef basic_string<_Elem> _Myt;
+		typedef const _Elem* const_pointer;
+		basic_string();
+		basic_string(const _Myt&_Right);
+		basic_string(const _Elem*_Ptr);
+		template<class _It>
+		basic_string(_It _First, _It _Last);
+		template<class _It>
+		basic_string(const_pointer _First, const_pointer _Last);
+	};
+
+	int f(basic_string<char>);
+
+	const char* s = "";
+	int i = f(s); // conversion to basic_string<char>(int)
+}
+
+namespace N282
+{
+	struct S
+	{
+		S(int);
+		S(float);
+		~S();
+	};
+
+	int f(S);
+
+	int i = f(0); // conversion to S(int)
+}
+
 namespace N302
 {
 	struct S
@@ -393,19 +447,6 @@ namespace N283
 			this->~S();
 		}
 	};
-}
-
-namespace N282
-{
-	struct S
-	{
-		S(int);
-		S(float);
-	};
-
-	int f(S);
-
-	int i = f(0); // conversion to S(int)
 }
 
 namespace N281

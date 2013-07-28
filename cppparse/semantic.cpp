@@ -564,7 +564,7 @@ inline FunctionOverload findBestConversionFunction(UniqueTypeWrapper to, UniqueT
 	Arguments arguments;
 	arguments.push_back(Argument(expression, from));
 
-	OverloadResolver resolver(arguments, 0, source, enclosing);
+	OverloadResolver resolver(arguments, 0, source, enclosing, false); // disallow user-defined conversion when considering argument to conversion function
 
 	// [dcl.init]\14
 	if(isClass(to))
@@ -583,7 +583,7 @@ inline FunctionOverload findBestConversionFunction(UniqueTypeWrapper to, UniqueT
 			const TypeInstance* memberEnclosing = findEnclosingType(&classType, declaration->scope); // find the base class which contains the member-declaration
 			SEMANTIC_ASSERT(memberEnclosing != 0);
 
-			for(Declaration* p = declaration; p != 0; p = p->overloaded)
+			for(Declaration* p = findOverloaded(declaration); p != 0; p = p->overloaded)
 			{
 				SYMBOLS_ASSERT(p->enclosed != 0);
 

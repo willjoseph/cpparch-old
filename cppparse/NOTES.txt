@@ -25,68 +25,25 @@
 	- is allowDependent=true in context where base classes are no longer dependent?
 		- e.g. D<int>::B
 + task: use the 'type' of a class definition to store unique-type
-
-- task: build list of dependent types for deferred uniquing/instantiation in instantiateClass
-	- cannot instantiate until unique-type is known, should hold reference to placeholder 'deferred' unique-type
-	- avoid duplicates: use dependent unique-type to distinguish?
-	- do this whenever complete type is required, but type is dependent
-
-
-- investigate: template instantiation
-	- perform substitution on dependent unique-types instead of Type
-
-	template<typename T>
-	struct S
-	{
-		T m; // 'S<T>' contains dependent unique-type 'T'
-
-		template<typename U>
-		struct V
-		{
-			U m; // 'S<T>::V<U>' contains dependent unique-type 'U'
-		};
-	};
-
-	S<int> s; // instantiate S<T> -> S<int>
-	S<int>::V<int> v; // instantiate S::<T>::V<U> -> S<int>::V<int>
-	
-	- S<T> is TypeInstance, with one dependent template-argument
-	- unique: 
-	- instantiate:
-
-
-- task: disallow implicit instantiation of a template within its own definition
-
-- task: proper type for enumerators, instead of gEnumerator
-
-- problem: findEnclosingType searches bases of incomplete class when within class definition
-	- don't use instantiateClass to enable this search: search non-dependent bases if..
-		- class is an enclosing template
-	- return enclosing type from findDeclaration
-
-- problem: ambiguity in template-argument between assignment-expression and type-id: T() and T(arg)
++ task: proper type for enumerators, instead of gEnumerator
++ problem: ambiguity in template-argument between assignment-expression and type-id: T() and T(arg)
 	- trying 'type-id' first is correct in former, wrong in latter
 	- vice versa for assignment-expression
 	- [temp.arg] In a template argument, an ambiguity between a typeid and an expression is resolved to a typeid,
 		regardless of the form of the corresponding template parameter
-
-- investigate: isMemberObject returns true if member is class definition?
-
-- test: parsing f(x,...)
-
-- test: correct type of expression x = y (should be type of 'x'?)
-
-- task: basic support for non-type arguments
+	- detect ambiguous expression and explicitly mark with isTemplateArgumentAmbiguity
++ test: parsing f(x,...)
++ task: basic support for non-type arguments
 	+ store non-type argument value
 	+ parse constant literals
 	+ get value for constant id-expression
 		+ enumerator
-	- evaluate integral constant expressions
+	+ evaluate non-dependent integral constant expressions
 		- binary
 		- ternary
 		- cast
 		- sizeof
-	- deferred evaluation of dependent integral constant expressions
+	+ deferred evaluation of dependent integral constant expressions
 		- need to substitute non-type template parameters
 			- N
 			- T::value
@@ -110,22 +67,27 @@
 			- sometimes type depends on value, and vice versa
 				- sizeof(0) // value depends on type of '0' (but NOT value)
 				- X<0> // type depends on value of '0' (but NOT type
-	- determine type of dependent pointer-to-member expression
-		- for SFINAE during substitution of nontype pointer-to-member parameter &T::member -> int T::*member
-
-- determine type of dependent expression
-	- requires two-phase name lookup for unqualified names within expression. e.g. f(dependent);
-		- for now: [temp.dep.res] Declarations that are visible at the point of definition of the template.
-		- if operand is dependent, must store unqualified-id and point-of-definition.
-			- point-of-definition is location of original template
-		- could do unqualified lookup (but not overload resolution) at point of parse?
-		- lookup of member operator overloads within the operand must be deferred, to allow searching dependent base class
-
++ investigate: how does bidirectional_map work?
+	- multi_index_container -> multi_index_base_type<...>::type -> nth_layer<0, ...>::type
+		- nth_layer::type = apply2<index_applier, T1, T2>::type
+			- apply2<F, T1, T2> -> lambda<F>::type::apply<T1, T2> -> F::apply<T1, T2>
+		- index_applier::apply<T1, T2>::type -> T1::type::index_class<T2>::type
+			- T1 = at_c<IndexSpecifierList, N>
+			- T2 = nth_layer<N+1, ...>
+			-> at_c<IndexSpecifierList, N>::type::index_class<nth_layer<N+1, ...>>::type
+		- IndexSpecifier list: either ordered_unique or ordered_non_unique
+		- ordered_unique::index_class<T1>::type -> ordered_index<T1 ...>::type
+		- why is 'length' 20?
+			- indexed_by is a vector20
+			- vector<T1, T2, na, ..> should be vector2!
 + issue: 'context' is still being instantiated while looking up names within it
 	LexContext
 		-> context
 		-> macromap<context>::name_iterator (instantiate macromap<context>)
 		-> ContextT::token_type token_type (instantiate ContextT)
+	- correct behaviour left unspecified, see DR 287
+		- "This was discussed at length. The consensus was that the template case should be treated the same as the non-template class case
+			in terms of the order in which members get declared/defined and classes get completed."
 	- during qualified name lookup within instantiation for a member of a class which is partially instantiated, only names declared before the point of instantiation are visible
 		- including dependent base classes!
 		- but names in bases of partially instantiated class cannot be accessed from within instantiation of its base
@@ -145,24 +107,9 @@
 			- static-const initializer
 			- template-argument expression
 				- in specialization arguments
-
-- investigate: how does bidirectional_map work?
-	- multi_index_container -> multi_index_base_type<...>::type -> nth_layer<0, ...>::type
-		- nth_layer::type = apply2<index_applier, T1, T2>::type
-			- apply2<F, T1, T2> -> lambda<F>::type::apply<T1, T2> -> F::apply<T1, T2>
-		- index_applier::apply<T1, T2>::type -> T1::type::index_class<T2>::type
-			- T1 = at_c<IndexSpecifierList, N>
-			- T2 = nth_layer<N+1, ...>
-			-> at_c<IndexSpecifierList, N>::type::index_class<nth_layer<N+1, ...>>::type
-		- IndexSpecifier list: either ordered_unique or ordered_non_unique
-		- ordered_unique::index_class<T1>::type -> ordered_index<T1 ...>::type
-		- why is 'length' 20?
-			- indexed_by is a vector20
-			- vector<T1, T2, na, ..> should be vector2!
-
-- task: template argument deduction
-	- for function templates
-	- for class template partial-specializations
++ task: template argument deduction
+	+ for function templates
+	+ for class template partial-specializations
 		- specialization is matched if its arguments can be deduced from the template arguments vs the specialization argument list
 	- what is "type deduction"?
 		- the process of determining the template arguments, from a set of dependent types (e.g. function parameters) and a set of non-dependent types (e.g. function-call arguments)
@@ -193,7 +140,6 @@
 			nondeduced contexts are replaced with the corresponding deduced argument values. If the substitution
 			results in an invalid type, as described above, type deduction fails.
 
-
 + task: make enclosingType valid for out-of-line member definitions
 + task: unique dependent template-name: T::template X<int>
 
@@ -208,7 +154,6 @@
 	- store list of specializations in primary template
 		- modifying existing declaration when specialization is declared is hard to undo when specialization is undeclared
 	- forward declaration of partial specialization is invisible?
-
 + task: in makeUniqueType, use previously uniqued type if available and isDependent=false.
 	+ assert that previously uniqued type is equal to result of makeUniqueType
 		- can only do this if both the previously uniqued type and the result of makeUniqueType are not dependent
@@ -223,7 +168,6 @@
 			- else look up unique-type in (instantiated) enclosing type
 		- DependentTemplate: as above, plus stored template arguments
 			- add default arguments to stored arguments if necessary, add to ObjectType
-
 + task: template instantiation debugging
 	- for a given instantiation, report which instantiations it requires
 		- track required instantiations
@@ -247,9 +191,148 @@
 				- ideally could get pointer to location in input file buffer for each token
 				- performance not critical for error reporting
 			- source lines should only be within template definition?
++ task: remove check for isMemberOfTemplate that guards overload resolution: findBestMatch
+	- investigate: is it possible to do overload resolution and choose a function that has a dependent return type?
+		- example: calling an overloaded static member of a template, within sizeof(), to initialise a static-const member
+		- should defer overload resolution if any overload is declared with a dependent type
+		- defect 541: http://www.open-std.org/jtc1/sc22/wg21/docs/cwg_defects.html
+	- required because member-functions of template classes may have dependent arguments
+		- conformant solution: function-call expression is dependent if function has any overloads that are declared with a dependent type
+		- don't perform overload resolution if function-call expression is dependent
++ issue: out-of-line member function template definition is not determined to be template
+	- because testing 'parent == templateEnclosing'
+	- should test 'enclosing == templateEnclosing'?
+		- but 'enclosing' refers to template-param scope
+		- enclosing is the scope in which name lookup occurs
+			- must include template-params in name lookup
+	- test whether template-params were specified
+		- empty params for explicit specialization
++ issue: ignoring difference in return type means two template functions that differ only by return-type (and template-params) are considered equivalent
+	- this is a hack for case where return-type is a typename - template<typename U> typename S<U>::Type S<U>::f() {}
+	- ignore return type and compare template params instead
+	
++ investigate: how to reduce callstack depth in debug
+	- sample of small call-stack within expression-parsing
+		- 233 levels
+		- parseExpression: 11
+		+ parseSymbol: 37
+		- parseSymbolRequired: 38
+		+ ParserGeneric::parse: 38
+		- cpp::[symbol]::parse: 13
+		- ParsingVisitor::visit: 13
+		- *Walker::visit: 26
+		- Default.ChoiceParser::parseSymbol: 22
++ investigate: when resolving unique type of a declaration named by an id-expression, do we need an enclosing-type if the id-expression names a non-member?
+	- if member, use type of enclosing class when resolving unique type of the member
+	- if non-member, type cannot be dependent on an enclosing class?
+		- could be dependent on template parameter of enclosing template function
+	- therefore answer is yes
++ task: correct implementation of partial ordering for function templates
+	- use C++11 [temp.deduct.partial]
++ task: implement types for enumerators
+	- declare unique type for each enum
+	- give its enumerators that type
+	- integral promotion
+	[ dcl.enum]
+	Each enumeration defines a type that is different from all other types. Following the closing brace of an
+	enum-specifier, each enumerator has the type of its enumeration. Prior to the closing brace, the type of
+	each enumerator is the type of its initializing value. If an initializer is specified for an enumerator, the initializing
+	value has the same type as the expression. If no initializer is specified for the first enumerator, the
+	type is an unspecified integral type. Otherwise the type is the same as the type of the initializing value of
+	the preceding enumerator unless the incremented value is not representable in that type, in which case the
+	type is an unspecified integral type sufficient to contain the incremented value.
++ task: ellipsis in overload resolution
+	+ if more arguments than parameters, excess arguments become ellipsis-conversion-sequence
++ task: array-to-pointer conversion in binary expression
+	- infer that binary expression requires rvalue operands
+	- therefore lvalue-to-rvalue (array to pointer) conversion is performed
+	[conv]
+	expressions with a given type will be implicitly converted to other types in several contexts:
+	- When used as operands of operators. The operator’s requirements for its operands dictate the destination type
+	[expr]
+	Whenever an lvalue expression appears as an operand of an operator that expects an rvalue for that operand,
+	the lvalue-to-rvalue (4.1), array-to-pointer (4.2), or function-to-pointer (4.3) standard conversions are
+	applied to convert the expression to an rvalue. [Note: because cv-qualifiers are removed from the type of
+	an expression of non-class type when the expression is converted to an rvalue, an lvalue expression of type
+	const int can, for example, be used where an rvalue expression of type int is required. ]	
+	[expr.add]
+	For addition, either both operands shall have arithmetic or enumeration type, or one operand shall be a
+	pointer to a completely defined object type and the other shall have integral or enumeration type.
+
+
+
+- task: build list of dependent types for deferred uniquing/instantiation in instantiateClass
+	- cannot instantiate until unique-type is known, should hold reference to placeholder 'deferred' unique-type
+	- avoid duplicates: use dependent unique-type to distinguish?
+	- do this whenever complete type is required, but type is dependent
+
+
 
 - investigate: can explicit/partial-specializations omit template arguments where there are defaults in the primary template?
 	- clang allows with c++98
+
+- investigate: need to compare two function templates with different numbers of parameters when determining partial ordering?
+
+- investigate: is typename required in operator T::Dependent?
+	- seems to be..
+
+- investigate: partial specializations: how to substitute template-arguments when uniquing
+- investigate: what is the dependent unique-type of a template-partial-specialization?
+	- A<T*> where T is the enclosing template parameter?
+	- ok to resolve specialization of a dependent unique-type?
+	- necessary to correctly unique the enclosing class when parsing a template-partial-specialization
+
+- investigate: is result of makeUniqueType cached during cached-parse of template-id?
+
+- investigate: isMemberObject returns true if member is class definition?
+	- is this a problem?
+
+- investigate: is Declaration::valueDependent necessary? Why is it initialised with dependent-ness of it's type's array size?
+
+
+- investigate: template instantiation
+	- perform substitution on dependent unique-types instead of Type
+
+	template<typename T>
+	struct S
+	{
+		T m; // 'S<T>' contains dependent unique-type 'T'
+
+		template<typename U>
+		struct V
+		{
+			U m; // 'S<T>::V<U>' contains dependent unique-type 'U'
+		};
+	};
+
+	S<int> s; // instantiate S<T> -> S<int>
+	S<int>::V<int> v; // instantiate S::<T>::V<U> -> S<int>::V<int>
+	
+	- S<T> is TypeInstance, with one dependent template-argument
+	- unique: 
+	- instantiate:
+
+
+- task: disallow implicit instantiation of a template within its own definition
+
+- problem: findEnclosingType searches bases of incomplete class when within class definition
+	- don't use instantiateClass to enable this search: search non-dependent bases if..
+		- class is an enclosing template
+	- return enclosing type from findDeclaration
+		- why?
+
+- test: correct type of expression x = y (should be type of 'x'?)
+
+- task: determine type of dependent pointer-to-member expression
+	- for SFINAE during substitution of nontype pointer-to-member parameter &T::member -> int T::*member
+
+- task: determine type of dependent expression
+	- requires two-phase name lookup for unqualified names within expression. e.g. f(dependent);
+		- for now: [temp.dep.res] Declarations that are visible at the point of definition of the template.
+		- if operand is dependent, must store unqualified-id and point-of-definition.
+			- point-of-definition is location of original template
+		- could do unqualified lookup (but not overload resolution) at point of parse?
+		- lookup of member operator overloads within the operand must be deferred, to allow searching dependent base class
 
 - investigate: what is instantiated when instantiating a class?
 	- direct member declarations: yes
@@ -260,41 +343,12 @@
 
 - issue: parser loses track of current token just after parsing last token of default-parameter (and other deferred parse?)
 
-- task: remove check for isMemberOfTemplate that guards overload resolution: findBestMatch
-	- investigate: is it possible to do overload resolution and choose a function that has a dependent return type?
-		- example: calling an overloaded static member of a template, within sizeof(), to initialise a static-const member
-		- should defer overload resolution if any overload is declared with a dependent type
-		- defect 541: http://www.open-std.org/jtc1/sc22/wg21/docs/cwg_defects.html
-	- required because member-functions of template classes may have dependent arguments
-		- conformant solution: function-call expression is dependent if function has any overloads that are declared with a dependent type
-		- don't perform overload resolution if function-call expression is dependent
-
 - task: construct templateParamScope when parsing 'template' token
 	- construct empty template param scope for explicit specialization?
 
 - task: avoid having to revert changes to TypeId in between parsing multiple declarators in init-declarator-list
 
-
-- investigate: what is the dependent unique-type of a template-partial-specialization?
-	- A<T*> where T is the enclosing template parameter?
-	- ok to resolve specialization of a dependent unique-type?
-	- necessary to correctly unique the enclosing class when parsing a template-partial-specialization
-
-
-- investigate: partial specializations: how to substitute template-arguments when uniquing
-
-
-- investigate: is result of makeUniqueType cached during cached-parse of template-id?
-
 - task: when complete type is required for dependent type, add it to children list in enclosing template class
-
-- issue: out-of-line member function template definition is not determined to be template
-	- because testing 'parent == templateEnclosing'
-	- should test 'enclosing == templateEnclosing'?
-		- but 'enclosing' refers to template-param scope
-		- enclosing is the scope in which name lookup occurs
-			- must include template-params in name lookup
-	- test something else?
 
 - task: determine type of all non-dependent expressions
 	- overload resolution
@@ -308,35 +362,16 @@
 			- substitute unspecified template params with themselves?
 				- much like when name of current-instantiation is used in class template definition
 
+- task: type of overloaded operators: required to determine type of expression
+	- postfix operator[]
+	- postfix operator++
+	- operator->
+
 - task: determine type of conditional-expression with differing second and third operands
 
-- issue: ignoring difference in return type means two template functions that differ only by return-type (and template-params) are considered equivalent
-	- this is a hack for case where return-type is a typename - template<typename U> typename S<U>::Type S<U>::f() {}
-	- ignore return type and compare template params instead
+- task: refactor PARSE_EXPRESSION
 
-- investigate: template_id_operator_function
-
-- investigate: conversion function lookup
-	- all overloads considered equivalent?
-
-- task: fix type of conversion function declaration: declarator-ptr not correctly parsed
-
-
-- investigate: how to reduce callstack depth in debug
-	- sample of small call-stack within expression-parsing
-		- 233 levels
-		- parseExpression: 11
-		+ parseSymbol: 37
-		- parseSymbolRequired: 38
-		+ ParserGeneric::parse: 38
-		- cpp::[symbol]::parse: 13
-		- ParsingVisitor::visit: 13
-		- *Walker::visit: 26
-		- Default.ChoiceParser::parseSymbol: 22
-
-- task: remove PARSE_EXPRESSION
-
-- task: overload resolution: implicit object parameter/argument
++ task: overload resolution: implicit object parameter/argument
 	// [over.match.funcs] a member function is considered to have an extra parameter, called the implicit object parameter, which
 	// represents the object for which the member function has been called. For the purposes of overload resolution,
 	// both static and non-static member functions have an implicit object parameter, but constructors do not.
@@ -345,13 +380,6 @@
 	- when calling a member function, must always supply an implicit-object-argument
 		- when that member is static and is called without a class object, the implied-object-argument is ???
 
-- investigate: when resolving unique type of a declaration named by an id-expression, do we need an enclosing-type if the id-expression names a non-member?
-	- if member, use type of enclosing class when resolving unique type of the member
-	- if non-member, type cannot be dependent on an enclosing class?
-		- could be dependent on template parameter of enclosing template function
-
-- investigate: is Declaration::valueDependent necessary? Why is it initialised with dependent-ness of it's type's array size?
-
 - task: declare copy-assign if not already declared
 	- name lookup fails for id-expression 'operator=' when it has not been declared
 	- correct behaviour: name lookup for 'operator=' within class should always return default, if not found
@@ -359,21 +387,7 @@
 			- too complex to manufacture declaration from nothing
 		- avoid conflict with overload declarations
 
-+ task: correct implementation of partial ordering for function templates
-	- use C++11 [temp.deduct.partial]
-
-- task: implement types for enumerators
-	- declare unique type for each enum
-	- give its enumerators that type
-	- integral promotion
-	[ dcl.enum]
-	Each enumeration defines a type that is different from all other types. Following the closing brace of an
-	enum-specifier, each enumerator has the type of its enumeration. Prior to the closing brace, the type of
-	each enumerator is the type of its initializing value. If an initializer is specified for an enumerator, the initializing
-	value has the same type as the expression. If no initializer is specified for the first enumerator, the
-	type is an unspecified integral type. Otherwise the type is the same as the type of the initializing value of
-	the preceding enumerator unless the incremented value is not representable in that type, in which case the
-	type is an unspecified integral type sufficient to contain the incremented value.
+- task: test integral promotion for enum
 
 - task: implement function template explicit specialization
 
@@ -400,17 +414,18 @@
 	- what second standard-conversion is required in user-defined conversion involving constructor-call?
 		- is result of constructor-call an lvalue/rvalue?
 
-- task: type of overloaded operators: required to determine type of expression
-	- postfix operator[]
-	- postfix operator++
-	- operator->
+- task: fix type of conversion function declaration: declarator-ptr not correctly parsed
 
-+ task: ellipsis in overload resolution
-	+ if more arguments than parameters, excess arguments become ellipsis-conversion-sequence
+- task: test conversion function parse special-case
+	The conversion-type-id shall not represent a function type nor an array type. The conversion-type-id in a
+	conversion-function-id is the longest possible sequence of conversion-declarators. [Note: this prevents
+	ambiguities between the declarator operator * and its expression counterparts. [Example:
+	&ac.operator int*i; // syntax error:
+	// parsed as: &(ac.operator int *) i
+	// not as: &(ac.operator int)*i
+	The * is the pointer declarator and not the multiplication operator. ] ]
 
-- investigate: need to compare two function templates with different numbers of parameters when determining partial ordering?
-
-- task: function parameter type transformations
+- task: function parameter type transformations during template argument deduction
 	[dcl.fct] After determining the
 	type of each parameter, any parameter of type “array of T” or “function returning T” is adjusted to be
 	“pointer to T” or “pointer to function returning T,” respectively. After producing the list of parameter
@@ -421,19 +436,6 @@
 	After this substitution is performed, the function parameter type adjustments described in 8.3.5 are performed.
 	[Example: A parameter type of “void ()(const int, int[5])” becomes “void(*)(int,int*)”. ]
 
-- task: array-to-pointer conversion in binary expression
-	[conv]
-	expressions with a given type will be implicitly converted to other types in several contexts:
-	- When used as operands of operators. The operator’s requirements for its operands dictate the destination type
-	[expr]
-	Whenever an lvalue expression appears as an operand of an operator that expects an rvalue for that operand,
-	the lvalue-to-rvalue (4.1), array-to-pointer (4.2), or function-to-pointer (4.3) standard conversions are
-	applied to convert the expression to an rvalue. [Note: because cv-qualifiers are removed from the type of
-	an expression of non-class type when the expression is converted to an rvalue, an lvalue expression of type
-	const int can, for example, be used where an rvalue expression of type int is required. ]	
-	[expr.add]
-	For addition, either both operands shall have arithmetic or enumeration type, or one operand shall be a
-	pointer to a completely defined object type and the other shall have integral or enumeration type.
 
 - task: overload resolution for built-in operators
 	- required only when an operand has class or enumeration type
@@ -517,16 +519,3 @@
 		- assign: [volatile]L&, R -> [volatile]L&
 		- 
 	- issue: how to ensure both arguments are same type when matching (T, T) ?
-
-
-
-- task: test conversion function parse special-case
-	The conversion-type-id shall not represent a function type nor an array type. The conversion-type-id in a
-	conversion-function-id is the longest possible sequence of conversion-declarators. [Note: this prevents
-	ambiguities between the declarator operator * and its expression counterparts. [Example:
-	&ac.operator int*i; // syntax error:
-	// parsed as: &(ac.operator int *) i
-	// not as: &(ac.operator int)*i
-	The * is the pointer declarator and not the multiplication operator. ] ]
-
-- investigate: is typename required when operator T

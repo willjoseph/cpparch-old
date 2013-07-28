@@ -49,7 +49,7 @@
 	- test that names introduced into namespace by using-directive correctly hide previously-declared names
 	- test parser for completeness and compliance
 	- test that a name found only in a friend-declaration can be found during argument-dependent name-lookup
-	- test injected-class-name: referring to a template base by its name is allowed: struct D : B<T> { B b; };
+	- test injected-class-name
 
 - unit tests
 	- test_include should give warning about using 'TEST_INDIRECT'
@@ -76,7 +76,7 @@
 		- is there an alternative mechanism for visiting parse-tree?
 		- visiting is not required during parse!
 			- removing vtable reduces overhead to 1 byte per base-class, trivial constructor
-				- would be zero with empty-base-optimisation
+				- should be zero with empty-base-optimisation
 				- remove multiple-inheritance?
 					- need alternative method to enforce valid casting?
 	- avoid constructing complex *_NULL constants on the fly
@@ -118,6 +118,11 @@
 		- reject names not found in enclosing class when not considering nested-name-specifier
 		- memberObject not set during scope of out-of-line member definition, member lookup fails
 		- check when object-expr is dependent and skip lookup, rather than reverting to unqualified lookup
+	+ implement deferred name-lookup for dependent type-names
+	+ get rid of old printParameters(DeclarationList)
+		- note that this needs to print (possibly dependent) parameters of an uninstantiated template function
+	+ return more appropriate object than 'gBaseClass' when failing to resolve dependent type with allowDependent=true
+	+ print template arguments when printing types
 	- prioritise features that improve support for namespace-scope entities, deprioritise class-scope features
 		- rationale: dependency on class member requires inclusion of class definition
 			- e.g. std::vector<int>::empty() -> std::vector<T> (and all specialisations)
@@ -128,10 +133,10 @@
 			- function template argument deduction
 		- template instantation
 			- overload resolution for dependent names
-	- implement evaluation of integer-constant-expression
+	+ implement evaluation of non-dependent integer-constant-expression
 		- required by is-null-pointer-constant check in overload resolution
 		- required by template-partial-specialization resolution
-	- implement template-instantiation
+	+ implement class-template instantiation
 		- specializations are chosen at point of instantiation
 		- dependent-names/types are bound at point of instantiation-
 			- TypeInstance: contains list of declarations, one for each dependent-name in the template
@@ -146,21 +151,17 @@
 			- The name of the template itself, and names declared within the template itself
 			- Names dependent on a template-parameter
 			- Names from scopes which are visible within the template-definition.
-	- get rid of old printParameters(DeclarationList)
-		- note that this needs to print (possibly dependent) parameters of an uninstantiated template function
-	- return more appropriate object than 'gBaseClass' when failing to resolve dependent type with allowDependent=true
-	- print template arguments when printing types
-		- also when linking to template explicit/partial specializations?
-			- depending on a specialization implies dependency on all specializations
-			- because illegal to declare specialization after first instantiation
-		- when linking to template functions?
-	- implement deferred name-lookup
+	- print template arguments when linking to template explicit/partial specializations?
+		- depending on a specialization implies dependency on all specializations
+		- because cannot declare specialization after first instantiation
+	- include partial-specialization template-params in anchor, to distinguish from primary template
+	- print template arguments when linking to template functions?
 	- custom allocator for unique-types
 	- use preprocessed source for tests
+		- source format: serialised stream of Token
 	- improve error messages
 		- e.g. detect when 'typename' keyword is missing
 		- on reportIdentifierMismatch, show the location of the mismatching identifier
-	- include partial-specialization template-params in anchor, to distinguish from primary template
 	- handle template explicit/partial specialization with empty argument-list
 	- handle all parse errors without crashing
 		- don't crash when backtracking after parse error!
@@ -253,7 +254,7 @@
 			+ unique non-dependent base when parsing base-specifier
 				- makeUniqueType seems inconsistent when uniquing dependent bases
 					- need to pass D<int> as enclosing-class when base-specifier D:B<T> depends on template parameter
-	- unique all non-dependent type-names/type-ids when parsing?
+	+ unique all non-dependent type-names/type-ids when parsing
 		- base-specifier
 		- nested-name-specifier
 		- qualified-id
