@@ -1927,6 +1927,9 @@ struct DeclaratorFunctionType
 {
 	Parameters parameters;
 	CvQualifiers qualifiers;
+	DeclaratorFunctionType()
+	{
+	}
 	DeclaratorFunctionType(const Parameters& parameters, CvQualifiers qualifiers)
 		: parameters(parameters), qualifiers(qualifiers)
 	{
@@ -1960,12 +1963,16 @@ inline const TypeSequence::Node* getLastNode(const TypeSequence& typeSequence)
 	}
 	return result;
 }
+inline const DeclaratorFunctionType& getDeclaratorFunctionType(const TypeSequence::Node* node)
+{
+	SYMBOLS_ASSERT(node != 0);
+	SYMBOLS_ASSERT(typeid(*node) == typeid(SequenceNodeGeneric<DeclaratorFunctionType, TypeSequenceVisitor>));
+	return static_cast<const SequenceNodeGeneric<DeclaratorFunctionType, TypeSequenceVisitor>*>(node)->value;
+}
 inline const Parameters& getParameters(const TypeId& type)
 {
 	const TypeSequence::Node* node = getLastNode(type.typeSequence);
-	SYMBOLS_ASSERT(node != 0);
-	SYMBOLS_ASSERT(typeid(*node) == typeid(SequenceNodeGeneric<DeclaratorFunctionType, TypeSequenceVisitor>));
-	return static_cast<const SequenceNodeGeneric<DeclaratorFunctionType, TypeSequenceVisitor>*>(node)->value.parameters;
+	return getDeclaratorFunctionType(node).parameters;
 }
 
 inline const FunctionType& getFunctionType(UniqueType type)

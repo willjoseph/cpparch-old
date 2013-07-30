@@ -1,4 +1,71 @@
 
+namespace N312
+{
+	struct B
+	{
+		operator int*();
+	};
+
+
+	int f(int*);
+
+	int i = f(B()); // overload resolution chooses conversion 'B::operator int*()'
+}
+
+namespace N311
+{
+	template<typename T>
+	struct B
+	{
+		operator T*() const;
+	};
+
+	struct D : B<int>
+	{
+	};
+
+	int f(int*);
+
+	const D& d = D();
+	int i = f(d); // overload resolution chooses conversion 'B<int>::operator int*()'
+}
+
+namespace N310
+{
+	struct B
+	{
+		int m;
+	};
+
+	struct A
+	{
+		B* operator->();
+	};
+
+	A a;
+	int i = a->m;
+};
+
+// [expr.typeid] The result of a typeid expression is an lvalue of static type const std::type_info
+namespace std
+{
+	struct type_info
+	{
+		const char* name() const;
+	};
+}
+namespace N301
+{
+
+	struct S
+	{
+	};
+
+	const char* q = typeid(S).name() + 1;
+
+	const std::type_info* p = &typeid(S);
+}
+
 namespace N308
 {
 	struct S
@@ -140,23 +207,6 @@ namespace N303
 			this->template operator*<F>();
 		}
 	};
-}
-
-// [expr.typeid] The result of a typeid expression is an lvalue of static type const std::type_info
-namespace std
-{
-	struct type_info
-	{
-	};
-}
-namespace N301
-{
-
-	struct S
-	{
-	};
-
-	const std::type_info* p = &typeid(S);
 }
 
 #if 0 // TODO!

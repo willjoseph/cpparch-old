@@ -557,6 +557,58 @@ inline UniqueTypeWrapper typeOfUnaryExpression(cpp::unary_operator* op, Argument
 	}
 }
 
+UniqueTypeWrapper getOverloadedMemberOperatorType(UniqueTypeWrapper operand, Location source, const TypeInstance* enclosing)
+{
+	const TypeInstance& classType = getObjectType(operand.value);
+	SEMANTIC_ASSERT(isClass(*classType.declaration)); // assert that this is a class type
+	// [expr.ref] [the type of the operand-expression shall be complete]
+	instantiateClass(classType, source, enclosing); // searching for overloads requires a complete type
+
+	Identifier id;
+	id.value = gOperatorArrowId;
+	id.source = source;
+
+	Arguments arguments(1, Argument(0, operand));
+	OverloadResolver resolver(arguments, 0, source, enclosing);
+
+	LookupResultRef declaration = ::findDeclaration(classType, id, IsAny());
+	if(declaration != 0)
+	{
+		const TypeInstance* memberEnclosing = findEnclosingType(&classType, declaration->scope); // find the base class which contains the member-declaration
+		SEMANTIC_ASSERT(memberEnclosing != 0);
+		addOverloads(resolver, findOverloaded(declaration), source, memberEnclosing);
+	}
+
+	FunctionOverload result = resolver.get();
+	SEMANTIC_ASSERT(result.declaration != 0);
+	return result.type;
+}
+
+const TypeInstance& getMemberOperatorType(UniqueTypeWrapper operand, bool isArrow, Location source, const TypeInstance* enclosing)
+{
+	if(isArrow)
+	{
+		while(isClass(operand))
+		{
+			operand = getOverloadedMemberOperatorType(operand, source, enclosing);
+		}
+	}
+
+	bool isPointer = operand.isPointer();
+	SEMANTIC_ASSERT(isPointer == isArrow);
+	if(isPointer)
+	{
+		operand.pop_front();
+	}
+	// the left-hand side is (pointer-to) operand
+	SEMANTIC_ASSERT(operand.isSimple());
+	const TypeInstance& result = getObjectType(operand.value);
+	SEMANTIC_ASSERT(isClass(*result.declaration)); // assert that this is a class type
+	// [expr.ref] [the type of the operand-expression shall be complete]
+	instantiateClass(result, source, enclosing);
+	return result;
+}
+
 inline FunctionOverload findBestConversionFunction(UniqueTypeWrapper to, UniqueTypeWrapper from, Location source, const TypeInstance* enclosing, bool isNullPointerConstant, bool isLvalue)
 {
 	UniqueExpression nullPointerConstantExpression = makeExpression(IntegralConstantExpression(gSignedInt, IntegralConstant(0)));
@@ -569,10 +621,10 @@ inline FunctionOverload findBestConversionFunction(UniqueTypeWrapper to, UniqueT
 	// TODO: [over.match.ref] Initialization by conversion function for direct reference binding.
 
 	// [dcl.init]\14
-	if(isClass(to))
+	if(isClass(to)
+		&& isComplete(to)) // can only convert to a class that is complete
 	{
 		// add converting constructors of 'to'
-		SEMANTIC_ASSERT(isComplete(to)); // TODO: non-fatal parse error
 		const TypeInstance& classType = getObjectType(to.value);
 		instantiateClass(classType, source, enclosing); // searching for overloads requires a complete type
 		Identifier tmp;
@@ -603,16 +655,16 @@ inline FunctionOverload findBestConversionFunction(UniqueTypeWrapper to, UniqueT
 		}
 	}
 
-	if(isClass(from))
+	if(isClass(from)
+		&& isComplete(from)) // can only convert from a class that is complete
 	{
 		// add conversion functions of 'from' (and bases) that yield 'to' (after removing reference and cv-qualifiers)
 		// or (non-class) a type that can be converted via standard conversion
 		// or (class) a derived class of 'to'
-		SEMANTIC_ASSERT(isComplete(from)); // TODO: non-fatal parse error
 		const TypeInstance& classType = getObjectType(from.value);
 		instantiateClass(classType, source, enclosing); // searching for overloads requires a complete type
 		LookupResultRef declaration = ::findDeclaration(classType, gConversionFunctionId, IsAny());
-		// TODO: search bases
+		// TODO: conversion functions in base classes should not be hidden by those in derived
 		if(declaration != 0)
 		{
 			const TypeInstance* memberEnclosing = findEnclosingType(&classType, declaration->scope); // find the base class which contains the member-declaration
@@ -623,6 +675,9 @@ inline FunctionOverload findBestConversionFunction(UniqueTypeWrapper to, UniqueT
 				SYMBOLS_ASSERT(p->enclosed != 0);
 
 				SYMBOLS_ASSERT(!p->isTemplate); // TODO: template-argument-deduction for conversion function
+				// 'template<typename T> operator T()' can be explicitly invoked with template argument list: e.g. 'x.operator int()'
+				// [temp.deduct.conv] Template argument deduction is done by comparing the return type of the template conversion function
+				// (call it P) with the type that is required as the result of the conversion (call it A)
 				
 				UniqueTypeWrapper type = getUniqueType(p->type, source, memberEnclosing);
 				type.pop_front();
@@ -654,7 +709,8 @@ inline FunctionOverload findBestConversionFunction(UniqueTypeWrapper to, UniqueT
 
 	// TODO: return-type of constructor should be 'to'
 	FunctionOverload result = resolver.get();
-	if(result.type.isSimple()
+	if(result.declaration != 0
+		&& result.type.isSimple()
 		&& getObjectType(result.type.value).declaration == &gCtor)
 	{
 		result.type = to;
@@ -2424,19 +2480,8 @@ struct PostfixExpressionMemberWalker : public WalkerQualified
 			&& !::isDependent(memberType)) // if the type of the object expression is not dependent
 		{
 			// [expr] If an expression initially has the type "reference to T", the type is adjusted to "T" prior to any further analysis.
-			UniqueTypeWrapper object = removeReference(memberType);
-			bool isPointer = object.isPointer();
-			SEMANTIC_ASSERT(isPointer == isArrow);
-			if(isPointer)
-			{
-				object.pop_front();
-			}
-			// the left-hand side is (reference-to)(pointer-to) object
-			SEMANTIC_ASSERT(object.isSimple());
-			memberObject = &getObjectType(object.value);
-			SEMANTIC_ASSERT(isClass(*memberObject->declaration)); // assert that this is a class type
-			// [expr.ref] [the type of the object-expression shall be complete]
-			instantiateClass(*memberObject, getLocation(), enclosingType);
+			UniqueTypeWrapper operand = removeReference(memberType);
+			memberObject = &getMemberOperatorType(operand, isArrow, getLocation(), enclosingType);
 		}
 	}
 	void visit(cpp::terminal<boost::wave::T_TEMPLATE> symbol)
@@ -2573,19 +2618,20 @@ struct PostfixExpressionWalker : public WalkerBase
 		ExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		type = getTypeInfoType();
-		clearMemberType();
+		updateMemberType();
 	}
 	void visit(cpp::postfix_expression_typeidtype* symbol)
 	{
 		TypeIdWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		type = getTypeInfoType();
-		clearMemberType();
+		updateMemberType();
 	}
 	// suffix
 	void visit(cpp::postfix_expression_subscript* symbol)
 	{
 		ExpressionWalker walker(getState());
+		walker.clearQualifying(); // the expression in [] is looked up in the context of the entire postfix expression
 		TREEWALKER_WALK_SRC(walker, symbol);
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
@@ -3943,7 +3989,7 @@ struct DeclaratorWalker : public WalkerBase
 	CvQualifiers qualifiers;
 	Qualifying memberPointer;
 	Dependent dependent; // track which template parameters the declarator's type depends on. e.g. 'T::* memberPointer', 'void f(T)'
-	Type conversionType; // the return-type, if this is a conversion-function declarator
+	TypeId conversionType; // the return-type, if this is a conversion-function declarator
 	DeclaratorWalker(const WalkerState& state)
 		: WalkerBase(state), id(&gAnonymousId), paramScope(0), typeSequence(context), memberPointer(context), conversionType(0, context)
 	{
@@ -3980,6 +4026,7 @@ struct DeclaratorWalker : public WalkerBase
 	{
 		DeclaratorWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol); // if parse fails, state of typeSeqence is not modified.
+		walker.pushPointerType(symbol->op);
 		id = walker.id;
 		qualifying = walker.qualifying;
 		enclosing = walker.enclosing;
@@ -3993,7 +4040,6 @@ struct DeclaratorWalker : public WalkerBase
 
 		qualifiers = walker.qualifiers;
 		memberPointer.swap(walker.memberPointer);
-		pushPointerType(symbol->op);
 		conversionType.swap(walker.conversionType);
 	}
 	void visit(cpp::declarator_ptr* symbol)
@@ -4005,6 +4051,10 @@ struct DeclaratorWalker : public WalkerBase
 		return walkDeclaratorPtr(symbol);
 	}
 	void visit(cpp::new_declarator_ptr* symbol)
+	{
+		return walkDeclaratorPtr(symbol);
+	}
+	void visit(cpp::conversion_declarator* symbol)
 	{
 		return walkDeclaratorPtr(symbol);
 	}
@@ -4045,9 +4095,7 @@ struct DeclaratorWalker : public WalkerBase
 
 		if(walker.conversionType.declaration != 0)
 		{
-			SEMANTIC_ASSERT(typeSequence.empty());
 			conversionType.swap(walker.conversionType);
-			typeSequence = walker.conversionType.typeSequence; // the empty parameter list will be added to the type-sequence
 		}
 		addDependent(dependent, conversionType); // TODO: check compliance: conversion-function declarator-id is dependent if it contains a dependent type?
 	}
@@ -4123,10 +4171,6 @@ struct DeclaratorWalker : public WalkerBase
 		return walkDeclarator(symbol);
 	}
 	void visit(cpp::new_declarator* symbol)
-	{
-		return walkDeclarator(symbol);
-	}
-	void visit(cpp::conversion_declarator* symbol)
 	{
 		return walkDeclarator(symbol);
 	}
@@ -5196,9 +5240,9 @@ struct TypeIdWalker : public WalkerBase
 		: WalkerBase(state), type(0, context)
 	{
 	}
-	void visit(cpp::terminal<boost::wave::T_OPERATOR> symbol) 
+	void visit(cpp::terminal<boost::wave::T_OPERATOR> symbol) // conversion_function_id
 	{
-		 // for debugging purposes
+		// this is a conversion-function-id
 	}
 	void visit(cpp::type_specifier_seq* symbol)
 	{
@@ -5220,6 +5264,7 @@ struct TypeIdWalker : public WalkerBase
 	{
 		DeclaratorWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
+		walker.pushPointerType(symbol->op);
 		type.typeSequence = walker.typeSequence;
 		// [temp.dep.type] A type is dependent if it is a compound type constructed from any dependent type
 		setDependent(type.dependent, walker.dependent);
@@ -5314,6 +5359,8 @@ struct SimpleDeclarationWalker : public WalkerBase
 	size_t templateParameter;
 	bool isParameter;
 	bool isUnion;
+	bool isConversionFunction;
+	CvQualifiers conversionFunctionQualifiers;
 
 	SimpleDeclarationWalker(const WalkerState& state, bool isParameter = false, size_t templateParameter = INDEX_INVALID) : WalkerBase(state),
 		declaration(0),
@@ -5324,7 +5371,8 @@ struct SimpleDeclarationWalker : public WalkerBase
 		forward(0),
 		templateParameter(templateParameter),
 		isParameter(isParameter),
-		isUnion(false)
+		isUnion(false),
+		isConversionFunction(false)
 	{
 	}
 
@@ -5334,6 +5382,10 @@ struct SimpleDeclarationWalker : public WalkerBase
 	{
 		if(id != 0)
 		{
+			if(isConversionFunction)
+			{
+				type.typeSequence.push_back(DeclaratorFunctionType(Parameters(), conversionFunctionQualifiers));
+			}
 			DeclarationPtr tmpDependent = type.dependent;
 			setDependent(type.dependent, typeDependent);
 			makeUniqueTypeSafe(type, getLocation());
@@ -5436,7 +5488,10 @@ struct SimpleDeclarationWalker : public WalkerBase
 		if(walker.conversionType.declaration != 0)
 		{
 			// [class.conv.fct] The type of a conversion function is "function taking no parameter returning conversion-type-id."
-			static_cast<Type*>(&type)->swap(walker.conversionType); // from conversion-function-id 'T*()' take 'T'; the '*()' is already parsed from the declarator
+			// take the cv-qualifiers from the declarator
+			conversionFunctionQualifiers = getDeclaratorFunctionType(type.typeSequence.get()).qualifiers;
+			type.swap(walker.conversionType);
+			isConversionFunction = true;
 		}
 	}
 	void visit(cpp::abstract_declarator* symbol)

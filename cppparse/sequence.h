@@ -136,7 +136,7 @@ struct Sequence : A
 		else
 		{
 			Pointer last = head.next;
-			for(Pointer next = last->next; next != 0; next = next->next)
+			for(Pointer next = last->next; next.get() != 0; next = next->next)
 			{
 				last = next;
 			}
