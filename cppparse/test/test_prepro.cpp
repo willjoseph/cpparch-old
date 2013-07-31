@@ -1,4 +1,17 @@
 
+namespace N308
+{
+	struct S
+	{
+		operator int*();
+		operator int();
+	};
+
+	int f(int);
+
+	int i = f(S()); // overload resolution chooses conversion 'S::operator int()'
+}
+
 namespace N312
 {
 	struct B
@@ -64,19 +77,6 @@ namespace N301
 	const char* q = typeid(S).name() + 1;
 
 	const std::type_info* p = &typeid(S);
-}
-
-namespace N308
-{
-	struct S
-	{
-		operator int();
-		operator float();
-	};
-
-	int f(int);
-
-	int i = f(S()); // overload resolution chooses conversion 'S::operator int()'
 }
 
 namespace N307

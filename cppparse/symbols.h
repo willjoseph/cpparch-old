@@ -2140,17 +2140,15 @@ struct DeclarationInstanceRef
 
 struct LookupResultRef : DeclarationInstanceRef
 {
-	//const TypeInstance* enclosing;
 	LookupResultRef()
-		//: enclosing(0)
 	{
 	}
 	LookupResultRef(const DeclarationInstance& p)
-		: DeclarationInstanceRef(p)//, enclosing(0)
+		: DeclarationInstanceRef(p)
 	{
 	}
 	LookupResultRef(const LookupResult& result)
-		: DeclarationInstanceRef(*result.filtered)//, enclosing(result.enclosing)
+		: DeclarationInstanceRef(*result.filtered)
 	{
 	}
 };

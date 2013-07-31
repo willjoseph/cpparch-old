@@ -210,8 +210,10 @@ inline bool isEquivalent(const Declaration& declaration, const Declaration& othe
 			return declaration.isTemplate == other.isTemplate // early out
 				&& isEquivalentTemplateParameters(declaration.templateParams, other.templateParams)
 				// [over.load] Function declarations that differ only in the return type cannot be overloaded.
-				// && isReturnTypeEqual(l, r) // return-types match (only template overloads may differ in return type, return-type is not used to distinguish overloads)
-				&& isEquivalent(getParameterTypes(l.value), getParameterTypes(r.value)); // and parameter-types match
+				&& (declaration.getName().value == gConversionFunctionId.value
+					? isReturnTypeEqual(l, r) // return-types match
+					// (only template overloads may differ in return type, return-type is not used to distinguish overloads, except for conversion-function)
+					: isEquivalent(getParameterTypes(l.value), getParameterTypes(r.value))); // and parameter-types match
 		}
 		return true; // redeclaring an object (cannot be overloaded)
 	}
