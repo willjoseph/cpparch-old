@@ -3392,8 +3392,9 @@ inline bool deduce(UniqueTypeWrapper parameter, UniqueTypeWrapper argument, Temp
 	// A), compatible with A.
 	if(!isDependent(parameter))
 	{
-		// P is not specified in terms of template parameters
-		return true; // deduction succeeds, but does not deduce anything
+		// P is not specified in terms of template parameters. Deduction succeeds, but does not deduce anything,
+		// unless the argument is specified in terms of template parameters.
+		return !isDependent(argument);
 	}
 
 	std::size_t depth = 0;
