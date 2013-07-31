@@ -5900,18 +5900,11 @@ inline ImplicitConversion makeImplicitConversionSequence(To to, UniqueTypeWrappe
 		// A reference to type "cv1 T1" is initialized by an expression of type "cv2 T2" as follows:
 		// If the initializer expression
 		// - is an lvalue (but is not a bit-field), and "cv1 T1" is reference-compatible with "cv2 T2," or
-		// TODO: - has a class type (i.e., T2 is a class type) and can be implicitly converted to an lvalue of type
-		// "cv3 T3," where "cv1 T1" is reference-compatible with "cv3 T3"
+		// - has a class type (i.e., T2 is a class type) and can be implicitly converted to an lvalue of type
+		//   "cv3 T3," where "cv1 T1" is reference-compatible with "cv3 T3"
 		// then the reference is bound directly to the initializer expression lvalue in the first case, and the reference
 		// is bound to the lvalue result of the conversion in the second case. In these cases the reference is said to
 		// bind directly to the initializer expression.
-		// 
-		// TODO: [over.match.ref] Assuming that "cv1 T" is the underlying type of the reference being initialized,
-		// and "cv S" is the type of the initializer expression, with S a class type, the candidate functions are
-		// selected as follows:
-		// - The conversion functions of S and its base classes are considered. Those that are not hidden within S
-		// and yield type "reference to cv2 T2", where "cv1 T" is reference-compatible (8.5.3) with "cv2 T2", are
-		// candidate functions.
 		if(isLvalue
 			&& (isEqualCvQualification(to, from)
 			|| isGreaterCvQualification(to, from))) // TODO: track 'added qualification' if qualification is greater
@@ -5931,12 +5924,29 @@ inline ImplicitConversion makeImplicitConversionSequence(To to, UniqueTypeWrappe
 			{
 				return ImplicitConversion(StandardConversionSequence(SCSRANK_CONVERSION, makeQualificationAdjustment(to, from)));
 			}
-			// TODO
-			// If the parameter binds directly to the result of applying a conversion function to the argument
-			// expression, the implicit conversion sequence is a user-defined conversion sequence (13.3.3.1.2), with
-			// the second standard conversion sequence either an identity conversion or, if the conversion function returns
-			// an entity of a type that is a derived class of the parameter type, a derived-to-base Conversion.
+			// drop through...
 		}
+		if(isClass(from))
+		{
+			UniqueTypeWrapper tmp = to;
+			tmp.push_front(ReferenceType());
+			FunctionOverload overload = findBestConversionFunction(tmp, from, source, enclosing);
+			if(overload.declaration != 0)
+			{
+				// If the parameter binds directly to the result of applying a conversion function to the argument
+				// expression, the implicit conversion sequence is a user-defined conversion sequence (13.3.3.1.2), with
+				// the second standard conversion sequence either an identity conversion or, if the conversion function returns
+				// an entity of a type that is a derived class of the parameter type, a derived-to-base Conversion.
+				UniqueTypeWrapper type = overload.type;
+				SYMBOLS_ASSERT(type.isReference());
+				type.pop_front();
+				bool isIdentity = type.value.getPointer() == to.value.getPointer();
+				StandardConversionSequence second(isIdentity ? SCSRANK_IDENTITY : SCSRANK_CONVERSION, makeQualificationAdjustment(to, type));
+				return ImplicitConversion(second, ICSTYPE_USERDEFINED, overload.declaration);
+			}
+			// drop through...
+		}
+
 		// if not bound directly, a standard conversion is required (which produces an rvalue)
 		if(!to.value.getQualifiers().isConst
 			|| to.value.getQualifiers().isVolatile) // 8.5.3-5: otherwise, the reference shall be to a non-volatile const type
@@ -5944,6 +5954,7 @@ inline ImplicitConversion makeImplicitConversionSequence(To to, UniqueTypeWrappe
 			// can't bind rvalue to a non-const reference
 			return ImplicitConversion(STANDARDCONVERSIONSEQUENCE_INVALID);
 		}
+		// drop through...
 	}
 
 
@@ -6002,14 +6013,7 @@ inline ImplicitConversion makeImplicitConversionSequence(To to, UniqueTypeWrappe
 		// derived class thereof are enumerated as described in 13.3.1.4, and the best one is chosen through
 		// overload resolution (13.3). If the conversion cannot be done or is ambiguous, the initialization is
 		// ill-formed.
-		//
 
-		// [over.best.ics]
-		// However, when considering the argument of a user-defined conversion function that is a candidate by
-		// 13.3.1.3 when invoked for the copying of the temporary in the second step of a class copy-initialization, or
-		// by 13.3.1.4, 13.3.1.5, or 13.3.1.6 in all cases, only standard conversion sequences and ellipsis conversion
-		// sequences are allowed.
-		// TODO: do not allow user defined conversion sequence when converting argument during overload resolution!
 		FunctionOverload overload = findBestConversionFunction(to, from, source, enclosing, isNullPointerConstant, isLvalue);
 
 		if(overload.declaration == 0)
@@ -6019,9 +6023,7 @@ inline ImplicitConversion makeImplicitConversionSequence(To to, UniqueTypeWrappe
 
 		// The second standard conversion sequence converts the result of the user-defined conversion to the target
 		// type for the sequence.
-
 		StandardConversionSequence second = makeStandardConversionSequence(to, overload.type, source, enclosing);
-
 		return ImplicitConversion(second, ICSTYPE_USERDEFINED, overload.declaration);
 	}
 

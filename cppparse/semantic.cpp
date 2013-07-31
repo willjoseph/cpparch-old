@@ -611,6 +611,85 @@ const TypeInstance& getMemberOperatorType(UniqueTypeWrapper operand, bool isArro
 	return result;
 }
 
+inline void addConversionFunctionOverloads(OverloadResolver& resolver, const TypeInstance& classType, UniqueTypeWrapper to, Location source, const TypeInstance* enclosing)
+{
+	instantiateClass(classType, source, enclosing); // searching for overloads requires a complete type
+	LookupResultRef declaration = ::findDeclaration(classType, gConversionFunctionId, IsAny());
+	// TODO: conversion functions in base classes should not be hidden by those in derived
+	if(declaration != 0)
+	{
+		const TypeInstance* memberEnclosing = findEnclosingType(&classType, declaration->scope); // find the base class which contains the member-declaration
+		SEMANTIC_ASSERT(memberEnclosing != 0);
+
+		for(Declaration* p = findOverloaded(declaration); p != 0; p = p->overloaded)
+		{
+			SYMBOLS_ASSERT(p->enclosed != 0);
+
+			SYMBOLS_ASSERT(!p->isTemplate); // TODO: template-argument-deduction for conversion function
+			// 'template<typename T> operator T()' can be explicitly invoked with template argument list: e.g. 'x.operator int()'
+			// [temp.deduct.conv] Template argument deduction is done by comparing the return type of the template conversion function
+			// (call it P) with the type that is required as the result of the conversion (call it A)
+
+			UniqueTypeWrapper type = getUniqueType(p->type, source, memberEnclosing);
+			type.pop_front();
+
+			if(isClass(to)) // [over.match.copy]
+			{
+				// When the type of the initializer expression is a class type "cv S", the conversion functions of S and its
+				// base classes are considered. Those that are not hidden within S and yield a type whose cv-unqualified
+				// version is the same type as T or is a derived class thereof are candidate functions. Conversion functions
+				// that return "reference to X" return lvalues of type X and are therefore considered to yield X for this process
+				// of selecting candidate functions.
+				if(!isBaseOf(to, removeReference(type), source, enclosing))
+				{
+					continue;
+				}
+			}
+			else if(to.isReference()) // [over.match.ref]
+			{
+				// Assuming that "cv1 T" is the underlying type of the reference being initialized,
+				// and "cv S" is the type of the initializer expression, with S a class type, the candidate functions are
+				// selected as follows:
+				UniqueTypeWrapper tmpTo = to;
+				tmpTo.pop_front(); // remove reference
+				// The conversion functions of S and its base classes are considered. Those that are not hidden within S
+				// and yield type "reference to cv2 T2", where "cv1 T" is reference-compatible with "cv2 T2", are
+				// candidate functions.
+				if(!type.isReference())
+				{
+					continue;
+				}
+				type.pop_front(); // remove reference
+				if(!(isBaseOf(tmpTo, type, source, enclosing)
+					&& (isEqualCvQualification(tmpTo, type)
+						|| isGreaterCvQualification(tmpTo, type))))
+				{
+					continue;
+				}
+			}
+			else // [over.match.conv]
+			{
+				// The conversion functions of S and its base classes are considered. Those that are not hidden within S
+				// and yield type T or a type that can be converted to type T via a standard conversion sequence
+				// are candidate functions. Conversion functions that return a cv-qualified type are considered
+				// to yield the cv-unqualified version of that type for this process of selecting candidate functions. Conversion
+				// functions that return "reference to cv2 X" return lvalues of type "cv2 X" and are therefore considered
+				// to yield X for this process of selecting candidate functions.
+				bool isLvalue = type.isReference(); // TODO: lvalueness!
+				type = removeReference(type);
+				type.value.setQualifiers(CvQualifiers());
+				if(type.value.getPointer() != to.value.getPointer()
+					&& makeStandardConversionSequence(to, type, source, enclosing, false, isLvalue).rank == SCSRANK_INVALID)
+				{
+					continue;
+				}
+			}
+
+			addOverload(resolver, p, source, memberEnclosing);
+		}
+	}
+}
+
 inline FunctionOverload findBestConversionFunction(UniqueTypeWrapper to, UniqueTypeWrapper from, Location source, const TypeInstance* enclosing, bool isNullPointerConstant, bool isLvalue)
 {
 	UniqueExpression nullPointerConstantExpression = makeExpression(IntegralConstantExpression(gSignedInt, IntegralConstant(0)));
@@ -618,6 +697,11 @@ inline FunctionOverload findBestConversionFunction(UniqueTypeWrapper to, UniqueT
 	Arguments arguments;
 	arguments.push_back(Argument(expression, from));
 
+	// [over.best.ics]
+	// However, when considering the argument of a user-defined conversion function that is a candidate by
+	// 13.3.1.3 when invoked for the copying of the temporary in the second step of a class copy-initialization, or
+	// by 13.3.1.4, 13.3.1.5, or 13.3.1.6 in all cases, only standard conversion sequences and ellipsis conversion
+	// sequences are allowed.
 	OverloadResolver resolver(arguments, 0, source, enclosing, true); // disallow user-defined conversion when considering argument to conversion function
 
 	// TODO: [over.match.ref] Initialization by conversion function for direct reference binding.
@@ -660,53 +744,7 @@ inline FunctionOverload findBestConversionFunction(UniqueTypeWrapper to, UniqueT
 	if(isClass(from)
 		&& isComplete(from)) // can only convert from a class that is complete
 	{
-		// add conversion functions of 'from' (and bases) that yield 'to' (after removing reference and cv-qualifiers)
-		// or (non-class) a type that can be converted via standard conversion
-		// or (class) a derived class of 'to'
-		const TypeInstance& classType = getObjectType(from.value);
-		instantiateClass(classType, source, enclosing); // searching for overloads requires a complete type
-		LookupResultRef declaration = ::findDeclaration(classType, gConversionFunctionId, IsAny());
-		// TODO: conversion functions in base classes should not be hidden by those in derived
-		if(declaration != 0)
-		{
-			const TypeInstance* memberEnclosing = findEnclosingType(&classType, declaration->scope); // find the base class which contains the member-declaration
-			SEMANTIC_ASSERT(memberEnclosing != 0);
-
-			for(Declaration* p = findOverloaded(declaration); p != 0; p = p->overloaded)
-			{
-				SYMBOLS_ASSERT(p->enclosed != 0);
-
-				SYMBOLS_ASSERT(!p->isTemplate); // TODO: template-argument-deduction for conversion function
-				// 'template<typename T> operator T()' can be explicitly invoked with template argument list: e.g. 'x.operator int()'
-				// [temp.deduct.conv] Template argument deduction is done by comparing the return type of the template conversion function
-				// (call it P) with the type that is required as the result of the conversion (call it A)
-				
-				UniqueTypeWrapper type = getUniqueType(p->type, source, memberEnclosing);
-				type.pop_front();
-				type = removeReference(type);
-				type.value.setQualifiers(CvQualifiers());
-
-				if(type.value.getPointer() != to.value.getPointer())
-				{
-					if(isClass(to))
-					{
-						if(!isBaseOf(to, type, source, enclosing))
-						{
-							continue;
-						}
-					}
-					else
-					{
-						if(makeStandardConversionSequence(to, type, source, enclosing).rank == SCSRANK_INVALID)
-						{
-							continue;
-						}
-					}
-				}
-
-				addOverload(resolver, p, source, memberEnclosing);
-			}
-		}
+		addConversionFunctionOverloads(resolver, getObjectType(from.value), to, source, enclosing);
 	}
 
 	// TODO: return-type of constructor should be 'to'

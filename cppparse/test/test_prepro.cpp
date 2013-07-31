@@ -1,4 +1,27 @@
 
+namespace N314
+{
+	template<typename X>
+	int* f(X&, int*);
+	template<typename X, typename T>
+	int* f(X&, T*);
+
+	int x;
+	int* p = f(x, p); // overload resolution chooses 'f<int>(int&, int*)'
+}
+
+namespace N313
+{
+	struct S
+	{
+		operator const int&();
+	};
+
+	int f(const int&);
+
+	int i = f(S()); // overload resolution chooses conversion 'S::operator const int&()'
+}
+
 namespace N308
 {
 	struct S
