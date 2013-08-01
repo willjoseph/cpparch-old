@@ -92,7 +92,7 @@ struct VisitorFuncGeneric<TypeListEnd>
 #define CPPTREE_VIRTUAL
 #ifdef CPPTREE_VIRTUAL
 
-#define VISITABLE_BASE_IMPL(Types) \
+#define VISITABLE_BASE_IMPL \
 	typedef VisitorFuncGeneric<Types> VisitorFuncTable; \
 	typedef VisitorCallback<VisitorFuncTable> Visitor; \
 	virtual void acceptAbstract(const Visitor& visitor) = 0; \
@@ -104,8 +104,8 @@ struct VisitorFuncGeneric<TypeListEnd>
 		acceptAbstract(callback); \
 	}
 
-#define VISITABLE_BASE(Types) typedef Types Choices; VISITABLE_BASE_IMPL(Types)
-#define VISITABLE_BASE_DEFAULT(Types) typedef TypeListEnd Choices; VISITABLE_BASE_IMPL(Types)
+#define VISITABLE_BASE(Types_) typedef Types_ Types; typedef Types Choices; VISITABLE_BASE_IMPL
+#define VISITABLE_BASE_DEFAULT(Types_) typedef Types_ Types; typedef TypeListEnd Choices; VISITABLE_BASE_IMPL
 
 
 #define VISITABLE_DERIVED(Base) \

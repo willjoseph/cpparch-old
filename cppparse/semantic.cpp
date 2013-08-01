@@ -246,7 +246,8 @@ inline ParameterTypes addOverload(OverloadResolver& resolver, Declaration* p, Lo
 		// represents the object for which the member function has been called. For the purposes of overload resolution,
 		// both static and non-static member functions have an implicit object parameter, but constructors do not.
 		SYMBOLS_ASSERT(isClass(*enclosing->declaration));
-		UniqueTypeWrapper implicitObjectParameter = gUniqueTypeNull;
+		// For static member functions, the implicit object parameter is considered to match any object
+		UniqueTypeWrapper implicitObjectParameter = gImplicitObjectParameter;
 		if(!isStatic(*p))
 		{
 			// For non-static member functions, the type of the implicit object parameter is "reference to cv X" where X is

@@ -125,6 +125,10 @@ Identifier gMemberPointerPlaceholderId = makeIdentifier("$member-pointer-placeho
 BuiltInTypeDeclaration gMemberPointerPlaceholderDeclaration(gMemberPointerPlaceholderId, TYPE_UNKNOWN);
 ObjectTypeId gMemberPointerPlaceholder(&gMemberPointerPlaceholderDeclaration, TREEALLOCATOR_NULL);
 
+// special
+Identifier gImplicitObjectParameterId = makeIdentifier("$implicit-object-parameter");
+BuiltInTypeDeclaration gImplicitObjectParameterDeclaration(gImplicitObjectParameterId, TYPE_UNKNOWN);
+ObjectTypeId gImplicitObjectParameter(&gImplicitObjectParameterDeclaration, TREEALLOCATOR_NULL);
 
 // template placeholders
 Identifier gDependentTypeId = makeIdentifier("$type");

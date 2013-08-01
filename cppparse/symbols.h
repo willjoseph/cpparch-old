@@ -6100,6 +6100,8 @@ struct CandidateFunction : FunctionOverload, FunctionTemplate
 	}
 };
 
+extern ObjectTypeId gImplicitObjectParameter;
+
 inline bool isMoreSpecialized(const FunctionTemplate& left, const FunctionTemplate& right)
 {
 	bool isMoreCvQualified = false;
@@ -6108,8 +6110,8 @@ inline bool isMoreSpecialized(const FunctionTemplate& left, const FunctionTempla
 	SYMBOLS_ASSERT(left.parameters.size() == right.parameters.size());
 	UniqueTypeArray::const_iterator l = left.parameters.begin();
 	UniqueTypeArray::const_iterator r = right.parameters.begin();
-	if(*l == gUniqueTypeNull // if the left template is a static member
-		|| *r == gUniqueTypeNull) // or the right template is a static member
+	if(*l == gImplicitObjectParameter // if the left template is a static member
+		|| *r == gImplicitObjectParameter) // or the right template is a static member
 	{
 		// ignore the first parameter
 		++l;
@@ -6180,14 +6182,23 @@ inline bool isMoreSpecialized(const FunctionTemplate& left, const FunctionTempla
 inline bool isBetter(const CandidateFunction& l, const CandidateFunction& r)
 {
 	SYMBOLS_ASSERT(l.conversions.size() == r.conversions.size());
-	for(size_t i = 0; i != l.conversions.size(); ++i)
+	std::size_t first = 0;
+	if((!l.parameters.empty() && l.parameters.front() == gImplicitObjectParameter) // if the left function is a static member
+		|| (!r.parameters.empty() && r.parameters.front() == gImplicitObjectParameter)) // or the right function is a static member
+	{
+		// [over.match.best]
+		// If a function is a static member function [...] the first argument, the implied object parameter, has no effect
+		// in the determination of whether the function is better or worse than any other function
+		++first; // ignore the implicit object parameter when ranking
+	}
+	for(std::size_t i = first; i != l.conversions.size(); ++i)
 	{
 		if(isBetter(r.conversions[i], l.conversions[i]))
 		{
 			return false; // at least one argument is not a better conversion sequence
 		}
 	}
-	for(size_t i = 0; i != l.conversions.size(); ++i)
+	for(std::size_t i = first; i != l.conversions.size(); ++i)
 	{
 		if(isBetter(l.conversions[i], r.conversions[i]))
 		{
@@ -7071,10 +7082,7 @@ struct OverloadResolver
 				// - even if the implicit object parameter is not const-qualified, an rvalue temporary can be bound to the
 				//   parameter as long as in all other respects the temporary can be converted to the type of the implicit
 				//   object parameter.
-				// TODO: [over.match.best]
-				// If a function is a static member function [...] the first argument, the implied object parameter, has no effect
-				// in the determination of whether the function is better or worse than any other function
-				candidate.conversions.push_back(ImplicitConversion(StandardConversionSequence(SCSRANK_EXACT, CvQualifiers())));
+				candidate.conversions.push_back(ImplicitConversion(StandardConversionSequence(SCSRANK_IDENTITY, CvQualifiers())));
 			}
 		}
 

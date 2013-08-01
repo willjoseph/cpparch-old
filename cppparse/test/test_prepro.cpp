@@ -1,4 +1,56 @@
 
+namespace N316
+{
+	template<typename>
+	struct C
+	{
+	};
+
+	struct I
+	{
+	};
+
+	struct B : I
+	{
+	};
+
+	struct D : B
+	{
+	};
+
+
+	struct A
+	{
+		template<typename X, typename T>
+		static T* f(C<X>&, T*);
+		template<typename X>
+		B* f(C<X>&, B*);
+		template<typename X>
+		I* f(C<X>&, I*);
+	};
+
+	C<int> c;
+	A a;
+	D* p = a.f(c, p); // overload resolution chooses 'A::f<int, D>(C<int>&, D*)'
+}
+
+namespace N315
+{
+	struct A
+	{
+		template<typename X>
+		static int* f(X&, int*);
+		template<typename X, typename T>
+		int* f(X&, T*);
+	};
+
+	int x;
+	A a;
+	int* p = a.f(x, p); // overload resolution chooses 'A::f<int>(int&, int*)'
+	// TODO: clang thinks this is ambiguous?
+}
+
+
 namespace N314
 {
 	template<typename X>
