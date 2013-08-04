@@ -1,4 +1,102 @@
 
+namespace N324
+{
+	struct A
+	{
+		operator int*();
+	};
+
+	A a;
+
+	bool b = a != 0;
+}
+
+namespace N323
+{
+	enum E
+	{
+		VALUE
+	};
+
+	const char p[1] = "";
+	const char* i = p + VALUE;
+}
+
+#if 0 // TODO: defer lookup of 'f' until arguments are known 
+namespace N321
+{
+	namespace N
+	{
+		struct A
+		{
+		};
+		int f(A);
+	}
+
+	N::A a;
+	int x = f(a);
+}
+#endif
+
+namespace N322
+{
+	int f(const char*);
+	void f(bool);
+
+	int x = f("");
+}
+
+#if 0 // TODO: friend found via ADL
+namespace N320
+{
+	template<typename T>
+	struct B
+	{
+		friend T f(B);
+	};
+
+	struct D : B<int>
+	{
+	};
+
+	D d;
+	int i = f(d); // koenig lookup finds 'B<int>::f'
+}
+#endif
+
+namespace N319
+{
+	enum E
+	{
+	};
+
+	int i = E() + 1;
+}
+
+namespace N318
+{
+	int f(int*);
+
+	template<int x>
+	int g(int* p)
+	{
+		const int i = x;
+		return f(true ? i : p);
+	}
+
+	int i = g<0>(0);
+}
+
+
+namespace N317
+{
+	int f(int*);
+
+	int* p;
+	int i = f(true ? 0 : p);
+}
+
+
 namespace N316
 {
 	template<typename>

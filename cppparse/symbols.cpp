@@ -16,6 +16,8 @@ Identifier gUndeclaredId = makeIdentifier("$undeclared");
 Declaration gUndeclared(TREEALLOCATOR_NULL, 0, gUndeclaredId, TYPE_NULL, 0);
 const DeclarationInstance gUndeclaredInstance(&gUndeclared);
 
+Identifier gGlobalId = makeIdentifier("$global");
+
 // meta types
 Identifier gArithmeticId = makeIdentifier("$arithmetic");
 Declaration gArithmetic(TREEALLOCATOR_NULL, 0, gArithmeticId, TYPE_NULL, 0);
@@ -261,7 +263,7 @@ PointerTypeId gBaseClassPointer(&gBaseClassDeclaration, TREEALLOCATOR_NULL);
 PointerTypeId gDerivedClassPointer(&gDerivedClassDeclaration, TREEALLOCATOR_NULL);
 
 
-struct DependentTypeId : UniqueTypeId
+struct DependentTypeId : BuiltInType
 {
 	DependentTypeId(Declaration* declaration, std::size_t index)
 	{
@@ -301,7 +303,7 @@ TemplateClassDeclaration gTemplateClassDeclaration;
 Identifier gTemplateTemplateParameterId = makeIdentifier("TT");
 Declaration gTemplateTemplateParameterDeclaration(TREEALLOCATOR_NULL, &gTemplateParameterScope, gTemplateTemplateParameterId, TYPE_CLASS, 0, DeclSpecifiers(), true, TEMPLATEPARAMETERS_NULL, false, TEMPLATEARGUMENTS_NULL, 0);
 
-struct BuiltInTemplateTemplateArgument : UniqueTypeId
+struct BuiltInTemplateTemplateArgument : BuiltInType
 {
 	BuiltInTemplateTemplateArgument(Declaration* declaration)
 	{
@@ -311,7 +313,7 @@ struct BuiltInTemplateTemplateArgument : UniqueTypeId
 
 BuiltInTemplateTemplateArgument gTemplateTemplateArgument(&gTemplateClassDeclaration);
 
-struct BuiltInNonType : UniqueTypeId
+struct BuiltInNonType : BuiltInType
 {
 	BuiltInNonType(IntegralConstant constant)
 	{
@@ -322,7 +324,7 @@ struct BuiltInNonType : UniqueTypeId
 BuiltInNonType gZero(IntegralConstant(0));
 BuiltInNonType gOne(IntegralConstant(1));
 
-struct BuiltInDependentNonType : UniqueTypeId
+struct BuiltInDependentNonType : BuiltInType
 {
 	BuiltInDependentNonType(DeclarationPtr declaration)
 	{
@@ -331,6 +333,327 @@ struct BuiltInDependentNonType : UniqueTypeId
 };
 
 BuiltInDependentNonType gDependentNonType(&gNonTypeTemplateParameterDeclaration);
+
+
+
+
+template<typename T>
+inline BuiltInType pushType(BuiltInType type, const T& t)
+{
+	return BuiltInType(pushBuiltInType(type, t));
+}
+
+template<typename T>
+inline UserType pushType(UserType type, const T& t)
+{
+	return UserType(pushType(UniqueTypeWrapper(type), t));
+}
+
+inline BuiltInType popType(BuiltInType type)
+{
+	type.pop_front();
+	return type;
+}
+
+inline BuiltInType qualifyType(BuiltInType type, CvQualifiers qualifiers)
+{
+	type.value.setQualifiers(qualifiers);
+	return type;
+}
+
+template<bool builtIn>
+static UniqueTypeGeneric<builtIn> makeFunctionType(UniqueTypeGeneric<builtIn> inner)
+{
+	return UniqueTypeGeneric<builtIn>(pushType(inner, FunctionType()));
+}
+
+template<bool builtIn>
+static UniqueTypeGeneric<builtIn> makeFunctionType(UniqueTypeGeneric<builtIn> inner, UniqueTypeGeneric<builtIn> a1)
+{
+	FunctionType function;
+	function.parameterTypes.push_back(a1);
+	return pushType(inner, function);
+}
+
+template<bool builtIn>
+static UniqueTypeGeneric<builtIn> makeFunctionType(UniqueTypeGeneric<builtIn> inner, UniqueTypeGeneric<builtIn> a1, UniqueTypeGeneric<builtIn> a2)
+{
+	FunctionType function;
+	function.parameterTypes.push_back(a1);
+	function.parameterTypes.push_back(a2);
+	return pushType(inner, function);
+}
+
+// ----------------------------------------------------------------------------
+
+
+const BuiltInType gIntegralTypes[] = {
+	gChar,
+	gSignedChar,
+	gUnsignedChar,
+	gSignedShortInt,
+	gUnsignedShortInt,
+	gSignedInt,
+	gUnsignedInt,
+	gSignedLongInt,
+	gUnsignedLongInt,
+	gSignedLongLongInt,
+	gUnsignedLongLongInt,
+	gWCharT,
+	gBool
+};
+
+const BuiltInType gPromotedIntegralTypes[] = {
+	gSignedInt,
+	gUnsignedInt,
+	gSignedLongInt,
+	gUnsignedLongInt,
+	gSignedLongLongInt,
+	gUnsignedLongLongInt
+};
+
+const BuiltInType gArithmeticTypes[] = {
+	gChar,
+	gSignedChar,
+	gUnsignedChar,
+	gSignedShortInt,
+	gUnsignedShortInt,
+	gSignedInt,
+	gUnsignedInt,
+	gSignedLongInt,
+	gUnsignedLongInt,
+	gSignedLongLongInt,
+	gUnsignedLongLongInt,
+	gWCharT,
+	gBool,
+	gFloat,
+	gDouble,
+	gLongDouble
+};
+
+const BuiltInType gPromotedArithmeticTypes[] = {
+	gSignedInt,
+	gUnsignedInt,
+	gSignedLongInt,
+	gUnsignedLongInt,
+	gSignedLongLongInt,
+	gUnsignedLongLongInt,
+	gFloat,
+	gDouble,
+	gLongDouble
+};
+
+struct GeneratedTypeArray : std::vector<BuiltInType>
+{
+	BuiltInTypeArrayRange makeRange() const
+	{
+		return BuiltInTypeArrayRange(&(*begin()), &(*begin()) + size());
+	}
+};
+
+// [over.built]
+struct PostIncOperatorTypes : GeneratedTypeArray
+{
+	PostIncOperatorTypes()
+	{
+		for(const BuiltInType* i = gArithmeticTypes; i != ARRAY_END(gArithmeticTypes); ++i)
+		{
+			BuiltInType type = *i;
+			BuiltInType ref = pushType(type, ReferenceType());
+			BuiltInType vref = pushType(qualifyType(type, CvQualifiers(false, true)), ReferenceType());
+			push_back(makeFunctionType(type, ref, gSignedInt)); // T(T&, int)
+			push_back(makeFunctionType(type, vref, gSignedInt)); // volatile T(volatile T&, int)
+		}
+	}
+};
+
+PostIncOperatorTypes gUnaryPostIncOperatorTypeArray;
+BuiltInTypeArrayRange gUnaryPostIncOperatorTypes = gUnaryPostIncOperatorTypeArray.makeRange();
+
+struct PreIncOperatorTypes : GeneratedTypeArray
+{
+	PreIncOperatorTypes()
+	{
+		for(const BuiltInType* i = gArithmeticTypes; i != ARRAY_END(gArithmeticTypes); ++i)
+		{
+			BuiltInType type = *i;
+			BuiltInType ref = pushType(type, ReferenceType());
+			BuiltInType vref = pushType(qualifyType(type, CvQualifiers(false, true)), ReferenceType());
+			push_back(makeFunctionType(ref, ref)); // T&(T&)
+			push_back(makeFunctionType(vref, vref)); // volatile T&(volatile T&)
+		}
+	}
+};
+
+PreIncOperatorTypes gUnaryPreIncOperatorTypeArray;
+BuiltInTypeArrayRange gUnaryPreIncOperatorTypes = gUnaryPreIncOperatorTypeArray.makeRange();
+
+struct UnaryAddOperatorTypes : GeneratedTypeArray
+{
+	UnaryAddOperatorTypes()
+	{
+		for(const BuiltInType* i = gPromotedArithmeticTypes; i != ARRAY_END(gPromotedArithmeticTypes); ++i)
+		{
+			BuiltInType type = *i;
+			push_back(makeFunctionType(type, type)); // T(T)
+		}
+	}
+};
+
+UnaryAddOperatorTypes gUnaryAddOperatorTypeArray;
+BuiltInTypeArrayRange gUnaryAddOperatorTypes = gUnaryAddOperatorTypeArray.makeRange();
+
+struct BinaryArithmeticOperatorTypes : GeneratedTypeArray
+{
+	BinaryArithmeticOperatorTypes(BuiltInTypeArrayRange types)
+	{
+		for(const BuiltInType* i = types.first; i != types.last; ++i)
+		{
+			BuiltInType left = *i;
+			for(const BuiltInType* i = types.first; i != types.last; ++i)
+			{
+				BuiltInType right = *i;
+				BuiltInType result = usualArithmeticConversions(left, right);
+				push_back(makeFunctionType(result, left, right)); // LR(L, R)
+			}
+		}
+	}
+};
+
+BinaryArithmeticOperatorTypes gBinaryArithmeticOperatorTypeArray(ARRAY_RANGE(gPromotedArithmeticTypes));
+BuiltInTypeArrayRange gBinaryArithmeticOperatorTypes = gBinaryArithmeticOperatorTypeArray.makeRange();
+
+BinaryArithmeticOperatorTypes gBinaryIntegralOperatorTypeArray(ARRAY_RANGE(gPromotedIntegralTypes));
+BuiltInTypeArrayRange gBinaryIntegralOperatorTypes = gBinaryIntegralOperatorTypeArray.makeRange();
+
+struct RelationalArithmeticOperatorTypes : GeneratedTypeArray
+{
+	RelationalArithmeticOperatorTypes()
+	{
+		for(const BuiltInType* i = gPromotedArithmeticTypes; i != ARRAY_END(gPromotedArithmeticTypes); ++i)
+		{
+			BuiltInType left = *i;
+			for(const BuiltInType* i = gPromotedArithmeticTypes; i != ARRAY_END(gPromotedArithmeticTypes); ++i)
+			{
+				BuiltInType right = *i;
+				push_back(makeFunctionType(gBool, left, right)); // bool(L, R)
+			}
+		}
+	}
+};
+
+RelationalArithmeticOperatorTypes gRelationalArithmeticOperatorTypeArray;
+BuiltInTypeArrayRange gRelationalArithmeticOperatorTypes = gRelationalArithmeticOperatorTypeArray.makeRange();
+
+struct ShiftOperatorTypes : GeneratedTypeArray
+{
+	ShiftOperatorTypes()
+	{
+		for(const BuiltInType* i = gPromotedArithmeticTypes; i != ARRAY_END(gPromotedArithmeticTypes); ++i)
+		{
+			BuiltInType left = *i;
+			for(const BuiltInType* i = gPromotedArithmeticTypes; i != ARRAY_END(gPromotedArithmeticTypes); ++i)
+			{
+				BuiltInType right = *i;
+				push_back(makeFunctionType(left, left, right)); // L(L, R)
+			}
+		}
+	}
+};
+
+ShiftOperatorTypes gShiftOperatorTypeArray;
+BuiltInTypeArrayRange gShiftOperatorTypes = gShiftOperatorTypeArray.makeRange();
+
+struct AssignArithmeticOperatorTypes : GeneratedTypeArray
+{
+	AssignArithmeticOperatorTypes(BuiltInTypeArrayRange leftTypes, BuiltInTypeArrayRange rightTypes)
+	{
+		for(const BuiltInType* i = leftTypes.first; i != leftTypes.last; ++i)
+		{
+			BuiltInType left = *i;
+			for(const BuiltInType* i = rightTypes.first; i != rightTypes.last; ++i)
+			{
+				BuiltInType right = *i;
+				BuiltInType ref = pushType(left, ReferenceType());
+				BuiltInType vref = pushType(qualifyType(left, CvQualifiers(false, true)), ReferenceType());
+				push_back(makeFunctionType(ref, ref, right)); // L&(L&, R)
+				push_back(makeFunctionType(vref, vref, right)); // volatile L&(volatile L&, R)
+			}
+		}
+	}
+};
+
+AssignArithmeticOperatorTypes gAssignArithmeticOperatorTypeArray(ARRAY_RANGE(gArithmeticTypes), ARRAY_RANGE(gPromotedArithmeticTypes));
+BuiltInTypeArrayRange gAssignArithmeticOperatorTypes = gAssignArithmeticOperatorTypeArray.makeRange();
+
+AssignArithmeticOperatorTypes gAssignIntegralOperatorTypeArray(ARRAY_RANGE(gIntegralTypes), ARRAY_RANGE(gPromotedIntegralTypes));
+BuiltInTypeArrayRange gAssignIntegralOperatorTypes = gAssignIntegralOperatorTypeArray.makeRange();
+
+
+BuiltInType gBinaryLogicalOperatorTypeArray[] = {
+	makeFunctionType(gBool, gBool, gBool) // bool(bool, bool)
+};
+BuiltInTypeArrayRange gBinaryLogicalOperatorTypes = ARRAY_RANGE(gBinaryLogicalOperatorTypeArray);
+
+BuiltInType gUnaryLogicalOperatorTypeArray[] = {
+	makeFunctionType(gBool, gBool) // bool(bool)
+};
+BuiltInTypeArrayRange gUnaryLogicalOperatorTypes = ARRAY_RANGE(gUnaryLogicalOperatorTypeArray);
+
+
+#define MAKE_GENERICTYPE1(substitute, placeholder) BuiltInGenericType1(substitute<true>(placeholder), &substitute<false>)
+
+BuiltInType gPtrDiffT = gSignedLongLongInt;
+
+template<bool builtIn>
+UniqueTypeGeneric<builtIn> makePointerArithmeticOperatorType(UniqueTypeGeneric<builtIn> type)
+{
+	UniqueTypeGeneric<builtIn> pointer = pushType(type, PointerType());
+	return makeFunctionType(pointer, pointer, UniqueTypeGeneric<builtIn>(gPtrDiffT)); // T*(T*, ptrdiff_t)
+}
+
+template<bool builtIn>
+UniqueTypeGeneric<builtIn> makePointerArithmeticOperatorTypeSwapped(UniqueTypeGeneric<builtIn> type)
+{
+	UniqueTypeGeneric<builtIn> pointer = pushType(type, PointerType());
+	return makeFunctionType(pointer, UniqueTypeGeneric<builtIn>(gPtrDiffT), pointer); // T*(ptrdiff_t, T*)
+}
+
+template<bool builtIn>
+UniqueTypeGeneric<builtIn> makeSubscriptOperatorType(UniqueTypeGeneric<builtIn> type)
+{
+	UniqueTypeGeneric<builtIn> pointer = pushType(type, PointerType());
+	UniqueTypeGeneric<builtIn> ref = pushType(type, ReferenceType());
+	return makeFunctionType(ref, pointer, UniqueTypeGeneric<builtIn>(gPtrDiffT)); // T&(T*, ptrdiff_t)
+}
+
+template<bool builtIn>
+UniqueTypeGeneric<builtIn> makeSubscriptOperatorTypeSwapped(UniqueTypeGeneric<builtIn> type)
+{
+	UniqueTypeGeneric<builtIn> pointer = pushType(type, PointerType());
+	UniqueTypeGeneric<builtIn> ref = pushType(type, ReferenceType());
+	return makeFunctionType(ref, UniqueTypeGeneric<builtIn>(gPtrDiffT), pointer); // T&(ptrdiff_t, T*)
+}
+
+BuiltInGenericType1 gPointerAddOperatorTypeArray[] = {
+	MAKE_GENERICTYPE1(makePointerArithmeticOperatorType, gObjectTypePlaceholder),
+	MAKE_GENERICTYPE1(makePointerArithmeticOperatorTypeSwapped, gObjectTypePlaceholder),
+};
+BuiltInGenericType1ArrayRange gPointerAddOperatorTypes = ARRAY_RANGE(gPointerAddOperatorTypeArray);
+
+BuiltInGenericType1 gPointerSubtractOperatorTypeArray[] = {
+	MAKE_GENERICTYPE1(makePointerArithmeticOperatorType, gObjectTypePlaceholder),
+};
+BuiltInGenericType1ArrayRange gPointerSubtractOperatorTypes = ARRAY_RANGE(gPointerSubtractOperatorTypeArray);
+
+BuiltInGenericType1 gSubscriptOperatorTypeArray[] = {
+	MAKE_GENERICTYPE1(makeSubscriptOperatorType, gObjectTypePlaceholder),
+	MAKE_GENERICTYPE1(makeSubscriptOperatorTypeSwapped, gObjectTypePlaceholder),
+};
+BuiltInGenericType1ArrayRange gSubscriptOperatorTypes = ARRAY_RANGE(gSubscriptOperatorTypeArray);
+
+// ----------------------------------------------------------------------------
+
 
 struct Base
 {
@@ -399,13 +722,13 @@ template<typename T>
 struct MakeType
 {
 private:
-	static UniqueTypeWrapper apply();
+	static BuiltInType apply();
 };
 
 template<>
 struct MakeType<bool>
 {
-	static UniqueTypeWrapper apply()
+	static BuiltInType apply()
 	{
 		return gBool;
 	}
@@ -414,7 +737,7 @@ struct MakeType<bool>
 template<>
 struct MakeType<int>
 {
-	static UniqueTypeWrapper apply()
+	static BuiltInType apply()
 	{
 		return gSignedInt;
 	}
@@ -423,7 +746,7 @@ struct MakeType<int>
 template<>
 struct MakeType<float>
 {
-	static UniqueTypeWrapper apply()
+	static BuiltInType apply()
 	{
 		return gFloat;
 	}
@@ -432,7 +755,7 @@ struct MakeType<float>
 template<>
 struct MakeType<char>
 {
-	static UniqueTypeWrapper apply()
+	static BuiltInType apply()
 	{
 		return gChar;
 	}
@@ -441,7 +764,7 @@ struct MakeType<char>
 template<>
 struct MakeType<wchar_t>
 {
-	static UniqueTypeWrapper apply()
+	static BuiltInType apply()
 	{
 		return gWCharT;
 	}
@@ -450,7 +773,7 @@ struct MakeType<wchar_t>
 template<>
 struct MakeType<void>
 {
-	static UniqueTypeWrapper apply()
+	static BuiltInType apply()
 	{
 		return gVoid;
 	}
@@ -459,7 +782,7 @@ struct MakeType<void>
 template<>
 struct MakeType<Base>
 {
-	static UniqueTypeWrapper apply()
+	static BuiltInType apply()
 	{
 		return gBaseClass;
 	}
@@ -468,7 +791,7 @@ struct MakeType<Base>
 template<>
 struct MakeType<Derived>
 {
-	static UniqueTypeWrapper apply()
+	static BuiltInType apply()
 	{
 		return gDerivedClass;
 	}
@@ -477,7 +800,7 @@ struct MakeType<Derived>
 template<>
 struct MakeType<Any>
 {
-	static UniqueTypeWrapper apply()
+	static BuiltInType apply()
 	{
 		return gAnyTypePlaceholder;
 	}
@@ -486,7 +809,7 @@ struct MakeType<Any>
 template<>
 struct MakeType<Object>
 {
-	static UniqueTypeWrapper apply()
+	static BuiltInType apply()
 	{
 		return gObjectTypePlaceholder;
 	}
@@ -495,7 +818,7 @@ struct MakeType<Object>
 template<>
 struct MakeType<Class>
 {
-	static UniqueTypeWrapper apply()
+	static BuiltInType apply()
 	{
 		return gClassTypePlaceholder;
 	}
@@ -504,7 +827,7 @@ struct MakeType<Class>
 template<>
 struct MakeType<Function>
 {
-	static UniqueTypeWrapper apply()
+	static BuiltInType apply()
 	{
 		return gFunctionTypePlaceholder;
 	}
@@ -513,7 +836,7 @@ struct MakeType<Function>
 template<>
 struct MakeType<MemberPointer>
 {
-	static UniqueTypeWrapper apply()
+	static BuiltInType apply()
 	{
 		return gMemberPointerPlaceholder;
 	}
@@ -522,7 +845,7 @@ struct MakeType<MemberPointer>
 template<>
 struct MakeType<Enumeration>
 {
-	static UniqueTypeWrapper apply()
+	static BuiltInType apply()
 	{
 		return gEnumerationPlaceholder;
 	}
@@ -531,7 +854,7 @@ struct MakeType<Enumeration>
 template<>
 struct MakeType<Arithmetic>
 {
-	static UniqueTypeWrapper apply()
+	static BuiltInType apply()
 	{
 		return gArithmeticPlaceholder;
 	}
@@ -540,7 +863,7 @@ struct MakeType<Arithmetic>
 template<>
 struct MakeType<Integral>
 {
-	static UniqueTypeWrapper apply()
+	static BuiltInType apply()
 	{
 		return gIntegralPlaceholder;
 	}
@@ -549,7 +872,7 @@ struct MakeType<Integral>
 template<>
 struct MakeType<PromotedArithmetic>
 {
-	static UniqueTypeWrapper apply()
+	static BuiltInType apply()
 	{
 		return gPromotedArithmeticPlaceholder;
 	}
@@ -558,7 +881,7 @@ struct MakeType<PromotedArithmetic>
 template<>
 struct MakeType<PromotedIntegral>
 {
-	static UniqueTypeWrapper apply()
+	static BuiltInType apply()
 	{
 		return gPromotedIntegralPlaceholder;
 	}
@@ -566,19 +889,19 @@ struct MakeType<PromotedIntegral>
 
 struct MakeTemplate
 {
-	static UniqueTypeWrapper apply(Declaration* declaration, UniqueTypeWrapper a1, UniqueTypeWrapper a2)
+	static BuiltInType apply(Declaration* declaration, BuiltInType a1, BuiltInType a2)
 	{
 		ObjectType result(TypeInstance(declaration, 0));
 		result.type.templateArguments.push_back(a1);
 		result.type.templateArguments.push_back(a2);
-		return UniqueTypeWrapper(pushBuiltInType(UNIQUETYPE_NULL, result));
+		return BuiltInType(pushBuiltInType(gUniqueTypeNull, result));
 	}
 };
 
 template<typename T, int i>
 struct MakeType< Template<T, i> >
 {
-	static UniqueTypeWrapper apply()
+	static BuiltInType apply()
 	{
 		return MakeTemplate::apply(&gTemplateClassDeclaration, MakeType<T>::apply(), BuiltInNonType(IntegralConstant(i)));
 	}
@@ -588,7 +911,7 @@ struct MakeType< Template<T, i> >
 template<typename T>
 struct MakeType< Template<T, NONTYPE_PARAM> >
 {
-	static UniqueTypeWrapper apply()
+	static BuiltInType apply()
 	{
 		return MakeTemplate::apply(&gTemplateClassDeclaration,  MakeType<T>::apply(), gDependentNonType);
 	}
@@ -597,7 +920,7 @@ struct MakeType< Template<T, NONTYPE_PARAM> >
 template<>
 struct MakeType<T>
 {
-	static UniqueTypeWrapper apply()
+	static BuiltInType apply()
 	{
 		return gTemplateParameter;
 	}
@@ -605,20 +928,20 @@ struct MakeType<T>
 
 struct MakeTemplateTemplateParameter
 {
-	static UniqueTypeWrapper apply(Declaration* declaration, UniqueTypeWrapper a1, UniqueTypeWrapper a2)
+	static BuiltInType apply(Declaration* declaration, BuiltInType a1, BuiltInType a2)
 	{
 		TemplateArgumentsInstance templateArguments;
 		templateArguments.push_back(a1);
 		templateArguments.push_back(a2);
 		DependentType result(declaration, templateArguments, 2);
-		return UniqueTypeWrapper(pushBuiltInType(UNIQUETYPE_NULL, result));
+		return BuiltInType(pushBuiltInType(gUniqueTypeNull, result));
 	}
 };
 
 template<typename T, int i>
 struct MakeType< TT<T, i> >
 {
-	static UniqueTypeWrapper apply()
+	static BuiltInType apply()
 	{
 		return MakeTemplateTemplateParameter::apply(&gTemplateTemplateParameterDeclaration, MakeType<T>::apply(), BuiltInNonType(IntegralConstant(i)));
 	}
@@ -627,7 +950,7 @@ struct MakeType< TT<T, i> >
 template<typename T>
 struct MakeType< TT<T, NONTYPE_PARAM> >
 {
-	static UniqueTypeWrapper apply()
+	static BuiltInType apply()
 	{
 		return MakeTemplateTemplateParameter::apply(&gTemplateTemplateParameterDeclaration, MakeType<T>::apply(), gDependentNonType);
 	}
@@ -635,7 +958,7 @@ struct MakeType< TT<T, NONTYPE_PARAM> >
 
 struct MakeConst
 {
-	static UniqueTypeWrapper apply(UniqueTypeWrapper inner)
+	static BuiltInType apply(BuiltInType inner)
 	{
 		inner.value.setQualifiers(CvQualifiers(true, false));
 		return inner;
@@ -645,7 +968,7 @@ struct MakeConst
 template<typename T>
 struct MakeType<const T>
 {
-	static UniqueTypeWrapper apply()
+	static BuiltInType apply()
 	{
 		return MakeConst::apply(MakeType<T>::apply());
 	}
@@ -653,7 +976,7 @@ struct MakeType<const T>
 
 struct MakeVolatile
 {
-	static UniqueTypeWrapper apply(UniqueTypeWrapper inner)
+	static BuiltInType apply(BuiltInType inner)
 	{
 		inner.value.setQualifiers(CvQualifiers(false, true));
 		return inner;
@@ -663,7 +986,7 @@ struct MakeVolatile
 template<typename T>
 struct MakeType<volatile T>
 {
-	static UniqueTypeWrapper apply()
+	static BuiltInType apply()
 	{
 		return MakeVolatile::apply(MakeType<T>::apply());
 	}
@@ -671,7 +994,7 @@ struct MakeType<volatile T>
 
 struct MakeConstVolatile
 {
-	static UniqueTypeWrapper apply(UniqueTypeWrapper inner)
+	static BuiltInType apply(BuiltInType inner)
 	{
 		inner.value.setQualifiers(CvQualifiers(true, true));
 		return inner;
@@ -681,7 +1004,7 @@ struct MakeConstVolatile
 template<typename T>
 struct MakeType<const volatile T>
 {
-	static UniqueTypeWrapper apply()
+	static BuiltInType apply()
 	{
 		return MakeConstVolatile::apply(MakeType<T>::apply());
 	}
@@ -690,34 +1013,34 @@ struct MakeType<const volatile T>
 template<typename T>
 struct MakeType<T*>
 {
-	static UniqueTypeWrapper apply()
+	static BuiltInType apply()
 	{
-		return UniqueTypeWrapper(pushBuiltInType(MakeType<T>::apply().value, PointerType()));
+		return pushType(MakeType<T>::apply(), PointerType());
 	}
 };
 
 template<typename T>
 struct MakeType<T&>
 {
-	static UniqueTypeWrapper apply()
+	static BuiltInType apply()
 	{
-		return UniqueTypeWrapper(pushBuiltInType(MakeType<T>::apply().value, ReferenceType()));
+		return pushType(MakeType<T>::apply(), ReferenceType());
 	}
 };
 
 template<std::size_t size>
 struct MakeArray
 {
-	static UniqueTypeWrapper apply(UniqueTypeWrapper inner)
+	static BuiltInType apply(BuiltInType inner)
 	{
-		return UniqueTypeWrapper(pushBuiltInType(inner.value, ArrayType(size)));
+		return pushType(inner, ArrayType(size));
 	}
 };
 
 template<typename T>
 struct MakeType<T[]>
 {
-	static UniqueTypeWrapper apply()
+	static BuiltInType apply()
 	{
 		return MakeArray<0>::apply(MakeType<T>::apply());
 	}
@@ -726,7 +1049,7 @@ struct MakeType<T[]>
 template<typename T, std::size_t size>
 struct MakeType<T[size]>
 {
-	static UniqueTypeWrapper apply()
+	static BuiltInType apply()
 	{
 		return MakeArray<size>::apply(MakeType<T>::apply());
 	}
@@ -734,27 +1057,25 @@ struct MakeType<T[size]>
 
 struct MakeFunction
 {
-	static UniqueTypeWrapper apply(UniqueTypeWrapper inner)
+	static BuiltInType apply(BuiltInType inner)
 	{
-		return UniqueTypeWrapper(pushBuiltInType(inner.value, FunctionType()));
+		return makeFunctionType(inner);
 	}
 };
 
 template<typename A1>
 struct MakeFunction1
 {
-	static UniqueTypeWrapper apply(UniqueTypeWrapper inner)
+	static BuiltInType apply(BuiltInType inner)
 	{
-		FunctionType function;
-		function.parameterTypes.push_back(MakeType<A1>::apply());
-		return UniqueTypeWrapper(pushBuiltInType(inner.value, function));
+		return makeFunctionType(inner, MakeType<A1>::apply());
 	}
 };
 
 template<typename T>
 struct MakeType<T()>
 {
-	static UniqueTypeWrapper apply()
+	static BuiltInType apply()
 	{
 		return MakeFunction::apply(MakeType<T>::apply());
 	}
@@ -763,7 +1084,7 @@ struct MakeType<T()>
 template<typename T, typename A1>
 struct MakeType<T(A1)>
 {
-	static UniqueTypeWrapper apply()
+	static BuiltInType apply()
 	{
 		return MakeFunction1<A1>::apply(MakeType<T>::apply());
 	}
@@ -772,16 +1093,16 @@ struct MakeType<T(A1)>
 template<typename C>
 struct MakeMemberPointer
 {
-	static UniqueTypeWrapper apply(UniqueTypeWrapper inner)
+	static BuiltInType apply(BuiltInType inner)
 	{
-		return UniqueTypeWrapper(pushBuiltInType(inner.value, MemberPointerType(MakeType<C>::apply())));
+		return pushType(inner, MemberPointerType(MakeType<C>::apply()));
 	}
 };
 
 template<typename T, typename C>
 struct MakeType<T C::*>
 {
-	static UniqueTypeWrapper apply()
+	static BuiltInType apply()
 	{
 		return MakeMemberPointer<C>::apply(MakeType<T>::apply());
 	}
@@ -790,7 +1111,7 @@ struct MakeType<T C::*>
 template<typename T, typename C>
 struct MakeType<T (C::*)()>
 {
-	static UniqueTypeWrapper apply()
+	static BuiltInType apply()
 	{
 		return MakeMemberPointer<C>::apply(MakeFunction::apply(MakeType<T>::apply()));
 	}
@@ -799,7 +1120,7 @@ struct MakeType<T (C::*)()>
 template<typename T, typename C, typename A1>
 struct MakeType<T (C::*)(A1)>
 {
-	static UniqueTypeWrapper apply()
+	static BuiltInType apply()
 	{
 		return MakeMemberPointer<C>::apply(MakeFunction1<A1>::apply(MakeType<T>::apply()));
 	}
@@ -808,7 +1129,7 @@ struct MakeType<T (C::*)(A1)>
 template<typename T, typename C>
 struct MakeType<T (C::*)() const>
 {
-	static UniqueTypeWrapper apply()
+	static BuiltInType apply()
 	{
 		return MakeMemberPointer<C>::apply(MakeConst::apply(MakeFunction::apply(MakeType<T>::apply())));
 	}
@@ -817,11 +1138,110 @@ struct MakeType<T (C::*)() const>
 template<typename T, typename C, typename A1>
 struct MakeType<T (C::*)(A1) const>
 {
-	static UniqueTypeWrapper apply()
+	static BuiltInType apply()
 	{
 		return MakeMemberPointer<C>::apply(MakeConst::apply(MakeFunction1<A1>::apply(MakeType<T>::apply())));
 	}
 };
+
+#if 0
+template<ObjectTypeId* type>
+struct BuiltIn
+{
+};
+
+template<ObjectTypeId* type>
+struct MakeType<BuiltIn<type> >
+{
+	static BuiltInType apply()
+	{
+		return *type;
+	}
+};
+
+typedef BuiltIn<&gChar> BuiltInChar;
+typedef BuiltIn<&gSignedChar> BuiltInSignedChar;
+typedef BuiltIn<&gUnsignedChar> BuiltInUnsignedChar;
+typedef BuiltIn<&gSignedShortInt> BuiltInSignedShortInt;
+typedef BuiltIn<&gUnsignedShortInt> BuiltInUnsignedShortInt;
+typedef BuiltIn<&gSignedInt> BuiltInSignedInt;
+typedef BuiltIn<&gUnsignedInt> BuiltInUnsignedInt;
+typedef BuiltIn<&gSignedLongInt> BuiltInSignedLongInt;
+typedef BuiltIn<&gUnsignedLongInt> BuiltInUnsignedLongInt;
+typedef BuiltIn<&gSignedLongLongInt> BuiltInSignedLongLongInt;
+typedef BuiltIn<&gUnsignedLongLongInt> BuiltInUnsignedLongLongInt;
+typedef BuiltIn<&gWCharT> BuiltInWCharT;
+typedef BuiltIn<&gBool> BuiltInBool;
+typedef BuiltIn<&gFloat> BuiltInFloat;
+typedef BuiltIn<&gDouble> BuiltInDouble;
+typedef BuiltIn<&gLongDouble> BuiltInLongDouble;
+
+typedef TYPELIST13(
+	BuiltInChar,
+	BuiltInSignedChar,
+	BuiltInUnsignedChar,
+	BuiltInSignedShortInt,
+	BuiltInUnsignedShortInt,
+	BuiltInSignedInt,
+	BuiltInUnsignedInt,
+	BuiltInSignedLongInt,
+	BuiltInUnsignedLongInt,
+	BuiltInSignedLongLongInt,
+	BuiltInUnsignedLongLongInt,
+	BuiltInWCharT,
+	BuiltInBool
+) IntegralTypes;
+
+typedef TYPELIST6(
+	BuiltInSignedInt,
+	BuiltInUnsignedInt,
+	BuiltInSignedLongInt,
+	BuiltInUnsignedLongInt,
+	BuiltInSignedLongLongInt,
+	BuiltInUnsignedLongLongInt
+) PromotedIntegralTypes;
+
+typedef TYPELIST16(
+	BuiltInChar,
+	BuiltInSignedChar,
+	BuiltInUnsignedChar,
+	BuiltInSignedShortInt,
+	BuiltInUnsignedShortInt,
+	BuiltInSignedInt,
+	BuiltInUnsignedInt,
+	BuiltInSignedLongInt,
+	BuiltInUnsignedLongInt,
+	BuiltInSignedLongLongInt,
+	BuiltInUnsignedLongLongInt,
+	BuiltInWCharT,
+	BuiltInBool,
+	BuiltInFloat,
+	BuiltInDouble,
+	BuiltInLongDouble
+) ArithmeticTypes;
+
+template<typename Types, template<typename> class Op>
+struct GeneratedTypeArray : UniqueTypeArray
+{
+	GeneratedTypeArray()
+	{
+		iterate(Types());
+	}
+	template<typename Item, typename Next>
+	void iterate(TypeList<Item, Next>)
+	{
+		push_back(Op<Item>::apply());
+	}
+	void iterate(TypeListEnd)
+	{
+	}
+	BuiltInTypeArrayRange makeRange() const
+	{
+		return BuiltInTypeArrayRange(&(*begin()), &(*end()));
+	}
+};
+#endif
+
 
 inline void testTypeGen()
 {
@@ -830,26 +1250,26 @@ inline void testTypeGen()
 	typedef int* PtrToInt;
 	typedef const PtrToInt ConstPtrToInt;
 	typedef const PtrToConstInt ConstPtrToConstInt;
-	UniqueTypeWrapper test1 = MakeType<ConstInt>::apply();
-	UniqueTypeWrapper test2 = MakeType<PtrToConstInt>::apply();
-	UniqueTypeWrapper test3 = MakeType<ConstPtrToInt>::apply();
-	UniqueTypeWrapper test4 = MakeType<ConstPtrToConstInt>::apply();
+	BuiltInType test1 = MakeType<ConstInt>::apply();
+	BuiltInType test2 = MakeType<PtrToConstInt>::apply();
+	BuiltInType test3 = MakeType<ConstPtrToInt>::apply();
+	BuiltInType test4 = MakeType<ConstPtrToConstInt>::apply();
 
-	UniqueTypeWrapper test5 = MakeType<int (*)()>::apply();
-	UniqueTypeWrapper test6 = MakeType<int (Base::*)()>::apply();
-	UniqueTypeWrapper test7 = MakeType<int (Base::*)() const>::apply();
-	UniqueTypeWrapper test8 = MakeType<int (Base::*const)()>::apply();
+	BuiltInType test5 = MakeType<int (*)()>::apply();
+	BuiltInType test6 = MakeType<int (Base::*)()>::apply();
+	BuiltInType test7 = MakeType<int (Base::*)() const>::apply();
+	BuiltInType test8 = MakeType<int (Base::*const)()>::apply();
 
-	UniqueTypeWrapper test9 = MakeType<int[]>::apply();
-	UniqueTypeWrapper test10 = MakeType<int[1]>::apply();
+	BuiltInType test9 = MakeType<int[]>::apply();
+	BuiltInType test10 = MakeType<int[1]>::apply();
 
-	UniqueTypeWrapper test11 = MakeType<int(int)>::apply();
-	UniqueTypeWrapper test12 = MakeType<int (*)(int)>::apply();
-	UniqueTypeWrapper test13 = MakeType<int (Base::*)(int)>::apply();
-	UniqueTypeWrapper test14 = MakeType<int (Base::*)(int) const>::apply();
-	UniqueTypeWrapper test15 = MakeType<int (Base::*const)(int)>::apply();
+	BuiltInType test11 = MakeType<int(int)>::apply();
+	BuiltInType test12 = MakeType<int (*)(int)>::apply();
+	BuiltInType test13 = MakeType<int (Base::*)(int)>::apply();
+	BuiltInType test14 = MakeType<int (Base::*)(int) const>::apply();
+	BuiltInType test15 = MakeType<int (Base::*const)(int)>::apply();
 
-	UniqueTypeWrapper test16 = MakeType< Template<int, 1> >::apply();
+	BuiltInType test16 = MakeType< Template<int, 1> >::apply();
 
 	FileTokenPrinter tokenPrinter(std::cout);
 	SymbolPrinter symbolPrinter(tokenPrinter);
@@ -897,96 +1317,76 @@ struct TypeGenTest
 } gTypeGenTest;
 
 
-UniqueTypeWrapper gSignedIntMemberPointer = MakeType<int Base::*>::apply();
+BuiltInType gSignedIntMemberPointer = MakeType<int Base::*>::apply();
 
 
-typedef const UniqueTypeId* UniqueTypeIdConstPointer;
-UniqueTypeIdConstPointer gArithmeticTypes[] = {
-	&gChar,
-	&gSignedChar,
-	&gUnsignedChar,
-	&gSignedShortInt,
-	&gUnsignedShortInt,
-	&gSignedInt,
-	&gUnsignedInt,
-	&gSignedLongInt,
-	&gUnsignedLongInt,
-	&gSignedLongLongInt,
-	&gUnsignedLongLongInt,
-	&gWCharT,
-	&gBool,
-	&gFloat,
-	&gDouble,
-	&gLongDouble,
+BuiltInType gFloatingTypes[] = {
+	gFloat,
+	gDouble,
+	gLongDouble,
 };
 
-UniqueTypeIdConstPointer gFloatingTypes[] = {
-	&gFloat,
-	&gDouble,
-	&gLongDouble,
+BuiltInType gIntegerTypes[] = {
+	gChar,
+	gSignedChar,
+	gUnsignedChar,
+	gSignedShortInt,
+	gUnsignedShortInt,
+	gSignedInt,
+	gUnsignedInt,
+	gSignedLongInt,
+	gUnsignedLongInt,
+	gSignedLongLongInt,
+	gUnsignedLongLongInt,
+	gWCharT,
+	gBool,
 };
 
-UniqueTypeIdConstPointer gIntegerTypes[] = {
-	&gChar,
-	&gSignedChar,
-	&gUnsignedChar,
-	&gSignedShortInt,
-	&gUnsignedShortInt,
-	&gSignedInt,
-	&gUnsignedInt,
-	&gSignedLongInt,
-	&gUnsignedLongInt,
-	&gSignedLongLongInt,
-	&gUnsignedLongLongInt,
-	&gWCharT,
-	&gBool,
+BuiltInType gPointerTypes[] = {
+	gVoidPointer,
+	gSignedIntPointer,
+	gSignedIntPointerPointer,
+	gSignedCharPointer,
+	gWCharTPointer,
+	gBaseClassPointer,
+	gDerivedClassPointer,
 };
 
-UniqueTypeIdConstPointer gPointerTypes[] = {
-	&gVoidPointer,
-	&gSignedIntPointer,
-	&gSignedIntPointerPointer,
-	&gSignedCharPointer,
-	&gWCharTPointer,
-	&gBaseClassPointer,
-	&gDerivedClassPointer,
+BuiltInType gSimplePointerTypes[] = {
+	gSignedIntPointer,
+	gSignedCharPointer,
+	gWCharTPointer,
+	gBaseClassPointer,
+	gDerivedClassPointer,
 };
 
-UniqueTypeIdConstPointer gSimplePointerTypes[] = {
-	&gSignedIntPointer,
-	&gSignedCharPointer,
-	&gWCharTPointer,
-	&gBaseClassPointer,
-	&gDerivedClassPointer,
+BuiltInType gMemberPointerTypes[] = {
+	gSignedIntMemberPointer,
 };
 
-UniqueTypeIdConstPointer gMemberPointerTypes[] = {
-	&gSignedIntMemberPointer,
-};
-
-IcsRank getArithmeticIcsRank(const UniqueTypeId& to, const UniqueTypeId& from)
+IcsRank getArithmeticIcsRank(BuiltInType to, BuiltInType from)
 {
-	if(&to == &from)
+	if(to == from)
 	{
 		return ICSRANK_STANDARDEXACT;
 	}
-	if(&to == &gSignedInt)
+	if(to == gSignedInt)
 	{
-		if(&from == &gChar
-			|| &from == &gSignedChar
-			|| &from == &gUnsignedChar
-			|| &from == &gSignedShortInt
-			|| &from == &gUnsignedShortInt
-			|| &from == &gWCharT
-			|| &from == &gBool)
+		if(from == gChar
+			|| from == gSignedChar
+			|| from == gUnsignedChar
+			|| from == gSignedShortInt
+			|| from == gUnsignedShortInt
+			|| from == gWCharT
+			|| from == gBool)
 		{
 			return ICSRANK_STANDARDPROMOTION;
 		}
 	}
 	// TODO bitfield -> integer
-	if(&to == &gDouble)
+	if(to == gDouble)
 	{
-		if(&from == &gFloat)
+		if(from == gFloat)
 		{
 			return ICSRANK_STANDARDPROMOTION;
 		}
@@ -1009,7 +1409,7 @@ struct TestIcsRank
 		SYMBOLS_ASSERT(rank == expected);
 		if(expected != ICSRANK_INVALID)
 		{
-			UniqueTypeWrapper matched = MakeType<Matched>::apply();
+			BuiltInType matched = MakeType<Matched>::apply();
 			SYMBOLS_ASSERT(conversion.sequence.matched == matched);
 		}
 	}
@@ -1017,76 +1417,76 @@ struct TestIcsRank
 
 inline void testIcsRank()
 {
-	for(const UniqueTypeIdConstPointer* i = gArithmeticTypes; i != ARRAY_END(gArithmeticTypes); ++i)
+	for(const BuiltInType* i = gArithmeticTypes; i != ARRAY_END(gArithmeticTypes); ++i)
 	{
-		UniqueTypeIdConstPointer to = *i;
-		for(const UniqueTypeIdConstPointer* i = gArithmeticTypes; i != ARRAY_END(gArithmeticTypes); ++i)
+		BuiltInType to = *i;
+		for(const BuiltInType* i = gArithmeticTypes; i != ARRAY_END(gArithmeticTypes); ++i)
 		{
-			UniqueTypeIdConstPointer from = *i;
-			IcsRank expected = getArithmeticIcsRank(*to, *from);
-			IcsRank rank = getIcsRank(*to, *from, Location(), 0);
+			BuiltInType from = *i;
+			IcsRank expected = getArithmeticIcsRank(to, from);
+			IcsRank rank = getIcsRank(to, from, Location(), 0);
 			SYMBOLS_ASSERT(expected == rank);
 		}
 	}
 
 	// 0 -> T*
-	for(const UniqueTypeIdConstPointer* i = gIntegerTypes; i != ARRAY_END(gIntegerTypes); ++i)
+	for(const BuiltInType* i = gIntegerTypes; i != ARRAY_END(gIntegerTypes); ++i)
 	{
-		UniqueTypeIdConstPointer type = *i;
-		for(const UniqueTypeIdConstPointer* i = gPointerTypes; i != ARRAY_END(gPointerTypes); ++i)
+		BuiltInType type = *i;
+		for(const BuiltInType* i = gPointerTypes; i != ARRAY_END(gPointerTypes); ++i)
 		{
-			UniqueTypeIdConstPointer other = *i;
+			BuiltInType other = *i;
 			{
-				IcsRank rank = getIcsRank(*other, *type, Location(), 0, true);
+				IcsRank rank = getIcsRank(other, type, Location(), 0, true);
 				SYMBOLS_ASSERT(rank == ICSRANK_STANDARDCONVERSION);
 			}
 			{
-				IcsRank rank = getIcsRank(*other, *type, Location(), 0, false);
+				IcsRank rank = getIcsRank(other, type, Location(), 0, false);
 				SYMBOLS_ASSERT(rank == ICSRANK_INVALID);
 			}
 		}
 	}
 
 	// T* -> bool, T::* -> bool
-	for(const UniqueTypeIdConstPointer* i = gIntegerTypes; i != ARRAY_END(gIntegerTypes); ++i)
+	for(const BuiltInType* i = gIntegerTypes; i != ARRAY_END(gIntegerTypes); ++i)
 	{
-		UniqueTypeIdConstPointer type = *i;
-		for(const UniqueTypeIdConstPointer* i = gPointerTypes; i != ARRAY_END(gPointerTypes); ++i)
+		BuiltInType type = *i;
+		for(const BuiltInType* i = gPointerTypes; i != ARRAY_END(gPointerTypes); ++i)
 		{
-			UniqueTypeIdConstPointer other = *i;
-			IcsRank rank = getIcsRank(*type, *other, Location(), 0);
-			SYMBOLS_ASSERT(rank == (type == &gBool ? ICSRANK_STANDARDCONVERSION : ICSRANK_INVALID));
+			BuiltInType other = *i;
+			IcsRank rank = getIcsRank(type, other, Location(), 0);
+			SYMBOLS_ASSERT(rank == (type == gBool ? ICSRANK_STANDARDCONVERSION : ICSRANK_INVALID));
 		}
-		for(const UniqueTypeIdConstPointer* i = gMemberPointerTypes; i != ARRAY_END(gMemberPointerTypes); ++i)
+		for(const BuiltInType* i = gMemberPointerTypes; i != ARRAY_END(gMemberPointerTypes); ++i)
 		{
-			UniqueTypeIdConstPointer other = *i;
-			IcsRank rank = getIcsRank(*type, *other, Location(), 0);
-			SYMBOLS_ASSERT(rank == (type == &gBool ? ICSRANK_STANDARDCONVERSION : ICSRANK_INVALID));
+			BuiltInType other = *i;
+			IcsRank rank = getIcsRank(type, other, Location(), 0);
+			SYMBOLS_ASSERT(rank == (type == gBool ? ICSRANK_STANDARDCONVERSION : ICSRANK_INVALID));
 		}
 	}
 
 	// T* -> void* (where T is an object type)
-	for(const UniqueTypeIdConstPointer* i = gSimplePointerTypes; i != ARRAY_END(gSimplePointerTypes); ++i)
+	for(const BuiltInType* i = gSimplePointerTypes; i != ARRAY_END(gSimplePointerTypes); ++i)
 	{
-		UniqueTypeIdConstPointer type = *i;
+		BuiltInType type = *i;
 		{
-			IcsRank rank = getIcsRank(gVoidPointer, *type, Location(), 0);
+			IcsRank rank = getIcsRank(gVoidPointer, type, Location(), 0);
 			SYMBOLS_ASSERT(rank == ICSRANK_STANDARDCONVERSION);
 		}
 		{
-			IcsRank rank = getIcsRank(gConstVoidPointer, *type, Location(), 0);
+			IcsRank rank = getIcsRank(gConstVoidPointer, type, Location(), 0);
 			SYMBOLS_ASSERT(rank == ICSRANK_STANDARDCONVERSION);
 		}
 	}
-	for(const UniqueTypeIdConstPointer* i = gFloatingTypes; i != ARRAY_END(gFloatingTypes); ++i)
+	for(const BuiltInType* i = gFloatingTypes; i != ARRAY_END(gFloatingTypes); ++i)
 	{
-		UniqueTypeIdConstPointer type = *i;
+		BuiltInType type = *i;
 		{
-			IcsRank rank = getIcsRank(gVoidPointer, *type, Location(), 0, true);
+			IcsRank rank = getIcsRank(gVoidPointer, type, Location(), 0, true);
 			SYMBOLS_ASSERT(rank == ICSRANK_INVALID);
 		}
 		{
-			IcsRank rank = getIcsRank(*type, gVoidPointer, Location(), 0, true);
+			IcsRank rank = getIcsRank(type, gVoidPointer, Location(), 0, true);
 			SYMBOLS_ASSERT(rank == ICSRANK_INVALID);
 		}
 	}

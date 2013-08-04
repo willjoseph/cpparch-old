@@ -88,6 +88,7 @@ inline const char* getValue(const Identifier& id)
 
 typedef SafePtr<Identifier> IdentifierPtr;
 
+
 // ----------------------------------------------------------------------------
 // type
 
@@ -1094,6 +1095,22 @@ inline Scope* getEnclosingClass(Scope* scope)
 }
 
 
+// global scope
+extern Identifier gGlobalId;
+
+inline Scope* getEnclosingNamespace(Scope* scope)
+{
+	for(; scope != 0; scope = scope->parent)
+	{
+		if(scope->type == SCOPETYPE_NAMESPACE
+			&& scope->name.value != gGlobalId.value)
+		{
+			return scope;
+		}
+	}
+	return 0;
+}
+
 // ----------------------------------------------------------------------------
 // meta types
 extern Declaration gArithmetic;
@@ -1545,6 +1562,31 @@ struct UniqueTypeWrapper
 			&& UniqueTypeWrapper(value->next).isFunction();
 	}
 };
+
+template<typename T>
+inline UniqueTypeWrapper pushType(UniqueTypeWrapper type, const T& t)
+{
+	pushUniqueType(type.value, t);
+	return type;
+}
+
+template<typename T>
+inline UniqueTypeWrapper pushBuiltInType(UniqueTypeWrapper type, const T& value)
+{
+	return UniqueTypeWrapper(pushBuiltInType(type.value, value));
+}
+
+inline UniqueTypeWrapper popType(UniqueTypeWrapper type)
+{
+	type.pop_front();
+	return type;
+}
+
+inline UniqueTypeWrapper qualifyType(UniqueTypeWrapper type, CvQualifiers qualifiers)
+{
+	type.value.setQualifiers(qualifiers);
+	return type;
+}
 
 inline bool operator==(UniqueTypeWrapper l, UniqueTypeWrapper r)
 {
@@ -2034,7 +2076,21 @@ inline bool isEquivalent(const ParameterTypes& left, const ParameterTypes& right
 
 // ----------------------------------------------------------------------------
 
-struct ObjectTypeId : UniqueTypeId
+template<bool builtIn>
+struct UniqueTypeGeneric : UniqueTypeWrapper
+{
+	UniqueTypeGeneric()
+	{
+	}
+	explicit UniqueTypeGeneric(UniqueTypeWrapper value) : UniqueTypeWrapper(value)
+	{
+	}
+};
+
+
+typedef UniqueTypeGeneric<true> BuiltInType; 
+
+struct ObjectTypeId : BuiltInType
 {
 	ObjectTypeId(Declaration* declaration, const TreeAllocator<int>& allocator)
 	{
@@ -3361,7 +3417,7 @@ inline void adjustFunctionCallDeductionPair(UniqueTypeWrapper& parameter, Unique
 	const TypeInstance* parameterType = getClassType(removePointer(parameter));
 	const TypeInstance* argumentType = getClassType(removePointer(argument));
 	if(parameterType != 0 && parameterType->declaration->isTemplate // if P is a class-template
-		&& argumentType != 0 // and A is a class
+		&& argumentType != 0 && isComplete(*argumentType->declaration) // and A is a complete class
 		&& parameter.isPointer() == argument.isPointer() // and neither (or both) are pointers
 		&& argumentType->primary != parameterType->primary) // and deduction would fail
 	{
@@ -4210,7 +4266,7 @@ inline void makeUniqueTemplateArguments(TemplateArguments& templateArguments, Te
 	}
 }
 
-inline void makeUniqueTemplateParameters(TemplateParameters& templateParams, TemplateArgumentsInstance& arguments, Location source, const TypeInstance* enclosing, bool allowDependent)
+inline void makeUniqueTemplateParameters(const TemplateParameters& templateParams, TemplateArgumentsInstance& arguments, Location source, const TypeInstance* enclosing, bool allowDependent)
 {
 	for(Types::const_iterator i = templateParams.begin(); i != templateParams.end(); ++i)
 	{
@@ -4801,6 +4857,38 @@ extern ObjectTypeId gDouble;
 extern ObjectTypeId gLongDouble;
 extern ObjectTypeId gVoid;
 
+typedef ArrayRange<BuiltInType> BuiltInTypeArrayRange;
+
+
+typedef UniqueTypeGeneric<false> UserType;
+
+struct BuiltInGenericType1 : BuiltInType
+{
+	typedef UserType (*Substitute)(UserType type);
+	Substitute substitute;
+	BuiltInGenericType1(BuiltInType type, Substitute substitute) : BuiltInType(type), substitute(substitute)
+	{
+	}
+};
+
+typedef ArrayRange<BuiltInGenericType1> BuiltInGenericType1ArrayRange;
+
+
+inline bool isVoid(UniqueTypeWrapper type)
+{
+	return type.value.getPointer() == gVoid.value.getPointer();
+}
+
+inline bool isVoidPointer(UniqueTypeWrapper type)
+{
+	if(!type.isPointer())
+	{
+		return false;
+	}
+	type.pop_front();
+	return isVoid(type);
+}
+
 inline bool isVoidParameter(const TypeId& type)
 {
 	return type.declaration == &gVoidDeclaration
@@ -5172,7 +5260,7 @@ inline Name getOverloadableOperatorId(cpp::array_operator* symbol)
 	return gOperatorSubscriptId;
 }
 
-inline Name getUnaryOperatorName(cpp::unary_operator* symbol)
+inline Name getOverloadedOperatorId(cpp::unary_operator* symbol)
 {
 	switch(symbol->id)
 	{
@@ -5189,7 +5277,106 @@ inline Name getUnaryOperatorName(cpp::unary_operator* symbol)
 	throw SymbolsError();
 }
 
+inline Name getOverloadedOperatorId(cpp::pm_expression_default* symbol)
+{
+	return gOperatorArrowStarId;
+}
+inline Name getOverloadedOperatorId(cpp::multiplicative_expression_default* symbol)
+{
+	switch(symbol->op->id)
+	{
+	case cpp::multiplicative_operator::STAR: return gOperatorStarId;
+	case cpp::multiplicative_operator::DIVIDE: return gOperatorDivideId;
+	case cpp::multiplicative_operator::PERCENT: return gOperatorPercentId;
+	default: break;
+	}
+	throw SymbolsError();
+}
+inline Name getOverloadedOperatorId(cpp::additive_expression_default* symbol)
+{
+	switch(symbol->op->id)
+	{
+	case cpp::additive_operator::PLUS: return gOperatorPlusId;
+	case cpp::additive_operator::MINUS: return gOperatorMinusId;
+	default: break;
+	}
+	throw SymbolsError();
+}
+inline Name getOverloadedOperatorId(cpp::shift_expression_default* symbol)
+{
+	switch(symbol->op->id)
+	{
+	case cpp::shift_operator::SHIFTLEFT: return gOperatorShiftLeftId;
+	case cpp::shift_operator::SHIFTRIGHT: return gOperatorShiftRightId;
+	default: break;
+	}
+	throw SymbolsError();
+}
+inline Name getOverloadedOperatorId(cpp::relational_expression_default* symbol)
+{
+	switch(symbol->op->id)
+	{
+	case cpp::relational_operator::LESS: return gOperatorLessId;
+	case cpp::relational_operator::GREATER: return gOperatorGreaterId;
+	case cpp::relational_operator::LESSEQUAL: return gOperatorLessEqualId;
+	case cpp::relational_operator::GREATEREQUAL: return gOperatorGreaterEqualId;
+	default: break;
+	}
+	throw SymbolsError();
+}
+inline Name getOverloadedOperatorId(cpp::equality_expression_default* symbol)
+{
+	switch(symbol->op->id)
+	{
+	case cpp::equality_operator::EQUAL: return gOperatorEqualId;
+	case cpp::equality_operator::NOTEQUAL: return gOperatorNotEqualId;
+	default: break;
+	}
+	throw SymbolsError();
+}
+inline Name getOverloadedOperatorId(cpp::and_expression_default* symbol)
+{
+	return gOperatorAndId;
+}
+inline Name getOverloadedOperatorId(cpp::exclusive_or_expression_default* symbol)
+{
+	return gOperatorXorId;
+}
 
+inline Name getOverloadedOperatorId(cpp::inclusive_or_expression_default* symbol)
+{
+	return gOperatorOrId;
+}
+
+inline Name getOverloadedOperatorId(cpp::logical_and_expression_default* symbol)
+{
+	return gOperatorAndAndId;
+}
+
+inline Name getOverloadedOperatorId(cpp::logical_or_expression_default* symbol)
+{
+	return gOperatorOrOrId;
+}
+
+inline Name getOverloadedOperatorId(cpp::assignment_expression_suffix* symbol)
+{
+	switch(symbol->op->id)
+	{
+	case cpp::assignment_operator::ASSIGN: return gOperatorAssignId;
+	case cpp::assignment_operator::STAR: return gOperatorStarAssignId;
+	case cpp::assignment_operator::DIVIDE: return gOperatorDivideAssignId;
+	case cpp::assignment_operator::PERCENT: return gOperatorPercentAssignId;
+	case cpp::assignment_operator::PLUS: return gOperatorPlusAssignId;
+	case cpp::assignment_operator::MINUS: return gOperatorMinusAssignId;
+	case cpp::assignment_operator::SHIFTRIGHT: return gOperatorShiftRightAssignId;
+	case cpp::assignment_operator::SHIFTLEFT: return gOperatorShiftLeftAssignId;
+	case cpp::assignment_operator::AND: return gOperatorAndAssignId;
+	case cpp::assignment_operator::XOR: return gOperatorXorAssignId;
+	case cpp::assignment_operator::OR: return gOperatorOrAssignId;
+	default: break;
+	}
+	throw SymbolsError();
+}
 
 extern Identifier gConversionFunctionId;
 extern Identifier gOperatorFunctionTemplateId;
@@ -5476,6 +5663,63 @@ inline const UniqueTypeId& promoteToIntegralType(const UniqueTypeId& type)
 		return gSignedInt;
 	}
 	return type;
+}
+
+
+// 5 Expressions
+// paragraph 9: usual arithmetic conversions
+// [expr]
+// Many binary operators that expect operands of arithmetic or enumeration type cause conversions and yield
+// result types in a similar way. The purpose is to yield a common type, which is also the type of the result.
+// This pattern is called the usual arithmetic conversions
+inline BuiltInType usualArithmeticConversions(UniqueTypeWrapper left, UniqueTypeWrapper right)
+{
+	SYMBOLS_ASSERT(left != gUniqueTypeNull);
+	SYMBOLS_ASSERT(right != gUniqueTypeNull);
+
+	SYMBOLS_ASSERT(isArithmetic(left) || isEnumeration(left));
+	SYMBOLS_ASSERT(isArithmetic(right) || isEnumeration(right));
+
+	if(isEqual(left, gLongDouble)
+		|| isEqual(right, gLongDouble))
+	{
+		return gLongDouble;
+	}
+	if(isEqual(left, gDouble)
+		|| isEqual(right, gDouble))
+	{
+		return gDouble;
+	}
+	if(isEqual(left, gFloat)
+		|| isEqual(right, gFloat))
+	{
+		return gFloat;
+	}
+	left = promoteToIntegralType(left);
+	right = promoteToIntegralType(right);
+	if(isEqual(left, gUnsignedLongInt)
+		|| isEqual(right, gUnsignedLongInt))
+	{
+		return gUnsignedLongInt;
+	}
+	if((isEqual(left, gSignedLongInt)
+		&& isEqual(right, gUnsignedInt))
+		|| (isEqual(left, gUnsignedInt)
+		&& isEqual(right, gSignedLongInt)))
+	{
+		return gUnsignedLongInt;
+	}
+	if(isEqual(left, gSignedLongInt)
+		|| isEqual(right, gSignedLongInt))
+	{
+		return gSignedLongInt;
+	}
+	if(isEqual(left, gUnsignedInt)
+		|| isEqual(right, gUnsignedInt))
+	{
+		return gUnsignedInt;
+	}
+	return gSignedInt;
 }
 
 // T[] -> T*
@@ -5820,8 +6064,10 @@ inline bool isProperSubsequence(CvQualifiers l, CvQualifiers r)
 
 inline bool isProperSubsequence(const StandardConversionSequence& l, const StandardConversionSequence& r)
 {
+	// TODO: consider lvalue-transformation!
 	return (l.rank == SCSRANK_IDENTITY && r.rank != SCSRANK_IDENTITY)
-		|| isProperSubsequence(l.adjustment, r.adjustment);
+		|| (l.rank == r.rank
+			&& isProperSubsequence(l.adjustment, r.adjustment));
 }
 
 // [over.ics.rank]
@@ -7050,6 +7296,14 @@ struct OverloadResolver
 			ambiguous = candidate.declaration;
 		}
 	}
+	template<typename To>
+	ImplicitConversion makeConversion(To to, const Argument& from)
+	{
+		// DR 903: a value-dependent expression may or may not be a null pointer constant, but the behaviour is unspecified.
+		// simple fix: don't allow a value-dependent expression to be a null pointer constant.
+		bool isNullPointerConstant = !from.isValueDependent && from.isConstant && evaluateExpression(from, source, enclosing).value == 0;
+		return makeImplicitConversionSequence(to, from.type, source, enclosing, isNullPointerConstant, true, isUserDefinedConversion); // TODO: l-value
+	}
 	void add(const FunctionOverload& overload, const ParameterTypes& parameters, bool isEllipsis, const TypeInstance* memberEnclosing, FunctionTemplate& functionTemplate = FunctionTemplate())
 	{
 		CandidateFunction candidate(overload, functionTemplate);
@@ -7086,28 +7340,36 @@ struct OverloadResolver
 			}
 		}
 
-		const Parameters& defaults = getParameters(overload.declaration->type);
-		Parameters::const_iterator d = defaults.begin();
-		for(; p != parameters.end(); ++p)
+		if(arguments.size() < parameters.size())
 		{
-			UniqueTypeWrapper to = (*p);
-			if(a != arguments.end())
+			if(overload.declaration == &gUnknown)
 			{
-				const Argument& from = *a;
-				bool isNullPointerConstant = from.isConstant && evaluateExpression(from, source, enclosing).value == 0;
-				candidate.conversions.push_back(makeImplicitConversionSequence(to, from.type, source, enclosing, isNullPointerConstant, true, isUserDefinedConversion)); // TODO: l-value
-				++a;
+				return; // TODO: don't include built-in operator candidates with wrong number of arguments
 			}
-			else if((*d).argument == 0) // TODO: catch this earlier
+			std::size_t argumentCount = arguments.end() - a;
+			const Parameters& defaults = getParameters(overload.declaration->type);
+			Parameters::const_iterator d = defaults.begin();
+			std::advance(d, argumentCount);
+			for(ParameterTypes::const_iterator i = p + argumentCount; i != parameters.end(); ++i)
 			{
-				return; // [over.match.viable] no default-argument available, this candidate is not viable
+				SYMBOLS_ASSERT(d != defaults.end());
+				if((*d).argument == 0) // TODO: catch this earlier
+				{
+					return; // [over.match.viable] no default-argument available, this candidate is not viable
+				}
+				else
+				{
+					SYMBOLS_ASSERT((*d).argument->expr != 0); // TODO: non-fatal error: trying to use a default-argument before it has been declared. 
+				}
+				++d;
 			}
-			else
-			{
-				SYMBOLS_ASSERT((*d).argument->expr != 0); // TODO: non-fatal error: trying to use a default-argument before it has been declared. 
-			}
-			++d;
 		}
+
+		for(; a != arguments.end() && p != parameters.end(); ++a, ++p)
+		{
+			candidate.conversions.push_back(makeConversion(*p, *a)); // TODO: l-value
+		}
+
 		// [over.match.viable]
 		// A candidate function having fewer than m parameters is viable only if it has an ellipsis in its parameter
 		// list. For the purposes of overload resolution, any argument for which there is no corresponding

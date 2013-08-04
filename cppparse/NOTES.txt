@@ -371,6 +371,7 @@
 	- operator->
 
 - task: determine type of conditional-expression with differing second and third operands
+	- write tests!
 
 - task: refactor PARSE_EXPRESSION
 
@@ -444,6 +445,8 @@
 	- required only when an operand has class or enumeration type
 	- how to create infinite number of built-in overloads? e.g. match any pointer type
 	- hide user-written candidates that match built-in overload parameters exactly
+	- for enum, overload set contains built-in operators that take types that enum can be converted to
+		- e.g. promote to int, convert to any integer type, convert to any floating point type, convert to bool
 	- types:
 		O=object (not reference, not function, not void)
 		F=Function
