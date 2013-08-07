@@ -232,131 +232,7 @@ inline const DeclarationInstance* findRedeclared(const Declaration& declaration,
 	return 0;
 }
 
-inline ParameterTypes addOverload(OverloadResolver& resolver, const Declaration& declaration, Location source, const TypeInstance* enclosing = 0)
-{
-	UniqueTypeWrapper type = getUniqueType(declaration.type, source, enclosing, declaration.isTemplate);
-	SYMBOLS_ASSERT(type.isFunction());
 
-	ParameterTypes parameters;
-	if(isMember(declaration)
-		&& declaration.type.declaration != &gCtor)
-	{
-		// [over.match.funcs]
-		// a member function is considered to have an extra parameter, called the implicit object parameter, which
-		// represents the object for which the member function has been called. For the purposes of overload resolution,
-		// both static and non-static member functions have an implicit object parameter, but constructors do not.
-		SYMBOLS_ASSERT(isClass(*enclosing->declaration));
-		// For static member functions, the implicit object parameter is considered to match any object
-		UniqueTypeWrapper implicitObjectParameter = gImplicitObjectParameter;
-		if(!isStatic(declaration))
-		{
-			// For non-static member functions, the type of the implicit object parameter is "reference to cv X" where X is
-			// the class of which the function is a member and cv is the cv-qualification on the member function declaration.
-			// TODO: conversion-functions, non-conversions introduced by using-declaration
-			implicitObjectParameter = makeUniqueObjectType(*enclosing);
-			implicitObjectParameter.value.setQualifiers(type.value.getQualifiers());
-			implicitObjectParameter.push_front(ReferenceType());
-		}
-		parameters.push_back(implicitObjectParameter);
-	}
-	bool isEllipsis = getFunctionType(type.value).isEllipsis;
-	parameters.insert(parameters.end(), getParameterTypes(type.value).begin(), getParameterTypes(type.value).end());
-	type.pop_front();
-
-	if(!declaration.isTemplate)
-	{
-		// [temp.arg.explicit] An empty template argument list can be used to indicate that a given use refers to a
-		// specialization of a function template even when a normal (i.e., non-template) function is visible that would
-		// otherwise be used.
-		if(resolver.templateArguments != 0)
-		{
-			return ParameterTypes();
-		}
-		resolver.add(FunctionOverload(const_cast<Declaration*>(&declaration), type), parameters, isEllipsis, enclosing);
-		return parameters;
-	}
-
-	if(declaration.isSpecialization) // function template specializations don't take part in overload resolution?
-	{
-		return ParameterTypes();
-	}
-
-	FunctionTemplate functionTemplate;
-	functionTemplate.parameters.swap(parameters);
-	makeUniqueTemplateParameters(declaration.templateParams, functionTemplate.templateParameters, source, enclosing, true);
-
-	if(resolver.arguments.size() > functionTemplate.parameters.size())
-	{
-		return ParameterTypes(); // more arguments than parameters. TODO: same for non-template?
-	}
-
-	try
-	{
-		// [temp.deduct] When an explicit template argument list is specified, the template arguments must be compatible with the template parameter list
-		if(resolver.templateArguments != 0
-			&& resolver.templateArguments->size() > functionTemplate.templateParameters.size())
-		{
-			throw TypeErrorBase(source); // too many explicitly specified template arguments
-		}
-		TypeInstance specialization(const_cast<Declaration*>(&declaration), enclosing);
-		specialization.instantiated = true;
-		{
-			UniqueTypeArray::const_iterator p = functionTemplate.templateParameters.begin();
-			if(resolver.templateArguments != 0)
-			{
-				for(TemplateArgumentsInstance::const_iterator a = resolver.templateArguments->begin(); a != resolver.templateArguments->end(); ++a, ++p)
-				{
-					SYMBOLS_ASSERT(p != functionTemplate.templateParameters.end());
-					if((*a).isNonType() != (*p).isDependentNonType())
-					{
-						throw TypeErrorBase(source); // incompatible explicitly specified arguments
-					}
-					specialization.templateArguments.push_back(*a);
-				}
-			}
-			for(; p != functionTemplate.templateParameters.end(); ++p)
-			{
-				specialization.templateArguments.push_back(*p);
-			}
-		}
-
-		// substitute the template-parameters in the function's parameter list with the explicitly specified template-arguments
-		ParameterTypes substituted1;
-		substitute(substituted1, functionTemplate.parameters, source, specialization);
-		// TODO: [temp.deduct]
-		// After this substitution is performed, the function parameter type adjustments described in 8.3.5 are performed.
-
-		UniqueTypeArray arguments;
-		arguments.reserve(resolver.arguments.size());
-		for(Arguments::const_iterator a = resolver.arguments.begin(); a != resolver.arguments.end(); ++a)
-		{
-			arguments.push_back((*a).type);
-		}
-
-		specialization.templateArguments.resize(resolver.templateArguments == 0 ? 0 : resolver.templateArguments->size()); // preserve the explicitly specified arguments
-		specialization.templateArguments.resize(functionTemplate.templateParameters.size(), gUniqueTypeNull);
-		// NOTE: in rare circumstances, deduction may cause implicit instantiations, which occur at the point of overload resolution 
-		if(!deduceFunctionCall(substituted1, arguments, specialization.templateArguments, resolver.source, resolver.enclosing))
-		{
-			throw TypeErrorBase(source); // deduction failed
-		}
-
-
-		// substitute the template-parameters in the function's parameter list with the deduced template-arguments
-		ParameterTypes substituted2;
-		substitute(substituted2, substituted1, source, specialization);
-		type = substitute(type, source, specialization); // substitute the return type. TODO: should wait until overload is chosen?
-
-		resolver.add(FunctionOverload(const_cast<Declaration*>(&declaration), type), substituted2, isEllipsis, enclosing, functionTemplate);
-		return substituted2;
-	}
-	catch(TypeError&)
-	{
-		// deduction and checking failed
-	}
-
-	return ParameterTypes();
-}
 
 typedef std::vector<const Declaration*> OverloadSet;
 
@@ -687,25 +563,253 @@ inline void addBuiltInOperatorOverloads(OverloadResolver& resolver, BuiltInTypeA
 	}
 }
 
-inline bool isPlaceholderPointee(UniqueTypeWrapper type)
+
+extern BuiltInTypeArrayRange gIntegralTypesRange;
+extern BuiltInTypeArrayRange gPromotedIntegralTypesRange;
+extern BuiltInTypeArrayRange gArithmeticTypesRange;
+extern BuiltInTypeArrayRange gPromotedArithmeticTypesRange;
+
+inline void addBuiltInTypeConversions(UniqueTypeArray& conversions, BuiltInTypeArrayRange types)
 {
-	return type == gAnyTypePlaceholder
-		|| type == gObjectTypePlaceholder
-		|| type == gClassTypePlaceholder
-		|| type == gFunctionTypePlaceholder;
+	for(const BuiltInType* i = types.first; i != types.last; ++i)
+	{
+		conversions.push_back(*i);
+	}
 }
+
+template<typename Op>
+inline void forEachBase(const TypeInstance& classType, Op op)
+{
+	SYMBOLS_ASSERT(classType.instantiated);
+	op(classType);
+	for(UniqueBases::const_iterator i = classType.bases.begin(); i != classType.bases.end(); ++i)
+	{
+		forEachBase(**i, op);
+	}
+}
+
+template<typename T>
+inline void addQualificationPermutations(UniqueTypeArray& conversions, UniqueTypeWrapper type, const T& pointerType)
+{
+	conversions.push_back(pushType(qualifyType(type, CvQualifiers(false, false)), pointerType));
+	conversions.push_back(pushType(qualifyType(type, CvQualifiers(true, false)), pointerType));
+	conversions.push_back(pushType(qualifyType(type, CvQualifiers(false, true)), pointerType));
+	conversions.push_back(pushType(qualifyType(type, CvQualifiers(true, true)), pointerType));
+}
+
+inline void addQualificationPermutations(UniqueTypeArray& conversions, UniqueTypeWrapper type)
+{
+	addQualificationPermutations(conversions, type, PointerType());
+}
+
+
+struct AddPointerConversions
+{
+	UniqueTypeArray& conversions;
+	CvQualifiers qualifiers;
+	AddPointerConversions(UniqueTypeArray& conversions, CvQualifiers qualifiers)
+		: conversions(conversions), qualifiers(qualifiers)
+	{
+	}
+	void operator()(const TypeInstance& classType) const
+	{
+		addQualificationPermutations(conversions, qualifyType(makeUniqueObjectType(classType), qualifiers));
+	}
+};
+
+struct AddMemberPointerConversions
+{
+	UniqueTypeArray& conversions;
+	UniqueTypeWrapper type;
+	AddMemberPointerConversions(UniqueTypeArray& conversions, UniqueTypeWrapper type)
+		: conversions(conversions), type(type)
+	{
+	}
+	void operator()(const TypeInstance& classType) const
+	{
+		addQualificationPermutations(conversions, type, MemberPointerType(makeUniqueObjectType(classType)));
+	}
+};
 
 inline bool isPlaceholder(UniqueTypeWrapper type)
 {
 	type = removeReference(type);
 	return type == gArithmeticPlaceholder
 		|| type == gIntegralPlaceholder
-		|| type == gEnumerationPlaceholder
 		|| type == gPromotedIntegralPlaceholder
 		|| type == gPromotedArithmeticPlaceholder
-		|| type == gMemberPointerPlaceholder
-		|| (type.isPointer() && isPlaceholderPointee(popType(type)));
+		|| type == gEnumerationPlaceholder
+		|| type == gPointerToAnyPlaceholder
+		|| type == gPointerToObjectPlaceholder
+		|| type == gPointerToClassPlaceholder
+		|| type == gPointerToFunctionPlaceholder
+		|| type == gPointerToMemberPlaceholder;
 }
+
+// to: The placeholder parameter of the built-in operator.
+// from: The type of the argument expression after lvalue-to-rvalue conversion, or the type yielded by the best conversion function.
+inline void addBuiltInOperatorConversions(UniqueTypeArray& conversions, UniqueTypeWrapper to, UniqueTypeWrapper from, Location source, const TypeInstance* enclosing)
+{
+	SYMBOLS_ASSERT(isPlaceholder(removeReference(to)));
+	if(to.isReference())
+	{
+		// built-in operators that have reference parameters are always non-const, so must be an exact match.
+		conversions.push_back(from);
+		return;
+	}
+	if(isPointerPlaceholder(to))
+	{
+		SYMBOLS_ASSERT(from.isPointer());
+		UniqueTypeWrapper type = popType(from);
+		CvQualifiers qualifiers = type.value.getQualifiers();
+		if(isClass(type)
+			&& isComplete(type))
+		{
+			// the argument type 'pointer to class X' is convertible to a pointer to any base class of X
+			const TypeInstance& classType = getObjectType(type.value);
+			instantiateClass(classType, source, enclosing);
+			forEachBase(classType, AddPointerConversions(conversions, qualifiers));
+		}
+		else
+		{
+			addQualificationPermutations(conversions, type);
+		}
+		// the argument type 'pointer to X' is convertible to a pointer to void
+		addQualificationPermutations(conversions, qualifyType(gVoid, qualifiers));
+		return;
+	}
+
+	if(to == gPointerToMemberPlaceholder)
+	{
+		SYMBOLS_ASSERT(from.isMemberPointer());
+		UniqueTypeWrapper type = popType(from);
+		if(isComplete(from))
+		{
+			// the argument type 'pointer to member of class X of type Y' is convertible to a pointer to member of any base class of X of type Y
+			const TypeInstance& classType = getMemberPointerClass(from.value);
+			instantiateClass(classType, source, enclosing);
+			forEachBase(classType, AddMemberPointerConversions(conversions, type));
+		}
+		else
+		{
+			addQualificationPermutations(conversions, type, getMemberPointerType(from.value));
+		}
+		return;
+	}
+	if(to == gEnumerationPlaceholder)
+	{
+		SYMBOLS_ASSERT(isEnum(from));
+		conversions.push_back(from);
+		// the argument type 'enumeration of type E' is also convertible to any arithmetic type 
+		// drop through...
+	}
+	return addBuiltInTypeConversions(conversions, gArithmeticTypesRange);
+}
+
+#if 0
+inline void findBuiltInOperatorConversions(UniqueTypeArray& conversions, UniqueTypeWrapper to, UniqueTypeWrapper from, Location source, const TypeInstance* enclosing, bool isNullPointerConstant)
+{
+	bool isLvalue = false;
+	if(from.isReference())
+	{
+		isLvalue = true;
+		from.pop_front(); // TODO: removal of reference won't be detected later
+	}
+
+	if(to.isReference())
+	{
+		to.pop_front();
+		// in built-in operators that take a reference, the reference is always to a non-const type
+		SYMBOLS_ASSERT(!to.value.getQualifiers().isConst);
+
+		// 'from' may be T or T*
+		UniqueTypeWrapper matched = getExactMatchNoQualifiers(TargetType(to), from);
+		if(matched != gUniqueTypeNull // if the type is compatible
+			&& to.value.getQualifiers().isVolatile >= from.value.getQualifiers().isVolatile)
+		{
+			conversions.push_back(matched);
+			return;
+		}
+	
+		SYMBOLS_ASSERT(!isClass(from)); // TODO: direct binding via conversion function
+		return;
+	}
+
+	SYMBOLS_ASSERT(!isClass(to)); // built-in operators do not take arguments of class type
+	SYMBOLS_ASSERT(!isClass(from)); // TODO: user-defined conversion via conversion function
+
+	from = applyLvalueToRvalueConversion(from);
+
+	if(to.isPointer())
+	{
+		if(isNullPointerConstant)
+		{
+			// the null pointer constant is convertible to a pointer to any type
+			conversions.push_back(gUniqueTypeNull); // signifies null-pointer-constant
+			return;
+		}
+		if(!from.isPointer())
+		{
+			return;
+		}
+		UniqueTypeWrapper matched = getExactMatch(TargetType(to), from);
+		if(matched == gUniqueTypeNull) // if the placeholder type is not matched
+		{
+			return;
+		}
+
+		UniqueTypeWrapper type = popType(matched);
+		CvQualifiers qualifiers = type.value.getQualifiers();
+		if(isClass(type)
+			&& isComplete(type))
+		{
+			// the argument type 'pointer to class X' is convertible to a pointer to any base class of X
+			const TypeInstance& classType = getObjectType(type.value);
+			instantiateClass(classType, source, enclosing);
+			forEachBase(classType, AddPointerConversions(conversions, qualifiers));
+		}
+		else
+		{
+			addQualificationPermutations(conversions, type);
+		}
+		// the argument type 'pointer to X' is convertible to a pointer to void
+		addQualificationPermutations(conversions, qualifyType(gVoid, qualifiers));
+		return;
+	}
+
+	UniqueTypeWrapper matched = getExactMatch(TargetType(to), from);
+	if(matched == gUniqueTypeNull) // if the placeholder type is not matched
+	{
+		return;
+	}
+
+	if(to == gPointerToMemberPlaceholder)
+	{
+		SYMBOLS_ASSERT(matched.isMemberPointer());
+		UniqueTypeWrapper type = popType(matched);
+		if(isComplete(matched))
+		{
+			// the argument type 'pointer to member of class X of type Y' is convertible to a pointer to member of any base class of X of type Y
+			const TypeInstance& classType = getMemberPointerClass(matched.value);
+			instantiateClass(classType, source, enclosing);
+			forEachBase(classType, AddMemberPointerConversions(conversions, type));
+		}
+		else
+		{
+			addQualificationPermutations(conversions, type, getMemberPointerType(matched.value));
+		}
+		return;
+	}
+	if(to == gEnumerationPlaceholder)
+	{
+		SYMBOLS_ASSERT(isEnum(matched));
+		conversions.push_back(matched);
+		// the argument type 'enumeration of type E' is also convertible to any arithmetic type 
+		// drop through...
+	}
+	return addBuiltInTypeConversions(conversions, gArithmeticTypesRange);
+}
+#endif
 
 inline void addBuiltInOperatorOverloads(OverloadResolver& resolver, BuiltInGenericType1ArrayRange overloads)
 {
@@ -718,38 +822,54 @@ inline void addBuiltInOperatorOverloads(OverloadResolver& resolver, BuiltInGener
 			continue;
 		}
 
-		UniqueTypeWrapper target = gUniqueTypeNull;
+		UniqueTypeArray leftTypes;
 		Arguments::const_iterator a = resolver.arguments.begin();
 		ParameterTypes::const_iterator p = parameters.begin();
 		for(; a != resolver.arguments.end(); ++a, ++p)
 		{
 			UniqueTypeWrapper to = *p;
-			ImplicitConversion conversion = resolver.makeConversion(TargetType(to), *a);
+			const Argument& from = *a;
+			ImplicitConversion conversion = resolver.makeConversion(TargetType(to), from);
 			if(!isValid(conversion)) // if the argument could not be converted
 			{
-				target = gUniqueTypeNull;
+				leftTypes.clear();
 				break;
 			}
 			if(!isPlaceholder(to))
 			{
 				continue;
 			}
-			if(target != gUniqueTypeNull 
-				&& conversion.sequence.matched != target)
+			if(isGeneralPointer(TargetType(to))
+				&& isIntegral(from.type)) // if this argument is a null pointer constant expression
 			{
-				target = gUniqueTypeNull;
-				break;
+				continue; // null pointer matches any pointer type, but does not give enough information to add built-in overloads
 			}
-			target = conversion.sequence.matched;
+			UniqueTypeArray conversions;
+			addBuiltInOperatorConversions(conversions, to, conversion.sequence.matched, resolver.source, resolver.enclosing);
+			std::sort(conversions.begin(), conversions.end());
+			if(leftTypes.empty()) // if this is the left expression, or the left expression is not a placeholder
+			{
+				leftTypes.swap(conversions);
+				continue;
+			}
+			// find the union of both sets
+			UniqueTypeArray result;
+			std::set_union(leftTypes.begin(), leftTypes.end(), conversions.begin(), conversions.end(), std::insert_iterator<UniqueTypeArray>(result, result.begin()));
+			leftTypes.swap(result);
 		}
 
-		if(target == gUniqueTypeNull)
+		if(leftTypes.empty())
 		{
 			continue;
 		}
 
-		UserType substituted = overload.substitute(UserType(target));
-		addBuiltInOperatorOverload(resolver, substituted);
+		// TODO: limit qualification permutations for pointer / member-pointer
+		for(UniqueTypeArray::const_iterator i = leftTypes.begin(); i != leftTypes.end(); ++i)
+		{
+			UniqueTypeWrapper type = *i;
+			UserType substituted = overload.substitute(UserType(type));
+			addBuiltInOperatorOverload(resolver, substituted);
+		}
 	}
 }
 
@@ -768,6 +888,8 @@ extern BuiltInTypeArrayRange gUnaryLogicalOperatorTypes;
 extern BuiltInGenericType1ArrayRange gPointerAddOperatorTypes;
 extern BuiltInGenericType1ArrayRange gPointerSubtractOperatorTypes;
 extern BuiltInGenericType1ArrayRange gSubscriptOperatorTypes;
+extern BuiltInGenericType1ArrayRange gRelationalOperatorTypes;
+extern BuiltInGenericType1ArrayRange gEqualityOperatorTypes;
 
 // TODO:
 // the built-in candidates include all of the candidate operator functions defined in 13.6
@@ -844,13 +966,25 @@ inline void addBuiltInOperatorOverloads(OverloadResolver& resolver, const Identi
 	{
 		addBuiltInOperatorOverloads(resolver, gPointerAddOperatorTypes);
 	}
-	else if(id.value == gOperatorPlusId)
+	else if(id.value == gOperatorMinusId)
 	{
 		addBuiltInOperatorOverloads(resolver, gPointerSubtractOperatorTypes);
 	}
 	else if(id.value == gOperatorSubscriptId)
 	{
 		addBuiltInOperatorOverloads(resolver, gSubscriptOperatorTypes);
+	}
+	else if(id.value == gOperatorLessId
+		|| id.value == gOperatorGreaterId
+		|| id.value == gOperatorLessEqualId
+		|| id.value == gOperatorGreaterEqualId)
+	{
+		addBuiltInOperatorOverloads(resolver, gRelationalOperatorTypes);
+	}
+	else if(id.value == gOperatorEqualId
+		|| id.value == gOperatorNotEqualId)
+	{
+		addBuiltInOperatorOverloads(resolver, gEqualityOperatorTypes);
 	}
 }
 
@@ -1051,153 +1185,6 @@ const TypeInstance& getMemberOperatorType(UniqueTypeWrapper operand, bool isArro
 	return result;
 }
 
-inline void addConversionFunctionOverloads(OverloadResolver& resolver, const TypeInstance& classType, UniqueTypeWrapper to, Location source, const TypeInstance* enclosing)
-{
-	instantiateClass(classType, source, enclosing); // searching for overloads requires a complete type
-	LookupResultRef declaration = ::findDeclaration(classType, gConversionFunctionId, IsAny());
-	// TODO: conversion functions in base classes should not be hidden by those in derived
-	if(declaration != 0)
-	{
-		const TypeInstance* memberEnclosing = findEnclosingType(&classType, declaration->scope); // find the base class which contains the member-declaration
-		SEMANTIC_ASSERT(memberEnclosing != 0);
-
-		for(Declaration* p = findOverloaded(declaration); p != 0; p = p->overloaded)
-		{
-			SYMBOLS_ASSERT(p->enclosed != 0);
-
-			SYMBOLS_ASSERT(!p->isTemplate); // TODO: template-argument-deduction for conversion function
-			// 'template<typename T> operator T()' can be explicitly invoked with template argument list: e.g. 'x.operator int()'
-			// [temp.deduct.conv] Template argument deduction is done by comparing the return type of the template conversion function
-			// (call it P) with the type that is required as the result of the conversion (call it A)
-
-			UniqueTypeWrapper type = getUniqueType(p->type, source, memberEnclosing);
-			type.pop_front();
-
-			if(isClass(to)) // [over.match.copy]
-			{
-				// When the type of the initializer expression is a class type "cv S", the conversion functions of S and its
-				// base classes are considered. Those that are not hidden within S and yield a type whose cv-unqualified
-				// version is the same type as T or is a derived class thereof are candidate functions. Conversion functions
-				// that return "reference to X" return lvalues of type X and are therefore considered to yield X for this process
-				// of selecting candidate functions.
-				if(!isBaseOf(to, removeReference(type), source, enclosing))
-				{
-					continue;
-				}
-			}
-			else if(to.isReference()) // [over.match.ref]
-			{
-				// Assuming that "cv1 T" is the underlying type of the reference being initialized,
-				// and "cv S" is the type of the initializer expression, with S a class type, the candidate functions are
-				// selected as follows:
-				UniqueTypeWrapper tmpTo = to;
-				tmpTo.pop_front(); // remove reference
-				// The conversion functions of S and its base classes are considered. Those that are not hidden within S
-				// and yield type "reference to cv2 T2", where "cv1 T" is reference-compatible with "cv2 T2", are
-				// candidate functions.
-				if(!type.isReference())
-				{
-					continue;
-				}
-				type.pop_front(); // remove reference
-				if(!(isBaseOf(tmpTo, type, source, enclosing)
-					&& (isEqualCvQualification(tmpTo, type)
-						|| isGreaterCvQualification(tmpTo, type))))
-				{
-					continue;
-				}
-			}
-			else // [over.match.conv]
-			{
-				// The conversion functions of S and its base classes are considered. Those that are not hidden within S
-				// and yield type T or a type that can be converted to type T via a standard conversion sequence
-				// are candidate functions. Conversion functions that return a cv-qualified type are considered
-				// to yield the cv-unqualified version of that type for this process of selecting candidate functions. Conversion
-				// functions that return "reference to cv2 X" return lvalues of type "cv2 X" and are therefore considered
-				// to yield X for this process of selecting candidate functions.
-				bool isLvalue = type.isReference(); // TODO: lvalueness!
-				type = removeReference(type);
-				type.value.setQualifiers(CvQualifiers());
-				if(type.value.getPointer() != to.value.getPointer()
-					&& makeStandardConversionSequence(to, type, source, enclosing, false, isLvalue).rank == SCSRANK_INVALID)
-				{
-					continue;
-				}
-			}
-
-			addOverload(resolver, *p, source, memberEnclosing);
-		}
-	}
-}
-
-inline FunctionOverload findBestConversionFunction(UniqueTypeWrapper to, UniqueTypeWrapper from, Location source, const TypeInstance* enclosing, bool isNullPointerConstant, bool isLvalue)
-{
-	UniqueExpression nullPointerConstantExpression = makeExpression(IntegralConstantExpression(gSignedInt, IntegralConstant(0)));
-	ExpressionWrapper expression(isNullPointerConstant ? nullPointerConstantExpression : 0, isNullPointerConstant);
-	Arguments arguments;
-	arguments.push_back(Argument(expression, from));
-
-	// [over.best.ics]
-	// However, when considering the argument of a user-defined conversion function that is a candidate by
-	// 13.3.1.3 when invoked for the copying of the temporary in the second step of a class copy-initialization, or
-	// by 13.3.1.4, 13.3.1.5, or 13.3.1.6 in all cases, only standard conversion sequences and ellipsis conversion
-	// sequences are allowed.
-	OverloadResolver resolver(arguments, 0, source, enclosing, true); // disallow user-defined conversion when considering argument to conversion function
-
-	// TODO: [over.match.ref] Initialization by conversion function for direct reference binding.
-
-	// [dcl.init]\14
-	if(isClass(to)
-		&& isComplete(to)) // can only convert to a class that is complete
-	{
-		// add converting constructors of 'to'
-		const TypeInstance& classType = getObjectType(to.value);
-		instantiateClass(classType, source, enclosing); // searching for overloads requires a complete type
-		Identifier tmp;
-		tmp.value = classType.declaration->getName().value;
-		tmp.source = source;
-		LookupResultRef declaration = ::findDeclaration(classType, tmp, IsConstructor());
-
-		if(declaration != 0) // TODO: add implicit copy constructor!
-		{
-			const TypeInstance* memberEnclosing = findEnclosingType(&classType, declaration->scope); // find the base class which contains the member-declaration
-			SEMANTIC_ASSERT(memberEnclosing != 0);
-
-			for(Declaration* p = findOverloaded(declaration); p != 0; p = p->overloaded)
-			{
-				SYMBOLS_ASSERT(p->enclosed != 0);
-
-				// [class.conv.ctor]
-				// A constructor declared without the function-specifier explicit that can be called with a single parameter
-				// specifies a conversion from the type of its first parameter to the type of its class. Such a constructor is
-				// called a converting constructor.
-				if(declaration->specifiers.isExplicit)
-				{
-					continue;
-				}
-
-				addOverload(resolver, *p, source, memberEnclosing); // will reject constructors that cannot be called with a single argument, because they are not viable.
-			}
-		}
-	}
-
-	if(isClass(from)
-		&& isComplete(from)) // can only convert from a class that is complete
-	{
-		addConversionFunctionOverloads(resolver, getObjectType(from.value), to, source, enclosing);
-	}
-
-	// TODO: return-type of constructor should be 'to'
-	FunctionOverload result = resolver.get();
-	if(result.declaration != 0
-		&& result.type.isSimple()
-		&& getObjectType(result.type.value).declaration == &gCtor)
-	{
-		result.type = to;
-		result.type.value.setQualifiers(CvQualifiers());
-	}
-	return result;
-}
 
 
 struct WalkerContext : public TreeAllocator<int>
@@ -2107,6 +2094,10 @@ struct WalkerBase : public WalkerState
 		//    the other and is an rvalue.
 		//  - Both the second and the third operands have type void; the result is of type void and is an rvalue.
 		//    [Note: this includes the case where both operands are throw-expressions.
+
+		// TODO: technically not correct to remove toplevel qualifiers here, as it will change the overload resolution result when later choosing a conversion-function
+		leftType.value.setQualifiers(CvQualifiers());
+		rightType.value.setQualifiers(CvQualifiers());
 		if(leftType == gVoid)
 		{
 			return rightType;
@@ -3308,11 +3299,17 @@ struct PostfixExpressionWalker : public WalkerBase
 			if(id == 0) // if the left-hand expression does not contain an id-expression (or is not a class which supports 'operator()')
 			{
 				// the call does not require overload resolution
-				SEMANTIC_ASSERT(type.isFunction()); // the type of a function is T()
+				SEMANTIC_ASSERT(type.isFunction());
 				type.pop_front(); // get the return type: T
 			}
-			else if(type.isFunction()) // and the identifier names an overloadable function (i.e. requires overload resolution)
+			else if(id->value == gDestructorId.value)
 			{
+				type = gUniqueTypeNull;
+			}
+			else if(type.isFunction() // if the identifier names an overloadable function
+				|| isClass(type)) // or is a class which supports 'operator()'
+			{
+				// perform overload resolution)
 				SEMANTIC_ASSERT(isDecorated(*id)); // id should be decorated with result of name lookup
 				SEMANTIC_ASSERT(getDeclaration(*id) != &gDependentObject); // the id-expression should not be dependent
 
@@ -3364,6 +3361,13 @@ struct PostfixExpressionWalker : public WalkerBase
 					//type = isDependent(overload.declaration->type) ? gUniqueTypeNull : getUniqueType(overload.declaration->type, Location(id->source, context.declarationCount), idEnclosing);
 				}
 				type = overload.type;
+			}
+			else // else this is a pointer to function
+			{
+				SEMANTIC_ASSERT(type.isPointer());
+				type.pop_front();
+				SEMANTIC_ASSERT(type.isFunction());
+				type.pop_front();
 			}
 		}
 		// TODO: 13.3.1.1.2  Call to object of class type

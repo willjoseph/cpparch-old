@@ -96,36 +96,36 @@ StringLiteralTypeId gStringLiteral(&gCharDeclaration, TREEALLOCATOR_NULL);
 StringLiteralTypeId gWideStringLiteral(&gWCharTDeclaration, TREEALLOCATOR_NULL);
 
 // built-in operator placeholders
-Identifier gAnyTypePlaceholderId = makeIdentifier("$any-placeholder");
-BuiltInTypeDeclaration gAnyTypePlaceholderDeclaration(gAnyTypePlaceholderId, TYPE_UNKNOWN);
-ObjectTypeId gAnyTypePlaceholder(&gAnyTypePlaceholderDeclaration, TREEALLOCATOR_NULL);
 Identifier gArithmeticPlaceholderId = makeIdentifier("$arithmetic-placeholder");
 BuiltInTypeDeclaration gArithmeticPlaceholderDeclaration(gArithmeticPlaceholderId, TYPE_UNKNOWN);
 ObjectTypeId gArithmeticPlaceholder(&gArithmeticPlaceholderDeclaration, TREEALLOCATOR_NULL);
 Identifier gIntegralPlaceholderId = makeIdentifier("$integral-placeholder");
 BuiltInTypeDeclaration gIntegralPlaceholderDeclaration(gIntegralPlaceholderId, TYPE_UNKNOWN);
 ObjectTypeId gIntegralPlaceholder(&gIntegralPlaceholderDeclaration, TREEALLOCATOR_NULL);
-Identifier gEnumerationPlaceholderId = makeIdentifier("$enumeration-placeholder");
-BuiltInTypeDeclaration gEnumerationPlaceholderDeclaration(gEnumerationPlaceholderId, TYPE_UNKNOWN);
-ObjectTypeId gEnumerationPlaceholder(&gEnumerationPlaceholderDeclaration, TREEALLOCATOR_NULL);
 Identifier gPromotedArithmeticPlaceholderId = makeIdentifier("$promoted-arithmetic-placeholder");
 BuiltInTypeDeclaration gPromotedArithmeticPlaceholderDeclaration(gPromotedArithmeticPlaceholderId, TYPE_UNKNOWN);
 ObjectTypeId gPromotedArithmeticPlaceholder(&gPromotedArithmeticPlaceholderDeclaration, TREEALLOCATOR_NULL);
 Identifier gPromotedIntegralPlaceholderId = makeIdentifier("$promoted-integral-placeholder");
 BuiltInTypeDeclaration gPromotedIntegralPlaceholderDeclaration(gPromotedIntegralPlaceholderId, TYPE_UNKNOWN);
 ObjectTypeId gPromotedIntegralPlaceholder(&gPromotedIntegralPlaceholderDeclaration, TREEALLOCATOR_NULL);
-Identifier gObjectTypePlaceholderId = makeIdentifier("$object-type-placeholder");
-BuiltInTypeDeclaration gObjectTypePlaceholderDeclaration(gObjectTypePlaceholderId, TYPE_UNKNOWN);
-ObjectTypeId gObjectTypePlaceholder(&gObjectTypePlaceholderDeclaration, TREEALLOCATOR_NULL);
-Identifier gClassTypePlaceholderId = makeIdentifier("$class-type-placeholder");
-BuiltInTypeDeclaration gClassTypePlaceholderDeclaration(gClassTypePlaceholderId, TYPE_UNKNOWN);
-ObjectTypeId gClassTypePlaceholder(&gClassTypePlaceholderDeclaration, TREEALLOCATOR_NULL);
-Identifier gFunctionTypePlaceholderId = makeIdentifier("$function-type-placeholder");
-BuiltInTypeDeclaration gFunctionTypePlaceholderDeclaration(gFunctionTypePlaceholderId, TYPE_UNKNOWN);
-ObjectTypeId gFunctionTypePlaceholder(&gFunctionTypePlaceholderDeclaration, TREEALLOCATOR_NULL);
-Identifier gMemberPointerPlaceholderId = makeIdentifier("$member-pointer-placeholder");
-BuiltInTypeDeclaration gMemberPointerPlaceholderDeclaration(gMemberPointerPlaceholderId, TYPE_UNKNOWN);
-ObjectTypeId gMemberPointerPlaceholder(&gMemberPointerPlaceholderDeclaration, TREEALLOCATOR_NULL);
+Identifier gEnumerationPlaceholderId = makeIdentifier("$enumeration-placeholder");
+BuiltInTypeDeclaration gEnumerationPlaceholderDeclaration(gEnumerationPlaceholderId, TYPE_UNKNOWN);
+ObjectTypeId gEnumerationPlaceholder(&gEnumerationPlaceholderDeclaration, TREEALLOCATOR_NULL);
+Identifier gPointerToAnyPlaceholderId = makeIdentifier("$pointer-to-any-placeholder");
+BuiltInTypeDeclaration gPointerToAnyPlaceholderDeclaration(gPointerToAnyPlaceholderId, TYPE_UNKNOWN);
+ObjectTypeId gPointerToAnyPlaceholder(&gPointerToAnyPlaceholderDeclaration, TREEALLOCATOR_NULL);
+Identifier gPointerToObjectPlaceholderId = makeIdentifier("$pointer-to-object-placeholder");
+BuiltInTypeDeclaration gPointerToObjectPlaceholderDeclaration(gPointerToObjectPlaceholderId, TYPE_UNKNOWN);
+ObjectTypeId gPointerToObjectPlaceholder(&gPointerToObjectPlaceholderDeclaration, TREEALLOCATOR_NULL);
+Identifier gPointerToClassPlaceholderId = makeIdentifier("$pointer-to-class-placeholder");
+BuiltInTypeDeclaration gPointerToClassPlaceholderDeclaration(gPointerToClassPlaceholderId, TYPE_UNKNOWN);
+ObjectTypeId gPointerToClassPlaceholder(&gPointerToClassPlaceholderDeclaration, TREEALLOCATOR_NULL);
+Identifier gPointerToFunctionPlaceholderId = makeIdentifier("$pointer-to-function-placeholder");
+BuiltInTypeDeclaration gPointerToFunctionPlaceholderDeclaration(gPointerToFunctionPlaceholderId, TYPE_UNKNOWN);
+ObjectTypeId gPointerToFunctionPlaceholder(&gPointerToFunctionPlaceholderDeclaration, TREEALLOCATOR_NULL);
+Identifier gPointerToMemberPlaceholderId = makeIdentifier("$member-pointer-placeholder");
+BuiltInTypeDeclaration gPointerToMemberPlaceholderDeclaration(gPointerToMemberPlaceholderId, TYPE_UNKNOWN);
+ObjectTypeId gPointerToMemberPlaceholder(&gPointerToMemberPlaceholderDeclaration, TREEALLOCATOR_NULL);
 
 // special
 Identifier gImplicitObjectParameterId = makeIdentifier("$implicit-object-parameter");
@@ -355,6 +355,12 @@ inline BuiltInType popType(BuiltInType type)
 	return type;
 }
 
+inline UserType popType(UserType type)
+{
+	type.pop_front();
+	return type;
+}
+
 inline BuiltInType qualifyType(BuiltInType type, CvQualifiers qualifiers)
 {
 	type.value.setQualifiers(qualifiers);
@@ -402,6 +408,7 @@ const BuiltInType gIntegralTypes[] = {
 	gWCharT,
 	gBool
 };
+BuiltInTypeArrayRange gIntegralTypesRange = ARRAY_RANGE(gIntegralTypes);
 
 const BuiltInType gPromotedIntegralTypes[] = {
 	gSignedInt,
@@ -411,6 +418,7 @@ const BuiltInType gPromotedIntegralTypes[] = {
 	gSignedLongLongInt,
 	gUnsignedLongLongInt
 };
+BuiltInTypeArrayRange gPromotedIntegralTypesRange = ARRAY_RANGE(gPromotedIntegralTypes);
 
 const BuiltInType gArithmeticTypes[] = {
 	gChar,
@@ -430,6 +438,7 @@ const BuiltInType gArithmeticTypes[] = {
 	gDouble,
 	gLongDouble
 };
+BuiltInTypeArrayRange gArithmeticTypesRange = ARRAY_RANGE(gArithmeticTypes);
 
 const BuiltInType gPromotedArithmeticTypes[] = {
 	gSignedInt,
@@ -442,6 +451,7 @@ const BuiltInType gPromotedArithmeticTypes[] = {
 	gDouble,
 	gLongDouble
 };
+BuiltInTypeArrayRange gPromotedArithmeticTypesRange = ARRAY_RANGE(gPromotedArithmeticTypes);
 
 struct GeneratedTypeArray : std::vector<BuiltInType>
 {
@@ -608,49 +618,65 @@ BuiltInType gPtrDiffT = gSignedLongLongInt;
 template<bool builtIn>
 UniqueTypeGeneric<builtIn> makePointerArithmeticOperatorType(UniqueTypeGeneric<builtIn> type)
 {
-	UniqueTypeGeneric<builtIn> pointer = pushType(type, PointerType());
-	return makeFunctionType(pointer, pointer, UniqueTypeGeneric<builtIn>(gPtrDiffT)); // T*(T*, ptrdiff_t)
+	return makeFunctionType(type, type, UniqueTypeGeneric<builtIn>(gPtrDiffT)); // T*(T*, ptrdiff_t)
 }
 
 template<bool builtIn>
 UniqueTypeGeneric<builtIn> makePointerArithmeticOperatorTypeSwapped(UniqueTypeGeneric<builtIn> type)
 {
-	UniqueTypeGeneric<builtIn> pointer = pushType(type, PointerType());
-	return makeFunctionType(pointer, UniqueTypeGeneric<builtIn>(gPtrDiffT), pointer); // T*(ptrdiff_t, T*)
+	return makeFunctionType(type, UniqueTypeGeneric<builtIn>(gPtrDiffT), type); // T*(ptrdiff_t, T*)
 }
 
 template<bool builtIn>
 UniqueTypeGeneric<builtIn> makeSubscriptOperatorType(UniqueTypeGeneric<builtIn> type)
 {
-	UniqueTypeGeneric<builtIn> pointer = pushType(type, PointerType());
-	UniqueTypeGeneric<builtIn> ref = pushType(type, ReferenceType());
-	return makeFunctionType(ref, pointer, UniqueTypeGeneric<builtIn>(gPtrDiffT)); // T&(T*, ptrdiff_t)
+	UniqueTypeGeneric<builtIn> ref = pushType(popType(type), ReferenceType());
+	return makeFunctionType(ref, type, UniqueTypeGeneric<builtIn>(gPtrDiffT)); // T&(T*, ptrdiff_t)
 }
 
 template<bool builtIn>
 UniqueTypeGeneric<builtIn> makeSubscriptOperatorTypeSwapped(UniqueTypeGeneric<builtIn> type)
 {
-	UniqueTypeGeneric<builtIn> pointer = pushType(type, PointerType());
-	UniqueTypeGeneric<builtIn> ref = pushType(type, ReferenceType());
-	return makeFunctionType(ref, UniqueTypeGeneric<builtIn>(gPtrDiffT), pointer); // T&(ptrdiff_t, T*)
+	UniqueTypeGeneric<builtIn> ref = pushType(popType(type), ReferenceType());
+	return makeFunctionType(ref, UniqueTypeGeneric<builtIn>(gPtrDiffT), type); // T&(ptrdiff_t, T*)
 }
 
+template<bool builtIn>
+UniqueTypeGeneric<builtIn> makeComparisonOperatorType(UniqueTypeGeneric<builtIn> type)
+{
+	return makeFunctionType(UniqueTypeGeneric<builtIn>(gBool), type, type); // bool(T, T)
+}
+
+
 BuiltInGenericType1 gPointerAddOperatorTypeArray[] = {
-	MAKE_GENERICTYPE1(makePointerArithmeticOperatorType, gObjectTypePlaceholder),
-	MAKE_GENERICTYPE1(makePointerArithmeticOperatorTypeSwapped, gObjectTypePlaceholder),
+	MAKE_GENERICTYPE1(makePointerArithmeticOperatorType, gPointerToObjectPlaceholder),
+	MAKE_GENERICTYPE1(makePointerArithmeticOperatorTypeSwapped, gPointerToObjectPlaceholder),
 };
 BuiltInGenericType1ArrayRange gPointerAddOperatorTypes = ARRAY_RANGE(gPointerAddOperatorTypeArray);
 
 BuiltInGenericType1 gPointerSubtractOperatorTypeArray[] = {
-	MAKE_GENERICTYPE1(makePointerArithmeticOperatorType, gObjectTypePlaceholder),
+	MAKE_GENERICTYPE1(makePointerArithmeticOperatorType, gPointerToObjectPlaceholder),
 };
 BuiltInGenericType1ArrayRange gPointerSubtractOperatorTypes = ARRAY_RANGE(gPointerSubtractOperatorTypeArray);
 
 BuiltInGenericType1 gSubscriptOperatorTypeArray[] = {
-	MAKE_GENERICTYPE1(makeSubscriptOperatorType, gObjectTypePlaceholder),
-	MAKE_GENERICTYPE1(makeSubscriptOperatorTypeSwapped, gObjectTypePlaceholder),
+	MAKE_GENERICTYPE1(makeSubscriptOperatorType, gPointerToObjectPlaceholder),
+	MAKE_GENERICTYPE1(makeSubscriptOperatorTypeSwapped, gPointerToObjectPlaceholder),
 };
 BuiltInGenericType1ArrayRange gSubscriptOperatorTypes = ARRAY_RANGE(gSubscriptOperatorTypeArray);
+
+BuiltInGenericType1 gRelationalOperatorTypeArray[] = {
+	MAKE_GENERICTYPE1(makeComparisonOperatorType, gPointerToAnyPlaceholder),
+	MAKE_GENERICTYPE1(makeComparisonOperatorType, gEnumerationPlaceholder),
+};
+BuiltInGenericType1ArrayRange gRelationalOperatorTypes = ARRAY_RANGE(gRelationalOperatorTypeArray);
+
+BuiltInGenericType1 gEqualityOperatorTypeArray[] = {
+	MAKE_GENERICTYPE1(makeComparisonOperatorType, gPointerToAnyPlaceholder),
+	MAKE_GENERICTYPE1(makeComparisonOperatorType, gEnumerationPlaceholder),
+	MAKE_GENERICTYPE1(makeComparisonOperatorType, gPointerToMemberPlaceholder),
+};
+BuiltInGenericType1ArrayRange gEqualityOperatorTypes = ARRAY_RANGE(gEqualityOperatorTypeArray);
 
 // ----------------------------------------------------------------------------
 
@@ -662,23 +688,23 @@ struct Derived : Base
 {
 };
 
-class Any
+class PointerToAny
 {
 };
 
-class Object
+class PointerToObject
 {
 };
 
-class Class
+class PointerToClass
 {
 };
 
-class Function
+class PointerToFunction
 {
 };
 
-class MemberPointer
+class PointerToMember
 {
 };
 
@@ -798,47 +824,47 @@ struct MakeType<Derived>
 };
 
 template<>
-struct MakeType<Any>
+struct MakeType<PointerToAny>
 {
 	static BuiltInType apply()
 	{
-		return gAnyTypePlaceholder;
+		return gPointerToAnyPlaceholder;
 	}
 };
 
 template<>
-struct MakeType<Object>
+struct MakeType<PointerToObject>
 {
 	static BuiltInType apply()
 	{
-		return gObjectTypePlaceholder;
+		return gPointerToObjectPlaceholder;
 	}
 };
 
 template<>
-struct MakeType<Class>
+struct MakeType<PointerToClass>
 {
 	static BuiltInType apply()
 	{
-		return gClassTypePlaceholder;
+		return gPointerToClassPlaceholder;
 	}
 };
 
 template<>
-struct MakeType<Function>
+struct MakeType<PointerToFunction>
 {
 	static BuiltInType apply()
 	{
-		return gFunctionTypePlaceholder;
+		return gPointerToFunctionPlaceholder;
 	}
 };
 
 template<>
-struct MakeType<MemberPointer>
+struct MakeType<PointerToMember>
 {
 	static BuiltInType apply()
 	{
-		return gMemberPointerPlaceholder;
+		return gPointerToMemberPlaceholder;
 	}
 };
 
@@ -1553,24 +1579,24 @@ inline void testIcsRank()
 	TestIcsRank<Base&, Base>::apply(ICSRANK_INVALID, false, false);
 
 	// placeholders
-	TestIcsRank<Any*, Base*, Base>::match(ICSRANK_STANDARDEXACT);
-	TestIcsRank<Any*, int*, int>::match(ICSRANK_STANDARDEXACT);
-	TestIcsRank<Any*, float*, float>::match(ICSRANK_STANDARDEXACT);
-	TestIcsRank<Any*, void(*)(), void()>::match(ICSRANK_STANDARDEXACT);
-	TestIcsRank<Any*, int>::match(ICSRANK_INVALID);
+	TestIcsRank<PointerToAny, Base*, Base*>::match(ICSRANK_STANDARDEXACT);
+	TestIcsRank<PointerToAny, int*, int*>::match(ICSRANK_STANDARDEXACT);
+	TestIcsRank<PointerToAny, float*, float*>::match(ICSRANK_STANDARDEXACT);
+	TestIcsRank<PointerToAny, void(*)(), void(*)()>::match(ICSRANK_STANDARDEXACT);
+	TestIcsRank<PointerToAny, int>::match(ICSRANK_INVALID);
 
-	TestIcsRank<Class*, Base*, Base>::match(ICSRANK_STANDARDEXACT);
-	TestIcsRank<Class*, int*>::match(ICSRANK_INVALID);
+	TestIcsRank<PointerToClass, Base*, Base*>::match(ICSRANK_STANDARDEXACT);
+	TestIcsRank<PointerToClass, int*>::match(ICSRANK_INVALID);
 
-	TestIcsRank<Object*, Base*, Base>::match(ICSRANK_STANDARDEXACT);
-	TestIcsRank<Object*, int*, int>::match(ICSRANK_STANDARDEXACT);
-	TestIcsRank<Object*, void**, void*>::match(ICSRANK_STANDARDEXACT);
-	TestIcsRank<Object*, void(*)()>::match(ICSRANK_INVALID);
-	TestIcsRank<Object*, void*>::match(ICSRANK_INVALID);
+	TestIcsRank<PointerToObject, Base*, Base*>::match(ICSRANK_STANDARDEXACT);
+	TestIcsRank<PointerToObject, int*, int*>::match(ICSRANK_STANDARDEXACT);
+	TestIcsRank<PointerToObject, void**, void**>::match(ICSRANK_STANDARDEXACT);
+	TestIcsRank<PointerToObject, void(*)()>::match(ICSRANK_INVALID);
+	TestIcsRank<PointerToObject, void*>::match(ICSRANK_INVALID);
 
-	TestIcsRank<Function*, void(*)(), void()>::match(ICSRANK_STANDARDEXACT);
-	TestIcsRank<Function*, Base*, void()>::apply(ICSRANK_INVALID);
-	TestIcsRank<Function*, int*>::match(ICSRANK_INVALID);
+	TestIcsRank<PointerToFunction, void(*)(),  void(*)()>::match(ICSRANK_STANDARDEXACT);
+	TestIcsRank<PointerToFunction, Base*>::apply(ICSRANK_INVALID);
+	TestIcsRank<PointerToFunction, int*>::match(ICSRANK_INVALID);
 
 	TestIcsRank<Arithmetic, int, int>::match(ICSRANK_STANDARDEXACT);
 	TestIcsRank<Arithmetic, float, float>::match(ICSRANK_STANDARDEXACT);
@@ -1587,13 +1613,13 @@ inline void testIcsRank()
 	TestIcsRank<PromotedIntegral, float, int>::match(ICSRANK_STANDARDCONVERSION);
 	TestIcsRank<PromotedIntegral, int*>::match(ICSRANK_INVALID);
 
-	TestIcsRank<MemberPointer, int Base::*, int Base::*>::match(ICSRANK_STANDARDEXACT);
-	TestIcsRank<MemberPointer&, int Base::*&, int Base::*>::match(ICSRANK_STANDARDEXACT);
-	TestIcsRank<MemberPointer volatile&, int Base::* volatile&, int Base::*>::match(ICSRANK_STANDARDEXACT);
-	TestIcsRank<MemberPointer, int*>::match(ICSRANK_INVALID);
+	TestIcsRank<PointerToMember, int Base::*, int Base::*>::match(ICSRANK_STANDARDEXACT);
+	TestIcsRank<PointerToMember&, int Base::*&, int Base::*>::match(ICSRANK_STANDARDEXACT);
+	TestIcsRank<PointerToMember volatile&, int Base::* volatile&, int Base::*>::match(ICSRANK_STANDARDEXACT);
+	TestIcsRank<PointerToMember, int*>::match(ICSRANK_INVALID);
 
-	TestIcsRank<Any*&, Base*&,Base>::match(ICSRANK_STANDARDEXACT);
-	TestIcsRank<Any* volatile&, Base* volatile&, Base>::match(ICSRANK_STANDARDEXACT);
+	TestIcsRank<PointerToAny&, Base*&,Base*>::match(ICSRANK_STANDARDEXACT);
+	TestIcsRank<PointerToAny volatile&, Base* volatile&, Base*>::match(ICSRANK_STANDARDEXACT);
 }
 
 struct IcsRankTest

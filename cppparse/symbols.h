@@ -3711,9 +3711,17 @@ struct SubstituteVisitor : TypeElementVisitor
 	}
 	virtual void visit(const DependentNonType& element)
 	{
-		// TODO: SFINAE for expressions: check that type of template argument matches template parameter
-		IntegralConstant value = evaluateExpression(element.expression, source, &enclosingType);
-		type.push_front(NonType(value));
+		if(isDependent(enclosingType)) // TODO: unify DependentNonType and NonType
+		{
+			// occurs when substituting with a dependent template argument list, if a template function is called with an empty (or partial) explicit template argument list.
+			type.push_front(element);
+		}
+		else
+		{
+			// TODO: SFINAE for expressions: check that type of template argument matches template parameter
+			IntegralConstant value = evaluateExpression(element.expression, source, &enclosingType);
+			type.push_front(NonType(value));
+		}
 	}
 	virtual void visit(const TemplateTemplateArgument& element)
 	{
@@ -5767,16 +5775,16 @@ struct TargetType : UniqueTypeWrapper
 	}
 };
 
-extern ObjectTypeId gAnyTypePlaceholder;
 extern ObjectTypeId gArithmeticPlaceholder;
 extern ObjectTypeId gIntegralPlaceholder;
-extern ObjectTypeId gEnumerationPlaceholder;
 extern ObjectTypeId gPromotedIntegralPlaceholder;
 extern ObjectTypeId gPromotedArithmeticPlaceholder;
-extern ObjectTypeId gObjectTypePlaceholder;
-extern ObjectTypeId gClassTypePlaceholder;
-extern ObjectTypeId gFunctionTypePlaceholder;
-extern ObjectTypeId gMemberPointerPlaceholder;
+extern ObjectTypeId gEnumerationPlaceholder;
+extern ObjectTypeId gPointerToAnyPlaceholder;
+extern ObjectTypeId gPointerToObjectPlaceholder;
+extern ObjectTypeId gPointerToClassPlaceholder;
+extern ObjectTypeId gPointerToFunctionPlaceholder;
+extern ObjectTypeId gPointerToMemberPlaceholder;
 
 inline UniqueTypeWrapper getExactMatch(UniqueTypeWrapper to, UniqueTypeWrapper from)
 {
@@ -5785,10 +5793,6 @@ inline UniqueTypeWrapper getExactMatch(UniqueTypeWrapper to, UniqueTypeWrapper f
 
 inline UniqueTypeWrapper getExactMatch(TargetType to, UniqueTypeWrapper from)
 {
-	if(to == gAnyTypePlaceholder)
-	{
-		return from;
-	}
 	if(to == gPromotedArithmeticPlaceholder
 		&& isPromotedArithmetic(from))
 	{
@@ -5814,34 +5818,32 @@ inline UniqueTypeWrapper getExactMatch(TargetType to, UniqueTypeWrapper from)
 	{
 		return from;
 	}
-	if(to == gObjectTypePlaceholder
-		&& isObject(from))
+	if(from.isPointer())
 	{
-		return from;
+		if(to == gPointerToAnyPlaceholder)
+		{
+			return from;
+		}
+		if(to == gPointerToObjectPlaceholder
+			&& isObject(popType(from)))
+		{
+			return from;
+		}
+		if(to == gPointerToClassPlaceholder
+			&& isClass(popType(from)))
+		{
+			return from;
+		}
+		if(to == gPointerToFunctionPlaceholder
+			&& popType(from).isFunction())
+		{
+			return from;
+		}
 	}
-	if(to == gClassTypePlaceholder
-		&& isClass(from))
-	{
-		return from;
-	}
-	if(to == gFunctionTypePlaceholder
-		&& from.isFunction())
-	{
-		return from;
-	}
-	if(to == gMemberPointerPlaceholder
+	if(to == gPointerToMemberPlaceholder
 		&& from.isMemberPointer())
 	{
 		return from;
-	}
-	// handle a placeholder target type of the form 'T*'
-	if(isEqualCvQualification(to, from)
-		&& to.isPointer()
-		&& from.isPointer())
-	{
-		to.pop_front();
-		from.pop_front();
-		return getExactMatch(to, from);
 	}
 	return getExactMatch(UniqueTypeWrapper(to), from);
 }
@@ -5894,6 +5896,26 @@ inline StandardConversionSequence makeScsPromotion(To to, UniqueTypeWrapper from
 	return STANDARDCONVERSIONSEQUENCE_INVALID;
 }
 
+inline bool isGeneralPointer(UniqueTypeWrapper type)
+{
+	return type.isPointer() || type.isMemberPointer();
+}
+
+inline bool isPointerPlaceholder(UniqueTypeWrapper type)
+{
+	return type == gPointerToAnyPlaceholder
+		|| type == gPointerToObjectPlaceholder
+		|| type == gPointerToClassPlaceholder
+		|| type == gPointerToFunctionPlaceholder;
+}
+
+inline bool isGeneralPointer(TargetType type)
+{
+	return isPointerPlaceholder(type)
+		|| type == gPointerToMemberPlaceholder
+		|| isGeneralPointer(UniqueTypeWrapper(type));
+}
+
 template<typename To>
 inline StandardConversionSequence makeScsConversion(Location source, const TypeInstance* enclosing, To to, UniqueTypeWrapper from, bool isNullPointerConstant = false) // TODO: detect null pointer constant
 {
@@ -5905,11 +5927,11 @@ inline StandardConversionSequence makeScsConversion(Location source, const TypeI
 		// can convert from enumeration to integer/floating/bool, but not in reverse
 		return StandardConversionSequence(SCSRANK_CONVERSION, CvQualifiers(), gSignedInt); // TODO: correct type of integral conversion
 	}
-	if((to.isPointer() || to.isMemberPointer())
+	if(isGeneralPointer(to)
 		&& isIntegral(from)
 		&& isNullPointerConstant)
 	{
-		return StandardConversionSequence(SCSRANK_CONVERSION, CvQualifiers()); // 0 -> T*
+		return StandardConversionSequence(SCSRANK_CONVERSION, CvQualifiers(), gIntegralPlaceholder); // 0 -> T*, 0 -> T C::*
 	}
 	if(to.isSimplePointer()
 		&& from.isSimplePointer()
@@ -5935,12 +5957,12 @@ inline StandardConversionSequence makeScsConversion(Location source, const TypeI
 		&& from.isMemberPointer()
 		&& isBaseOf(getMemberPointerClass(to.value), getMemberPointerClass(from.value), source, enclosing))
 	{
-		return StandardConversionSequence(SCSRANK_CONVERSION, CvQualifiers()); // D::* -> B::*
+		return StandardConversionSequence(SCSRANK_CONVERSION, CvQualifiers()); // T D::* -> T B::*
 	}
 	if(to == gBool
 		&& (from.isPointer() || from.isMemberPointer()))
 	{
-		return StandardConversionSequence(SCSRANK_CONVERSION, CvQualifiers()); // T* -> bool, T::* -> bool
+		return StandardConversionSequence(SCSRANK_CONVERSION, CvQualifiers()); // T* -> bool, T C::* -> bool
 	}
 	if(to.isSimple()
 		&& from.isSimple()
@@ -5979,11 +6001,12 @@ inline StandardConversionSequence makeScsConversion(Location source, const TypeI
 // B <- D
 
 template<typename To>
-inline StandardConversionSequence makeScsExactMatch(To to, UniqueTypeWrapper from)
+inline StandardConversionSequence makeScsExactMatch(To target, UniqueTypeWrapper from)
 {
+	UniqueTypeWrapper matched = getExactMatchNoQualifiers(target, from);
+	UniqueTypeWrapper to = target;
 	for(;;)
 	{
-		UniqueTypeWrapper matched = getExactMatchNoQualifiers(to, from);
 		if(matched != gUniqueTypeNull)
 		{
 			return isEqualCvQualification(to, from) || isGreaterCvQualification(to, from)
@@ -6005,6 +6028,7 @@ inline StandardConversionSequence makeScsExactMatch(To to, UniqueTypeWrapper fro
 		}
 		to.pop_front();
 		from.pop_front();
+		matched = getExactMatchNoQualifiers(to, from);
 	}
 	return STANDARDCONVERSIONSEQUENCE_INVALID;
 }
@@ -6119,10 +6143,11 @@ struct FunctionOverload
 	}
 };
 
-inline FunctionOverload findBestConversionFunction(UniqueTypeWrapper to, UniqueTypeWrapper from, Location source, const TypeInstance* enclosing, bool isNullPointerConstant = false, bool isLvalue = false);
+template<typename To>
+FunctionOverload findBestConversionFunction(To to, UniqueTypeWrapper from, Location source, const TypeInstance* enclosing, bool isNullPointerConstant = false, bool isLvalue = false);
 
 template<typename To>
-inline ImplicitConversion makeImplicitConversionSequence(To to, UniqueTypeWrapper from, Location source, const TypeInstance* enclosing, bool isNullPointerConstant = false, bool isLvalue = false, bool isUserDefinedConversion = false)
+ImplicitConversion makeImplicitConversionSequence(To to, UniqueTypeWrapper from, Location source, const TypeInstance* enclosing, bool isNullPointerConstant = false, bool isLvalue = false, bool isUserDefinedConversion = false)
 {
 	SYMBOLS_ASSERT(to != gUniqueTypeNull);
 	SYMBOLS_ASSERT(from != gUniqueTypeNull);
@@ -6175,7 +6200,7 @@ inline ImplicitConversion makeImplicitConversionSequence(To to, UniqueTypeWrappe
 		}
 		if(isClass(from))
 		{
-			UniqueTypeWrapper tmp = to;
+			To tmp = to;
 			tmp.push_front(ReferenceType());
 			FunctionOverload overload = findBestConversionFunction(tmp, from, source, enclosing);
 			if(overload.declaration != 0)
@@ -7390,6 +7415,287 @@ struct OverloadResolver
 
 
 
+inline ParameterTypes addOverload(OverloadResolver& resolver, const Declaration& declaration, Location source, const TypeInstance* enclosing = 0)
+{
+	UniqueTypeWrapper type = getUniqueType(declaration.type, source, enclosing, declaration.isTemplate);
+	SYMBOLS_ASSERT(type.isFunction());
+
+	ParameterTypes parameters;
+	if(isMember(declaration)
+		&& declaration.type.declaration != &gCtor)
+	{
+		// [over.match.funcs]
+		// a member function is considered to have an extra parameter, called the implicit object parameter, which
+		// represents the object for which the member function has been called. For the purposes of overload resolution,
+		// both static and non-static member functions have an implicit object parameter, but constructors do not.
+		SYMBOLS_ASSERT(isClass(*enclosing->declaration));
+		// For static member functions, the implicit object parameter is considered to match any object
+		UniqueTypeWrapper implicitObjectParameter = gImplicitObjectParameter;
+		if(!isStatic(declaration))
+		{
+			// For non-static member functions, the type of the implicit object parameter is "reference to cv X" where X is
+			// the class of which the function is a member and cv is the cv-qualification on the member function declaration.
+			// TODO: conversion-functions, non-conversions introduced by using-declaration
+			implicitObjectParameter = makeUniqueObjectType(*enclosing);
+			implicitObjectParameter.value.setQualifiers(type.value.getQualifiers());
+			implicitObjectParameter.push_front(ReferenceType());
+		}
+		parameters.push_back(implicitObjectParameter);
+	}
+	bool isEllipsis = getFunctionType(type.value).isEllipsis;
+	parameters.insert(parameters.end(), getParameterTypes(type.value).begin(), getParameterTypes(type.value).end());
+	type.pop_front();
+
+	if(!declaration.isTemplate)
+	{
+		// [temp.arg.explicit] An empty template argument list can be used to indicate that a given use refers to a
+		// specialization of a function template even when a normal (i.e., non-template) function is visible that would
+		// otherwise be used.
+		if(resolver.templateArguments != 0)
+		{
+			return ParameterTypes();
+		}
+		resolver.add(FunctionOverload(const_cast<Declaration*>(&declaration), type), parameters, isEllipsis, enclosing);
+		return parameters;
+	}
+
+	if(declaration.isSpecialization) // function template specializations don't take part in overload resolution?
+	{
+		return ParameterTypes();
+	}
+
+	FunctionTemplate functionTemplate;
+	functionTemplate.parameters.swap(parameters);
+	makeUniqueTemplateParameters(declaration.templateParams, functionTemplate.templateParameters, source, enclosing, true);
+
+	if(resolver.arguments.size() > functionTemplate.parameters.size())
+	{
+		return ParameterTypes(); // more arguments than parameters. TODO: same for non-template?
+	}
+
+	try
+	{
+		// [temp.deduct] When an explicit template argument list is specified, the template arguments must be compatible with the template parameter list
+		if(resolver.templateArguments != 0
+			&& resolver.templateArguments->size() > functionTemplate.templateParameters.size())
+		{
+			throw TypeErrorBase(source); // too many explicitly specified template arguments
+		}
+		TypeInstance specialization(const_cast<Declaration*>(&declaration), enclosing);
+		specialization.instantiated = true;
+		{
+			UniqueTypeArray::const_iterator p = functionTemplate.templateParameters.begin();
+			if(resolver.templateArguments != 0)
+			{
+				for(TemplateArgumentsInstance::const_iterator a = resolver.templateArguments->begin(); a != resolver.templateArguments->end(); ++a, ++p)
+				{
+					SYMBOLS_ASSERT(p != functionTemplate.templateParameters.end());
+					if((*a).isNonType() != (*p).isDependentNonType())
+					{
+						throw TypeErrorBase(source); // incompatible explicitly specified arguments
+					}
+					specialization.templateArguments.push_back(*a);
+				}
+			}
+			for(; p != functionTemplate.templateParameters.end(); ++p)
+			{
+				specialization.templateArguments.push_back(*p);
+			}
+		}
+
+		// substitute the template-parameters in the function's parameter list with the explicitly specified template-arguments
+		ParameterTypes substituted1;
+		substitute(substituted1, functionTemplate.parameters, source, specialization);
+		// TODO: [temp.deduct]
+		// After this substitution is performed, the function parameter type adjustments described in 8.3.5 are performed.
+
+		UniqueTypeArray arguments;
+		arguments.reserve(resolver.arguments.size());
+		for(Arguments::const_iterator a = resolver.arguments.begin(); a != resolver.arguments.end(); ++a)
+		{
+			arguments.push_back((*a).type);
+		}
+
+		specialization.templateArguments.resize(resolver.templateArguments == 0 ? 0 : resolver.templateArguments->size()); // preserve the explicitly specified arguments
+		specialization.templateArguments.resize(functionTemplate.templateParameters.size(), gUniqueTypeNull);
+		// NOTE: in rare circumstances, deduction may cause implicit instantiations, which occur at the point of overload resolution 
+		if(!deduceFunctionCall(substituted1, arguments, specialization.templateArguments, resolver.source, resolver.enclosing))
+		{
+			throw TypeErrorBase(source); // deduction failed
+		}
+
+
+		// substitute the template-parameters in the function's parameter list with the deduced template-arguments
+		ParameterTypes substituted2;
+		substitute(substituted2, substituted1, source, specialization);
+		type = substitute(type, source, specialization); // substitute the return type. TODO: should wait until overload is chosen?
+
+		resolver.add(FunctionOverload(const_cast<Declaration*>(&declaration), type), substituted2, isEllipsis, enclosing, functionTemplate);
+		return substituted2;
+	}
+	catch(TypeError&)
+	{
+		// deduction and checking failed
+	}
+
+	return ParameterTypes();
+}
+
+
+inline bool isBaseOf(UniqueTypeWrapper base, UniqueTypeWrapper derived, Location source, const TypeInstance* enclosing);
+
+template<typename To>
+inline void addConversionFunctionOverloads(OverloadResolver& resolver, const TypeInstance& classType, To to, Location source, const TypeInstance* enclosing)
+{
+	instantiateClass(classType, source, enclosing); // searching for overloads requires a complete type
+	LookupResultRef declaration = ::findDeclaration(classType, gConversionFunctionId, IsAny());
+	// TODO: conversion functions in base classes should not be hidden by those in derived
+	if(declaration != 0)
+	{
+		const TypeInstance* memberEnclosing = findEnclosingType(&classType, declaration->scope); // find the base class which contains the member-declaration
+		SYMBOLS_ASSERT(memberEnclosing != 0);
+
+		for(Declaration* p = findOverloaded(declaration); p != 0; p = p->overloaded)
+		{
+			SYMBOLS_ASSERT(p->enclosed != 0);
+
+			SYMBOLS_ASSERT(!p->isTemplate); // TODO: template-argument-deduction for conversion function
+			// 'template<typename T> operator T()' can be explicitly invoked with template argument list: e.g. 'x.operator int()'
+			// [temp.deduct.conv] Template argument deduction is done by comparing the return type of the template conversion function
+			// (call it P) with the type that is required as the result of the conversion (call it A)
+
+			UniqueTypeWrapper yielded = getUniqueType(p->type, source, memberEnclosing);
+			yielded.pop_front();
+
+			if(isClass(to)) // [over.match.copy]
+			{
+				// When the type of the initializer expression is a class type "cv S", the conversion functions of S and its
+				// base classes are considered. Those that are not hidden within S and yield a type whose cv-unqualified
+				// version is the same type as T or is a derived class thereof are candidate functions. Conversion functions
+				// that return "reference to X" return lvalues of type X and are therefore considered to yield X for this process
+				// of selecting candidate functions.
+				if(!(getExactMatch(to, removeReference(yielded)) != gUniqueTypeNull
+					|| isBaseOf(to, removeReference(yielded), source, enclosing)))
+				{
+					continue;
+				}
+			}
+			else if(to.isReference()) // [over.match.ref]
+			{
+				// Assuming that "cv1 T" is the underlying type of the reference being initialized,
+				// and "cv S" is the type of the initializer expression, with S a class type, the candidate functions are
+				// selected as follows:
+				UniqueTypeWrapper tmpTo = to;
+				tmpTo.pop_front(); // remove reference
+				// The conversion functions of S and its base classes are considered. Those that are not hidden within S
+				// and yield type "reference to cv2 T2", where "cv1 T" is reference-compatible with "cv2 T2", are
+				// candidate functions.
+				if(!yielded.isReference())
+				{
+					continue;
+				}
+				yielded.pop_front(); // remove reference
+				if(!((getExactMatch(tmpTo, yielded) != gUniqueTypeNull
+						|| isBaseOf(tmpTo, yielded, source, enclosing))
+					&& (isEqualCvQualification(tmpTo, yielded)
+						|| isGreaterCvQualification(tmpTo, yielded))))
+				{
+					continue;
+				}
+			}
+			else // [over.match.conv]
+			{
+				// The conversion functions of S and its base classes are considered. Those that are not hidden within S
+				// and yield type T or a type that can be converted to type T via a standard conversion sequence
+				// are candidate functions. Conversion functions that return a cv-qualified type are considered
+				// to yield the cv-unqualified version of that type for this process of selecting candidate functions. Conversion
+				// functions that return "reference to cv2 X" return lvalues of type "cv2 X" and are therefore considered
+				// to yield X for this process of selecting candidate functions.
+				bool isLvalue = yielded.isReference(); // TODO: lvalueness!
+				yielded = removeReference(yielded);
+				yielded.value.setQualifiers(CvQualifiers());
+				if(makeStandardConversionSequence(to, yielded, source, enclosing, false, isLvalue).rank == SCSRANK_INVALID)
+				{
+					continue;
+				}
+			}
+
+			addOverload(resolver, *p, source, memberEnclosing);
+		}
+	}
+}
+
+template<typename To>
+FunctionOverload findBestConversionFunction(To to, UniqueTypeWrapper from, Location source, const TypeInstance* enclosing, bool isNullPointerConstant, bool isLvalue)
+{
+	UniqueExpression nullPointerConstantExpression = makeExpression(IntegralConstantExpression(gSignedInt, IntegralConstant(0)));
+	ExpressionWrapper expression(isNullPointerConstant ? nullPointerConstantExpression : 0, isNullPointerConstant);
+	Arguments arguments;
+	arguments.push_back(Argument(expression, from));
+
+	// [over.best.ics]
+	// However, when considering the argument of a user-defined conversion function that is a candidate by
+	// 13.3.1.3 when invoked for the copying of the temporary in the second step of a class copy-initialization, or
+	// by 13.3.1.4, 13.3.1.5, or 13.3.1.6 in all cases, only standard conversion sequences and ellipsis conversion
+	// sequences are allowed.
+	OverloadResolver resolver(arguments, 0, source, enclosing, true); // disallow user-defined conversion when considering argument to conversion function
+
+	// TODO: [over.match.ref] Initialization by conversion function for direct reference binding.
+
+	// [dcl.init]\14
+	if(isClass(to)
+		&& isComplete(to)) // can only convert to a class that is complete
+	{
+		// add converting constructors of 'to'
+		const TypeInstance& classType = getObjectType(to.value);
+		instantiateClass(classType, source, enclosing); // searching for overloads requires a complete type
+		Identifier tmp;
+		tmp.value = classType.declaration->getName().value;
+		tmp.source = source;
+		LookupResultRef declaration = ::findDeclaration(classType, tmp, IsConstructor());
+
+		if(declaration != 0) // TODO: add implicit copy constructor!
+		{
+			const TypeInstance* memberEnclosing = findEnclosingType(&classType, declaration->scope); // find the base class which contains the member-declaration
+			SYMBOLS_ASSERT(memberEnclosing != 0);
+
+			for(Declaration* p = findOverloaded(declaration); p != 0; p = p->overloaded)
+			{
+				SYMBOLS_ASSERT(p->enclosed != 0);
+
+				// [class.conv.ctor]
+				// A constructor declared without the function-specifier explicit that can be called with a single parameter
+				// specifies a conversion from the type of its first parameter to the type of its class. Such a constructor is
+				// called a converting constructor.
+				if(declaration->specifiers.isExplicit)
+				{
+					continue;
+				}
+
+				addOverload(resolver, *p, source, memberEnclosing); // will reject constructors that cannot be called with a single argument, because they are not viable.
+			}
+		}
+	}
+
+	if(isClass(from)
+		&& isComplete(from)) // can only convert from a class that is complete
+	{
+		addConversionFunctionOverloads(resolver, getObjectType(from.value), to, source, enclosing);
+	}
+
+	// TODO: return-type of constructor should be 'to'
+	FunctionOverload result = resolver.get();
+	if(result.declaration != 0
+		&& result.type.isSimple()
+		&& getObjectType(result.type.value).declaration == &gCtor)
+	{
+		result.type = to;
+		result.type.value.setQualifiers(CvQualifiers());
+	}
+	return result;
+}
+
+
 
 template<typename T>
 inline Name getTypeTraitName(T* symbol)
@@ -7474,10 +7780,11 @@ inline bool isBaseOf(UniqueTypeWrapper base, UniqueTypeWrapper derived, Location
 	return isBaseOf(baseType, derivedType, source, enclosing);
 }
 
-inline bool isConvertibleTo(UniqueTypeWrapper from, UniqueTypeWrapper to, Location source, const TypeInstance* enclosing)
+inline bool isConvertibleTo(UniqueTypeWrapper type, UniqueTypeWrapper other, Location source, const TypeInstance* enclosing)
 {
 	return false; // TODO
 }
+
 
 inline UnaryTypeTraitsOp getUnaryTypeTraitsOp(cpp::typetraits_unary* symbol)
 {

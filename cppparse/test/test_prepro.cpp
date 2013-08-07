@@ -1,4 +1,44 @@
 
+namespace N327
+{
+	struct error_category;
+	struct error_condition
+	{
+		inline friend bool operator<(const error_condition&lhs, const error_condition&rhs)
+		{
+			return lhs.m_cat<rhs.m_cat||(lhs.m_cat==rhs.m_cat&&lhs.m_val<rhs.m_val);
+		}
+		int m_val;
+		const error_category*m_cat;
+	};
+}
+
+namespace N326
+{
+	template<int i>
+	struct A
+	{
+	};
+
+	template<int i>
+	bool f(A<i>& a);
+
+	A<0> a;
+	bool x = f(a);
+}
+
+namespace N325
+{
+	struct A
+	{
+		bool operator()();
+	};
+
+	A a;
+
+	bool b = true && a();
+}
+
 namespace N324
 {
 	struct A
