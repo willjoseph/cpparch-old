@@ -1,4 +1,64 @@
 
+namespace N338
+{
+	enum E
+	{
+	};
+
+	// requires overload resolution against built-in operators, because operand has enumeration type
+	int i = ~E();
+	int j = -E();
+	int k = +E();
+}
+
+namespace N336
+{
+	struct A
+	{
+		int m;
+	};
+
+	struct B
+	{
+		int A::* m;
+	};
+
+	A a;
+	B b;
+	int i = a.*b.m;
+}
+
+namespace N337
+{
+	struct A
+	{
+		int m();
+	};
+
+	struct B
+	{
+		int (A::* m)();
+	};
+
+	A a;
+	B b;
+	int i = (a.*b.m)();
+}
+
+namespace N335
+{
+	struct A
+	{
+		int m;
+	};
+
+	int A::* m = &A::m;
+
+	A a;
+	int i = a.*m;
+	int j = (&a)->*m;
+}
+
 namespace N334
 {
 	template<class T>

@@ -607,17 +607,18 @@ inline void addBuiltInOperatorOverloads(OverloadResolver& resolver, BuiltInTypeA
 	}
 }
 
+typedef std::vector<UserType> UserTypeArray;
 
 extern BuiltInTypeArrayRange gIntegralTypesRange;
 extern BuiltInTypeArrayRange gPromotedIntegralTypesRange;
 extern BuiltInTypeArrayRange gArithmeticTypesRange;
 extern BuiltInTypeArrayRange gPromotedArithmeticTypesRange;
 
-inline void addBuiltInTypeConversions(UniqueTypeArray& conversions, BuiltInTypeArrayRange types)
+inline void addBuiltInTypeConversions(UserTypeArray& conversions, BuiltInTypeArrayRange types)
 {
 	for(const BuiltInType* i = types.first; i != types.last; ++i)
 	{
-		conversions.push_back(*i);
+		conversions.push_back(UserType(*i));
 	}
 }
 
@@ -633,15 +634,15 @@ inline void forEachBase(const TypeInstance& classType, Op op)
 }
 
 template<typename T>
-inline void addQualificationPermutations(UniqueTypeArray& conversions, UniqueTypeWrapper type, const T& pointerType)
+inline void addQualificationPermutations(UserTypeArray& conversions, UniqueTypeWrapper type, const T& pointerType)
 {
-	conversions.push_back(pushType(qualifyType(type, CvQualifiers(false, false)), pointerType));
-	conversions.push_back(pushType(qualifyType(type, CvQualifiers(true, false)), pointerType));
-	conversions.push_back(pushType(qualifyType(type, CvQualifiers(false, true)), pointerType));
-	conversions.push_back(pushType(qualifyType(type, CvQualifiers(true, true)), pointerType));
+	conversions.push_back(UserType(pushType(qualifyType(type, CvQualifiers(false, false)), pointerType)));
+	conversions.push_back(UserType(pushType(qualifyType(type, CvQualifiers(true, false)), pointerType)));
+	conversions.push_back(UserType(pushType(qualifyType(type, CvQualifiers(false, true)), pointerType)));
+	conversions.push_back(UserType(pushType(qualifyType(type, CvQualifiers(true, true)), pointerType)));
 }
 
-inline void addQualificationPermutations(UniqueTypeArray& conversions, UniqueTypeWrapper type)
+inline void addQualificationPermutations(UserTypeArray& conversions, UniqueTypeWrapper type)
 {
 	addQualificationPermutations(conversions, type, PointerType());
 }
@@ -649,9 +650,9 @@ inline void addQualificationPermutations(UniqueTypeArray& conversions, UniqueTyp
 
 struct AddPointerConversions
 {
-	UniqueTypeArray& conversions;
+	UserTypeArray& conversions;
 	CvQualifiers qualifiers;
-	AddPointerConversions(UniqueTypeArray& conversions, CvQualifiers qualifiers)
+	AddPointerConversions(UserTypeArray& conversions, CvQualifiers qualifiers)
 		: conversions(conversions), qualifiers(qualifiers)
 	{
 	}
@@ -663,9 +664,9 @@ struct AddPointerConversions
 
 struct AddMemberPointerConversions
 {
-	UniqueTypeArray& conversions;
+	UserTypeArray& conversions;
 	UniqueTypeWrapper type;
-	AddMemberPointerConversions(UniqueTypeArray& conversions, UniqueTypeWrapper type)
+	AddMemberPointerConversions(UserTypeArray& conversions, UniqueTypeWrapper type)
 		: conversions(conversions), type(type)
 	{
 	}
@@ -692,13 +693,13 @@ inline bool isPlaceholder(UniqueTypeWrapper type)
 
 // to: The placeholder parameter of the built-in operator.
 // from: The type of the argument expression after lvalue-to-rvalue conversion, or the type yielded by the best conversion function.
-inline void addBuiltInOperatorConversions(UniqueTypeArray& conversions, UniqueTypeWrapper to, UniqueTypeWrapper from, Location source, const TypeInstance* enclosing)
+inline void addBuiltInOperatorConversions(UserTypeArray& conversions, UniqueTypeWrapper to, UniqueTypeWrapper from, Location source, const TypeInstance* enclosing)
 {
 	SYMBOLS_ASSERT(isPlaceholder(removeReference(to)));
 	if(to.isReference())
 	{
 		// built-in operators that have reference parameters are always non-const, so must be an exact match.
-		conversions.push_back(from);
+		conversions.push_back(UserType(from));
 		return;
 	}
 	if(isPointerPlaceholder(to))
@@ -743,130 +744,73 @@ inline void addBuiltInOperatorConversions(UniqueTypeArray& conversions, UniqueTy
 	if(to == gEnumerationPlaceholder)
 	{
 		SYMBOLS_ASSERT(isEnum(from));
-		conversions.push_back(from);
+		conversions.push_back(UserType(from));
 		// the argument type 'enumeration of type E' is also convertible to any arithmetic type 
 		// drop through...
 	}
 	return addBuiltInTypeConversions(conversions, gArithmeticTypesRange);
 }
 
-#if 0
-inline void findBuiltInOperatorConversions(UniqueTypeArray& conversions, UniqueTypeWrapper to, UniqueTypeWrapper from, Location source, const TypeInstance* enclosing, bool isNullPointerConstant)
+typedef std::vector<UserTypeArray> ConversionPairs;
+typedef TypeTuple<false, 1> Permutation1;
+typedef TypeTuple<false, 2> Permutation2;
+typedef std::vector<Permutation1> Permutation1Array;
+typedef std::vector<Permutation2> Permutation2Array;
+
+inline void addBuiltInOperatorPermutations(Permutation1Array& result, ConversionPairs& conversionPairs)
 {
-	bool isLvalue = false;
-	if(from.isReference())
+	SEMANTIC_ASSERT(!conversionPairs.empty());
+	if(conversionPairs.size() == 1) // one argument was not a placeholder, or one argument is a null pointer constant expression
 	{
-		isLvalue = true;
-		from.pop_front(); // TODO: removal of reference won't be detected later
+		std::copy(conversionPairs[0].begin(), conversionPairs[0].end(), std::back_inserter(result));
 	}
-
-	if(to.isReference())
+	else
 	{
-		to.pop_front();
-		// in built-in operators that take a reference, the reference is always to a non-const type
-		SYMBOLS_ASSERT(!to.value.getQualifiers().isConst);
+		SEMANTIC_ASSERT(conversionPairs.size() == 2);
+		std::sort(conversionPairs[0].begin(), conversionPairs[0].end());
+		std::sort(conversionPairs[1].begin(), conversionPairs[1].end());
 
-		// 'from' may be T or T*
-		UniqueTypeWrapper matched = getExactMatchNoQualifiers(TargetType(to), from);
-		if(matched != gUniqueTypeNull // if the type is compatible
-			&& to.value.getQualifiers().isVolatile >= from.value.getQualifiers().isVolatile)
-		{
-			conversions.push_back(matched);
-			return;
-		}
-	
-		SYMBOLS_ASSERT(!isClass(from)); // TODO: direct binding via conversion function
-		return;
+		// find the union of both sets
+		std::set_intersection(conversionPairs[0].begin(), conversionPairs[0].end(), conversionPairs[1].begin(), conversionPairs[1].end(), std::back_inserter(result));
 	}
-
-	SYMBOLS_ASSERT(!isClass(to)); // built-in operators do not take arguments of class type
-	SYMBOLS_ASSERT(!isClass(from)); // TODO: user-defined conversion via conversion function
-
-	from = applyLvalueToRvalueConversion(from);
-
-	if(to.isPointer())
-	{
-		if(isNullPointerConstant)
-		{
-			// the null pointer constant is convertible to a pointer to any type
-			conversions.push_back(gUniqueTypeNull); // signifies null-pointer-constant
-			return;
-		}
-		if(!from.isPointer())
-		{
-			return;
-		}
-		UniqueTypeWrapper matched = getExactMatch(TargetType(to), from);
-		if(matched == gUniqueTypeNull) // if the placeholder type is not matched
-		{
-			return;
-		}
-
-		UniqueTypeWrapper type = popType(matched);
-		CvQualifiers qualifiers = type.value.getQualifiers();
-		if(isClass(type)
-			&& isComplete(type))
-		{
-			// the argument type 'pointer to class X' is convertible to a pointer to any base class of X
-			const TypeInstance& classType = getObjectType(type.value);
-			instantiateClass(classType, source, enclosing);
-			forEachBase(classType, AddPointerConversions(conversions, qualifiers));
-		}
-		else
-		{
-			addQualificationPermutations(conversions, type);
-		}
-		// the argument type 'pointer to X' is convertible to a pointer to void
-		addQualificationPermutations(conversions, qualifyType(gVoid, qualifiers));
-		return;
-	}
-
-	UniqueTypeWrapper matched = getExactMatch(TargetType(to), from);
-	if(matched == gUniqueTypeNull) // if the placeholder type is not matched
-	{
-		return;
-	}
-
-	if(to == gPointerToMemberPlaceholder)
-	{
-		SYMBOLS_ASSERT(matched.isMemberPointer());
-		UniqueTypeWrapper type = popType(matched);
-		if(isComplete(matched))
-		{
-			// the argument type 'pointer to member of class X of type Y' is convertible to a pointer to member of any base class of X of type Y
-			const TypeInstance& classType = getMemberPointerClass(matched.value);
-			instantiateClass(classType, source, enclosing);
-			forEachBase(classType, AddMemberPointerConversions(conversions, type));
-		}
-		else
-		{
-			addQualificationPermutations(conversions, type, getMemberPointerType(matched.value));
-		}
-		return;
-	}
-	if(to == gEnumerationPlaceholder)
-	{
-		SYMBOLS_ASSERT(isEnum(matched));
-		conversions.push_back(matched);
-		// the argument type 'enumeration of type E' is also convertible to any arithmetic type 
-		// drop through...
-	}
-	return addBuiltInTypeConversions(conversions, gArithmeticTypesRange);
 }
-#endif
 
-inline void addBuiltInOperatorOverloads(OverloadResolver& resolver, BuiltInGenericType1ArrayRange overloads)
+inline void addBuiltInOperatorPermutations(Permutation2Array& result, ConversionPairs& conversionPairs)
 {
-	for(const BuiltInGenericType1* i = overloads.first; i != overloads.last; ++i)
+	SEMANTIC_ASSERT(!conversionPairs.empty());
+	if(conversionPairs.size() == 1) // one argument was not a placeholder, or one argument is a null pointer constant expression
 	{
-		BuiltInGenericType1 overload = *i;
+		return;
+	}
+	else
+	{
+		SEMANTIC_ASSERT(conversionPairs.size() == 2);
+		for(UserTypeArray::const_iterator i = conversionPairs[0].begin(); i != conversionPairs[0].end(); ++i)
+		{
+			UserType left = *i;
+			for(UserTypeArray::const_iterator i = conversionPairs[0].begin(); i != conversionPairs[0].end(); ++i)
+			{
+				UserType right = *i;
+				result.push_back(Permutation2(left, right));
+			}
+		}
+	}
+}
+
+template<int N>
+inline void addBuiltInOperatorOverloads(OverloadResolver& resolver, ArrayRange<BuiltInGenericType<N> > overloads)
+{
+	for(const BuiltInGenericType<N>* i = overloads.first; i != overloads.last; ++i)
+	{
+		BuiltInGenericType<N> overload = *i;
 		const ParameterTypes& parameters = getParameterTypes(overload.value);
 		if(resolver.arguments.size() != parameters.size())
 		{
 			continue;
 		}
 
-		UniqueTypeArray leftTypes;
+		ConversionPairs conversionPairs;
+		conversionPairs.reserve(2);
 		Arguments::const_iterator a = resolver.arguments.begin();
 		ParameterTypes::const_iterator p = parameters.begin();
 		for(; a != resolver.arguments.end(); ++a, ++p)
@@ -876,7 +820,7 @@ inline void addBuiltInOperatorOverloads(OverloadResolver& resolver, BuiltInGener
 			ImplicitConversion conversion = resolver.makeConversion(TargetType(to), from);
 			if(!isValid(conversion)) // if the argument could not be converted
 			{
-				leftTypes.clear();
+				conversionPairs.clear();
 				break;
 			}
 			if(!isPlaceholder(to))
@@ -888,30 +832,26 @@ inline void addBuiltInOperatorOverloads(OverloadResolver& resolver, BuiltInGener
 			{
 				continue; // null pointer matches any pointer type, but does not give enough information to add built-in overloads
 			}
-			UniqueTypeArray conversions;
+			conversionPairs.push_back(UserTypeArray());
+			UserTypeArray& conversions = conversionPairs.back();
 			addBuiltInOperatorConversions(conversions, to, conversion.sequence.matched, resolver.source, resolver.enclosing);
-			std::sort(conversions.begin(), conversions.end());
-			if(leftTypes.empty()) // if this is the left expression, or the left expression is not a placeholder
-			{
-				leftTypes.swap(conversions);
-				continue;
-			}
-			// find the union of both sets
-			UniqueTypeArray result;
-			std::set_union(leftTypes.begin(), leftTypes.end(), conversions.begin(), conversions.end(), std::insert_iterator<UniqueTypeArray>(result, result.begin()));
-			leftTypes.swap(result);
 		}
 
-		if(leftTypes.empty())
+		if(conversionPairs.empty()) // no built-in overloads can be matched by this argument list
 		{
 			continue;
 		}
 
-		// TODO: limit qualification permutations for pointer / member-pointer
-		for(UniqueTypeArray::const_iterator i = leftTypes.begin(); i != leftTypes.end(); ++i)
+		typedef TypeTuple<false, N> Permutation;
+		typedef std::vector<Permutation> Permutations;
+		Permutations permutations;
+		addBuiltInOperatorPermutations(permutations, conversionPairs);
+
+		// TODO: limit qualification permutations for pointer / member-pointer to only those with equal or greater cv-qualification than type of argument expression
+		for(Permutations::const_iterator i = permutations.begin(); i != permutations.end(); ++i)
 		{
-			UniqueTypeWrapper type = *i;
-			UserType substituted = overload.substitute(UserType(type));
+			Permutation permutation = *i;
+			UserType substituted = overload.substitute(permutation);
 			addBuiltInOperatorOverload(resolver, substituted);
 		}
 	}
@@ -919,7 +859,8 @@ inline void addBuiltInOperatorOverloads(OverloadResolver& resolver, BuiltInGener
 
 extern BuiltInTypeArrayRange gUnaryPostIncOperatorTypes;
 extern BuiltInTypeArrayRange gUnaryPreIncOperatorTypes;
-extern BuiltInTypeArrayRange gUnaryAddOperatorTypes;
+extern BuiltInTypeArrayRange gUnaryArithmeticOperatorTypes;
+extern BuiltInTypeArrayRange gUnaryIntegralOperatorTypes;
 extern BuiltInTypeArrayRange gBinaryArithmeticOperatorTypes;
 extern BuiltInTypeArrayRange gBinaryIntegralOperatorTypes;
 extern BuiltInTypeArrayRange gRelationalArithmeticOperatorTypes;
@@ -934,6 +875,7 @@ extern BuiltInGenericType1ArrayRange gPointerSubtractOperatorTypes;
 extern BuiltInGenericType1ArrayRange gSubscriptOperatorTypes;
 extern BuiltInGenericType1ArrayRange gRelationalOperatorTypes;
 extern BuiltInGenericType1ArrayRange gEqualityOperatorTypes;
+extern BuiltInGenericType2ArrayRange gMemberPointerOperatorTypes;
 
 // TODO:
 // the built-in candidates include all of the candidate operator functions defined in 13.6
@@ -952,11 +894,19 @@ inline void addBuiltInOperatorOverloads(OverloadResolver& resolver, const Identi
 		addBuiltInOperatorOverloads(resolver, gUnaryPostIncOperatorTypes);
 	}
 	else if(id.value == gOperatorStarId
-		|| id.value == gOperatorDivideId
-		|| id.value == gOperatorPlusId
+		|| id.value == gOperatorDivideId)
+	{
+		addBuiltInOperatorOverloads(resolver, gBinaryArithmeticOperatorTypes);
+	}
+	else if(id.value == gOperatorPlusId
 		|| id.value == gOperatorMinusId)
 	{
 		addBuiltInOperatorOverloads(resolver, gBinaryArithmeticOperatorTypes);
+		addBuiltInOperatorOverloads(resolver, gUnaryArithmeticOperatorTypes); // +x, -x
+	}
+	else if(id.value == gOperatorComplId)
+	{
+		addBuiltInOperatorOverloads(resolver, gUnaryIntegralOperatorTypes); // ~x
 	}
 	else if(id.value == gOperatorLessId
 		|| id.value == gOperatorGreaterId
@@ -1029,6 +979,10 @@ inline void addBuiltInOperatorOverloads(OverloadResolver& resolver, const Identi
 		|| id.value == gOperatorNotEqualId)
 	{
 		addBuiltInOperatorOverloads(resolver, gEqualityOperatorTypes);
+	}
+	else if(id.value == gOperatorArrowStarId)
+	{
+		addBuiltInOperatorOverloads(resolver, gMemberPointerOperatorTypes);
 	}
 }
 
@@ -3341,7 +3295,7 @@ struct PostfixExpressionWalker : public WalkerBase
 				memberObject = &object;
 			}
 
-			if(id == 0) // if the left-hand expression does not contain an id-expression (or is not a class which supports 'operator()')
+			if(id == 0) // if the left-hand expression does not contain an (optionally parenthesised) id-expression (or is not a class which supports 'operator()')
 			{
 				// the call does not require overload resolution
 				SEMANTIC_ASSERT(type.isFunction());
@@ -3653,10 +3607,14 @@ struct ExpressionWalker : public WalkerBase
 			Identifier id;
 			id.value = getOverloadedOperatorId(symbol);
 			id.source = getLocation();
-			Arguments arguments;
-			arguments.push_back(Argument(leftExpression, left));
-			arguments.push_back(Argument(walker.expression, right));
-			FunctionOverload overload = findBestOverloadedOperator(id, arguments, enclosing, getLocation(), enclosingType);
+			FunctionOverload overload(&gUnknown, gUniqueTypeNull);
+			if(!id.value.empty()) // if the operator can be overloaded
+			{
+				Arguments arguments;
+				arguments.push_back(Argument(leftExpression, left));
+				arguments.push_back(Argument(walker.expression, right));
+				overload = findBestOverloadedOperator(id, arguments, enclosing, getLocation(), enclosingType);
+			}
 			if(overload.declaration == &gUnknown
 				|| (overload.declaration == 0 && id.value == gOperatorAssignId)) // TODO: declare implicit assignment operator
 			{
@@ -3760,8 +3718,8 @@ struct ExpressionWalker : public WalkerBase
 	}
 	void visit(cpp::pm_expression_default* symbol)
 	{
-		walkBinaryExpression(symbol, binaryOperatorNull);
-		// TODO: determine type of pm expression
+		walkBinaryExpression(symbol, binaryOperatorMemberPointer);
+		id = 0; // not a parenthesised id-expression, expression is not 'call to named function' [over.call.func]
 	}
 #if 0
 	void visit(cpp::assignment_expression_default* symbol)

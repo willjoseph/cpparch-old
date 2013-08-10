@@ -498,11 +498,11 @@ struct PreIncOperatorTypes : GeneratedTypeArray
 PreIncOperatorTypes gUnaryPreIncOperatorTypeArray;
 BuiltInTypeArrayRange gUnaryPreIncOperatorTypes = gUnaryPreIncOperatorTypeArray.makeRange();
 
-struct UnaryAddOperatorTypes : GeneratedTypeArray
+struct UnaryArithmeticOperatorTypes : GeneratedTypeArray
 {
-	UnaryAddOperatorTypes()
+	UnaryArithmeticOperatorTypes(BuiltInTypeArrayRange types)
 	{
-		for(const BuiltInType* i = gPromotedArithmeticTypes; i != ARRAY_END(gPromotedArithmeticTypes); ++i)
+		for(const BuiltInType* i = types.first; i != types.last; ++i)
 		{
 			BuiltInType type = *i;
 			push_back(makeFunctionType(type, type)); // T(T)
@@ -510,8 +510,11 @@ struct UnaryAddOperatorTypes : GeneratedTypeArray
 	}
 };
 
-UnaryAddOperatorTypes gUnaryAddOperatorTypeArray;
-BuiltInTypeArrayRange gUnaryAddOperatorTypes = gUnaryAddOperatorTypeArray.makeRange();
+UnaryArithmeticOperatorTypes gUnaryArithmeticOperatorTypeArray(ARRAY_RANGE(gPromotedArithmeticTypes));
+BuiltInTypeArrayRange gUnaryArithmeticOperatorTypes = gUnaryArithmeticOperatorTypeArray.makeRange();
+
+UnaryArithmeticOperatorTypes gUnaryIntegralOperatorTypeArray(ARRAY_RANGE(gPromotedIntegralTypes));
+BuiltInTypeArrayRange gUnaryIntegralOperatorTypes = gUnaryIntegralOperatorTypeArray.makeRange();
 
 struct BinaryArithmeticOperatorTypes : GeneratedTypeArray
 {
@@ -612,39 +615,54 @@ BuiltInTypeArrayRange gUnaryLogicalOperatorTypes = ARRAY_RANGE(gUnaryLogicalOper
 
 
 #define MAKE_GENERICTYPE1(substitute, placeholder) BuiltInGenericType1(substitute<true>(placeholder), &substitute<false>)
+#define MAKE_GENERICTYPE2(substitute, placeholder) BuiltInGenericType2(substitute<true>(placeholder), &substitute<false>)
 
 BuiltInType gPtrDiffT = gSignedLongLongInt;
 
 template<bool builtIn>
-UniqueTypeGeneric<builtIn> makePointerArithmeticOperatorType(UniqueTypeGeneric<builtIn> type)
+UniqueTypeGeneric<builtIn> makePointerArithmeticOperatorType(TypeTuple<builtIn, 1> type)
 {
 	return makeFunctionType(type, type, UniqueTypeGeneric<builtIn>(gPtrDiffT)); // T*(T*, ptrdiff_t)
 }
 
 template<bool builtIn>
-UniqueTypeGeneric<builtIn> makePointerArithmeticOperatorTypeSwapped(UniqueTypeGeneric<builtIn> type)
+UniqueTypeGeneric<builtIn> makePointerArithmeticOperatorTypeSwapped(TypeTuple<builtIn, 1> type)
 {
 	return makeFunctionType(type, UniqueTypeGeneric<builtIn>(gPtrDiffT), type); // T*(ptrdiff_t, T*)
 }
 
 template<bool builtIn>
-UniqueTypeGeneric<builtIn> makeSubscriptOperatorType(UniqueTypeGeneric<builtIn> type)
+UniqueTypeGeneric<builtIn> makeSubscriptOperatorType(TypeTuple<builtIn, 1> type)
 {
 	UniqueTypeGeneric<builtIn> ref = pushType(popType(type), ReferenceType());
 	return makeFunctionType(ref, type, UniqueTypeGeneric<builtIn>(gPtrDiffT)); // T&(T*, ptrdiff_t)
 }
 
 template<bool builtIn>
-UniqueTypeGeneric<builtIn> makeSubscriptOperatorTypeSwapped(UniqueTypeGeneric<builtIn> type)
+UniqueTypeGeneric<builtIn> makeSubscriptOperatorTypeSwapped(TypeTuple<builtIn, 1> type)
 {
 	UniqueTypeGeneric<builtIn> ref = pushType(popType(type), ReferenceType());
 	return makeFunctionType(ref, UniqueTypeGeneric<builtIn>(gPtrDiffT), type); // T&(ptrdiff_t, T*)
 }
 
 template<bool builtIn>
-UniqueTypeGeneric<builtIn> makeComparisonOperatorType(UniqueTypeGeneric<builtIn> type)
+UniqueTypeGeneric<builtIn> makeComparisonOperatorType(TypeTuple<builtIn, 1> type)
 {
 	return makeFunctionType(UniqueTypeGeneric<builtIn>(gBool), type, type); // bool(T, T)
+}
+
+CvQualifiers makeUnion(CvQualifiers left, CvQualifiers right)
+{
+	return CvQualifiers(left.isConst | right.isConst, left.isVolatile | right.isVolatile);
+}
+
+template<bool builtIn>
+UniqueTypeGeneric<builtIn> makeMemberPointerOperatorType(TypeTuple<builtIn, 2> args)
+{
+	CvQualifiers qualifiers = popType(args.first).value.getQualifiers();
+	UniqueTypeGeneric<builtIn> result = popType(args.second);
+	result.value.setQualifiers(makeUnion(result.value.getQualifiers(), qualifiers));
+	return makeFunctionType(result, args.first, args.second); // CV12 T&(CV1 C1*, CV2 T C2::*)
 }
 
 
@@ -677,6 +695,13 @@ BuiltInGenericType1 gEqualityOperatorTypeArray[] = {
 	MAKE_GENERICTYPE1(makeComparisonOperatorType, gPointerToMemberPlaceholder),
 };
 BuiltInGenericType1ArrayRange gEqualityOperatorTypes = ARRAY_RANGE(gEqualityOperatorTypeArray);
+
+typedef TypeTuple<true, 2> BuiltInType2;
+
+BuiltInGenericType2 gMemberPointerOperatorTypeArray[] = {
+	MAKE_GENERICTYPE2(makeMemberPointerOperatorType, BuiltInType2(gPointerToClassPlaceholder, gPointerToMemberPlaceholder)),
+};
+BuiltInGenericType2ArrayRange gMemberPointerOperatorTypes = ARRAY_RANGE(gMemberPointerOperatorTypeArray);
 
 // ----------------------------------------------------------------------------
 

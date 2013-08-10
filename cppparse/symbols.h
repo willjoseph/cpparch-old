@@ -4880,16 +4880,43 @@ typedef ArrayRange<BuiltInType> BuiltInTypeArrayRange;
 
 typedef UniqueTypeGeneric<false> UserType;
 
-struct BuiltInGenericType1 : BuiltInType
+template<bool builtIn, int N>
+struct TypeTuple;
+
+template<bool builtIn>
+struct TypeTuple<builtIn, 1> : UniqueTypeGeneric<builtIn>
 {
-	typedef UserType (*Substitute)(UserType type);
-	Substitute substitute;
-	BuiltInGenericType1(BuiltInType type, Substitute substitute) : BuiltInType(type), substitute(substitute)
+	TypeTuple(UniqueTypeGeneric<builtIn> type)
+		: UniqueTypeGeneric<builtIn>(type)
 	{
 	}
 };
 
+template<bool builtIn>
+struct TypeTuple<builtIn, 2> : std::pair<UniqueTypeGeneric<builtIn>, UniqueTypeGeneric<builtIn> >
+{
+	typedef UniqueTypeGeneric<builtIn> Value;
+	TypeTuple(Value first, Value second)
+		: std::pair<Value, Value>(first, second)
+	{
+	}
+};
+
+template<int N>
+struct BuiltInGenericType : BuiltInType
+{
+	typedef UserType (*Substitute)(TypeTuple<false, N> args);
+	Substitute substitute;
+	BuiltInGenericType(BuiltInType type, Substitute substitute) : BuiltInType(type), substitute(substitute)
+	{
+	}
+};
+
+typedef BuiltInGenericType<1> BuiltInGenericType1;
+typedef BuiltInGenericType<2> BuiltInGenericType2;
+
 typedef ArrayRange<BuiltInGenericType1> BuiltInGenericType1ArrayRange;
+typedef ArrayRange<BuiltInGenericType2> BuiltInGenericType2ArrayRange;
 
 
 inline bool isVoid(UniqueTypeWrapper type)
@@ -5297,7 +5324,11 @@ inline Name getOverloadedOperatorId(cpp::unary_operator* symbol)
 
 inline Name getOverloadedOperatorId(cpp::pm_expression_default* symbol)
 {
-	return gOperatorArrowStarId;
+	if(symbol->op->id == cpp::pm_operator::ARROWSTAR)
+	{
+		return gOperatorArrowStarId;
+	}
+	return Name();
 }
 inline Name getOverloadedOperatorId(cpp::multiplicative_expression_default* symbol)
 {
@@ -5418,9 +5449,9 @@ inline UniqueTypeWrapper binaryOperatorBoolean(UniqueTypeWrapper left, UniqueTyp
 	return gBool;
 }
 
-inline UniqueTypeWrapper binaryOperatorNull(UniqueTypeWrapper left, UniqueTypeWrapper right)
+inline UniqueTypeWrapper binaryOperatorMemberPointer(UniqueTypeWrapper left, UniqueTypeWrapper right)
 {
-	return gUniqueTypeNull;
+	return popType(right);
 }
 
 inline UniqueTypeWrapper ternaryOperatorNull(UniqueTypeWrapper first, UniqueTypeWrapper second, UniqueTypeWrapper third)
