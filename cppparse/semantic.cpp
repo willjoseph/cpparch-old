@@ -233,8 +233,23 @@ inline const DeclarationInstance* findRedeclared(const Declaration& declaration,
 }
 
 
+struct Overload
+{
+	const Declaration* declaration;
+	const TypeInstance* memberEnclosing;
+	Overload(const Declaration* declaration, const TypeInstance* memberEnclosing)
+		: declaration(declaration), memberEnclosing(memberEnclosing)
+	{
+	}
+};
 
-typedef std::vector<const Declaration*> OverloadSet;
+inline bool operator==(const Overload& left, const Overload& right)
+{
+	return left.declaration == right.declaration
+		&& left.memberEnclosing == right.memberEnclosing;
+}
+
+typedef std::vector<Overload> OverloadSet;
 
 
 //-----------------------------------------------------------------------------
@@ -405,19 +420,43 @@ void addKoenigAssociated(KoenigAssociated& associated, UniqueTypeWrapper type)
 	}
 }
 
-void addUniqueDeclaration(OverloadSet& result, const Declaration& declaration)
+void addUniqueOverload(OverloadSet& result, const Overload& overload)
 {
-	if(std::find(result.begin(), result.end(), &declaration) == result.end())
+	if(std::find(result.begin(), result.end(), overload) == result.end())
 	{
-		result.push_back(&declaration);
+		result.push_back(overload);
 	}
 }
 
-void addOverloaded(OverloadSet& result, const DeclarationInstance& declaration)
+const TypeInstance* findAssociatedClass(const KoenigAssociated& associated, const Declaration& declaration)
+{
+	SEMANTIC_ASSERT(isClass(declaration))
+	for(KoenigAssociated::Classes::const_iterator i = associated.classes.begin(); i != associated.classes.end(); ++i)
+	{
+		const TypeInstance* classType = *i;
+		if(classType->declaration == &declaration)
+		{
+			return classType;
+		}
+	}
+	return 0;
+}
+
+void addOverloaded(OverloadSet& result, const DeclarationInstance& declaration, const KoenigAssociated& associated = KoenigAssociated())
 {
 	for(Declaration* p = findOverloaded(declaration); p != 0; p = p->overloaded)
 	{
-		addUniqueDeclaration(result, *p);
+		const TypeInstance* memberEnclosing = 0;
+		if(p->specifiers.isFriend)
+		{
+			Scope* enclosingClass = getEnclosingClass(p->enclosed);
+			memberEnclosing = findAssociatedClass(associated, *getDeclaration(enclosingClass->name));
+			if(memberEnclosing == 0)
+			{
+				continue; // friend should only be visible if member of an associated class
+			}
+		}
+		addUniqueOverload(result, Overload(p, memberEnclosing));
 	}
 }
 
@@ -443,9 +482,10 @@ void argumentDependentLookup(OverloadSet& result, const Identifier& id, const Ar
 	{
 		// TODO: Any namespace-scope friend functions declared in associated classes are visible within their respective
 		// namespaces even if they are not visible during an ordinary lookup
-		if(const DeclarationInstance* declaration = findDeclaration((*i)->declarations, id, IsAny()))
+		if(const DeclarationInstance* p = findDeclaration((*i)->declarations, id, IsAny()))
 		{
-			addOverloaded(result, *declaration);
+			const DeclarationInstance& declaration = *p;
+			addOverloaded(result, *p, associated);
 		}
 	}
 }
@@ -462,7 +502,9 @@ inline void addOverloads(OverloadResolver& resolver, const OverloadSet& overload
 {
 	for(OverloadSet::const_iterator i = overloads.begin(); i != overloads.end(); ++i)
 	{
-		addOverload(resolver, **i, source, enclosing);
+		const Overload& overload = *i;
+		const TypeInstance* memberEnclosing = overload.memberEnclosing != 0 ? overload.memberEnclosing : enclosing;
+		addOverload(resolver, *overload.declaration, source, memberEnclosing);
 	}
 }
 
@@ -470,9 +512,11 @@ inline void printOverloads(OverloadResolver& resolver, const OverloadSet& overlo
 {
 	for(OverloadSet::const_iterator i = overloads.begin(); i != overloads.end(); ++i)
 	{
-		addOverload(resolver, **i, source, enclosing);
+		const Overload& overload = *i;
+		const TypeInstance* memberEnclosing = overload.memberEnclosing != 0 ? overload.memberEnclosing : enclosing;
+		addOverload(resolver, *overload.declaration, source, memberEnclosing);
 	
-		const Declaration* p = *i;
+		const Declaration* p = overload.declaration;
 		ParameterTypes parameters = addOverload(resolver, *p, source, enclosing);
 		printPosition(p->getName().source);
 		std::cout << "(";
@@ -532,7 +576,7 @@ inline FunctionOverload findBestMatch(const OverloadSet& overloads, const Templa
 		}
 		std::cout << ")" << std::endl;
 		std::cout << "candidates for ";
-		const Declaration* declaration = overloads.front();
+		const Declaration* declaration = overloads.front().declaration;
 		printName(declaration->scope);
 		std::cout << getValue(declaration->getName());
 		std::cout << std::endl;
@@ -1035,8 +1079,7 @@ inline FunctionOverload findBestOverloadedOperator(const Identifier& id, const A
 	//   functions.
 	OverloadSet overloads;
 	LookupResultRef declaration = findClassOrNamespaceMemberDeclaration(*enclosing, id, IsNonMemberName()); // look up non-member candidates in the enclosing scope (ignoring members)
-	if(declaration != 0
-		&& !declaration->specifiers.isFriend) // TODO: 14.5.3: friend function as member of a template-class, which depends on template arguments
+	if(declaration != 0)
 	{
 		// TODO: ignore non-member candidates if no operand has a class type, unless one or more params has enum type
 		addOverloaded(overloads, declaration);
@@ -1314,6 +1357,7 @@ struct WalkerState
 	}
 	LookupResult findDeclaratorDeclaration(const Identifier& id, LookupFilter filter = IsAny())
 	{
+		SEMANTIC_ASSERT(getQualifyingScope() != 0);
 		LookupResult result;
 		if(result.append(::findDeclaration(*getQualifyingScope(), id, filter)))
 		{
@@ -2234,7 +2278,7 @@ struct WalkerQualified : public WalkerBase
 			}
 			else
 			{
-				qualifyingType = &getObjectType(getUniqueType(*qualifying_p, getLocation(), enclosingType).value);
+				qualifyingType = &getObjectType(getUniqueType(*qualifying_p, getLocation(), enclosingType, isDeclarator).value);
 				qualifyingScope = qualifyingType->declaration;
 			}
 		}
@@ -2411,8 +2455,9 @@ struct TemplateIdWalker : public WalkerBase
 
 	IdentifierPtr id;
 	TemplateArguments arguments;
-	TemplateIdWalker(const WalkerState& state)
-		: WalkerBase(state), id(0), arguments(context)
+	bool isTemplate; // true if the template-id is preceded by 'template'
+	TemplateIdWalker(const WalkerState& state, bool isTemplate = false)
+		: WalkerBase(state), id(0), arguments(context), isTemplate(isTemplate)
 	{
 	}
 	void visit(cpp::identifier* symbol)
@@ -2463,7 +2508,7 @@ struct UnqualifiedIdWalker : public WalkerBase
 	}
 	void visit(cpp::simple_template_id* symbol)
 	{
-		TemplateIdWalker walker(getState());
+		TemplateIdWalker walker(getState(), isTemplate);
 		TREEWALKER_WALK_CACHED(walker, symbol);
 		if(allowNameLookup())
 		{
@@ -2480,7 +2525,7 @@ struct UnqualifiedIdWalker : public WalkerBase
 	}
 	void visit(cpp::template_id_operator_function* symbol)
 	{
-		TemplateIdWalker walker(getState());
+		TemplateIdWalker walker(getState(), isTemplate);
 		TREEWALKER_WALK_CACHED(walker, symbol);
 		if(allowNameLookup())
 		{
@@ -3594,6 +3639,7 @@ struct ExpressionWalker : public WalkerBase
 		addDependent(valueDependent, walker.valueDependent);
 		// TODO: SEMANTIC_ASSERT(type.declaration != 0 && walker.type.declaration != 0);
 		BinaryIceOp iceOp = getBinaryIceOp(symbol);
+		ExpressionWrapper leftExpression = expression;
 		expression = ExpressionWrapper(
 			makeExpression(BinaryExpression(getBinaryOperatorName(symbol), iceOp, typeOp, expression, walker.expression)),
 			expression.isConstant && walker.expression.isConstant && iceOp != 0,
@@ -3608,7 +3654,7 @@ struct ExpressionWalker : public WalkerBase
 			id.value = getOverloadedOperatorId(symbol);
 			id.source = getLocation();
 			Arguments arguments;
-			arguments.push_back(Argument(expression, left));
+			arguments.push_back(Argument(leftExpression, left));
 			arguments.push_back(Argument(walker.expression, right));
 			FunctionOverload overload = findBestOverloadedOperator(id, arguments, enclosing, getLocation(), enclosingType);
 			if(overload.declaration == &gUnknown
@@ -4053,7 +4099,7 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 	}
 	void visit(cpp::simple_template_id* symbol)
 	{
-		TemplateIdWalker walker(getState());
+		TemplateIdWalker walker(getState(), isTemplate);
 		TREEWALKER_WALK_CACHED(walker, symbol);
 		LookupResultRef declaration = gDependentNestedTemplateInstance;
 		if(isDeclarator

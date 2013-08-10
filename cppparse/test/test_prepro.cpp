@@ -1,9 +1,170 @@
 
+namespace N334
+{
+	template<class T>
+	struct A
+	{
+		template<typename U>
+		friend bool operator==(const T&x, const U&y)
+		{
+			return false;
+		}
+	};
+
+	struct B : A<B>
+	{
+	};
+
+	B b;
+	bool x = b == b; // name lookup should find 'A<B>::operator==<B>'
+}
+
+namespace N333
+{
+	struct A
+	{
+		operator const int&()const;
+		operator int&();
+	};
+
+	bool f(const int& x, const A& y);
+	bool f(int, int);
+
+
+	int i;
+	A a;
+	bool x = f(i, a); // calls 'f(const int&, const A&)' - because it is a better candidate than 'f(int, int)'
+}
+
+namespace N332
+{
+	template<class T, class U>
+	struct B
+	{
+	private:
+		friend bool operator<(const U&x, const T&y);
+	};
+	struct A : B<A, int>
+	{
+		operator const int&()const;
+		operator int&();
+	};
+
+	int i;
+	A a;
+	bool x = i < a; // calls 'B<A>::operator<(const int&, const A&)' via koenig lookup - because it is a better candidate than built-in 'operator<(int, int)'
+}
+
+
+namespace N331
+{
+	template<class T>
+	struct A
+	{
+		friend bool operator==(const T&x, const T&y)
+		{
+			return false;
+		}
+	};
+
+	struct B : A<B>
+	{
+	};
+
+	B b;
+	bool x = b == b; // name lookup should find 'A<B>::operator=='
+}
+
+namespace N330
+{
+	struct A
+	{
+		operator const int&()const;
+		operator int&(); // implicit-object parameter is better conversion from 'A&' because no 'added qualification'
+	};
+
+	int i;
+	A a;
+	bool x = i < a; // calls built-in operator<(int, int), via conversion function 'A::operator int&()'
+}
+
+namespace N329
+{
+	template<class T>
+	struct A
+	{
+		friend bool operator==(const T&x, const T&y)
+		{
+			return false;
+		}
+	};
+
+	enum E
+	{
+	};
+
+	E e;
+	bool x = e == e; // name lookup should not find 'A<T>::operator=='
+}
+
+namespace N328
+{
+	template<bool B, class T=void>
+	struct enable_if_c
+	{
+		typedef T type;
+	};
+	template<class T>
+	struct enable_if_c<false, T>
+	{
+	};
+	template<class Cond, class T=void>
+	struct enable_if: public enable_if_c<Cond::value, T>
+	{
+	};
+
+	enum errc_t
+	{
+	};
+
+	template< class T >
+	struct is_error_condition_enum { static const bool value = false; };
+
+	template<>
+	struct is_error_condition_enum<errc_t>
+	{
+		static const bool value=true;
+	
+	};
+
+	class error_condition
+	{
+	public:
+		template<class ErrorConditionEnum>
+		error_condition(ErrorConditionEnum e, typename enable_if<is_error_condition_enum<ErrorConditionEnum> >::type* =0);
+		inline friend bool operator==(const error_condition&lhs, const error_condition&rhs);
+	};
+	struct A
+	{
+		inline friend bool operator==(const A&lhs, const A&rhs);
+	};
+	inline bool operator!=(const A&lhs, const A&rhs)
+	{
+		return !(lhs==rhs); // SFINAE: attempts and fails substitution of 'error_condition::error_condition<A>(A)' 
+	}
+}
+
+#if 0 // TODO: resolve 'identifier <' ambiguity earlier
 namespace N327
 {
 	struct error_category;
 	struct error_condition
 	{
+		template<class ErrorConditionEnum>
+		error_condition(ErrorConditionEnum e, typename boost::enable_if<is_error_condition_enum<ErrorConditionEnum> >::type* =0)
+		{
+			*this=make_error_condition(e);
+		}
 		inline friend bool operator<(const error_condition&lhs, const error_condition&rhs)
 		{
 			return lhs.m_cat<rhs.m_cat||(lhs.m_cat==rhs.m_cat&&lhs.m_val<rhs.m_val);
@@ -11,6 +172,33 @@ namespace N327
 		int m_val;
 		const error_category*m_cat;
 	};
+}
+#endif
+
+namespace N222
+{
+	template<typename T>
+	struct B : T
+	{
+	};
+
+	struct Outer
+	{
+		template <typename T>
+		struct Inner;
+	};
+
+	template<typename T>
+	struct Outer::Inner : B<T>
+	{
+		void f();
+	};
+
+	template<typename T>
+	void Outer::Inner<T>::f()
+	{
+		this->dependent(); // 'this' is dependent
+	}
 }
 
 namespace N326
@@ -608,32 +796,6 @@ namespace N290
 	inline void operator%(parser<A>const&a, char b)
 	{
 		*(b>>a.derived());
-	}
-}
-
-namespace N222
-{
-	template<typename T>
-	struct B : T
-	{
-	};
-
-	struct Outer
-	{
-		template <typename T>
-		struct Inner;
-	};
-
-	template<typename T>
-	struct Outer::Inner : B<T>
-	{
-		void f();
-	};
-
-	template<typename T>
-	void Outer::Inner<T>::f()
-	{
-		this->dependent(); // 'this' is dependent
 	}
 }
 

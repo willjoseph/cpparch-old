@@ -566,3 +566,37 @@
 		- assign: [volatile]L&, R -> [volatile]L&
 		- 
 	- issue: how to ensure both arguments are same type when matching (T, T) ?
+
+
+- investigate: TemplateIdWalker doesn't do name lookup, leads to unnecessary failed parse when expression begins with 'a < b'
+	- in case of 'a < b || c' causes error evaluating expression type if 'b' is not convertible to bool
+	- ideally, defer evaluation of expression type until ambiguity is resolved.
+	- temporary hack to avoid?
+
+- investigate: deferred evaluation of expression type
+	- evaluate expression type in context of (enclosing scope, enclosing type, location)
+
+- task: remove unused 'isTemplate' stuff
+
+- investigate: special handling for declarator name lookup still required?
+
+- investigate: 'T->T' and 'T->const T&' are indistinguishable conversion sequences?
+	- T->T: identity
+	- T->const T&:
+		- also an identity sequence?
+		- qualification adjustment?
+	- When a parameter of reference type binds directly (8.5.3) to an argument expression, the implicit conversion
+		sequence is the identity conversion, unless the argument expression has a type that is a derived class of
+		the parameter type, in which case the implicit conversion sequence is a derived-to-base Conversion.
+	- The rank of a conversion sequence is determined by considering the rank of each conversion in the sequence and the rank of any reference binding
+	- Any difference in top-level cv-qualification is
+		subsumed by the initialization itself and does not constitute a conversion. [ Example: a parameter of type A
+		can be initialized from an argument of type const A. The implicit conversion sequence for that case is the
+		identity sequence; it contains no “conversion” from const A to A. —end example ]
+	- If no conversions are required to match an argument to a parameter type, the implicit conversion sequence
+		is the standard conversion sequence consisting of the identity conversion.
+
+
+- task: write tests for implicit-conversion-sequence ranking
+
+- task: built-in operator overload resolution for ptr-to-member expression

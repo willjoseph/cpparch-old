@@ -1603,11 +1603,14 @@ inline bool operator<(UniqueTypeWrapper l, UniqueTypeWrapper r)
 	return l.value < r.value;
 }
 
+inline bool isGreaterCvQualification(CvQualifiers l, CvQualifiers r)
+{
+	return l.isConst + l.isVolatile > r.isConst + r.isVolatile;
+}
 
 inline bool isGreaterCvQualification(UniqueTypeWrapper to, UniqueTypeWrapper from)
 {
-	return to.value.getQualifiers().isConst > from.value.getQualifiers().isConst
-		|| to.value.getQualifiers().isVolatile > from.value.getQualifiers().isVolatile;
+	return isGreaterCvQualification(to.value.getQualifiers(), from.value.getQualifiers());
 }
 
 inline bool isEqualCvQualification(UniqueTypeWrapper to, UniqueTypeWrapper from)
@@ -3654,6 +3657,13 @@ struct SubstituteVisitor : TypeElementVisitor
 
 	virtual void visit(const DependentTypename& element) // substitute T::X, T::template X<...>
 	{
+		if(isDependent(enclosingType))
+		{
+			// TODO: occurs when substituting with a dependent template argument list, if a template function is called with an empty (or partial) explicit template argument list.
+			type.push_front(element);
+			return;
+		}
+
 		UniqueTypeWrapper qualifying = substitute(element.qualifying, source, enclosingType);
 		const TypeInstance* enclosing = qualifying == gUniqueTypeNull || !qualifying.isSimple() ? 0 : &getObjectType(qualifying.value);
 		// [temp.deduct] Attempting to use a type that is not a class type in a qualified name
@@ -3711,17 +3721,17 @@ struct SubstituteVisitor : TypeElementVisitor
 	}
 	virtual void visit(const DependentNonType& element)
 	{
-		if(isDependent(enclosingType)) // TODO: unify DependentNonType and NonType
+		// TODO: unify DependentNonType and NonType?
+		if(isDependent(enclosingType))
 		{
-			// occurs when substituting with a dependent template argument list, if a template function is called with an empty (or partial) explicit template argument list.
+			// TODO: occurs when substituting with a dependent template argument list, if a template function is called with an empty (or partial) explicit template argument list.
 			type.push_front(element);
+			return;
 		}
-		else
-		{
-			// TODO: SFINAE for expressions: check that type of template argument matches template parameter
-			IntegralConstant value = evaluateExpression(element.expression, source, &enclosingType);
-			type.push_front(NonType(value));
-		}
+	
+		// TODO: SFINAE for expressions: check that type of template argument matches template parameter
+		IntegralConstant value = evaluateExpression(element.expression, source, &enclosingType);
+		type.push_front(NonType(value));
 	}
 	virtual void visit(const TemplateTemplateArgument& element)
 	{
@@ -5602,9 +5612,10 @@ struct StandardConversionSequence
 {
 	ScsRank rank;
 	CvQualifiers adjustment; // TODO: cv-qualification signature for multi-level pointer type
+	bool isReference;
 	UniqueTypeWrapper matched;
 	StandardConversionSequence(ScsRank rank, CvQualifiers adjustment, UniqueTypeWrapper matched = gUniqueTypeNull)
-		: rank(rank), adjustment(adjustment), matched(matched)
+		: rank(rank), adjustment(adjustment), isReference(false), matched(matched)
 	{
 	}
 };
@@ -5931,7 +5942,7 @@ inline StandardConversionSequence makeScsConversion(Location source, const TypeI
 		&& isIntegral(from)
 		&& isNullPointerConstant)
 	{
-		return StandardConversionSequence(SCSRANK_CONVERSION, CvQualifiers(), gIntegralPlaceholder); // 0 -> T*, 0 -> T C::*
+		return StandardConversionSequence(SCSRANK_CONVERSION, CvQualifiers()); // 0 -> T*, 0 -> T C::*
 	}
 	if(to.isSimplePointer()
 		&& from.isSimplePointer()
@@ -6082,8 +6093,8 @@ inline StandardConversionSequence makeStandardConversionSequence(To to, UniqueTy
 
 inline bool isProperSubsequence(CvQualifiers l, CvQualifiers r)
 {
-	return (!l.isConst && r.isConst)
-		|| (!l.isVolatile && r.isVolatile);
+	return !l.isConst && !l.isVolatile
+		&& (r.isConst || r.isVolatile); // true if r has any cv-qualification while l does not
 }
 
 inline bool isProperSubsequence(const StandardConversionSequence& l, const StandardConversionSequence& r)
@@ -6091,10 +6102,27 @@ inline bool isProperSubsequence(const StandardConversionSequence& l, const Stand
 	// TODO: consider lvalue-transformation!
 	return (l.rank == SCSRANK_IDENTITY && r.rank != SCSRANK_IDENTITY)
 		|| (l.rank == r.rank
-			&& isProperSubsequence(l.adjustment, r.adjustment));
+			&& !l.isReference && !r.isReference && isProperSubsequence(l.adjustment, r.adjustment)); // TODO: compare cv-qualification signature of multi-level pointer
 }
 
 // [over.ics.rank]
+// Standard conversion sequence S1 is a better conversion sequence than standard conversion sequence
+// S2 if
+// - S1 is a proper subsequence of S2 (comparing the conversion sequences in the canonical form
+//   defined by 13.3.3.1.1, excluding any Lvalue Transformation; the identity conversion sequence is
+//   considered to be a subsequence of any non-identity conversion sequence) or, if not that,
+// - the rank of S1 is better than the rank of S2, or S1 and S2 have the same rank and are distinguishable
+//   by the rules in the paragraph below, or, if not that,
+// - S1 and S2 differ only in their qualification conversion and yield similar types T1 and T2 (4.4),
+//   respectively, and the cv-qualification signature of type T1 is a proper subset of the cv-qualification
+//   signature of type T2.
+// - S1 and S2 are reference bindings (8.5.3), and the types to which the references refer are the same
+//   type except for top-level cv-qualifiers, and the type to which the reference initialized by S2 refers
+//   is more cv-qualified than the type to which the reference initialized by S1 refers.
+// - User-defined conversion sequence U1 is a better conversion sequence than another user-defined conversion
+//   sequence U2 if they contain the same user-defined conversion function or constructor and if the
+//   second standard conversion sequence of U1 is better than the second standard conversion sequence of
+//   U2.
 inline bool isBetter(const StandardConversionSequence& l, const StandardConversionSequence& r)
 {
 	// TODO: assert rank not INVALID
@@ -6106,7 +6134,11 @@ inline bool isBetter(const StandardConversionSequence& l, const StandardConversi
 	{
 		return true;
 	}
-	// TODO: both sequences are similar references, but differ only in cv-qualification
+	if(l.isReference && r.isReference
+		&& isGreaterCvQualification(r.adjustment, l.adjustment))
+	{
+		return true; // both sequences are similar references, and the second is more cv-qualified than the first.
+	}
 	// TODO: user-defined conversion sequence ranking
 	return false;
 }
@@ -6152,9 +6184,11 @@ ImplicitConversion makeImplicitConversionSequence(To to, UniqueTypeWrapper from,
 	SYMBOLS_ASSERT(to != gUniqueTypeNull);
 	SYMBOLS_ASSERT(from != gUniqueTypeNull);
 
+	bool isReference = false;
 	if(from.isReference())
 	{
 		isLvalue = true;
+		isReference = true;
 		from.pop_front(); // TODO: removal of reference won't be detected later
 	}
 
@@ -6179,7 +6213,7 @@ ImplicitConversion makeImplicitConversionSequence(To to, UniqueTypeWrapper from,
 		// bind directly to the initializer expression.
 		if(isLvalue
 			&& (isEqualCvQualification(to, from)
-			|| isGreaterCvQualification(to, from))) // TODO: track 'added qualification' if qualification is greater
+			|| isGreaterCvQualification(to, from)))
 		{
 			// [over.ics.ref]
 			// When a parameter of reference type binds directly (8.5.3) to an argument expression, the implicit conversion
@@ -6188,13 +6222,17 @@ ImplicitConversion makeImplicitConversionSequence(To to, UniqueTypeWrapper from,
 			UniqueTypeWrapper matched = getExactMatchNoQualifiers(to, from);
 			if(matched != gUniqueTypeNull)
 			{
-				return ImplicitConversion(StandardConversionSequence(SCSRANK_IDENTITY, makeQualificationAdjustment(to, from), matched));
+				StandardConversionSequence sequence(SCSRANK_IDENTITY, to.value.getQualifiers(), matched);
+				sequence.isReference = true;
+				return ImplicitConversion(sequence);
 			}
 			if(to.isSimple()
 				&& from.isSimple()
 				&& isBaseOf(getObjectType(to.value), getObjectType(from.value), source, enclosing))
 			{
-				return ImplicitConversion(StandardConversionSequence(SCSRANK_CONVERSION, makeQualificationAdjustment(to, from)));
+				StandardConversionSequence sequence(SCSRANK_CONVERSION, to.value.getQualifiers());
+				sequence.isReference = true;
+				return ImplicitConversion(sequence);
 			}
 			// drop through...
 		}
@@ -6213,7 +6251,8 @@ ImplicitConversion makeImplicitConversionSequence(To to, UniqueTypeWrapper from,
 				SYMBOLS_ASSERT(type.isReference());
 				type.pop_front();
 				bool isIdentity = type.value.getPointer() == to.value.getPointer();
-				StandardConversionSequence second(isIdentity ? SCSRANK_IDENTITY : SCSRANK_CONVERSION, makeQualificationAdjustment(to, type));
+				StandardConversionSequence second(isIdentity ? SCSRANK_IDENTITY : SCSRANK_CONVERSION, to.value.getQualifiers());
+				second.isReference = true;
 				return ImplicitConversion(second, ICSTYPE_USERDEFINED, overload.declaration);
 			}
 			// drop through...
@@ -6295,12 +6334,16 @@ ImplicitConversion makeImplicitConversionSequence(To to, UniqueTypeWrapper from,
 
 		// The second standard conversion sequence converts the result of the user-defined conversion to the target
 		// type for the sequence.
-		StandardConversionSequence second = makeStandardConversionSequence(to, overload.type, source, enclosing);
+		bool isLvalue = overload.type.isReference(); // TODO: proper lvalueness
+		StandardConversionSequence second = makeStandardConversionSequence(to, removeReference(overload.type), source, enclosing, false, isLvalue);
+		second.isReference = isReference;
 		return ImplicitConversion(second, ICSTYPE_USERDEFINED, overload.declaration);
 	}
 
 	// standard conversion
-	return ImplicitConversion(makeStandardConversionSequence(to, from, source, enclosing, isNullPointerConstant, isLvalue));
+	StandardConversionSequence sequence = makeStandardConversionSequence(to, from, source, enclosing, isNullPointerConstant, isLvalue);
+	sequence.isReference = isReference;
+	return ImplicitConversion(sequence);
 }
 
 
