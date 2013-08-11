@@ -2178,21 +2178,19 @@ struct WalkerBase : public WalkerState
 			// this occurs when uniquing the dependent type name in a nested name-specifier in a class-member-access expression
 			// e.g. 'x.C::f()'
 			type.isDependent = true;
-			type.unique = memberType.value; // TODO: defer evaluation of this type
+			type.unique = memberType.value; // TODO: deferred evaluation of this type
 			return;
 		}
 		type.isDependent = isDependent(type);
 		type.unique = makeUniqueType(type, source, enclosingType, type.isDependent).value;
 	}
-	UniqueTypeWrapper makeUniqueTypeSafe(Type& type, Location source)
+	void makeUniqueTypeSafe(Type& type, Location source)
 	{
 		makeUniqueTypeImpl(type, source);
-		return type.isDependent ? gUniqueTypeNull : UniqueTypeWrapper(type.unique);
 	}
-	UniqueTypeWrapper makeUniqueTypeSafe(TypeId& type, Location source)
+	void makeUniqueTypeSafe(TypeId& type, Location source)
 	{
 		makeUniqueTypeImpl(type, source);
-		return type.isDependent ? gUniqueTypeNull : UniqueTypeWrapper(type.unique);
 	}
 	UniqueTypeWrapper getUniqueTypeSafe(const TypeId& type)
 	{
@@ -2360,9 +2358,9 @@ struct TemplateArgumentListWalker : public WalkerBase
 	{
 		TypeIdWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
+		walker.commit();
 		argument.type.swap(walker.type);
 		argument.source = getLocation();
-		makeUniqueTypeSafe(argument.type, argument.source);
 	}
 	void visit(cpp::assignment_expression* symbol)
 	{
@@ -2535,7 +2533,7 @@ struct UnqualifiedIdWalker : public WalkerBase
 		// do not look up type-name within qualifying scope: e.g. x.operator T(): T is looked up scope of entire postfix-expression, not within 'x'
 		walker.clearQualifying();
 		TREEWALKER_WALK(walker, symbol);
-		UniqueTypeWrapper type = makeUniqueTypeSafe(walker.type, getLocation());
+		walker.commit();
 		symbol->value = gConversionFunctionId;
 		symbol->value.source = source;
 		id = &symbol->value;
@@ -2690,9 +2688,9 @@ struct ExplicitTypeExpressionWalker : public WalkerBase
 	{
 		TypeIdWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
+		walker.commit();
 		type.swap(walker.type);
 		addDependent(typeDependent, type);
-		makeUniqueTypeSafe(type, getLocation());
 	}
 	void visit(cpp::new_type* symbol)
 	{
@@ -3081,13 +3079,13 @@ struct TypeTraitsIntrinsicWalker : public WalkerBase
 	{
 		TypeIdWalker walker(getState());
 		TREEWALKER_WALK_SRC(walker, symbol);
+		walker.commit();
 		addDependent(valueDependent, walker.type);
 
-		makeUniqueTypeImpl(walker.type, Location(symbol->source, context.declarationCount));
-		UniqueTypeWrapper uniqueType = UniqueTypeWrapper(walker.type.unique);
-		setExpressionType(symbol, uniqueType);
+		UniqueTypeWrapper type = UniqueTypeWrapper(walker.type.unique);
+		setExpressionType(symbol, type);
 
-		(first == gUniqueTypeNull ? first : second) = uniqueType;
+		(first == gUniqueTypeNull ? first : second) = type;
 	}
 };
 
@@ -3194,6 +3192,7 @@ struct PostfixExpressionWalker : public WalkerBase
 	{
 		ExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
+		// TODO: operand type required to be complete?
 		type = getTypeInfoType();
 		updateMemberType();
 	}
@@ -3201,6 +3200,7 @@ struct PostfixExpressionWalker : public WalkerBase
 	{
 		TypeIdWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
+		// TODO: operand type required to be complete?
 		type = getTypeInfoType();
 		updateMemberType();
 	}
@@ -3552,14 +3552,15 @@ struct SizeofTypeExpressionWalker : public WalkerBase
 	{
 		TypeIdWalker walker(getState());
 		TREEWALKER_WALK_SRC(walker, symbol);
+		walker.commit();
 		// [temp.dep.expr] Expressions of the following form [sizeof(T)] are never type-dependent (because the type of the expression cannot be dependent)
 		// [temp.dep.constexpr] Expressions of the following form [sizeof(T)] are value-dependent if ... the type-id is dependent
 		addDependent(valueDependent, walker.type);
 
-		UniqueTypeId uniqueType = makeUniqueTypeSafe(walker.type, Location(symbol->source, context.declarationCount));
-		setExpressionType(symbol, uniqueType);
+		UniqueTypeId type = getUniqueTypeSafe(walker.type);
+		setExpressionType(symbol, type);
 
-		expression = ExpressionWrapper(makeExpression(SizeofTypeExpression(uniqueType)), true, false, isDependent(valueDependent));
+		expression = ExpressionWrapper(makeExpression(SizeofTypeExpression(type)), true, false, isDependent(valueDependent));
 	}
 };
 
@@ -5842,6 +5843,11 @@ struct TypeIdWalker : public WalkerBase
 		: WalkerBase(state), type(0, context)
 	{
 	}
+	// called when parse of type-id is complete (necessary because trailing abstract-declarator is optional)
+	void commit()
+	{
+		makeUniqueTypeSafe(type, getLocation());
+	}
 	void visit(cpp::terminal<boost::wave::T_OPERATOR> symbol) // conversion_function_id
 	{
 		// this is a conversion-function-id
@@ -6478,8 +6484,8 @@ struct TypeParameterWalker : public WalkerBase
 		SEMANTIC_ASSERT(params.empty());
 		TypeIdWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
+		walker.commit();
 		argument.type.swap(walker.type);
-		makeUniqueTypeSafe(argument.type, getLocation());
 	}
 	void visit(cpp::template_parameter_clause* symbol)
 	{

@@ -1,4 +1,39 @@
 
+namespace N285
+{
+	enum E
+	{
+	};
+	template<typename T>
+	struct A
+	{
+		struct S
+		{
+			operator E() const;
+			void f(const S& s)
+			{
+				s.operator E(); // E is looked up in the context of the entire postfix expression, not only within the qualifying type 'S'
+			}
+		};
+	};
+}
+
+namespace N232
+{
+	template<typename T>
+	struct S
+	{
+		T m;
+		void f()
+		{
+			m.Dependent::dependent();
+			m.dependent();
+			m->dependent();
+		}
+	};
+}
+
+
 namespace N339
 {
 	enum
@@ -999,25 +1034,6 @@ namespace N286
 	}
 }
 
-namespace N285
-{
-	enum E
-	{
-	};
-	template<typename T>
-	struct A
-	{
-		struct S
-		{
-			operator E() const;
-			void f(const S& s)
-			{
-				s.operator E(); // E is looked up in the context of the entire postfix expression, not only within the qualifying type 'S'
-			}
-		};
-	};
-}
-
 namespace N284
 {
 	template<class T>
@@ -1293,21 +1309,6 @@ namespace N264
 	int i = f(p, L"", 0);
 }
 
-
-namespace N232
-{
-	template<typename T>
-	struct S
-	{
-		T m;
-		void f()
-		{
-			m.Dependent::dependent();
-			m.dependent();
-			m->dependent();
-		}
-	};
-}
 
 namespace N263
 {
