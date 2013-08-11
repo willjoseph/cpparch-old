@@ -119,7 +119,7 @@
 	+ name lookup for 'this->m' finds 'm' in enclosing scope
 		- see [basic.lookup.classref]
 		- reject names not found in enclosing class when not considering nested-name-specifier
-		- memberObject not set during scope of out-of-line member definition, member lookup fails
+		- memberClass not set during scope of out-of-line member definition, member lookup fails
 		- check when object-expr is dependent and skip lookup, rather than reverting to unqualified lookup
 	+ implement deferred name-lookup for dependent type-names
 	+ get rid of old printParameters(DeclarationList)
@@ -142,7 +142,7 @@
 	+ implement class-template instantiation
 		- specializations are chosen at point of instantiation
 		- dependent-names/types are bound at point of instantiation-
-			- TypeInstance: contains list of declarations, one for each dependent-name in the template
+			- SimpleType: contains list of declarations, one for each dependent-name in the template
 				- including base classes
 		- partial-ordering of class template specialisations
 	- track/report first point in source when a class is required to be complete:

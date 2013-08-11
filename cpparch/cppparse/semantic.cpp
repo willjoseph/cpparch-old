@@ -237,8 +237,8 @@ inline const DeclarationInstance* findRedeclared(const Declaration& declaration,
 struct Overload
 {
 	const Declaration* declaration;
-	const TypeInstance* memberEnclosing;
-	Overload(const Declaration* declaration, const TypeInstance* memberEnclosing)
+	const SimpleType* memberEnclosing;
+	Overload(const Declaration* declaration, const SimpleType* memberEnclosing)
 		: declaration(declaration), memberEnclosing(memberEnclosing)
 	{
 	}
@@ -260,7 +260,7 @@ struct KoenigAssociated
 {
 	typedef std::vector<Scope*> Namespaces;
 	Namespaces namespaces;
-	typedef std::vector<const TypeInstance*> Classes;
+	typedef std::vector<const SimpleType*> Classes;
 	Classes classes;
 };
 
@@ -273,7 +273,7 @@ void addAssociatedNamespace(KoenigAssociated& associated, Scope& scope)
 	}
 }
 
-void addAssociatedClass(KoenigAssociated& associated, const TypeInstance& type)
+void addAssociatedClass(KoenigAssociated& associated, const SimpleType& type)
 {
 	SEMANTIC_ASSERT(isClass(*type.declaration));
 	if(std::find(associated.classes.begin(), associated.classes.end(), &type) == associated.classes.end())
@@ -282,7 +282,7 @@ void addAssociatedClass(KoenigAssociated& associated, const TypeInstance& type)
 	}
 }
 
-void addAssociatedEnclosingNamespace(KoenigAssociated& associated, const TypeInstance& type)
+void addAssociatedEnclosingNamespace(KoenigAssociated& associated, const SimpleType& type)
 {
 	Scope* scope = getEnclosingNamespace(type.declaration->scope);
 	if(scope != 0)
@@ -291,25 +291,25 @@ void addAssociatedEnclosingNamespace(KoenigAssociated& associated, const TypeIns
 	}
 }
 
-void addAssociatedClassAndNamespace(KoenigAssociated& associated, const TypeInstance& classType)
+void addAssociatedClassAndNamespace(KoenigAssociated& associated, const SimpleType& classType)
 {
 	SEMANTIC_ASSERT(isClass(*classType.declaration));
 	addAssociatedClass(associated, classType);
 	addAssociatedEnclosingNamespace(associated, classType);
 }
 
-void addAssociatedClassRecursive(KoenigAssociated& associated, const TypeInstance& classType)
+void addAssociatedClassRecursive(KoenigAssociated& associated, const SimpleType& classType)
 {
 	SEMANTIC_ASSERT(isClass(*classType.declaration));
 	addAssociatedClassAndNamespace(associated, classType);
 	for(UniqueBases::const_iterator i = classType.bases.begin(); i != classType.bases.end(); ++i)
 	{
-		const TypeInstance* base = *i;
+		const SimpleType* base = *i;
 		addAssociatedClassRecursive(associated, *base); // TODO: check for cyclic base-class, prevent infinite recursion
 	}
 }
 
-void addKoenigAssociated(KoenigAssociated& associated, const TypeInstance& classType)
+void addKoenigAssociated(KoenigAssociated& associated, const SimpleType& classType)
 {
 	if(classType.enclosing != 0)
 	{
@@ -346,28 +346,28 @@ struct KoenigVisitor : TypeElementVisitor
 	virtual void visit(const NonType&)
 	{
 	}
-	virtual void visit(const ObjectType& element)
+	virtual void visit(const SimpleType& element)
 	{
 		// - If T is a fundamental type, its associated sets of namespaces and classes are both empty.
-		if(isClass(*element.type.declaration))
+		if(isClass(*element.declaration))
 		{
 			// - If T is a class type (including unions), its associated classes are: the class itself; the class of which it is a
 			//   member, if any; and its direct and indirect base classes. Its associated namespaces are the namespaces
 			//   in which its associated classes are defined.
-			addKoenigAssociated(associated, element.type);
+			addKoenigAssociated(associated, element);
 		}
-		else if(isEnum(*element.type.declaration))
+		else if(isEnum(*element.declaration))
 		{
 			// - If T is an enumeration type, its associated namespace is the namespace in which it is defined. If it is
 			//   class member, its associated class is the member’s class; else it has no associated class.
-			if(element.type.enclosing != 0)
+			if(element.enclosing != 0)
 			{
-				addAssociatedClass(associated, *element.type.enclosing);
+				addAssociatedClass(associated, *element.enclosing);
 			}
-			addAssociatedEnclosingNamespace(associated, element.type);
+			addAssociatedEnclosingNamespace(associated, element);
 		}
 
-		if(element.type.declaration->isTemplate)
+		if(element.declaration->isTemplate)
 		{
 			// - If T is a template-id, its associated namespaces and classes are the namespace in which the template is
 			//   defined; for member templates, the member template’s class; the namespaces and classes associated
@@ -376,7 +376,7 @@ struct KoenigVisitor : TypeElementVisitor
 			//   classes in which any member templates used as template template arguments are defined. [Note: nontype
 			//   template arguments do not contribute to the set of associated namespaces. ]
 			// TODO: does this apply to function-template id 'f<int>()' ?
-			for(TemplateArgumentsInstance::const_iterator i = element.type.templateArguments.begin(); i != element.type.templateArguments.end(); ++i)
+			for(TemplateArgumentsInstance::const_iterator i = element.templateArguments.begin(); i != element.templateArguments.end(); ++i)
 			{
 				addKoenigAssociated(associated, *i);
 			}
@@ -398,7 +398,7 @@ struct KoenigVisitor : TypeElementVisitor
 		//   with the function parameter types and return type, together with those associated with X.
 		// - If T is a pointer to a data member of class X, its associated namespaces and classes are those associated
 		//   with the member type together with those associated with X.
-		addKoenigAssociated(associated, getObjectType(element.type.value));
+		addKoenigAssociated(associated, getSimpleType(element.type.value));
 	}
 	virtual void visit(const FunctionType& element)
 	{
@@ -429,12 +429,12 @@ void addUniqueOverload(OverloadSet& result, const Overload& overload)
 	}
 }
 
-const TypeInstance* findAssociatedClass(const KoenigAssociated& associated, const Declaration& declaration)
+const SimpleType* findAssociatedClass(const KoenigAssociated& associated, const Declaration& declaration)
 {
 	SEMANTIC_ASSERT(isClass(declaration))
 	for(KoenigAssociated::Classes::const_iterator i = associated.classes.begin(); i != associated.classes.end(); ++i)
 	{
-		const TypeInstance* classType = *i;
+		const SimpleType* classType = *i;
 		if(classType->declaration == &declaration)
 		{
 			return classType;
@@ -447,7 +447,7 @@ void addOverloaded(OverloadSet& result, const DeclarationInstance& declaration, 
 {
 	for(Declaration* p = findOverloaded(declaration); p != 0; p = p->overloaded)
 	{
-		const TypeInstance* memberEnclosing = 0;
+		const SimpleType* memberEnclosing = 0;
 		if(p->specifiers.isFriend)
 		{
 			Scope* enclosingClass = getEnclosingClass(p->enclosed);
@@ -491,7 +491,7 @@ void argumentDependentLookup(OverloadSet& result, const Identifier& id, const Ar
 	}
 }
 
-inline void addOverloads(OverloadResolver& resolver, const DeclarationInstance& declaration, Location source, const TypeInstance* enclosing = 0)
+inline void addOverloads(OverloadResolver& resolver, const DeclarationInstance& declaration, Location source, const SimpleType* enclosing = 0)
 {
 	for(Declaration* p = findOverloaded(declaration); p != 0; p = p->overloaded)
 	{
@@ -499,22 +499,22 @@ inline void addOverloads(OverloadResolver& resolver, const DeclarationInstance& 
 	}
 }
 
-inline void addOverloads(OverloadResolver& resolver, const OverloadSet& overloads, Location source, const TypeInstance* enclosing = 0)
+inline void addOverloads(OverloadResolver& resolver, const OverloadSet& overloads, Location source, const SimpleType* enclosing = 0)
 {
 	for(OverloadSet::const_iterator i = overloads.begin(); i != overloads.end(); ++i)
 	{
 		const Overload& overload = *i;
-		const TypeInstance* memberEnclosing = overload.memberEnclosing != 0 ? overload.memberEnclosing : enclosing;
+		const SimpleType* memberEnclosing = overload.memberEnclosing != 0 ? overload.memberEnclosing : enclosing;
 		addOverload(resolver, *overload.declaration, source, memberEnclosing);
 	}
 }
 
-inline void printOverloads(OverloadResolver& resolver, const OverloadSet& overloads, Location source, const TypeInstance* enclosing = 0)
+inline void printOverloads(OverloadResolver& resolver, const OverloadSet& overloads, Location source, const SimpleType* enclosing = 0)
 {
 	for(OverloadSet::const_iterator i = overloads.begin(); i != overloads.end(); ++i)
 	{
 		const Overload& overload = *i;
-		const TypeInstance* memberEnclosing = overload.memberEnclosing != 0 ? overload.memberEnclosing : enclosing;
+		const SimpleType* memberEnclosing = overload.memberEnclosing != 0 ? overload.memberEnclosing : enclosing;
 		addOverload(resolver, *overload.declaration, source, memberEnclosing);
 	
 		const Declaration* p = overload.declaration;
@@ -537,7 +537,7 @@ inline void printOverloads(OverloadResolver& resolver, const OverloadSet& overlo
 
 // source: where the overload resolution occurs (point of instantiation)
 // enclosingType: the class of which the declaration is a member (along with all its overloads).
-inline FunctionOverload findBestMatch(const OverloadSet& overloads, const TemplateArgumentsInstance* templateArguments, const Arguments& arguments, Location source, const TypeInstance* enclosingType)
+inline FunctionOverload findBestMatch(const OverloadSet& overloads, const TemplateArgumentsInstance* templateArguments, const Arguments& arguments, Location source, const SimpleType* enclosingType)
 {
 	SEMANTIC_ASSERT(!overloads.empty());
 	OverloadResolver resolver(arguments, templateArguments, source, enclosingType);
@@ -624,7 +624,7 @@ inline void addBuiltInTypeConversions(UserTypeArray& conversions, BuiltInTypeArr
 }
 
 template<typename Op>
-inline void forEachBase(const TypeInstance& classType, Op op)
+inline void forEachBase(const SimpleType& classType, Op op)
 {
 	SYMBOLS_ASSERT(classType.instantiated);
 	op(classType);
@@ -657,9 +657,9 @@ struct AddPointerConversions
 		: conversions(conversions), qualifiers(qualifiers)
 	{
 	}
-	void operator()(const TypeInstance& classType) const
+	void operator()(const SimpleType& classType) const
 	{
-		addQualificationPermutations(conversions, qualifyType(makeUniqueObjectType(classType), qualifiers));
+		addQualificationPermutations(conversions, qualifyType(makeUniqueSimpleType(classType), qualifiers));
 	}
 };
 
@@ -671,9 +671,9 @@ struct AddMemberPointerConversions
 		: conversions(conversions), type(type)
 	{
 	}
-	void operator()(const TypeInstance& classType) const
+	void operator()(const SimpleType& classType) const
 	{
-		addQualificationPermutations(conversions, type, MemberPointerType(makeUniqueObjectType(classType)));
+		addQualificationPermutations(conversions, type, MemberPointerType(makeUniqueSimpleType(classType)));
 	}
 };
 
@@ -694,7 +694,7 @@ inline bool isPlaceholder(UniqueTypeWrapper type)
 
 // to: The placeholder parameter of the built-in operator.
 // from: The type of the argument expression after lvalue-to-rvalue conversion, or the type yielded by the best conversion function.
-inline void addBuiltInOperatorConversions(UserTypeArray& conversions, UniqueTypeWrapper to, UniqueTypeWrapper from, Location source, const TypeInstance* enclosing)
+inline void addBuiltInOperatorConversions(UserTypeArray& conversions, UniqueTypeWrapper to, UniqueTypeWrapper from, Location source, const SimpleType* enclosing)
 {
 	SYMBOLS_ASSERT(isPlaceholder(removeReference(to)));
 	if(to.isReference())
@@ -712,7 +712,7 @@ inline void addBuiltInOperatorConversions(UserTypeArray& conversions, UniqueType
 			&& isComplete(type))
 		{
 			// the argument type 'pointer to class X' is convertible to a pointer to any base class of X
-			const TypeInstance& classType = getObjectType(type.value);
+			const SimpleType& classType = getSimpleType(type.value);
 			instantiateClass(classType, source, enclosing);
 			forEachBase(classType, AddPointerConversions(conversions, qualifiers));
 		}
@@ -732,7 +732,7 @@ inline void addBuiltInOperatorConversions(UserTypeArray& conversions, UniqueType
 		if(isComplete(from))
 		{
 			// the argument type 'pointer to member of class X of type Y' is convertible to a pointer to member of any base class of X of type Y
-			const TypeInstance& classType = getMemberPointerClass(from.value);
+			const SimpleType& classType = getMemberPointerClass(from.value);
 			instantiateClass(classType, source, enclosing);
 			forEachBase(classType, AddMemberPointerConversions(conversions, type));
 		}
@@ -987,7 +987,7 @@ inline void addBuiltInOperatorOverloads(OverloadResolver& resolver, const Identi
 	}
 }
 
-inline FunctionOverload findBestOverloadedOperator(const Identifier& id, const Arguments& arguments, Scope* enclosing, Location source, const TypeInstance* enclosingType)
+inline FunctionOverload findBestOverloadedOperator(const Identifier& id, const Arguments& arguments, Scope* enclosing, Location source, const SimpleType* enclosingType)
 {
 	Arguments::const_iterator i = arguments.begin();
 	UniqueTypeWrapper left = (*i++).type;
@@ -1015,12 +1015,12 @@ inline FunctionOverload findBestOverloadedOperator(const Identifier& id, const A
 	if(isClass(left)
 		&& isComplete(left)) // can only find overloads if class is complete
 	{
-		const TypeInstance& operand = getObjectType(left.value);
+		const SimpleType& operand = getSimpleType(left.value);
 		instantiateClass(operand, source, enclosingType); // searching for overloads requires a complete type
 		LookupResultRef declaration = ::findDeclaration(operand, id, IsAny());
 		if(declaration != 0)
 		{
-			const TypeInstance* memberEnclosing = findEnclosingType(&operand, declaration->scope); // find the base class which contains the member-declaration
+			const SimpleType* memberEnclosing = findEnclosingType(&operand, declaration->scope); // find the base class which contains the member-declaration
 			SEMANTIC_ASSERT(memberEnclosing != 0);
 			addOverloads(resolver, declaration, source, memberEnclosing);
 		}
@@ -1102,7 +1102,7 @@ inline bool isIntegralConstant(UniqueTypeWrapper type)
 }
 
 
-inline UniqueTypeWrapper typeOfUnaryExpression(cpp::unary_operator* op, Argument operand, Scope* enclosing, Location source, const TypeInstance* enclosingType)
+inline UniqueTypeWrapper typeOfUnaryExpression(cpp::unary_operator* op, Argument operand, Scope* enclosing, Location source, const SimpleType* enclosingType)
 {
 	Identifier id;
 	id.value = getOverloadedOperatorId(op);
@@ -1124,7 +1124,7 @@ inline UniqueTypeWrapper typeOfUnaryExpression(cpp::unary_operator* op, Argument
 			// For a qualified-id, if the member is a static member of type "T", the type of the result is plain "pointer to T."
 			// If the member is a non-static member of class C of type T, the type of the result is "pointer to member of class C of type
 			// T."
-			UniqueTypeWrapper classType = makeUniqueObjectType(*getIdExpression(operand).enclosing);
+			UniqueTypeWrapper classType = makeUniqueSimpleType(*getIdExpression(operand).enclosing);
 			UniqueTypeWrapper type = operand.type;
 			type.push_front(MemberPointerType(classType)); // produces a non-const pointer
 			return type;
@@ -1141,9 +1141,9 @@ inline UniqueTypeWrapper typeOfUnaryExpression(cpp::unary_operator* op, Argument
 	}
 }
 
-UniqueTypeWrapper getOverloadedMemberOperatorType(UniqueTypeWrapper operand, Location source, const TypeInstance* enclosing)
+UniqueTypeWrapper getOverloadedMemberOperatorType(UniqueTypeWrapper operand, Location source, const SimpleType* enclosing)
 {
-	const TypeInstance& classType = getObjectType(operand.value);
+	const SimpleType& classType = getSimpleType(operand.value);
 	SEMANTIC_ASSERT(isClass(*classType.declaration)); // assert that this is a class type
 	// [expr.ref] [the type of the operand-expression shall be complete]
 	instantiateClass(classType, source, enclosing); // searching for overloads requires a complete type
@@ -1158,7 +1158,7 @@ UniqueTypeWrapper getOverloadedMemberOperatorType(UniqueTypeWrapper operand, Loc
 	LookupResultRef declaration = ::findDeclaration(classType, id, IsAny());
 	if(declaration != 0)
 	{
-		const TypeInstance* memberEnclosing = findEnclosingType(&classType, declaration->scope); // find the base class which contains the member-declaration
+		const SimpleType* memberEnclosing = findEnclosingType(&classType, declaration->scope); // find the base class which contains the member-declaration
 		SEMANTIC_ASSERT(memberEnclosing != 0);
 		addOverloads(resolver, declaration, source, memberEnclosing);
 	}
@@ -1168,7 +1168,7 @@ UniqueTypeWrapper getOverloadedMemberOperatorType(UniqueTypeWrapper operand, Loc
 	return result.type;
 }
 
-const TypeInstance& getMemberOperatorType(UniqueTypeWrapper operand, bool isArrow, Location source, const TypeInstance* enclosing)
+const SimpleType& getMemberOperatorType(UniqueTypeWrapper operand, bool isArrow, Location source, const SimpleType* enclosing)
 {
 	if(isArrow)
 	{
@@ -1186,7 +1186,7 @@ const TypeInstance& getMemberOperatorType(UniqueTypeWrapper operand, bool isArro
 	}
 	// the left-hand side is (pointer-to) operand
 	SEMANTIC_ASSERT(operand.isSimple());
-	const TypeInstance& result = getObjectType(operand.value);
+	const SimpleType& result = getSimpleType(operand.value);
 	SEMANTIC_ASSERT(isClass(*result.declaration)); // assert that this is a class type
 	// [expr.ref] [the type of the operand-expression shall be complete]
 	instantiateClass(result, source, enclosing);
@@ -1243,12 +1243,12 @@ struct WalkerState
 
 	WalkerContext& context;
 	ScopePtr enclosing;
-	const TypeInstance* enclosingType;
+	const SimpleType* enclosingType;
 	Dependent enclosingDependent;
 	TypePtr qualifying_p;
 	DeclarationPtr qualifyingScope;
-	const TypeInstance* qualifyingType;
-	const TypeInstance* memberObject;
+	const SimpleType* qualifyingType;
+	const SimpleType* memberClass;
 	UniqueTypeWrapper memberType;
 	ExpressionWrapper objectExpression; // the lefthand side of a class member access expression
 	SafePtr<const TemplateParameters> templateParams;
@@ -1264,7 +1264,7 @@ struct WalkerState
 		, qualifying_p(0)
 		, qualifyingScope(0)
 		, qualifyingType(0)
-		, memberObject(0)
+		, memberClass(0)
 		, templateParams(0)
 		, templateParamScope(0)
 		, deferred(0)
@@ -1309,7 +1309,7 @@ struct WalkerState
 		}
 		if(objectExpression.p != 0
 			&& objectExpression.isTypeDependent
-			&& memberObject != 0)
+			&& memberClass != 0)
 		{
 			return false;
 		}
@@ -1362,13 +1362,13 @@ struct WalkerState
 		else
 		{
 			bool isQualified = objectExpression.p != 0
-				&& memberObject != 0;
+				&& memberClass != 0;
 			if(isQualified)
 			{
 				// [basic.lookup.classref]
 				SYMBOLS_ASSERT(!objectExpression.isTypeDependent);
-				SYMBOLS_ASSERT(memberObject != &gDependentObjectType);
-				if(result.append(::findDeclaration(*memberObject, id, filter)))
+				SYMBOLS_ASSERT(memberClass != &gDependentSimpleType);
+				if(result.append(::findDeclaration(*memberClass, id, filter)))
 				{
 #ifdef LOOKUP_DEBUG
 					std::cout << "HIT: member" << std::endl;
@@ -1590,7 +1590,7 @@ struct WalkerState
 		qualifyingScope = 0;
 		qualifyingType = 0;
 		memberType = gUniqueTypeNull;
-		memberObject = 0;
+		memberClass = 0;
 		objectExpression = ExpressionWrapper();
 	}
 
@@ -1930,7 +1930,7 @@ struct WalkerBase : public WalkerState
 			&& !isStatic(*declaration) // static members are not instantiated when class is implicitly instantiated
 			&& type.declaration != &gCtor) // ignore constructor
 		{
-			TypeInstance* enclosingClass = const_cast<TypeInstance*>(getEnclosingType(enclosingType));
+			SimpleType* enclosingClass = const_cast<SimpleType*>(getEnclosingType(enclosingType));
 			std::size_t size = 0;
 			if(!type.isDependent)
 			{
@@ -2173,7 +2173,7 @@ struct WalkerBase : public WalkerState
 		SYMBOLS_ASSERT(type.unique == 0); // type must not be uniqued twice
 		if(objectExpression.p != 0
 			&& objectExpression.isTypeDependent
-			&& memberObject != 0)
+			&& memberClass != 0)
 		{
 			// this occurs when uniquing the dependent type name in a nested name-specifier in a class-member-access expression
 			// e.g. 'x.C::f()'
@@ -2253,7 +2253,7 @@ struct WalkerQualified : public WalkerBase
 			}
 			else
 			{
-				qualifyingType = &getObjectType(getUniqueType(*qualifying_p, getLocation(), enclosingType, isDeclarator).value);
+				qualifyingType = &getSimpleType(getUniqueType(*qualifying_p, getLocation(), enclosingType, isDeclarator).value);
 				qualifyingScope = qualifyingType->declaration;
 			}
 		}
@@ -2876,7 +2876,7 @@ struct PrimaryExpressionWalker : public WalkerBase
 	ExpressionWrapper expression;
 	IdentifierPtr id; // only valid when the expression is a (parenthesised) id-expression
 	TemplateArguments arguments; // only valid when the expression is a (qualified) template-id
-	const TypeInstance* idEnclosing; // may be valid when the above id-expression is a qualified-id
+	const SimpleType* idEnclosing; // may be valid when the above id-expression is a qualified-id
 	Dependent typeDependent;
 	Dependent valueDependent;
 	PrimaryExpressionWalker(const WalkerState& state)
@@ -2931,7 +2931,7 @@ struct PrimaryExpressionWalker : public WalkerBase
 		else
 		{
 			SEMANTIC_ASSERT(declaration != 0);
-			SEMANTIC_ASSERT(memberObject == 0) // assert that the id-expression is not part of a class-member-access
+			SEMANTIC_ASSERT(memberClass == 0) // assert that the id-expression is not part of a class-member-access
 
 			if(declaration == &gUndeclared
 				|| !isObject(*declaration))
@@ -2957,7 +2957,7 @@ struct PrimaryExpressionWalker : public WalkerBase
 
 			SEMANTIC_ASSERT(!isDependent(walker.qualifying.get_ref()));
 
-			const TypeInstance* qualifyingType = qualifying == gUniqueTypeNull ? 0 : &getObjectType(qualifying.value);
+			const SimpleType* qualifyingType = qualifying == gUniqueTypeNull ? 0 : &getSimpleType(qualifying.value);
 			SEMANTIC_ASSERT(qualifyingType == walker.qualifyingType);
 
 			SEMANTIC_ASSERT(declaration->templateParameter == INDEX_INVALID || walker.qualifying.empty()); // template params cannot be qualified
@@ -3011,8 +3011,8 @@ struct PrimaryExpressionWalker : public WalkerBase
 	{
 		TREEWALKER_LEAF(symbol);
 		SEMANTIC_ASSERT(enclosingType != 0);
-		// TODO: cv-qualifiers: change enclosingType to a UniqueType<ObjectType>
-		type = UniqueTypeWrapper(pushUniqueType(gUniqueTypes, makeUniqueObjectType(*enclosingType).value, PointerType()));
+		// TODO: cv-qualifiers: change enclosingType to a UniqueType<SimpleType>
+		type = UniqueTypeWrapper(pushUniqueType(gUniqueTypes, makeUniqueSimpleType(*enclosingType).value, PointerType()));
 		/* 14.6.2.2-2
 		'this' is type-dependent if the class type of the enclosing member function is dependent
 		*/
@@ -3038,13 +3038,13 @@ struct PostfixExpressionMemberWalker : public WalkerQualified
 		TREEWALKER_LEAF(symbol);
 		bool isArrow = symbol->id == cpp::member_operator::ARROW;
 
-		memberObject = &gDependentObjectType;
+		memberClass = &gDependentSimpleType;
 		SEMANTIC_ASSERT(objectExpression.p != 0);
 		if(!objectExpression.isTypeDependent) // if the type of the object expression is not dependent
 		{
 			// [expr] If an expression initially has the type "reference to T", the type is adjusted to "T" prior to any further analysis.
 			UniqueTypeWrapper operand = removeReference(memberType);
-			memberObject = &getMemberOperatorType(operand, isArrow, getLocation(), enclosingType);
+			memberClass = &getMemberOperatorType(operand, isArrow, getLocation(), enclosingType);
 		}
 	}
 	void visit(cpp::terminal<boost::wave::T_TEMPLATE> symbol)
@@ -3099,7 +3099,7 @@ struct PostfixExpressionWalker : public WalkerBase
 	ExpressionWrapper expression;
 	IdentifierPtr id; // only valid when the expression is a (parenthesised) id-expression
 	TemplateArguments arguments; // only valid when the expression is a (qualified) template-id
-	const TypeInstance* idEnclosing; // may be valid when the above id-expression is a qualified-id
+	const SimpleType* idEnclosing; // may be valid when the above id-expression is a qualified-id
 	Dependent typeDependent;
 	Dependent valueDependent;
 	PostfixExpressionWalker(const WalkerState& state)
@@ -3227,7 +3227,7 @@ struct PostfixExpressionWalker : public WalkerBase
 				// [over.sub]
 				// operator[] shall be a non-static member function with exactly one parameter.
 				SEMANTIC_ASSERT(isComplete(type)); // TODO: non-fatal parse error
-				const TypeInstance& object = getObjectType(type.value);
+				const SimpleType& object = getSimpleType(type.value);
 				instantiateClass(object, getLocation(), enclosingType); // searching for overloads requires a complete type
 				Identifier tmp;
 				tmp.value = gOperatorSubscriptId;
@@ -3235,7 +3235,7 @@ struct PostfixExpressionWalker : public WalkerBase
 				LookupResultRef declaration = ::findDeclaration(object, tmp, IsAny());
 				SEMANTIC_ASSERT(declaration != 0); // TODO: non-fatal error: expected array
 	
-				const TypeInstance* idEnclosing = findEnclosingType(&object, declaration->scope); // find the base class which contains the member-declaration
+				const SimpleType* idEnclosing = findEnclosingType(&object, declaration->scope); // find the base class which contains the member-declaration
 				SEMANTIC_ASSERT(idEnclosing != 0);
 
 				// The argument list submitted to overload resolution consists of the argument expressions present in the function
@@ -3298,11 +3298,11 @@ struct PostfixExpressionWalker : public WalkerBase
 			// TODO: correct argument type depending on base class copy-assign declarations.
 
 			// either the call is qualified or 'this' is valid
-			SEMANTIC_ASSERT(memberObject != 0 || enclosingType != 0);
-			SEMANTIC_ASSERT(memberObject == 0 || memberObject != &gDependentObjectType);
+			SEMANTIC_ASSERT(memberClass != 0 || enclosingType != 0);
+			SEMANTIC_ASSERT(memberClass == 0 || memberClass != &gDependentSimpleType);
 
 			// [class.copy] The implicitly-declared copy assignment operator for class X has the return type X&
-			type = makeUniqueObjectType(memberObject != 0 ? *memberObject : *enclosingType);
+			type = makeUniqueSimpleType(memberClass != 0 ? *memberClass : *enclosingType);
 			type.push_front(ReferenceType());
 		}
 		else
@@ -3315,7 +3315,7 @@ struct PostfixExpressionWalker : public WalkerBase
 				// of candidate functions includes at least the function call operators of T. The function call operators of T are
 				// obtained by ordinary lookup of the name operator() in the context of (E).operator().
 				SEMANTIC_ASSERT(isComplete(type)); // TODO: non-fatal parse error
-				const TypeInstance& object = getObjectType(type.value);
+				const SimpleType& object = getSimpleType(type.value);
 				instantiateClass(object, getLocation(), enclosingType); // searching for overloads requires a complete type
 				Identifier tmp;
 				tmp.value = gOperatorFunctionId;
@@ -3328,7 +3328,7 @@ struct PostfixExpressionWalker : public WalkerBase
 				SEMANTIC_ASSERT(idEnclosing != 0);
 				// The argument list submitted to overload resolution consists of the argument expressions present in the function
 				// call syntax preceded by the implied object argument (E).
-				memberObject = &object;
+				memberClass = &object;
 			}
 
 			if(id == 0) // if the left-hand expression does not contain an (optionally parenthesised) id-expression (or is not a class which supports 'operator()')
@@ -3356,11 +3356,11 @@ struct PostfixExpressionWalker : public WalkerBase
 				if(isMember(*getDeclaration(*id)))
 				{
 					// either the call is qualified, 'this' is valid, or the member is static
-					SEMANTIC_ASSERT(memberObject != 0 || enclosingType != 0 || isStatic(*getDeclaration(*id)));
-					SEMANTIC_ASSERT(memberObject == 0 || memberObject != &gDependentObjectType);
+					SEMANTIC_ASSERT(memberClass != 0 || enclosingType != 0 || isStatic(*getDeclaration(*id)));
+					SEMANTIC_ASSERT(memberClass == 0 || memberClass != &gDependentSimpleType);
 
-					arguments.push_back(Argument(ExpressionWrapper(0), makeUniqueObjectType(memberObject != 0
-						? *memberObject // qualified-function-call
+					arguments.push_back(Argument(ExpressionWrapper(0), makeUniqueSimpleType(memberClass != 0
+						? *memberClass // qualified-function-call
 						// unqualified function call
 						: enclosingType != 0
 							// If the keyword 'this' is in scope and refers to the class of that member function, or a derived class thereof,
@@ -3441,8 +3441,8 @@ struct PostfixExpressionWalker : public WalkerBase
 			SEMANTIC_ASSERT(declaration != 0);
 			SEMANTIC_ASSERT(memberType != gUniqueTypeNull);
 			SEMANTIC_ASSERT(!::isDependent(memberType)); // the object-expression should not be dependent
-			SEMANTIC_ASSERT(walker.memberObject != 0);
-			SEMANTIC_ASSERT(walker.memberObject != &gDependentObjectType);
+			SEMANTIC_ASSERT(walker.memberClass != 0);
+			SEMANTIC_ASSERT(walker.memberClass != &gDependentSimpleType);
 
 			SEMANTIC_ASSERT(declaration != &gUndeclared);
 			SEMANTIC_ASSERT(isObject(*declaration));
@@ -3475,7 +3475,7 @@ struct PostfixExpressionWalker : public WalkerBase
 			SEMANTIC_ASSERT(declaration->scope->type == SCOPETYPE_CLASS);
 
 			// TODO: [expr.ref] inherit const/volatile from object-expression type if member is non-static
-			idEnclosing = makeUniqueEnclosing(walker.qualifying, Location(id->source, context.declarationCount), walker.memberObject);
+			idEnclosing = makeUniqueEnclosing(walker.qualifying, Location(id->source, context.declarationCount), walker.memberClass);
 
 			// the identifier may name a type in a base-class of the qualifying type; findEnclosingType resolves this.
 			idEnclosing = findEnclosingType(idEnclosing, declaration->scope);
@@ -3486,7 +3486,7 @@ struct PostfixExpressionWalker : public WalkerBase
 			if(type.isFunction())
 			{
 				// type determination is deferred until overload resolution is complete
-				memberObject = walker.memberObject; // store the type of the implied object argument in a qualified function call.
+				memberClass = walker.memberClass; // store the type of the implied object argument in a qualified function call.
 			}
 		}
 
@@ -3803,7 +3803,7 @@ struct ExpressionWalker : public WalkerBase
 			SEMANTIC_ASSERT(type != gUniqueTypeNull);
 			SEMANTIC_ASSERT(!::isDependent(type)); // can't resolve operator overloads if type is dependent
 			SEMANTIC_ASSERT(getQualifyingScope() == 0);
-			SEMANTIC_ASSERT(!(memberType != gUniqueTypeNull && memberObject != 0));
+			SEMANTIC_ASSERT(!(memberType != gUniqueTypeNull && memberClass != 0));
 
 			type = removeReference(type);
 			type = typeOfUnaryExpression(symbol->op, Argument(expression, type), enclosing, Location(source, context.declarationCount), enclosingType);
@@ -4002,7 +4002,7 @@ struct TypeNameWalker : public WalkerBase
 		if(type.declaration->isTemplate)
 		{
 			type.isImplicitTemplateId = true; // this is either a template-name or an implicit template-id
-			const TypeInstance* enclosingTemplate = findEnclosingTemplate(enclosingType, type.declaration);
+			const SimpleType* enclosingTemplate = findEnclosingTemplate(enclosingType, type.declaration);
 			if(enclosingTemplate != 0) // if this is the name of an enclosing class-template definition (which may be an explicit/partial specialization)
 			{
 				type.isEnclosingClass = true; // this is an implicit template-id
@@ -4676,7 +4676,7 @@ struct DeclaratorWalker : public WalkerBase
 		if(qualifying != gUniqueTypeNull)// if the declarator is qualified by a class-name
 		{
 			// represents the type of 'this'
-			enclosingType = &getObjectType(qualifying.value);
+			enclosingType = &getSimpleType(qualifying.value);
 			if(enclosingType->declaration->isTemplate // if the declarator is qualified with a template-id
 				&& !enclosingType->declaration->templateParams.empty()) // and the template is not an explicit-specialization
 			{
@@ -5128,8 +5128,8 @@ struct ClassSpecifierWalker : public WalkerBase
 		bool allowDependent = type.isDependent || (declaration->isTemplate && !isExplicitSpecialization); // prevent uniquing of template-arguments in implicit template-id
 		declaration->type.isDependent = type.isDependent;
 		declaration->type.unique = makeUniqueType(type, source, enclosingType, allowDependent).value;
-		enclosingType = &getObjectType(declaration->type.unique);
-		const_cast<TypeInstance*>(enclosingType)->declaration = declaration; // if this is a specialization, use the specialization instead of the primary template
+		enclosingType = &getSimpleType(declaration->type.unique);
+		const_cast<SimpleType*>(enclosingType)->declaration = declaration; // if this is a specialization, use the specialization instead of the primary template
 		instantiateClass(*enclosingType, source, 0, allowDependent); // instantiate non-dependent base classes
 
 		addDependent(enclosingDependent, type);
@@ -6082,7 +6082,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		if(walker.qualifying != gUniqueTypeNull)
 		{
 			SEMANTIC_ASSERT(walker.qualifying.isSimple());
-			enclosingType = &getObjectType(walker.qualifying.value);
+			enclosingType = &getSimpleType(walker.qualifying.value);
 			enclosingDependent = walker.enclosingDependent; // not using addDependent, workaround for issue when 'enclosing' is not (yet) referring to qualifying class in declarator 'S<T>::f()' 
 		}
 		templateParams = walker.templateParams; // template-params may have been consumed by qualifying template-name

@@ -648,9 +648,9 @@ struct Location : Source
 	}
 };
 
-struct TypeInstance;
+struct SimpleType;
 
-inline IntegralConstant evaluate(ExpressionNode* node, Location source, const TypeInstance* enclosing);
+inline IntegralConstant evaluate(ExpressionNode* node, Location source, const SimpleType* enclosing);
 
 struct ExpressionWrapper : ExpressionPtr
 {
@@ -1355,7 +1355,7 @@ struct TypeElementVisitor
 	virtual void visit(const struct DependentNonType&) = 0;
 	virtual void visit(const struct TemplateTemplateArgument&) = 0;
 	virtual void visit(const struct NonType&) = 0;
-	virtual void visit(const struct ObjectType&) = 0;
+	virtual void visit(const struct SimpleType&) = 0;
 	virtual void visit(const struct PointerType&) = 0;
 	virtual void visit(const struct ReferenceType&) = 0;
 	virtual void visit(const struct ArrayType&) = 0;
@@ -1497,7 +1497,7 @@ struct UniqueTypeWrapper
 	}
 	bool isSimple() const
 	{
-		return typeid(*value) == typeid(TypeElementGeneric<ObjectType>);
+		return typeid(*value) == typeid(TypeElementGeneric<SimpleType>);
 	}
 	bool isPointer() const
 	{
@@ -1651,7 +1651,7 @@ inline bool isEqual(const UniqueTypeId& l, const UniqueTypeId& r)
 
 inline UniqueType getInner(UniqueType type)
 {
-	SYMBOLS_ASSERT(typeid(*type) != typeid(TypeElementGeneric<struct ObjectType>));
+	SYMBOLS_ASSERT(typeid(*type) != typeid(TypeElementGeneric<struct SimpleType>));
 	return type->next;
 }
 
@@ -1689,13 +1689,13 @@ inline IntegralConstant getNonTypeValue(UniqueType type)
 typedef std::vector<UniqueTypeWrapper> UniqueTypeArray;
 typedef UniqueTypeArray TemplateArgumentsInstance;
 typedef UniqueTypeArray InstantiatedTypes;
-typedef std::vector<const struct TypeInstance*> UniqueBases;
+typedef std::vector<const struct SimpleType*> UniqueBases;
 
 struct ChildInstantiation
 {
-	const struct TypeInstance* instance;
+	const struct SimpleType* instance;
 	Location source;
-	ChildInstantiation(const struct TypeInstance* instance, Location source)
+	ChildInstantiation(const struct SimpleType* instance, Location source)
 		: instance(instance), source(source)
 	{
 	}
@@ -1706,14 +1706,14 @@ typedef std::vector<ChildInstantiation> ChildInstantiations;
 typedef std::vector<Location> InstanceLocations; // temporary scaffolding!
 
 
-struct TypeInstance
+struct SimpleType
 {
 	std::size_t uniqueId;
 	DeclarationPtr primary;
 	DeclarationPtr declaration; // don't compare declaration pointer - it will change on instantiation if an explicit/partial specialization is chosen
 	TemplateArgumentsInstance templateArguments;
 	TemplateArgumentsInstance deducedArguments; // the deduced arguments for the partial-specialization's template-parameters
-	const TypeInstance* enclosing; // the enclosing template
+	const SimpleType* enclosing; // the enclosing template
 	UniqueBases bases;
 	size_t size;
 	InstantiatedTypes children; // the dependent types in the specialization
@@ -1726,21 +1726,21 @@ struct TypeInstance
 	Location instantiation;
 	ChildInstantiations childInstantiations;
 
-	TypeInstance(Declaration* declaration, const TypeInstance* enclosing)
+	SimpleType(Declaration* declaration, const SimpleType* enclosing)
 		: uniqueId(0), primary(declaration), declaration(declaration), enclosing(enclosing), size(0), instantiated(false), instantiating(false), allowLookup(false), visited(false), dumped(false)
 	{
 		SYMBOLS_ASSERT(enclosing == 0 || isClass(*enclosing->declaration));
 	}
 };
 
-inline bool operator==(const TypeInstance& left, const TypeInstance& right)
+inline bool operator==(const SimpleType& left, const SimpleType& right)
 {
 	return left.primary.p == right.primary.p
 		&& left.enclosing == right.enclosing
 		&& left.templateArguments == right.templateArguments;
 }
 
-inline bool operator<(const TypeInstance& left, const TypeInstance& right)
+inline bool operator<(const SimpleType& left, const SimpleType& right)
 {
 	return left.primary.p != right.primary.p ? left.primary.p < right.primary.p
 		: left.enclosing != right.enclosing ? left.enclosing < right.enclosing
@@ -1748,32 +1748,18 @@ inline bool operator<(const TypeInstance& left, const TypeInstance& right)
 		: false;
 }
 
-struct ObjectType
+inline const SimpleType& getSimpleType(UniqueType type)
 {
-	TypeInstance type;
-	ObjectType(const TypeInstance& type)
-		: type(type)
-	{
-	}
-};
-
-inline bool operator<(const ObjectType& left, const ObjectType& right)
-{
-	return left.type < right.type;
-}
-
-inline const TypeInstance& getObjectType(UniqueType type)
-{
-	SYMBOLS_ASSERT(typeid(*type) == typeid(TypeElementGeneric<ObjectType>));
-	return static_cast<const TypeElementGeneric<ObjectType>*>(type.getPointer())->value.type;
+	SYMBOLS_ASSERT(typeid(*type) == typeid(TypeElementGeneric<SimpleType>));
+	return static_cast<const TypeElementGeneric<SimpleType>*>(type.getPointer())->value;
 }
 
 
 struct TemplateTemplateArgument
 {
 	DeclarationPtr declaration; // the primary declaration of the template template argument
-	const TypeInstance* enclosing;
-	TemplateTemplateArgument(Declaration* declaration, const TypeInstance* enclosing)
+	const SimpleType* enclosing;
+	TemplateTemplateArgument(Declaration* declaration, const SimpleType* enclosing)
 		: declaration(declaration), enclosing(enclosing)
 	{
 	}
@@ -1927,9 +1913,9 @@ inline const MemberPointerType& getMemberPointerType(UniqueType type)
 	return static_cast<const TypeElementGeneric<MemberPointerType>*>(type.getPointer())->value;
 }
 
-inline const TypeInstance& getMemberPointerClass(UniqueType type)
+inline const SimpleType& getMemberPointerClass(UniqueType type)
 {
-	return getObjectType(getMemberPointerType(type).type.value);
+	return getSimpleType(getMemberPointerType(type).type.value);
 }
 
 inline bool operator<(const MemberPointerType& left, const MemberPointerType& right)
@@ -2093,11 +2079,11 @@ struct UniqueTypeGeneric : UniqueTypeWrapper
 
 typedef UniqueTypeGeneric<true> BuiltInType; 
 
-struct ObjectTypeId : BuiltInType
+struct BuiltInTypeId : BuiltInType
 {
-	ObjectTypeId(Declaration* declaration, const TreeAllocator<int>& allocator)
+	BuiltInTypeId(Declaration* declaration, const TreeAllocator<int>& allocator)
 	{
-		value = pushBuiltInType(value, ObjectType(TypeInstance(declaration, 0)));
+		value = pushBuiltInType(value, SimpleType(SimpleType(declaration, 0)));
 		declaration->type.unique = value;
 		declaration->isComplete = true;
 	}
@@ -2144,7 +2130,7 @@ inline const DeclarationInstance& findPrimaryTemplateLastDeclaration(const Decla
 struct LookupResult
 {
 	const DeclarationInstance* filtered; // the declaration found by the name-lookup, using the filter
-	const TypeInstance* enclosing;
+	const SimpleType* enclosing;
 
 	LookupResult()
 		: filtered(0), enclosing(0)
@@ -2217,8 +2203,8 @@ inline const DeclarationInstance* findDeclaration(Scope::Declarations& declarati
 
 struct RecursionGuard
 {
-	const TypeInstance& instance;
-	RecursionGuard(const TypeInstance& instance)
+	const SimpleType& instance;
+	RecursionGuard(const SimpleType& instance)
 		: instance(instance)
 	{
 		SYMBOLS_ASSERT(!instance.visited);
@@ -2230,9 +2216,9 @@ struct RecursionGuard
 	}
 };
 
-inline void printType(const TypeInstance& type, std::ostream& out = std::cout, bool escape = false);
+inline void printType(const SimpleType& type, std::ostream& out = std::cout, bool escape = false);
 
-inline LookupResult findDeclaration(const TypeInstance& instance, const Identifier& id, LookupFilter filter)
+inline LookupResult findDeclaration(const SimpleType& instance, const Identifier& id, LookupFilter filter)
 {
 	SYMBOLS_ASSERT(instance.declaration->enclosed != 0);
 	SYMBOLS_ASSERT(instance.instantiated); // the qualifying type should have been instantiated by this point
@@ -2257,7 +2243,7 @@ inline LookupResult findDeclaration(const TypeInstance& instance, const Identifi
 	}
 	for(UniqueBases::const_iterator i = instance.bases.begin(); i != instance.bases.end(); ++i)
 	{
-		const TypeInstance& base = *(*i);
+		const SimpleType& base = *(*i);
 		SYMBOLS_ASSERT(base.declaration->enclosed != 0); // TODO: non-fatal error: incomplete type
 		SYMBOLS_ASSERT(base.declaration->enclosed->usingDirectives.empty()); // namespace.udir: A using-directive shall not appear in class scope, but may appear in namespace scope or in block scope.
 
@@ -2312,7 +2298,7 @@ struct MemberNotFoundError : TypeErrorBase
 		TypeErrorBase::report();
 		std::cout << "member '" << name.c_str() << "' not found in ";
 #if 1
-		if(getObjectType(qualifying.value).instantiating)
+		if(getSimpleType(qualifying.value).instantiating)
 		{
 			std::cout << "(partially instantiated) ";
 		}
@@ -2536,8 +2522,8 @@ inline const DependentIdExpression& getDependentIdExpression(ExpressionNode* nod
 struct IdExpression
 {
 	DeclarationPtr declaration;
-	const TypeInstance* enclosing;
-	IdExpression(DeclarationPtr declaration, const TypeInstance* enclosing)
+	const SimpleType* enclosing;
+	IdExpression(DeclarationPtr declaration, const SimpleType* enclosing)
 		: declaration(declaration), enclosing(enclosing)
 	{
 	}
@@ -2704,7 +2690,7 @@ inline bool operator<(const TernaryExpression& left, const TernaryExpression& ri
 }
 
 typedef bool (*UnaryTypeTraitsOp)(UniqueTypeWrapper);
-typedef bool (*BinaryTypeTraitsOp)(UniqueTypeWrapper, UniqueTypeWrapper, Location source, const TypeInstance* enclosing);
+typedef bool (*BinaryTypeTraitsOp)(UniqueTypeWrapper, UniqueTypeWrapper, Location source, const SimpleType* enclosing);
 
 struct TypeTraitsUnaryExpression
 {
@@ -2777,8 +2763,8 @@ inline bool isDependentPointerToMemberExpression(ExpressionNode* expression)
 		&& isDependentIdExpression(getUnaryExpression(expression).first);
 }
 
-extern ObjectTypeId gUnsignedInt;
-extern ObjectTypeId gBool;
+extern BuiltInTypeId gUnsignedInt;
+extern BuiltInTypeId gBool;
 
 struct TypeofVisitor : ExpressionNodeVisitor
 {
@@ -2848,21 +2834,21 @@ inline UniqueTypeWrapper typeofExpression(ExpressionNode* node, Location source)
 
 
 
-inline std::size_t instantiateClass(const TypeInstance& instanceConst, Location source, const TypeInstance* enclosing, bool allowDependent = false);
-inline std::size_t requireCompleteObjectType(UniqueTypeWrapper type, Location source, const TypeInstance* enclosing);
+inline std::size_t instantiateClass(const SimpleType& instanceConst, Location source, const SimpleType* enclosing, bool allowDependent = false);
+inline std::size_t requireCompleteObjectType(UniqueTypeWrapper type, Location source, const SimpleType* enclosing);
 inline UniqueTypeWrapper removeReference(UniqueTypeWrapper type);
-inline const TypeInstance* makeUniqueEnclosing(const Qualifying& qualifying, Location source, const TypeInstance* enclosing, bool allowDependent = false);
-inline const TypeInstance* findEnclosingType(const TypeInstance* enclosing, Scope* scope);
-inline bool isDependent(const TypeInstance& type);
-inline UniqueTypeWrapper substitute(UniqueTypeWrapper dependent, Location source, const TypeInstance& enclosingType);
+inline const SimpleType* makeUniqueEnclosing(const Qualifying& qualifying, Location source, const SimpleType* enclosing, bool allowDependent = false);
+inline const SimpleType* findEnclosingType(const SimpleType* enclosing, Scope* scope);
+inline bool isDependent(const SimpleType& type);
+inline UniqueTypeWrapper substitute(UniqueTypeWrapper dependent, Location source, const SimpleType& enclosingType);
 
 
-inline const TypeInstance* findEnclosingTemplate(const TypeInstance* enclosing, Declaration* declaration)
+inline const SimpleType* findEnclosingTemplate(const SimpleType* enclosing, Declaration* declaration)
 {
 	Declaration* primary = findPrimaryTemplate(declaration);
 	SYMBOLS_ASSERT(primary->isTemplate);
 	SYMBOLS_ASSERT(!primary->isSpecialization);
-	for(const TypeInstance* i = enclosing; i != 0; i = (*i).enclosing)
+	for(const SimpleType* i = enclosing; i != 0; i = (*i).enclosing)
 	{
 		SYMBOLS_ASSERT(!(*i).primary->isSpecialization);
 		if((*i).primary->isTemplate
@@ -2874,11 +2860,11 @@ inline const TypeInstance* findEnclosingTemplate(const TypeInstance* enclosing, 
 	return 0;
 }
 
-inline const TypeInstance* findEnclosingTemplate(const TypeInstance* enclosing, Scope* scope)
+inline const SimpleType* findEnclosingTemplate(const SimpleType* enclosing, Scope* scope)
 {
 	SYMBOLS_ASSERT(scope != 0);
 	SYMBOLS_ASSERT(scope->type == SCOPETYPE_TEMPLATE);
-	for(const TypeInstance* i = enclosing; i != 0; i = (*i).enclosing)
+	for(const SimpleType* i = enclosing; i != 0; i = (*i).enclosing)
 	{
 		if((*i).declaration->templateParamScope != 0
 			&& (*i).declaration->templateParamScope->templateDepth == scope->templateDepth)
@@ -2889,9 +2875,9 @@ inline const TypeInstance* findEnclosingTemplate(const TypeInstance* enclosing, 
 	return 0;
 }
 
-inline const TypeInstance* getEnclosingType(const TypeInstance* enclosing)
+inline const SimpleType* getEnclosingType(const SimpleType* enclosing)
 {
-	for(const TypeInstance* i = enclosing; i != 0; i = (*i).enclosing)
+	for(const SimpleType* i = enclosing; i != 0; i = (*i).enclosing)
 	{
 		if((*i).declaration->getName().value.c_str()[0] != '$') // ignore anonymous union
 		{
@@ -2902,18 +2888,18 @@ inline const TypeInstance* getEnclosingType(const TypeInstance* enclosing)
 }
 
 
-inline IntegralConstant evaluateIdExpression(const Declaration* declaration, Location source, const TypeInstance* enclosing)
+inline IntegralConstant evaluateIdExpression(const Declaration* declaration, Location source, const SimpleType* enclosing)
 {
 	SYMBOLS_ASSERT(declaration->templateParameter == INDEX_INVALID);
 
-	const TypeInstance* memberEnclosing = isMember(*declaration) // if the declaration is a class member
+	const SimpleType* memberEnclosing = isMember(*declaration) // if the declaration is a class member
 		? findEnclosingType(enclosing, declaration->scope) // it must be a member of (a base of) the qualifying class: find which one.
 		: 0; // the declaration is not a class member and cannot be found through qualified name lookup
 
 	return evaluate(declaration->initializer, source, memberEnclosing);
 }
 
-inline IntegralConstant evaluateIdExpression(const IdExpression& node, Location source, const TypeInstance* enclosing)
+inline IntegralConstant evaluateIdExpression(const IdExpression& node, Location source, const SimpleType* enclosing)
 {
 	if(node.enclosing != 0)
 	{
@@ -2922,17 +2908,17 @@ inline IntegralConstant evaluateIdExpression(const IdExpression& node, Location 
 	return evaluateIdExpression(node.declaration, source, enclosing);
 }
 
-inline void addInstatiation(TypeInstance& enclosing, const TypeInstance& instance)
+inline void addInstatiation(SimpleType& enclosing, const SimpleType& instance)
 {
 }
 
-inline IntegralConstant evaluateIdExpression(const DependentIdExpression& node, Location source, const TypeInstance* enclosingType)
+inline IntegralConstant evaluateIdExpression(const DependentIdExpression& node, Location source, const SimpleType* enclosingType)
 {
 	SYMBOLS_ASSERT(node.qualifying != gUniqueTypeNull);
 	SYMBOLS_ASSERT(enclosingType != 0);
 
 	UniqueTypeWrapper substituted = substitute(node.qualifying, source, *enclosingType);
-	const TypeInstance* qualifyingType = substituted.isSimple() ? &getObjectType(substituted.value) : 0;
+	const SimpleType* qualifyingType = substituted.isSimple() ? &getSimpleType(substituted.value) : 0;
 
 	if(qualifyingType == 0
 		|| !isClass(*qualifyingType->declaration))
@@ -2956,9 +2942,9 @@ inline IntegralConstant evaluateIdExpression(const DependentIdExpression& node, 
 struct EvaluateVisitor : ExpressionNodeVisitor
 {
 	IntegralConstant result;
-	const TypeInstance* enclosing;
+	const SimpleType* enclosing;
 	Location source;
-	explicit EvaluateVisitor(Location source, const TypeInstance* enclosing)
+	explicit EvaluateVisitor(Location source, const SimpleType* enclosing)
 		: source(source), enclosing(enclosing)
 	{
 	}
@@ -2973,7 +2959,7 @@ struct EvaluateVisitor : ExpressionNodeVisitor
 	{
 		size_t index = node.declaration->templateParameter;
 		SYMBOLS_ASSERT(index != INDEX_INVALID);
-		const TypeInstance* enclosingType = findEnclosingTemplate(enclosing, node.declaration->scope);
+		const SimpleType* enclosingType = findEnclosingTemplate(enclosing, node.declaration->scope);
 		SYMBOLS_ASSERT(enclosingType != 0);
 		SYMBOLS_ASSERT(!isDependent(*enclosingType)); // assert that the enclosing type is not dependent
 		SYMBOLS_ASSERT(!enclosingType->declaration->isSpecialization || enclosingType->instantiated); // a specialization must be instantiated (or in the process of instantiating)
@@ -3059,14 +3045,14 @@ struct EvaluateVisitor : ExpressionNodeVisitor
 	}
 };
 
-inline IntegralConstant evaluate(ExpressionNode* node, Location source, const TypeInstance* enclosing)
+inline IntegralConstant evaluate(ExpressionNode* node, Location source, const SimpleType* enclosing)
 {
 	EvaluateVisitor visitor(source, enclosing);
 	node->accept(visitor);
 	return visitor.result;
 }
 
-inline IntegralConstant evaluateExpression(ExpressionNode* node, Location source, const TypeInstance* enclosing)
+inline IntegralConstant evaluateExpression(ExpressionNode* node, Location source, const SimpleType* enclosing)
 {
 	if(isDependentPointerToMemberExpression(node))
 	{
@@ -3076,7 +3062,7 @@ inline IntegralConstant evaluateExpression(ExpressionNode* node, Location source
 	return evaluate(node, source, enclosing);
 }
 
-inline IntegralConstant evaluateExpression(const ExpressionWrapper& expression, Location source, const TypeInstance* enclosing)
+inline IntegralConstant evaluateExpression(const ExpressionWrapper& expression, Location source, const SimpleType* enclosing)
 {
 	if(isPointerToMemberExpression(expression))
 	{
@@ -3110,7 +3096,7 @@ inline bool isDependent(const UniqueTypeArray& types)
 }
 
 
-inline bool isDependent(const TypeInstance& type)
+inline bool isDependent(const SimpleType& type)
 {
 	if(type.enclosing
 		&& isDependent(*type.enclosing))
@@ -3150,9 +3136,9 @@ struct IsDependentVisitor : TypeElementVisitor
 	virtual void visit(const NonType&)
 	{
 	}
-	virtual void visit(const ObjectType& element)
+	virtual void visit(const SimpleType& element)
 	{
-		if(isDependent(element.type))
+		if(isDependent(element))
 		{
 			result = true;
 		}
@@ -3226,7 +3212,7 @@ inline bool deducePairs(const UniqueTypeArray& parameters, const UniqueTypeArray
 //	 a templateparameter.
 // When a type name is specified in a way that includes a nondeduced context, all of the types that comprise
 // that type name are also nondeduced.
-inline bool isNonDeduced(const TypeInstance& type)
+inline bool isNonDeduced(const SimpleType& type)
 {
 	return false; // TODO
 }
@@ -3272,7 +3258,7 @@ struct DeduceVisitor : TypeElementVisitor
 					result = false;
 					return;
 				}
-				const TypeInstance& type = getObjectType(argument.value);
+				const SimpleType& type = getSimpleType(argument.value);
 				if(!type.declaration->isTemplate
 					|| !deducePairs(element.templateArguments, type.templateArguments, templateArguments)) // template-template-parameter may have template-arguments that refer to a template parameter
 				{
@@ -3306,20 +3292,20 @@ struct DeduceVisitor : TypeElementVisitor
 	{
 		// cannot deduce from integral constant expression
 	}
-	virtual void visit(const ObjectType& element)
+	virtual void visit(const SimpleType& element)
 	{
 		SYMBOLS_ASSERT(argument.isSimple());
-		const TypeInstance& type = getObjectType(argument.value);
-		if(type.primary != element.type.primary) // if the class type does not match
+		const SimpleType& type = getSimpleType(argument.value);
+		if(type.primary != element.primary) // if the class type does not match
 		{
 			result = false; // deduction fails
 			return;
 		}
 		// [temp.deduct.type] The nondeduced contexts are:- The nested-name-specifier of a type that was specified using a qualified-id.
 		// not attempting to deduce from enclosing type
-		if(!isNonDeduced(element.type))
+		if(!isNonDeduced(element))
 		{
-			result = deducePairs(element.type.templateArguments, type.templateArguments, templateArguments);
+			result = deducePairs(element.templateArguments, type.templateArguments, templateArguments);
 		}
 	}
 	virtual void visit(const PointerType&)
@@ -3348,20 +3334,20 @@ struct DeduceVisitor : TypeElementVisitor
 
 inline UniqueTypeWrapper applyArrayToPointerConversion(UniqueTypeWrapper type);
 inline UniqueTypeWrapper applyFunctionToPointerConversion(UniqueTypeWrapper type);
-inline UniqueTypeWrapper makeUniqueObjectType(const TypeInstance& type);
+inline UniqueTypeWrapper makeUniqueSimpleType(const SimpleType& type);
 
 struct DeductionFailure
 {
 };
 
-inline const TypeInstance* findUniqueBase(const TypeInstance& derived, const Declaration& type, const TypeInstance* result = 0)
+inline const SimpleType* findUniqueBase(const SimpleType& derived, const Declaration& type, const SimpleType* result = 0)
 {
 	SYMBOLS_ASSERT(derived.instantiated);
 	SYMBOLS_ASSERT(derived.declaration->enclosed != 0);
 	SYMBOLS_ASSERT(isClass(type));
 	for(UniqueBases::const_iterator i = derived.bases.begin(); i != derived.bases.end(); ++i)
 	{
-		const TypeInstance& base = *(*i);
+		const SimpleType& base = *(*i);
 		SYMBOLS_ASSERT(isClass(*base.declaration));
 		if(base.primary == &type)
 		{
@@ -3385,13 +3371,13 @@ inline UniqueTypeWrapper removePointer(UniqueTypeWrapper type)
 	return type;
 }
 
-inline const TypeInstance* getClassType(UniqueTypeWrapper type)
+inline const SimpleType* getClassType(UniqueTypeWrapper type)
 {
 	if(!type.isSimple())
 	{
 		return 0;
 	}
-	const TypeInstance* result = &getObjectType(type.value);
+	const SimpleType* result = &getSimpleType(type.value);
 	if(!isClass(*result->declaration))
 	{
 		return 0;
@@ -3399,7 +3385,7 @@ inline const TypeInstance* getClassType(UniqueTypeWrapper type)
 	return result;
 }
 
-inline void adjustFunctionCallDeductionPair(UniqueTypeWrapper& parameter, UniqueTypeWrapper& argument, Location source, const TypeInstance* enclosing)
+inline void adjustFunctionCallDeductionPair(UniqueTypeWrapper& parameter, UniqueTypeWrapper& argument, Location source, const SimpleType* enclosing)
 {
 	argument = removeReference(argument);
 
@@ -3447,21 +3433,21 @@ inline void adjustFunctionCallDeductionPair(UniqueTypeWrapper& parameter, Unique
 	// These alternatives are considered only if type deduction would otherwise fail. If they yield more than one
 	// possible deduced A, the type deduction fails.
 
-	const TypeInstance* parameterType = getClassType(removePointer(parameter));
-	const TypeInstance* argumentType = getClassType(removePointer(argument));
+	const SimpleType* parameterType = getClassType(removePointer(parameter));
+	const SimpleType* argumentType = getClassType(removePointer(argument));
 	if(parameterType != 0 && parameterType->declaration->isTemplate // if P is a class-template
 		&& argumentType != 0 && isComplete(*argumentType->declaration) // and A is a complete class
 		&& parameter.isPointer() == argument.isPointer() // and neither (or both) are pointers
 		&& argumentType->primary != parameterType->primary) // and deduction would fail
 	{
 		instantiateClass(*argumentType, source, enclosing); // A must be instantiated before searching its bases
-		const TypeInstance* base = findUniqueBase(*argumentType, *parameterType->primary);
+		const SimpleType* base = findUniqueBase(*argumentType, *parameterType->primary);
 		if(base != 0) // if P is an unambiguous base-class of A
 		{
 			// A can be a derived class of the deduced A
 			bool isPointer = argument.isPointer();
 			CvQualifiers qualifiers = removePointer(argument).value.getQualifiers();
-			argument = makeUniqueObjectType(*base); // use the base-class in place of A for deduction
+			argument = makeUniqueSimpleType(*base); // use the base-class in place of A for deduction
 			argument.value.setQualifiers(qualifiers); // preserve the cv-qualification of the original A
 			if(isPointer)
 			{
@@ -3541,7 +3527,7 @@ inline bool deduce(UniqueTypeWrapper parameter, UniqueTypeWrapper argument, Temp
 }
 
 // deduce the function's template arguments by comparing the original argument list with the substituted parameters
-inline bool deduceFunctionCall(const ParameterTypes& parameters, const UniqueTypeArray& arguments, TemplateArgumentsInstance& result, Location source, const TypeInstance* enclosing)
+inline bool deduceFunctionCall(const ParameterTypes& parameters, const UniqueTypeArray& arguments, TemplateArgumentsInstance& result, Location source, const SimpleType* enclosing)
 {
 	try
 	{
@@ -3573,10 +3559,10 @@ inline bool deduceFunctionCall(const ParameterTypes& parameters, const UniqueTyp
 }
 
 
-extern ObjectTypeId gVoid;
+extern BuiltInTypeId gVoid;
 
 
-inline void substitute(UniqueTypeArray& substituted, const UniqueTypeArray& dependent, Location source, const TypeInstance& enclosingType)
+inline void substitute(UniqueTypeArray& substituted, const UniqueTypeArray& dependent, Location source, const SimpleType& enclosingType)
 {
 	for(UniqueTypeArray::const_iterator i = dependent.begin(); i != dependent.end(); ++i)
 	{
@@ -3585,12 +3571,12 @@ inline void substitute(UniqueTypeArray& substituted, const UniqueTypeArray& depe
 	}
 }
 
-inline Declaration* findTemplateSpecialization(Declaration* declaration, TemplateArgumentsInstance& deducedArguments, const TemplateArgumentsInstance& arguments, Location source, const TypeInstance* enclosing, bool allowDependent);
+inline Declaration* findTemplateSpecialization(Declaration* declaration, TemplateArgumentsInstance& deducedArguments, const TemplateArgumentsInstance& arguments, Location source, const SimpleType* enclosing, bool allowDependent);
 
 // 'enclosing' is already substituted
-inline UniqueTypeWrapper substitute(Declaration* declaration, const TypeInstance* enclosing, const TemplateArgumentsInstance& templateArguments, Location source, const TypeInstance& enclosingType)
+inline UniqueTypeWrapper substitute(Declaration* declaration, const SimpleType* enclosing, const TemplateArgumentsInstance& templateArguments, Location source, const SimpleType& enclosingType)
 {
-	TypeInstance result(declaration, enclosing);
+	SimpleType result(declaration, enclosing);
 	if(declaration->isTemplate)
 	{
 		result.declaration = result.primary = findPrimaryTemplate(declaration); // TODO: name lookup should always find primary template
@@ -3619,18 +3605,18 @@ inline UniqueTypeWrapper substitute(Declaration* declaration, const TypeInstance
 
 	static size_t uniqueId = 0;
 	result.uniqueId = ++uniqueId;
-	return makeUniqueObjectType(result);
+	return makeUniqueSimpleType(result);
 }
 
-inline const TypeInstance* substitute(const TypeInstance& instance, Location source, const TypeInstance& enclosingType)
+inline const SimpleType* substitute(const SimpleType& instance, Location source, const SimpleType& enclosingType)
 {
-	const TypeInstance* enclosing = 0;
+	const SimpleType* enclosing = 0;
 	if(instance.enclosing != 0)
 	{
 		enclosing = substitute(*instance.enclosing, source, enclosingType);
 	}
 	UniqueTypeWrapper result = substitute(instance.declaration, enclosing, instance.templateArguments, source, enclosingType);
-	return &getObjectType(result.value);
+	return &getSimpleType(result.value);
 }
 
 
@@ -3638,8 +3624,8 @@ struct SubstituteVisitor : TypeElementVisitor
 {
 	UniqueTypeWrapper type;
 	Location source;
-	const TypeInstance& enclosingType;
-	SubstituteVisitor(UniqueTypeWrapper type, Location source, const TypeInstance& enclosingType)
+	const SimpleType& enclosingType;
+	SubstituteVisitor(UniqueTypeWrapper type, Location source, const SimpleType& enclosingType)
 		: type(type), source(source), enclosingType(enclosingType)
 	{
 	}
@@ -3647,7 +3633,7 @@ struct SubstituteVisitor : TypeElementVisitor
 	{
 		std::size_t index = element.type->templateParameter;
 		SYMBOLS_ASSERT(index != INDEX_INVALID);
-		const TypeInstance* enclosingTemplate = findEnclosingTemplate(&enclosingType, element.type->scope);
+		const SimpleType* enclosingTemplate = findEnclosingTemplate(&enclosingType, element.type->scope);
 		SYMBOLS_ASSERT(enclosingTemplate != 0);
 		SYMBOLS_ASSERT(!enclosingTemplate->declaration->isSpecialization || enclosingTemplate->instantiated); // a specialization must be instantiated (or in the process of instantiating)
 		const TemplateArgumentsInstance& templateArguments = enclosingTemplate->declaration->isSpecialization
@@ -3695,7 +3681,7 @@ struct SubstituteVisitor : TypeElementVisitor
 		}
 
 		UniqueTypeWrapper qualifying = substitute(element.qualifying, source, enclosingType);
-		const TypeInstance* enclosing = qualifying == gUniqueTypeNull || !qualifying.isSimple() ? 0 : &getObjectType(qualifying.value);
+		const SimpleType* enclosing = qualifying == gUniqueTypeNull || !qualifying.isSimple() ? 0 : &getSimpleType(qualifying.value);
 		// [temp.deduct] Attempting to use a type that is not a class type in a qualified name
 		if(enclosing == 0
 			|| !isClass(*enclosing->declaration))
@@ -3731,7 +3717,7 @@ struct SubstituteVisitor : TypeElementVisitor
 
 		SYMBOLS_ASSERT(isMember(*declaration));
 
-		const TypeInstance* memberEnclosing = findEnclosingType(enclosing, declaration->scope); // the declaration must be a member of (a base of) the qualifying class: find which one.
+		const SimpleType* memberEnclosing = findEnclosingType(enclosing, declaration->scope); // the declaration must be a member of (a base of) the qualifying class: find which one.
 		SYMBOLS_ASSERT(memberEnclosing != 0);
 
 		if(isClass(*declaration)
@@ -3772,10 +3758,10 @@ struct SubstituteVisitor : TypeElementVisitor
 		// TODO: SFINAE for expressions: check that type of template argument matches template parameter
 		type.push_front(element);
 	}
-	virtual void visit(const ObjectType& element)
+	virtual void visit(const SimpleType& element)
 	{
-		const TypeInstance* result = substitute(element.type, source, enclosingType);
-		type.push_front(ObjectType(*result));
+		const SimpleType* result = substitute(element, source, enclosingType);
+		type.push_front(*result);
 	}
 	virtual void visit(const PointerType& element)
 	{
@@ -3813,7 +3799,7 @@ struct SubstituteVisitor : TypeElementVisitor
 		UniqueTypeWrapper classType = substitute(element.type, source, enclosingType);
 		// [temp.deduct] Attempting to create "pointer to member of T" when T is not a class type.
 		if(!classType.isSimple()
-			|| !isClass(*getObjectType(classType.value).declaration))
+			|| !isClass(*getSimpleType(classType.value).declaration))
 		{
 			throw QualifyingIsNotClassError(source, classType);
 		}
@@ -3834,7 +3820,7 @@ struct SubstituteVisitor : TypeElementVisitor
 	}
 };
 
-inline UniqueTypeWrapper substitute(UniqueTypeWrapper dependent, Location source, const TypeInstance& enclosingType)
+inline UniqueTypeWrapper substitute(UniqueTypeWrapper dependent, Location source, const SimpleType& enclosingType)
 {
 	UniqueTypeWrapper inner = dependent;
 	inner.pop_front();
@@ -3848,10 +3834,10 @@ inline UniqueTypeWrapper substitute(UniqueTypeWrapper dependent, Location source
 
 // ----------------------------------------------------------------------------
 inline UniqueTypeWrapper makeUniqueType(const TypeId& type, Location source);
-inline UniqueTypeWrapper makeUniqueType(const TypeId& type, Location source, const TypeInstance* enclosing, bool allowDependent);
-inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const TypeInstance* enclosing, bool allowDependent);
+inline UniqueTypeWrapper makeUniqueType(const TypeId& type, Location source, const SimpleType* enclosing, bool allowDependent);
+inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const SimpleType* enclosing, bool allowDependent);
 
-inline void reportTypeInfo(const Type& type, const TypeInstance* enclosing)
+inline void reportTypeInfo(const Type& type, const SimpleType* enclosing)
 {
 	printPosition(type.id->source);
 	std::cout << std::endl;
@@ -3865,10 +3851,10 @@ inline void reportTypeInfo(const Type& type, const TypeInstance* enclosing)
 	std::cout << std::endl;
 }
 
-extern ObjectTypeId gSignedInt;
+extern BuiltInTypeId gSignedInt;
 
 template<typename T>
-inline UniqueTypeWrapper getUniqueTypeImpl(const T& type, Location source, const TypeInstance* enclosing, bool allowDependent)
+inline UniqueTypeWrapper getUniqueTypeImpl(const T& type, Location source, const SimpleType* enclosing, bool allowDependent)
 {
 	SYMBOLS_ASSERT(type.unique != 0);
 	UniqueTypeWrapper result = UniqueTypeWrapper(type.unique);
@@ -3882,12 +3868,12 @@ inline UniqueTypeWrapper getUniqueTypeImpl(const T& type, Location source, const
 	return result;
 }
 
-inline UniqueTypeWrapper getUniqueType(const TypeId& type, Location source, const TypeInstance* enclosing, bool allowDependent = false)
+inline UniqueTypeWrapper getUniqueType(const TypeId& type, Location source, const SimpleType* enclosing, bool allowDependent = false)
 {
 	return getUniqueTypeImpl(type, source, enclosing, allowDependent);
 }
 
-inline UniqueTypeWrapper getUniqueType(const Type& type, Location source, const TypeInstance* enclosing, bool allowDependent = false)
+inline UniqueTypeWrapper getUniqueType(const Type& type, Location source, const SimpleType* enclosing, bool allowDependent = false)
 {
 	return getUniqueTypeImpl(type, source, enclosing, allowDependent);
 }
@@ -3966,11 +3952,11 @@ inline Declaration* findOverloaded(const DeclarationInstance& instance)
 	return 0;
 }
 
-inline std::size_t addBase(TypeInstance& instance, UniqueTypeWrapper base, Location source)
+inline std::size_t addBase(SimpleType& instance, UniqueTypeWrapper base, Location source)
 {
 	SYMBOLS_ASSERT(!isDependent(base));
 	SYMBOLS_ASSERT(base.isSimple());
-	const TypeInstance& objectType = getObjectType(base.value);
+	const SimpleType& objectType = getSimpleType(base.value);
 	std::size_t size = instantiateClass(objectType, source, &instance);
 	SYMBOLS_ASSERT(isClass(*objectType.declaration));
 	SYMBOLS_ASSERT(objectType.declaration->enclosed != 0); // this can occur when the primary template is incomplete, and a specialization was not chosen
@@ -3978,7 +3964,7 @@ inline std::size_t addBase(TypeInstance& instance, UniqueTypeWrapper base, Locat
 	return size;
 }
 
-inline bool isTemplate(const TypeInstance& instance)
+inline bool isTemplate(const SimpleType& instance)
 {
 	if(instance.declaration->isTemplate)
 	{
@@ -3988,16 +3974,16 @@ inline bool isTemplate(const TypeInstance& instance)
 		&& isTemplate(*instance.enclosing);
 }
 
-void dumpTemplateInstantiations(const TypeInstance& instance, bool root = false);
+void dumpTemplateInstantiations(const SimpleType& instance, bool root = false);
 
-inline std::size_t instantiateClass(const TypeInstance& instanceConst, Location source, const TypeInstance* enclosing, bool allowDependent)
+inline std::size_t instantiateClass(const SimpleType& instanceConst, Location source, const SimpleType* enclosing, bool allowDependent)
 {
-	TypeInstance& instance = const_cast<TypeInstance&>(instanceConst);
+	SimpleType& instance = const_cast<SimpleType&>(instanceConst);
 	SYMBOLS_ASSERT(isClass(*instance.declaration));
 
 	if(enclosing != 0)
 	{
-		ChildInstantiations& instantiations = const_cast<TypeInstance*>(enclosing)->childInstantiations;
+		ChildInstantiations& instantiations = const_cast<SimpleType*>(enclosing)->childInstantiations;
 		instantiations.push_back(ChildInstantiation(&instance, source));
 	}
 
@@ -4038,7 +4024,7 @@ inline std::size_t instantiateClass(const TypeInstance& instanceConst, Location 
 
 		SYMBOLS_ASSERT(instance.declaration->type.unique != 0);
 		// the is the (possibly dependent) unique type of the unspecialized (template) class on which this specialization is based
-		const TypeInstance& original = getObjectType(instance.declaration->type.unique);
+		const SimpleType& original = getSimpleType(instance.declaration->type.unique);
 
 		instance.size = 4; // TODO: get size of built-in types
 		SYMBOLS_ASSERT(instance.declaration->enclosed != 0);
@@ -4106,7 +4092,7 @@ inline std::size_t instantiateClass(const TypeInstance& instanceConst, Location 
 	return instance.size;
 }
 
-inline std::size_t requireCompleteObjectType(UniqueTypeWrapper type, Location source, const TypeInstance* enclosing)
+inline std::size_t requireCompleteObjectType(UniqueTypeWrapper type, Location source, const SimpleType* enclosing)
 {
 	std::size_t count = 1;
 	while(type.isArray()
@@ -4117,7 +4103,7 @@ inline std::size_t requireCompleteObjectType(UniqueTypeWrapper type, Location so
 	}
 	if(type.isSimple())
 	{
-		const TypeInstance& objectType = getObjectType(type.value);
+		const SimpleType& objectType = getSimpleType(type.value);
 		if(isClass(*objectType.declaration))
 		{
 			return instantiateClass(objectType, source, enclosing) * count;
@@ -4136,7 +4122,7 @@ inline UniqueTypeWrapper removeReference(UniqueTypeWrapper type)
 	return type;
 }
 
-inline const TypeInstance* makeUniqueEnclosing(const Qualifying& qualifying, Location source, const TypeInstance* enclosing, bool allowDependent, UniqueTypeWrapper& unique)
+inline const SimpleType* makeUniqueEnclosing(const Qualifying& qualifying, Location source, const SimpleType* enclosing, bool allowDependent, UniqueTypeWrapper& unique)
 {
 	if(!qualifying.empty())
 	{
@@ -4149,7 +4135,7 @@ inline const TypeInstance* makeUniqueEnclosing(const Qualifying& qualifying, Loc
 		{
 			return 0;
 		}
-		const TypeInstance& type = getObjectType(unique.value);
+		const SimpleType& type = getSimpleType(unique.value);
 		// [temp.inst] A class template is implicitly instantiated ... if the completeness of the class-type affects the semantics of the program.
 		instantiateClass(type, source, enclosing, allowDependent);
 		return &type;
@@ -4157,13 +4143,13 @@ inline const TypeInstance* makeUniqueEnclosing(const Qualifying& qualifying, Loc
 	return enclosing;
 }
 
-inline const TypeInstance* makeUniqueEnclosing(const Qualifying& qualifying, Location source, const TypeInstance* enclosing, bool allowDependent)
+inline const SimpleType* makeUniqueEnclosing(const Qualifying& qualifying, Location source, const SimpleType* enclosing, bool allowDependent)
 {
 	UniqueTypeWrapper tmp;
 	return makeUniqueEnclosing(qualifying, source, enclosing, allowDependent, tmp);
 }
 
-inline bool deduceAndSubstitute(const UniqueTypeArray& parameters, const UniqueTypeArray& arguments, Location source, TypeInstance& enclosing, TemplateArgumentsInstance& substituted)
+inline bool deduceAndSubstitute(const UniqueTypeArray& parameters, const UniqueTypeArray& arguments, Location source, SimpleType& enclosing, TemplateArgumentsInstance& substituted)
 {
 	// deduce the partial-specialization's template arguments from the original argument list
 	if(!deducePairs(parameters, arguments, enclosing.deducedArguments)
@@ -4191,7 +4177,7 @@ inline bool matchTemplatePartialSpecialization(Declaration* declaration, Templat
 	SYMBOLS_ASSERT(!declaration->templateParams.empty());
 	TemplateArgumentsInstance deduced(std::distance(declaration->templateParams.begin(), declaration->templateParams.end()), gUniqueTypeNull);
 	TemplateArgumentsInstance substituted;
-	TypeInstance enclosing(declaration, 0);
+	SimpleType enclosing(declaration, 0);
 	enclosing.deducedArguments.swap(deduced);
 	enclosing.instantiated = true;
 	if(!deduceAndSubstitute(specializationArguments, arguments, source, enclosing, substituted))
@@ -4214,7 +4200,7 @@ inline bool matchTemplatePartialSpecialization(Declaration* declaration, const T
 	return matchTemplatePartialSpecialization(declaration, deducedArguments, specializationArguments, arguments, source);
 }
 
-inline void makeUniqueTemplateArguments(TemplateArguments& templateArguments, TemplateArgumentsInstance& result, Location source, const TypeInstance* enclosing, bool allowDependent = false)
+inline void makeUniqueTemplateArguments(TemplateArguments& templateArguments, TemplateArgumentsInstance& result, Location source, const SimpleType* enclosing, bool allowDependent = false)
 {
 	for(TemplateArguments::const_iterator i = templateArguments.begin(); i != templateArguments.end(); ++i)
 	{
@@ -4237,7 +4223,7 @@ inline void makeUniqueTemplateArguments(TemplateArguments& templateArguments, Te
 	}
 }
 
-inline void makeUniqueTemplateParameters(const TemplateParameters& templateParams, TemplateArgumentsInstance& arguments, Location source, const TypeInstance* enclosing, bool allowDependent)
+inline void makeUniqueTemplateParameters(const TemplateParameters& templateParams, TemplateArgumentsInstance& arguments, Location source, const SimpleType* enclosing, bool allowDependent)
 {
 	for(Types::const_iterator i = templateParams.begin(); i != templateParams.end(); ++i)
 	{
@@ -4261,7 +4247,7 @@ inline void makeUniqueTemplateParameters(const TemplateParameters& templateParam
 	SYMBOLS_ASSERT(!arguments.empty());
 }
 
-inline Declaration* findTemplateSpecialization(Declaration* declaration, TemplateArgumentsInstance& deducedArguments, const TemplateArgumentsInstance& arguments, Location source, const TypeInstance* enclosing, bool allowDependent)
+inline Declaration* findTemplateSpecialization(Declaration* declaration, TemplateArgumentsInstance& deducedArguments, const TemplateArgumentsInstance& arguments, Location source, const SimpleType* enclosing, bool allowDependent)
 {
 	Declaration* best = 0;
 	TemplateArgumentsInstance bestArguments;
@@ -4336,7 +4322,7 @@ inline Declaration* findTemplateSpecialization(Declaration* declaration, Templat
 }
 
 
-inline void makeUniqueTemplateArguments(const TemplateArguments& arguments, TemplateArgumentsInstance& templateArguments, Location source, const TypeInstance* enclosingType, bool allowDependent)
+inline void makeUniqueTemplateArguments(const TemplateArguments& arguments, TemplateArgumentsInstance& templateArguments, Location source, const SimpleType* enclosingType, bool allowDependent)
 {
 	for(TemplateArguments::const_iterator i = arguments.begin(); i != arguments.end(); ++i)
 	{
@@ -4360,7 +4346,7 @@ inline void makeUniqueTemplateArguments(const TemplateArguments& arguments, Temp
 }
 
 
-inline const TypeInstance* findEnclosingType(const TypeInstance& enclosing, Scope* scope)
+inline const SimpleType* findEnclosingType(const SimpleType& enclosing, Scope* scope)
 {
 	SYMBOLS_ASSERT(scope != 0);
 	if(scope->type == SCOPETYPE_TEMPLATE)
@@ -4382,7 +4368,7 @@ inline const TypeInstance* findEnclosingType(const TypeInstance& enclosing, Scop
 
 	for(UniqueBases::const_iterator i = enclosing.bases.begin(); i != enclosing.bases.end(); ++i)
 	{
-		const TypeInstance* result = findEnclosingType(*(*i), scope);
+		const SimpleType* result = findEnclosingType(*(*i), scope);
 		if(result != 0)
 		{
 			return result;
@@ -4391,12 +4377,12 @@ inline const TypeInstance* findEnclosingType(const TypeInstance& enclosing, Scop
 	return 0;
 }
 
-inline const TypeInstance* findEnclosingType(const TypeInstance* enclosing, Scope* scope)
+inline const SimpleType* findEnclosingType(const SimpleType* enclosing, Scope* scope)
 {
 	SYMBOLS_ASSERT(scope != 0);
-	for(const TypeInstance* i = enclosing; i != 0; i = (*i).enclosing)
+	for(const SimpleType* i = enclosing; i != 0; i = (*i).enclosing)
 	{
-		const TypeInstance* result = findEnclosingType(*i, scope);
+		const SimpleType* result = findEnclosingType(*i, scope);
 		if(result != 0)
 		{
 			return result;
@@ -4406,17 +4392,17 @@ inline const TypeInstance* findEnclosingType(const TypeInstance* enclosing, Scop
 }
 
 
-inline UniqueTypeWrapper makeUniqueObjectType(const TypeInstance& type)
+inline UniqueTypeWrapper makeUniqueSimpleType(const SimpleType& type)
 {
 	SYMBOLS_ASSERT(!(type.primary->isTemplate && isSpecialization(*type.primary))); // primary declaration must not be a specialization!
-	return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, UNIQUETYPE_NULL, ObjectType(type)));
+	return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, UNIQUETYPE_NULL, type));
 }
 
 struct LookupFailed : TypeError
 {
-	const TypeInstance* enclosing;
+	const SimpleType* enclosing;
 	const Identifier* id;
-	LookupFailed(const TypeInstance* enclosing, const Identifier* id)
+	LookupFailed(const SimpleType* enclosing, const Identifier* id)
 		: enclosing(enclosing), id(id)
 	{
 	}
@@ -4435,11 +4421,11 @@ struct LookupFailed : TypeError
 // /p type
 // /p enclosingType The enclosing template, required when uniquing a template-argument: e.g. Enclosing<int>::Type
 //			Note: if 'type' is a class-template template default argument, 'enclosingType' will be the class-template, which does not require instantiation!
-inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const TypeInstance* enclosingType, bool allowDependent)
+inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const SimpleType* enclosingType, bool allowDependent)
 {
 	// the type in which template-arguments are looked up: returns qualifying type if specified, else returns enclosingType
 	UniqueTypeWrapper qualifying;
-	const TypeInstance* enclosing = makeUniqueEnclosing(type.qualifying, source, enclosingType, allowDependent, qualifying);
+	const SimpleType* enclosing = makeUniqueEnclosing(type.qualifying, source, enclosingType, allowDependent, qualifying);
 	Declaration* declaration = type.declaration;
 	extern Declaration gDependentType;
 	extern Declaration gDependentTemplate;
@@ -4464,7 +4450,7 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const
 		SYMBOLS_ASSERT(allowDependent);
 		SYMBOLS_ASSERT(type.qualifying.empty());
 		// Find the template-specialisation it belongs to:
-		const TypeInstance* enclosingType = findEnclosingType(enclosing, declaration->scope);
+		const SimpleType* enclosingType = findEnclosingType(enclosing, declaration->scope);
 		if(enclosingType != 0
 			&& !isDependent(*enclosingType)) // if the enclosing type is not dependent
 		{
@@ -4485,7 +4471,7 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const
 		return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, UNIQUETYPE_NULL, DependentType(declaration, templateArguments, templateParameterCount)));
 	}
 
-	const TypeInstance* memberEnclosing = isMember(*declaration) // if the declaration is a class member
+	const SimpleType* memberEnclosing = isMember(*declaration) // if the declaration is a class member
 		? findEnclosingType(enclosing, declaration->scope) // it must be a member of (a base of) the qualifying class: find which one.
 		: 0; // the declaration is not a class member and cannot be found through qualified name lookup
 
@@ -4511,7 +4497,7 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const
 		return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, UNIQUETYPE_NULL, TemplateTemplateArgument(declaration, memberEnclosing)));
 	}
 
-	TypeInstance tmp(declaration, memberEnclosing);
+	SimpleType tmp(declaration, memberEnclosing);
 	SYMBOLS_ASSERT(declaration->type.declaration != &gArithmetic || tmp.enclosing == 0); // arithmetic types should not have an enclosing template!
 	if(declaration->isTemplate)
 	{
@@ -4555,7 +4541,7 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const
 				}
 				else
 				{
-					const TypeInstance* enclosing = isTemplateParamDefault ? &tmp : enclosingType; // resolve dependent template-parameter-defaults in context of template class
+					const SimpleType* enclosing = isTemplateParamDefault ? &tmp : enclosingType; // resolve dependent template-parameter-defaults in context of template class
 					result = getUniqueType(argument.type, argument.source, enclosing, allowDependent);
 					SYMBOLS_ASSERT(result.value != UNIQUETYPE_NULL);
 				}
@@ -4568,11 +4554,11 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const
 	SYMBOLS_ASSERT(tmp.children.empty());
 	static size_t uniqueId = 0;
 	tmp.uniqueId = ++uniqueId;
-	return makeUniqueObjectType(tmp);
+	return makeUniqueSimpleType(tmp);
 }
 
 
-inline std::size_t evaluateArraySize(const ExpressionWrapper& expression, Location source, const TypeInstance* enclosing)
+inline std::size_t evaluateArraySize(const ExpressionWrapper& expression, Location source, const SimpleType* enclosing)
 {
 	if(expression == 0) // []
 	{
@@ -4590,9 +4576,9 @@ struct TypeSequenceMakeUnique : TypeSequenceVisitor
 {
 	UniqueType& type;
 	Location source;
-	const TypeInstance* enclosing;
+	const SimpleType* enclosing;
 	bool allowDependent;
-	TypeSequenceMakeUnique(UniqueType& type, Location source, const TypeInstance* enclosing, bool allowDependent)
+	TypeSequenceMakeUnique(UniqueType& type, Location source, const SimpleType* enclosing, bool allowDependent)
 		: type(type), source(source), enclosing(enclosing), allowDependent(allowDependent)
 	{
 	}
@@ -4633,7 +4619,7 @@ struct TypeSequenceMakeUnique : TypeSequenceVisitor
 	}
 };
 
-inline UniqueTypeWrapper makeUniqueType(const TypeId& type, Location source, const TypeInstance* enclosing, bool allowDependent)
+inline UniqueTypeWrapper makeUniqueType(const TypeId& type, Location source, const SimpleType* enclosing, bool allowDependent)
 {
 	UniqueTypeWrapper result = makeUniqueType(*static_cast<const Type*>(&type), source, enclosing, allowDependent);
 	result.value.addQualifiers(type.qualifiers);
@@ -4758,23 +4744,23 @@ extern BuiltInTypeDeclaration gFloatDeclaration;
 extern BuiltInTypeDeclaration gDoubleDeclaration;
 extern BuiltInTypeDeclaration gLongDoubleDeclaration;
 extern BuiltInTypeDeclaration gVoidDeclaration;
-extern ObjectTypeId gChar;
-extern ObjectTypeId gSignedChar;
-extern ObjectTypeId gUnsignedChar;
-extern ObjectTypeId gSignedShortInt;
-extern ObjectTypeId gUnsignedShortInt;
-extern ObjectTypeId gSignedInt;
-extern ObjectTypeId gUnsignedInt;
-extern ObjectTypeId gSignedLongInt;
-extern ObjectTypeId gUnsignedLongInt;
-extern ObjectTypeId gSignedLongLongInt;
-extern ObjectTypeId gUnsignedLongLongInt;
-extern ObjectTypeId gWCharT;
-extern ObjectTypeId gBool;
-extern ObjectTypeId gFloat;
-extern ObjectTypeId gDouble;
-extern ObjectTypeId gLongDouble;
-extern ObjectTypeId gVoid;
+extern BuiltInTypeId gChar;
+extern BuiltInTypeId gSignedChar;
+extern BuiltInTypeId gUnsignedChar;
+extern BuiltInTypeId gSignedShortInt;
+extern BuiltInTypeId gUnsignedShortInt;
+extern BuiltInTypeId gSignedInt;
+extern BuiltInTypeId gUnsignedInt;
+extern BuiltInTypeId gSignedLongInt;
+extern BuiltInTypeId gUnsignedLongInt;
+extern BuiltInTypeId gSignedLongLongInt;
+extern BuiltInTypeId gUnsignedLongLongInt;
+extern BuiltInTypeId gWCharT;
+extern BuiltInTypeId gBool;
+extern BuiltInTypeId gFloat;
+extern BuiltInTypeId gDouble;
+extern BuiltInTypeId gLongDouble;
+extern BuiltInTypeId gVoid;
 
 typedef ArrayRange<BuiltInType> BuiltInTypeArrayRange;
 
@@ -4842,10 +4828,10 @@ inline bool isVoidParameter(const TypeId& type)
 }
 
 
-struct StringLiteralTypeId : ObjectTypeId
+struct StringLiteralTypeId : BuiltInTypeId
 {
 	StringLiteralTypeId(Declaration* declaration, const TreeAllocator<int>& allocator)
-		: ObjectTypeId(declaration, allocator)
+		: BuiltInTypeId(declaration, allocator)
 	{
 		value = pushBuiltInType(value, ArrayType(0));
 	}
@@ -5364,12 +5350,12 @@ inline UniqueTypeWrapper ternaryOperatorNull(UniqueTypeWrapper first, UniqueType
 
 inline bool isClass(UniqueTypeWrapper type)
 {
-	return type.isSimple() && getObjectType(type.value).declaration->type.declaration == &gClass;
+	return type.isSimple() && getSimpleType(type.value).declaration->type.declaration == &gClass;
 }
 
 inline bool isEnum(UniqueTypeWrapper type)
 {
-	return type.isSimple() && getObjectType(type.value).declaration->type.declaration == &gEnum;
+	return type.isSimple() && getSimpleType(type.value).declaration->type.declaration == &gEnum;
 }
 
 inline bool isObject(UniqueTypeWrapper type)
@@ -5379,12 +5365,12 @@ inline bool isObject(UniqueTypeWrapper type)
 
 inline bool isComplete(const UniqueTypeId& type)
 {
-	return type.isSimple() && isComplete(*getObjectType(type.value).declaration);
+	return type.isSimple() && isComplete(*getSimpleType(type.value).declaration);
 }
 
 inline bool isArithmetic(const UniqueTypeId& type)
 {
-	return type.isSimple() && getObjectType(type.value).declaration->type.declaration == &gArithmetic;
+	return type.isSimple() && getSimpleType(type.value).declaration->type.declaration == &gArithmetic;
 }
 
 inline bool isFloating(const UniqueTypeId& type)
@@ -5554,14 +5540,14 @@ struct StandardConversionSequence
 
 const StandardConversionSequence STANDARDCONVERSIONSEQUENCE_INVALID = StandardConversionSequence(SCSRANK_INVALID, CvQualifiers());
 
-inline bool findBase(const TypeInstance& other, const TypeInstance& type)
+inline bool findBase(const SimpleType& other, const SimpleType& type)
 {
 	SYMBOLS_ASSERT(other.declaration != &gParam); // TODO: when type-evaluation fails, sometimes template-params are uniqued
 	SYMBOLS_ASSERT(other.declaration->enclosed != 0);
 	SYMBOLS_ASSERT(isClass(*type.declaration));
 	for(UniqueBases::const_iterator i = other.bases.begin(); i != other.bases.end(); ++i)
 	{
-		const TypeInstance& base = *(*i);
+		const SimpleType& base = *(*i);
 		SYMBOLS_ASSERT(isClass(*base.declaration));
 		if(&base == &type)
 		{
@@ -5576,7 +5562,7 @@ inline bool findBase(const TypeInstance& other, const TypeInstance& type)
 }
 
 // Returns true if 'type' is a base of 'other'
-inline bool isBaseOf(const TypeInstance& type, const TypeInstance& other, Location source, const TypeInstance* enclosing)
+inline bool isBaseOf(const SimpleType& type, const SimpleType& other, Location source, const SimpleType* enclosing)
 {
 	if(!isClass(*type.declaration)
 		|| !isClass(*other.declaration))
@@ -5718,16 +5704,16 @@ struct TargetType : UniqueTypeWrapper
 	}
 };
 
-extern ObjectTypeId gArithmeticPlaceholder;
-extern ObjectTypeId gIntegralPlaceholder;
-extern ObjectTypeId gPromotedIntegralPlaceholder;
-extern ObjectTypeId gPromotedArithmeticPlaceholder;
-extern ObjectTypeId gEnumerationPlaceholder;
-extern ObjectTypeId gPointerToAnyPlaceholder;
-extern ObjectTypeId gPointerToObjectPlaceholder;
-extern ObjectTypeId gPointerToClassPlaceholder;
-extern ObjectTypeId gPointerToFunctionPlaceholder;
-extern ObjectTypeId gPointerToMemberPlaceholder;
+extern BuiltInTypeId gArithmeticPlaceholder;
+extern BuiltInTypeId gIntegralPlaceholder;
+extern BuiltInTypeId gPromotedIntegralPlaceholder;
+extern BuiltInTypeId gPromotedArithmeticPlaceholder;
+extern BuiltInTypeId gEnumerationPlaceholder;
+extern BuiltInTypeId gPointerToAnyPlaceholder;
+extern BuiltInTypeId gPointerToObjectPlaceholder;
+extern BuiltInTypeId gPointerToClassPlaceholder;
+extern BuiltInTypeId gPointerToFunctionPlaceholder;
+extern BuiltInTypeId gPointerToMemberPlaceholder;
 
 inline UniqueTypeWrapper getExactMatch(UniqueTypeWrapper to, UniqueTypeWrapper from)
 {
@@ -5860,7 +5846,7 @@ inline bool isGeneralPointer(TargetType type)
 }
 
 template<typename To>
-inline StandardConversionSequence makeScsConversion(Location source, const TypeInstance* enclosing, To to, UniqueTypeWrapper from, bool isNullPointerConstant = false) // TODO: detect null pointer constant
+inline StandardConversionSequence makeScsConversion(Location source, const SimpleType* enclosing, To to, UniqueTypeWrapper from, bool isNullPointerConstant = false) // TODO: detect null pointer constant
 {
 	SYMBOLS_ASSERT(to.value.getQualifiers() == CvQualifiers());
 	SYMBOLS_ASSERT(from.value.getQualifiers() == CvQualifiers());
@@ -5888,7 +5874,7 @@ inline StandardConversionSequence makeScsConversion(Location source, const TypeI
 	}
 	if(to.isSimplePointer()
 		&& from.isSimplePointer()
-		&& isBaseOf(getObjectType(getInner(to.value)), getObjectType(getInner(from.value)), source, enclosing))
+		&& isBaseOf(getSimpleType(getInner(to.value)), getSimpleType(getInner(from.value)), source, enclosing))
 	{
 		to.pop_front();
 		from.pop_front();
@@ -5909,7 +5895,7 @@ inline StandardConversionSequence makeScsConversion(Location source, const TypeI
 	}
 	if(to.isSimple()
 		&& from.isSimple()
-		&& isBaseOf(getObjectType(to.value), getObjectType(from.value), source, enclosing))
+		&& isBaseOf(getSimpleType(to.value), getSimpleType(from.value), source, enclosing))
 	{
 		return StandardConversionSequence(SCSRANK_CONVERSION, CvQualifiers()); // D -> B
 	}
@@ -5978,7 +5964,7 @@ inline StandardConversionSequence makeScsExactMatch(To target, UniqueTypeWrapper
 
 // 13.3.3.1 [over.best.ics]
 template<typename To>
-inline StandardConversionSequence makeStandardConversionSequence(To to, UniqueTypeWrapper from, Location source, const TypeInstance* enclosing, bool isNullPointerConstant = false, bool isLvalue = false)
+inline StandardConversionSequence makeStandardConversionSequence(To to, UniqueTypeWrapper from, Location source, const SimpleType* enclosing, bool isNullPointerConstant = false, bool isLvalue = false)
 {
 	SYMBOLS_ASSERT(to != gUniqueTypeNull);
 	SYMBOLS_ASSERT(from != gUniqueTypeNull);
@@ -6108,10 +6094,10 @@ struct FunctionOverload
 };
 
 template<typename To>
-FunctionOverload findBestConversionFunction(To to, UniqueTypeWrapper from, Location source, const TypeInstance* enclosing, bool isNullPointerConstant = false, bool isLvalue = false);
+FunctionOverload findBestConversionFunction(To to, UniqueTypeWrapper from, Location source, const SimpleType* enclosing, bool isNullPointerConstant = false, bool isLvalue = false);
 
 template<typename To>
-ImplicitConversion makeImplicitConversionSequence(To to, UniqueTypeWrapper from, Location source, const TypeInstance* enclosing, bool isNullPointerConstant = false, bool isLvalue = false, bool isUserDefinedConversion = false)
+ImplicitConversion makeImplicitConversionSequence(To to, UniqueTypeWrapper from, Location source, const SimpleType* enclosing, bool isNullPointerConstant = false, bool isLvalue = false, bool isUserDefinedConversion = false)
 {
 	SYMBOLS_ASSERT(to != gUniqueTypeNull);
 	SYMBOLS_ASSERT(from != gUniqueTypeNull);
@@ -6160,7 +6146,7 @@ ImplicitConversion makeImplicitConversionSequence(To to, UniqueTypeWrapper from,
 			}
 			if(to.isSimple()
 				&& from.isSimple()
-				&& isBaseOf(getObjectType(to.value), getObjectType(from.value), source, enclosing))
+				&& isBaseOf(getSimpleType(to.value), getSimpleType(from.value), source, enclosing))
 			{
 				StandardConversionSequence sequence(SCSRANK_CONVERSION, to.value.getQualifiers());
 				sequence.isReference = true;
@@ -6231,7 +6217,7 @@ ImplicitConversion makeImplicitConversionSequence(To to, UniqueTypeWrapper from,
 		}
 		if(to.isSimple()
 			&& from.isSimple()
-			&& isBaseOf(getObjectType(to.value), getObjectType(from.value), source, enclosing))
+			&& isBaseOf(getSimpleType(to.value), getSimpleType(from.value), source, enclosing))
 		{
 			return ImplicitConversion(StandardConversionSequence(SCSRANK_CONVERSION, CvQualifiers()));
 		}
@@ -6291,7 +6277,7 @@ inline IcsRank getIcsRank(ScsRank rank)
 	return ICSRANK_INVALID;
 }
 
-inline IcsRank getIcsRank(UniqueTypeWrapper to, UniqueTypeWrapper from, Location source, const TypeInstance* enclosing, bool isNullPointerConstant = false, bool isLvalue = false)
+inline IcsRank getIcsRank(UniqueTypeWrapper to, UniqueTypeWrapper from, Location source, const SimpleType* enclosing, bool isNullPointerConstant = false, bool isLvalue = false)
 {
 	ImplicitConversion conversion = makeImplicitConversionSequence(to, from, source, enclosing, isNullPointerConstant, isLvalue);
 	return getIcsRank(conversion.sequence.rank);
@@ -6346,7 +6332,7 @@ struct CandidateFunction : FunctionOverload, FunctionTemplate
 	}
 };
 
-extern ObjectTypeId gImplicitObjectParameter;
+extern BuiltInTypeId gImplicitObjectParameter;
 
 inline bool isMoreSpecialized(const FunctionTemplate& left, const FunctionTemplate& right)
 {
@@ -6666,7 +6652,7 @@ inline LookupResult findMemberDeclaration(Scope& scope, const Identifier& id, Lo
 		{
 			continue;
 		}
-		const TypeInstance& base = getObjectType((*i).unique);
+		const SimpleType& base = getSimpleType((*i).unique);
 
 		// an identifier looked up in the context of a class may name a base class
 		if(base.declaration->getName().value == id.value
@@ -6997,7 +6983,7 @@ struct SymbolPrinter : TypeElementVisitor, ExpressionNodeVisitor
 		printer.out << element.value;
 		visitTypeElement();
 	}
-	void visit(const ObjectType& object)
+	void visit(const SimpleType& element)
 	{
 		if(qualifierStack.back().isConst)
 		{
@@ -7007,17 +6993,17 @@ struct SymbolPrinter : TypeElementVisitor, ExpressionNodeVisitor
 		{
 			printer.out << "volatile ";
 		}
-		printType(object.type);
+		printType(element);
 		visitTypeElement();
 	}
-	void visit(const ReferenceType& pointer)
+	void visit(const ReferenceType& element)
 	{
 		pushType(true);
 		printer.out << "&";
 		visitTypeElement();
 		popType();
 	}
-	void visit(const PointerType& pointer)
+	void visit(const PointerType& element)
 	{
 		pushType(true);
 		printer.out << "*";
@@ -7032,24 +7018,24 @@ struct SymbolPrinter : TypeElementVisitor, ExpressionNodeVisitor
 		visitTypeElement();
 		popType();
 	}
-	void visit(const ArrayType& array)
+	void visit(const ArrayType& element)
 	{
 		pushType(false);
 		visitTypeElement();
 		printer.out << "[";
-		if(array.size != 0)
+		if(element.size != 0)
 		{
-			printer.out << array.size;
+			printer.out << element.size;
 		}
 		printer.out << "]";
 		popType();
 	}
-	void visit(const MemberPointerType& pointer)
+	void visit(const MemberPointerType& element)
 	{
 		pushType(true);
 		{
 			SymbolPrinter walker(printer, escape);
-			walker.printType(pointer.type);
+			walker.printType(element.type);
 		}
 		printer.out << "::*";
 		if(qualifierStack.back().isConst)
@@ -7104,7 +7090,7 @@ struct SymbolPrinter : TypeElementVisitor, ExpressionNodeVisitor
 		printType(UniqueTypeWrapper(type.unique));
 	}
 
-	void printType(const TypeInstance& type)
+	void printType(const SimpleType& type)
 	{
 		if(type.enclosing != 0)
 		{
@@ -7209,7 +7195,7 @@ inline void printName(const Scope* scope, std::ostream& out = std::cout)
 	printer.printName(scope);
 }
 
-inline void printType(const TypeInstance& type, std::ostream& out, bool escape)
+inline void printType(const SimpleType& type, std::ostream& out, bool escape)
 {
 	FileTokenPrinter tokenPrinter(out);
 	SymbolPrinter printer(tokenPrinter, escape);
@@ -7245,12 +7231,12 @@ struct OverloadResolver
 	const Arguments& arguments;
 	const TemplateArgumentsInstance* templateArguments;
 	Location source;
-	const TypeInstance* enclosing;
+	const SimpleType* enclosing;
 	CandidateFunction best;
 	Declaration* ambiguous;
 	bool isUserDefinedConversion;
 
-	OverloadResolver(const Arguments& arguments, const TemplateArgumentsInstance* templateArguments, Location source, const TypeInstance* enclosing, bool isUserDefinedConversion = false)
+	OverloadResolver(const Arguments& arguments, const TemplateArgumentsInstance* templateArguments, Location source, const SimpleType* enclosing, bool isUserDefinedConversion = false)
 		: arguments(arguments), templateArguments(templateArguments), source(source), enclosing(enclosing), ambiguous(0), isUserDefinedConversion(isUserDefinedConversion)
 	{
 		best.conversions.resize(arguments.size(), ImplicitConversion(STANDARDCONVERSIONSEQUENCE_INVALID));
@@ -7308,7 +7294,7 @@ struct OverloadResolver
 		bool isNullPointerConstant = !from.isValueDependent && from.isConstant && evaluateExpression(from, source, enclosing).value == 0;
 		return makeImplicitConversionSequence(to, from.type, source, enclosing, isNullPointerConstant, true, isUserDefinedConversion); // TODO: l-value
 	}
-	void add(const FunctionOverload& overload, const ParameterTypes& parameters, bool isEllipsis, const TypeInstance* memberEnclosing, FunctionTemplate& functionTemplate = FunctionTemplate())
+	void add(const FunctionOverload& overload, const ParameterTypes& parameters, bool isEllipsis, const SimpleType* memberEnclosing, FunctionTemplate& functionTemplate = FunctionTemplate())
 	{
 		CandidateFunction candidate(overload, functionTemplate);
 		candidate.conversions.reserve(best.conversions.size());
@@ -7394,7 +7380,7 @@ struct OverloadResolver
 
 
 
-inline ParameterTypes addOverload(OverloadResolver& resolver, const Declaration& declaration, Location source, const TypeInstance* enclosing = 0)
+inline ParameterTypes addOverload(OverloadResolver& resolver, const Declaration& declaration, Location source, const SimpleType* enclosing = 0)
 {
 	UniqueTypeWrapper type = getUniqueType(declaration.type, source, enclosing, declaration.isTemplate);
 	SYMBOLS_ASSERT(type.isFunction());
@@ -7415,7 +7401,7 @@ inline ParameterTypes addOverload(OverloadResolver& resolver, const Declaration&
 			// For non-static member functions, the type of the implicit object parameter is "reference to cv X" where X is
 			// the class of which the function is a member and cv is the cv-qualification on the member function declaration.
 			// TODO: conversion-functions, non-conversions introduced by using-declaration
-			implicitObjectParameter = makeUniqueObjectType(*enclosing);
+			implicitObjectParameter = makeUniqueSimpleType(*enclosing);
 			implicitObjectParameter.value.setQualifiers(type.value.getQualifiers());
 			implicitObjectParameter.push_front(ReferenceType());
 		}
@@ -7460,7 +7446,7 @@ inline ParameterTypes addOverload(OverloadResolver& resolver, const Declaration&
 		{
 			throw TypeErrorBase(source); // too many explicitly specified template arguments
 		}
-		TypeInstance specialization(const_cast<Declaration*>(&declaration), enclosing);
+		SimpleType specialization(const_cast<Declaration*>(&declaration), enclosing);
 		specialization.instantiated = true;
 		{
 			UniqueTypeArray::const_iterator p = functionTemplate.templateParameters.begin();
@@ -7521,17 +7507,17 @@ inline ParameterTypes addOverload(OverloadResolver& resolver, const Declaration&
 }
 
 
-inline bool isBaseOf(UniqueTypeWrapper base, UniqueTypeWrapper derived, Location source, const TypeInstance* enclosing);
+inline bool isBaseOf(UniqueTypeWrapper base, UniqueTypeWrapper derived, Location source, const SimpleType* enclosing);
 
 template<typename To>
-inline void addConversionFunctionOverloads(OverloadResolver& resolver, const TypeInstance& classType, To to, Location source, const TypeInstance* enclosing)
+inline void addConversionFunctionOverloads(OverloadResolver& resolver, const SimpleType& classType, To to, Location source, const SimpleType* enclosing)
 {
 	instantiateClass(classType, source, enclosing); // searching for overloads requires a complete type
 	LookupResultRef declaration = ::findDeclaration(classType, gConversionFunctionId, IsAny());
 	// TODO: conversion functions in base classes should not be hidden by those in derived
 	if(declaration != 0)
 	{
-		const TypeInstance* memberEnclosing = findEnclosingType(&classType, declaration->scope); // find the base class which contains the member-declaration
+		const SimpleType* memberEnclosing = findEnclosingType(&classType, declaration->scope); // find the base class which contains the member-declaration
 		SYMBOLS_ASSERT(memberEnclosing != 0);
 
 		for(Declaration* p = findOverloaded(declaration); p != 0; p = p->overloaded)
@@ -7605,7 +7591,7 @@ inline void addConversionFunctionOverloads(OverloadResolver& resolver, const Typ
 }
 
 template<typename To>
-FunctionOverload findBestConversionFunction(To to, UniqueTypeWrapper from, Location source, const TypeInstance* enclosing, bool isNullPointerConstant, bool isLvalue)
+FunctionOverload findBestConversionFunction(To to, UniqueTypeWrapper from, Location source, const SimpleType* enclosing, bool isNullPointerConstant, bool isLvalue)
 {
 	UniqueExpression nullPointerConstantExpression = makeExpression(IntegralConstantExpression(gSignedInt, IntegralConstant(0)));
 	ExpressionWrapper expression(isNullPointerConstant ? nullPointerConstantExpression : 0, isNullPointerConstant);
@@ -7626,7 +7612,7 @@ FunctionOverload findBestConversionFunction(To to, UniqueTypeWrapper from, Locat
 		&& isComplete(to)) // can only convert to a class that is complete
 	{
 		// add converting constructors of 'to'
-		const TypeInstance& classType = getObjectType(to.value);
+		const SimpleType& classType = getSimpleType(to.value);
 		instantiateClass(classType, source, enclosing); // searching for overloads requires a complete type
 		Identifier tmp;
 		tmp.value = classType.declaration->getName().value;
@@ -7635,7 +7621,7 @@ FunctionOverload findBestConversionFunction(To to, UniqueTypeWrapper from, Locat
 
 		if(declaration != 0) // TODO: add implicit copy constructor!
 		{
-			const TypeInstance* memberEnclosing = findEnclosingType(&classType, declaration->scope); // find the base class which contains the member-declaration
+			const SimpleType* memberEnclosing = findEnclosingType(&classType, declaration->scope); // find the base class which contains the member-declaration
 			SYMBOLS_ASSERT(memberEnclosing != 0);
 
 			for(Declaration* p = findOverloaded(declaration); p != 0; p = p->overloaded)
@@ -7659,14 +7645,14 @@ FunctionOverload findBestConversionFunction(To to, UniqueTypeWrapper from, Locat
 	if(isClass(from)
 		&& isComplete(from)) // can only convert from a class that is complete
 	{
-		addConversionFunctionOverloads(resolver, getObjectType(from.value), to, source, enclosing);
+		addConversionFunctionOverloads(resolver, getSimpleType(from.value), to, source, enclosing);
 	}
 
 	// TODO: return-type of constructor should be 'to'
 	FunctionOverload result = resolver.get();
 	if(result.declaration != 0
 		&& result.type.isSimple()
-		&& getObjectType(result.type.value).declaration == &gCtor)
+		&& getSimpleType(result.type.value).declaration == &gCtor)
 	{
 		result.type = to;
 		result.type.value.setQualifiers(CvQualifiers());
@@ -7742,15 +7728,15 @@ inline bool isUnion(UniqueTypeWrapper type)
 	return false; // TODO
 }
 
-inline bool isBaseOf(UniqueTypeWrapper base, UniqueTypeWrapper derived, Location source, const TypeInstance* enclosing)
+inline bool isBaseOf(UniqueTypeWrapper base, UniqueTypeWrapper derived, Location source, const SimpleType* enclosing)
 {
 	if(!base.isSimple()
 		|| !derived.isSimple())
 	{
 		return false;
 	}
-	const TypeInstance& baseType = getObjectType(base.value);
-	const TypeInstance& derivedType = getObjectType(derived.value);
+	const SimpleType& baseType = getSimpleType(base.value);
+	const SimpleType& derivedType = getSimpleType(derived.value);
 	if(&baseType == &derivedType)
 	{
 		return true;
@@ -7759,7 +7745,7 @@ inline bool isBaseOf(UniqueTypeWrapper base, UniqueTypeWrapper derived, Location
 	return isBaseOf(baseType, derivedType, source, enclosing);
 }
 
-inline bool isConvertibleTo(UniqueTypeWrapper type, UniqueTypeWrapper other, Location source, const TypeInstance* enclosing)
+inline bool isConvertibleTo(UniqueTypeWrapper type, UniqueTypeWrapper other, Location source, const SimpleType* enclosing)
 {
 	return false; // TODO
 }
@@ -7801,7 +7787,7 @@ inline BinaryTypeTraitsOp getBinaryTypeTraitsOp(cpp::typetraits_binary* symbol)
 
 // ----------------------------------------------------------------------------
 
-extern const TypeInstance gDependentObjectType;
+extern const SimpleType gDependentSimpleType;
 
 #endif
 

@@ -42,55 +42,55 @@ Declaration gUnknown(TREEALLOCATOR_NULL, 0, gUnknownId, TYPE_SPECIAL, 0);
 // fundamental types
 Identifier gCharId = makeIdentifier("char");
 BuiltInTypeDeclaration gCharDeclaration(gCharId);
-ObjectTypeId gChar(&gCharDeclaration, TREEALLOCATOR_NULL);
+BuiltInTypeId gChar(&gCharDeclaration, TREEALLOCATOR_NULL);
 Identifier gSignedCharId = makeIdentifier("signed char");
 BuiltInTypeDeclaration gSignedCharDeclaration(gSignedCharId);
-ObjectTypeId gSignedChar(&gSignedCharDeclaration, TREEALLOCATOR_NULL);
+BuiltInTypeId gSignedChar(&gSignedCharDeclaration, TREEALLOCATOR_NULL);
 Identifier gUnsignedCharId = makeIdentifier("unsigned char");
 BuiltInTypeDeclaration gUnsignedCharDeclaration(gUnsignedCharId);
-ObjectTypeId gUnsignedChar(&gUnsignedCharDeclaration, TREEALLOCATOR_NULL);
+BuiltInTypeId gUnsignedChar(&gUnsignedCharDeclaration, TREEALLOCATOR_NULL);
 Identifier gSignedShortIntId = makeIdentifier("short");
 BuiltInTypeDeclaration gSignedShortIntDeclaration(gSignedShortIntId);
-ObjectTypeId gSignedShortInt(&gSignedShortIntDeclaration, TREEALLOCATOR_NULL);
+BuiltInTypeId gSignedShortInt(&gSignedShortIntDeclaration, TREEALLOCATOR_NULL);
 Identifier gUnsignedShortIntId = makeIdentifier("unsigned short");
 BuiltInTypeDeclaration gUnsignedShortIntDeclaration(gUnsignedShortIntId);
-ObjectTypeId gUnsignedShortInt(&gUnsignedShortIntDeclaration, TREEALLOCATOR_NULL);
+BuiltInTypeId gUnsignedShortInt(&gUnsignedShortIntDeclaration, TREEALLOCATOR_NULL);
 Identifier gSignedIntId = makeIdentifier("int");
 BuiltInTypeDeclaration gSignedIntDeclaration(gSignedIntId);
-ObjectTypeId gSignedInt(&gSignedIntDeclaration, TREEALLOCATOR_NULL);
+BuiltInTypeId gSignedInt(&gSignedIntDeclaration, TREEALLOCATOR_NULL);
 Identifier gUnsignedIntId = makeIdentifier("unsigned int");
 BuiltInTypeDeclaration gUnsignedIntDeclaration(gUnsignedIntId);
-ObjectTypeId gUnsignedInt(&gUnsignedIntDeclaration, TREEALLOCATOR_NULL);
+BuiltInTypeId gUnsignedInt(&gUnsignedIntDeclaration, TREEALLOCATOR_NULL);
 Identifier gSignedLongIntId = makeIdentifier("long");
 BuiltInTypeDeclaration gSignedLongIntDeclaration(gSignedLongIntId);
-ObjectTypeId gSignedLongInt(&gSignedLongIntDeclaration, TREEALLOCATOR_NULL);
+BuiltInTypeId gSignedLongInt(&gSignedLongIntDeclaration, TREEALLOCATOR_NULL);
 Identifier gUnsignedLongIntId = makeIdentifier("unsigned long");
 BuiltInTypeDeclaration gUnsignedLongIntDeclaration(gUnsignedLongIntId);
-ObjectTypeId gUnsignedLongInt(&gUnsignedLongIntDeclaration, TREEALLOCATOR_NULL);
+BuiltInTypeId gUnsignedLongInt(&gUnsignedLongIntDeclaration, TREEALLOCATOR_NULL);
 Identifier gSignedLongLongIntId = makeIdentifier("long long");
 BuiltInTypeDeclaration gSignedLongLongIntDeclaration(gSignedLongLongIntId);
-ObjectTypeId gSignedLongLongInt(&gSignedLongLongIntDeclaration, TREEALLOCATOR_NULL);
+BuiltInTypeId gSignedLongLongInt(&gSignedLongLongIntDeclaration, TREEALLOCATOR_NULL);
 Identifier gUnsignedLongLongIntId = makeIdentifier("unsigned long long");
 BuiltInTypeDeclaration gUnsignedLongLongIntDeclaration(gUnsignedLongLongIntId);
-ObjectTypeId gUnsignedLongLongInt(&gUnsignedLongLongIntDeclaration, TREEALLOCATOR_NULL);
+BuiltInTypeId gUnsignedLongLongInt(&gUnsignedLongLongIntDeclaration, TREEALLOCATOR_NULL);
 Identifier gWCharId = makeIdentifier("wchar_t");
 BuiltInTypeDeclaration gWCharTDeclaration(gWCharId);
-ObjectTypeId gWCharT(&gWCharTDeclaration, TREEALLOCATOR_NULL);
+BuiltInTypeId gWCharT(&gWCharTDeclaration, TREEALLOCATOR_NULL);
 Identifier gBoolId = makeIdentifier("bool");
 BuiltInTypeDeclaration gBoolDeclaration(gBoolId);
-ObjectTypeId gBool(&gBoolDeclaration, TREEALLOCATOR_NULL);
+BuiltInTypeId gBool(&gBoolDeclaration, TREEALLOCATOR_NULL);
 Identifier gFloatId = makeIdentifier("float");
 BuiltInTypeDeclaration gFloatDeclaration(gFloatId);
-ObjectTypeId gFloat(&gFloatDeclaration, TREEALLOCATOR_NULL);
+BuiltInTypeId gFloat(&gFloatDeclaration, TREEALLOCATOR_NULL);
 Identifier gDoubleId = makeIdentifier("double");
 BuiltInTypeDeclaration gDoubleDeclaration(gDoubleId);
-ObjectTypeId gDouble(&gDoubleDeclaration, TREEALLOCATOR_NULL);
+BuiltInTypeId gDouble(&gDoubleDeclaration, TREEALLOCATOR_NULL);
 Identifier gLongDoubleId = makeIdentifier("long double");
 BuiltInTypeDeclaration gLongDoubleDeclaration(gLongDoubleId);
-ObjectTypeId gLongDouble(&gLongDoubleDeclaration, TREEALLOCATOR_NULL);
+BuiltInTypeId gLongDouble(&gLongDoubleDeclaration, TREEALLOCATOR_NULL);
 Identifier gVoidId = makeIdentifier("void");
 BuiltInTypeDeclaration gVoidDeclaration(gVoidId, TYPE_SPECIAL);
-ObjectTypeId gVoid(&gVoidDeclaration, TREEALLOCATOR_NULL);
+BuiltInTypeId gVoid(&gVoidDeclaration, TREEALLOCATOR_NULL);
 
 StringLiteralTypeId gStringLiteral(&gCharDeclaration, TREEALLOCATOR_NULL);
 StringLiteralTypeId gWideStringLiteral(&gWCharTDeclaration, TREEALLOCATOR_NULL);
@@ -98,39 +98,39 @@ StringLiteralTypeId gWideStringLiteral(&gWCharTDeclaration, TREEALLOCATOR_NULL);
 // built-in operator placeholders
 Identifier gArithmeticPlaceholderId = makeIdentifier("$arithmetic-placeholder");
 BuiltInTypeDeclaration gArithmeticPlaceholderDeclaration(gArithmeticPlaceholderId, TYPE_UNKNOWN);
-ObjectTypeId gArithmeticPlaceholder(&gArithmeticPlaceholderDeclaration, TREEALLOCATOR_NULL);
+BuiltInTypeId gArithmeticPlaceholder(&gArithmeticPlaceholderDeclaration, TREEALLOCATOR_NULL);
 Identifier gIntegralPlaceholderId = makeIdentifier("$integral-placeholder");
 BuiltInTypeDeclaration gIntegralPlaceholderDeclaration(gIntegralPlaceholderId, TYPE_UNKNOWN);
-ObjectTypeId gIntegralPlaceholder(&gIntegralPlaceholderDeclaration, TREEALLOCATOR_NULL);
+BuiltInTypeId gIntegralPlaceholder(&gIntegralPlaceholderDeclaration, TREEALLOCATOR_NULL);
 Identifier gPromotedArithmeticPlaceholderId = makeIdentifier("$promoted-arithmetic-placeholder");
 BuiltInTypeDeclaration gPromotedArithmeticPlaceholderDeclaration(gPromotedArithmeticPlaceholderId, TYPE_UNKNOWN);
-ObjectTypeId gPromotedArithmeticPlaceholder(&gPromotedArithmeticPlaceholderDeclaration, TREEALLOCATOR_NULL);
+BuiltInTypeId gPromotedArithmeticPlaceholder(&gPromotedArithmeticPlaceholderDeclaration, TREEALLOCATOR_NULL);
 Identifier gPromotedIntegralPlaceholderId = makeIdentifier("$promoted-integral-placeholder");
 BuiltInTypeDeclaration gPromotedIntegralPlaceholderDeclaration(gPromotedIntegralPlaceholderId, TYPE_UNKNOWN);
-ObjectTypeId gPromotedIntegralPlaceholder(&gPromotedIntegralPlaceholderDeclaration, TREEALLOCATOR_NULL);
+BuiltInTypeId gPromotedIntegralPlaceholder(&gPromotedIntegralPlaceholderDeclaration, TREEALLOCATOR_NULL);
 Identifier gEnumerationPlaceholderId = makeIdentifier("$enumeration-placeholder");
 BuiltInTypeDeclaration gEnumerationPlaceholderDeclaration(gEnumerationPlaceholderId, TYPE_UNKNOWN);
-ObjectTypeId gEnumerationPlaceholder(&gEnumerationPlaceholderDeclaration, TREEALLOCATOR_NULL);
+BuiltInTypeId gEnumerationPlaceholder(&gEnumerationPlaceholderDeclaration, TREEALLOCATOR_NULL);
 Identifier gPointerToAnyPlaceholderId = makeIdentifier("$pointer-to-any-placeholder");
 BuiltInTypeDeclaration gPointerToAnyPlaceholderDeclaration(gPointerToAnyPlaceholderId, TYPE_UNKNOWN);
-ObjectTypeId gPointerToAnyPlaceholder(&gPointerToAnyPlaceholderDeclaration, TREEALLOCATOR_NULL);
+BuiltInTypeId gPointerToAnyPlaceholder(&gPointerToAnyPlaceholderDeclaration, TREEALLOCATOR_NULL);
 Identifier gPointerToObjectPlaceholderId = makeIdentifier("$pointer-to-object-placeholder");
 BuiltInTypeDeclaration gPointerToObjectPlaceholderDeclaration(gPointerToObjectPlaceholderId, TYPE_UNKNOWN);
-ObjectTypeId gPointerToObjectPlaceholder(&gPointerToObjectPlaceholderDeclaration, TREEALLOCATOR_NULL);
+BuiltInTypeId gPointerToObjectPlaceholder(&gPointerToObjectPlaceholderDeclaration, TREEALLOCATOR_NULL);
 Identifier gPointerToClassPlaceholderId = makeIdentifier("$pointer-to-class-placeholder");
 BuiltInTypeDeclaration gPointerToClassPlaceholderDeclaration(gPointerToClassPlaceholderId, TYPE_UNKNOWN);
-ObjectTypeId gPointerToClassPlaceholder(&gPointerToClassPlaceholderDeclaration, TREEALLOCATOR_NULL);
+BuiltInTypeId gPointerToClassPlaceholder(&gPointerToClassPlaceholderDeclaration, TREEALLOCATOR_NULL);
 Identifier gPointerToFunctionPlaceholderId = makeIdentifier("$pointer-to-function-placeholder");
 BuiltInTypeDeclaration gPointerToFunctionPlaceholderDeclaration(gPointerToFunctionPlaceholderId, TYPE_UNKNOWN);
-ObjectTypeId gPointerToFunctionPlaceholder(&gPointerToFunctionPlaceholderDeclaration, TREEALLOCATOR_NULL);
+BuiltInTypeId gPointerToFunctionPlaceholder(&gPointerToFunctionPlaceholderDeclaration, TREEALLOCATOR_NULL);
 Identifier gPointerToMemberPlaceholderId = makeIdentifier("$member-pointer-placeholder");
 BuiltInTypeDeclaration gPointerToMemberPlaceholderDeclaration(gPointerToMemberPlaceholderId, TYPE_UNKNOWN);
-ObjectTypeId gPointerToMemberPlaceholder(&gPointerToMemberPlaceholderDeclaration, TREEALLOCATOR_NULL);
+BuiltInTypeId gPointerToMemberPlaceholder(&gPointerToMemberPlaceholderDeclaration, TREEALLOCATOR_NULL);
 
 // special
 Identifier gImplicitObjectParameterId = makeIdentifier("$implicit-object-parameter");
 BuiltInTypeDeclaration gImplicitObjectParameterDeclaration(gImplicitObjectParameterId, TYPE_UNKNOWN);
-ObjectTypeId gImplicitObjectParameter(&gImplicitObjectParameterDeclaration, TREEALLOCATOR_NULL);
+BuiltInTypeId gImplicitObjectParameter(&gImplicitObjectParameterDeclaration, TREEALLOCATOR_NULL);
 
 // template placeholders
 Identifier gDependentTypeId = makeIdentifier("$type");
@@ -205,22 +205,22 @@ Identifier gAnonymousId = makeIdentifier("$anonymous");
 
 Identifier gDestructorId = makeIdentifier("$destructor");
 
-const TypeInstance gDependentObjectType(&gDependentType, 0);
+const SimpleType gDependentSimpleType(&gDependentType, 0);
 
-struct PointerTypeId : ObjectTypeId
+struct PointerTypeId : BuiltInTypeId
 {
 	PointerTypeId(Declaration* declaration, const TreeAllocator<int>& allocator, CvQualifiers qualifiers = CvQualifiers())
-		: ObjectTypeId(declaration, allocator)
+		: BuiltInTypeId(declaration, allocator)
 	{
 		value.setQualifiers(qualifiers);
 		value = pushBuiltInType(value, PointerType());
 	}
 };
 
-struct PointerPointerTypeId : ObjectTypeId
+struct PointerPointerTypeId : BuiltInTypeId
 {
 	PointerPointerTypeId(Declaration* declaration, const TreeAllocator<int>& allocator, CvQualifiers qualifiers = CvQualifiers())
-		: ObjectTypeId(declaration, allocator)
+		: BuiltInTypeId(declaration, allocator)
 	{
 		value.setQualifiers(qualifiers);
 		value = pushBuiltInType(value, PointerType());
@@ -239,14 +239,14 @@ PointerPointerTypeId gSignedIntPointerPointer(&gSignedIntDeclaration, TREEALLOCA
 Identifier gBaseClassId = makeIdentifier("$base");
 Scope gBaseClassScope(TREEALLOCATOR_NULL, gBaseClassId, SCOPETYPE_CLASS);
 Declaration gBaseClassDeclaration(TREEALLOCATOR_NULL, 0, gBaseClassId, TYPE_CLASS, &gBaseClassScope);
-ObjectTypeId gBaseClass(&gBaseClassDeclaration, TREEALLOCATOR_NULL);
+BuiltInTypeId gBaseClass(&gBaseClassDeclaration, TREEALLOCATOR_NULL);
 
 Types2::Pointer::Value gBaseClassNode = Types2::Node(Type(&gBaseClassDeclaration, TREEALLOCATOR_NULL));
 
-struct DerivedClassTypeId : ObjectTypeId
+struct DerivedClassTypeId : BuiltInTypeId
 {
 	DerivedClassTypeId(Declaration* declaration, const TreeAllocator<int>& allocator)
-		: ObjectTypeId(declaration, allocator)
+		: BuiltInTypeId(declaration, allocator)
 	{
 		gBaseClassNode.value.id =  &gBaseClassId;
 		declaration->enclosed->bases.head.next = declaration->enclosed->bases.tail = &gBaseClassNode;
@@ -942,9 +942,9 @@ struct MakeTemplate
 {
 	static BuiltInType apply(Declaration* declaration, BuiltInType a1, BuiltInType a2)
 	{
-		ObjectType result(TypeInstance(declaration, 0));
-		result.type.templateArguments.push_back(a1);
-		result.type.templateArguments.push_back(a2);
+		SimpleType result(declaration, 0);
+		result.templateArguments.push_back(a1);
+		result.templateArguments.push_back(a2);
 		return BuiltInType(pushBuiltInType(gUniqueTypeNull, result));
 	}
 };
@@ -1196,12 +1196,12 @@ struct MakeType<T (C::*)(A1) const>
 };
 
 #if 0
-template<ObjectTypeId* type>
+template<BuiltInTypeId* type>
 struct BuiltIn
 {
 };
 
-template<ObjectTypeId* type>
+template<BuiltInTypeId* type>
 struct MakeType<BuiltIn<type> >
 {
 	static BuiltInType apply()
@@ -1882,7 +1882,7 @@ struct TestSubstitution
 	static void apply(UniqueTypeWrapper expected = MakeType<R>::apply())
 	{
 		TemplateArgumentsInstance templateArguments(1, MakeType<A>::apply());
-		TypeInstance enclosing(&gTemplateClassDeclaration, 0);
+		SimpleType enclosing(&gTemplateClassDeclaration, 0);
 		enclosing.templateArguments.swap(templateArguments);
 		enclosing.instantiated = true;
 		try
@@ -2055,7 +2055,7 @@ struct InstantiationSuffix
 
 struct InstantiationName : public Concatenate
 {
-	InstantiationName(const TypeInstance& instance)
+	InstantiationName(const SimpleType& instance)
 		: Concatenate(
 			makeRange(getValue(instance.declaration->getName())),
 			makeRange(InstantiationSuffix(&instance).c_str()))
@@ -2065,7 +2065,7 @@ struct InstantiationName : public Concatenate
 
 struct InstantiationPath : public Concatenate
 {
-	InstantiationPath(const TypeInstance& instance)
+	InstantiationPath(const SimpleType& instance)
 		: Concatenate(
 			makeRange(InstantiationName(instance).c_str()),
 			makeRange(".html"))
@@ -2078,7 +2078,7 @@ inline void printPosition(const Source& source, std::ostream& out)
 	out << source.absolute.c_str() << "(" << source.line << ", " << source.column << "): ";
 }
 
-void printTypeReadable(const TypeInstance& type, std::ostream& out, bool escape = true)
+void printTypeReadable(const SimpleType& type, std::ostream& out, bool escape = true)
 {
 	if(type.enclosing != 0)
 	{
@@ -2112,7 +2112,7 @@ void printTypeReadable(const TypeInstance& type, std::ostream& out, bool escape 
 	}
 }
 
-inline void dumpTemplateInstantiations(const TypeInstance& instance, bool root)
+inline void dumpTemplateInstantiations(const SimpleType& instance, bool root)
 {
 	if(instance.dumped)
 	{
@@ -2134,7 +2134,7 @@ inline void dumpTemplateInstantiations(const TypeInstance& instance, bool root)
 	printTypeReadable(instance, out, true);
 	out << std::endl << std::endl;
 
-	typedef std::map<const TypeInstance*, Location> InstanceMap;
+	typedef std::map<const SimpleType*, Location> InstanceMap;
 	InstanceMap instanceMap;
 	for(ChildInstantiations::const_iterator i = instance.childInstantiations.begin(); i != instance.childInstantiations.end(); ++i)
 	{
