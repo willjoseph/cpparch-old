@@ -6807,6 +6807,18 @@ cpp::statement_seq* parseFunction(ParserContext& context)
 	catch(ParseError&)
 	{
 	}
+	catch(SemanticError&)
+	{
+		printPosition(parser.context.getErrorPosition());
+		std::cout << "caught SemanticError" << std::endl;
+		return 0;
+	}
+	catch(SymbolsError&)
+	{
+		printPosition(parser.context.getErrorPosition());
+		std::cout << "caught SymbolsError" << std::endl;
+		return 0;
+	}
 	catch(TypeError& e)
 	{
 		e.report();

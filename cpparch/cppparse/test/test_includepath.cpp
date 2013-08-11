@@ -4,4 +4,4 @@
 #include "../msvc-8.0/include/crtdefs.h" // escape from '.'
 #endif
 #include <../include/stdarg.h> // escape from msvc stdcpp include-path
-#include <../cpparch/cppparse/test/includepath/header4.h> // escape from boost_14_1_0 include-path
+#include <../../cpparch/cppparse/test/includepath/header4.h> // escape from external/boost include-path
