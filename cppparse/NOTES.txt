@@ -575,6 +575,16 @@
 
 - investigate: deferred evaluation of expression type
 	- evaluate expression type in context of (enclosing scope, enclosing type, location)
+	- binary-expression
+	- unary-expression
+	- function-call expression
+		- id: the name in a call-to-named-function
+		- type: type of the lefthand postfix-expression, the context in which 'operator()' is found
+		- memberObject: if this is the righthand side of a member access expression, the class type of the left-hand side - provides implicit object argument.
+		- arguments: the expression-list for the function call.
+		- templateArguments: the explicitly-specified template arguments for the function call.
+		- declarationCount: specifies which declarations were visible at the point of parse of the name being resolved.
+		- idEnclosing: the class of which the name is a member, required if the name is a member of a template. Provides implicit object argument for static member.
 
 - task: remove unused 'isTemplate' stuff
 
@@ -597,6 +607,24 @@
 		is the standard conversion sequence consisting of the identity conversion.
 
 
-- task: write tests for implicit-conversion-sequence ranking
++ task: built-in operator overload resolution for ptr-to-member expression
 
-- task: built-in operator overload resolution for ptr-to-member expression
+- task: ptr-to-member expression: built-in candidates for overload resolution
+	- cull invalid candidates (e.g. incompatible class type between arguments, incompatible const)
+		- could break in case of passing class-type args, which can also be converted to C* or T C::*
+	- write tests
+
+- task: tests for overload resolution
+	- ranking of implicit conversion sequences, all rules in [over.ics.rank]
+	- choice of built-in operator over user-defined overload
+		- ensure only the correct set of built-in operator overloads are used, and do not hide user-defined overloads
+
+- task: tests for argument-dependent-lookup
+	- friend definitions
+
+
+- automated build and testing
+	- teamcity server/agent
+	- need to make everything buildable from svn
+		- boost
+		- stlport

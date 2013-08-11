@@ -69,6 +69,9 @@
 		- single-step faster if not looking at call-stack window
 	- debugging/testing slow: serialise preprocessed tokens?
 		- is this actually faster than reading preprocessed file?
+		- test for 80,000 line preprocessed input file:
+			- Debug: saves around 10 seconds from total of ~1 minute
+			- Release: saves around 2-3 seconds from total of 10 seconds
 
 - optimisation:
 	- overhead of multiple-inherited vtables in identifier: 34 vtable pointers, 136 bytes

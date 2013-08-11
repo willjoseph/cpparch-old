@@ -3277,7 +3277,7 @@ struct PostfixExpressionWalker : public WalkerBase
 				// [over.call.object]
 				// If the primary-expression E in the function call syntax evaluates to a class object of type "cv T", then the set
 				// of candidate functions includes at least the function call operators of T. The function call operators of T are
-				//	obtained by ordinary lookup of the name operator() in the context of (E).operator().
+				// obtained by ordinary lookup of the name operator() in the context of (E).operator().
 				SEMANTIC_ASSERT(isComplete(type)); // TODO: non-fatal parse error
 				const TypeInstance& object = getObjectType(type.value);
 				instantiateClass(object, getLocation(), enclosingType); // searching for overloads requires a complete type
@@ -3357,7 +3357,6 @@ struct PostfixExpressionWalker : public WalkerBase
 				{
 					DeclarationInstanceRef instance = findLastDeclaration(getDeclaration(*id), overload.declaration);
 					setDecoration(id, instance);
-					//type = isDependent(overload.declaration->type) ? gUniqueTypeNull : getUniqueType(overload.declaration->type, Location(id->source, context.declarationCount), idEnclosing);
 				}
 				type = overload.type;
 			}
