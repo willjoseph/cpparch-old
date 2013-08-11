@@ -31,6 +31,9 @@
     <ClCompile Include="test\test_incomplete.cpp">
       <Filter>Source Files\test</Filter>
     </ClCompile>
+    <ClCompile Include="test\test_internal.cpp">
+      <Filter>Source Files\test</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="test\test.rsp" />

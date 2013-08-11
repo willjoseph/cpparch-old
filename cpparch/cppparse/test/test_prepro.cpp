@@ -520,26 +520,6 @@ namespace N310
 	int i = a->m;
 };
 
-// [expr.typeid] The result of a typeid expression is an lvalue of static type const std::type_info
-namespace std
-{
-	struct type_info
-	{
-		const char* name() const;
-	};
-}
-namespace N301
-{
-
-	struct S
-	{
-	};
-
-	const char* q = typeid(S).name() + 1;
-
-	const std::type_info* p = &typeid(S);
-}
-
 namespace N307
 {
 	template<typename T>
@@ -819,7 +799,8 @@ namespace N292
 	template<class T>
 	class S
 	{
-		void f();
+		template<typename U>
+		S& f(U);
 	};
 
 	template<class T>
@@ -835,7 +816,7 @@ namespace N291
 	template<class T>
 	class S
 	{
-		void f();
+		S& f();
 	};
 
 	template<class T>
@@ -994,9 +975,7 @@ namespace N283
 namespace N281
 {
 	template<class U>
-	inline int f(const U&_Val)
-	{
-	}
+	inline int f(const U&_Val);
 
 	int i = f(char(0xba));
 }
@@ -1004,9 +983,7 @@ namespace N281
 namespace N279
 {
 	template<class T>
-	inline int f(T _First, T _Last)
-	{
-	}
+	inline int f(T _First, T _Last);
 
 	char buffer[1];
 	int i = f(buffer, buffer+1);
@@ -1166,7 +1143,7 @@ namespace N271
 {
 	void f()
 	{
-		char *_Ptr;
+		char *_Ptr = 0;
 		*_Ptr++;
 	}
 }
@@ -1464,7 +1441,7 @@ namespace N037
 
 	C& operator*(C& c)
 	{
-		return *c; // calls itself
+		return *c;
 	}
 }
 
@@ -1478,7 +1455,7 @@ namespace N200
 
 	C* C::f()
 	{
-		f()->f();
+		return f()->f();
 	}
 }
 
@@ -1506,9 +1483,7 @@ namespace N504
 	{
 		typedef typename T::Ref Ref; // cannot be looked up without instantiating
 
-		Ref operator*()const
-		{
-		}
+		Ref operator*()const;
 	};
 
 	struct Value
@@ -1679,9 +1654,7 @@ namespace N123
 	};
 
 	template<typename U>
-	typename S<U>::Type S<U>::f()
-	{
-	}
+	typename S<U>::Type S<U>::f();
 
 	S<int> s;
 	int i = s.f(); // return type is 'int'
@@ -1903,15 +1876,15 @@ namespace N228
 	struct B
 	{
 		typedef typename T::Before Before; // ok
-		typedef typename T::Instantiate Instantiate; // ok
-		typedef typename T::After After; // ok
+		//typedef typename T::Instantiate Instantiate; // ok
+		//typedef typename T::After After; // ok
 	};
 
 	struct A
 	{
 		typedef int Before;
-		static B<A> Instantiate;
-		typedef int After;
+		typedef B<A>::Before Instantiate;
+		//typedef int After;
 	};
 }
 

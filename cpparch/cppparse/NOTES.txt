@@ -587,9 +587,12 @@
 		- memberObject: if this is the righthand side of a member access expression, the class type of the left-hand side - provides implicit object argument for nonstatic member.
 		- arguments: the expression-list for the function call.
 		- templateArguments: the explicitly-specified template arguments for the function call.
-		- declarationCount: specifies which declarations were visible at the point of parse of the name being resolved.
 		- idEnclosing: the class of which the name is a member, required if the name is a member of a template. Provides implicit object argument for static member.
 	- member
+		- memberType?
+			- valid only when expression is not dependent
+			- represents type of expression on left hand side of class-member access
+			- should store memberExpression instead
 		- inputs:
 			- id: the name in a call-to-named-function
 			- qualifying: the optional nested-name-specifier as in 'x.C::m'

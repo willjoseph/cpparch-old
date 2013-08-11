@@ -3445,7 +3445,6 @@ struct PostfixExpressionWalker : public WalkerBase
 			idEnclosing = findEnclosingType(idEnclosing, declaration->scope);
 			SEMANTIC_ASSERT(idEnclosing != 0);
 
-			// TODO: overloaded operator->
 			type = getUniqueType(declaration->type, Location(id->source, context.declarationCount), idEnclosing, isDependent(typeDependent) || declaration->isTemplate);
 
 			if(type.isFunction())
