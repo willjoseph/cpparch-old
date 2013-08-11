@@ -1947,29 +1947,6 @@ namespace N124
 	int i = f(s); // return type is 'int'
 }
 
-namespace N255
-{
-	template<bool b>
-	struct Tmpl
-	{
-		typedef int I;
-	};
-
-	template<typename T>
-	struct S
-	{
-		enum { value = sizeof(T) };
-	};
-
-	template<typename T>
-	struct X
-	{
-		typedef Tmpl<S<int>::value>::I I; // no need for 'typename' because 'value' is not dependent
-		// this is because 'value' is dependent on template-params that are not visible
-		// i.e. 'value' is first qualified by 'S' which is not a member of a template
-	};
-}
-
 namespace N122
 {
 	template<typename T>

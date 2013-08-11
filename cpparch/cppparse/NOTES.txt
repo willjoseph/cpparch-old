@@ -573,6 +573,8 @@
 	- ideally, defer evaluation of expression type until ambiguity is resolved.
 	- temporary hack to avoid?
 
+- task: remove special-cases for gEnumerator
+
 - investigate: deferred evaluation of expression type
 	- evaluate expression type in context of (enclosing scope, enclosing type, location)
 	- binary-expression

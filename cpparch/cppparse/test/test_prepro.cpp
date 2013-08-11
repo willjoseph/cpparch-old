@@ -1,4 +1,61 @@
 
+
+namespace N255
+{
+	template<bool b>
+	struct Tmpl
+	{
+		typedef int I;
+	};
+
+	template<typename T>
+	struct S
+	{
+		enum { value = sizeof(T) };
+	};
+
+	template<typename T>
+	struct X
+	{
+		typedef Tmpl<S<int>::value>::I I; // no need for 'typename' because 'value' is not dependent
+		// this is because 'value' is dependent on template-params that are not visible
+		// i.e. 'value' is first qualified by 'S' which is not a member of a template
+	};
+}
+
+namespace N278
+{
+	struct C
+	{
+		int f();
+		int m;
+	};
+
+	template<int i>
+	struct S
+	{
+		typedef int Type;
+	};
+
+
+	template<typename T>
+	struct B : C
+	{
+	};
+
+	template<typename T>
+	struct A : B<T>
+	{
+		void f()
+		{
+			!C::f().dependent; // dependent
+			&C::f().dependent; // dependent
+			typedef S<sizeof(C::m)>::Type Type1; // typename not required
+			typedef S<sizeof(&C::m)>::Type Type2; // typename not required
+		}
+	};
+}
+
 namespace N338
 {
 	enum E
@@ -999,39 +1056,6 @@ namespace N280
 	int f(unsigned int);
 	
 	int i = f(E(0));
-}
-
-namespace N278
-{
-	struct C
-	{
-		int f();
-		int m;
-	};
-
-	template<int i>
-	struct S
-	{
-		typedef int Type;
-	};
-
-
-	template<typename T>
-	struct B : C
-	{
-	};
-
-	template<typename T>
-	struct A : B<T>
-	{
-		void f()
-		{
-			!C::f().dependent; // dependent
-			&C::f().dependent; // dependent
-			typedef S<sizeof(C::m)>::Type Type1; // typename not required
-			typedef S<sizeof(&C::m)>::Type Type2; // typename not required
-		}
-	};
 }
 
 namespace N277

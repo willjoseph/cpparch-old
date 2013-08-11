@@ -557,6 +557,7 @@ inline Name getBinaryOperatorName(T* symbol)
 struct ExpressionNodeVisitor
 {
 	virtual void visit(const struct IntegralConstantExpression&) = 0; // literal
+	virtual void visit(const struct ExplicitTypeExpression&) = 0;
 	virtual void visit(const struct NonTypeTemplateParameter&) = 0; // non-type template parameter
 	virtual void visit(const struct DependentIdExpression&) = 0; // T::name
 	virtual void visit(const struct IdExpression&) = 0; // enumerator, const variable, static data member, non-type template parameter
@@ -2476,6 +2477,33 @@ inline bool operator<(const IntegralConstantExpression& left, const IntegralCons
 		: left.value.value < right.value.value;
 }
 
+
+struct ExplicitTypeExpression
+{
+	UniqueTypeWrapper type;
+	ExplicitTypeExpression(UniqueTypeWrapper type)
+		: type(type)
+	{
+	}
+};
+
+inline bool operator<(const ExplicitTypeExpression& left, const ExplicitTypeExpression& right)
+{
+	return left.type < right.type;
+}
+
+inline bool isExplicitTypeExpression(ExpressionNode* node)
+{
+	return typeid(*node) == typeid(ExpressionNodeGeneric<ExplicitTypeExpression>);
+}
+
+inline const ExplicitTypeExpression& getExplicitTypeExpression(ExpressionNode* node)
+{
+	SYMBOLS_ASSERT(isExplicitTypeExpression(node));
+	return static_cast<const ExpressionNodeGeneric<ExplicitTypeExpression>*>(node)->value;
+}
+
+
 struct DependentIdExpression
 {
 	Name name;
@@ -2765,9 +2793,13 @@ struct TypeofVisitor : ExpressionNodeVisitor
 		: source(source)
 	{
 	}
-	void visit(const IntegralConstantExpression& literal)
+	void visit(const IntegralConstantExpression& node)
 	{
-		result = literal.type;
+		result = node.type;
+	}
+	void visit(const ExplicitTypeExpression& node)
+	{
+		result = node.type;
 	}
 	void visit(const NonTypeTemplateParameter& node)
 	{
@@ -2935,9 +2967,12 @@ struct EvaluateVisitor : ExpressionNodeVisitor
 		: source(source), enclosing(enclosing)
 	{
 	}
-	void visit(const IntegralConstantExpression& literal)
+	void visit(const IntegralConstantExpression& node)
 	{
-		result = literal.value;
+		result = node.value;
+	}
+	void visit(const ExplicitTypeExpression& node)
+	{
 	}
 	void visit(const NonTypeTemplateParameter& node)
 	{
@@ -6946,9 +6981,13 @@ struct SymbolPrinter : TypeElementVisitor, ExpressionNodeVisitor
 		}
 	}
 
-	void visit(const IntegralConstantExpression& literal)
+	void visit(const IntegralConstantExpression& node)
 	{
-		printer.out << literal.value.value;
+		printer.out << node.value.value;
+	}
+	void visit(const ExplicitTypeExpression& node)
+	{
+		// TODO
 	}
 	void visit(const NonTypeTemplateParameter& node)
 	{

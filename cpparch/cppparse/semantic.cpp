@@ -14,8 +14,8 @@ struct SemanticError
 {
 	SemanticError()
 	{
-#ifdef WIN32
-		__debugbreak();
+#ifdef ALLOCATOR_DEBUG
+		DEBUG_BREAK();
 #endif
 	}
 };
@@ -1239,6 +1239,7 @@ struct WalkerState
 	const TypeInstance* qualifyingType;
 	const TypeInstance* memberObject;
 	UniqueTypeWrapper memberType;
+	ExpressionWrapper objectExpression; // the lefthand side of a class member access expression
 	SafePtr<const TemplateParameters> templateParams;
 	ScopePtr templateParamScope;
 	DeferredSymbols* deferred;
@@ -1295,9 +1296,9 @@ struct WalkerState
 		{
 			return false;
 		}
-		if(memberType != gUniqueTypeNull
-			&& memberObject != 0
-			&& ::isDependent(memberType))
+		if(objectExpression.p != 0
+			&& objectExpression.isTypeDependent
+			&& memberObject != 0)
 		{
 			return false;
 		}
@@ -1349,12 +1350,12 @@ struct WalkerState
 		}
 		else
 		{
-			bool isQualified = memberType != gUniqueTypeNull
+			bool isQualified = objectExpression.p != 0
 				&& memberObject != 0;
 			if(isQualified)
 			{
 				// [basic.lookup.classref]
-				SYMBOLS_ASSERT(!::isDependent(memberType));
+				SYMBOLS_ASSERT(!objectExpression.isTypeDependent);
 				SYMBOLS_ASSERT(memberObject != &gDependentObjectType);
 				if(result.append(::findDeclaration(*memberObject, id, filter)))
 				{
@@ -1579,6 +1580,7 @@ struct WalkerState
 		qualifyingType = 0;
 		memberType = gUniqueTypeNull;
 		memberObject = 0;
+		objectExpression = ExpressionWrapper();
 	}
 
 	const TemplateParameters& getTemplateParams() const
@@ -2157,12 +2159,14 @@ struct WalkerBase : public WalkerState
 	template<typename T>
 	void makeUniqueTypeImpl(T& type, Location source)
 	{
-		if(memberType != gUniqueTypeNull
-			&& memberObject != 0
-			&& ::isDependent(memberType))
+		if(objectExpression.p != 0
+			&& objectExpression.isTypeDependent
+			&& memberObject != 0)
 		{
+			// this occurs when uniquing the dependent type name in a nested name-specifier in a class-member-access expression
+			// e.g. 'x.C::f()'
 			type.isDependent = true;
-			type.unique = memberType.value; // TODO: type should be dependent type-name or dependent id-expression
+			type.unique = memberType.value; // TODO: defer evaluation of this type
 			return;
 		}
 		type.isDependent = isDependent(type);
@@ -2954,6 +2958,7 @@ struct PrimaryExpressionWalker : public WalkerBase
 				SEMANTIC_ASSERT(idEnclosing != 0);
 			}
 
+			// a member function template may have a type which depends on the template parameters of an enclosing class
 			type = getUniqueType(declaration->type, Location(id->source, context.declarationCount), idEnclosing, expression.isTypeDependent || declaration->isTemplate);
 
 			if(!type.isFunction()) // if the id-expression refers to a function, overload resolution depends on the parameter types; defer evaluation of type
@@ -3017,8 +3022,8 @@ struct PostfixExpressionMemberWalker : public WalkerQualified
 		bool isArrow = symbol->id == cpp::member_operator::ARROW;
 
 		memberObject = &gDependentObjectType;
-		if(memberType != gUniqueTypeNull // TODO: assert
-			&& !::isDependent(memberType)) // if the type of the object expression is not dependent
+		SEMANTIC_ASSERT(objectExpression.p != 0);
+		if(!objectExpression.isTypeDependent) // if the type of the object expression is not dependent
 		{
 			// [expr] If an expression initially has the type "reference to T", the type is adjusted to "T" prior to any further analysis.
 			UniqueTypeWrapper operand = removeReference(memberType);
@@ -3087,10 +3092,24 @@ struct PostfixExpressionWalker : public WalkerBase
 	void clearMemberType()
 	{
 		memberType = gUniqueTypeNull;
+		objectExpression = ExpressionWrapper();
 	}
 	void updateMemberType()
 	{
-		memberType = type.isFunction() ? gUniqueTypeNull : type;
+		if(type.isFunction())
+		{
+			memberType = gUniqueTypeNull;
+			objectExpression = ExpressionWrapper();
+		}
+		else
+		{
+			memberType = type;
+			objectExpression = ExpressionWrapper(
+				makeExpression(ExplicitTypeExpression(type)),
+				false, isDependent(typeDependent), isDependent(valueDependent)
+			);
+			SEMANTIC_ASSERT(objectExpression.isTypeDependent || !::isDependent(type));
+		}
 	}
 	void visit(cpp::primary_expression* symbol)
 	{
@@ -3104,7 +3123,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		arguments.swap(walker.arguments);
 		idEnclosing = walker.idEnclosing;
 		setExpressionType(symbol, type);
-		updateMemberType(); // type is null after parsing an id-expression that names an overloadable function
+		updateMemberType();
 	}
 	// prefix
 	void visit(cpp::postfix_expression_disambiguate* symbol)
@@ -3392,7 +3411,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		if(isDependent(typeDependent)) // if the object expression or the id-expression is dependent
 		{
 			// declaration will be 0 if the object-expression was dependent, or the id-expression is a qualified-id with a dependent nested-name-specifier
-			SEMANTIC_ASSERT(declaration != 0 || isDependent(walker.qualifying.get_ref()) || ::isDependent(memberType));
+			SEMANTIC_ASSERT(declaration != 0 || objectExpression.isTypeDependent || isDependent(walker.qualifying.get_ref()));
 
 			setDecoration(id, gDependentObjectInstance);
 		}
@@ -5197,6 +5216,7 @@ struct EnumSpecifierWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		walker.declaration->type = declaration; // give the enumerator the type of its enumeration
 		walker.declaration->type.qualifiers = CvQualifiers(true, false); // an enumerator may be used in an integral constant expression
+		setDependent(walker.declaration->type); // the enumeration type is dependent if it is a member of a class template
 		makeUniqueTypeSafe(walker.declaration->type, getLocation());
 		if(walker.isInitialized)
 		{
