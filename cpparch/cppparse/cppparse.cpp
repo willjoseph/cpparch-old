@@ -153,10 +153,6 @@ int runTest(const Test& test)
 
 int printFile(cpp::declaration_seq* result, const PrintSymbolArgs& args)
 {
-	if(result == 0)
-	{
-		return 1;
-	}
 	printSymbol(result, args);
 	return 0;
 }

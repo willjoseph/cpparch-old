@@ -6769,13 +6769,13 @@ cpp::declaration_seq* parseFile(ParserContext& context)
 	{
 		printPosition(parser.context.getErrorPosition());
 		std::cout << "caught SemanticError" << std::endl;
-		return 0;
+		throw;
 	}
 	catch(SymbolsError&)
 	{
 		printPosition(parser.context.getErrorPosition());
 		std::cout << "caught SymbolsError" << std::endl;
-		return 0;
+		throw;
 	}
 	catch(TypeError& e)
 	{
