@@ -160,7 +160,7 @@
 	- in declaration with dependent type, store index into array of dependent member types
 		- build array of dependent member types on parse, stored in enclosing dependent unique-type
 		- when instantiating unique-type, fill array with member unique-types
-	- perform type substitution on dependent unique-type
+	+ perform type substitution on dependent unique-type
 		- DependentType: substitute template parameter from enclosing type for argument
 		- DependentTypename: perform name lookup to find member-declaration
 			- if member-declaration is class-declaration, build simple ObjectType from declaration
@@ -648,7 +648,7 @@
 	- friend definitions
 
 
-- automated build and testing
+- investigate: automated build and testing
 	- better error reporting from tests?
 	- separate test mode?
 	- teamcity server/agent
@@ -658,11 +658,12 @@
 
 - task: name lookup should always find primary template
 
-- task: clean up makeUniqueType
++ task: clean up makeUniqueType
 	- remove redundant code
 
 - task: rename stuff
-	- merge TypeInstance with ObjectType
+	+ merge TypeInstance with ObjectType
 		- new name: not an object type
 		- class type or built-in type - terminates declarator
+		- SimpleType, as in simple-type-specifier
 

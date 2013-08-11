@@ -2083,7 +2083,7 @@ struct BuiltInTypeId : BuiltInType
 {
 	BuiltInTypeId(Declaration* declaration, const TreeAllocator<int>& allocator)
 	{
-		value = pushBuiltInType(value, SimpleType(SimpleType(declaration, 0)));
+		value = pushBuiltInType(value, SimpleType(declaration, 0));
 		declaration->type.unique = value;
 		declaration->isComplete = true;
 	}
@@ -4444,7 +4444,7 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const
 		makeUniqueTemplateArguments(type.templateArguments, templateArguments, source, enclosingType, allowDependent);
 		return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, UNIQUETYPE_NULL, DependentTypename(type.id->value, qualifying, templateArguments, isNested, declaration->isTemplate)));
 	}
-	size_t index = declaration->templateParameter; // TODO: template-template-parameter
+	size_t index = declaration->templateParameter;
 	if(index != INDEX_INVALID)
 	{
 		SYMBOLS_ASSERT(allowDependent);
@@ -4461,11 +4461,11 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const
 
 			SYMBOLS_ASSERT(index < arguments.size());
 			UniqueTypeWrapper result = arguments[index];
-			// TODO: SYMBOLS_ASSERT(result.value != UNIQUETYPE_NULL); // fails for non-type template-argument
+			SYMBOLS_ASSERT(result != gUniqueTypeNull); // fails for non-type template-argument
 			return result;
 		}
 
-		TemplateArgumentsInstance templateArguments;
+		TemplateArgumentsInstance templateArguments; // for template-template-parameter
 		makeUniqueTemplateArguments(type.templateArguments, templateArguments, source, enclosingType, allowDependent);
 		std::size_t templateParameterCount = declaration->isTemplate ? std::distance(declaration->templateParams.begin(), declaration->templateParams.end()) : 0;
 		return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, UNIQUETYPE_NULL, DependentType(declaration, templateArguments, templateParameterCount)));
@@ -5846,7 +5846,7 @@ inline bool isGeneralPointer(TargetType type)
 }
 
 template<typename To>
-inline StandardConversionSequence makeScsConversion(Location source, const SimpleType* enclosing, To to, UniqueTypeWrapper from, bool isNullPointerConstant = false) // TODO: detect null pointer constant
+inline StandardConversionSequence makeScsConversion(Location source, const SimpleType* enclosing, To to, UniqueTypeWrapper from, bool isNullPointerConstant = false)
 {
 	SYMBOLS_ASSERT(to.value.getQualifiers() == CvQualifiers());
 	SYMBOLS_ASSERT(from.value.getQualifiers() == CvQualifiers());
@@ -6004,8 +6004,6 @@ inline StandardConversionSequence makeStandardConversionSequence(To to, UniqueTy
 		}
 	}
 
-	// TODO: user-defined
-	// TODO: ellipsis
 	return STANDARDCONVERSIONSEQUENCE_INVALID;
 }
 
@@ -6079,8 +6077,7 @@ struct ImplicitConversion
 	}
 };
 
-const ImplicitConversion IMPLICITCONVERSION_USERDEFINED = ImplicitConversion(StandardConversionSequence(SCSRANK_IDENTITY, CvQualifiers()), ICSTYPE_USERDEFINED); // TODO
-const ImplicitConversion IMPLICITCONVERSION_ELLIPSIS = ImplicitConversion(StandardConversionSequence(SCSRANK_IDENTITY, CvQualifiers()), ICSTYPE_ELLIPSIS); // TODO
+const ImplicitConversion IMPLICITCONVERSION_ELLIPSIS = ImplicitConversion(StandardConversionSequence(SCSRANK_IDENTITY, CvQualifiers()), ICSTYPE_ELLIPSIS);
 
 
 struct FunctionOverload
@@ -6540,12 +6537,6 @@ inline const Declaration& getPrimaryDeclaration(const Declaration& first, const 
 	{
 		return second; // multiple declarations allowed
 	}
-#if 0 // fails when comparing types if type is template-param dependent
-	if(getBaseType(first) != getBaseType(second))
-	{
-		throw DeclarationError("variable already declared with different type");
-	}
-#endif
 	if(isStaticMember(first))
 	{
 		// TODO: disallow inline definition of static member: class C { static int i; int i; };
@@ -7264,12 +7255,6 @@ struct OverloadResolver
 	}
 	void add(const CandidateFunction& candidate)
 	{
-		if(best.declaration != 0
-			&& candidate.declaration->enclosed == best.declaration->enclosed)
-		{
-			return; // TODO: don't add multiple declarations of same signature
-		}
-
 		if(!isViable(candidate))
 		{
 			return;
@@ -7604,8 +7589,6 @@ FunctionOverload findBestConversionFunction(To to, UniqueTypeWrapper from, Locat
 	// by 13.3.1.4, 13.3.1.5, or 13.3.1.6 in all cases, only standard conversion sequences and ellipsis conversion
 	// sequences are allowed.
 	OverloadResolver resolver(arguments, 0, source, enclosing, true); // disallow user-defined conversion when considering argument to conversion function
-
-	// TODO: [over.match.ref] Initialization by conversion function for direct reference binding.
 
 	// [dcl.init]\14
 	if(isClass(to)
