@@ -294,10 +294,18 @@ int main(int argc, char *argv[])
 
 	for(StringList::const_iterator i = options.sources.begin(); i != options.sources.end(); ++i)
 	{
-		int result = runTest(makeTest((*i).c_str(), makeRange(definitions, definition), makeRange(includes, include), printFile, parseFile));
-		if(result != 0)
+		try
 		{
-			return result;
+			int result = runTest(makeTest((*i).c_str(), makeRange(definitions, definition), makeRange(includes, include), printFile, parseFile));
+			if(result != 0)
+			{
+				return result;
+			}
+		}
+		catch(...)
+		{
+			std::cout << "caught exception" << std::endl;
+			return 1;
 		}
 	}
  	return 0;
