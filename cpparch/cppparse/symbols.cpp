@@ -1359,14 +1359,6 @@ inline void testTypeGen()
 	std::cout << std::endl;
 }
 
-struct TypeGenTest
-{
-	TypeGenTest()
-	{
-		testTypeGen();
-	}
-} gTypeGenTest;
-
 
 BuiltInType gSignedIntMemberPointer = MakeType<int Base::*>::apply();
 
@@ -1647,14 +1639,6 @@ inline void testIcsRank()
 	TestIcsRank<PointerToAny volatile&, Base* volatile&, Base*>::match(ICSRANK_STANDARDEXACT);
 }
 
-struct IcsRankTest
-{
-	IcsRankTest()
-	{
-		testIcsRank();
-	}
-} gIcsRankTest;
-
 
 template<typename P, typename A, typename R = void>
 struct TestDeduction
@@ -1858,15 +1842,6 @@ void testDeduction()
 }
 
 
-struct DeductionTest
-{
-	DeductionTest()
-	{
-		testDeduction();
-	}
-} gDeductionTest;
-
-
 
 template<typename L, typename R>
 struct TestOrdering
@@ -1899,16 +1874,6 @@ void testOrdering()
 	TestOrdering<const T&, T>::apply(false);
 	TestOrdering<T, const T&>::apply(false);
 }
-
-
-struct OrderingTest
-{
-	OrderingTest()
-	{
-		testOrdering();
-	}
-} gOrderingTest;
-
 
 
 template<typename P, typename A, typename R = void>
@@ -1978,14 +1943,15 @@ void testSubstitution()
 	TestSubstitution<void(T), void>::apply(gUniqueTypeNull);
 }
 
-
-struct SubstitutionTest
+int testAll()
 {
-	SubstitutionTest()
-	{
-		testSubstitution();
-	}
-} gSubstitutionTest;
+	testTypeGen();
+	testIcsRank();
+	testDeduction();
+	testOrdering();
+	testSubstitution();
+	return 0;
+}
 
 
 #if 0

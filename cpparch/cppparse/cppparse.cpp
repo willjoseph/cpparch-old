@@ -191,11 +191,21 @@ inline StringList& GetValues(CompilerOptions& options, CompilerOptionType type)
 
 int main(int argc, char *argv[])
 {
-	if (2 != argc) {
+	extern int testAll();
+	int result = testAll();
+
+	if(result != 0
+		|| argc == 1)
+	{
+		return result;
+	}
+
+	if(argc != 2)
+	{
 		std::cerr << "Usage: cppparse <command-file>" << std::endl;
 		return -1;
 	}
-
+	
 	const char* input = argv[1];
 
 	std::string compiler;

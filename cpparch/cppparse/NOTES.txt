@@ -576,15 +576,32 @@
 - investigate: deferred evaluation of expression type
 	- evaluate expression type in context of (enclosing scope, enclosing type, location)
 	- binary-expression
+		- operator
+		- left, right: the operand expressions
 	- unary-expression
+		- operator
+		- operand: the operand expression
 	- function-call expression
 		- id: the name in a call-to-named-function
-		- type: type of the lefthand postfix-expression, the context in which 'operator()' is found
-		- memberObject: if this is the righthand side of a member access expression, the class type of the left-hand side - provides implicit object argument.
+		- type: type of the postfix-expression, the context in which 'operator()' is found
+		- memberObject: if this is the righthand side of a member access expression, the class type of the left-hand side - provides implicit object argument for nonstatic member.
 		- arguments: the expression-list for the function call.
 		- templateArguments: the explicitly-specified template arguments for the function call.
 		- declarationCount: specifies which declarations were visible at the point of parse of the name being resolved.
 		- idEnclosing: the class of which the name is a member, required if the name is a member of a template. Provides implicit object argument for static member.
+	- member
+		- inputs:
+			- id: the name in a call-to-named-function
+			- qualifying: the optional nested-name-specifier as in 'x.C::m'
+		- outputs
+			- idEnclosing: the class of which the name is a member, used when uniquing the type of a member of a template class
+			- type: the type of the member access expression
+			- memberObject: if the type is a function, the class type of the lefthand side - provides implicit object argument for overload resolution
+	- subscript
+		- type: type of the lefthand postfix-expression, the context in which 'operator[]' is found
+		- argument: expression found within []
+	- explicit-type: cast, construct
+		- type
 
 - task: remove unused 'isTemplate' stuff
 
@@ -624,6 +641,8 @@
 
 
 - automated build and testing
+	- better error reporting from tests?
+	- separate test mode?
 	- teamcity server/agent
 	- need to make everything buildable from svn
 		- boost
