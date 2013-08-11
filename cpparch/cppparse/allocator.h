@@ -11,6 +11,12 @@
 #define ALLOCATOR_DEBUG // causes unallocated memory to be marked and checked
 #endif
 
+#ifdef WIN32
+#define DEBUG_BREAK() __debugbreak()
+#else
+#define DEBUG_BREAK()
+#endif
+
 #ifdef ALLOCATOR_DEBUG
 extern size_t gAllocatorFootprint;
 
@@ -91,8 +97,8 @@ struct AllocatorError
 {
 	AllocatorError()
 	{
-#ifdef WIN32
-		__debugbreak();
+#ifdef ALLOCATOR_DEBUG
+		DEBUG_BREAK();
 #endif
 	}
 };

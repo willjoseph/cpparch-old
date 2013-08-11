@@ -6765,6 +6765,11 @@ cpp::declaration_seq* parseFile(ParserContext& context)
 	catch(ParseError&)
 	{
 	}
+	catch(AllocatorError&)
+	{
+		std::cout << "caught AllocatorError" << std::endl;
+		return 0;
+	}
 	catch(SemanticError&)
 	{
 		printPosition(parser.context.getErrorPosition());
