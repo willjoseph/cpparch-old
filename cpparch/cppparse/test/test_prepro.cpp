@@ -1,4 +1,16 @@
 
+namespace N339
+{
+	enum
+	{
+		TokenTypeMask
+	};
+
+	enum
+	{
+		T_LAST_TOKEN_ID, T_LAST_TOKEN=((T_LAST_TOKEN_ID)&~TokenTypeMask)
+	};
+}
 
 namespace N255
 {

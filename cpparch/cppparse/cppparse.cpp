@@ -294,14 +294,14 @@ int main(int argc, char *argv[])
 	}
 
 #ifdef WIN32
-#ifdef _DEBUG
+#ifndef _DEBUG
 	__try // catches access violation
 	{
 #endif
 #endif
 		parseResponseFile(argv[1]);
 #ifdef WIN32
-#ifdef _DEBUG
+#ifndef _DEBUG
 	}
 	__except(1)
 	{

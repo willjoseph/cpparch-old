@@ -117,6 +117,7 @@ void printIdentifierMismatch(const IdentifierMismatch& e)
 
 inline void setDecoration(Identifier* id, const DeclarationInstance& declaration)
 {
+	SEMANTIC_ASSERT(id != &gDestructorId);
 	SEMANTIC_ASSERT(declaration.name != 0);
 	id->dec.p = &declaration;
 }
@@ -1090,6 +1091,16 @@ inline UniqueTypeWrapper getBuiltInUnaryOperatorReturnType(cpp::unary_operator* 
 	SEMANTIC_ASSERT(symbol->id == cpp::unary_operator::PLUSPLUS || symbol->id == cpp::unary_operator::MINUSMINUS);
 	return type;
 }
+
+
+inline bool isIntegralConstant(UniqueTypeWrapper type)
+{
+	return type.isSimple()
+		&& type.value.getQualifiers().isConst
+		&& (isIntegral(type)
+		|| isEnumeration(type));
+}
+
 
 inline UniqueTypeWrapper typeOfUnaryExpression(cpp::unary_operator* op, Argument operand, Scope* enclosing, Location source, const TypeInstance* enclosingType)
 {
@@ -2531,6 +2542,11 @@ struct UnqualifiedIdWalker : public WalkerBase
 	{
 		// TODO: can destructor-id be dependent?
 		TREEWALKER_LEAF(symbol);
+		if(objectExpression.p == 0)
+		{
+			// destructor id can only appear in class member access expression
+			return reportIdentifierMismatch(symbol, *id, declaration, "class member access expression");
+		}
 		id = &gDestructorId;
 	}
 };
@@ -2889,8 +2905,11 @@ struct PrimaryExpressionWalker : public WalkerBase
 			&& id->value == gOperatorAssignId)
 		{
 			// TODO: declare operator= if not already declared
-			declaration = LookupResultRef();
 			expression = ExpressionWrapper();
+		}
+		else if(id == &gDestructorId)
+		{
+			expression = ExpressionWrapper(); // destructor has no type or value
 		}
 		else if(isDependent(walker.qualifying.get_ref()))
 		{
@@ -2971,14 +2990,6 @@ struct PrimaryExpressionWalker : public WalkerBase
 					|| (isIntegralConstant(type) && declaration->initializer.isConstant); // TODO: determining whether the expression is constant depends on the type of the expression!
 			}
 		}
-	}
-
-	inline bool isIntegralConstant(UniqueTypeWrapper type)
-	{
-		return type.isSimple()
-			&& type.value.getQualifiers().isConst
-			&& (isIntegral(type)
-				|| isEnumeration(type));
 	}
 	void visit(cpp::primary_expression_parenthesis* symbol)
 	{
@@ -3408,16 +3419,16 @@ struct PostfixExpressionWalker : public WalkerBase
 		UniqueTypeWrapper qualifying = walker.qualifying.empty() || isNamespace(*walker.qualifying.back().declaration)
 			? gUniqueTypeNull : UniqueTypeWrapper(walker.qualifying.back().unique);
 
-		if(isDependent(typeDependent)) // if the object expression or the id-expression is dependent
+		if(id == &gDestructorId)
+		{
+			// a.~A()
+		}
+		else if(isDependent(typeDependent)) // if the object expression or the id-expression is dependent
 		{
 			// declaration will be 0 if the object-expression was dependent, or the id-expression is a qualified-id with a dependent nested-name-specifier
 			SEMANTIC_ASSERT(declaration != 0 || objectExpression.isTypeDependent || isDependent(walker.qualifying.get_ref()));
 
 			setDecoration(id, gDependentObjectInstance);
-		}
-		else if(id == &gDestructorId)
-		{
-			// a.~A()
 		}
 		else
 		{
@@ -3621,6 +3632,8 @@ struct ExpressionWalker : public WalkerBase
 		{
 			UniqueTypeWrapper left = removeReference(type);
 			UniqueTypeWrapper right = removeReference(walker.type);
+			SYMBOLS_ASSERT(left != gUniqueTypeNull);
+			SYMBOLS_ASSERT(right != gUniqueTypeNull);
 			Identifier id;
 			id.value = getOverloadedOperatorId(symbol);
 			id.source = getLocation();
