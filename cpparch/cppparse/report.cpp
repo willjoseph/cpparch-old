@@ -270,7 +270,6 @@ struct DependencyBuilder
 		else if(!instance->type.isDependent)
 		{
 			if(isObjectDefinition(*instance) // if this declaration defines an object
-				&& instance->type.declaration != &gEnumerator // and the object is not an enumerator
 				&& !(isFunctionParameter(*instance) // and the object is not a function parameter..
 					&& (!isDecorated(instance->scope->name) || !getDeclaration(instance->scope->name)->isFunctionDefinition))) // .. within a function declaration
 			{

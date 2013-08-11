@@ -1121,7 +1121,6 @@ extern Declaration gEnum;
 
 extern Declaration gNamespace;
 extern Declaration gCtor;
-extern Declaration gEnumerator;
 extern Declaration gUnknown;
 
 
@@ -2768,10 +2767,6 @@ inline bool isPointerToFunctionExpression(ExpressionNode* expression)
 		return false;
 	}
 	const IdExpression node = getIdExpression(expression);
-	if(node.declaration->type.declaration == &gEnumerator)
-	{
-		return false;
-	}
 	return UniqueTypeWrapper(node.declaration->type.unique).isFunction();
 }
 
@@ -3896,12 +3891,6 @@ extern ObjectTypeId gSignedInt;
 template<typename T>
 inline UniqueTypeWrapper getUniqueTypeImpl(const T& type, Location source, const TypeInstance* enclosing, bool allowDependent)
 {
-	if(type.declaration == &gEnumerator) // HACK: enumerator becomes 'const int'
-	{
-		UniqueTypeWrapper result = gSignedInt;
-		result.value.setQualifiers(CvQualifiers(true, false));
-		return result;
-	}
 	SYMBOLS_ASSERT(type.unique != 0);
 	UniqueTypeWrapper result = UniqueTypeWrapper(type.unique);
 	if(type.isDependent
@@ -4867,6 +4856,7 @@ struct BuiltInTypeDeclaration : Declaration
 	}
 };
 
+extern Declaration gEnumerator;
 
 #define TYPE_NAMESPACE TypeId(&gNamespace, TREEALLOCATOR_NULL)
 #define TYPE_CTOR TypeId(&gCtor, TREEALLOCATOR_NULL)
