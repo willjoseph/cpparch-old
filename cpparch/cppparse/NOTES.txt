@@ -655,3 +655,14 @@
 	- need to make everything buildable from svn
 		- boost
 		- stlport
+
+- task: name lookup should always find primary template
+
+- task: clean up makeUniqueType
+	- remove redundant code
+
+- task: rename stuff
+	- merge TypeInstance with ObjectType
+		- new name: not an object type
+		- class type or built-in type - terminates declarator
+

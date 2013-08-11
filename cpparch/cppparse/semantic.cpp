@@ -1295,7 +1295,7 @@ struct WalkerState
 			SEMANTIC_ASSERT(declaration != 0);
 			SEMANTIC_ASSERT(isClass(*declaration));
 			Type type(declaration, context);
-			context.typeInfoType = makeUniqueType(type, Location(), 0);
+			context.typeInfoType = makeUniqueType(type, Location(), 0, false);
 			context.typeInfoType.value.setQualifiers(CvQualifiers(true, false));
 		}
 		return context.typeInfoType;
@@ -2170,6 +2170,7 @@ struct WalkerBase : public WalkerState
 	template<typename T>
 	void makeUniqueTypeImpl(T& type, Location source)
 	{
+		SYMBOLS_ASSERT(type.unique == 0); // type must not be uniqued twice
 		if(objectExpression.p != 0
 			&& objectExpression.isTypeDependent
 			&& memberObject != 0)
@@ -2191,6 +2192,11 @@ struct WalkerBase : public WalkerState
 	UniqueTypeWrapper makeUniqueTypeSafe(TypeId& type, Location source)
 	{
 		makeUniqueTypeImpl(type, source);
+		return type.isDependent ? gUniqueTypeNull : UniqueTypeWrapper(type.unique);
+	}
+	UniqueTypeWrapper getUniqueTypeSafe(const TypeId& type)
+	{
+		SEMANTIC_ASSERT(type.unique != 0); // type must have previously been uniqued by makeUniqueTypeImpl
 		return type.isDependent ? gUniqueTypeNull : UniqueTypeWrapper(type.unique);
 	}
 };
@@ -3159,7 +3165,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		TREEWALKER_WALK_SRC(walker, symbol);
 		expression = walker.expression;
 		addDependent(typeDependent, walker.typeDependent);
-		type = makeUniqueTypeSafe(walker.type, Location(symbol->source, context.declarationCount));
+		type = getUniqueTypeSafe(walker.type);
 		// [basic.lval] An expression which holds a temporary object resulting from a cast to a non-reference type is an rvalue
 		requireCompleteObjectType(type, Location(symbol->source, context.declarationCount), enclosingType);
 		setExpressionType(symbol, type);
@@ -3171,7 +3177,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		ExplicitTypeExpressionWalker walker(getState());
 		TREEWALKER_WALK_SRC(walker, symbol);
 		expression = walker.expression;
-		type = makeUniqueTypeSafe(walker.type, Location(symbol->source, context.declarationCount));
+		type = getUniqueTypeSafe(walker.type);
 		// [basic.lval] An expression which holds a temporary object resulting from a cast to a non-reference type is an rvalue
 		requireCompleteObjectType(type, Location(symbol->source, context.declarationCount), enclosingType);
 		if(symbol->op->id != cpp::cast_operator::DYNAMIC)
@@ -3839,7 +3845,7 @@ struct ExpressionWalker : public WalkerBase
 	{
 		ExplicitTypeExpressionWalker walker(getState());
 		TREEWALKER_WALK_SRC(walker, symbol);
-		type = makeUniqueTypeSafe(walker.type, Location(symbol->source, context.declarationCount));
+		type = getUniqueTypeSafe(walker.type);
 		// [expr.new] The new expression attempts to create an object of the type-id or new-type-id to which it is applied. The type shall be a complete type...
 		requireCompleteObjectType(type, Location(symbol->source, context.declarationCount), enclosingType);
 		type.push_front(PointerType());
@@ -3850,7 +3856,7 @@ struct ExpressionWalker : public WalkerBase
 	{
 		ExplicitTypeExpressionWalker walker(getState());
 		TREEWALKER_WALK_SRC(walker, symbol);
-		type = makeUniqueTypeSafe(walker.type, Location(symbol->source, context.declarationCount));
+		type = getUniqueTypeSafe(walker.type);
 		// [expr.new] The new expression attempts to create an object of the type-id or new-type-id to which it is applied. The type shall be a complete type...
 		requireCompleteObjectType(type, Location(symbol->source, context.declarationCount), enclosingType);
 		type.push_front(PointerType());
@@ -3862,7 +3868,7 @@ struct ExpressionWalker : public WalkerBase
 		ExplicitTypeExpressionWalker walker(getState());
 		TREEWALKER_WALK_SRC(walker, symbol);
 		expression = walker.expression;
-		type = makeUniqueTypeSafe(walker.type, Location(symbol->source, context.declarationCount));
+		type = getUniqueTypeSafe(walker.type);
 		// [basic.lval] An expression which holds a temporary object resulting from a cast to a non-reference type is an rvalue
 		requireCompleteObjectType(type, Location(symbol->source, context.declarationCount), enclosingType);
 		Dependent tmp(walker.typeDependent);

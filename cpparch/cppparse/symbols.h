@@ -3848,29 +3848,8 @@ inline UniqueTypeWrapper substitute(UniqueTypeWrapper dependent, Location source
 
 // ----------------------------------------------------------------------------
 inline UniqueTypeWrapper makeUniqueType(const TypeId& type, Location source);
-inline UniqueTypeWrapper makeUniqueType(const TypeId& type, Location source, const TypeInstance* enclosing, bool allowDependent, std::size_t depth);
-inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const TypeInstance* enclosing, bool allowDependent, std::size_t depth);
-
-inline void checkUniqueType(UniqueTypeWrapper result, const Type& type, Location source, const TypeInstance* enclosing, bool allowDependent)
-{
-	SYMBOLS_ASSERT(type.unique == 0 || type.isDependent || isDependent(result) || result.value == type.unique);
-	if(type.isDependent
-		&& !allowDependent)
-	{
-		SYMBOLS_ASSERT(enclosing != 0);
-		UniqueTypeWrapper substituted = substitute(UniqueTypeWrapper(type.unique), source, *enclosing);
-		if(substituted != result)
-		{
-			std::cout << "uniqued: ";
-			printType(result);
-			std::cout << std::endl;
-			std::cout << "substituted: ";
-			printType(substituted);
-			std::cout << std::endl;
-			throw SymbolsError();
-		}
-	}
-}
+inline UniqueTypeWrapper makeUniqueType(const TypeId& type, Location source, const TypeInstance* enclosing, bool allowDependent);
+inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const TypeInstance* enclosing, bool allowDependent);
 
 inline void reportTypeInfo(const Type& type, const TypeInstance* enclosing)
 {
@@ -3911,36 +3890,6 @@ inline UniqueTypeWrapper getUniqueType(const TypeId& type, Location source, cons
 inline UniqueTypeWrapper getUniqueType(const Type& type, Location source, const TypeInstance* enclosing, bool allowDependent = false)
 {
 	return getUniqueTypeImpl(type, source, enclosing, allowDependent);
-}
-
-inline UniqueTypeWrapper makeUniqueType(const TypeId& type, Location source, const TypeInstance* enclosing, bool allowDependent = false)
-{
-	try
-	{
-		UniqueTypeWrapper result = makeUniqueType(type, source, enclosing, allowDependent, 0);
-		checkUniqueType(result, type, source, enclosing, allowDependent);
-		return result;
-	}
-	catch(TypeError&)
-	{
-		reportTypeInfo(type, enclosing);
-		throw;
-	}
-}
-
-inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const TypeInstance* enclosing, bool allowDependent = false)
-{
-	try
-	{
-		UniqueTypeWrapper result = makeUniqueType(type, source, enclosing, allowDependent, 0);
-		checkUniqueType(result, type, source, enclosing, allowDependent);
-		return result;
-	}
-	catch(TypeError&)
-	{
-		reportTypeInfo(type, enclosing);
-		throw;
-	}
 }
 
 inline Scope* getEnclosingTemplate(Scope* enclosing)
@@ -4187,7 +4136,7 @@ inline UniqueTypeWrapper removeReference(UniqueTypeWrapper type)
 	return type;
 }
 
-inline const TypeInstance* makeUniqueEnclosing(const Qualifying& qualifying, Location source, const TypeInstance* enclosing, bool allowDependent, std::size_t depth, UniqueTypeWrapper& unique)
+inline const TypeInstance* makeUniqueEnclosing(const Qualifying& qualifying, Location source, const TypeInstance* enclosing, bool allowDependent, UniqueTypeWrapper& unique)
 {
 	if(!qualifying.empty())
 	{
@@ -4208,30 +4157,10 @@ inline const TypeInstance* makeUniqueEnclosing(const Qualifying& qualifying, Loc
 	return enclosing;
 }
 
-inline const TypeInstance* makeUniqueEnclosing(const Qualifying& qualifying, Location source, const TypeInstance* enclosing, bool allowDependent, std::size_t depth)
-{
-	UniqueTypeWrapper tmp;
-	return makeUniqueEnclosing(qualifying, source, enclosing, allowDependent, depth, tmp);
-}
-
 inline const TypeInstance* makeUniqueEnclosing(const Qualifying& qualifying, Location source, const TypeInstance* enclosing, bool allowDependent)
 {
-	try
-	{
-		return makeUniqueEnclosing(qualifying, source, enclosing, allowDependent, 0);
-	}
-	catch(TypeError&)
-	{
-		if(!qualifying.empty())
-		{
-			const Type& type = qualifying.back();
-			std::cout << "while uniquing: ";
-			SYMBOLS_ASSERT(type.unique != 0);
-			printType(UniqueTypeWrapper(type.unique));
-			std::cout << std::endl;
-		}
-		throw;
-	}
+	UniqueTypeWrapper tmp;
+	return makeUniqueEnclosing(qualifying, source, enclosing, allowDependent, tmp);
 }
 
 inline bool deduceAndSubstitute(const UniqueTypeArray& parameters, const UniqueTypeArray& arguments, Location source, TypeInstance& enclosing, TemplateArgumentsInstance& substituted)
@@ -4506,23 +4435,11 @@ struct LookupFailed : TypeError
 // /p type
 // /p enclosingType The enclosing template, required when uniquing a template-argument: e.g. Enclosing<int>::Type
 //			Note: if 'type' is a class-template template default argument, 'enclosingType' will be the class-template, which does not require instantiation!
-inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const TypeInstance* enclosingType, bool allowDependent, std::size_t depth)
+inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const TypeInstance* enclosingType, bool allowDependent)
 {
-	if(depth++ == 256)
-	{
-		struct MaximumRecursionDepth : TypeError
-		{
-			void report()
-			{
-				std::cout << "makeUniqueType reached maximum recursion depth!" << std::endl;
-			}
-		};
-		throw MaximumRecursionDepth();
-	}
-
 	// the type in which template-arguments are looked up: returns qualifying type if specified, else returns enclosingType
 	UniqueTypeWrapper qualifying;
-	const TypeInstance* enclosing = makeUniqueEnclosing(type.qualifying, source, enclosingType, allowDependent, depth, qualifying);
+	const TypeInstance* enclosing = makeUniqueEnclosing(type.qualifying, source, enclosingType, allowDependent, qualifying);
 	Declaration* declaration = type.declaration;
 	extern Declaration gDependentType;
 	extern Declaration gDependentTemplate;
@@ -4533,49 +4450,24 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const
 		|| declaration == &gDependentNested
 		|| declaration == &gDependentNestedTemplate) // this is a type-name with a dependent nested-name-specifier
 	{
+		SYMBOLS_ASSERT(allowDependent);
 		bool isNested = declaration == &gDependentNested || declaration == &gDependentNestedTemplate;
 		SYMBOLS_ASSERT(!type.qualifying.empty()); // the type-name must be qualified
 		SYMBOLS_ASSERT(type.id != IdentifierPtr(0));
-		const DeclarationInstance* instance = 0;
-		if(!allowDependent // the qualifying/enclosing type is not dependent
-			&& enclosing->declaration->enclosed != 0) // the qualifying/enclosing type is complete
-		{
-			if(enclosing->instantiating) // TODO: this occurs when choosing the wrong specialization between two that differ only in non-type template arguments 
-			{
-				std::cout << "not finished instantiating: ";
-				printType(*enclosing);
-				std::cout << std::endl;
-			}
-			else
-			{
-				instance = findDeclaration(*enclosing, *type.id, isNested ? LookupFilter(IsNestedName()) : LookupFilter(IsAny()));
-			}
-		}
-		// SYMBOLS_ASSERT(declaration != 0); // TODO: assert
-		if(instance == 0)
-		{
-			if(allowDependent)
-			{
-				TemplateArgumentsInstance templateArguments;
-				makeUniqueTemplateArguments(type.templateArguments, templateArguments, source, enclosingType, allowDependent);
-				return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, UNIQUETYPE_NULL, DependentTypename(type.id->value, qualifying, templateArguments, isNested, declaration->isTemplate)));
-			}
-
-			throw LookupFailed(enclosing, type.id);
-		}
-		declaration = *instance;
+		TemplateArgumentsInstance templateArguments;
+		makeUniqueTemplateArguments(type.templateArguments, templateArguments, source, enclosingType, allowDependent);
+		return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, UNIQUETYPE_NULL, DependentTypename(type.id->value, qualifying, templateArguments, isNested, declaration->isTemplate)));
 	}
 	size_t index = declaration->templateParameter; // TODO: template-template-parameter
 	if(index != INDEX_INVALID)
 	{
+		SYMBOLS_ASSERT(allowDependent);
 		SYMBOLS_ASSERT(type.qualifying.empty());
 		// Find the template-specialisation it belongs to:
 		const TypeInstance* enclosingType = findEnclosingType(enclosing, declaration->scope);
 		if(enclosingType != 0
-			&& (!allowDependent // if we expect the type not to be dependent
-				|| !isDependent(*enclosingType))) // or the enclosing type is not dependent
+			&& !isDependent(*enclosingType)) // if the enclosing type is not dependent
 		{
-			SYMBOLS_ASSERT(allowDependent || !isDependent(*enclosingType)); // if we expect the type not to be dependent, assert that the enclosing type is not dependent
 			SYMBOLS_ASSERT(!enclosingType->declaration->isSpecialization || enclosingType->instantiated); // a specialization must be instantiated (or in the process of instantiating)
 			const TemplateArgumentsInstance& arguments = enclosingType->declaration->isSpecialization
 				? enclosingType->deducedArguments
@@ -4587,17 +4479,10 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const
 			return result;
 		}
 
-		if(allowDependent
-			/*&& enclosing == 0*/)
-		{
-			TemplateArgumentsInstance templateArguments;
-			makeUniqueTemplateArguments(type.templateArguments, templateArguments, source, enclosingType, allowDependent);
-			std::size_t templateParameterCount = declaration->isTemplate ? std::distance(declaration->templateParams.begin(), declaration->templateParams.end()) : 0;
-			return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, UNIQUETYPE_NULL, DependentType(declaration, templateArguments, templateParameterCount)));
-		}
-
-		throw SymbolsError();
-		return gUniqueTypeNull; // error: can't find template specialisation for this template parameter
+		TemplateArgumentsInstance templateArguments;
+		makeUniqueTemplateArguments(type.templateArguments, templateArguments, source, enclosingType, allowDependent);
+		std::size_t templateParameterCount = declaration->isTemplate ? std::distance(declaration->templateParams.begin(), declaration->templateParams.end()) : 0;
+		return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, UNIQUETYPE_NULL, DependentType(declaration, templateArguments, templateParameterCount)));
 	}
 
 	const TypeInstance* memberEnclosing = isMember(*declaration) // if the declaration is a class member
@@ -4686,10 +4571,6 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const
 	return makeUniqueObjectType(tmp);
 }
 
-inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source)
-{
-	return makeUniqueType(type, source, 0);
-}
 
 inline std::size_t evaluateArraySize(const ExpressionWrapper& expression, Location source, const TypeInstance* enclosing)
 {
@@ -4752,18 +4633,13 @@ struct TypeSequenceMakeUnique : TypeSequenceVisitor
 	}
 };
 
-inline UniqueTypeWrapper makeUniqueType(const TypeId& type, Location source, const TypeInstance* enclosing, bool allowDependent, std::size_t depth)
+inline UniqueTypeWrapper makeUniqueType(const TypeId& type, Location source, const TypeInstance* enclosing, bool allowDependent)
 {
-	UniqueTypeWrapper result = makeUniqueType(*static_cast<const Type*>(&type), source, enclosing, allowDependent, depth);
+	UniqueTypeWrapper result = makeUniqueType(*static_cast<const Type*>(&type), source, enclosing, allowDependent);
 	result.value.addQualifiers(type.qualifiers);
 	TypeSequenceMakeUnique visitor(result.value, source, enclosing, allowDependent);
 	type.typeSequence.accept(visitor);
 	return result;
-}
-
-inline UniqueTypeWrapper makeUniqueType(const TypeId& type, Location source)
-{
-	return makeUniqueType(type, source, 0);
 }
 
 
