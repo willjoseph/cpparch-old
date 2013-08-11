@@ -283,8 +283,8 @@ Declaration gNonTypeTemplateParameterDeclaration(TREEALLOCATOR_NULL, &gTemplateP
 DependentTypeId gNonTypeTemplateParameter(&gNonTypeTemplateParameterDeclaration, 1);
 
 
-Types2::Pointer::Value gTemplateParam1 = Types2::Node(Type(&gTemplateParameterDeclaration, TREEALLOCATOR_NULL));
 Types2::Pointer::Value gTemplateParam2 = Types2::Node(Type(&gNonTypeTemplateParameterDeclaration, TREEALLOCATOR_NULL));
+Types2::Pointer::Value gTemplateParam1 = Types2::Node(Type(&gTemplateParameterDeclaration, TREEALLOCATOR_NULL));
 
 Identifier gTemplateClassId = makeIdentifier("$template");
 struct TemplateClassDeclaration : Declaration

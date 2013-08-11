@@ -3,7 +3,6 @@ C:\Program Files\Microsoft Visual Studio 8\VC\BIN\cl.exe
 /I ..\..\external\boost
 /D WIN32
 /D _DEBUG
-.\cppparse.cpp
 .\test\test_prepro.cpp
 .\test\test_quick.cpp
 .\test\test_incomplete.cpp

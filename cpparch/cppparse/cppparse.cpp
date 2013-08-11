@@ -32,7 +32,7 @@ Test makeTest(const char* input, const CharConstPointerRange& definitions, const
 	return result;
 }
 
-int runTest(const Test& test)
+void runTest(const Test& test)
 {
 	try {
 
@@ -41,9 +41,10 @@ int runTest(const Test& test)
 		const char* predefined = "$predefined_msvc.h";
 		std::ifstream instream(predefined);
 
-		if (!instream.is_open()) {
+		if(!instream.is_open())
+		{
 			std::cerr << "Could not open input file: " << predefined << std::endl;
-			return -2;
+			throw ParseError();
 		}
 		instream.unsetf(std::ios::skipws);
 
@@ -128,7 +129,7 @@ int runTest(const Test& test)
 		std::cerr 
 			<< "exception caught"
 			<< std::endl;
-		return 1;
+		throw;
 	}
 	catch(std::exception const& e)
 	{
@@ -136,7 +137,7 @@ int runTest(const Test& test)
 			<< "exception caught: "
 			<< e.what()
 			<< std::endl;
-		return 1;
+		throw;
 	}
 #if 0
 	catch(...)
@@ -144,11 +145,9 @@ int runTest(const Test& test)
 		std::cerr 
 			<< "exception caught"
 			<< std::endl;
-		return 1;
+		throw;
 	}
 #endif
-
-	return 0;
 }
 
 int printFile(cpp::declaration_seq* result, const PrintSymbolArgs& args)
@@ -188,26 +187,8 @@ inline StringList& GetValues(CompilerOptions& options, CompilerOptionType type)
 	return *p;
 }
 
-
-int main(int argc, char *argv[])
+void parseResponseFile(const char* input)
 {
-	extern int testAll();
-	int result = testAll();
-
-	if(result != 0
-		|| argc == 1)
-	{
-		return result;
-	}
-
-	if(argc != 2)
-	{
-		std::cerr << "Usage: cppparse <command-file>" << std::endl;
-		return -1;
-	}
-	
-	const char* input = argv[1];
-
 	std::string compiler;
 	CompilerOptions options;
 	{
@@ -215,7 +196,7 @@ int main(int argc, char *argv[])
 		if(!in.is_open())
 		{
 			std::cerr << "failed to open command-file: " << input << std::endl;
-			return -1;
+			throw ParseError();
 		}
 		else
 		{
@@ -269,7 +250,7 @@ int main(int argc, char *argv[])
 			{
 				// buffer too small
 				std::cerr << "line too long in command file: " << input << std::endl;
-				return -1;
+				throw ParseError();
 			}
 		}
 	}
@@ -290,19 +271,42 @@ int main(int argc, char *argv[])
 
 	for(StringList::const_iterator i = options.sources.begin(); i != options.sources.end(); ++i)
 	{
-		try
-		{
-			int result = runTest(makeTest((*i).c_str(), makeRange(definitions, definition), makeRange(includes, include), printFile, parseFile));
-			if(result != 0)
-			{
-				return result;
-			}
-		}
-		catch(...)
-		{
-			std::cout << "caught exception" << std::endl;
-			return 1;
-		}
+		runTest(makeTest((*i).c_str(), makeRange(definitions, definition), makeRange(includes, include), printFile, parseFile));
 	}
- 	return 0;
 }
+
+
+int main(int argc, char *argv[])
+{
+	extern int testAll();
+	int result = testAll();
+
+	if(result != 0
+		|| argc == 1)
+	{
+		return result;
+	}
+
+	if(argc != 2)
+	{
+		std::cerr << "Usage: cppparse <command-file>" << std::endl;
+		return -1;
+	}
+
+#ifdef WIN32
+	__try // catches access violation
+	{
+#endif
+		parseResponseFile(argv[1]);
+#ifdef WIN32
+	}
+	__except(1)
+	{
+		std::cout << "caught win32 exception" << std::endl;
+		return 1;
+	}
+#endif
+
+	return 0;
+}
+
