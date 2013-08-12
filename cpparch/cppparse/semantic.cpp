@@ -1301,15 +1301,19 @@ struct WalkerState
 		return context.typeInfoType;
 	}
 
-	bool allowNameLookup()
+	bool objectExpressionIsDependent() const 
+	{
+		return objectExpression.p != 0
+			&& objectExpression.isTypeDependent
+			&& memberClass != 0;
+	}
+	bool allowNameLookup() const
 	{
 		if(isDependent(qualifying_p))
 		{
 			return false;
 		}
-		if(objectExpression.p != 0
-			&& objectExpression.isTypeDependent
-			&& memberClass != 0)
+		if(objectExpressionIsDependent())
 		{
 			return false;
 		}

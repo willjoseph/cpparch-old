@@ -16,22 +16,24 @@ namespace N340
 		};
 	}
 
+	template<typename>
 	struct A : N::M, B::M
 	{
-		typedef B N;
+		typedef B N; // error: lookup of 'N' in member access expression is ambiguous
 	};
 
-	// removing base 'A' gives:
-	// error: lookup of 'N' in member access expression is ambiguous
-	struct S : A
+	template<typename T>
+	struct S : A<T>
 	{
 
-		A m;
+		A<T> m;
 		void f()
 		{
 			m.N::M::f();
 		}
 	};
+
+	//template class S<int>;
 }
 
 namespace N285

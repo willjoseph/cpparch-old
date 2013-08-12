@@ -4436,11 +4436,12 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const
 	extern Declaration gDependentTemplate;
 	extern Declaration gDependentNested;
 	extern Declaration gDependentNestedTemplate;
-	if(declaration == &gDependentType
-		|| declaration == &gDependentTemplate
-		|| declaration == &gDependentNested
-		|| declaration == &gDependentNestedTemplate) // this is a type-name with a dependent nested-name-specifier
+	if(declaration == &gDependentType // T::Type
+		|| declaration == &gDependentTemplate // T::Type<>
+		|| declaration == &gDependentNested // T::Type::
+		|| declaration == &gDependentNestedTemplate) // T::Type<>::
 	{
+		// this is a type-name (or template-id) preceded by a dependent nested-name-specifier
 		SYMBOLS_ASSERT(allowDependent);
 		bool isNested = declaration == &gDependentNested || declaration == &gDependentNestedTemplate;
 		SYMBOLS_ASSERT(!type.qualifying.empty()); // the type-name must be qualified

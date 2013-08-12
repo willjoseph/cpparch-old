@@ -667,3 +667,33 @@
 		- class type or built-in type - terminates declarator
 		- SimpleType, as in simple-type-specifier
 
+- task: deferred name lookup for nested name specifier in dependent class member access
+			// If the id-expression in a class member access is a qualified-id of the form
+			//   class-name-or-namespace-name::...
+			// the class-name-or-namespace-name following the . or -> operator is looked up both in the context of the
+			// entire postfix-expression and in the scope of the class of the object expression. If the name is found only in
+			// the scope of the class of the object expression, the name shall refer to a class-name. If the name is found
+			// only in the context of the entire postfix-expression, the name shall refer to a class-name or namespace-name.
+			// If the name is found in both contexts, the class-name-or-namespace-name shall refer to the same entity.
+	- e.g. dependent.A::B::C::m
+	- A and B could be namespace or type
+	- if A, B or C are types, each may be a template-id
+	- namespace always comes before type
+	- 'C' always names a type which is a base of 'dependent'
+	- 'm' always names a member of the type of 'dependent' via the base 'C'
+	- current deferred lookup for 'typename T::Type' relies on namespace lookup not being deferred
+		- assumes lefthand side always names a type that can be substituted in context of instantiation
+	- need type element similar to DependentTypename
+		- contains list of qualifying ids that are either namespace-name or class-name
+			- up to first template-id?
+		- contains enclosing-scope for lookup of first nested name specifier
+		- contains type of dependent object expression
+		- when evaluated
+			- substitute dependent object expression
+			- lookup first name in both enclosing scope and type of object expression
+				- lookup in enclosing scope should search all base-classes, not just non-dependent?
+	- simpler just to wrap namespace as a UniqueType?
+		- evaluating new DependentTypename may then result in a namespace
+		- could use SimpleType, or NamespaceType
+		- or could 
+
