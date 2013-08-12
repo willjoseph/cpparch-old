@@ -1832,7 +1832,9 @@ inline bool operator<(const DependentTypename& left, const DependentTypename& ri
 			? left.qualifying < right.qualifying
 			: left.isNested != right.isNested
 				? left.isNested < right.isNested
-				: left.templateArguments < right.templateArguments;
+				: left.isTemplate != right.isTemplate
+					? left.isTemplate < right.isTemplate
+					: left.templateArguments < right.templateArguments;
 }
 
 
@@ -3682,10 +3684,10 @@ struct SubstituteVisitor : TypeElementVisitor
 
 		UniqueTypeWrapper qualifying = substitute(element.qualifying, source, enclosingType);
 		const SimpleType* enclosing = qualifying == gUniqueTypeNull || !qualifying.isSimple() ? 0 : &getSimpleType(qualifying.value);
-		// [temp.deduct] Attempting to use a type that is not a class type in a qualified name
 		if(enclosing == 0
 			|| !isClass(*enclosing->declaration))
 		{
+			// [temp.deduct] Attempting to use a type that is not a class type in a qualified name
 			throw QualifyingIsNotClassError(source, qualifying);
 		}
 
@@ -3694,10 +3696,7 @@ struct SubstituteVisitor : TypeElementVisitor
 		id.value = element.name;
 		std::size_t visibility = enclosing->instantiating ? enclosingType.instantiation.pointOfInstantiation : VISIBILITY_ALL;
 		LookupResultRef declaration = findDeclaration(*enclosing, id, element.isNested ? LookupFilter(IsNestedName(visibility)) : LookupFilter(IsAny(visibility)));
-		// [temp.deduct]
-		// - Attempting to use a type in the qualifier portion of a qualified name that names a type when that
-		//   type does not contain the specified member, or if the specified member is not a type where a type is
-		//   required.
+
 		if(declaration == 0)
 		{
 #if 1
@@ -3708,10 +3707,16 @@ struct SubstituteVisitor : TypeElementVisitor
 				std::cout << "found with VISIBILITY_ALL: " << declaration.p->visibility << std::endl;
 			}
 #endif
+			// [temp.deduct]
+			// - Attempting to use a type in the qualifier portion of a qualified name that names a type when that
+			//   type does not contain the specified member
 			throw MemberNotFoundError(source, element.name, qualifying);
 		}
 		if(!isType(*declaration))
 		{
+			// [temp.deduct]
+			// - Attempting to use a type in the qualifier portion of a qualified name that names a type when [...]
+			//   the specified member is not a type where a type is  required.
 			throw MemberIsNotTypeError(source, element.name, qualifying);
 		}
 
@@ -4442,7 +4447,7 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const
 		SYMBOLS_ASSERT(type.id != IdentifierPtr(0));
 		TemplateArgumentsInstance templateArguments;
 		makeUniqueTemplateArguments(type.templateArguments, templateArguments, source, enclosingType, allowDependent);
-		return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, UNIQUETYPE_NULL, DependentTypename(type.id->value, qualifying, templateArguments, isNested, declaration->isTemplate)));
+		return pushType(gUniqueTypeNull, DependentTypename(type.id->value, qualifying, templateArguments, isNested, declaration->isTemplate));
 	}
 	size_t index = declaration->templateParameter;
 	if(index != INDEX_INVALID)

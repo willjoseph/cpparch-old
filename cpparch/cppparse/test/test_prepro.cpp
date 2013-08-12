@@ -1,3 +1,38 @@
+namespace N340
+{
+	struct B
+	{
+		struct M
+		{
+			void f();
+		};
+	};
+
+	namespace N
+	{
+		struct M
+		{
+			void f();
+		};
+	}
+
+	struct A : N::M, B::M
+	{
+		typedef B N;
+	};
+
+	// removing base 'A' gives:
+	// error: lookup of 'N' in member access expression is ambiguous
+	struct S : A
+	{
+
+		A m;
+		void f()
+		{
+			m.N::M::f();
+		}
+	};
+}
 
 namespace N285
 {
