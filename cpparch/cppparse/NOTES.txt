@@ -706,3 +706,8 @@
 		- both objectExpression and enclosingScope
 		- if nested-name-specifier prefix is dependent, allow empty qualifying
 		- allow finding namespace
+
+
+- task: overload resolution for built-in assignment operator
+
+- task: write up TODO in test_prepro

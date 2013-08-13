@@ -1,3 +1,89 @@
+
+namespace N341
+{
+	template<typename T>
+	void f(T t)
+	{
+		t.operator Dependent();
+	}
+}
+
+namespace N285
+{
+	enum E
+	{
+	};
+	template<typename T>
+	struct A
+	{
+		struct S
+		{
+			operator E() const;
+			void f(const S& s)
+			{
+				s.operator E(); // E is looked up in the context of the entire postfix expression, not only within the qualifying type 'S'
+			}
+		};
+	};
+}
+
+
+#if 0 // TODO: friend found via ADL
+namespace N320
+{
+	template<typename T>
+	struct B
+	{
+		friend T f(B);
+	};
+
+	struct D : B<int>
+	{
+	};
+
+	D d;
+	int i = f(d); // koenig lookup finds 'B<int>::f'
+}
+#endif
+
+#if 0 // TODO: defer lookup of 'f' until arguments are known 
+namespace N321
+{
+	namespace N
+	{
+		struct A
+		{
+		};
+		int f(A);
+	}
+
+	N::A a;
+	int x = f(a);
+}
+#endif
+
+#if 0 // TODO: resolve 'identifier <' ambiguity earlier, or defer evaluation of expression type
+namespace N327
+{
+	struct error_category;
+	struct error_condition
+	{
+		template<class ErrorConditionEnum>
+		error_condition(ErrorConditionEnum e, typename boost::enable_if<is_error_condition_enum<ErrorConditionEnum> >::type* =0)
+		{
+			*this=make_error_condition(e);
+		}
+		inline friend bool operator<(const error_condition&lhs, const error_condition&rhs)
+		{
+			return lhs.m_cat<rhs.m_cat||(lhs.m_cat==rhs.m_cat&&lhs.m_val<rhs.m_val);
+		}
+		int m_val;
+		const error_category*m_cat;
+	};
+}
+#endif
+
+
 namespace N340
 {
 	struct B
@@ -34,25 +120,6 @@ namespace N340
 	};
 
 	//template class S<int>;
-}
-
-namespace N285
-{
-	enum E
-	{
-	};
-	template<typename T>
-	struct A
-	{
-		struct S
-		{
-			operator E() const;
-			void f(const S& s)
-			{
-				s.operator E(); // E is looked up in the context of the entire postfix expression, not only within the qualifying type 'S'
-			}
-		};
-	};
 }
 
 namespace N232
@@ -355,27 +422,6 @@ namespace N328
 	}
 }
 
-#if 0 // TODO: resolve 'identifier <' ambiguity earlier
-namespace N327
-{
-	struct error_category;
-	struct error_condition
-	{
-		template<class ErrorConditionEnum>
-		error_condition(ErrorConditionEnum e, typename boost::enable_if<is_error_condition_enum<ErrorConditionEnum> >::type* =0)
-		{
-			*this=make_error_condition(e);
-		}
-		inline friend bool operator<(const error_condition&lhs, const error_condition&rhs)
-		{
-			return lhs.m_cat<rhs.m_cat||(lhs.m_cat==rhs.m_cat&&lhs.m_val<rhs.m_val);
-		}
-		int m_val;
-		const error_category*m_cat;
-	};
-}
-#endif
-
 namespace N222
 {
 	template<typename T>
@@ -451,22 +497,6 @@ namespace N323
 	const char* i = p + VALUE;
 }
 
-#if 0 // TODO: defer lookup of 'f' until arguments are known 
-namespace N321
-{
-	namespace N
-	{
-		struct A
-		{
-		};
-		int f(A);
-	}
-
-	N::A a;
-	int x = f(a);
-}
-#endif
-
 namespace N322
 {
 	int f(const char*);
@@ -474,24 +504,6 @@ namespace N322
 
 	int x = f("");
 }
-
-#if 0 // TODO: friend found via ADL
-namespace N320
-{
-	template<typename T>
-	struct B
-	{
-		friend T f(B);
-	};
-
-	struct D : B<int>
-	{
-	};
-
-	D d;
-	int i = f(d); // koenig lookup finds 'B<int>::f'
-}
-#endif
 
 namespace N319
 {
@@ -1548,7 +1560,6 @@ namespace N242
 	}
 }
 
-#if 1
 // deferred name lookup
 namespace N504
 {
@@ -1572,7 +1583,6 @@ namespace N504
 		(*i).v=0;
 	}
 }
-#endif
 
 
 namespace N231
@@ -1593,7 +1603,8 @@ namespace N231
 	};
 }
 
-#if 0 // this appears to be incorrect, type should be looked up in context of entire postfix-expression
+#if 1 // check compliance, type should be looked up in context of entire postfix-expression?
+// C++03 says also in type of object expression?
 namespace N507
 {
 	struct S
@@ -1608,7 +1619,7 @@ namespace N507
 	};
 	void f(S& s)
 	{
-		s.operator Type(); // Type should be looked up in context of S
+		s.operator Type(); // Type should be looked up both in context of S and in context of postfix-expression
 	}
 }
 #endif

@@ -2536,8 +2536,10 @@ struct UnqualifiedIdWalker : public WalkerBase
 	{
 		Source source = parser->get_source();
 		TypeIdWalker walker(getState());
+#if 0
 		// do not look up type-name within qualifying scope: e.g. x.operator T(): T is looked up scope of entire postfix-expression, not within 'x'
 		walker.clearQualifying();
+#endif
 		TREEWALKER_WALK(walker, symbol);
 		walker.commit();
 		symbol->value = gConversionFunctionId;
@@ -2892,7 +2894,7 @@ struct PrimaryExpressionWalker : public WalkerBase
 		LiteralWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		expression = walker.expression;
-		type = typeofExpression(expression, getLocation());
+		type = typeOfExpression(expression, InstantiationContext(getLocation(), enclosingType));
 		SEMANTIC_ASSERT(!type.empty());
 	}
 	void visit(cpp::id_expression* symbol)
@@ -3661,7 +3663,7 @@ struct ExpressionWalker : public WalkerBase
 			if(overload.declaration == &gUnknown
 				|| (overload.declaration == 0 && id.value == gOperatorAssignId)) // TODO: declare implicit assignment operator
 			{
-				type = typeOp(left, right); // TODO: call typeofExpression
+				type = typeOp(left, right); // TODO: call typeOfExpression
 			}
 			else
 			{
@@ -3981,7 +3983,7 @@ struct TypeNameWalker : public WalkerBase
 
 	Type type;
 	IsHiddenTypeName filter; // allows type-name to be parsed without knowing whether it is the prefix of a nested-name-specifier (in which case it cannot be hidden by a non-type name)
-	bool isTypename; // true if a type is expected in this context; e.g. following 'typename', preceding '::'
+	bool isTypename; // true if a type is expected in this context; e.g. following 'typename', preceding '::', following 'operator'
 	TypeNameWalker(const WalkerState& state, bool isTypename = false)
 		: WalkerBase(state), type(0, context), isTypename(isTypename)
 	{
@@ -4220,27 +4222,28 @@ struct TypeSpecifierWalker : public WalkerQualified
 
 	Type type;
 	unsigned fundamental;
-	TypeSpecifierWalker(const WalkerState& state)
-		: WalkerQualified(state), type(0, context), fundamental(0)
+	bool isTypename;
+	TypeSpecifierWalker(const WalkerState& state, bool isTypename = false)
+		: WalkerQualified(state), type(0, context), fundamental(0), isTypename(isTypename)
 	{
 	}
 	void visit(cpp::simple_type_specifier_name* symbol)
 	{
-		TypeSpecifierWalker walker(getState());
+		TypeSpecifierWalker walker(getState(), isTypename);
 		TREEWALKER_WALK(walker, symbol);
 		type.swap(walker.type);
 		fundamental = walker.fundamental;
 	}
 	void visit(cpp::simple_type_specifier_template* symbol) // X::template Y<Z>
 	{
-		TypeSpecifierWalker walker(getState());
+		TypeSpecifierWalker walker(getState(), isTypename);
 		TREEWALKER_WALK(walker, symbol);
 		type.swap(walker.type);
 		fundamental = walker.fundamental;
 	}
 	void visit(cpp::type_name* symbol) // simple_type_specifier_name
 	{
-		TypeNameWalker walker(getState());
+		TypeNameWalker walker(getState(), isTypename);
 		TREEWALKER_WALK(walker, symbol);
 		if(walker.filter.nonType != 0)
 		{
@@ -5456,15 +5459,15 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 	CvQualifiers qualifiers;
 	IdentifierPtr forward;
 	bool isUnion;
-	bool isTemplateParameter;
-	DeclSpecifierSeqWalker(const WalkerState& state, bool isTemplateParameter = false)
-		: WalkerBase(state), type(0, context), fundamental(0), forward(0), isUnion(false), isTemplateParameter(isTemplateParameter)
+	bool isTypename; // true if this is the conversion-type-id of a conversion-function-id
+	DeclSpecifierSeqWalker(const WalkerState& state, bool isTypename = false)
+		: WalkerBase(state), type(0, context), fundamental(0), forward(0), isUnion(false), isTypename(isTypename)
 	{
 	}
 
 	void visit(cpp::simple_type_specifier* symbol)
 	{
-		TypeSpecifierWalker walker(getState());
+		TypeSpecifierWalker walker(getState(), isTypename);
 		TREEWALKER_WALK(walker, symbol);
 		type.swap(walker.type);
 		if(type.declaration == 0)
@@ -5846,8 +5849,9 @@ struct TypeIdWalker : public WalkerBase
 	TREEWALKER_DEFAULT;
 
 	TypeId type;
+	bool isConversionTypeId;
 	TypeIdWalker(const WalkerState& state)
-		: WalkerBase(state), type(0, context)
+		: WalkerBase(state), type(0, context), isConversionTypeId(false)
 	{
 	}
 	// called when parse of type-id is complete (necessary because trailing abstract-declarator is optional)
@@ -5857,11 +5861,11 @@ struct TypeIdWalker : public WalkerBase
 	}
 	void visit(cpp::terminal<boost::wave::T_OPERATOR> symbol) // conversion_function_id
 	{
-		// this is a conversion-function-id
+		isConversionTypeId = true; // this is a conversion-function-id
 	}
 	void visit(cpp::type_specifier_seq* symbol)
 	{
-		DeclSpecifierSeqWalker walker(getState());
+		DeclSpecifierSeqWalker walker(getState(), isConversionTypeId);
 		TREEWALKER_WALK(walker, symbol);
 		type.swap(walker.type);
 		type.qualifiers = walker.qualifiers;

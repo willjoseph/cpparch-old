@@ -2760,7 +2760,20 @@ inline bool operator<(const TypeTraitsBinaryExpression& left, const TypeTraitsBi
 			: left.second < right.second;
 }
 
-inline UniqueTypeWrapper typeofExpression(ExpressionNode* node, Location source);
+
+struct InstantiationContext
+{
+	Location source;
+	const SimpleType* enclosingType;
+	ScopePtr enclosingScope;
+	const SimpleType* memberClass;
+	InstantiationContext(Location source, const SimpleType* enclosingType, ScopePtr enclosingScope = 0, const SimpleType* memberClass = 0)
+		: source(source), enclosingType(enclosingType), enclosingScope(enclosingScope), memberClass(memberClass)
+	{
+	}
+};
+
+inline UniqueTypeWrapper typeOfExpression(ExpressionNode* node, const InstantiationContext& context);
 
 inline bool isPointerToMemberExpression(ExpressionNode* expression)
 {
@@ -2793,12 +2806,12 @@ inline bool isDependentPointerToMemberExpression(ExpressionNode* expression)
 extern BuiltInTypeId gUnsignedInt;
 extern BuiltInTypeId gBool;
 
-struct TypeofVisitor : ExpressionNodeVisitor
+struct TypeOfVisitor : ExpressionNodeVisitor
 {
 	UniqueTypeWrapper result;
-	Location source;
-	explicit TypeofVisitor(Location source)
-		: source(source)
+	InstantiationContext context;
+	explicit TypeOfVisitor(const InstantiationContext& context)
+		: context(context)
 	{
 	}
 	void visit(const IntegralConstantExpression& node)
@@ -2832,15 +2845,15 @@ struct TypeofVisitor : ExpressionNodeVisitor
 	}
 	void visit(const UnaryExpression& node)
 	{
-		result = node.type(typeofExpression(node.first, source));
+		result = node.type(typeOfExpression(node.first, context));
 	}
 	void visit(const BinaryExpression& node)
 	{
-		result = node.type(typeofExpression(node.first, source), typeofExpression(node.second, source));
+		result = node.type(typeOfExpression(node.first, context), typeOfExpression(node.second, context));
 	}
 	void visit(const TernaryExpression& node)
 	{
-		result = node.type(typeofExpression(node.first, source), typeofExpression(node.second, source), typeofExpression(node.third, source));
+		result = node.type(typeOfExpression(node.first, context), typeOfExpression(node.second, context), typeOfExpression(node.third, context));
 	}
 	void visit(const TypeTraitsUnaryExpression& node)
 	{
@@ -2852,9 +2865,9 @@ struct TypeofVisitor : ExpressionNodeVisitor
 	}
 };
 
-inline UniqueTypeWrapper typeofExpression(ExpressionNode* node, Location source)
+inline UniqueTypeWrapper typeOfExpression(ExpressionNode* node, const InstantiationContext& context)
 {
-	TypeofVisitor visitor(source);
+	TypeOfVisitor visitor(context);
 	node->accept(visitor);
 	return visitor.result;
 }
@@ -3022,7 +3035,7 @@ struct EvaluateVisitor : ExpressionNodeVisitor
 			return; // TODO
 		}
 
-		UniqueTypeWrapper type = typeofExpression(node.operand, source);
+		UniqueTypeWrapper type = typeOfExpression(node.operand, InstantiationContext(source, enclosing));
 		// [expr] If an expression initially has the type "reference to T", the type is adjusted to "T" prior to any further analysis.
 		// [expr.sizeof] The sizeof operator shall not be applied to an expression that has function or incomplete type.
 		result = IntegralConstant(requireCompleteObjectType(removeReference(type), source, enclosing));
