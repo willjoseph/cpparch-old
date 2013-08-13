@@ -1323,11 +1323,11 @@ struct WalkerState
 		}
 		return true;
 	}
-	LookupResult findDeclaration(const Identifier& id, bool isDeclarator, LookupFilter filter = IsAny())
+	LookupResult lookupQualified(const Identifier& id, bool isDeclarator, LookupFilter filter = IsAny())
 	{
 		return isDeclarator
 			? findDeclaratorDeclaration(id, filter)
-			: findDeclaration(id, filter);
+			: lookupQualified(id, filter);
 	}
 	LookupResult findDeclaratorDeclaration(const Identifier& id, LookupFilter filter = IsAny())
 	{
@@ -1340,6 +1340,29 @@ struct WalkerState
 		result.filtered = &gUndeclaredInstance;
 		return result;
 	}
+	LookupResult lookupQualified(const Identifier& id, LookupFilter filter = IsAny())
+	{
+		SEMANTIC_ASSERT(getQualifyingScope() != 0);
+		LookupResult result;
+		// [basic.lookup.qual]
+		if(qualifyingType != 0)
+		{
+			instantiateClass(*qualifyingType, getLocation(), enclosingType);
+			if(result.append(::findDeclaration(*qualifyingType, id, filter)))
+			{
+				return result;
+			}
+		}
+		else if(result.append(::findNamespaceDeclaration(*getQualifyingScope(), id, filter)))
+		{
+#ifdef LOOKUP_DEBUG
+			std::cout << "HIT: qualified" << std::endl;
+#endif
+			return result;
+		}
+		result.filtered = &gUndeclaredInstance;
+		return result;
+	}
 	LookupResult findDeclaration(const Identifier& id, LookupFilter filter = IsAny(), bool isUnqualifiedId = false)
 	{
 		ProfileScope profile(gProfileLookup);
@@ -1347,25 +1370,9 @@ struct WalkerState
 		std::cout << "lookup: " << getValue(id) << " (" << getIdentifierType(filter) << ")" << std::endl;
 #endif
 		LookupResult result;
-		Scope* qualifying = getQualifyingScope();
-		if(qualifying != 0)
+		if(getQualifyingScope() != 0)
 		{
-			// [basic.lookup.qual]
-			if(qualifyingType != 0)
-			{
-				instantiateClass(*qualifyingType, getLocation(), enclosingType);
-				if(result.append(::findDeclaration(*qualifyingType, id, filter)))
-				{
-					return result;
-				}
-			}
-			else if(result.append(::findNamespaceDeclaration(*qualifying, id, filter)))
-			{
-#ifdef LOOKUP_DEBUG
-				std::cout << "HIT: qualified" << std::endl;
-#endif
-				return result;
-			}
+			return lookupQualified(id, filter);
 		}
 		else
 		{
@@ -3438,8 +3445,8 @@ struct PostfixExpressionWalker : public WalkerBase
 		else
 		{
 			SEMANTIC_ASSERT(declaration != 0);
-			SEMANTIC_ASSERT(memberType != gUniqueTypeNull);
-			SEMANTIC_ASSERT(!::isDependent(memberType)); // the object-expression should not be dependent
+			SEMANTIC_ASSERT(objectExpression.p != 0);
+			SEMANTIC_ASSERT(!objectExpression.isTypeDependent); // the object-expression should not be dependent
 			SEMANTIC_ASSERT(walker.memberClass != 0);
 			SEMANTIC_ASSERT(walker.memberClass != &gDependentSimpleType);
 
@@ -3803,7 +3810,7 @@ struct ExpressionWalker : public WalkerBase
 			SEMANTIC_ASSERT(type != gUniqueTypeNull);
 			SEMANTIC_ASSERT(!::isDependent(type)); // can't resolve operator overloads if type is dependent
 			SEMANTIC_ASSERT(getQualifyingScope() == 0);
-			SEMANTIC_ASSERT(!(memberType != gUniqueTypeNull && memberClass != 0));
+			SEMANTIC_ASSERT(!(objectExpression.p != 0 && memberClass != 0)); // unary expression should not occur during class-member-access
 
 			type = removeReference(type);
 			type = typeOfUnaryExpression(symbol->op, Argument(expression, type), enclosing, Location(source, context.declarationCount), enclosingType);
@@ -4077,7 +4084,7 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 		if(isDeclarator
 			|| allowNameLookup())
 		{
-			declaration = findDeclaration(symbol->value, isDeclarator, IsNestedName());
+			declaration = lookupQualified(symbol->value, isDeclarator, IsNestedName());
 			if(declaration == &gUndeclared)
 			{
 				return reportIdentifierMismatch(symbol, symbol->value, declaration, "nested-name");
@@ -4099,7 +4106,7 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 		if(isDeclarator
 			|| allowNameLookup())
 		{
-			declaration = findDeclaration(*walker.id, isDeclarator, IsNestedName());
+			declaration = lookupQualified(*walker.id, isDeclarator, IsNestedName());
 			if(declaration == &gUndeclared)
 			{
 				return reportIdentifierMismatch(symbol, *walker.id, declaration, "nested-name");
@@ -5796,6 +5803,7 @@ struct MemInitializerWalker : public WalkerBase
 	void visit(cpp::identifier* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
+		SEMANTIC_ASSERT(getQualifyingScope() == 0);
 		LookupResultRef declaration = findDeclaration(symbol->value);
 		if(declaration == &gUndeclared
 			|| !isObject(*declaration))

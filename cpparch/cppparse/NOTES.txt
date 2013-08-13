@@ -573,10 +573,15 @@
 	- ideally, defer evaluation of expression type until ambiguity is resolved.
 	- temporary hack to avoid?
 
-- task: remove special-cases for gEnumerator
++ task: remove special-cases for gEnumerator
+
+- task: check for undesired forward declaration of 'A' in elaborated type specifier: template<class T> friend struct N::A;
 
 - investigate: deferred evaluation of expression type
 	- evaluate expression type in context of (enclosing scope, enclosing type, location)
+	- id-expression
+		- deferred lookup for dependent nested-name-specifier
+		- store qualifying type/namespace as unique-type
 	- binary-expression
 		- operator
 		- left, right: the operand expressions
@@ -590,7 +595,7 @@
 		- arguments: the expression-list for the function call.
 		- templateArguments: the explicitly-specified template arguments for the function call.
 		- idEnclosing: the class of which the name is a member, required if the name is a member of a template. Provides implicit object argument for static member.
-	- member
+	- member-access
 		- memberType?
 			- valid only when expression is not dependent
 			- represents type of expression on left hand side of class-member access
