@@ -327,6 +327,10 @@ struct KoenigVisitor : TypeElementVisitor
 		: associated(associated)
 	{
 	}
+	virtual void visit(const Namespace& element)
+	{
+		SYMBOLS_ASSERT(false);
+	}
 	virtual void visit(const DependentType& element) // deduce from T, TT, TT<...>
 	{
 	}
@@ -2175,17 +2179,8 @@ struct WalkerBase : public WalkerState
 	void makeUniqueTypeImpl(T& type, Location source)
 	{
 		SYMBOLS_ASSERT(type.unique == 0); // type must not be uniqued twice
-		if(objectExpression.p != 0
-			&& objectExpression.isTypeDependent
-			&& memberClass != 0)
-		{
-			// this occurs when uniquing the dependent type name in a nested name-specifier in a class-member-access expression
-			// e.g. 'x.C::f()'
-			type.isDependent = true;
-			type.unique = memberType.value; // TODO: deferred evaluation of this type
-			return;
-		}
-		type.isDependent = isDependent(type);
+		type.isDependent = isDependent(type)
+			|| objectExpressionIsDependent(); // this occurs when uniquing the dependent type name in a nested name-specifier in a class-member-access expression
 		type.unique = makeUniqueType(type, source, enclosingType, type.isDependent).value;
 	}
 	void makeUniqueTypeSafe(Type& type, Location source)

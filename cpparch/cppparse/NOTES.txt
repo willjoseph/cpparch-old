@@ -668,13 +668,6 @@
 		- SimpleType, as in simple-type-specifier
 
 - task: deferred name lookup for nested name specifier in dependent class member access
-			// If the id-expression in a class member access is a qualified-id of the form
-			//   class-name-or-namespace-name::...
-			// the class-name-or-namespace-name following the . or -> operator is looked up both in the context of the
-			// entire postfix-expression and in the scope of the class of the object expression. If the name is found only in
-			// the scope of the class of the object expression, the name shall refer to a class-name. If the name is found
-			// only in the context of the entire postfix-expression, the name shall refer to a class-name or namespace-name.
-			// If the name is found in both contexts, the class-name-or-namespace-name shall refer to the same entity.
 	- e.g. dependent.A::B::C::m
 	- A and B could be namespace or type
 	- if A, B or C are types, each may be a template-id
@@ -696,4 +689,15 @@
 		- evaluating new DependentTypename may then result in a namespace
 		- could use SimpleType, or NamespaceType
 		- or could 
-
+	- add special polymorphic type for nested-name-specifier
+		- abstract wrapper for a (possibly qualified) qualifier
+		- equivalent of Qualifying, but uniqued
+		- can be substituted to yield concrete type/namespace in which name can be looked up
+		- either
+			- class-member-access expression + context
+			- qualifying + identifier (class or namespace name)
+			- qualifying + template-id
+	- include context when uniquing DependentTypename
+		- both objectExpression and enclosingScope
+		- if nested-name-specifier prefix is dependent, allow empty qualifying
+		- allow finding namespace

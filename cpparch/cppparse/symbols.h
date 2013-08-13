@@ -1350,6 +1350,7 @@ typedef LookupFilterDefault<isNonMemberName> IsNonMemberName;
 
 struct TypeElementVisitor
 {
+	virtual void visit(const struct Namespace&) = 0;
 	virtual void visit(const struct DependentType&) = 0;
 	virtual void visit(const struct DependentTypename&) = 0;
 	virtual void visit(const struct DependentNonType&) = 0;
@@ -1498,6 +1499,10 @@ struct UniqueTypeWrapper
 	bool isSimple() const
 	{
 		return typeid(*value) == typeid(TypeElementGeneric<SimpleType>);
+	}
+	bool isNamespace() const
+	{
+		return typeid(*value) == typeid(TypeElementGeneric<struct Namespace>);
 	}
 	bool isPointer() const
 	{
@@ -1754,6 +1759,26 @@ inline const SimpleType& getSimpleType(UniqueType type)
 	return static_cast<const TypeElementGeneric<SimpleType>*>(type.getPointer())->value;
 }
 
+struct Namespace
+{
+	DeclarationPtr declaration;
+	Namespace(DeclarationPtr declaration)
+		: declaration(declaration)
+	{
+	}
+};
+
+inline const Namespace& getNamespace(UniqueType type)
+{
+	SYMBOLS_ASSERT(typeid(*type) == typeid(TypeElementGeneric<Namespace>));
+	return static_cast<const TypeElementGeneric<Namespace>*>(type.getPointer())->value;
+}
+
+
+inline bool operator<(const Namespace& left, const Namespace& right)
+{
+	return left.declaration.p < right.declaration.p;
+}
 
 struct TemplateTemplateArgument
 {
@@ -1814,7 +1839,7 @@ inline const DependentType& getDependentType(UniqueType type)
 struct DependentTypename
 {
 	Name name; // the type name
-	UniqueTypeWrapper qualifying; // the qualifying type
+	UniqueTypeWrapper qualifying; // the qualifying type: T::, C<T>::
 	TemplateArgumentsInstance templateArguments;
 	bool isNested; // T::dependent::
 	bool isTemplate; // T::template dependent<>
@@ -3120,6 +3145,9 @@ struct IsDependentVisitor : TypeElementVisitor
 		: result(false)
 	{
 	}
+	virtual void visit(const Namespace& element)
+	{
+	}
 	virtual void visit(const DependentType&)
 	{
 		result = true;
@@ -3240,6 +3268,10 @@ struct DeduceVisitor : TypeElementVisitor
 		{
 			result = false;
 		}
+	}
+	virtual void visit(const Namespace& element)
+	{
+		SYMBOLS_ASSERT(false);
 	}
 	virtual void visit(const DependentType& element) // deduce from T, TT, TT<...>
 	{
@@ -3621,6 +3653,7 @@ inline const SimpleType* substitute(const SimpleType& instance, Location source,
 	return &getSimpleType(result.value);
 }
 
+inline LookupResult findNamespaceDeclaration(Scope& scope, const Identifier& id, LookupFilter filter = IsAny());
 
 struct SubstituteVisitor : TypeElementVisitor
 {
@@ -3630,6 +3663,10 @@ struct SubstituteVisitor : TypeElementVisitor
 	SubstituteVisitor(UniqueTypeWrapper type, Location source, const SimpleType& enclosingType)
 		: type(type), source(source), enclosingType(enclosingType)
 	{
+	}
+	virtual void visit(const Namespace& element)
+	{
+		SYMBOLS_ASSERT(false);
 	}
 	virtual void visit(const DependentType& element) // substitute T, TT, TT<...>
 	{
@@ -3673,7 +3710,7 @@ struct SubstituteVisitor : TypeElementVisitor
 		}
 	}
 
-	virtual void visit(const DependentTypename& element) // substitute T::X, T::template X<...>
+	virtual void visit(const DependentTypename& element) // substitute T::X, T::template X<...>, x.X, x.template X
 	{
 		if(isDependent(enclosingType))
 		{
@@ -3682,62 +3719,111 @@ struct SubstituteVisitor : TypeElementVisitor
 			return;
 		}
 
-		UniqueTypeWrapper qualifying = substitute(element.qualifying, source, enclosingType);
-		const SimpleType* enclosing = qualifying == gUniqueTypeNull || !qualifying.isSimple() ? 0 : &getSimpleType(qualifying.value);
-		if(enclosing == 0
-			|| !isClass(*enclosing->declaration))
-		{
-			// [temp.deduct] Attempting to use a type that is not a class type in a qualified name
-			throw QualifyingIsNotClassError(source, qualifying);
-		}
-
-		instantiateClass(*enclosing, source, &enclosingType);
 		Identifier id;
 		id.value = element.name;
-		std::size_t visibility = enclosing->instantiating ? enclosingType.instantiation.pointOfInstantiation : VISIBILITY_ALL;
-		LookupResultRef declaration = findDeclaration(*enclosing, id, element.isNested ? LookupFilter(IsNestedName(visibility)) : LookupFilter(IsAny(visibility)));
 
-		if(declaration == 0)
+		Declaration* declaration = 0;
+		const SimpleType* memberEnclosing = 0;
+		if(element.qualifying == gUniqueTypeNull) // class member access: x.Dependent::
 		{
-#if 1
-			LookupResultRef declaration = findDeclaration(*enclosing, id, element.isNested ? LookupFilter(IsNestedName(VISIBILITY_ALL)) : LookupFilter(IsAny(VISIBILITY_ALL)));
-			if(declaration != 0)
+			// If the id-expression in a class member access is a qualified-id of the form
+			//   class-name-or-namespace-name::...
+			// the class-name-or-namespace-name following the . or -> operator is looked up both in the context of the
+			// entire postfix-expression and in the scope of the class of the object expression. If the name is found only in
+			// the scope of the class of the object expression, the name shall refer to a class-name. If the name is found
+			// only in the context of the entire postfix-expression, the name shall refer to a class-name or namespace-name.
+			// If the name is found in both contexts, the class-name-or-namespace-name shall refer to the same entity.
+
+			// look up id both within type of object expression and in enclosing scope
+			// result may be namespace or class (template)
+			SYMBOLS_ASSERT(false); // TODO
+			// if result is class member, report error if it is not a type
+			// set memberEnclosing to the member's enclosing class
+		}
+		else // T::Dependent
+		{
+			UniqueTypeWrapper qualifying = substitute(element.qualifying, source, enclosingType);
+			SYMBOLS_ASSERT(qualifying != gUniqueTypeNull);
+			if(qualifying.isNamespace())
 			{
-				std::cout << "visibility: " << visibility << std::endl;
-				std::cout << "found with VISIBILITY_ALL: " << declaration.p->visibility << std::endl;
+				// look up 'id' in namespace (only declarations visible at point of definition of template)
+				// result may be namespace or type
+				// if type, substitute within instantiation context
+				Scope& scope = *getNamespace(qualifying.value).declaration->enclosed;
+				std::size_t visibility = enclosingType.instantiation.pointOfInstantiation;
+				LookupResultRef result = findNamespaceDeclaration(scope, id, element.isNested ? LookupFilter(IsNestedName(visibility)) : LookupFilter(IsAny(visibility)));
+				if(result == 0) // if the name was not found within the qualifying namespace
+				{
+					throw MemberNotFoundError(source, element.name, qualifying);
+				}
+				declaration = result;
 			}
+			else
+			{
+				const SimpleType* enclosing = qualifying.isSimple() ? &getSimpleType(qualifying.value) : 0;
+				if(enclosing == 0
+					|| !isClass(*enclosing->declaration))
+				{
+					// [temp.deduct] Attempting to use a type that is not a class type in a qualified name
+					throw QualifyingIsNotClassError(source, qualifying);
+				}
+
+				instantiateClass(*enclosing, source, &enclosingType);
+				std::size_t visibility = enclosing->instantiating ? enclosingType.instantiation.pointOfInstantiation : VISIBILITY_ALL;
+				LookupResultRef result = findDeclaration(*enclosing, id, element.isNested ? LookupFilter(IsNestedName(visibility)) : LookupFilter(IsAny(visibility)));
+
+				if(result == 0) // if the name was not found within the qualifying class
+				{
+#if 1
+					LookupResultRef result = findDeclaration(*enclosing, id, element.isNested ? LookupFilter(IsNestedName(VISIBILITY_ALL)) : LookupFilter(IsAny(VISIBILITY_ALL)));
+					if(result != 0)
+					{
+						std::cout << "visibility: " << visibility << std::endl;
+						std::cout << "found with VISIBILITY_ALL: " << result.p->visibility << std::endl;
+					}
 #endif
-			// [temp.deduct]
-			// - Attempting to use a type in the qualifier portion of a qualified name that names a type when that
-			//   type does not contain the specified member
-			throw MemberNotFoundError(source, element.name, qualifying);
+					// [temp.deduct]
+					// - Attempting to use a type in the qualifier portion of a qualified name that names a type when that
+					//   type does not contain the specified member
+					throw MemberNotFoundError(source, element.name, qualifying);
+				}
+
+				declaration = result;
+
+				if(!isType(*declaration))
+				{
+					// [temp.deduct]
+					// - Attempting to use a type in the qualifier portion of a qualified name that names a type when [...]
+					//   the specified member is not a type where a type is required.
+					throw MemberIsNotTypeError(source, element.name, qualifying);
+				}
+
+				SYMBOLS_ASSERT(isMember(*declaration));
+				memberEnclosing = findEnclosingType(enclosing, declaration->scope); // the declaration must be a member of (a base of) the qualifying class: find which one.
+			}
 		}
-		if(!isType(*declaration))
+
+		if(isNamespace(*declaration))
 		{
-			// [temp.deduct]
-			// - Attempting to use a type in the qualifier portion of a qualified name that names a type when [...]
-			//   the specified member is not a type where a type is  required.
-			throw MemberIsNotTypeError(source, element.name, qualifying);
+			type = pushType(gUniqueTypeNull, Namespace(declaration));
+			return;
 		}
-
-		SYMBOLS_ASSERT(isMember(*declaration));
-
-		const SimpleType* memberEnclosing = findEnclosingType(enclosing, declaration->scope); // the declaration must be a member of (a base of) the qualifying class: find which one.
-		SYMBOLS_ASSERT(memberEnclosing != 0);
 
 		if(isClass(*declaration)
 			|| isEnum(*declaration))
 		{
 			type = substitute(declaration, memberEnclosing, element.templateArguments, source, enclosingType);
+			return;
 		}
-		else
+	
+		// typedef
+		SYMBOLS_ASSERT(declaration->specifiers.isTypedef);
+		SYMBOLS_ASSERT(declaration->type.unique != 0);
+		type = UniqueTypeWrapper(declaration->type.unique);
+		if(declaration->type.isDependent)
 		{
-			SYMBOLS_ASSERT(declaration->type.unique != 0);
-			type = UniqueTypeWrapper(declaration->type.unique);
-			if(declaration->type.isDependent)
-			{
-				type = substitute(type, source, *memberEnclosing);
-			}
+			SYMBOLS_ASSERT(memberEnclosing != 0);
+			type = substitute(type, source, *memberEnclosing);
 		}
 	}
 	virtual void visit(const DependentNonType& element)
@@ -4444,7 +4530,6 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, Location source, const
 		// this is a type-name (or template-id) preceded by a dependent nested-name-specifier
 		SYMBOLS_ASSERT(allowDependent);
 		bool isNested = declaration == &gDependentNested || declaration == &gDependentNestedTemplate;
-		SYMBOLS_ASSERT(!type.qualifying.empty()); // the type-name must be qualified
 		SYMBOLS_ASSERT(type.id != IdentifierPtr(0));
 		TemplateArgumentsInstance templateArguments;
 		makeUniqueTemplateArguments(type.templateArguments, templateArguments, source, enclosingType, allowDependent);
@@ -6590,9 +6675,6 @@ inline LookupResult findDeclaration(Scope& scope, const Identifier& id, LookupFi
 	return result;
 }
 
-inline LookupResult findNamespaceDeclaration(Scope& scope, const Identifier& id, LookupFilter filter = IsAny());
-
-
 // find a declaration within the set of using-directives present in a namespace
 inline LookupResult findDeclaration(Scope::Scopes& scopes, const Identifier& id, LookupFilter filter = IsAny())
 {
@@ -6942,6 +7024,11 @@ struct SymbolPrinter : TypeElementVisitor, ExpressionNodeVisitor
 
 	std::vector<CvQualifiers> qualifierStack;
 
+	void visit(const Namespace& element)
+	{
+		printer.out << getValue(element.declaration->getName()) << ".";
+		visitTypeElement();
+	}
 	void visit(const DependentType& element)
 	{
 		if(qualifierStack.back().isConst)
