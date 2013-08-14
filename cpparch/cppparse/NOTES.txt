@@ -710,4 +710,19 @@
 
 - task: overload resolution for built-in assignment operator
 
-- task: write up TODO in test_prepro
+- task: don't find friend function definition via normal lookup, only via ADL
+	- friend that "declares a namespace-scope function" means?
+		- e.g. friend void f() {}
+		- declares global 'f', not visible to normal lookup
+		- always filter out of name lookup
+		- 
+	- [class.friend] A friend function defined in a class is in the (lexical) scope of the	
+class in which it is defined. A friend function defined outside the class is not
+
+ Name lookup for a name used in the definition of a friend function (11.3) defined inline in the class granting
+friendship shall proceed as described for lookup in member function definitions. If the friend function is
+not defined in the class granting friendship, name lookup in the friend function definition shall proceed as
+described for lookup in namespace member function definitions.
+
+
++ task: ADL should filter everything but functions and function templates

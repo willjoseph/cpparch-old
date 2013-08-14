@@ -1339,6 +1339,13 @@ inline bool isNonMemberName(const Declaration& declaration)
 
 typedef LookupFilterDefault<isNonMemberName> IsNonMemberName;
 
+inline bool isFunctionName(const Declaration& declaration)
+{
+	return isFunction(declaration);
+}
+
+typedef LookupFilterDefault<isFunctionName> IsFunctionName;
+
 
 // ----------------------------------------------------------------------------
 // unique types
