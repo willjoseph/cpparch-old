@@ -1603,6 +1603,7 @@ namespace N231
 	};
 }
 
+#ifdef _CPPP_TEST // fails in msvc 10 and clang 3.4
 namespace N507
 {
 	namespace N
@@ -1626,9 +1627,9 @@ namespace N507
 		s.operator Type(); // Type should be looked up both in context of S and in context of postfix-expression
 	}
 }
+#endif
 
-#if 0 // check compliance, type should be looked up in context of entire postfix-expression?
-// C++03 says also in type of object expression?
+#ifdef _CPPP_TEST // fails in msvc 10 and clang 3.4
 namespace N507
 {
 	struct S
