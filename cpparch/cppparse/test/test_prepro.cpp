@@ -1603,7 +1603,31 @@ namespace N231
 	};
 }
 
-#if 1 // check compliance, type should be looked up in context of entire postfix-expression?
+namespace N507
+{
+	namespace N
+	{
+		struct Type
+		{
+		};
+		struct S : Type
+		{
+			operator Type()
+			{
+				return Type();
+			}
+		};
+	}
+	void f(N::S& s)
+	{
+		// If the id-expression is a conversion-function-id, its conversion-type-id is first looked up in the class of the
+		// object expression and the name, if found, is used. Otherwise it is looked up in the context of the entire
+		// postfix-expression.
+		s.operator Type(); // Type should be looked up both in context of S and in context of postfix-expression
+	}
+}
+
+#if 0 // check compliance, type should be looked up in context of entire postfix-expression?
 // C++03 says also in type of object expression?
 namespace N507
 {
@@ -1619,6 +1643,9 @@ namespace N507
 	};
 	void f(S& s)
 	{
+		// If the id-expression is a conversion-function-id, its conversion-type-id is first looked up in the class of the
+		// object expression and the name, if found, is used. Otherwise it is looked up in the context of the entire
+		// postfix-expression.
 		s.operator Type(); // Type should be looked up both in context of S and in context of postfix-expression
 	}
 }
