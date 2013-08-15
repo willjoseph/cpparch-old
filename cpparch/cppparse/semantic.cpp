@@ -327,10 +327,12 @@ struct KoenigVisitor : TypeElementVisitor
 		: associated(associated)
 	{
 	}
+#if 0
 	virtual void visit(const Namespace& element)
 	{
 		SYMBOLS_ASSERT(false);
 	}
+#endif
 	virtual void visit(const DependentType& element) // deduce from T, TT, TT<...>
 	{
 	}
@@ -1379,10 +1381,11 @@ struct WalkerState
 		{
 			bool isQualified = objectExpression.p != 0
 				&& memberClass != 0;
-			if(isQualified)
+			SYMBOLS_ASSERT(!(isUnqualifiedId && objectExpression.isTypeDependent)); // in case of unqualified-id, should check allowNameLookup before calling
+			if(isQualified
+				&& !objectExpression.isTypeDependent)
 			{
 				// [basic.lookup.classref]
-				SYMBOLS_ASSERT(!objectExpression.isTypeDependent);
 				SYMBOLS_ASSERT(memberClass != &gDependentSimpleType);
 				if(result.append(::findDeclaration(*memberClass, id, filter)))
 				{
@@ -2014,7 +2017,7 @@ struct WalkerBase : public WalkerState
 
 	LookupResultRef lookupTemplate(const Identifier& id, LookupFilter filter)
 	{
-		if(allowNameLookup())
+		if(!isDependent(qualifying_p))
 		{
 			return LookupResultRef(findDeclaration(id, filter));
 		}
@@ -2252,7 +2255,7 @@ struct WalkerQualified : public WalkerBase
 			{
 				qualifyingScope = declaration;
 			}
-			else if(!allowNameLookup())
+			else if(isDependent(qualifying_p))
 			{
 				qualifyingScope = 0;
 			}
@@ -3994,7 +3997,7 @@ struct TypeNameWalker : public WalkerBase
 	{
 		TREEWALKER_LEAF_CACHED(symbol);
 		LookupResultRef declaration = gDependentTypeInstance;
-		if(allowNameLookup())
+		if(!isDependent(qualifying_p))
 		{
 			declaration = findDeclaration(symbol->value, makeLookupFilter(filter));
 			if(declaration == &gUndeclared)
@@ -4085,7 +4088,7 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 		TREEWALKER_LEAF_CACHED(symbol);
 		LookupResultRef declaration = gDependentNestedInstance;
 		if(isDeclarator
-			|| allowNameLookup())
+			|| !isDependent(qualifying_p))
 		{
 			declaration = lookupQualified(symbol->value, isDeclarator, IsNestedName());
 			if(declaration == &gUndeclared)
@@ -4107,7 +4110,7 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 		TREEWALKER_WALK_CACHED(walker, symbol);
 		LookupResultRef declaration = gDependentNestedTemplateInstance;
 		if(isDeclarator
-			|| allowNameLookup())
+			|| !isDependent(qualifying_p))
 		{
 			declaration = lookupQualified(*walker.id, isDeclarator, IsNestedName());
 			if(declaration == &gUndeclared)

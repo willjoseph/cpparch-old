@@ -1357,7 +1357,9 @@ typedef LookupFilterDefault<isFunctionName> IsFunctionName;
 
 struct TypeElementVisitor
 {
+#if 0
 	virtual void visit(const struct Namespace&) = 0;
+#endif
 	virtual void visit(const struct DependentType&) = 0;
 	virtual void visit(const struct DependentTypename&) = 0;
 	virtual void visit(const struct DependentNonType&) = 0;
@@ -1507,10 +1509,12 @@ struct UniqueTypeWrapper
 	{
 		return typeid(*value) == typeid(TypeElementGeneric<SimpleType>);
 	}
+#if 0
 	bool isNamespace() const
 	{
 		return typeid(*value) == typeid(TypeElementGeneric<struct Namespace>);
 	}
+#endif
 	bool isPointer() const
 	{
 		return typeid(*value) == typeid(TypeElementGeneric<PointerType>);
@@ -1766,6 +1770,7 @@ inline const SimpleType& getSimpleType(UniqueType type)
 	return static_cast<const TypeElementGeneric<SimpleType>*>(type.getPointer())->value;
 }
 
+#if 0
 struct Namespace
 {
 	DeclarationPtr declaration;
@@ -1786,6 +1791,7 @@ inline bool operator<(const Namespace& left, const Namespace& right)
 {
 	return left.declaration.p < right.declaration.p;
 }
+#endif
 
 struct TemplateTemplateArgument
 {
@@ -2773,9 +2779,8 @@ struct InstantiationContext
 	Location source;
 	const SimpleType* enclosingType;
 	ScopePtr enclosingScope;
-	const SimpleType* memberClass;
-	InstantiationContext(Location source, const SimpleType* enclosingType, ScopePtr enclosingScope = 0, const SimpleType* memberClass = 0)
-		: source(source), enclosingType(enclosingType), enclosingScope(enclosingScope), memberClass(memberClass)
+	InstantiationContext(Location source, const SimpleType* enclosingType, ScopePtr enclosingScope = 0)
+		: source(source), enclosingType(enclosingType), enclosingScope(enclosingScope)
 	{
 	}
 };
@@ -3165,9 +3170,11 @@ struct IsDependentVisitor : TypeElementVisitor
 		: result(false)
 	{
 	}
+#if 0
 	virtual void visit(const Namespace& element)
 	{
 	}
+#endif
 	virtual void visit(const DependentType&)
 	{
 		result = true;
@@ -3289,10 +3296,12 @@ struct DeduceVisitor : TypeElementVisitor
 			result = false;
 		}
 	}
+#if 0
 	virtual void visit(const Namespace& element)
 	{
 		SYMBOLS_ASSERT(false);
 	}
+#endif
 	virtual void visit(const DependentType& element) // deduce from T, TT, TT<...>
 	{
 		if(element.templateParameterCount != 0) // TT or TT<..>
@@ -3684,10 +3693,12 @@ struct SubstituteVisitor : TypeElementVisitor
 		: type(type), source(source), enclosingType(enclosingType)
 	{
 	}
+#if 0
 	virtual void visit(const Namespace& element)
 	{
 		SYMBOLS_ASSERT(false);
 	}
+#endif
 	virtual void visit(const DependentType& element) // substitute T, TT, TT<...>
 	{
 		std::size_t index = element.type->templateParameter;
@@ -3744,6 +3755,7 @@ struct SubstituteVisitor : TypeElementVisitor
 
 		Declaration* declaration = 0;
 		const SimpleType* memberEnclosing = 0;
+#if 0
 		if(element.qualifying == gUniqueTypeNull) // class member access: x.Dependent::
 		{
 			// If the id-expression in a class member access is a qualified-id of the form
@@ -3761,9 +3773,11 @@ struct SubstituteVisitor : TypeElementVisitor
 			// set memberEnclosing to the member's enclosing class
 		}
 		else // T::Dependent
+#endif
 		{
 			UniqueTypeWrapper qualifying = substitute(element.qualifying, source, enclosingType);
 			SYMBOLS_ASSERT(qualifying != gUniqueTypeNull);
+#if 0
 			if(qualifying.isNamespace())
 			{
 				// look up 'id' in namespace (only declarations visible at point of definition of template)
@@ -3779,6 +3793,7 @@ struct SubstituteVisitor : TypeElementVisitor
 				declaration = result;
 			}
 			else
+#endif
 			{
 				const SimpleType* enclosing = qualifying.isSimple() ? &getSimpleType(qualifying.value) : 0;
 				if(enclosing == 0
@@ -3823,11 +3838,13 @@ struct SubstituteVisitor : TypeElementVisitor
 			}
 		}
 
+#if 0
 		if(isNamespace(*declaration))
 		{
 			type = pushType(gUniqueTypeNull, Namespace(declaration));
 			return;
 		}
+#endif
 
 		if(isClass(*declaration)
 			|| isEnum(*declaration))
@@ -7044,11 +7061,13 @@ struct SymbolPrinter : TypeElementVisitor, ExpressionNodeVisitor
 
 	std::vector<CvQualifiers> qualifierStack;
 
+#if 0
 	void visit(const Namespace& element)
 	{
 		printer.out << getValue(element.declaration->getName()) << ".";
 		visitTypeElement();
 	}
+#endif
 	void visit(const DependentType& element)
 	{
 		if(qualifierStack.back().isConst)

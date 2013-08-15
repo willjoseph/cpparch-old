@@ -4,6 +4,7 @@ namespace N341
 	template<typename T>
 	void f(T t)
 	{
+		typedef typename T::Dependent Dependent;
 		t.operator Dependent();
 	}
 }
@@ -130,6 +131,7 @@ namespace N232
 		T m;
 		void f()
 		{
+			typedef typename T::Dependent Dependent;
 			m.Dependent::dependent();
 			m.dependent();
 			m->dependent();
