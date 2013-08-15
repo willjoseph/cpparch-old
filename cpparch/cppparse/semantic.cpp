@@ -2776,6 +2776,7 @@ struct LiteralWalker : public WalkerBase
 	}
 };
 
+#if 0
 struct DependentPrimaryExpressionWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
@@ -2877,6 +2878,7 @@ struct DependentPostfixExpressionWalker : public WalkerBase
 		}
 	}
 };
+#endif
 
 struct PrimaryExpressionWalker : public WalkerBase
 {
@@ -2889,8 +2891,9 @@ struct PrimaryExpressionWalker : public WalkerBase
 	const SimpleType* idEnclosing; // may be valid when the above id-expression is a qualified-id
 	Dependent typeDependent;
 	Dependent valueDependent;
+	bool isUndeclared;
 	PrimaryExpressionWalker(const WalkerState& state)
-		: WalkerBase(state), id(0), arguments(context), idEnclosing(0)
+		: WalkerBase(state), id(0), arguments(context), idEnclosing(0), isUndeclared(false)
 	{
 	}
 	void visit(cpp::literal* symbol)
@@ -2937,6 +2940,13 @@ struct PrimaryExpressionWalker : public WalkerBase
 				true,
 				true
 			);
+		}
+		else if(walker.isIdentifier // the expression is 'identifier'
+			&& declaration == &gUndeclared) // the identifier was not previously declared
+		{
+			// defer name-lookup: this may be the id-expression in a dependent call to named function, to be found by ADL
+			isUndeclared = true;
+			setDecoration(id, gDependentObjectInstance);
 		}
 		else
 		{
@@ -3112,8 +3122,9 @@ struct PostfixExpressionWalker : public WalkerBase
 	const SimpleType* idEnclosing; // may be valid when the above id-expression is a qualified-id
 	Dependent typeDependent;
 	Dependent valueDependent;
+	bool isUndeclared;
 	PostfixExpressionWalker(const WalkerState& state)
-		: WalkerBase(state), id(0), arguments(context), idEnclosing(0)
+		: WalkerBase(state), id(0), arguments(context), idEnclosing(0), isUndeclared(false)
 	{
 	}
 	void clearMemberType()
@@ -3149,9 +3160,11 @@ struct PostfixExpressionWalker : public WalkerBase
 		id = walker.id;
 		arguments.swap(walker.arguments);
 		idEnclosing = walker.idEnclosing;
+		isUndeclared = walker.isUndeclared;
 		setExpressionType(symbol, type);
 		updateMemberType();
 	}
+#if 0
 	// prefix
 	void visit(cpp::postfix_expression_disambiguate* symbol)
 	{
@@ -3169,6 +3182,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		addDependent(typeDependent, walker.typeDependent);
 		updateMemberType();
 	}
+#endif
 	void visit(cpp::postfix_expression_construct* symbol)
 	{
 		ExplicitTypeExpressionWalker walker(getState());
@@ -3219,6 +3233,10 @@ struct PostfixExpressionWalker : public WalkerBase
 	// suffix
 	void visit(cpp::postfix_expression_subscript* symbol)
 	{
+		if(isUndeclared)
+		{
+			return reportIdentifierMismatch(symbol, *id, &gUndeclared, "object-name");
+		}
 		ExpressionWalker walker(getState());
 		walker.clearQualifying(); // the expression in [] is looked up in the context of the entire postfix expression
 		TREEWALKER_WALK_SRC(walker, symbol);
@@ -3317,6 +3335,25 @@ struct PostfixExpressionWalker : public WalkerBase
 			type = makeUniqueSimpleType(memberClass != 0 ? *memberClass : *enclosingType);
 			type.push_front(ReferenceType());
 		}
+		else if(isUndeclared) // if this is an expression of the form 'undeclared-id(args)', the name must be found via ADL 
+		{
+			SEMANTIC_ASSERT(!walker.arguments.empty()); // check that the argument-list was not empty
+
+			OverloadSet overloads;
+			argumentDependentLookup(overloads, *id, walker.arguments);
+
+			SEMANTIC_ASSERT(!overloads.empty()); // check that the declaration was found via ADL
+
+			FunctionOverload overload = findBestMatch(overloads, 0, walker.arguments, Location(id->source, context.declarationCount), idEnclosing);
+			SEMANTIC_ASSERT(overload.declaration != 0);
+#if 0 // TODO: find the corresponding declaration-instance for a name found via ADL
+			{
+				DeclarationInstanceRef instance = findLastDeclaration(getDeclaration(*id), overload.declaration);
+				setDecoration(id, instance);
+			}
+#endif
+			type = overload.type;
+		}
 		else
 		{
 			type = removeReference(type);
@@ -3399,10 +3436,13 @@ struct PostfixExpressionWalker : public WalkerBase
 					argumentDependentLookup(overloads, *id, arguments);
 				}
 
+				SEMANTIC_ASSERT(!overloads.empty());
+
 				// TODO: handle empty template-argument list '<>'. If specified, overload resolution should ignore non-templates
 				FunctionOverload overload = findBestMatch(overloads, templateArguments.empty() ? 0 : &templateArguments, arguments, Location(id->source, context.declarationCount), idEnclosing);
 				SEMANTIC_ASSERT(overload.declaration != 0);
 				{
+					// TODO: this will give the wrong result if the declaration was found via ADL and is in a different namespace
 					DeclarationInstanceRef instance = findLastDeclaration(getDeclaration(*id), overload.declaration);
 					setDecoration(id, instance);
 				}
@@ -3423,6 +3463,10 @@ struct PostfixExpressionWalker : public WalkerBase
 	}
 	void visit(cpp::postfix_expression_member* symbol)
 	{
+		if(isUndeclared)
+		{
+			return reportIdentifierMismatch(symbol, *id, &gUndeclared, "object-name");
+		}
 		PostfixExpressionMemberWalker walker(getState());
 		TREEWALKER_WALK_SRC(walker, symbol);
 		setExpressionType(symbol, type);
@@ -3506,6 +3550,10 @@ struct PostfixExpressionWalker : public WalkerBase
 	}
 	void visit(cpp::postfix_expression_destructor* symbol)
 	{
+		if(isUndeclared)
+		{
+			return reportIdentifierMismatch(symbol, *id, &gUndeclared, "object-name");
+		}
 		TREEWALKER_LEAF_SRC(symbol);
 		setExpressionType(symbol, type);
 		type = gVoid; // TODO: should this be null-type?
@@ -3515,6 +3563,10 @@ struct PostfixExpressionWalker : public WalkerBase
 	}
 	void visit(cpp::postfix_operator* symbol)
 	{
+		if(isUndeclared)
+		{
+			return reportIdentifierMismatch(symbol, *id, &gUndeclared, "object-name");
+		}
 		TREEWALKER_LEAF_SRC(symbol);
 		type = removeReference(type);
 		// [expr.post.incr] The type of the operand shall be an arithmetic type or a pointer to a complete object type.

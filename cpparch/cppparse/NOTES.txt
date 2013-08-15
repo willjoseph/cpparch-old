@@ -418,7 +418,7 @@
 	- what second standard-conversion is required in user-defined conversion involving constructor-call?
 		- is result of constructor-call an lvalue/rvalue?
 
-- task: fix type of conversion function declaration: declarator-ptr not correctly parsed
++ task: fix type of conversion function declaration: declarator-ptr not correctly parsed
 
 - task: test conversion function parse special-case
 	The conversion-type-id shall not represent a function type nor an array type. The conversion-type-id in a
@@ -726,3 +726,13 @@ described for lookup in namespace member function definitions.
 
 
 + task: ADL should filter everything but functions and function templates
+
+
+- task: allow undeclared bare-identifier followed by (params), assume to be found via ADL
+	- disallow undeclared[], undeclared.m, undeclared.~X(), undeclared++
+
+- investigate: function-scope using directive?
+
+- document boost change: fix error in pp_iterator_functor<ContextT>::dispatch_directive
+	- 'get_first_leaf' not found
+	- qualify with classic::

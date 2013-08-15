@@ -538,9 +538,9 @@ namespace cpp
 	struct postfix_expression_prefix : public choice<postfix_expression_prefix>, public postfix_expression
 	{
 		VISITABLE_DERIVED(postfix_expression);
-		VISITABLE_BASE(TYPELIST8(
+		VISITABLE_BASE(TYPELIST7(
 			SYMBOLFWD(primary_expression),
-			SYMBOLFWD(postfix_expression_disambiguate), // matched when 'identifier' in primary-expression is dependent
+			//SYMBOLFWD(postfix_expression_disambiguate), // matched when 'identifier' in primary-expression is dependent
 			SYMBOLFWD(postfix_expression_construct),
 			SYMBOLFWD(postfix_expression_cast),
 			SYMBOLFWD(postfix_expression_typeid),
@@ -1310,6 +1310,7 @@ namespace cpp
 		FOREACH3(lp, args, rp);
 	};
 
+#if 0
 	struct postfix_expression_disambiguate : public postfix_expression_prefix
 	{
 		VISITABLE_DERIVED(postfix_expression_prefix);
@@ -1317,6 +1318,7 @@ namespace cpp
 		symbol_required<postfix_expression_call> right;
 		FOREACH2(left, right);
 	};
+#endif
 
 	struct member_operator : public terminal_choice
 	{

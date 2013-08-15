@@ -1,4 +1,36 @@
 
+namespace N342
+{
+	template<typename T>
+	inline T const&get_first_leaf(T const&node);
+
+	template<typename T>
+	inline void f()
+	{
+		typedef typename T::const_iterator const_child_iterator_t;
+		const_child_iterator_t begin;
+		T const&root=(*begin).children;
+		get_first_leaf(*root.begin()).value; // this line
+	}
+}
+
+#if 1 // TODO: defer lookup of 'f' until arguments are known 
+namespace N321
+{
+	namespace N
+	{
+		struct A
+		{
+		};
+		int f(A);
+	}
+
+	N::A a;
+	int x = f(a);
+}
+#endif
+
+
 namespace N341
 {
 	template<typename T>
@@ -44,22 +76,6 @@ namespace N320
 
 	D d;
 	int i = f(d); // koenig lookup finds 'B<int>::f'
-}
-#endif
-
-#if 0 // TODO: defer lookup of 'f' until arguments are known 
-namespace N321
-{
-	namespace N
-	{
-		struct A
-		{
-		};
-		int f(A);
-	}
-
-	N::A a;
-	int x = f(a);
 }
 #endif
 
