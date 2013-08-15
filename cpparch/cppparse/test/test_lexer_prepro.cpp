@@ -77982,7 +77982,7 @@ namespace boost
 				typedef typename parse_tree_type::const_iterator const_child_iterator_t;
 				const_child_iterator_t begin=hit.trees.begin();
 				parse_tree_type const&root=(*begin).children;
-				parse_node_value_type const&nodeval=classic::get_first_leaf(*root.begin()).value; // this line
+				parse_node_value_type const&nodeval=get_first_leaf(*root.begin()).value;
 				const_child_iterator_t begin_child_it=(*root.begin()).children.begin();
 				const_child_iterator_t end_child_it=(*root.begin()).children.end();
 				token_id id=token_id(found_directive);

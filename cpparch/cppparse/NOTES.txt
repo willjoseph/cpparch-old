@@ -732,7 +732,3 @@ described for lookup in namespace member function definitions.
 	- disallow undeclared[], undeclared.m, undeclared.~X(), undeclared++
 
 - investigate: function-scope using directive?
-
-- document boost change: fix error in pp_iterator_functor<ContextT>::dispatch_directive
-	- 'get_first_leaf' not found
-	- qualify with classic::

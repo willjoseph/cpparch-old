@@ -3460,6 +3460,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		// TODO: set of pointers-to-function
 		id = 0; // don't perform overload resolution for a(x)(x);
 		updateMemberType();
+		isUndeclared = false; // for an expression of the form 'undeclared-id(args)'
 	}
 	void visit(cpp::postfix_expression_member* symbol)
 	{
@@ -3850,6 +3851,10 @@ struct ExpressionWalker : public WalkerBase
 	{
 		PostfixExpressionWalker walker(getState());
 		TREEWALKER_WALK_SRC(walker, symbol);
+		if(walker.isUndeclared)
+		{
+			return reportIdentifierMismatch(symbol, *id, &gUndeclared, "object-name");
+		}
 		id = walker.id;
 		type.swap(walker.type);
 		expression = walker.expression;
