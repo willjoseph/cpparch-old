@@ -1883,6 +1883,12 @@ struct WalkerBase : public WalkerState
 		return allocatorNew(context, Scope(context, name, type));
 	}
 
+	template<typename T>
+	ExpressionNode* makeExpression(const T& value)
+	{
+		return allocatorNew(context, value);
+	}
+
 	void disableBacktrack()
 	{
 		parser->addBacktrackCallback(makeBacktrackErrorCallback());
@@ -2626,6 +2632,8 @@ struct IdExpressionWalker : public WalkerQualified
 	LookupResultRef declaration;
 	IdentifierPtr id;
 	TemplateArguments arguments; // only used if the identifier is a template-name
+	Dependent typeDependent;
+	Dependent valueDependent;
 	bool isIdentifier;
 	bool isTemplate;
 	IdExpressionWalker(const WalkerState& state, bool isTemplate = false)
@@ -2651,6 +2659,13 @@ struct IdExpressionWalker : public WalkerQualified
 		id = walker.id;
 		arguments.swap(walker.arguments);
 		swapQualifying(walker.qualifying);
+	}
+	void visit(cpp::qualified_id* symbol)
+	{
+		TREEWALKER_LEAF(symbol);
+		// [temp.dep.expr] An id-expression is type-dependent if it contains:- a nested-name-specifier that contains a class-name that names a dependent type
+		setDependent(typeDependent, qualifying.get());
+		setDependent(valueDependent, qualifying.get()); // it's clearly value-dependent too, because name lookup must be deferred
 	}
 	void visit(cpp::unqualified_id* symbol)
 	{
@@ -2767,12 +2782,12 @@ struct LiteralWalker : public WalkerBase
 		{
 			symbol->id = isFloatingLiteral(symbol->value.value.c_str()) ? cpp::numeric_literal::FLOATING : cpp::numeric_literal::INTEGER;
 		}
-		expression = makeExpression(parseNumericLiteral(symbol));
+		expression = makeUniqueExpression(parseNumericLiteral(symbol));
 	}
 	void visit(cpp::string_literal* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		expression = makeExpression(IntegralConstantExpression(getStringLiteralType(symbol), IntegralConstant()));
+		expression = makeUniqueExpression(IntegralConstantExpression(getStringLiteralType(symbol), IntegralConstant()));
 	}
 };
 
@@ -2913,9 +2928,8 @@ struct PrimaryExpressionWalker : public WalkerBase
 		arguments.swap(walker.arguments);
 		type = gUniqueTypeNull;
 		LookupResultRef declaration = walker.declaration;
-		// [temp.dep.expr] An id-expression is type-dependent if it contains:- a nested-name-specifier that contains a class-name that names a dependent type
-		setDependent(typeDependent, walker.qualifying.get());
-		setDependent(valueDependent, walker.qualifying.get()); // it's clearly value-dependent too, because name lookup must be deferred
+		addDependent(typeDependent, walker.typeDependent);
+		addDependent(valueDependent, walker.valueDependent);
 
 		UniqueTypeWrapper qualifying = walker.qualifying.empty() || isNamespace(*walker.qualifying.back().declaration)
 			? gUniqueTypeNull : UniqueTypeWrapper(walker.qualifying.back().unique);
@@ -2930,12 +2944,15 @@ struct PrimaryExpressionWalker : public WalkerBase
 		{
 			expression = ExpressionWrapper(); // destructor has no type or value
 		}
-		else if(isDependent(walker.qualifying.get_ref()))
+		else if(isDependent(typeDependent))
 		{
 			setDecoration(id, gDependentObjectInstance);
 
+			TemplateArgumentsInstance templateArguments;
+			makeUniqueTemplateArguments(walker.arguments, templateArguments, Location(id->source, context.declarationCount), enclosingType, true);
+
 			expression = ExpressionWrapper(
-				makeExpression(DependentIdExpression(id->value, qualifying)),
+				makeUniqueExpression(DependentIdExpression(id->value, qualifying, templateArguments)),
 				true, // TODO: expression depending on template parameter may or may not be an integral constant expression
 				true,
 				true
@@ -2983,8 +3000,8 @@ struct PrimaryExpressionWalker : public WalkerBase
 			SEMANTIC_ASSERT(declaration->templateParameter == INDEX_INVALID || walker.qualifying.empty()); // template params cannot be qualified
 			expression = ExpressionWrapper(
 				declaration->templateParameter == INDEX_INVALID
-					? makeExpression(IdExpression(declaration, qualifyingType))
-					: makeExpression(NonTypeTemplateParameter(declaration)),
+					? makeUniqueExpression(IdExpression(declaration, qualifyingType))
+					: makeUniqueExpression(NonTypeTemplateParameter(declaration)),
 				false,
 				isDependent(typeDependent),
 				isDependent(valueDependent)
@@ -3045,9 +3062,12 @@ struct PostfixExpressionMemberWalker : public WalkerQualified
 {
 	TREEWALKER_DEFAULT;
 
+	ExpressionWrapper expression;
 	LookupResultRef declaration;
 	IdentifierPtr id; // only valid when the expression is a (parenthesised) id-expression
 	TemplateArguments arguments; // only used if the identifier is a template-name
+	Dependent typeDependent;
+	Dependent valueDependent;
 	bool isTemplate;
 	PostfixExpressionMemberWalker(const WalkerState& state)
 		: WalkerQualified(state), id(0), arguments(context), isTemplate(false)
@@ -3079,6 +3099,8 @@ struct PostfixExpressionMemberWalker : public WalkerQualified
 		arguments.swap(walker.arguments);
 		declaration = walker.declaration;
 		swapQualifying(walker.qualifying);
+		addDependent(typeDependent, walker.typeDependent);
+		addDependent(valueDependent, walker.valueDependent);
 	}
 };
 
@@ -3143,7 +3165,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		{
 			memberType = type;
 			objectExpression = ExpressionWrapper(
-				makeExpression(ExplicitTypeExpression(type)),
+				makeUniqueExpression(ExplicitTypeExpression(type)),
 				false, isDependent(typeDependent), isDependent(valueDependent)
 			);
 			SEMANTIC_ASSERT(objectExpression.isTypeDependent || !::isDependent(type));
@@ -3467,18 +3489,22 @@ struct PostfixExpressionWalker : public WalkerBase
 		arguments.swap(walker.arguments);
 		type = gUniqueTypeNull;
 		LookupResultRef declaration = walker.declaration;
-		// [temp.dep.expr] An id-expression is type-dependent if it contains:- a nested-name-specifier that contains a class-name that names a dependent type
-		setDependent(typeDependent, walker.qualifying.get());
-		setDependent(valueDependent, walker.qualifying.get()); // it's clearly value-dependent too, because name lookup must be deferred
+		addDependent(typeDependent, walker.typeDependent);
+		addDependent(valueDependent, walker.valueDependent);
 
 		UniqueTypeWrapper qualifying = walker.qualifying.empty() || isNamespace(*walker.qualifying.back().declaration)
 			? gUniqueTypeNull : UniqueTypeWrapper(walker.qualifying.back().unique);
 
-		if(id == &gDestructorId)
+		if(declaration == &gUndeclared
+			&& id->value == gOperatorAssignId)
+		{
+			// TODO: declare operator= if not already declared
+		}
+		else if(id == &gDestructorId)
 		{
 			// a.~A()
 		}
-		else if(isDependent(typeDependent)) // if the object expression or the id-expression is dependent
+		else if(isDependent(typeDependent)) // if the object expression or the qualifying type is dependent
 		{
 			// declaration will be 0 if the object-expression was dependent, or the id-expression is a qualified-id with a dependent nested-name-specifier
 			SEMANTIC_ASSERT(declaration != 0 || objectExpression.isTypeDependent || isDependent(walker.qualifying.get_ref()));
@@ -3495,16 +3521,6 @@ struct PostfixExpressionWalker : public WalkerBase
 
 			SEMANTIC_ASSERT(declaration != &gUndeclared);
 			SEMANTIC_ASSERT(isObject(*declaration));
-#if 0
-			if(declaration == &gUndeclared
-				|| !isObject(*declaration))
-			{
-				// TODO: report non-fatal error
-				//reportIdentifierMismatch(symbol, *id, declaration, "object-name");
-				clearMemberType();
-				return;
-			}
-#endif
 
 			// [temp.dep.expr] An id-expression is type-dependent if it contains:- an identifier that was declared with a dependent type
 			addDependentType(typeDependent, declaration);
@@ -3573,7 +3589,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		type = gBool;
 		UnaryTypeTraitsOp operation = getUnaryTypeTraitsOp(symbol->trait);
 		Name name = getTypeTraitName(symbol);
-		expression = ExpressionWrapper(makeExpression(TypeTraitsUnaryExpression(name, operation, walker.first)), true, false, isDependent(valueDependent));
+		expression = ExpressionWrapper(makeUniqueExpression(TypeTraitsUnaryExpression(name, operation, walker.first)), true, false, isDependent(valueDependent));
 	}
 	void visit(cpp::postfix_expression_typetraits_binary* symbol)
 	{
@@ -3583,7 +3599,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		type = gBool;
 		BinaryTypeTraitsOp operation = getBinaryTypeTraitsOp(symbol->trait);
 		Name name = getTypeTraitName(symbol);
-		expression = ExpressionWrapper(makeExpression(TypeTraitsBinaryExpression(name, operation, walker.first, walker.second)), true, false, isDependent(valueDependent));
+		expression = ExpressionWrapper(makeUniqueExpression(TypeTraitsBinaryExpression(name, operation, walker.first, walker.second)), true, false, isDependent(valueDependent));
 	}
 };
 
@@ -3609,7 +3625,7 @@ struct SizeofTypeExpressionWalker : public WalkerBase
 		UniqueTypeId type = getUniqueTypeSafe(walker.type);
 		setExpressionType(symbol, type);
 
-		expression = ExpressionWrapper(makeExpression(SizeofTypeExpression(type)), true, false, isDependent(valueDependent));
+		expression = ExpressionWrapper(makeUniqueExpression(SizeofTypeExpression(type)), true, false, isDependent(valueDependent));
 	}
 };
 
@@ -3679,7 +3695,7 @@ struct ExpressionWalker : public WalkerBase
 		BinaryIceOp iceOp = getBinaryIceOp(symbol);
 		ExpressionWrapper leftExpression = expression;
 		expression = ExpressionWrapper(
-			makeExpression(BinaryExpression(getBinaryOperatorName(symbol), iceOp, typeOp, expression, walker.expression)),
+			makeUniqueExpression(BinaryExpression(getBinaryOperatorName(symbol), iceOp, typeOp, expression, walker.expression)),
 			expression.isConstant && walker.expression.isConstant && iceOp != 0,
 			isDependent(typeDependent),
 			isDependent(valueDependent)
@@ -3752,7 +3768,7 @@ struct ExpressionWalker : public WalkerBase
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
 		expression = ExpressionWrapper(
-			makeExpression(TernaryExpression(conditional, ternaryOperatorNull, expression, walker.left, walker.right)),
+			makeUniqueExpression(TernaryExpression(conditional, ternaryOperatorNull, expression, walker.left, walker.right)),
 			expression.isConstant && walker.left.isConstant && walker.right.isConstant,
 			isDependent(typeDependent),
 			isDependent(valueDependent)
@@ -3871,7 +3887,7 @@ struct ExpressionWalker : public WalkerBase
 
 		UnaryIceOp iceOp = getUnaryIceOp(symbol);
 		expression = ExpressionWrapper(
-			makeExpression(UnaryExpression(symbol->op->value.value, iceOp, 0, expression)),
+			makeUniqueExpression(UnaryExpression(symbol->op->value.value, iceOp, 0, expression)),
 			expression.isConstant && iceOp != 0,
 			isDependent(typeDependent),
 			isDependent(valueDependent)
@@ -3963,7 +3979,7 @@ struct ExpressionWalker : public WalkerBase
 		addDependent(valueDependent, walker.typeDependent);
 		type = gUnsignedInt;
 		setExpressionType(symbol, type);
-		expression = ExpressionWrapper(makeExpression(SizeofExpression(walker.expression)), true, false, isDependent(valueDependent));
+		expression = ExpressionWrapper(makeUniqueExpression(SizeofExpression(walker.expression)), true, false, isDependent(valueDependent));
 	}
 	void visit(cpp::unary_expression_sizeoftype* symbol)
 	{
@@ -5271,7 +5287,7 @@ struct EnumSpecifierWalker : public WalkerBase
 			declaration = instance;
 		}
 		// [dcl.enum] If the first enumerator has no initializer, the value of the corresponding constant is zero.
-		value = makeExpression(IntegralConstantExpression(gSignedInt, IntegralConstant(0))); // TODO: [dcl.enum] underlying type of enumerator
+		value = makeUniqueExpression(IntegralConstantExpression(gSignedInt, IntegralConstant(0))); // TODO: [dcl.enum] underlying type of enumerator
 	}
 
 	void visit(cpp::enumerator_definition* symbol)
@@ -5301,9 +5317,9 @@ struct EnumSpecifierWalker : public WalkerBase
 			walker.declaration->initializer = value;
 		}
 		// [dcl.enum] An enumerator-definition without an initializer gives the enumerator the value obtained by increasing the value of the previous enumerator by one.
-		ExpressionPtr one = makeExpression(IntegralConstantExpression(gSignedInt, IntegralConstant(1)));
+		ExpressionPtr one = makeUniqueExpression(IntegralConstantExpression(gSignedInt, IntegralConstant(1)));
 		value = ExpressionWrapper(
-			makeExpression(BinaryExpression(Name("+"), operator+, binaryOperatorAssignment, value, one)),
+			makeUniqueExpression(BinaryExpression(Name("+"), operator+, binaryOperatorAssignment, value, one)),
 			true, value.isTypeDependent, value.isValueDependent
 		);
 	}

@@ -1,17 +1,15 @@
 
-namespace N342
-{
-	template<typename T>
-	inline T const&get_first_leaf(T const&node);
 
-	template<typename T>
-	inline void f()
+namespace N343
+{
+	class C
 	{
-		typedef typename T::const_iterator const_child_iterator_t;
-		const_child_iterator_t begin;
-		T const&root=(*begin).children;
-		get_first_leaf(*root.begin()).value; // this line
-	}
+		void f()
+		{
+			// [special] Programs may explicitly refer to implicitly declared special member functions.
+			this->operator=(*this); // explicit call of operator not supported
+		}
+	};
 }
 
 #if 1 // TODO: defer lookup of 'f' until arguments are known 

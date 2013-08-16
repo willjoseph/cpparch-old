@@ -582,6 +582,8 @@
 	- id-expression
 		- deferred lookup for dependent nested-name-specifier
 		- store qualifying type/namespace as unique-type
+		- template-arguments?
+			- possibly dependent
 	- binary-expression
 		- operator
 		- left, right: the operand expressions
@@ -600,9 +602,6 @@
 			- valid only when expression is not dependent
 			- represents type of expression on left hand side of class-member access
 			- store objectExpression instead
-			- issue: what to do when left hand side of class-member-access expression is dependent, and followed by nested name-specifier?
-				- e.g. 'x.C::m'
-				- type of 'C' will be later looked up both within type of 'x' and in enclosing scope
 		- inputs:
 			- id: the name in a call-to-named-function
 			- qualifying: the optional nested-name-specifier as in 'x.C::m'
@@ -706,6 +705,7 @@
 		- both objectExpression and enclosingScope
 		- if nested-name-specifier prefix is dependent, allow empty qualifying
 		- allow finding namespace
+	- closer analysis of the standard suggests that nested name specifier prefix in class-member-access cannot be dependent
 
 
 - task: overload resolution for built-in assignment operator

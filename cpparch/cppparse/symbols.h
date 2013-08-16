@@ -621,7 +621,7 @@ inline UniqueExpression makeBuiltInExpression(const T& value)
 }
 
 template<typename T>
-inline UniqueExpression makeExpression(const T& value)
+inline UniqueExpression makeUniqueExpression(const T& value)
 {
 	ExpressionNodeGeneric<T> node(value);
 	{
@@ -2533,8 +2533,9 @@ struct DependentIdExpression
 {
 	Name name;
 	UniqueTypeWrapper qualifying;
-	DependentIdExpression(Name name, UniqueTypeWrapper qualifying)
-		: name(name), qualifying(qualifying)
+	TemplateArgumentsInstance templateArguments;
+	DependentIdExpression(Name name, UniqueTypeWrapper qualifying, TemplateArgumentsInstance templateArguments)
+		: name(name), qualifying(qualifying), templateArguments(templateArguments)
 	{
 		SYMBOLS_ASSERT(qualifying.value.p != 0);
 	}
@@ -2544,7 +2545,9 @@ inline bool operator<(const DependentIdExpression& left, const DependentIdExpres
 {
 	return left.name != right.name
 		? left.name < right.name
-		: left.qualifying < right.qualifying;
+			: left.qualifying != right.qualifying
+			? left.qualifying < right.qualifying
+				: left.templateArguments < right.templateArguments;
 }
 
 inline bool isDependentIdExpression(ExpressionNode* node)
@@ -2772,6 +2775,28 @@ inline bool operator<(const TypeTraitsBinaryExpression& left, const TypeTraitsBi
 			? left.first < right.first
 			: left.second < right.second;
 }
+
+
+struct MemberAccessExpression
+{
+	ExpressionPtr left; // extract type, memberClass
+	ExpressionPtr right; // always id-expression
+	bool isArrow;
+	MemberAccessExpression(ExpressionPtr left, ExpressionPtr right, bool isArrow)
+		: left(left), right(right), isArrow(isArrow)
+	{
+	}
+};
+
+// overload resolution is required if the lefthand side is
+// - a (parenthesised) id-expression
+// - of class type
+struct FunctionCallExpression
+{
+	ExpressionPtr left; // TODO: extract memberClass, id, idEnclosing, type
+	TemplateArgumentsInstance templateArguments;
+	//Arguments arguments;
+};
 
 
 struct InstantiationContext
@@ -4365,7 +4390,7 @@ inline void makeUniqueTemplateParameters(const TemplateParameters& templateParam
 		}
 		else
 		{
-			UniqueExpression expression = makeExpression(NonTypeTemplateParameter(argument.declaration));
+			UniqueExpression expression = makeUniqueExpression(NonTypeTemplateParameter(argument.declaration));
 			allowDependent
 				? pushUniqueType(result.value, DependentNonType(expression))
 				: pushUniqueType(result.value, NonType(evaluateExpression(expression, source, enclosing)));
@@ -7710,7 +7735,7 @@ inline void addConversionFunctionOverloads(OverloadResolver& resolver, const Sim
 template<typename To>
 FunctionOverload findBestConversionFunction(To to, UniqueTypeWrapper from, Location source, const SimpleType* enclosing, bool isNullPointerConstant, bool isLvalue)
 {
-	UniqueExpression nullPointerConstantExpression = makeExpression(IntegralConstantExpression(gSignedInt, IntegralConstant(0)));
+	UniqueExpression nullPointerConstantExpression = makeUniqueExpression(IntegralConstantExpression(gSignedInt, IntegralConstant(0)));
 	ExpressionWrapper expression(isNullPointerConstant ? nullPointerConstantExpression : 0, isNullPointerConstant);
 	Arguments arguments;
 	arguments.push_back(Argument(expression, from));
