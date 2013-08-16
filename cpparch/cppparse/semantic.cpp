@@ -3233,10 +3233,6 @@ struct PostfixExpressionWalker : public WalkerBase
 	// suffix
 	void visit(cpp::postfix_expression_subscript* symbol)
 	{
-		if(isUndeclared)
-		{
-			return reportIdentifierMismatch(symbol, *id, &gUndeclared, "object-name");
-		}
 		ExpressionWalker walker(getState());
 		walker.clearQualifying(); // the expression in [] is looked up in the context of the entire postfix expression
 		TREEWALKER_WALK_SRC(walker, symbol);
@@ -3301,7 +3297,7 @@ struct PostfixExpressionWalker : public WalkerBase
 
 		if(expression.isNonStaticMemberName)
 		{
-			SEMANTIC_ASSERT(enclosingType != 0); // TODO: check that the id-expression is found in the context of a non-static member
+			SEMANTIC_ASSERT(enclosingType != 0); // TODO: check that the id-expression is found in the context of a non-static member (i.e. 'this' is valid)
 			// [class.mfct.nonstatic] An id-expression (that is not part of a class-member-access expression, and is found in the context of a nonstatic member)
 			// that names a nonstatic member is transformed to a class-member-access expression prefixed by (*this)
 
@@ -3464,10 +3460,6 @@ struct PostfixExpressionWalker : public WalkerBase
 	}
 	void visit(cpp::postfix_expression_member* symbol)
 	{
-		if(isUndeclared)
-		{
-			return reportIdentifierMismatch(symbol, *id, &gUndeclared, "object-name");
-		}
 		PostfixExpressionMemberWalker walker(getState());
 		TREEWALKER_WALK_SRC(walker, symbol);
 		setExpressionType(symbol, type);
@@ -3551,10 +3543,6 @@ struct PostfixExpressionWalker : public WalkerBase
 	}
 	void visit(cpp::postfix_expression_destructor* symbol)
 	{
-		if(isUndeclared)
-		{
-			return reportIdentifierMismatch(symbol, *id, &gUndeclared, "object-name");
-		}
 		TREEWALKER_LEAF_SRC(symbol);
 		setExpressionType(symbol, type);
 		type = gVoid; // TODO: should this be null-type?
@@ -3564,10 +3552,6 @@ struct PostfixExpressionWalker : public WalkerBase
 	}
 	void visit(cpp::postfix_operator* symbol)
 	{
-		if(isUndeclared)
-		{
-			return reportIdentifierMismatch(symbol, *id, &gUndeclared, "object-name");
-		}
 		TREEWALKER_LEAF_SRC(symbol);
 		type = removeReference(type);
 		// [expr.post.incr] The type of the operand shall be an arithmetic type or a pointer to a complete object type.
