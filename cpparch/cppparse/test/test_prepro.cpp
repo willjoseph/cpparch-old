@@ -1,5 +1,43 @@
 
 
+namespace N121
+{
+	struct S
+	{
+		int m;
+		void f()
+		{
+			int m; // hides declaration of 'S::m'
+			// 'm' should be looked up in the scope of 'S'
+			this->m = 0;
+			(*this).m = 0;
+			this[0].m = 0;
+			S& s = *this;
+			s.m = 0;
+			S*& p = this;
+			p->m = 0;
+		}
+	};
+}
+
+namespace N337
+{
+	struct A
+	{
+		int m();
+	};
+
+	struct B
+	{
+		int (A::* m)();
+	};
+
+	A a;
+	B b;
+	int i = (a.*b.m)();
+}
+
+
 namespace N343
 {
 	class C
@@ -250,23 +288,6 @@ namespace N336
 	A a;
 	B b;
 	int i = a.*b.m;
-}
-
-namespace N337
-{
-	struct A
-	{
-		int m();
-	};
-
-	struct B
-	{
-		int (A::* m)();
-	};
-
-	A a;
-	B b;
-	int i = (a.*b.m)();
 }
 
 namespace N335

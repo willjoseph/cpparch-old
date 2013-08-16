@@ -1969,26 +1969,6 @@ namespace N245
 	}
 }
 
-namespace N121
-{
-	struct S
-	{
-		int m;
-		void f()
-		{
-			int m; // hides declaration of 'S::m'
-			// 'm' should be looked up in the scope of 'S'
-			this->m = 0;
-			(*this).m = 0;
-			this[0].m = 0;
-			S& s = *this;
-			s.m = 0;
-			S*& p = this;
-			p->m = 0;
-		}
-	};
-}
-
 
 namespace N120
 {

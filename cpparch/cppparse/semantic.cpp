@@ -1254,7 +1254,7 @@ struct WalkerState
 	Dependent enclosingDependent;
 	TypePtr qualifying_p;
 	DeclarationPtr qualifyingScope;
-	const SimpleType* qualifyingType;
+	const SimpleType* qualifyingClass;
 	const SimpleType* memberClass;
 	UniqueTypeWrapper memberType;
 	ExpressionWrapper objectExpression; // the lefthand side of a class member access expression
@@ -1270,7 +1270,7 @@ struct WalkerState
 		, enclosingType(0)
 		, qualifying_p(0)
 		, qualifyingScope(0)
-		, qualifyingType(0)
+		, qualifyingClass(0)
 		, memberClass(0)
 		, templateParams(0)
 		, templateParamScope(0)
@@ -1348,10 +1348,10 @@ struct WalkerState
 		SEMANTIC_ASSERT(getQualifyingScope() != 0);
 		LookupResult result;
 		// [basic.lookup.qual]
-		if(qualifyingType != 0)
+		if(qualifyingClass != 0)
 		{
-			instantiateClass(*qualifyingType, getLocation(), enclosingType);
-			if(result.append(::findDeclaration(*qualifyingType, id, filter)))
+			instantiateClass(*qualifyingClass, getLocation(), enclosingType);
+			if(result.append(::findDeclaration(*qualifyingClass, id, filter)))
 			{
 				return result;
 			}
@@ -1607,7 +1607,7 @@ struct WalkerState
 	{
 		qualifying_p = 0;
 		qualifyingScope = 0;
-		qualifyingType = 0;
+		qualifyingClass = 0;
 		memberType = gUniqueTypeNull;
 		memberClass = 0;
 		objectExpression = ExpressionWrapper();
@@ -1886,7 +1886,7 @@ struct WalkerBase : public WalkerState
 	template<typename T>
 	ExpressionNode* makeExpression(const T& value)
 	{
-		return allocatorNew(context, value);
+		return allocatorNew(context, ExpressionNodeGeneric<T>(value));
 	}
 
 	void disableBacktrack()
@@ -2228,7 +2228,7 @@ struct WalkerQualified : public WalkerBase
 		SEMANTIC_ASSERT(qualifying.empty());
 		qualifying_p = context.globalType.get_ref();
 		qualifyingScope = qualifying_p->declaration;
-		qualifyingType = 0;
+		qualifyingClass = 0;
 	}
 
 	void swapQualifying(const Type& type, bool isDeclarator = false)
@@ -2267,8 +2267,8 @@ struct WalkerQualified : public WalkerBase
 			}
 			else
 			{
-				qualifyingType = &getSimpleType(getUniqueType(*qualifying_p, getLocation(), enclosingType, isDeclarator).value);
-				qualifyingScope = qualifyingType->declaration;
+				qualifyingClass = &getSimpleType(getUniqueType(*qualifying_p, getLocation(), enclosingType, isDeclarator).value);
+				qualifyingScope = qualifyingClass->declaration;
 			}
 		}
 	}
@@ -2629,15 +2629,17 @@ struct IdExpressionWalker : public WalkerQualified
 	- a conversion-function-id that specifies a dependent type,
 	- a nested-name-specifier or a qualified-id that names a member of an unknown specialization
 	*/
+	ExpressionWrapper expression;
 	LookupResultRef declaration;
 	IdentifierPtr id;
 	TemplateArguments arguments; // only used if the identifier is a template-name
 	Dependent typeDependent;
 	Dependent valueDependent;
 	bool isIdentifier;
+	bool isUndeclared;
 	bool isTemplate;
 	IdExpressionWalker(const WalkerState& state, bool isTemplate = false)
-		: WalkerQualified(state), id(0), arguments(context), isIdentifier(false), isTemplate(isTemplate)
+		: WalkerQualified(state), id(0), arguments(context), isIdentifier(false), isUndeclared(false), isTemplate(isTemplate)
 	{
 	}
 	void visit(cpp::qualified_id_default* symbol)
@@ -2676,6 +2678,96 @@ struct IdExpressionWalker : public WalkerQualified
 		id = walker.id;
 		arguments.swap(walker.arguments);
 		isIdentifier = walker.isIdentifier;
+	}
+	bool commit()
+	{
+		UniqueTypeWrapper qualifyingType = qualifying.empty() || isNamespace(*qualifying.back().declaration)
+			? gUniqueTypeNull : UniqueTypeWrapper(qualifying.back().unique);
+
+		expression = ExpressionWrapper();
+
+		if(declaration == &gUndeclared
+			&& id->value == gOperatorAssignId)
+		{
+			// TODO: declare operator= if not already declared
+		}
+		else if(id == &gDestructorId)
+		{
+			// destructor has no type or value
+		}
+		else if(isDependent(typeDependent)
+			|| objectExpressionIsDependent())
+		{
+			setDecoration(id, gDependentObjectInstance);
+
+			TemplateArgumentsInstance templateArguments;
+			makeUniqueTemplateArguments(arguments, templateArguments, Location(id->source, context.declarationCount), enclosingType, true);
+
+			expression = ExpressionWrapper(
+				makeUniqueExpression(DependentIdExpression(id->value, qualifyingType, templateArguments)),
+				true, // TODO: expression depending on template parameter may or may not be an integral constant expression
+				true,
+				true
+				);
+		}
+		else if(isIdentifier // the expression is 'identifier'
+			&& declaration == &gUndeclared) // the identifier was not previously declared
+		{
+			// defer name-lookup: this may be the id-expression in a dependent call to named function, to be found by ADL
+			isUndeclared = true;
+			setDecoration(id, gDependentObjectInstance);
+		}
+		else
+		{
+			SEMANTIC_ASSERT(declaration != 0);
+
+			if(declaration == &gUndeclared
+				|| !isObject(*declaration))
+			{
+				return false;
+			}
+
+			// [temp.dep.expr] An id-expression is type-dependent if it contains:- an identifier that was declared with a dependent type
+			addDependentType(typeDependent, declaration);
+			// [temp.dep.expr] An id-expression is type-dependent if it contains: - a template-id that is dependent
+			setDependent(typeDependent, arguments); // the id-expression may have an explicit template argument list
+			// [temp.dep.expr] An id-expression is type-dependent if it contains: - an identifier associated by name lookup with one or more declarations declared with a dependent type,
+			addDependentOverloads(typeDependent, declaration);
+
+			// [temp.dep.constexpr] An identifier is value-dependent if it is:- a name declared with a dependent type
+			addDependentType(valueDependent, declaration);
+			// [temp.dep.constexpr] An identifier is value-dependent if it is:- the name of a non-type template parameter,
+			// - a constant with integral or enumeration type and is initialized with an expression that is value-dependent.
+			addDependentName(valueDependent, declaration); // adds 'declaration' if it names a non-type template-parameter; adds a dependent initializer
+
+
+			setDecoration(id, declaration);
+
+			SEMANTIC_ASSERT(!isDependent(qualifying.get_ref()));
+
+			const SimpleType* qualifyingClass = qualifyingType == gUniqueTypeNull ? 0 : &getSimpleType(qualifyingType.value);
+			SEMANTIC_ASSERT(qualifyingClass == this->qualifyingClass);
+
+			SEMANTIC_ASSERT(declaration->templateParameter == INDEX_INVALID || qualifying.empty()); // template params cannot be qualified
+			expression = ExpressionWrapper(
+				declaration->templateParameter == INDEX_INVALID
+				? makeUniqueExpression(IdExpression(declaration, qualifyingClass))
+				: makeUniqueExpression(NonTypeTemplateParameter(declaration)),
+				false,
+				isDependent(typeDependent),
+				isDependent(valueDependent)
+				);
+
+			expression.isNonStaticMemberName = isMember(*declaration) && !isStatic(*declaration);
+			expression.isQualifiedNonStaticMemberName = expression.isNonStaticMemberName && qualifyingType != gUniqueTypeNull;
+
+			// [expr.const]
+			// An integral constant-expression can involve only ... enumerators, const variables or static
+			// data members of integral or enumeration types initialized with constant expressions, non-type template
+			// parameters of integral or enumeration types
+			expression.isConstant = declaration->templateParameter != INDEX_INVALID;
+		}
+		return true;
 	}
 };
 
@@ -2924,92 +3016,24 @@ struct PrimaryExpressionWalker : public WalkerBase
 		Source source = parser->get_source();
 		IdExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
+		if(!walker.commit())
+		{
+			return reportIdentifierMismatch(symbol, *walker.id, walker.declaration, "object-name");
+		}
 		id = walker.id;
 		arguments.swap(walker.arguments);
 		type = gUniqueTypeNull;
 		LookupResultRef declaration = walker.declaration;
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
+		expression = walker.expression;
+		isUndeclared = walker.isUndeclared;
 
-		UniqueTypeWrapper qualifying = walker.qualifying.empty() || isNamespace(*walker.qualifying.back().declaration)
-			? gUniqueTypeNull : UniqueTypeWrapper(walker.qualifying.back().unique);
+		SEMANTIC_ASSERT(memberClass == 0); // assert that the id-expression is not part of a class-member-access
 
-		if(declaration == &gUndeclared
-			&& id->value == gOperatorAssignId)
+		if(expression.p != 0
+			&& !isDependent(typeDependent))
 		{
-			// TODO: declare operator= if not already declared
-			expression = ExpressionWrapper();
-		}
-		else if(id == &gDestructorId)
-		{
-			expression = ExpressionWrapper(); // destructor has no type or value
-		}
-		else if(isDependent(typeDependent))
-		{
-			setDecoration(id, gDependentObjectInstance);
-
-			TemplateArgumentsInstance templateArguments;
-			makeUniqueTemplateArguments(walker.arguments, templateArguments, Location(id->source, context.declarationCount), enclosingType, true);
-
-			expression = ExpressionWrapper(
-				makeUniqueExpression(DependentIdExpression(id->value, qualifying, templateArguments)),
-				true, // TODO: expression depending on template parameter may or may not be an integral constant expression
-				true,
-				true
-			);
-		}
-		else if(walker.isIdentifier // the expression is 'identifier'
-			&& declaration == &gUndeclared) // the identifier was not previously declared
-		{
-			// defer name-lookup: this may be the id-expression in a dependent call to named function, to be found by ADL
-			isUndeclared = true;
-			setDecoration(id, gDependentObjectInstance);
-		}
-		else
-		{
-			SEMANTIC_ASSERT(declaration != 0);
-			SEMANTIC_ASSERT(memberClass == 0) // assert that the id-expression is not part of a class-member-access
-
-			if(declaration == &gUndeclared
-				|| !isObject(*declaration))
-			{
-				return reportIdentifierMismatch(symbol, *id, declaration, "object-name");
-			}
-
-			// [temp.dep.expr] An id-expression is type-dependent if it contains:- an identifier that was declared with a dependent type
-			addDependentType(typeDependent, declaration);
-			// [temp.dep.expr] An id-expression is type-dependent if it contains: - a template-id that is dependent
-			setDependent(typeDependent, arguments); // the id-expression may have an explicit template argument list
-			// [temp.dep.expr] An id-expression is type-dependent if it contains: - an identifier associated by name lookup with one or more declarations declared with a dependent type,
-			addDependentOverloads(typeDependent, declaration);
-
-			// [temp.dep.constexpr] An identifier is value-dependent if it is:- a name declared with a dependent type
-			addDependentType(valueDependent, declaration);
-			// [temp.dep.constexpr] An identifier is value-dependent if it is:- the name of a non-type template parameter,
-			// - a constant with integral or enumeration type and is initialized with an expression that is value-dependent.
-			addDependentName(valueDependent, declaration); // adds 'declaration' if it names a non-type template-parameter; adds a dependent initializer
-
-
-			setDecoration(id, declaration);
-
-			SEMANTIC_ASSERT(!isDependent(walker.qualifying.get_ref()));
-
-			const SimpleType* qualifyingType = qualifying == gUniqueTypeNull ? 0 : &getSimpleType(qualifying.value);
-			SEMANTIC_ASSERT(qualifyingType == walker.qualifyingType);
-
-			SEMANTIC_ASSERT(declaration->templateParameter == INDEX_INVALID || walker.qualifying.empty()); // template params cannot be qualified
-			expression = ExpressionWrapper(
-				declaration->templateParameter == INDEX_INVALID
-					? makeUniqueExpression(IdExpression(declaration, qualifyingType))
-					: makeUniqueExpression(NonTypeTemplateParameter(declaration)),
-				false,
-				isDependent(typeDependent),
-				isDependent(valueDependent)
-			);
-
-			expression.isNonStaticMemberName = isMember(*declaration) && !isStatic(*declaration);
-			expression.isQualifiedNonStaticMemberName = expression.isNonStaticMemberName && qualifying != gUniqueTypeNull;
-
 			// further type resolution (including overloads) should be made in the context of the enclosing type (if present)
 			idEnclosing = makeUniqueEnclosing(walker.qualifying, Location(id->source, context.declarationCount), enclosingType);
 			if(isMember(*declaration)) // if the declaration is a class member
@@ -3029,8 +3053,7 @@ struct PrimaryExpressionWalker : public WalkerBase
 				// An integral constant-expression can involve only ... enumerators, const variables or static
 				// data members of integral or enumeration types initialized with constant expressions, non-type template
 				// parameters of integral or enumeration types
-				expression.isConstant = declaration->templateParameter != INDEX_INVALID
-					|| (isIntegralConstant(type) && declaration->initializer.isConstant); // TODO: determining whether the expression is constant depends on the type of the expression!
+				expression.isConstant |= (isIntegralConstant(type) && declaration->initializer.isConstant); // TODO: determining whether the expression is constant depends on the type of the expression!
 			}
 		}
 	}
@@ -3095,12 +3118,15 @@ struct PostfixExpressionMemberWalker : public WalkerQualified
 	{
 		IdExpressionWalker walker(getState(), isTemplate);
 		TREEWALKER_WALK(walker, symbol);
+		bool isObjectName = walker.commit();
+		SEMANTIC_ASSERT(isObjectName); // TODO: non-fatal error: expected object name
 		id = walker.id;
 		arguments.swap(walker.arguments);
 		declaration = walker.declaration;
 		swapQualifying(walker.qualifying);
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
+		expression = walker.expression;
 	}
 };
 
@@ -3316,8 +3342,10 @@ struct PostfixExpressionWalker : public WalkerBase
 		setExpressionType(symbol, type);
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
-
-		if(expression.isNonStaticMemberName)
+		
+		if(!isDependent(typeDependent)
+			&& expression.isNonStaticMemberName // if the id-expression names a nonstatic member
+			&& memberClass == 0) // and this is not a class-member-access expression
 		{
 			SEMANTIC_ASSERT(enclosingType != 0); // TODO: check that the id-expression is found in the context of a non-static member (i.e. 'this' is valid)
 			// [class.mfct.nonstatic] An id-expression (that is not part of a class-member-access expression, and is found in the context of a nonstatic member)
@@ -3491,53 +3519,15 @@ struct PostfixExpressionWalker : public WalkerBase
 		LookupResultRef declaration = walker.declaration;
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
+		expression = walker.expression;
 
-		UniqueTypeWrapper qualifying = walker.qualifying.empty() || isNamespace(*walker.qualifying.back().declaration)
-			? gUniqueTypeNull : UniqueTypeWrapper(walker.qualifying.back().unique);
-
-		if(declaration == &gUndeclared
-			&& id->value == gOperatorAssignId)
+		if(expression.p != 0
+			&& !isDependent(typeDependent))
 		{
-			// TODO: declare operator= if not already declared
-		}
-		else if(id == &gDestructorId)
-		{
-			// a.~A()
-		}
-		else if(isDependent(typeDependent)) // if the object expression or the qualifying type is dependent
-		{
-			// declaration will be 0 if the object-expression was dependent, or the id-expression is a qualified-id with a dependent nested-name-specifier
-			SEMANTIC_ASSERT(declaration != 0 || objectExpression.isTypeDependent || isDependent(walker.qualifying.get_ref()));
-
-			setDecoration(id, gDependentObjectInstance);
-		}
-		else
-		{
-			SEMANTIC_ASSERT(declaration != 0);
 			SEMANTIC_ASSERT(objectExpression.p != 0);
 			SEMANTIC_ASSERT(!objectExpression.isTypeDependent); // the object-expression should not be dependent
 			SEMANTIC_ASSERT(walker.memberClass != 0);
 			SEMANTIC_ASSERT(walker.memberClass != &gDependentSimpleType);
-
-			SEMANTIC_ASSERT(declaration != &gUndeclared);
-			SEMANTIC_ASSERT(isObject(*declaration));
-
-			// [temp.dep.expr] An id-expression is type-dependent if it contains:- an identifier that was declared with a dependent type
-			addDependentType(typeDependent, declaration);
-			// [temp.dep.expr] An id-expression is type-dependent if it contains: - a template-id that is dependent
-			setDependent(typeDependent, arguments); // the id-expression may have an explicit template argument list
-			// [temp.dep.expr] An id-expression is type-dependent if it contains: - an identifier associated by name lookup with one or more declarations declared with a dependent type,
-			addDependentOverloads(typeDependent, declaration);
-
-			// [temp.dep.constexpr] An identifier is value-dependent if it is:- a name declared with a dependent type
-			addDependentType(valueDependent, declaration);
-			// [temp.dep.constexpr] An identifier is value-dependent if it is:- the name of a non-type template parameter,
-			// - a constant with integral or enumeration type and is initialized with an expression that is value-dependent.
-			addDependentName(valueDependent, declaration); // adds 'declaration' if it names a non-type template-parameter; adds a dependent initializer
-
-			setDecoration(id, declaration);
-
-			SEMANTIC_ASSERT(declaration->scope->type == SCOPETYPE_CLASS);
 
 			// TODO: [expr.ref] inherit const/volatile from object-expression type if member is non-static
 			idEnclosing = makeUniqueEnclosing(walker.qualifying, Location(id->source, context.declarationCount), walker.memberClass);
@@ -3547,7 +3537,7 @@ struct PostfixExpressionWalker : public WalkerBase
 			SEMANTIC_ASSERT(idEnclosing != 0);
 
 			type = getUniqueType(declaration->type, Location(id->source, context.declarationCount), idEnclosing, isDependent(typeDependent) || declaration->isTemplate);
-
+			
 			if(type.isFunction())
 			{
 				// type determination is deferred until overload resolution is complete
