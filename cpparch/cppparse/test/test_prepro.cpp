@@ -14,7 +14,7 @@ namespace N121
 			this[0].m = 0;
 			S& s = *this;
 			s.m = 0;
-			S*& p = this;
+			S*const& p = this;
 			p->m = 0;
 		}
 	};
