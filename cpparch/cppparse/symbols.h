@@ -557,7 +557,7 @@ inline Name getBinaryOperatorName(T* symbol)
 struct ExpressionNodeVisitor
 {
 	virtual void visit(const struct IntegralConstantExpression&) = 0; // literal
-	virtual void visit(const struct ExplicitTypeExpression&) = 0;
+	virtual void visit(const struct CastExpression&) = 0;
 	virtual void visit(const struct NonTypeTemplateParameter&) = 0; // non-type template parameter
 	virtual void visit(const struct DependentIdExpression&) = 0; // T::name
 	virtual void visit(const struct IdExpression&) = 0; // enumerator, const variable, static data member, non-type template parameter
@@ -568,6 +568,10 @@ struct ExpressionNodeVisitor
 	virtual void visit(const struct TernaryExpression&) = 0;
 	virtual void visit(const struct TypeTraitsUnaryExpression&) = 0;
 	virtual void visit(const struct TypeTraitsBinaryExpression&) = 0;
+	virtual void visit(const struct ExplicitTypeExpression&) = 0;
+	virtual void visit(const struct MemberAccessExpression&) = 0;
+	virtual void visit(const struct FunctionCallExpression&) = 0;
+	virtual void visit(const struct SubscriptExpression&) = 0;
 };
 
 struct ExpressionNode
@@ -2481,9 +2485,28 @@ struct TooFewTemplateArgumentsError : TypeErrorBase
 // ----------------------------------------------------------------------------
 // expression evaluation
 
-typedef UniqueTypeWrapper (*UnaryTypeOp)(UniqueTypeWrapper);
-typedef UniqueTypeWrapper (*BinaryTypeOp)(UniqueTypeWrapper, UniqueTypeWrapper);
-typedef UniqueTypeWrapper (*TernaryTypeOp)(UniqueTypeWrapper, UniqueTypeWrapper, UniqueTypeWrapper);
+struct InstantiationContext
+{
+	Location source;
+	const SimpleType* enclosingType;
+	ScopePtr enclosingScope;
+	InstantiationContext(Location source, const SimpleType* enclosingType, ScopePtr enclosingScope = 0)
+		: source(source), enclosingType(enclosingType), enclosingScope(enclosingScope)
+	{
+	}
+};
+
+
+struct Argument : ExpressionWrapper
+{
+	UniqueTypeWrapper type;
+	Argument(ExpressionWrapper expression, UniqueTypeWrapper type)
+		: ExpressionWrapper(expression), type(type)
+	{
+	}
+};
+typedef std::vector<Argument> Arguments;
+
 
 struct IntegralConstantExpression
 {
@@ -2503,29 +2526,32 @@ inline bool operator<(const IntegralConstantExpression& left, const IntegralCons
 }
 
 
-struct ExplicitTypeExpression
+struct CastExpression
 {
 	UniqueTypeWrapper type;
-	ExplicitTypeExpression(UniqueTypeWrapper type)
-		: type(type)
+	ExpressionWrapper operand;
+	CastExpression(UniqueTypeWrapper type, ExpressionWrapper operand)
+		: type(type), operand(operand)
 	{
 	}
 };
 
-inline bool operator<(const ExplicitTypeExpression& left, const ExplicitTypeExpression& right)
+inline bool operator<(const CastExpression& left, const CastExpression& right)
 {
-	return left.type < right.type;
+	return left.type != right.type
+		? left.type < right.type
+		: left.operand.p < right.operand.p;
 }
 
-inline bool isExplicitTypeExpression(ExpressionNode* node)
+inline bool isCastExpression(ExpressionNode* node)
 {
-	return typeid(*node) == typeid(ExpressionNodeGeneric<ExplicitTypeExpression>);
+	return typeid(*node) == typeid(ExpressionNodeGeneric<CastExpression>);
 }
 
-inline const ExplicitTypeExpression& getExplicitTypeExpression(ExpressionNode* node)
+inline const CastExpression& getCastExpression(ExpressionNode* node)
 {
-	SYMBOLS_ASSERT(isExplicitTypeExpression(node));
-	return static_cast<const ExpressionNodeGeneric<ExplicitTypeExpression>*>(node)->value;
+	SYMBOLS_ASSERT(isCastExpression(node));
+	return static_cast<const ExpressionNodeGeneric<CastExpression>*>(node)->value;
 }
 
 
@@ -2564,9 +2590,9 @@ inline const DependentIdExpression& getDependentIdExpression(ExpressionNode* nod
 
 struct IdExpression
 {
-	DeclarationPtr declaration;
+	DeclarationInstanceRef declaration;
 	const SimpleType* enclosing;
-	IdExpression(DeclarationPtr declaration, const SimpleType* enclosing)
+	IdExpression(DeclarationInstanceRef declaration, const SimpleType* enclosing)
 		: declaration(declaration), enclosing(enclosing)
 	{
 	}
@@ -2574,9 +2600,14 @@ struct IdExpression
 
 inline bool operator<(const IdExpression& left, const IdExpression& right)
 {
+#if 1
+	// TODO: check compliance: id-expressions cannot be compared for equivalence
+	SYMBOLS_ASSERT(false);
+#else
 	return left.declaration.p != right.declaration.p
 		? left.declaration.p < right.declaration.p
 		: left.enclosing < right.enclosing;
+#endif
 }
 
 inline bool isIdExpression(ExpressionNode* node)
@@ -2621,8 +2652,8 @@ inline const NonTypeTemplateParameter& getNonTypeTemplateParameter(ExpressionNod
 struct SizeofExpression
 {
 	// [expr.sizeof] The operand is ... an expression, which is not evaluated
-	ExpressionPtr operand;
-	SizeofExpression(ExpressionPtr operand)
+	ExpressionWrapper operand;
+	SizeofExpression(ExpressionWrapper operand)
 		: operand(operand)
 	{
 	}
@@ -2653,10 +2684,9 @@ struct UnaryExpression
 {
 	Name operatorName;
 	UnaryIceOp operation;
-	UnaryTypeOp type;
-	ExpressionPtr first;
-	UnaryExpression(Name operatorName, UnaryIceOp operation, UnaryTypeOp type, ExpressionPtr first)
-		: operatorName(operatorName), operation(operation), type(type), first(first)
+	ExpressionWrapper first;
+	UnaryExpression(Name operatorName, UnaryIceOp operation, ExpressionWrapper first)
+		: operatorName(operatorName), operation(operation), first(first)
 	{
 	}
 };
@@ -2665,9 +2695,7 @@ inline bool operator<(const UnaryExpression& left, const UnaryExpression& right)
 {
 	return left.operation != right.operation
 		? left.operation < right.operation
-		: left.type != right.type
-			? left.type < right.type
-			: left.first.p < right.first.p;
+		: left.first.p < right.first.p;
 }
 
 inline bool isUnaryExpression(ExpressionNode* node)
@@ -2681,15 +2709,16 @@ inline const UnaryExpression& getUnaryExpression(ExpressionNode* node)
 	return static_cast<const ExpressionNodeGeneric<UnaryExpression>*>(node)->value;
 }
 
+typedef UniqueTypeWrapper (*BinaryTypeOp)(Name operatorName, Argument first, Argument second, const InstantiationContext& context);
 
 struct BinaryExpression
 {
 	Name operatorName;
 	BinaryIceOp operation;
 	BinaryTypeOp type;
-	ExpressionPtr first;
-	ExpressionPtr second;
-	BinaryExpression(Name operatorName, BinaryIceOp operation, BinaryTypeOp type, ExpressionPtr first, ExpressionPtr second)
+	ExpressionWrapper first;
+	ExpressionWrapper second;
+	BinaryExpression(Name operatorName, BinaryIceOp operation, BinaryTypeOp type, ExpressionWrapper first, ExpressionWrapper second)
 		: operatorName(operatorName), operation(operation), type(type), first(first), second(second)
 	{
 	}
@@ -2709,12 +2738,11 @@ inline bool operator<(const BinaryExpression& left, const BinaryExpression& righ
 struct TernaryExpression
 {
 	TernaryIceOp operation;
-	TernaryTypeOp type;
-	ExpressionPtr first;
-	ExpressionPtr second;
-	ExpressionPtr third;
-	TernaryExpression(TernaryIceOp operation, TernaryTypeOp type, ExpressionPtr first, ExpressionPtr second, ExpressionPtr third)
-		: operation(operation), type(type), first(first), second(second), third(third)
+	ExpressionWrapper first;
+	ExpressionWrapper second;
+	ExpressionWrapper third;
+	TernaryExpression(TernaryIceOp operation, ExpressionWrapper first, ExpressionWrapper second, ExpressionWrapper third)
+		: operation(operation), first(first), second(second), third(third)
 	{
 	}
 };
@@ -2723,13 +2751,11 @@ inline bool operator<(const TernaryExpression& left, const TernaryExpression& ri
 {
 	return left.operation != right.operation
 		? left.operation < right.operation
-		: left.type != right.type
-			? left.type < right.type
-			: left.first.p != right.first.p
-				? left.first.p < right.first.p
-				: left.second.p != right.second.p
-					? left.second.p < right.second.p
-					: left.third.p < right.third.p;
+		: left.first.p != right.first.p
+			? left.first.p < right.first.p
+			: left.second.p != right.second.p
+				? left.second.p < right.second.p
+				: left.third.p < right.third.p;
 }
 
 typedef bool (*UnaryTypeTraitsOp)(UniqueTypeWrapper);
@@ -2777,38 +2803,100 @@ inline bool operator<(const TypeTraitsBinaryExpression& left, const TypeTraitsBi
 }
 
 
+
+struct ExplicitTypeExpression
+{
+	UniqueTypeWrapper type;
+	ExplicitTypeExpression(UniqueTypeWrapper type)
+		: type(type)
+	{
+	}
+};
+
+inline bool operator<(const ExplicitTypeExpression& left, const ExplicitTypeExpression& right)
+{
+	return left.type < right.type;
+}
+
+inline bool isExplicitTypeExpression(ExpressionNode* node)
+{
+	return typeid(*node) == typeid(ExpressionNodeGeneric<ExplicitTypeExpression>);
+}
+
+inline const ExplicitTypeExpression& getExplicitTypeExpression(ExpressionNode* node)
+{
+	SYMBOLS_ASSERT(isExplicitTypeExpression(node));
+	return static_cast<const ExpressionNodeGeneric<ExplicitTypeExpression>*>(node)->value;
+}
+
+
 struct MemberAccessExpression
 {
-	ExpressionPtr left; // extract type, memberClass
-	ExpressionPtr right; // always id-expression
+	ExpressionWrapper left; // extract type, memberClass
+	ExpressionWrapper right; // always id-expression
 	bool isArrow;
-	MemberAccessExpression(ExpressionPtr left, ExpressionPtr right, bool isArrow)
+	MemberAccessExpression(ExpressionWrapper left, ExpressionWrapper right, bool isArrow)
 		: left(left), right(right), isArrow(isArrow)
 	{
 	}
 };
 
+inline bool operator<(const MemberAccessExpression& left, const MemberAccessExpression& right)
+{
+	SYMBOLS_ASSERT(false);
+	return false;
+}
+
+inline bool isMemberAccessExpression(ExpressionNode* node)
+{
+	return typeid(*node) == typeid(ExpressionNodeGeneric<MemberAccessExpression>);
+}
+
+inline const MemberAccessExpression& getMemberAccessExpression(ExpressionNode* node)
+{
+	SYMBOLS_ASSERT(isMemberAccessExpression(node));
+	return static_cast<const ExpressionNodeGeneric<MemberAccessExpression>*>(node)->value;
+}
+
+
+// id-expression ( expression-list )
 // overload resolution is required if the lefthand side is
 // - a (parenthesised) id-expression
 // - of class type
 struct FunctionCallExpression
 {
-	ExpressionPtr left; // TODO: extract memberClass, id, idEnclosing, type
-	TemplateArgumentsInstance templateArguments;
-	//Arguments arguments;
-};
-
-
-struct InstantiationContext
-{
-	Location source;
-	const SimpleType* enclosingType;
-	ScopePtr enclosingScope;
-	InstantiationContext(Location source, const SimpleType* enclosingType, ScopePtr enclosingScope = 0)
-		: source(source), enclosingType(enclosingType), enclosingScope(enclosingScope)
+	ExpressionWrapper left; // TODO: extract memberClass, id, idEnclosing, type, templateArguments
+	Arguments arguments;
+	FunctionCallExpression(ExpressionWrapper left, Arguments arguments)
+		: left(left), arguments(arguments)
 	{
 	}
 };
+
+inline bool operator<(const FunctionCallExpression& left, const FunctionCallExpression& right)
+{
+	SYMBOLS_ASSERT(false);
+	return false;
+}
+
+
+struct SubscriptExpression
+{
+	ExpressionWrapper left;
+	ExpressionWrapper right;
+	SubscriptExpression(ExpressionWrapper left, ExpressionWrapper right)
+		: left(left), right(right)
+	{
+	}
+};
+
+inline bool operator<(const SubscriptExpression& left, const SubscriptExpression& right)
+{
+	SYMBOLS_ASSERT(false);
+	return false;
+}
+
+
 
 inline UniqueTypeWrapper typeOfExpression(ExpressionNode* node, const InstantiationContext& context);
 
@@ -2843,6 +2931,11 @@ inline bool isDependentPointerToMemberExpression(ExpressionNode* expression)
 extern BuiltInTypeId gUnsignedInt;
 extern BuiltInTypeId gBool;
 
+inline bool isDependent(UniqueTypeWrapper type);
+inline UniqueTypeWrapper typeOfUnaryExpression(Name operatorName, Argument operand, const InstantiationContext& context);
+inline UniqueTypeWrapper getConditionalOperatorType(UniqueTypeWrapper leftType, UniqueTypeWrapper rightType);
+inline UniqueTypeWrapper typeOfSubscriptExpression(Argument left, Argument right, const InstantiationContext& context);
+
 struct TypeOfVisitor : ExpressionNodeVisitor
 {
 	UniqueTypeWrapper result;
@@ -2855,22 +2948,26 @@ struct TypeOfVisitor : ExpressionNodeVisitor
 	{
 		result = node.type;
 	}
-	void visit(const ExplicitTypeExpression& node)
+	void visit(const CastExpression& node)
 	{
 		result = node.type;
+		SYMBOLS_ASSERT(!isDependent(result));
 	}
 	void visit(const NonTypeTemplateParameter& node)
 	{
 		// TODO: evaluate non-type template parameter
+		SYMBOLS_ASSERT(false);
 	}
 	void visit(const DependentIdExpression& node)
 	{
 		// TODO: name lookup
+		SYMBOLS_ASSERT(false);
 	}
 	void visit(const IdExpression& node)
 	{
 		// TODO: evaluate dependent type
 		result = UniqueTypeWrapper(node.declaration->type.unique);
+		SYMBOLS_ASSERT(!isDependent(result));
 	}
 	void visit(const SizeofExpression& node)
 	{
@@ -2882,15 +2979,23 @@ struct TypeOfVisitor : ExpressionNodeVisitor
 	}
 	void visit(const UnaryExpression& node)
 	{
-		result = node.type(typeOfExpression(node.first, context));
+		result = typeOfUnaryExpression(node.operatorName,
+			Argument(node.first, typeOfExpression(node.first, context)),
+			context);
+		SYMBOLS_ASSERT(!isDependent(result));
 	}
 	void visit(const BinaryExpression& node)
 	{
-		result = node.type(typeOfExpression(node.first, context), typeOfExpression(node.second, context));
+		result = node.type(node.operatorName,
+			Argument(node.first, typeOfExpression(node.first, context)),
+			Argument(node.second, typeOfExpression(node.second, context)),
+			context);
+		SYMBOLS_ASSERT(!isDependent(result));
 	}
 	void visit(const TernaryExpression& node)
 	{
-		result = node.type(typeOfExpression(node.first, context), typeOfExpression(node.second, context), typeOfExpression(node.third, context));
+		result = getConditionalOperatorType(typeOfExpression(node.second, context), typeOfExpression(node.third, context));
+		SYMBOLS_ASSERT(!isDependent(result));
 	}
 	void visit(const TypeTraitsUnaryExpression& node)
 	{
@@ -2899,6 +3004,27 @@ struct TypeOfVisitor : ExpressionNodeVisitor
 	void visit(const TypeTraitsBinaryExpression& node)
 	{
 		result = gBool;
+	}
+	void visit(const struct ExplicitTypeExpression& node)
+	{
+		result = node.type;
+		SYMBOLS_ASSERT(!isDependent(result));
+	}
+	void visit(const struct MemberAccessExpression& node)
+	{
+		result = typeOfExpression(node.right, context);
+		SYMBOLS_ASSERT(!isDependent(result));
+	}
+	void visit(const struct FunctionCallExpression& node)
+	{
+		// TODO
+	}
+	void visit(const struct SubscriptExpression& node)
+	{
+		result = typeOfSubscriptExpression(
+			Argument(node.left, typeOfExpression(node.left, context)),
+			Argument(node.right, typeOfExpression(node.right, context)),
+			context);
 	}
 };
 
@@ -3029,8 +3155,9 @@ struct EvaluateVisitor : ExpressionNodeVisitor
 	{
 		result = node.value;
 	}
-	void visit(const ExplicitTypeExpression& node)
+	void visit(const CastExpression& node)
 	{
+		result = evaluate(node.operand, source, enclosing);
 	}
 	void visit(const NonTypeTemplateParameter& node)
 	{
@@ -3120,6 +3247,26 @@ struct EvaluateVisitor : ExpressionNodeVisitor
 			enclosing
 		));
 	}
+	void visit(const struct ExplicitTypeExpression& node)
+	{
+		// cannot be a constant expression
+		SYMBOLS_ASSERT(false);
+	}
+	void visit(const struct MemberAccessExpression& node)
+	{
+		// cannot be a constant expression
+		SYMBOLS_ASSERT(false);
+	}
+	void visit(const struct FunctionCallExpression& node)
+	{
+		// cannot be a constant expression
+		SYMBOLS_ASSERT(false);
+	}
+	void visit(const struct SubscriptExpression& node)
+	{
+		// cannot be a constant expression
+		SYMBOLS_ASSERT(false);
+	}
 };
 
 inline IntegralConstant evaluate(ExpressionNode* node, Location source, const SimpleType* enclosing)
@@ -3156,9 +3303,6 @@ inline IntegralConstant evaluateExpression(const ExpressionWrapper& expression, 
 
 // ----------------------------------------------------------------------------
 // template instantiation
-
-
-inline bool isDependent(UniqueTypeWrapper type);
 
 inline bool isDependent(const UniqueTypeArray& types)
 {
@@ -5209,6 +5353,8 @@ inline const UniqueTypeId& getStringLiteralType(cpp::string_literal* symbol)
 }
 
 
+extern const DeclarationInstance gCopyAssignmentOperatorInstance;
+extern const DeclarationInstance gDestructorInstance;
 
 extern Declaration gDependentType;
 extern const DeclarationInstance gDependentTypeInstance;
@@ -6978,7 +7124,7 @@ struct SymbolPrinter : TypeElementVisitor, ExpressionNodeVisitor
 	{
 		printer.out << node.value.value;
 	}
-	void visit(const ExplicitTypeExpression& node)
+	void visit(const CastExpression& node)
 	{
 		// TODO
 	}
@@ -7056,9 +7202,31 @@ struct SymbolPrinter : TypeElementVisitor, ExpressionNodeVisitor
 		printType(node.second);
 		printer.out << ")";
 	}
+	void visit(const struct ExplicitTypeExpression& node)
+	{
+		// TODO
+	}
+	void visit(const struct MemberAccessExpression& node)
+	{
+		// TODO
+	}
+	void visit(const struct FunctionCallExpression& node)
+	{
+		// TODO
+	}
+	void visit(const struct SubscriptExpression& node)
+	{
+		// TODO
+	}
 
 	void printExpression(ExpressionNode* node)
 	{
+		// TODO: assert
+		if(node == 0)
+		{
+			printer.out << "[unknown]";
+			return;
+		}
 		node->accept(*this);
 	}
 
@@ -7361,16 +7529,7 @@ inline void printType(UniqueTypeWrapper type, std::ostream& out, bool escape)
 	printer.printType(type);
 }
 
-struct Argument : ExpressionWrapper
-{
-	UniqueTypeWrapper type;
-	Argument(ExpressionWrapper expression, UniqueTypeWrapper type)
-		: ExpressionWrapper(expression), type(type)
-	{
-	}
-};
 
-typedef std::vector<Argument> Arguments;
 
 const CandidateFunction gOverloadNull;
 

@@ -132,6 +132,18 @@ Identifier gImplicitObjectParameterId = makeIdentifier("$implicit-object-paramet
 BuiltInTypeDeclaration gImplicitObjectParameterDeclaration(gImplicitObjectParameterId, TYPE_UNKNOWN);
 BuiltInTypeId gImplicitObjectParameter(&gImplicitObjectParameterDeclaration, TREEALLOCATOR_NULL);
 
+Identifier gSpecialMemberFunctionId = makeIdentifier("$special-member-function");
+Scope gSpecialMemberFunctionScope(TREEALLOCATOR_NULL, gSpecialMemberFunctionId, SCOPETYPE_CLASS);
+TypeId gSpecialMemberFunctionType(&gVoidDeclaration, TREEALLOCATOR_NULL);
+
+Identifier gCopyAssignmentOperatorId = makeIdentifier("$copy-assignment-operator");
+Declaration gCopyAssignmentOperatorDeclaration(TREEALLOCATOR_NULL, &gSpecialMemberFunctionScope, gCopyAssignmentOperatorId, gSpecialMemberFunctionType, 0);
+const DeclarationInstance gCopyAssignmentOperatorInstance(&gCopyAssignmentOperatorDeclaration);
+
+Identifier gDestructorId = makeIdentifier("$destructor");
+Declaration gDestructorDeclaration(TREEALLOCATOR_NULL, &gSpecialMemberFunctionScope, gDestructorId, gSpecialMemberFunctionType, 0);
+const DeclarationInstance gDestructorInstance(&gDestructorDeclaration);
+
 // template placeholders
 Identifier gDependentTypeId = makeIdentifier("$type");
 Declaration gDependentType(TREEALLOCATOR_NULL, 0, gDependentTypeId, TYPE_SPECIAL, 0);
@@ -203,7 +215,6 @@ Identifier gOperatorFunctionTemplateId = makeIdentifier("operator () <>");
 // TODO: don't declare if id is anonymous?
 Identifier gAnonymousId = makeIdentifier("$anonymous");
 
-Identifier gDestructorId = makeIdentifier("$destructor");
 
 const SimpleType gDependentSimpleType(&gDependentType, 0);
 

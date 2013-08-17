@@ -1,5 +1,72 @@
 
 
+namespace N83
+{
+	class C
+	{
+		void f()
+		{
+			// [special] Programs may explicitly refer to implicitly declared special member functions.
+			operator=(*this); // explicit call of operator not supported
+		}
+	};
+}
+
+namespace N343
+{
+	class C
+	{
+		void f()
+		{
+			// [special] Programs may explicitly refer to implicitly declared special member functions.
+			this->operator=(*this); // explicit call of operator not supported
+		}
+	};
+}
+
+namespace N345
+{
+	struct A
+	{
+		A* f()
+		{
+			f()->m();
+		}
+		void(*m)();
+	};
+}
+
+
+namespace N45
+{
+	struct S
+	{
+		S operator()() const
+		{
+			return S();
+		}
+	};
+
+	void f()
+	{
+		S()(); // construct and call
+		S()()();
+		S s;
+		s()(); // nested call
+		s()()();
+	}
+
+}
+
+namespace N344
+{
+	template<bool func(int)>
+	bool f()
+	{
+		return func(0);
+	}
+}
+
 namespace N121
 {
 	struct S
@@ -37,18 +104,6 @@ namespace N337
 	int i = (a.*b.m)();
 }
 
-
-namespace N343
-{
-	class C
-	{
-		void f()
-		{
-			// [special] Programs may explicitly refer to implicitly declared special member functions.
-			this->operator=(*this); // explicit call of operator not supported
-		}
-	};
-}
 
 #if 1 // TODO: defer lookup of 'f' until arguments are known 
 namespace N321
@@ -1449,18 +1504,6 @@ namespace N91
 	}
 }
 
-namespace N83
-{
-	class C
-	{
-		void f()
-		{
-			// [special] Programs may explicitly refer to implicitly declared special member functions.
-			operator=(*this); // explicit call of operator not supported
-		}
-	};
-}
-
 
 namespace N115
 {
@@ -1497,27 +1540,6 @@ namespace N244
 	};
 }
 
-
-namespace N45
-{
-	struct S
-	{
-		S operator()() const
-		{
-			return S();
-		}
-	};
-
-	void f()
-	{
-		S()(); // construct and call
-		S()()();
-		S s;
-		s()(); // nested call
-		s()()();
-	}
-
-}
 
 namespace N001
 {

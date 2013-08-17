@@ -390,6 +390,11 @@
 		- need a proper declaration to find enclosing class, but implicit declaration has no associated identifier?
 			- too complex to manufacture declaration from nothing
 		- avoid conflict with overload declarations
+	- cannot determine whether copy-assign is already declared until class is instantiated
+	- need to include declaration in overload set for call to operator=
+	- can't declare in base declarations for type, must synthesise special declaration?
+	- consider name-lookup of operator= while inside a template definition
+		- name lookup will be deferred if operands are dependent
 
 - task: test integral promotion for enum
 
@@ -579,6 +584,14 @@
 
 - investigate: deferred evaluation of expression type
 	- evaluate expression type in context of (enclosing scope, enclosing type, location)
+	- dependent vs nondependent
+		- can evaluate nondependent immediately, no need to store expression tree?
+			- no, need to defer evaluation of type
+		- need to do some evaluation of nondependent in order to do name lookup
+		- simple example: id-expression with dependent qualifying-type
+			- can't perform name lookup, assume name is non-type
+			- still need to perform overload resolution later
+		- for now, can assume non-dependent operands when performing overload resolution
 	- id-expression
 		- deferred lookup for dependent nested-name-specifier
 		- store qualifying type/namespace as unique-type
@@ -592,11 +605,15 @@
 		- operand: the operand expression
 	- function-call expression
 		- id: the name in a call-to-named-function
+			- overload-set (getDeclaration/findOverloaded)
+			- name-lookup (ADL)
+			- only if postfix-expression is an id-expression (possibly class-member-access) (possibly dependent)
+			- if class-member-access, argument list is augmented by left operand of class-member-access expression
 		- type: type of the postfix-expression, the context in which 'operator()' is found
 		- memberClass: if this is the righthand side of a member access expression, the class type of the left-hand side - provides implicit object argument for nonstatic member.
 		- arguments: the expression-list for the function call.
 		- templateArguments: the explicitly-specified template arguments for the function call.
-		- idEnclosing: the class of which the name is a member, required if the name is a member of a template. Provides implicit object argument for static member.
+		- idEnclosing: the class of which the name is a member, required if the name is a member of a template. Provides implicit object argument for static member
 	- member-access
 		- memberType?
 			- valid only when expression is not dependent
