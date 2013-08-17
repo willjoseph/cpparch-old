@@ -1165,6 +1165,48 @@ inline UniqueTypeWrapper typeOfBinaryExpression(Name operatorName, Argument left
 	return overload.type;
 }
 
+inline bool isSpecialMember(const Declaration& declaration)
+{
+	return &declaration == gDestructorInstance.p
+		|| &declaration == gCopyAssignmentOperatorInstance.p;
+}
+
+inline const SimpleType* getIdExpressionClass(const SimpleType* qualifying, const DeclarationInstance& declaration, const SimpleType* enclosingType)
+{
+	SEMANTIC_ASSERT(!isSpecialMember(*declaration))
+
+	if(!isMember(*declaration)) // if the declaration is not a class member
+	{
+		return 0; // the declaration is at namespace-scope, therefore has no enclosing class
+	}
+
+	const SimpleType* idEnclosing = qualifying != 0 ? qualifying : enclosingType;
+
+	SYMBOLS_ASSERT(idEnclosing != 0);
+	// the identifier may name a type in a base-class of the qualifying type; findEnclosingType resolves this.
+	idEnclosing = findEnclosingType(idEnclosing, declaration->scope); // it must be a member of (a base of) the qualifying class: find which one.
+	SYMBOLS_ASSERT(idEnclosing != 0);
+
+	return idEnclosing;
+}
+
+inline UniqueTypeWrapper typeOfIdExpression(const SimpleType* qualifying, const DeclarationInstance& declaration, Location source, const SimpleType* enclosingType)
+{
+	if(declaration == gDestructorInstance.p)
+	{
+		return gUniqueTypeNull;
+	}
+	else if(declaration == gCopyAssignmentOperatorInstance.p)
+	{
+		const SimpleType* idEnclosing = qualifying != 0 ? qualifying : enclosingType;
+		SYMBOLS_ASSERT(idEnclosing != 0);
+		return makeCopyAssignmentOperatorType(*idEnclosing);
+	}
+
+	const SimpleType* idEnclosing = getIdExpressionClass(qualifying, declaration, enclosingType);
+	// a member function template may have a type which depends on its template parameters
+	return getUniqueType(declaration->type, source, idEnclosing, declaration->isTemplate);
+}
 
 UniqueTypeWrapper getOverloadedMemberOperatorType(UniqueTypeWrapper operand, Location source, const SimpleType* enclosing)
 {
@@ -1207,7 +1249,7 @@ inline UniqueTypeWrapper makeCopyAssignmentOperatorType(const SimpleType& classT
 	return type;
 }
 
-const SimpleType& getMemberOperatorType(UniqueTypeWrapper operand, bool isArrow, Location source, const SimpleType* enclosing)
+inline const SimpleType& getMemberOperatorType(UniqueTypeWrapper operand, bool isArrow, Location source, const SimpleType* enclosing)
 {
 	if(isArrow)
 	{
@@ -2776,8 +2818,7 @@ struct IdExpressionWalker : public WalkerQualified
 	}
 	bool commit()
 	{
-		UniqueTypeWrapper qualifyingType = qualifying.empty() || isNamespace(*qualifying.back().declaration)
-			? gUniqueTypeNull : UniqueTypeWrapper(qualifying.back().unique);
+		UniqueTypeWrapper qualifyingType = makeUniqueQualifying(qualifying, getLocation(), enclosingType, isDependent(qualifying.get_ref()));
 
 		TemplateArgumentsInstance templateArguments;
 		makeUniqueTemplateArguments(arguments, templateArguments, Location(id->source, context.declarationCount), enclosingType, isDependent(arguments));
@@ -3109,30 +3150,10 @@ struct PrimaryExpressionWalker : public WalkerBase
 		if(expression.p != 0
 			&& !isDependent(typeDependent))
 		{
-			// further type resolution (including overloads) should be made in the context of the enclosing type (if present)
-			idEnclosing = makeUniqueEnclosing(walker.qualifying, Location(id->source, context.declarationCount), enclosingType);
-
-			if(declaration == gDestructorInstance.p)
-			{
-				type = gUniqueTypeNull;
-			}
-			else if(declaration == gCopyAssignmentOperatorInstance.p)
-			{
-				type = makeCopyAssignmentOperatorType(*idEnclosing);
-			}
-			else
-			{
-				if(isMember(*declaration)) // if the declaration is a class member
-				{
-					SEMANTIC_ASSERT(idEnclosing != 0);
-					// the identifier may name a type in a base-class of the qualifying type; findEnclosingType resolves this.
-					idEnclosing = findEnclosingType(idEnclosing, declaration->scope); // it must be a member of (a base of) the qualifying class: find which one.
-					SEMANTIC_ASSERT(idEnclosing != 0);
-				}
-
-				// a member function template may have a type which depends on the template parameters of an enclosing class
-				type = getUniqueType(declaration->type, Location(id->source, context.declarationCount), idEnclosing, expression.isTypeDependent || declaration->isTemplate);
-			}
+			UniqueTypeWrapper qualifyingType = makeUniqueQualifying(walker.qualifying, getLocation(), enclosingType);
+			const SimpleType* qualifyingClass = qualifyingType == gUniqueTypeNull ? 0 : &getSimpleType(qualifyingType.value);
+			type = typeOfIdExpression(qualifyingClass, declaration, getLocation(), enclosingType);
+			idEnclosing = isSpecialMember(*declaration) ? 0 : getIdExpressionClass(qualifyingClass, declaration, enclosingType);
 
 			if(!type.isFunction()) // if the id-expression refers to a function, overload resolution depends on the parameter types; defer evaluation of type
 			{
@@ -3452,8 +3473,7 @@ struct PostfixExpressionWalker : public WalkerBase
 			bool isCallToNamedFunction = expression.p != 0
 				&& (isIdExpression(expression)
 					|| isMemberAccessExpression(expression));
-			SEMANTIC_ASSERT((id && getDeclaration(*id) == gDestructorInstance.p)
-				|| (id != 0) == (isCallToNamedFunction || (expression.p != 0 && isNonTypeTemplateParameter(expression))));
+			SEMANTIC_ASSERT((id != 0) == (isCallToNamedFunction || (expression.p != 0 && isNonTypeTemplateParameter(expression))));
 
 			bool isCallToNamedMemberFunction = expression.p != 0
 				&& isMemberAccessExpression(expression);
@@ -3464,6 +3484,7 @@ struct PostfixExpressionWalker : public WalkerBase
 			type = removeReference(type);
 			if(isClass(type))
 			{
+				SEMANTIC_ASSERT(arguments.empty()); // cannot provide explicit template arguments for call to object of class type.
 				// [over.call.object]
 				// If the primary-expression E in the function call syntax evaluates to a class object of type "cv T", then the set
 				// of candidate functions includes at least the function call operators of T. The function call operators of T are
@@ -3607,24 +3628,10 @@ struct PostfixExpressionWalker : public WalkerBase
 			SEMANTIC_ASSERT(walker.memberClass != &gDependentSimpleType);
 
 			// TODO: [expr.ref] inherit const/volatile from object-expression type if member is non-static
-			idEnclosing = makeUniqueEnclosing(walker.qualifying, Location(id->source, context.declarationCount), walker.memberClass);
-
-			if(declaration == gDestructorInstance.p)
-			{
-				type = gUniqueTypeNull;
-			}
-			else if(declaration == gCopyAssignmentOperatorInstance.p)
-			{
-				type = makeCopyAssignmentOperatorType(*idEnclosing);
-			}
-			else
-			{
-				// the identifier may name a type in a base-class of the qualifying type; findEnclosingType resolves this.
-				idEnclosing = findEnclosingType(idEnclosing, declaration->scope);
-				SEMANTIC_ASSERT(idEnclosing != 0);
-
-				type = getUniqueType(declaration->type, getLocation(), idEnclosing, isDependent(typeDependent) || declaration->isTemplate);
-			}
+			UniqueTypeWrapper qualifyingType = makeUniqueQualifying(walker.qualifying, getLocation(), enclosingType);
+			const SimpleType* qualifyingClass = qualifyingType == gUniqueTypeNull ? 0 : &getSimpleType(qualifyingType.value);
+			type = typeOfIdExpression(qualifyingClass, declaration, getLocation(), walker.memberClass);
+			idEnclosing = isSpecialMember(*declaration) ? 0 : getIdExpressionClass(qualifyingClass, declaration, walker.memberClass);
 
 			expression = makeExpression(MemberAccessExpression(objectExpression, walker.expression, walker.isArrow),
 				false, isDependent(typeDependent), isDependent(valueDependent)

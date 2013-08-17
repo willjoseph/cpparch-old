@@ -1,4 +1,56 @@
 
+namespace N347
+{
+	template<typename Target, typename Src>
+	struct to_string_helper
+	{
+		typedef Target type;
+	};
+	template<typename Src>
+	struct to_string_helper<Src, Src>
+	{
+		typedef Src const&type;
+	};
+	template<typename Target>
+	struct to_string_helper<Target, char const*>
+	{
+		typedef Target type;
+	};
+
+	template<typename Target, typename Src>
+	inline typename to_string_helper<Target, Src>::type to_string(Src const&src);
+
+	struct String1
+	{
+	};
+
+	struct String2
+	{
+	};
+
+	template<typename T>
+	struct A
+	{
+		static String2 get_version(String1 t)
+		{
+			return to_string<String2>(t);
+		}
+	};
+}
+
+namespace N346
+{
+	struct A
+	{
+		int m[1];
+	};
+
+	void f(int)
+	{
+		A& a = A();
+		f((sizeof(a.m)));
+	}
+}
 
 namespace N83
 {

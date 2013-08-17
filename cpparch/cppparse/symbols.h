@@ -2930,11 +2930,30 @@ inline bool isDependentPointerToMemberExpression(ExpressionNode* expression)
 
 extern BuiltInTypeId gUnsignedInt;
 extern BuiltInTypeId gBool;
+extern const DeclarationInstance gCopyAssignmentOperatorInstance;
+extern const DeclarationInstance gDestructorInstance;
+
+
+// [expr] If an expression initially has the type "reference to T", the type is adjusted to "T" prior to any further analysis.
+inline UniqueTypeWrapper removeReference(UniqueTypeWrapper type)
+{
+	if(type.isReference())
+	{
+		type.pop_front();
+	}
+	return type;
+}
+
 
 inline bool isDependent(UniqueTypeWrapper type);
 inline UniqueTypeWrapper typeOfUnaryExpression(Name operatorName, Argument operand, const InstantiationContext& context);
 inline UniqueTypeWrapper getConditionalOperatorType(UniqueTypeWrapper leftType, UniqueTypeWrapper rightType);
 inline UniqueTypeWrapper typeOfSubscriptExpression(Argument left, Argument right, const InstantiationContext& context);
+inline const SimpleType& getMemberOperatorType(UniqueTypeWrapper operand, bool isArrow, Location source, const SimpleType* enclosing);
+inline UniqueTypeWrapper makeCopyAssignmentOperatorType(const SimpleType& classType);
+inline const SimpleType* findEnclosingType(const SimpleType* enclosing, Scope* scope);
+inline UniqueTypeWrapper getUniqueType(const TypeId& type, Location source, const SimpleType* enclosing, bool allowDependent = false);
+inline UniqueTypeWrapper typeOfIdExpression(const SimpleType* qualifying, const DeclarationInstance& declaration, Location source, const SimpleType* enclosingType);
 
 struct TypeOfVisitor : ExpressionNodeVisitor
 {
@@ -2965,8 +2984,7 @@ struct TypeOfVisitor : ExpressionNodeVisitor
 	}
 	void visit(const IdExpression& node)
 	{
-		// TODO: evaluate dependent type
-		result = UniqueTypeWrapper(node.declaration->type.unique);
+		result = typeOfIdExpression(node.enclosing, node.declaration, context.source, context.enclosingType);
 		SYMBOLS_ASSERT(!isDependent(result));
 	}
 	void visit(const SizeofExpression& node)
@@ -2980,21 +2998,23 @@ struct TypeOfVisitor : ExpressionNodeVisitor
 	void visit(const UnaryExpression& node)
 	{
 		result = typeOfUnaryExpression(node.operatorName,
-			Argument(node.first, typeOfExpression(node.first, context)),
+			Argument(node.first, removeReference(typeOfExpression(node.first, context))),
 			context);
 		SYMBOLS_ASSERT(!isDependent(result));
 	}
 	void visit(const BinaryExpression& node)
 	{
 		result = node.type(node.operatorName,
-			Argument(node.first, typeOfExpression(node.first, context)),
-			Argument(node.second, typeOfExpression(node.second, context)),
+			Argument(node.first, removeReference(typeOfExpression(node.first, context))),
+			Argument(node.second, removeReference(typeOfExpression(node.second, context))),
 			context);
 		SYMBOLS_ASSERT(!isDependent(result));
 	}
 	void visit(const TernaryExpression& node)
 	{
-		result = getConditionalOperatorType(typeOfExpression(node.second, context), typeOfExpression(node.third, context));
+		result = getConditionalOperatorType(
+			removeReference(typeOfExpression(node.second, context)),
+			removeReference(typeOfExpression(node.third, context)));
 		SYMBOLS_ASSERT(!isDependent(result));
 	}
 	void visit(const TypeTraitsUnaryExpression& node)
@@ -3012,7 +3032,9 @@ struct TypeOfVisitor : ExpressionNodeVisitor
 	}
 	void visit(const struct MemberAccessExpression& node)
 	{
-		result = typeOfExpression(node.right, context);
+		UniqueTypeWrapper type = typeOfExpression(node.left, context);
+		const SimpleType& classType = getMemberOperatorType(removeReference(type), node.isArrow, context.source, context.enclosingType);
+		result = typeOfExpression(node.right, InstantiationContext(context.source, &classType, context.enclosingScope));
 		SYMBOLS_ASSERT(!isDependent(result));
 	}
 	void visit(const struct FunctionCallExpression& node)
@@ -3022,8 +3044,8 @@ struct TypeOfVisitor : ExpressionNodeVisitor
 	void visit(const struct SubscriptExpression& node)
 	{
 		result = typeOfSubscriptExpression(
-			Argument(node.left, typeOfExpression(node.left, context)),
-			Argument(node.right, typeOfExpression(node.right, context)),
+			Argument(node.left, removeReference(typeOfExpression(node.left, context))),
+			Argument(node.right, removeReference(typeOfExpression(node.right, context))),
 			context);
 	}
 };
@@ -4165,7 +4187,7 @@ inline UniqueTypeWrapper getUniqueTypeImpl(const T& type, Location source, const
 	return result;
 }
 
-inline UniqueTypeWrapper getUniqueType(const TypeId& type, Location source, const SimpleType* enclosing, bool allowDependent = false)
+inline UniqueTypeWrapper getUniqueType(const TypeId& type, Location source, const SimpleType* enclosing, bool allowDependent)
 {
 	return getUniqueTypeImpl(type, source, enclosing, allowDependent);
 }
@@ -4409,14 +4431,12 @@ inline std::size_t requireCompleteObjectType(UniqueTypeWrapper type, Location so
 	return 4; // TODO: size of non-object types
 }
 
-// [expr] If an expression initially has the type "reference to T", the type is adjusted to "T" prior to any further analysis.
-inline UniqueTypeWrapper removeReference(UniqueTypeWrapper type)
+inline UniqueTypeWrapper makeUniqueQualifying(const Qualifying& qualifying, Location source, const SimpleType* enclosingType, bool allowDependent = false)
 {
-	if(type.isReference())
-	{
-		type.pop_front();
-	}
-	return type;
+	return qualifying.empty()
+		|| isNamespace(*qualifying.back().declaration)
+		? gUniqueTypeNull
+		: getUniqueType(qualifying.back(), source, enclosingType, allowDependent);
 }
 
 inline const SimpleType* makeUniqueEnclosing(const Qualifying& qualifying, Location source, const SimpleType* enclosing, bool allowDependent, UniqueTypeWrapper& unique)
@@ -5352,9 +5372,6 @@ inline const UniqueTypeId& getStringLiteralType(cpp::string_literal* symbol)
 	return *value == 'L' ? gWideStringLiteral : gStringLiteral;
 }
 
-
-extern const DeclarationInstance gCopyAssignmentOperatorInstance;
-extern const DeclarationInstance gDestructorInstance;
 
 extern Declaration gDependentType;
 extern const DeclarationInstance gDependentTypeInstance;
