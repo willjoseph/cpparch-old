@@ -497,34 +497,32 @@ void argumentDependentLookup(OverloadSet& result, const Identifier& id, const Ar
 	}
 }
 
-inline void addOverloads(OverloadResolver& resolver, const DeclarationInstance& declaration, Location source, const SimpleType* enclosing = 0)
+inline void addOverloads(OverloadResolver& resolver, const DeclarationInstance& declaration, const InstantiationContext& context)
 {
 	for(Declaration* p = findOverloaded(declaration); p != 0; p = p->overloaded)
 	{
-		addOverload(resolver, *p, source, enclosing);
+		addOverload(resolver, *p, context);
 	}
 }
 
-inline void addOverloads(OverloadResolver& resolver, const OverloadSet& overloads, Location source, const SimpleType* enclosing = 0)
+inline void addOverloads(OverloadResolver& resolver, const OverloadSet& overloads, const InstantiationContext& context)
 {
 	for(OverloadSet::const_iterator i = overloads.begin(); i != overloads.end(); ++i)
 	{
 		const Overload& overload = *i;
-		const SimpleType* memberEnclosing = overload.memberEnclosing != 0 ? overload.memberEnclosing : enclosing;
-		addOverload(resolver, *overload.declaration, source, memberEnclosing);
+		addOverload(resolver, *overload.declaration, setMemberEnclosing(context, overload.memberEnclosing));
 	}
 }
 
-inline void printOverloads(OverloadResolver& resolver, const OverloadSet& overloads, Location source, const SimpleType* enclosing = 0)
+inline void printOverloads(OverloadResolver& resolver, const OverloadSet& overloads, const InstantiationContext& context)
 {
 	for(OverloadSet::const_iterator i = overloads.begin(); i != overloads.end(); ++i)
 	{
 		const Overload& overload = *i;
-		const SimpleType* memberEnclosing = overload.memberEnclosing != 0 ? overload.memberEnclosing : enclosing;
-		addOverload(resolver, *overload.declaration, source, memberEnclosing);
+		addOverload(resolver, *overload.declaration, setMemberEnclosing(context, overload.memberEnclosing));
 	
 		const Declaration* p = overload.declaration;
-		ParameterTypes parameters = addOverload(resolver, *p, source, enclosing);
+		ParameterTypes parameters = addOverload(resolver, *p, context);
 		printPosition(p->getName().source);
 		std::cout << "(";
 		bool separator = false;
@@ -543,11 +541,11 @@ inline void printOverloads(OverloadResolver& resolver, const OverloadSet& overlo
 
 // source: where the overload resolution occurs (point of instantiation)
 // enclosingType: the class of which the declaration is a member (along with all its overloads).
-inline FunctionOverload findBestMatch(const OverloadSet& overloads, const TemplateArgumentsInstance* templateArguments, const Arguments& arguments, Location source, const SimpleType* enclosingType)
+inline FunctionOverload findBestMatch(const OverloadSet& overloads, const TemplateArgumentsInstance* templateArguments, const Arguments& arguments, const InstantiationContext& context)
 {
 	SEMANTIC_ASSERT(!overloads.empty());
-	OverloadResolver resolver(arguments, templateArguments, source, enclosingType);
-	addOverloads(resolver, overloads, source, enclosingType);
+	OverloadResolver resolver(arguments, templateArguments, context);
+	addOverloads(resolver, overloads, context);
 
 	if(resolver.ambiguous != 0)
 	{
@@ -569,7 +567,7 @@ inline FunctionOverload findBestMatch(const OverloadSet& overloads, const Templa
 
 	if(resolver.get().declaration == 0)
 	{
-		printPosition(source);
+		printPosition(context.source);
 		std::cout << "overload resolution failed when matching arguments (";
 		bool separator = false;
 		for(Arguments::const_iterator i = arguments.begin(); i != arguments.end(); ++i)
@@ -587,7 +585,7 @@ inline FunctionOverload findBestMatch(const OverloadSet& overloads, const Templa
 		printName(declaration->scope);
 		std::cout << getValue(declaration->getName());
 		std::cout << std::endl;
-		printOverloads(resolver, overloads, source, enclosingType);
+		printOverloads(resolver, overloads, context);
 	}
 
 	return resolver.get();
@@ -700,7 +698,7 @@ inline bool isPlaceholder(UniqueTypeWrapper type)
 
 // to: The placeholder parameter of the built-in operator.
 // from: The type of the argument expression after lvalue-to-rvalue conversion, or the type yielded by the best conversion function.
-inline void addBuiltInOperatorConversions(UserTypeArray& conversions, UniqueTypeWrapper to, UniqueTypeWrapper from, Location source, const SimpleType* enclosing)
+inline void addBuiltInOperatorConversions(UserTypeArray& conversions, UniqueTypeWrapper to, UniqueTypeWrapper from, const InstantiationContext& context)
 {
 	SYMBOLS_ASSERT(isPlaceholder(removeReference(to)));
 	if(to.isReference())
@@ -719,7 +717,7 @@ inline void addBuiltInOperatorConversions(UserTypeArray& conversions, UniqueType
 		{
 			// the argument type 'pointer to class X' is convertible to a pointer to any base class of X
 			const SimpleType& classType = getSimpleType(type.value);
-			instantiateClass(classType, source, enclosing);
+			instantiateClass(classType, context);
 			forEachBase(classType, AddPointerConversions(conversions, qualifiers));
 		}
 		else
@@ -739,7 +737,7 @@ inline void addBuiltInOperatorConversions(UserTypeArray& conversions, UniqueType
 		{
 			// the argument type 'pointer to member of class X of type Y' is convertible to a pointer to member of any base class of X of type Y
 			const SimpleType& classType = getMemberPointerClass(from.value);
-			instantiateClass(classType, source, enclosing);
+			instantiateClass(classType, context);
 			forEachBase(classType, AddMemberPointerConversions(conversions, type));
 		}
 		else
@@ -841,7 +839,7 @@ inline void addBuiltInOperatorOverloads(OverloadResolver& resolver, ArrayRange<B
 			}
 			conversionPairs.push_back(UserTypeArray());
 			UserTypeArray& conversions = conversionPairs.back();
-			addBuiltInOperatorConversions(conversions, to, conversion.sequence.matched, resolver.source, resolver.enclosing);
+			addBuiltInOperatorConversions(conversions, to, conversion.sequence.matched, resolver.context);
 		}
 
 		if(conversionPairs.empty()) // no built-in overloads can be matched by this argument list
@@ -993,7 +991,7 @@ inline void addBuiltInOperatorOverloads(OverloadResolver& resolver, const Identi
 	}
 }
 
-inline FunctionOverload findBestOverloadedOperator(const Identifier& id, const Arguments& arguments, Scope* enclosing, Location source, const SimpleType* enclosingType)
+inline FunctionOverload findBestOverloadedOperator(const Identifier& id, const Arguments& arguments, const InstantiationContext& context)
 {
 	Arguments::const_iterator i = arguments.begin();
 	UniqueTypeWrapper left = (*i++).type;
@@ -1010,7 +1008,7 @@ inline FunctionOverload findBestOverloadedOperator(const Identifier& id, const A
 	// declared that implements this operator or a user-defined conversion can be necessary to convert the operand
 	// to a type that is appropriate for a built-in operator. In this case, overload resolution is used to determine
 	// which operator function or built-in operator is to be invoked to implement the operator.
-	OverloadResolver resolver(arguments, 0, source, enclosingType);
+	OverloadResolver resolver(arguments, 0, context);
 
 	// For a unary operator @ with an operand of a type whose cv-unqualified version is T1, and for a binary operator
 	// @ with a left operand of a type whose cv-unqualified version is T1 and a right operand of a type whose
@@ -1022,13 +1020,13 @@ inline FunctionOverload findBestOverloadedOperator(const Identifier& id, const A
 		&& isComplete(left)) // can only find overloads if class is complete
 	{
 		const SimpleType& operand = getSimpleType(left.value);
-		instantiateClass(operand, source, enclosingType); // searching for overloads requires a complete type
+		instantiateClass(operand, context); // searching for overloads requires a complete type
 		LookupResultRef declaration = ::findDeclaration(operand, id, IsAny());
 		if(declaration != 0)
 		{
 			const SimpleType* memberEnclosing = findEnclosingType(&operand, declaration->scope); // find the base class which contains the member-declaration
 			SEMANTIC_ASSERT(memberEnclosing != 0);
-			addOverloads(resolver, declaration, source, memberEnclosing);
+			addOverloads(resolver, declaration, setEnclosingTypeSafe(context, memberEnclosing));
 		}
 	}
 	// - The set of non-member candidates is the result of the unqualified lookup of operator@ in the context
@@ -1039,14 +1037,14 @@ inline FunctionOverload findBestOverloadedOperator(const Identifier& id, const A
 	//   type T2 or "reference to (possibly cv-qualified) T2", when T2 is an enumeration type, are candidate
 	//   functions.
 	OverloadSet overloads;
-	LookupResultRef declaration = findClassOrNamespaceMemberDeclaration(*enclosing, id, IsNonMemberName()); // look up non-member candidates in the enclosing scope (ignoring members)
+	LookupResultRef declaration = findClassOrNamespaceMemberDeclaration(*context.enclosingScope, id, IsNonMemberName()); // look up non-member candidates in the enclosing scope (ignoring members)
 	if(declaration != 0)
 	{
 		// TODO: ignore non-member candidates if no operand has a class type, unless one or more params has enum type
 		addOverloaded(overloads, declaration);
 	}
 	argumentDependentLookup(overloads, id, arguments);
-	addOverloads(resolver, overloads, source);
+	addOverloads(resolver, overloads, setEnclosingType(context, 0));
 
 	// TODO: 13.3.1.2: built-in operators for overload resolution
 	// These are relevant either when the operand has a user-defined conversion to a non-class type, or is an enum that can be converted to an arithmetic type
@@ -1105,7 +1103,7 @@ inline UniqueTypeWrapper typeOfUnaryExpression(Name operatorName, Argument opera
 	id.source = context.source;
 
 	Arguments arguments(1, operand);
-	FunctionOverload overload = findBestOverloadedOperator(id, arguments, context.enclosingScope, context.source, context.enclosingType);
+	FunctionOverload overload = findBestOverloadedOperator(id, arguments, context);
 	if(overload.declaration == &gUnknown
 		|| (overload.declaration == 0
 			&& operatorName == gOperatorAndId)) // TODO: unary operator& has no built-in candidates  
@@ -1133,6 +1131,36 @@ inline UniqueTypeWrapper typeOfUnaryExpression(Name operatorName, Argument opera
 	else
 	{
 		SEMANTIC_ASSERT(overload.declaration != 0);
+		SEMANTIC_ASSERT(overload.type != gUniqueTypeNull);
+		return overload.type;
+	}
+}
+
+inline UniqueTypeWrapper typeOfPostfixOperatorExpression(Name operatorName, Argument operand, const InstantiationContext& context)
+{
+	Identifier id;
+	id.value = operatorName;
+	id.source = context.source;
+
+	ExpressionWrapper zero = ExpressionWrapper(makeUniqueExpression(IntegralConstantExpression(gSignedInt, IntegralConstant(0))), true);
+
+	Arguments arguments;
+	arguments.push_back(operand);
+	arguments.push_back(Argument(zero, gSignedInt));
+	FunctionOverload overload = findBestOverloadedOperator(id, arguments, context);
+	if(overload.declaration == &gUnknown)
+	{
+		// [expr.post.incr] The type of the operand shall be an arithmetic type or a pointer to a complete object type.
+		// The type of the result is the cv-unqualified version of the type of the operand.
+		UniqueTypeWrapper type = operand.type;
+		type.value.setQualifiers(CvQualifiers());
+		requireCompleteObjectType(type, context);
+		return operand.type;
+	}
+	else
+	{
+		SEMANTIC_ASSERT(overload.declaration != 0);
+		SEMANTIC_ASSERT(overload.type != gUniqueTypeNull);
 		return overload.type;
 	}
 }
@@ -1153,7 +1181,7 @@ inline UniqueTypeWrapper typeOfBinaryExpression(Name operatorName, Argument left
 		Arguments arguments;
 		arguments.push_back(left);
 		arguments.push_back(right);
-		overload = findBestOverloadedOperator(id, arguments, context.enclosingScope, context.source, context.enclosingType);
+		overload = findBestOverloadedOperator(id, arguments, context);
 	}
 	if(overload.declaration == &gUnknown
 		|| (overload.declaration == 0 && id.value == gOperatorAssignId)) // TODO: declare implicit assignment operator
@@ -1190,7 +1218,7 @@ inline const SimpleType* getIdExpressionClass(const SimpleType* qualifying, cons
 	return idEnclosing;
 }
 
-inline UniqueTypeWrapper typeOfIdExpression(const SimpleType* qualifying, const DeclarationInstance& declaration, Location source, const SimpleType* enclosingType)
+inline UniqueTypeWrapper typeOfIdExpression(const SimpleType* qualifying, const DeclarationInstance& declaration, const InstantiationContext& context)
 {
 	if(declaration == gDestructorInstance.p)
 	{
@@ -1198,36 +1226,36 @@ inline UniqueTypeWrapper typeOfIdExpression(const SimpleType* qualifying, const 
 	}
 	else if(declaration == gCopyAssignmentOperatorInstance.p)
 	{
-		const SimpleType* idEnclosing = qualifying != 0 ? qualifying : enclosingType;
+		const SimpleType* idEnclosing = qualifying != 0 ? qualifying : context.enclosingType;
 		SYMBOLS_ASSERT(idEnclosing != 0);
 		return makeCopyAssignmentOperatorType(*idEnclosing);
 	}
 
-	const SimpleType* idEnclosing = getIdExpressionClass(qualifying, declaration, enclosingType);
+	const SimpleType* idEnclosing = getIdExpressionClass(qualifying, declaration, context.enclosingType);
 	// a member function template may have a type which depends on its template parameters
-	return getUniqueType(declaration->type, source, idEnclosing, declaration->isTemplate);
+	return getUniqueType(declaration->type, setEnclosingType(context, idEnclosing), declaration->isTemplate);
 }
 
-UniqueTypeWrapper getOverloadedMemberOperatorType(UniqueTypeWrapper operand, Location source, const SimpleType* enclosing)
+UniqueTypeWrapper getOverloadedMemberOperatorType(UniqueTypeWrapper operand, const InstantiationContext& context)
 {
 	const SimpleType& classType = getSimpleType(operand.value);
 	SEMANTIC_ASSERT(isClass(*classType.declaration)); // assert that this is a class type
 	// [expr.ref] [the type of the operand-expression shall be complete]
-	instantiateClass(classType, source, enclosing); // searching for overloads requires a complete type
+	instantiateClass(classType, context); // searching for overloads requires a complete type
 
 	Identifier id;
 	id.value = gOperatorArrowId;
-	id.source = source;
+	id.source = context.source;
 
 	Arguments arguments(1, Argument(0, operand));
-	OverloadResolver resolver(arguments, 0, source, enclosing);
+	OverloadResolver resolver(arguments, 0, context);
 
 	LookupResultRef declaration = ::findDeclaration(classType, id, IsAny());
 	if(declaration != 0)
 	{
 		const SimpleType* memberEnclosing = findEnclosingType(&classType, declaration->scope); // find the base class which contains the member-declaration
 		SEMANTIC_ASSERT(memberEnclosing != 0);
-		addOverloads(resolver, declaration, source, memberEnclosing);
+		addOverloads(resolver, declaration, setEnclosingTypeSafe(context, memberEnclosing));
 	}
 
 	FunctionOverload result = resolver.get();
@@ -1249,13 +1277,13 @@ inline UniqueTypeWrapper makeCopyAssignmentOperatorType(const SimpleType& classT
 	return type;
 }
 
-inline const SimpleType& getMemberOperatorType(UniqueTypeWrapper operand, bool isArrow, Location source, const SimpleType* enclosing)
+inline const SimpleType& getMemberOperatorType(UniqueTypeWrapper operand, bool isArrow, const InstantiationContext& context)
 {
 	if(isArrow)
 	{
 		while(isClass(operand))
 		{
-			operand = getOverloadedMemberOperatorType(operand, source, enclosing);
+			operand = getOverloadedMemberOperatorType(operand, context);
 		}
 	}
 
@@ -1270,7 +1298,7 @@ inline const SimpleType& getMemberOperatorType(UniqueTypeWrapper operand, bool i
 	const SimpleType& result = getSimpleType(operand.value);
 	SEMANTIC_ASSERT(isClass(*result.declaration)); // assert that this is a class type
 	// [expr.ref] [the type of the operand-expression shall be complete]
-	instantiateClass(result, source, enclosing);
+	instantiateClass(result, context);
 	return result;
 }
 
@@ -1437,7 +1465,7 @@ inline UniqueTypeWrapper typeOfSubscriptExpression(Argument left, Argument right
 		// operator[] shall be a non-static member function with exactly one parameter.
 		SEMANTIC_ASSERT(isComplete(left.type)); // TODO: non-fatal parse error
 		const SimpleType& object = getSimpleType(left.type.value);
-		instantiateClass(object, context.source, context.enclosingType); // searching for overloads requires a complete type
+		instantiateClass(object, context); // searching for overloads requires a complete type
 		Identifier tmp;
 		tmp.value = gOperatorSubscriptId;
 		tmp.source = context.source;
@@ -1455,7 +1483,7 @@ inline UniqueTypeWrapper typeOfSubscriptExpression(Argument left, Argument right
 
 		OverloadSet overloads;
 		addOverloaded(overloads, declaration);
-		FunctionOverload overload = findBestMatch(overloads, 0, arguments, context.source, idEnclosing);
+		FunctionOverload overload = findBestMatch(overloads, 0, arguments, setEnclosingTypeSafe(context, idEnclosing));
 		SEMANTIC_ASSERT(overload.declaration != 0);
 		return overload.type;
 	}
@@ -1464,11 +1492,11 @@ inline UniqueTypeWrapper typeOfSubscriptExpression(Argument left, Argument right
 	SEMANTIC_ASSERT(type.isArray() || type.isPointer()); // TODO: non-fatal error: attempting to dereference non-array/pointer
 	type.pop_front(); // dereference left-hand side
 	// [expr.sub] The result is an lvalue of type T. The type "T" shall be a completely defined object type.
-	requireCompleteObjectType(type, context.source, context.enclosingType);
+	requireCompleteObjectType(type, context);
 	return type;
 }
 
-UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Arguments& arguments, const SimpleType* idEnclosing, const SimpleType* memberClass, Location source, const SimpleType* enclosingType)
+UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Arguments& arguments, const SimpleType* idEnclosing, const SimpleType* memberClass, const InstantiationContext& context)
 {
 	ExpressionWrapper expression = left;
 	UniqueTypeWrapper type = left.type;
@@ -1486,7 +1514,7 @@ UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Arguments& a
 
 		SEMANTIC_ASSERT(!overloads.empty()); // check that the declaration was found via ADL
 
-		FunctionOverload overload = findBestMatch(overloads, 0, arguments, source, idEnclosing);
+		FunctionOverload overload = findBestMatch(overloads, 0, arguments, context);
 		SEMANTIC_ASSERT(overload.declaration != 0);
 #if 0 // TODO: find the corresponding declaration-instance for a name found via ADL
 		{
@@ -1506,10 +1534,10 @@ UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Arguments& a
 		// obtained by ordinary lookup of the name operator() in the context of (E).operator().
 		SEMANTIC_ASSERT(isComplete(type)); // TODO: non-fatal parse error
 		const SimpleType& object = getSimpleType(type.value);
-		instantiateClass(object, source, enclosingType); // searching for overloads requires a complete type
+		instantiateClass(object, context); // searching for overloads requires a complete type
 		Identifier tmp;
 		tmp.value = gOperatorFunctionId;
-		tmp.source = source;
+		tmp.source = context.source;
 		LookupResultRef declaration = ::findDeclaration(object, tmp, IsAny());
 		SEMANTIC_ASSERT(declaration != 0); // TODO: non-fatal error: expected function
 
@@ -1527,7 +1555,7 @@ UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Arguments& a
 
 		SEMANTIC_ASSERT(!overloads.empty());
 
-		FunctionOverload overload = findBestMatch(overloads, 0, augmentedArguments, source, idEnclosing);
+		FunctionOverload overload = findBestMatch(overloads, 0, augmentedArguments, setEnclosingTypeSafe(context, idEnclosing));
 		SEMANTIC_ASSERT(overload.declaration != 0);
 #if 0 // TODO: record which overload was chosen, for dependency-tracking
 		{
@@ -1581,7 +1609,7 @@ UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Arguments& a
 		// TODO: correct argument type depending on base class copy-assign declarations.
 
 		// either the call is qualified or 'this' is valid
-		SEMANTIC_ASSERT(memberClass != 0 || enclosingType != 0);
+		SEMANTIC_ASSERT(memberClass != 0 || context.enclosingType != 0);
 		SEMANTIC_ASSERT(memberClass == 0 || memberClass != &gDependentSimpleType);
 
 		SEMANTIC_ASSERT(type.isFunction());
@@ -1596,17 +1624,17 @@ UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Arguments& a
 	if(isMember(*declaration))
 	{
 		// either the call is qualified, 'this' is valid, or the member is static
-		SEMANTIC_ASSERT(memberClass != 0 || enclosingType != 0 || isStatic(*declaration));
+		SEMANTIC_ASSERT(memberClass != 0 || context.enclosingType != 0 || isStatic(*declaration));
 		SEMANTIC_ASSERT(memberClass == 0 || memberClass != &gDependentSimpleType);
 
 		augmentedArguments.push_back(Argument(ExpressionWrapper(0), makeUniqueSimpleType(memberClass != 0
 			? *memberClass // qualified-function-call (member access expression)
 			// unqualified function call
-			: enclosingType != 0
+			: context.enclosingType != 0
 			// If the keyword 'this' is in scope and refers to the class of that member function, or a derived class thereof,
 			// then the function call is transformed into a normalized qualified function call using (*this) as the postfix-expression
 			// to the left of the . operator.
-			? *enclosingType // implicit '(*this).'
+			? *context.enclosingType // implicit '(*this).'
 			// If the keyword 'this' is not in scope or refers to another class, then name resolution found a static member of some
 			// class T. In this case, all overloaded declarations of the function name in T become candidate functions and
 			// a contrived object of type T becomes the implied object argument
@@ -1630,7 +1658,7 @@ UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Arguments& a
 	SEMANTIC_ASSERT(!overloads.empty());
 
 	// TODO: handle empty template-argument list '<>'. If specified, overload resolution should ignore non-templates
-	FunctionOverload overload = findBestMatch(overloads, templateArguments.empty() ? 0 : &templateArguments, augmentedArguments, source, idEnclosing);
+	FunctionOverload overload = findBestMatch(overloads, templateArguments.empty() ? 0 : &templateArguments, augmentedArguments, setEnclosingType(context, idEnclosing));
 	SEMANTIC_ASSERT(overload.declaration != 0);
 #if 0 // TODO: record which overload was chosen, for dependency-tracking
 	{
@@ -1740,6 +1768,10 @@ struct WalkerState
 	{
 		return Location(parser->get_source(), context.declarationCount);
 	}
+	InstantiationContext getInstantiationContext() const
+	{
+		return InstantiationContext(getLocation(), enclosingType, enclosing);
+	}
 
 	UniqueTypeWrapper getTypeInfoType()
 	{
@@ -1755,7 +1787,7 @@ struct WalkerState
 			SEMANTIC_ASSERT(declaration != 0);
 			SEMANTIC_ASSERT(isClass(*declaration));
 			Type type(declaration, context);
-			context.typeInfoType = makeUniqueType(type, Location(), 0, false);
+			context.typeInfoType = makeUniqueType(type, InstantiationContext(Location(), 0, 0), false);
 			context.typeInfoType.value.setQualifiers(CvQualifiers(true, false));
 		}
 		return context.typeInfoType;
@@ -1803,7 +1835,7 @@ struct WalkerState
 		// [basic.lookup.qual]
 		if(qualifyingClass != 0)
 		{
-			instantiateClass(*qualifyingClass, getLocation(), enclosingType);
+			instantiateClass(*qualifyingClass, getInstantiationContext());
 			if(result.append(::findDeclaration(*qualifyingClass, id, filter)))
 			{
 				return result;
@@ -2418,7 +2450,7 @@ struct WalkerBase : public WalkerState
 					&& (uniqueType.isSimple() || uniqueType.isArray()))
 				{
 					// TODO: accurate sizeof
-					size = requireCompleteObjectType(uniqueType, getLocation(), enclosingType);
+					size = requireCompleteObjectType(uniqueType, getInstantiationContext());
 				}
 			}
 			else if(enclosingClass != 0
@@ -2499,20 +2531,20 @@ struct WalkerBase : public WalkerState
 	}
 
 	template<typename T>
-	void makeUniqueTypeImpl(T& type, Location source)
+	void makeUniqueTypeImpl(T& type)
 	{
 		SYMBOLS_ASSERT(type.unique == 0); // type must not be uniqued twice
 		type.isDependent = isDependent(type)
 			|| objectExpressionIsDependent(); // this occurs when uniquing the dependent type name in a nested name-specifier in a class-member-access expression
-		type.unique = makeUniqueType(type, source, enclosingType, type.isDependent).value;
+		type.unique = makeUniqueType(type, getInstantiationContext(), type.isDependent).value;
 	}
-	void makeUniqueTypeSafe(Type& type, Location source)
+	void makeUniqueTypeSafe(Type& type)
 	{
-		makeUniqueTypeImpl(type, source);
+		makeUniqueTypeImpl(type);
 	}
-	void makeUniqueTypeSafe(TypeId& type, Location source)
+	void makeUniqueTypeSafe(TypeId& type)
 	{
-		makeUniqueTypeImpl(type, source);
+		makeUniqueTypeImpl(type);
 	}
 	UniqueTypeWrapper getUniqueTypeSafe(const TypeId& type)
 	{
@@ -2573,7 +2605,7 @@ struct WalkerQualified : public WalkerBase
 			}
 			else
 			{
-				qualifyingClass = &getSimpleType(getUniqueType(*qualifying_p, getLocation(), enclosingType, isDeclarator).value);
+				qualifyingClass = &getSimpleType(getUniqueType(*qualifying_p, getInstantiationContext(), isDeclarator).value);
 				qualifyingScope = qualifyingClass->declaration;
 			}
 		}
@@ -2994,10 +3026,10 @@ struct IdExpressionWalker : public WalkerQualified
 	}
 	bool commit()
 	{
-		UniqueTypeWrapper qualifyingType = makeUniqueQualifying(qualifying, getLocation(), enclosingType, isDependent(qualifying.get_ref()));
+		UniqueTypeWrapper qualifyingType = makeUniqueQualifying(qualifying, getInstantiationContext(), isDependent(qualifying.get_ref()));
 
 		TemplateArgumentsInstance templateArguments;
-		makeUniqueTemplateArguments(arguments, templateArguments, Location(id->source, context.declarationCount), enclosingType, isDependent(arguments));
+		makeUniqueTemplateArguments(arguments, templateArguments, getInstantiationContext(), isDependent(arguments));
 
 		expression = ExpressionWrapper();
 
@@ -3087,7 +3119,7 @@ struct ExplicitTypeExpressionWalker : public WalkerBase
 			type = getFundamentalType(walker.fundamental);
 		}
 		addDependent(typeDependent, type);
-		makeUniqueTypeSafe(type, getLocation());
+		makeUniqueTypeSafe(type);
 	}
 	void visit(cpp::typename_specifier* symbol)
 	{
@@ -3095,7 +3127,7 @@ struct ExplicitTypeExpressionWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		type.swap(walker.type);
 		addDependent(typeDependent, type);
-		makeUniqueTypeSafe(type, getLocation());
+		makeUniqueTypeSafe(type);
 	}
 	void visit(cpp::type_id* symbol)
 	{
@@ -3112,7 +3144,7 @@ struct ExplicitTypeExpressionWalker : public WalkerBase
 		type.swap(walker.type);
 		addDependent(typeDependent, type);
 		addDependent(typeDependent, walker.valueDependent);
-		makeUniqueTypeSafe(type, getLocation());
+		makeUniqueTypeSafe(type);
 	}
 	void visit(cpp::assignment_expression* symbol)
 	{
@@ -3302,7 +3334,7 @@ struct PrimaryExpressionWalker : public WalkerBase
 		LiteralWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
 		expression = walker.expression;
-		type = typeOfExpression(expression, InstantiationContext(getLocation(), enclosingType));
+		type = typeOfExpression(expression, getInstantiationContext());
 		SEMANTIC_ASSERT(!type.empty());
 	}
 	void visit(cpp::id_expression* symbol)
@@ -3333,13 +3365,18 @@ struct PrimaryExpressionWalker : public WalkerBase
 		else if(expression.p != 0
 			&& !isDependent(typeDependent))
 		{
-			UniqueTypeWrapper qualifyingType = makeUniqueQualifying(walker.qualifying, getLocation(), enclosingType);
+			UniqueTypeWrapper qualifyingType = makeUniqueQualifying(walker.qualifying, getInstantiationContext());
 			const SimpleType* qualifyingClass = qualifyingType == gUniqueTypeNull ? 0 : &getSimpleType(qualifyingType.value);
-			type = typeOfIdExpression(qualifyingClass, declaration, getLocation(), enclosingType);
+			type = typeOfIdExpression(qualifyingClass, declaration, getInstantiationContext());
 			idEnclosing = isSpecialMember(*declaration) ? 0 : getIdExpressionClass(qualifyingClass, declaration, enclosingType);
 
 			if(!type.isFunction()) // if the id-expression refers to a function, overload resolution depends on the parameter types; defer evaluation of type
 			{
+#if 0
+				UniqueTypeWrapper tmp = typeOfExpression(expression, getInstantiationContext());
+				SEMANTIC_ASSERT(type == tmp);
+#endif
+
 				// [expr.const]
 				// An integral constant-expression can involve only ... enumerators, const variables or static
 				// data members of integral or enumeration types initialized with constant expressions, non-type template
@@ -3399,7 +3436,7 @@ struct PostfixExpressionMemberWalker : public WalkerQualified
 		{
 			// [expr] If an expression initially has the type "reference to T", the type is adjusted to "T" prior to any further analysis.
 			UniqueTypeWrapper operand = removeReference(memberType);
-			memberClass = &getMemberOperatorType(operand, isArrow, getLocation(), enclosingType);
+			memberClass = &getMemberOperatorType(operand, isArrow, getInstantiationContext());
 
 			objectExpression = makeExpression(ObjectExpression(memberClass));
 		}
@@ -3538,7 +3575,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		addDependent(typeDependent, walker.typeDependent);
 		type = getUniqueTypeSafe(walker.type);
 		// [basic.lval] An expression which holds a temporary object resulting from a cast to a non-reference type is an rvalue
-		requireCompleteObjectType(type, Location(symbol->source, context.declarationCount), enclosingType);
+		requireCompleteObjectType(type, getInstantiationContext());
 		expression = makeExpression(CastExpression(type, walker.expression), walker.expression.isConstant, isDependent(typeDependent), false);
 		expression.isTemplateArgumentAmbiguity = symbol->args == 0;
 		setExpressionType(symbol, type);
@@ -3550,7 +3587,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		TREEWALKER_WALK_SRC(walker, symbol);
 		type = getUniqueTypeSafe(walker.type);
 		// [basic.lval] An expression which holds a temporary object resulting from a cast to a non-reference type is an rvalue
-		requireCompleteObjectType(type, Location(symbol->source, context.declarationCount), enclosingType);
+		requireCompleteObjectType(type, getInstantiationContext());
 		if(symbol->op->id != cpp::cast_operator::DYNAMIC)
 		{
 			Dependent tmp(walker.typeDependent);
@@ -3603,7 +3640,7 @@ struct PostfixExpressionWalker : public WalkerBase
 			type = typeOfSubscriptExpression(
 				Argument(ExpressionWrapper(0), type),
 				Argument(walker.expression, walker.type),
-				InstantiationContext(getLocation(), enclosingType, enclosing));
+				getInstantiationContext());
 		}
 		setExpressionType(symbol, type);
 		updateMemberType();
@@ -3646,7 +3683,7 @@ struct PostfixExpressionWalker : public WalkerBase
 				SEMANTIC_ASSERT(!isUndeclared || getDependentIdExpression(expression).name == id->value);
 
 				TemplateArgumentsInstance templateArguments;
-				makeUniqueTemplateArguments(arguments, templateArguments, getLocation(), enclosingType);
+				makeUniqueTemplateArguments(arguments, templateArguments, getInstantiationContext());
 
 				if(isUndeclared)
 				{
@@ -3671,7 +3708,7 @@ struct PostfixExpressionWalker : public WalkerBase
 					}
 				}
 			}
-			type = typeOfFunctionCallExpression(Argument(expression, type), walker.arguments, idEnclosing, memberClass, getLocation(), enclosingType);
+			type = typeOfFunctionCallExpression(Argument(expression, type), walker.arguments, idEnclosing, memberClass, getInstantiationContext());
 			expression = makeExpression(FunctionCallExpression(expression, walker.arguments), false, isDependent(typeDependent), isDependent(valueDependent));
 		}
 		// TODO: set of pointers-to-function
@@ -3704,9 +3741,9 @@ struct PostfixExpressionWalker : public WalkerBase
 			SEMANTIC_ASSERT(walker.memberClass != &gDependentSimpleType);
 
 			// TODO: [expr.ref] inherit const/volatile from object-expression type if member is non-static
-			UniqueTypeWrapper qualifyingType = makeUniqueQualifying(walker.qualifying, getLocation(), enclosingType);
+			UniqueTypeWrapper qualifyingType = makeUniqueQualifying(walker.qualifying, getInstantiationContext());
 			const SimpleType* qualifyingClass = qualifyingType == gUniqueTypeNull ? 0 : &getSimpleType(qualifyingType.value);
-			type = typeOfIdExpression(qualifyingClass, declaration, getLocation(), walker.memberClass);
+			type = typeOfIdExpression(qualifyingClass, declaration, setEnclosingTypeSafe(getInstantiationContext(), walker.memberClass));
 			idEnclosing = isSpecialMember(*declaration) ? 0 : getIdExpressionClass(qualifyingClass, declaration, walker.memberClass);
 
 			expression = makeExpression(ClassMemberAccessExpression(walker.objectExpression, walker.expression),
@@ -3735,13 +3772,19 @@ struct PostfixExpressionWalker : public WalkerBase
 	void visit(cpp::postfix_operator* symbol)
 	{
 		TREEWALKER_LEAF_SRC(symbol);
-		type = removeReference(type);
-		// [expr.post.incr] The type of the operand shall be an arithmetic type or a pointer to a complete object type.
-		if(type.isPointer()) // TODO: overloaded operator++(int)
+		if(isDependent(typeDependent))
 		{
-			UniqueTypeWrapper deref = type;
-			deref.pop_front();
-			requireCompleteObjectType(deref, Location(symbol->source, context.declarationCount), enclosingType);
+			type = gUniqueTypeNull;
+		}
+		else
+		{
+			type = removeReference(type);
+			type = typeOfPostfixOperatorExpression(
+				getOverloadedOperatorId(symbol),
+				Argument(expression, type),
+				getInstantiationContext());
+
+			expression = makeExpression(PostfixOperatorExpression(getOverloadedOperatorId(symbol), expression));
 		}
 		setExpressionType(symbol, type);
 		id = 0;
@@ -3861,7 +3904,7 @@ struct ExpressionWalker : public WalkerBase
 		// TODO: SEMANTIC_ASSERT(type.declaration != 0 && walker.type.declaration != 0);
 		BinaryIceOp iceOp = getBinaryIceOp(symbol);
 		ExpressionWrapper leftExpression = expression;
-		expression = makeExpression(BinaryExpression(getBinaryOperatorName(symbol), iceOp, typeOfBinaryExpression<typeOp>, expression, walker.expression),
+		expression = makeExpression(BinaryExpression(getOverloadedOperatorId(symbol), iceOp, typeOfBinaryExpression<typeOp>, expression, walker.expression),
 			expression.isConstant && walker.expression.isConstant && iceOp != 0,
 			isDependent(typeDependent),
 			isDependent(valueDependent)
@@ -3872,7 +3915,7 @@ struct ExpressionWalker : public WalkerBase
 			UniqueTypeWrapper right = removeReference(walker.type);
 			type = typeOfBinaryExpression<typeOp>(getOverloadedOperatorId(symbol),
 				Argument(leftExpression, left), Argument(walker.expression, right),
-				InstantiationContext(getLocation(), enclosingType, enclosing));
+				getInstantiationContext());
 			SYMBOLS_ASSERT(type != gUniqueTypeNull);
 		}
 		ExpressionType<T>::set(symbol, type);
@@ -4006,8 +4049,7 @@ struct ExpressionWalker : public WalkerBase
 	}
 	void visit(cpp::unary_expression_op* symbol)
 	{
-		Source source = parser->get_source();
-		TREEWALKER_LEAF_SRC(symbol);
+		TREEWALKER_LEAF(symbol);
 		id = 0; // not a parenthesised id-expression, expression is not 'call to named function' [over.call.func]
 		if(!isDependent(typeDependent))
 		{
@@ -4020,7 +4062,7 @@ struct ExpressionWalker : public WalkerBase
 			type = typeOfUnaryExpression(
 				getOverloadedOperatorId(symbol->op),
 				Argument(expression, type),
-				InstantiationContext(Location(source, context.declarationCount), enclosingType, enclosing));
+				getInstantiationContext());
 			// TODO: decorate parse-tree with declaration
 		}
 		else
@@ -4030,7 +4072,7 @@ struct ExpressionWalker : public WalkerBase
 
 
 		UnaryIceOp iceOp = getUnaryIceOp(symbol);
-		expression = makeExpression(UnaryExpression(symbol->op->value.value, iceOp, expression),
+		expression = makeExpression(UnaryExpression(getOverloadedOperatorId(symbol->op), iceOp, expression),
 			expression.isConstant && iceOp != 0,
 			isDependent(typeDependent),
 			isDependent(valueDependent)
@@ -4060,7 +4102,7 @@ struct ExpressionWalker : public WalkerBase
 		TREEWALKER_WALK_SRC(walker, symbol);
 		type = getUniqueTypeSafe(walker.type);
 		// [expr.new] The new expression attempts to create an object of the type-id or new-type-id to which it is applied. The type shall be a complete type...
-		requireCompleteObjectType(type, Location(symbol->source, context.declarationCount), enclosingType);
+		requireCompleteObjectType(type, getInstantiationContext());
 		type.push_front(PointerType());
 		addDependent(typeDependent, walker.typeDependent);
 		expression = makeExpression(ExplicitTypeExpression(type), false, isDependent(typeDependent));
@@ -4072,7 +4114,7 @@ struct ExpressionWalker : public WalkerBase
 		TREEWALKER_WALK_SRC(walker, symbol);
 		type = getUniqueTypeSafe(walker.type);
 		// [expr.new] The new expression attempts to create an object of the type-id or new-type-id to which it is applied. The type shall be a complete type...
-		requireCompleteObjectType(type, Location(symbol->source, context.declarationCount), enclosingType);
+		requireCompleteObjectType(type, getInstantiationContext());
 		type.push_front(PointerType());
 		addDependent(typeDependent, walker.typeDependent);
 		expression = makeExpression(ExplicitTypeExpression(type), false, isDependent(typeDependent));
@@ -4084,7 +4126,7 @@ struct ExpressionWalker : public WalkerBase
 		TREEWALKER_WALK_SRC(walker, symbol);
 		type = getUniqueTypeSafe(walker.type);
 		// [basic.lval] An expression which holds a temporary object resulting from a cast to a non-reference type is an rvalue
-		requireCompleteObjectType(type, Location(symbol->source, context.declarationCount), enclosingType);
+		requireCompleteObjectType(type, getInstantiationContext());
 		Dependent tmp(walker.typeDependent);
 		addDependent(valueDependent, tmp);
 		addDependent(typeDependent, walker.typeDependent);
@@ -4394,7 +4436,7 @@ struct NestedNameSpecifierWalker : public WalkerQualified
 		NestedNameSpecifierPrefixWalker walker(getState(), isDeclarator);
 		TREEWALKER_WALK(walker, symbol);
 		SEMANTIC_ASSERT(walker.type.declaration != 0);
-		makeUniqueTypeSafe(walker.type, getLocation());
+		makeUniqueTypeSafe(walker.type);
 		swapQualifying(walker.type, isDeclarator);
 		//disableBacktrack();
 	}
@@ -4405,7 +4447,7 @@ struct NestedNameSpecifierWalker : public WalkerQualified
 		SEMANTIC_ASSERT(walker.type.declaration != 0);
 		walker.type.qualifying.swap(qualifying);
 		setDependent(walker.type.dependent, walker.type.qualifying);
-		makeUniqueTypeSafe(walker.type, getLocation());
+		makeUniqueTypeSafe(walker.type);
 		swapQualifying(walker.type, isDeclarator);
 		//disableBacktrack();
 	}
@@ -4416,7 +4458,7 @@ struct NestedNameSpecifierWalker : public WalkerQualified
 		SEMANTIC_ASSERT(walker.type.declaration != 0);
 		walker.type.qualifying.swap(qualifying);
 		setDependent(walker.type.dependent, walker.type.qualifying);
-		makeUniqueTypeSafe(walker.type, getLocation());
+		makeUniqueTypeSafe(walker.type);
 		swapQualifying(walker.type, isDeclarator);
 		//disableBacktrack();
 	}
@@ -5020,7 +5062,7 @@ struct BaseSpecifierWalker : public WalkerQualified
 		type.swap(walker.type);
 		type.qualifying.swap(qualifying);
 		setDependent(type.dependent, type.qualifying);
-		makeUniqueTypeSafe(type, getLocation());
+		makeUniqueTypeSafe(type);
 	}
 };
 
@@ -5328,7 +5370,6 @@ struct ClassSpecifierWalker : public WalkerBase
 		}
 		declaration->templateParamScope = templateParamScope; // required by findEnclosingType
 
-		Location source = getLocation();
 		Type type(declaration, context);
 		type.id = &declaration->getName();
 		setDependent(type);
@@ -5342,10 +5383,10 @@ struct ClassSpecifierWalker : public WalkerBase
 		bool isExplicitSpecialization = isSpecialization && declaration->templateParams.empty();
 		bool allowDependent = type.isDependent || (declaration->isTemplate && !isExplicitSpecialization); // prevent uniquing of template-arguments in implicit template-id
 		declaration->type.isDependent = type.isDependent;
-		declaration->type.unique = makeUniqueType(type, source, enclosingType, allowDependent).value;
+		declaration->type.unique = makeUniqueType(type, getInstantiationContext(), allowDependent).value;
 		enclosingType = &getSimpleType(declaration->type.unique);
 		const_cast<SimpleType*>(enclosingType)->declaration = declaration; // if this is a specialization, use the specialization instead of the primary template
-		instantiateClass(*enclosingType, source, 0, allowDependent); // instantiate non-dependent base classes
+		instantiateClass(*enclosingType, InstantiationContext(getLocation(), 0, 0), allowDependent); // instantiate non-dependent base classes
 
 		addDependent(enclosingDependent, type);
 
@@ -5476,7 +5517,7 @@ struct EnumSpecifierWalker : public WalkerBase
 		walker.declaration->type = declaration; // give the enumerator the type of its enumeration
 		walker.declaration->type.qualifiers = CvQualifiers(true, false); // an enumerator may be used in an integral constant expression
 		setDependent(walker.declaration->type); // the enumeration type is dependent if it is a member of a class template
-		makeUniqueTypeSafe(walker.declaration->type, getLocation());
+		makeUniqueTypeSafe(walker.declaration->type);
 		if(walker.isInitialized)
 		{
 			SEMANTIC_ASSERT(isDependent(walker.declaration->valueDependent) || walker.declaration->initializer.isConstant);
@@ -6084,7 +6125,7 @@ struct TypeIdWalker : public WalkerBase
 	// called when parse of type-id is complete (necessary because trailing abstract-declarator is optional)
 	void commit()
 	{
-		makeUniqueTypeSafe(type, getLocation());
+		makeUniqueTypeSafe(type);
 	}
 	void visit(cpp::terminal<boost::wave::T_OPERATOR> symbol) // conversion_function_id
 	{
@@ -6233,7 +6274,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 			}
 			DeclarationPtr tmpDependent = type.dependent;
 			setDependent(type.dependent, typeDependent);
-			makeUniqueTypeSafe(type, getLocation());
+			makeUniqueTypeSafe(type);
 			if(enclosed == 0
 				&& templateParamScope != 0)
 			{
@@ -6359,7 +6400,7 @@ struct SimpleDeclarationWalker : public WalkerBase
 		{
 			DeclarationPtr tmpDependent = type.dependent;
 			setDependent(type.dependent, typeDependent);
-			makeUniqueTypeSafe(type, getLocation());
+			makeUniqueTypeSafe(type);
 
 			DeclarationInstanceRef instance = pointOfDeclaration(context, enclosing, *walker.id, type, 0, specifiers); // 3.3.1.1
 #ifdef ALLOCATOR_DEBUG
@@ -6765,7 +6806,7 @@ struct TemplateParameterListWalker : public WalkerBase
 		walker.commit();
 		param = walker.declaration;
 		setDependent(param);
-		makeUniqueTypeSafe(param, getLocation());
+		makeUniqueTypeSafe(param);
 		param.argument.swap(walker.argument);
 		++count;
 	}
@@ -6777,7 +6818,7 @@ struct TemplateParameterListWalker : public WalkerBase
 		SEMANTIC_ASSERT( walker.declaration != 0);
 		param = walker.declaration;
 		setDependent(param);
-		makeUniqueTypeSafe(param, getLocation());
+		makeUniqueTypeSafe(param);
 		param.argument.swap(walker.argument);
 		++count;
 	}

@@ -1,4 +1,93 @@
 
+namespace N352
+{
+	template<bool b, int x = sizeof(b)>
+	struct A
+	{
+		static const int value = x;
+	};
+
+	int f(int);
+	int x = f(A<false>::value);
+}
+
+namespace N351
+{
+	template<bool b>
+	struct A
+	{
+		static const int value = sizeof(b);
+	};
+
+	int f(int);
+	int x = f(A<false>::value);
+}
+
+namespace N257
+{
+	struct S
+	{
+		template<bool>
+		void operator()()
+		{
+		}
+	};
+	void f()
+	{
+		enum { CONSTANT = 0 };
+		S s;
+		s.operator()<true>();
+		s.operator()<CONSTANT < 0>(); // older versions of Comeau fail to compile this
+	}
+}
+
+namespace N326
+{
+	template<int i>
+	struct A
+	{
+	};
+
+	template<int i>
+	bool f(A<i>& a);
+
+	A<0> a;
+	bool x = f(a);
+}
+
+namespace N350
+{
+	template<typename T, typename U = T>
+	struct A
+	{
+	};
+
+	template<typename T>
+	bool g(A<T>);
+
+	void f()
+	{
+		A<int> a;
+		g(a); // calls 'g(A<int, int>)'
+	}
+}
+
+namespace N349
+{
+	template<typename T1, typename T2>
+	struct pair
+	{
+		T1 first;
+		T2 second;
+	};
+
+	template<class _Ty1, class _Ty2>
+	inline bool operator<(const pair<_Ty1, _Ty2>&_Left, const pair<_Ty1, _Ty2>&_Right)
+	{
+		return (_Left.first<_Right.first||!(_Right.first<_Left.first)&&_Left.second<_Right.second);
+	}
+}
+
 namespace N347
 {
 	template<typename Target, typename Src>
@@ -37,6 +126,28 @@ namespace N347
 		}
 	};
 }
+
+namespace N348
+{
+	struct A
+	{
+		A& operator++(int);
+	};
+
+	A a;
+	A& b = a++; // calls 'A::operator++(int)'
+}
+
+
+namespace N271
+{
+	void f()
+	{
+		char *_Ptr = 0;
+		*_Ptr++;
+	}
+}
+
 
 namespace N346
 {
@@ -590,20 +701,6 @@ namespace N222
 	{
 		this->dependent(); // 'this' is dependent
 	}
-}
-
-namespace N326
-{
-	template<int i>
-	struct A
-	{
-	};
-
-	template<int i>
-	bool f(A<i>& a);
-
-	A<0> a;
-	bool x = f(a);
 }
 
 namespace N325
@@ -1384,14 +1481,7 @@ namespace N272
 	int i = f(1);
 }
 
-namespace N271
-{
-	void f()
-	{
-		char *_Ptr = 0;
-		*_Ptr++;
-	}
-}
+
 namespace N270
 {
 	enum E
@@ -1415,24 +1505,6 @@ namespace N269
 		}
 		A* m;
 	};
-}
-
-namespace N257
-{
-	struct S
-	{
-		template<bool>
-		void operator()()
-		{
-		}
-	};
-	void f()
-	{
-		enum { CONSTANT = 0 };
-		S s;
-		s.operator()<true>();
-		s.operator()<CONSTANT < 0>(); // older versions of Comeau fail to compile this
-	}
 }
 
 

@@ -749,3 +749,5 @@ described for lookup in namespace member function definitions.
 	- disallow undeclared[], undeclared.m, undeclared.~X(), undeclared++
 
 - investigate: function-scope using directive?
+
+- task: detect expression 'enum < 0' (otherwise constant) would call an overloaded operator
