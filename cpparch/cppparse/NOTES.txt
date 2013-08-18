@@ -751,3 +751,13 @@ described for lookup in namespace member function definitions.
 - investigate: function-scope using directive?
 
 - task: detect expression 'enum < 0' (otherwise constant) would call an overloaded operator
+
+- task: template<bool b, int x = sizeof(b)>
+	- must defer evaluation of template parameter default until context is known?
+
+- task: function call: correct expression to pass into findBestMatch
+	- either member-call: object-expression id-expression
+		- either explicit class-member-access: a.m()
+		- or implicit: (*this).m()
+		- or static: m()
+	- or ordinary-call: id-expression

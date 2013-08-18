@@ -1460,7 +1460,10 @@ struct TestIcsRank
 	}
 	static void match(IcsRank expected)
 	{
-		ImplicitConversion conversion = makeImplicitConversionSequence(TargetType(MakeType<To>::apply()), MakeType<From>::apply(), gDefaultInstantiationContext);
+		UniqueTypeWrapper from = MakeType<From>::apply();
+		ExpressionNodeGeneric<ExplicitTypeExpression> transientExpression = ExplicitTypeExpression(from);
+		Argument argument(ExpressionWrapper(&transientExpression, false), from);
+		ImplicitConversion conversion = makeImplicitConversionSequence(TargetType(MakeType<To>::apply()), argument, gDefaultInstantiationContext);
 		IcsRank rank = getIcsRank(conversion.sequence.rank);
 		SYMBOLS_ASSERT(rank == expected);
 		if(expected != ICSRANK_INVALID)

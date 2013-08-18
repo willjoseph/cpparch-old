@@ -1,4 +1,14 @@
 
+
+namespace N298
+{
+	template<typename T>
+	T f(const T*);
+
+	int a;
+	int i = f(&a); // calls f(const int*)
+}
+
 namespace N352
 {
 	template<bool b, int x = sizeof(b)>
@@ -1090,15 +1100,6 @@ namespace N300
 
 	int** a;
 	int i = f(a); // calls f(const int*const*)
-}
-
-namespace N298
-{
-	template<typename T>
-	T f(const T*);
-
-	int a;
-	int i = f(&a); // calls f(const int*)
 }
 
 namespace N296

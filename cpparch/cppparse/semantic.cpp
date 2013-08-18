@@ -1247,7 +1247,8 @@ UniqueTypeWrapper getOverloadedMemberOperatorType(UniqueTypeWrapper operand, con
 	id.value = gOperatorArrowId;
 	id.source = context.source;
 
-	Arguments arguments(1, Argument(0, operand));
+	ExpressionNodeGeneric<ExplicitTypeExpression> transientExpression = ExplicitTypeExpression(operand);
+	Arguments arguments(1, Argument(ExpressionWrapper(&transientExpression, false), operand));
 	OverloadResolver resolver(arguments, 0, context);
 
 	LookupResultRef declaration = ::findDeclaration(classType, id, IsAny());
@@ -1263,6 +1264,32 @@ UniqueTypeWrapper getOverloadedMemberOperatorType(UniqueTypeWrapper operand, con
 	return result.type;
 }
 
+inline const SimpleType& getMemberOperatorType(Argument operand, bool isArrow, const InstantiationContext& context)
+{
+	UniqueTypeWrapper type = operand.type;
+	if(isArrow)
+	{
+		while(isClass(type))
+		{
+			type = getOverloadedMemberOperatorType(type, context);
+		}
+	}
+
+	bool isPointer = type.isPointer();
+	SEMANTIC_ASSERT(isPointer == isArrow);
+	if(isPointer)
+	{
+		type.pop_front();
+	}
+	// the left-hand side is (pointer-to) operand
+	SEMANTIC_ASSERT(type.isSimple());
+	const SimpleType& result = getSimpleType(type.value);
+	SEMANTIC_ASSERT(isClass(*result.declaration)); // assert that this is a class type
+	// [expr.ref] [the type of the operand-expression shall be complete]
+	instantiateClass(result, context);
+	return result;
+}
+
 // [class.copy] The implicitly-declared copy assignment operator for class X has the return type X&
 inline UniqueTypeWrapper makeCopyAssignmentOperatorType(const SimpleType& classType)
 {
@@ -1275,31 +1302,6 @@ inline UniqueTypeWrapper makeCopyAssignmentOperatorType(const SimpleType& classT
 	function.parameterTypes.push_back(parameter);
 	type.push_front(function);
 	return type;
-}
-
-inline const SimpleType& getMemberOperatorType(UniqueTypeWrapper operand, bool isArrow, const InstantiationContext& context)
-{
-	if(isArrow)
-	{
-		while(isClass(operand))
-		{
-			operand = getOverloadedMemberOperatorType(operand, context);
-		}
-	}
-
-	bool isPointer = operand.isPointer();
-	SEMANTIC_ASSERT(isPointer == isArrow);
-	if(isPointer)
-	{
-		operand.pop_front();
-	}
-	// the left-hand side is (pointer-to) operand
-	SEMANTIC_ASSERT(operand.isSimple());
-	const SimpleType& result = getSimpleType(operand.value);
-	SEMANTIC_ASSERT(isClass(*result.declaration)); // assert that this is a class type
-	// [expr.ref] [the type of the operand-expression shall be complete]
-	instantiateClass(result, context);
-	return result;
 }
 
 inline UniqueTypeWrapper binaryOperatorArithmeticType(UniqueTypeWrapper left, UniqueTypeWrapper right)
@@ -1547,7 +1549,7 @@ UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Arguments& a
 		// The argument list submitted to overload resolution consists of the argument expressions present in the function
 		// call syntax preceded by the implied object argument (E).
 		Arguments augmentedArguments;
-		augmentedArguments.push_back(Argument(ExpressionWrapper(0), type));
+		augmentedArguments.push_back(left);
 		augmentedArguments.insert(augmentedArguments.end(), arguments.begin(), arguments.end());
 
 		OverloadSet overloads;
@@ -1620,6 +1622,7 @@ UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Arguments& a
 
 	SEMANTIC_ASSERT(declaration != &gDependentObject); // the id-expression should not be dependent
 
+	ExpressionNodeGeneric<ObjectExpression> transientExpression = ObjectExpression(0);
 	Arguments augmentedArguments;
 	if(isMember(*declaration))
 	{
@@ -1627,7 +1630,7 @@ UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Arguments& a
 		SEMANTIC_ASSERT(memberClass != 0 || context.enclosingType != 0 || isStatic(*declaration));
 		SEMANTIC_ASSERT(memberClass == 0 || memberClass != &gDependentSimpleType);
 
-		augmentedArguments.push_back(Argument(ExpressionWrapper(0), makeUniqueSimpleType(memberClass != 0
+		const SimpleType& classType = memberClass != 0
 			? *memberClass // qualified-function-call (member access expression)
 			// unqualified function call
 			: context.enclosingType != 0
@@ -1638,7 +1641,9 @@ UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Arguments& a
 			// If the keyword 'this' is not in scope or refers to another class, then name resolution found a static member of some
 			// class T. In this case, all overloaded declarations of the function name in T become candidate functions and
 			// a contrived object of type T becomes the implied object argument
-			: *idEnclosing)));
+			: *idEnclosing;
+		transientExpression = ObjectExpression(&classType);
+		augmentedArguments.push_back(Argument(ExpressionWrapper(&transientExpression, false), makeUniqueSimpleType(classType)));
 	}
 
 	augmentedArguments.insert(augmentedArguments.end(), arguments.begin(), arguments.end());
@@ -3372,11 +3377,6 @@ struct PrimaryExpressionWalker : public WalkerBase
 
 			if(!type.isFunction()) // if the id-expression refers to a function, overload resolution depends on the parameter types; defer evaluation of type
 			{
-#if 0
-				UniqueTypeWrapper tmp = typeOfExpression(expression, getInstantiationContext());
-				SEMANTIC_ASSERT(type == tmp);
-#endif
-
 				// [expr.const]
 				// An integral constant-expression can involve only ... enumerators, const variables or static
 				// data members of integral or enumeration types initialized with constant expressions, non-type template
@@ -3436,7 +3436,7 @@ struct PostfixExpressionMemberWalker : public WalkerQualified
 		{
 			// [expr] If an expression initially has the type "reference to T", the type is adjusted to "T" prior to any further analysis.
 			UniqueTypeWrapper operand = removeReference(memberType);
-			memberClass = &getMemberOperatorType(operand, isArrow, getInstantiationContext());
+			memberClass = &getMemberOperatorType(Argument(expression, operand), isArrow, getInstantiationContext());
 
 			objectExpression = makeExpression(ObjectExpression(memberClass));
 		}
@@ -3627,7 +3627,6 @@ struct PostfixExpressionWalker : public WalkerBase
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
 		id = 0; // don't perform overload resolution for a[i](x);
-		expression = makeExpression(SubscriptExpression(expression, walker.expression), false, isDependent(typeDependent), isDependent(valueDependent));
 		if(isDependent(typeDependent))
 		{
 			type = gUniqueTypeNull;
@@ -3638,10 +3637,11 @@ struct PostfixExpressionWalker : public WalkerBase
 			// [expr] If an expression initially has the type "reference to T", the type is adjusted to "T" prior to any further analysis.
 			type = removeReference(type);
 			type = typeOfSubscriptExpression(
-				Argument(ExpressionWrapper(0), type),
+				Argument(expression, type),
 				Argument(walker.expression, walker.type),
 				getInstantiationContext());
 		}
+		expression = makeExpression(SubscriptExpression(expression, walker.expression), false, isDependent(typeDependent), isDependent(valueDependent));
 		setExpressionType(symbol, type);
 		updateMemberType();
 	}

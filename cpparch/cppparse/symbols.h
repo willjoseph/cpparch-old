@@ -2991,9 +2991,18 @@ inline UniqueTypeWrapper typeOfExpression(ExpressionNode* node, const Instantiat
 
 inline bool isPointerToMemberExpression(ExpressionNode* expression)
 {
-	return isUnaryExpression(expression)
-		&& getUnaryExpression(expression).operation == addressOf
-		&& isIdExpression(getUnaryExpression(expression).first);
+	if(!isUnaryExpression(expression))
+	{
+		return false;
+	}
+	const UnaryExpression& unary = getUnaryExpression(expression);
+	extern Name gOperatorAndId;
+	if(unary.operatorName != gOperatorAndId
+		|| !isIdExpression(unary.first))
+	{
+		return false;
+	}
+	return getIdExpression(unary.first).enclosing != 0;
 }
 
 inline bool isPointerToFunctionExpression(ExpressionNode* expression)
@@ -3039,7 +3048,7 @@ inline UniqueTypeWrapper makeUniqueSimpleType(const SimpleType& type);
 inline UniqueTypeWrapper typeOfUnaryExpression(Name operatorName, Argument operand, const InstantiationContext& context);
 inline UniqueTypeWrapper getConditionalOperatorType(UniqueTypeWrapper leftType, UniqueTypeWrapper rightType);
 inline UniqueTypeWrapper typeOfSubscriptExpression(Argument left, Argument right, const InstantiationContext& context);
-inline const SimpleType& getMemberOperatorType(UniqueTypeWrapper operand, bool isArrow, const InstantiationContext& context);
+inline const SimpleType& getMemberOperatorType(Argument operand, bool isArrow, const InstantiationContext& context);
 inline UniqueTypeWrapper makeCopyAssignmentOperatorType(const SimpleType& classType);
 inline const SimpleType* findEnclosingType(const SimpleType* enclosing, Scope* scope);
 inline UniqueTypeWrapper getUniqueType(const TypeId& type, const InstantiationContext& context, bool allowDependent = false);
@@ -3132,7 +3141,7 @@ struct TypeOfVisitor : ExpressionNodeVisitor
 	void visit(const struct DependentObjectExpression& node)
 	{
 		UniqueTypeWrapper type = typeOfExpression(node.left, context);
-		const SimpleType& classType = getMemberOperatorType(removeReference(type), node.isArrow, context);
+		const SimpleType& classType = getMemberOperatorType(Argument(node.left, removeReference(type)), node.isArrow, context);
 		result = makeUniqueSimpleType(classType);
 		SYMBOLS_ASSERT(!isDependent(result));
 	}
@@ -6559,20 +6568,21 @@ struct FunctionOverload
 };
 
 template<typename To>
-FunctionOverload findBestConversionFunction(To to, UniqueTypeWrapper from, const InstantiationContext& context, bool isNullPointerConstant = false, bool isLvalue = false);
+FunctionOverload findBestConversionFunction(To to, Argument from, const InstantiationContext& context, bool isNullPointerConstant = false, bool isLvalue = false);
 
 template<typename To>
-ImplicitConversion makeImplicitConversionSequence(To to, UniqueTypeWrapper from, const InstantiationContext& context, bool isNullPointerConstant = false, bool isLvalue = false, bool isUserDefinedConversion = false)
+ImplicitConversion makeImplicitConversionSequence(To to, Argument from, const InstantiationContext& context, bool isNullPointerConstant = false, bool isLvalue = false, bool isUserDefinedConversion = false)
 {
 	SYMBOLS_ASSERT(to != gUniqueTypeNull);
-	SYMBOLS_ASSERT(from != gUniqueTypeNull);
+	SYMBOLS_ASSERT(from.p != 0);
+	SYMBOLS_ASSERT(from.type != gUniqueTypeNull);
 
 	bool isReference = false;
-	if(from.isReference())
+	if(from.type.isReference())
 	{
 		isLvalue = true;
 		isReference = true;
-		from.pop_front(); // TODO: removal of reference won't be detected later
+		from.type.pop_front(); // TODO: removal of reference won't be detected later
 	}
 
 	// 13.3.3.1.4 [over.ics.ref]: reference binding
@@ -6595,14 +6605,14 @@ ImplicitConversion makeImplicitConversionSequence(To to, UniqueTypeWrapper from,
 		// is bound to the lvalue result of the conversion in the second case. In these cases the reference is said to
 		// bind directly to the initializer expression.
 		if(isLvalue
-			&& (isEqualCvQualification(to, from)
-			|| isGreaterCvQualification(to, from)))
+			&& (isEqualCvQualification(to, from.type)
+			|| isGreaterCvQualification(to, from.type)))
 		{
 			// [over.ics.ref]
 			// When a parameter of reference type binds directly (8.5.3) to an argument expression, the implicit conversion
 			// sequence is the identity conversion, unless the argument expression has a type that is a derived class of
 			// the parameter type, in which case the implicit conversion sequence is a derived-to-base Conversion
-			UniqueTypeWrapper matched = getExactMatchNoQualifiers(to, from);
+			UniqueTypeWrapper matched = getExactMatchNoQualifiers(to, from.type);
 			if(matched != gUniqueTypeNull)
 			{
 				StandardConversionSequence sequence(SCSRANK_IDENTITY, to.value.getQualifiers(), matched);
@@ -6610,8 +6620,8 @@ ImplicitConversion makeImplicitConversionSequence(To to, UniqueTypeWrapper from,
 				return ImplicitConversion(sequence);
 			}
 			if(to.isSimple()
-				&& from.isSimple()
-				&& isBaseOf(getSimpleType(to.value), getSimpleType(from.value), context))
+				&& from.type.isSimple()
+				&& isBaseOf(getSimpleType(to.value), getSimpleType(from.type.value), context))
 			{
 				StandardConversionSequence sequence(SCSRANK_CONVERSION, to.value.getQualifiers());
 				sequence.isReference = true;
@@ -6619,7 +6629,7 @@ ImplicitConversion makeImplicitConversionSequence(To to, UniqueTypeWrapper from,
 			}
 			// drop through...
 		}
-		if(isClass(from))
+		if(isClass(from.type))
 		{
 			To tmp = to;
 			tmp.push_front(ReferenceType());
@@ -6675,14 +6685,14 @@ ImplicitConversion makeImplicitConversionSequence(To to, UniqueTypeWrapper from,
 		// TODO: perform overload resolution to choose a constructor
 		// TODO: add implicit copy constructor if not already declared
 		// for now, always allow conversion if 'from' is same or derived
-		UniqueTypeWrapper matched = getExactMatchNoQualifiers(to, from);
+		UniqueTypeWrapper matched = getExactMatchNoQualifiers(to, from.type);
 		if(matched != gUniqueTypeNull)
 		{
 			return ImplicitConversion(StandardConversionSequence(SCSRANK_IDENTITY, CvQualifiers(), matched));
 		}
 		if(to.isSimple()
-			&& from.isSimple()
-			&& isBaseOf(getSimpleType(to.value), getSimpleType(from.value), context))
+			&& from.type.isSimple()
+			&& isBaseOf(getSimpleType(to.value), getSimpleType(from.type.value), context))
 		{
 			return ImplicitConversion(StandardConversionSequence(SCSRANK_CONVERSION, CvQualifiers()));
 		}
@@ -6690,7 +6700,7 @@ ImplicitConversion makeImplicitConversionSequence(To to, UniqueTypeWrapper from,
 
 	if(!isUserDefinedConversion
 		&& (isClass(to)
-			|| isClass(from)))
+			|| isClass(from.type)))
 	{
 
 		// [over.ics.user]
@@ -6724,7 +6734,7 @@ ImplicitConversion makeImplicitConversionSequence(To to, UniqueTypeWrapper from,
 	}
 
 	// standard conversion
-	StandardConversionSequence sequence = makeStandardConversionSequence(to, from, context, isNullPointerConstant, isLvalue);
+	StandardConversionSequence sequence = makeStandardConversionSequence(to, from.type, context, isNullPointerConstant, isLvalue);
 	sequence.isReference = isReference;
 	return ImplicitConversion(sequence);
 }
@@ -6744,7 +6754,9 @@ inline IcsRank getIcsRank(ScsRank rank)
 
 inline IcsRank getIcsRank(UniqueTypeWrapper to, UniqueTypeWrapper from, const InstantiationContext& context, bool isNullPointerConstant = false, bool isLvalue = false)
 {
-	ImplicitConversion conversion = makeImplicitConversionSequence(to, from, context, isNullPointerConstant, isLvalue);
+	ExpressionNodeGeneric<ExplicitTypeExpression> transientExpression = ExplicitTypeExpression(from);
+	Argument argument(ExpressionWrapper(&transientExpression, false), from);
+	ImplicitConversion conversion = makeImplicitConversionSequence(to, argument, context, isNullPointerConstant, isLvalue);
 	return getIcsRank(conversion.sequence.rank);
 }
 
@@ -7772,8 +7784,12 @@ struct OverloadResolver
 	{
 		// DR 903: a value-dependent expression may or may not be a null pointer constant, but the behaviour is unspecified.
 		// simple fix: don't allow a value-dependent expression to be a null pointer constant.
+#if 0
+		UniqueTypeWrapper type = typeOfExpression(from, context);
+		SYMBOLS_ASSERT(removeReference(type) == removeReference(from.type));
+#endif
 		bool isNullPointerConstant = !from.isValueDependent && from.isConstant && evaluateExpression(from, context).value == 0;
-		return makeImplicitConversionSequence(to, from.type, context, isNullPointerConstant, true, isUserDefinedConversion); // TODO: l-value
+		return makeImplicitConversionSequence(to, from, context, isNullPointerConstant, true, isUserDefinedConversion); // TODO: l-value
 	}
 	void add(const FunctionOverload& overload, const ParameterTypes& parameters, bool isEllipsis, const SimpleType* memberEnclosing, FunctionTemplate& functionTemplate = FunctionTemplate())
 	{
@@ -7797,7 +7813,7 @@ struct OverloadResolver
 			SYMBOLS_ASSERT(isClass(*memberEnclosing->declaration));
 			if(!isStatic(*overload.declaration))
 			{
-				candidate.conversions.push_back(makeImplicitConversionSequence(implicitObjectParameter, impliedObjectArgument.type, context, false, true)); // TODO: l-value
+				candidate.conversions.push_back(makeImplicitConversionSequence(implicitObjectParameter, impliedObjectArgument, context, false, true)); // TODO: l-value
 			}
 			else
 			{
@@ -8072,12 +8088,10 @@ inline void addConversionFunctionOverloads(OverloadResolver& resolver, const Sim
 }
 
 template<typename To>
-FunctionOverload findBestConversionFunction(To to, UniqueTypeWrapper from, const InstantiationContext& context, bool isNullPointerConstant, bool isLvalue)
+FunctionOverload findBestConversionFunction(To to, Argument from, const InstantiationContext& context, bool isNullPointerConstant, bool isLvalue)
 {
-	UniqueExpression nullPointerConstantExpression = makeUniqueExpression(IntegralConstantExpression(gSignedInt, IntegralConstant(0)));
-	ExpressionWrapper expression(isNullPointerConstant ? nullPointerConstantExpression : 0, isNullPointerConstant);
 	Arguments arguments;
-	arguments.push_back(Argument(expression, from));
+	arguments.push_back(from);
 
 	// [over.best.ics]
 	// However, when considering the argument of a user-defined conversion function that is a candidate by
@@ -8121,10 +8135,10 @@ FunctionOverload findBestConversionFunction(To to, UniqueTypeWrapper from, const
 		}
 	}
 
-	if(isClass(from)
-		&& isComplete(from)) // can only convert from a class that is complete
+	if(isClass(from.type)
+		&& isComplete(from.type)) // can only convert from a class that is complete
 	{
-		addConversionFunctionOverloads(resolver, getSimpleType(from.value), to, context);
+		addConversionFunctionOverloads(resolver, getSimpleType(from.type.value), to, context);
 	}
 
 	// TODO: return-type of constructor should be 'to'
