@@ -3775,6 +3775,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		if(isDependent(typeDependent))
 		{
 			type = gUniqueTypeNull;
+			expression = ExpressionWrapper();
 		}
 		else
 		{
@@ -3788,7 +3789,6 @@ struct PostfixExpressionWalker : public WalkerBase
 		}
 		setExpressionType(symbol, type);
 		id = 0;
-		expression = ExpressionWrapper();
 		updateMemberType();
 	}
 	void visit(cpp::postfix_expression_typetraits_unary* symbol)
