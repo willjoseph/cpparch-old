@@ -2592,8 +2592,9 @@ struct IdExpression
 {
 	DeclarationInstanceRef declaration;
 	const SimpleType* enclosing;
-	IdExpression(DeclarationInstanceRef declaration, const SimpleType* enclosing)
-		: declaration(declaration), enclosing(enclosing)
+	TemplateArgumentsInstance templateArguments;
+	IdExpression(DeclarationInstanceRef declaration, const SimpleType* enclosing, const TemplateArgumentsInstance& templateArguments)
+		: declaration(declaration), enclosing(enclosing), templateArguments(templateArguments)
 	{
 	}
 };

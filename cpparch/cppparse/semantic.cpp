@@ -1468,6 +1468,182 @@ inline UniqueTypeWrapper typeOfSubscriptExpression(Argument left, Argument right
 	return type;
 }
 
+UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Arguments& arguments, const SimpleType* idEnclosing, const SimpleType* memberClass, Location source, const SimpleType* enclosingType)
+{
+	ExpressionWrapper expression = left;
+	UniqueTypeWrapper type = left.type;
+
+	if(isDependentIdExpression(expression)) // if this is an expression of the form 'undeclared-id(args)', the name must be found via ADL 
+	{
+		SEMANTIC_ASSERT(!arguments.empty()); // check that the argument-list was not empty
+		SEMANTIC_ASSERT(getDependentIdExpression(expression).templateArguments.empty()); // cannot be a template-id
+		SEMANTIC_ASSERT(getDependentIdExpression(expression).qualifying == gUniqueTypeNull); // cannot be qualified
+
+		Identifier id;
+		id.value = getDependentIdExpression(expression).name;
+		OverloadSet overloads;
+		argumentDependentLookup(overloads, id, arguments);
+
+		SEMANTIC_ASSERT(!overloads.empty()); // check that the declaration was found via ADL
+
+		FunctionOverload overload = findBestMatch(overloads, 0, arguments, source, idEnclosing);
+		SEMANTIC_ASSERT(overload.declaration != 0);
+#if 0 // TODO: find the corresponding declaration-instance for a name found via ADL
+		{
+			DeclarationInstanceRef instance = findLastDeclaration(getDeclaration(*id), overload.declaration);
+			setDecoration(id, instance);
+		}
+#endif
+		return overload.type;
+	}
+
+	type = removeReference(type);
+	if(isClass(type))
+	{
+		// [over.call.object]
+		// If the primary-expression E in the function call syntax evaluates to a class object of type "cv T", then the set
+		// of candidate functions includes at least the function call operators of T. The function call operators of T are
+		// obtained by ordinary lookup of the name operator() in the context of (E).operator().
+		SEMANTIC_ASSERT(isComplete(type)); // TODO: non-fatal parse error
+		const SimpleType& object = getSimpleType(type.value);
+		instantiateClass(object, source, enclosingType); // searching for overloads requires a complete type
+		Identifier tmp;
+		tmp.value = gOperatorFunctionId;
+		tmp.source = source;
+		LookupResultRef declaration = ::findDeclaration(object, tmp, IsAny());
+		SEMANTIC_ASSERT(declaration != 0); // TODO: non-fatal error: expected function
+
+		idEnclosing = findEnclosingType(&object, declaration->scope); // find the base class which contains the member-declaration
+		SEMANTIC_ASSERT(idEnclosing != 0);
+
+		// The argument list submitted to overload resolution consists of the argument expressions present in the function
+		// call syntax preceded by the implied object argument (E).
+		Arguments augmentedArguments;
+		augmentedArguments.push_back(Argument(ExpressionWrapper(0), type));
+		augmentedArguments.insert(augmentedArguments.end(), arguments.begin(), arguments.end());
+
+		OverloadSet overloads;
+		addOverloaded(overloads, declaration);
+
+		SEMANTIC_ASSERT(!overloads.empty());
+
+		FunctionOverload overload = findBestMatch(overloads, 0, augmentedArguments, source, idEnclosing);
+		SEMANTIC_ASSERT(overload.declaration != 0);
+#if 0 // TODO: record which overload was chosen, for dependency-tracking
+		{
+			DeclarationInstanceRef instance = findLastDeclaration(declaration, overload.declaration);
+			setDecoration(&declaration->getName(), instance);
+		}
+#endif
+		return overload.type;
+	}
+
+	if(type.isPointer()) // if this is a pointer to function
+	{
+		type.pop_front();
+		SEMANTIC_ASSERT(type.isFunction());
+		return popType(type);
+	}
+
+	bool isCallToNamedFunction = expression.p != 0
+		&& (isIdExpression(expression)
+		|| isMemberAccessExpression(expression));
+
+	if(!isCallToNamedFunction) // if the left-hand expression does not contain an (optionally parenthesised) id-expression (and is not a class which supports 'operator()')
+	{
+		// the call does not require overload resolution
+		SEMANTIC_ASSERT(type.isFunction());
+		return popType(type); // get the return type: T
+	}
+
+	const IdExpression& idExpression = getIdExpression(
+		isMemberAccessExpression(expression) ? getMemberAccessExpression(expression).right : expression);
+	DeclarationInstanceRef declaration = idExpression.declaration;
+	const TemplateArgumentsInstance& templateArguments = idExpression.templateArguments;
+
+	bool isCallToNamedMemberFunction = expression.p != 0
+		&& isMemberAccessExpression(expression);
+	SEMANTIC_ASSERT(!type.isFunction() || (memberClass != 0) == isCallToNamedMemberFunction);
+
+	// [over.call.func] Call to named function
+	SEMANTIC_ASSERT(declaration.p != 0);
+
+	if(declaration.p == &gDestructorInstance)
+	{
+		return gUniqueTypeNull;
+	}
+
+	if(declaration.p == &gCopyAssignmentOperatorInstance)
+	{
+		// [class.copy] If the class definition does not explicitly declare a copy assignment operator, one is declared implicitly.
+		// TODO: ignore using-declaration with same id.
+		// TODO: check correct lookup behaviour: base-class copy-assign should always be hidden by derived.
+		// TODO: correct argument type depending on base class copy-assign declarations.
+
+		// either the call is qualified or 'this' is valid
+		SEMANTIC_ASSERT(memberClass != 0 || enclosingType != 0);
+		SEMANTIC_ASSERT(memberClass == 0 || memberClass != &gDependentSimpleType);
+
+		SEMANTIC_ASSERT(type.isFunction());
+		return popType(type);
+	}
+
+	SEMANTIC_ASSERT(type.isFunction()); // the identifier names an overloadable function
+
+	SEMANTIC_ASSERT(declaration != &gDependentObject); // the id-expression should not be dependent
+
+	Arguments augmentedArguments;
+	if(isMember(*declaration))
+	{
+		// either the call is qualified, 'this' is valid, or the member is static
+		SEMANTIC_ASSERT(memberClass != 0 || enclosingType != 0 || isStatic(*declaration));
+		SEMANTIC_ASSERT(memberClass == 0 || memberClass != &gDependentSimpleType);
+
+		augmentedArguments.push_back(Argument(ExpressionWrapper(0), makeUniqueSimpleType(memberClass != 0
+			? *memberClass // qualified-function-call (member access expression)
+			// unqualified function call
+			: enclosingType != 0
+			// If the keyword 'this' is in scope and refers to the class of that member function, or a derived class thereof,
+			// then the function call is transformed into a normalized qualified function call using (*this) as the postfix-expression
+			// to the left of the . operator.
+			? *enclosingType // implicit '(*this).'
+			// If the keyword 'this' is not in scope or refers to another class, then name resolution found a static member of some
+			// class T. In this case, all overloaded declarations of the function name in T become candidate functions and
+			// a contrived object of type T becomes the implied object argument
+			: *idEnclosing)));
+	}
+
+	augmentedArguments.insert(augmentedArguments.end(), arguments.begin(), arguments.end());
+
+	OverloadSet overloads;
+	addOverloaded(overloads, declaration);
+	if(!isMember(*declaration))
+	{
+		// [basic.lookup.koenig]
+		// If the ordinary unqualified lookup of the name finds the declaration of a class member function, the associated
+		// namespaces and classes are not considered. Otherwise the set of declarations found by the lookup of
+		// the function name is the union of the set of declarations found using ordinary unqualified lookup and the set
+		// of declarations found in the namespaces and classes associated with the argument types.
+		argumentDependentLookup(overloads, declaration->getName(), augmentedArguments);
+	}
+
+	SEMANTIC_ASSERT(!overloads.empty());
+
+	// TODO: handle empty template-argument list '<>'. If specified, overload resolution should ignore non-templates
+	FunctionOverload overload = findBestMatch(overloads, templateArguments.empty() ? 0 : &templateArguments, augmentedArguments, source, idEnclosing);
+	SEMANTIC_ASSERT(overload.declaration != 0);
+#if 0 // TODO: record which overload was chosen, for dependency-tracking
+	{
+		// TODO: this will give the wrong result if the declaration was found via ADL and is in a different namespace
+		DeclarationInstanceRef instance = findLastDeclaration(declaration, overload.declaration);
+		setDecoration(id, instance);
+	}
+#endif
+	return overload.type;
+}
+
+
+
 inline bool isIntegralConstant(UniqueTypeWrapper type)
 {
 	return type.isSimple()
@@ -2842,6 +3018,8 @@ struct IdExpressionWalker : public WalkerQualified
 			// defer name-lookup: this may be the id-expression in a dependent call to named function, to be found by ADL
 			isUndeclared = true;
 			setDecoration(id, gDependentObjectInstance);
+
+			expression = makeExpression(DependentIdExpression(id->value, gUniqueTypeNull, TemplateArgumentsInstance()));
 		}
 		else
 		{
@@ -2877,7 +3055,7 @@ struct IdExpressionWalker : public WalkerQualified
 			SEMANTIC_ASSERT(declaration->templateParameter == INDEX_INVALID || qualifying.empty()); // template params cannot be qualified
 			expression = declaration->templateParameter == INDEX_INVALID
 				// TODO: check compliance: id-expression cannot be compared for equivalence unless it names a non-type template-parameter
-				? makeExpression(IdExpression(declaration, qualifyingClass), false, isDependent(typeDependent), isDependent(valueDependent))
+				? makeExpression(IdExpression(declaration, qualifyingClass, templateArguments), false, isDependent(typeDependent), isDependent(valueDependent))
 				: makeExpression(NonTypeTemplateParameter(declaration), true, isDependent(typeDependent), isDependent(valueDependent));
 
 			expression.isNonStaticMemberName = isMember(*declaration) && !isStatic(*declaration);
@@ -3147,7 +3325,12 @@ struct PrimaryExpressionWalker : public WalkerBase
 
 		SEMANTIC_ASSERT(memberClass == 0); // assert that the id-expression is not part of a class-member-access
 
-		if(expression.p != 0
+		if(isUndeclared)
+		{
+			type = gUniqueTypeNull;
+			idEnclosing = 0;
+		}
+		else if(expression.p != 0
 			&& !isDependent(typeDependent))
 		{
 			UniqueTypeWrapper qualifyingType = makeUniqueQualifying(walker.qualifying, getLocation(), enclosingType);
@@ -3438,6 +3621,7 @@ struct PostfixExpressionWalker : public WalkerBase
 			// when a nonstatic member name is used in a function call, overload resolution is dependent on the type of the implicit object parameter
 		}
 
+
 		if(isDependent(typeDependent)) // if either the argument list or the id-expression are dependent
 			// TODO: check valueDependent too?
 		{
@@ -3448,159 +3632,44 @@ struct PostfixExpressionWalker : public WalkerBase
 			type = gUniqueTypeNull;
 			expression = ExpressionWrapper();
 		}
-		else if(isUndeclared) // if this is an expression of the form 'undeclared-id(args)', the name must be found via ADL 
-		{
-			SEMANTIC_ASSERT(!walker.arguments.empty()); // check that the argument-list was not empty
-
-			OverloadSet overloads;
-			argumentDependentLookup(overloads, *id, walker.arguments);
-
-			SEMANTIC_ASSERT(!overloads.empty()); // check that the declaration was found via ADL
-
-			FunctionOverload overload = findBestMatch(overloads, 0, walker.arguments, Location(id->source, context.declarationCount), idEnclosing);
-			SEMANTIC_ASSERT(overload.declaration != 0);
-#if 0 // TODO: find the corresponding declaration-instance for a name found via ADL
-			{
-				DeclarationInstanceRef instance = findLastDeclaration(getDeclaration(*id), overload.declaration);
-				setDecoration(id, instance);
-			}
-#endif
-			type = overload.type;
-			expression = ExpressionWrapper(); // TODO
-		}
 		else
 		{
-			bool isCallToNamedFunction = expression.p != 0
-				&& (isIdExpression(expression)
-					|| isMemberAccessExpression(expression));
-			SEMANTIC_ASSERT((id != 0) == (isCallToNamedFunction || (expression.p != 0 && isNonTypeTemplateParameter(expression))));
+			{ // consistency checking
+				SEMANTIC_ASSERT(isUndeclared == isDependentIdExpression(expression));
+				SEMANTIC_ASSERT(!isUndeclared || getDependentIdExpression(expression).name == id->value);
 
-			bool isCallToNamedMemberFunction = expression.p != 0
-				&& isMemberAccessExpression(expression);
-			SEMANTIC_ASSERT(!type.isFunction() || (memberClass != 0) == isCallToNamedMemberFunction);
-
-			expression = makeExpression(FunctionCallExpression(expression, walker.arguments), false, isDependent(typeDependent), isDependent(valueDependent));
-
-			type = removeReference(type);
-			if(isClass(type))
-			{
-				SEMANTIC_ASSERT(arguments.empty()); // cannot provide explicit template arguments for call to object of class type.
-				// [over.call.object]
-				// If the primary-expression E in the function call syntax evaluates to a class object of type "cv T", then the set
-				// of candidate functions includes at least the function call operators of T. The function call operators of T are
-				// obtained by ordinary lookup of the name operator() in the context of (E).operator().
-				SEMANTIC_ASSERT(isComplete(type)); // TODO: non-fatal parse error
-				const SimpleType& object = getSimpleType(type.value);
-				instantiateClass(object, getLocation(), enclosingType); // searching for overloads requires a complete type
-				Identifier tmp;
-				tmp.value = gOperatorFunctionId;
-				tmp.source = getLocation();
-				LookupResultRef declaration = ::findDeclaration(object, tmp, IsAny());
-				SEMANTIC_ASSERT(declaration != 0); // TODO: non-fatal error: expected function
-
-				id = &declaration->getName();
-				idEnclosing = findEnclosingType(&object, declaration->scope); // find the base class which contains the member-declaration
-				SEMANTIC_ASSERT(idEnclosing != 0);
-				// The argument list submitted to overload resolution consists of the argument expressions present in the function
-				// call syntax preceded by the implied object argument (E).
-				memberClass = &object;
-			}
-
-			if(id == 0) // if the left-hand expression does not contain an (optionally parenthesised) id-expression (or is not a class which supports 'operator()')
-			{
-				// the call does not require overload resolution
-				SEMANTIC_ASSERT(type.isFunction());
-				type.pop_front(); // get the return type: T
-			}
-			else if(getDeclaration(*id) == gDestructorInstance.p)
-			{
-				type = gUniqueTypeNull;
-			}
-			else if(getDeclaration(*id) == gCopyAssignmentOperatorInstance.p)
-			{
-				// [class.copy] If the class definition does not explicitly declare a copy assignment operator, one is declared implicitly.
-				// TODO: ignore using-declaration with same id.
-				// TODO: check correct lookup behaviour: base-class copy-assign should always be hidden by derived.
-				// TODO: correct argument type depending on base class copy-assign declarations.
-
-				// either the call is qualified or 'this' is valid
-				SEMANTIC_ASSERT(memberClass != 0 || enclosingType != 0);
-				SEMANTIC_ASSERT(memberClass == 0 || memberClass != &gDependentSimpleType);
-
-				SEMANTIC_ASSERT(type.isFunction());
-				type.pop_front();
-				expression = ExpressionWrapper(); // TODO
-			}
-			else if(type.isFunction() // if the identifier names an overloadable function
-				|| isClass(type)) // or is a class which supports 'operator()'
-			{
-				// perform overload resolution)
-				SEMANTIC_ASSERT(isDecorated(*id)); // id should be decorated with result of name lookup
-				const DeclarationInstance& declaration = getDeclaration(*id);
-				SEMANTIC_ASSERT(declaration != &gDependentObject); // the id-expression should not be dependent
-
-				// [over.call.func] Call to named function
 				TemplateArgumentsInstance templateArguments;
-				makeUniqueTemplateArguments(arguments, templateArguments, Location(id->source, context.declarationCount), enclosingType);
+				makeUniqueTemplateArguments(arguments, templateArguments, getLocation(), enclosingType);
 
-				Arguments arguments;
-				if(isMember(*declaration))
+				if(isUndeclared)
 				{
-					// either the call is qualified, 'this' is valid, or the member is static
-					SEMANTIC_ASSERT(memberClass != 0 || enclosingType != 0 || isStatic(*declaration));
-					SEMANTIC_ASSERT(memberClass == 0 || memberClass != &gDependentSimpleType);
-
-					arguments.push_back(Argument(ExpressionWrapper(0), makeUniqueSimpleType(memberClass != 0
-						? *memberClass // qualified-function-call
-						// unqualified function call
-						: enclosingType != 0
-							// If the keyword 'this' is in scope and refers to the class of that member function, or a derived class thereof,
-							// then the function call is transformed into a normalized qualified function call using (*this) as the postfix-expression
-							// to the left of the . operator.
-							? *enclosingType
-							// If the keyword 'this' is not in scope or refers to another class, then name resolution found a static member of some
-							// class T. In this case, all overloaded declarations of the function name in T become candidate functions and
-							// a contrived object of type T becomes the implied object argument
-							: *idEnclosing)));
+					SEMANTIC_ASSERT(templateArguments.empty());
 				}
-
-				arguments.insert(arguments.end(), walker.arguments.begin(), walker.arguments.end());
-				
-				OverloadSet overloads;
-				addOverloaded(overloads, declaration);
-				if(!isMember(*declaration))
+				else
 				{
-					// [basic.lookup.koenig]
-					// If the ordinary unqualified lookup of the name finds the declaration of a class member function, the associated
-					// namespaces and classes are not considered. Otherwise the set of declarations found by the lookup of
-					// the function name is the union of the set of declarations found using ordinary unqualified lookup and the set
-					// of declarations found in the namespaces and classes associated with the argument types.
-					argumentDependentLookup(overloads, *id, arguments);
+					bool isCallToNamedFunction = expression.p != 0
+						&& (isIdExpression(expression)
+						|| isMemberAccessExpression(expression));
+					SEMANTIC_ASSERT((id != 0) == (isCallToNamedFunction || (expression.p != 0 && isNonTypeTemplateParameter(expression))));
+					if(!isCallToNamedFunction)
+					{
+						SEMANTIC_ASSERT(templateArguments.empty());
+					}
+					else
+					{
+						const IdExpression& idExpression = getIdExpression(
+							isMemberAccessExpression(expression) ? getMemberAccessExpression(expression).right : expression);
+						SEMANTIC_ASSERT(idExpression.declaration.p == &getDeclaration(*id));
+						SEMANTIC_ASSERT(idExpression.templateArguments == templateArguments);
+					}
 				}
-
-				SEMANTIC_ASSERT(!overloads.empty());
-
-				// TODO: handle empty template-argument list '<>'. If specified, overload resolution should ignore non-templates
-				FunctionOverload overload = findBestMatch(overloads, templateArguments.empty() ? 0 : &templateArguments, arguments, Location(id->source, context.declarationCount), idEnclosing);
-				SEMANTIC_ASSERT(overload.declaration != 0);
-				{
-					// TODO: this will give the wrong result if the declaration was found via ADL and is in a different namespace
-					DeclarationInstanceRef instance = findLastDeclaration(declaration, overload.declaration);
-					setDecoration(id, instance);
-				}
-				type = overload.type;
 			}
-			else // else this is a pointer to function
-			{
-				SEMANTIC_ASSERT(type.isPointer());
-				type.pop_front();
-				SEMANTIC_ASSERT(type.isFunction());
-				type.pop_front();
-			}
+			type = typeOfFunctionCallExpression(Argument(expression, type), walker.arguments, idEnclosing, memberClass, getLocation(), enclosingType);
+			expression = makeExpression(FunctionCallExpression(expression, walker.arguments), false, isDependent(typeDependent), isDependent(valueDependent));
 		}
-		// TODO: 13.3.1.1.2  Call to object of class type
 		// TODO: set of pointers-to-function
 		id = 0; // don't perform overload resolution for a(x)(x);
+		idEnclosing = 0;
 		updateMemberType();
 		isUndeclared = false; // for an expression of the form 'undeclared-id(args)'
 	}
