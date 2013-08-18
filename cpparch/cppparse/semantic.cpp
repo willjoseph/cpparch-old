@@ -1547,7 +1547,7 @@ UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Arguments& a
 
 	bool isCallToNamedFunction = expression.p != 0
 		&& (isIdExpression(expression)
-		|| isMemberAccessExpression(expression));
+		|| isClassMemberAccessExpression(expression));
 
 	if(!isCallToNamedFunction) // if the left-hand expression does not contain an (optionally parenthesised) id-expression (and is not a class which supports 'operator()')
 	{
@@ -1557,12 +1557,12 @@ UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Arguments& a
 	}
 
 	const IdExpression& idExpression = getIdExpression(
-		isMemberAccessExpression(expression) ? getMemberAccessExpression(expression).right : expression);
+		isClassMemberAccessExpression(expression) ? getClassMemberAccessExpression(expression).right : expression);
 	DeclarationInstanceRef declaration = idExpression.declaration;
 	const TemplateArgumentsInstance& templateArguments = idExpression.templateArguments;
 
 	bool isCallToNamedMemberFunction = expression.p != 0
-		&& isMemberAccessExpression(expression);
+		&& isClassMemberAccessExpression(expression);
 	SEMANTIC_ASSERT(!type.isFunction() || (memberClass != 0) == isCallToNamedMemberFunction);
 
 	// [over.call.func] Call to named function
@@ -3384,15 +3384,14 @@ struct PostfixExpressionMemberWalker : public WalkerQualified
 	Dependent typeDependent;
 	Dependent valueDependent;
 	bool isTemplate;
-	bool isArrow;
 	PostfixExpressionMemberWalker(const WalkerState& state)
-		: WalkerQualified(state), id(0), arguments(context), isTemplate(false), isArrow(false)
+		: WalkerQualified(state), id(0), arguments(context), isTemplate(false)
 	{
 	}
 	void visit(cpp::member_operator* symbol)
 	{
 		TREEWALKER_LEAF(symbol);
-		isArrow = symbol->id == cpp::member_operator::ARROW;
+		bool isArrow = symbol->id == cpp::member_operator::ARROW;
 
 		memberClass = &gDependentSimpleType;
 		SEMANTIC_ASSERT(objectExpression.p != 0);
@@ -3401,7 +3400,15 @@ struct PostfixExpressionMemberWalker : public WalkerQualified
 			// [expr] If an expression initially has the type "reference to T", the type is adjusted to "T" prior to any further analysis.
 			UniqueTypeWrapper operand = removeReference(memberType);
 			memberClass = &getMemberOperatorType(operand, isArrow, getLocation(), enclosingType);
+
+			objectExpression = makeExpression(ObjectExpression(memberClass));
 		}
+#if 0
+		else
+		{
+			objectExpression = makeExpression(DependentObjectExpression(objectExpression, isArrow));
+		}
+#endif
 	}
 	void visit(cpp::terminal<boost::wave::T_TEMPLATE> symbol)
 	{
@@ -3533,9 +3540,9 @@ struct PostfixExpressionWalker : public WalkerBase
 		// [basic.lval] An expression which holds a temporary object resulting from a cast to a non-reference type is an rvalue
 		requireCompleteObjectType(type, Location(symbol->source, context.declarationCount), enclosingType);
 		expression = makeExpression(CastExpression(type, walker.expression), walker.expression.isConstant, isDependent(typeDependent), false);
+		expression.isTemplateArgumentAmbiguity = symbol->args == 0;
 		setExpressionType(symbol, type);
 		updateMemberType();
-		expression.isTemplateArgumentAmbiguity = symbol->args == 0;
 	}
 	void visit(cpp::postfix_expression_cast* symbol)
 	{
@@ -3649,7 +3656,7 @@ struct PostfixExpressionWalker : public WalkerBase
 				{
 					bool isCallToNamedFunction = expression.p != 0
 						&& (isIdExpression(expression)
-						|| isMemberAccessExpression(expression));
+						|| isClassMemberAccessExpression(expression));
 					SEMANTIC_ASSERT((id != 0) == (isCallToNamedFunction || (expression.p != 0 && isNonTypeTemplateParameter(expression))));
 					if(!isCallToNamedFunction)
 					{
@@ -3658,7 +3665,7 @@ struct PostfixExpressionWalker : public WalkerBase
 					else
 					{
 						const IdExpression& idExpression = getIdExpression(
-							isMemberAccessExpression(expression) ? getMemberAccessExpression(expression).right : expression);
+							isClassMemberAccessExpression(expression) ? getClassMemberAccessExpression(expression).right : expression);
 						SEMANTIC_ASSERT(idExpression.declaration.p == &getDeclaration(*id));
 						SEMANTIC_ASSERT(idExpression.templateArguments == templateArguments);
 					}
@@ -3702,7 +3709,7 @@ struct PostfixExpressionWalker : public WalkerBase
 			type = typeOfIdExpression(qualifyingClass, declaration, getLocation(), walker.memberClass);
 			idEnclosing = isSpecialMember(*declaration) ? 0 : getIdExpressionClass(qualifyingClass, declaration, walker.memberClass);
 
-			expression = makeExpression(MemberAccessExpression(objectExpression, walker.expression, walker.isArrow),
+			expression = makeExpression(ClassMemberAccessExpression(walker.objectExpression, walker.expression),
 				false, isDependent(typeDependent), isDependent(valueDependent)
 			);
 		}

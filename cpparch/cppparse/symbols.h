@@ -569,7 +569,9 @@ struct ExpressionNodeVisitor
 	virtual void visit(const struct TypeTraitsUnaryExpression&) = 0;
 	virtual void visit(const struct TypeTraitsBinaryExpression&) = 0;
 	virtual void visit(const struct ExplicitTypeExpression&) = 0;
-	virtual void visit(const struct MemberAccessExpression&) = 0;
+	virtual void visit(const struct ObjectExpression&) = 0; // transformed 'c.'
+	virtual void visit(const struct DependentObjectExpression&) = 0; // 'dependent->' or 'dependent.'
+	virtual void visit(const struct ClassMemberAccessExpression&) = 0;
 	virtual void visit(const struct FunctionCallExpression&) = 0;
 	virtual void visit(const struct SubscriptExpression&) = 0;
 };
@@ -2831,32 +2833,86 @@ inline const ExplicitTypeExpression& getExplicitTypeExpression(ExpressionNode* n
 }
 
 
-struct MemberAccessExpression
+struct DependentObjectExpression
 {
-	ExpressionWrapper left; // extract type, memberClass
-	ExpressionWrapper right; // always id-expression
+	ExpressionWrapper left;
 	bool isArrow;
-	MemberAccessExpression(ExpressionWrapper left, ExpressionWrapper right, bool isArrow)
-		: left(left), right(right), isArrow(isArrow)
+	DependentObjectExpression(ExpressionWrapper left, bool isArrow)
+		: left(left), isArrow(isArrow)
 	{
 	}
 };
 
-inline bool operator<(const MemberAccessExpression& left, const MemberAccessExpression& right)
+inline bool operator<(const DependentObjectExpression& left, const DependentObjectExpression& right)
 {
 	SYMBOLS_ASSERT(false);
 	return false;
 }
 
-inline bool isMemberAccessExpression(ExpressionNode* node)
+inline bool isDependentObjectExpression(ExpressionNode* node)
 {
-	return typeid(*node) == typeid(ExpressionNodeGeneric<MemberAccessExpression>);
+	return typeid(*node) == typeid(ExpressionNodeGeneric<DependentObjectExpression>);
 }
 
-inline const MemberAccessExpression& getMemberAccessExpression(ExpressionNode* node)
+inline const DependentObjectExpression& getDependentObjectExpression(ExpressionNode* node)
 {
-	SYMBOLS_ASSERT(isMemberAccessExpression(node));
-	return static_cast<const ExpressionNodeGeneric<MemberAccessExpression>*>(node)->value;
+	SYMBOLS_ASSERT(isDependentObjectExpression(node));
+	return static_cast<const ExpressionNodeGeneric<DependentObjectExpression>*>(node)->value;
+}
+
+
+struct ObjectExpression
+{
+	const SimpleType* classType;
+	ObjectExpression(const SimpleType* classType)
+		: classType(classType)
+	{
+	}
+};
+
+inline bool operator<(const ObjectExpression& left, const ObjectExpression& right)
+{
+	SYMBOLS_ASSERT(false);
+	return false;
+}
+
+inline bool isObjectExpression(ExpressionNode* node)
+{
+	return typeid(*node) == typeid(ExpressionNodeGeneric<ObjectExpression>);
+}
+
+inline const ObjectExpression& getObjectExpression(ExpressionNode* node)
+{
+	SYMBOLS_ASSERT(isObjectExpression(node));
+	return static_cast<const ExpressionNodeGeneric<ObjectExpression>*>(node)->value;
+}
+
+
+struct ClassMemberAccessExpression
+{
+	ExpressionWrapper left; // ObjectExpression or DependentObjectExpression
+	ExpressionWrapper right; // IdExpression or DependentIdExpression
+	ClassMemberAccessExpression(ExpressionWrapper left, ExpressionWrapper right)
+		: left(left), right(right)
+	{
+	}
+};
+
+inline bool operator<(const ClassMemberAccessExpression& left, const ClassMemberAccessExpression& right)
+{
+	SYMBOLS_ASSERT(false);
+	return false;
+}
+
+inline bool isClassMemberAccessExpression(ExpressionNode* node)
+{
+	return typeid(*node) == typeid(ExpressionNodeGeneric<ClassMemberAccessExpression>);
+}
+
+inline const ClassMemberAccessExpression& getClassMemberAccessExpression(ExpressionNode* node)
+{
+	SYMBOLS_ASSERT(isClassMemberAccessExpression(node));
+	return static_cast<const ExpressionNodeGeneric<ClassMemberAccessExpression>*>(node)->value;
 }
 
 
@@ -2947,6 +3003,7 @@ inline UniqueTypeWrapper removeReference(UniqueTypeWrapper type)
 
 
 inline bool isDependent(UniqueTypeWrapper type);
+inline UniqueTypeWrapper makeUniqueSimpleType(const SimpleType& type);
 inline UniqueTypeWrapper typeOfUnaryExpression(Name operatorName, Argument operand, const InstantiationContext& context);
 inline UniqueTypeWrapper getConditionalOperatorType(UniqueTypeWrapper leftType, UniqueTypeWrapper rightType);
 inline UniqueTypeWrapper typeOfSubscriptExpression(Argument left, Argument right, const InstantiationContext& context);
@@ -3031,10 +3088,23 @@ struct TypeOfVisitor : ExpressionNodeVisitor
 		result = node.type;
 		SYMBOLS_ASSERT(!isDependent(result));
 	}
-	void visit(const struct MemberAccessExpression& node)
+	void visit(const struct ObjectExpression& node)
+	{
+		result = makeUniqueSimpleType(*node.classType);
+		SYMBOLS_ASSERT(!isDependent(result));
+	}
+	void visit(const struct DependentObjectExpression& node)
 	{
 		UniqueTypeWrapper type = typeOfExpression(node.left, context);
 		const SimpleType& classType = getMemberOperatorType(removeReference(type), node.isArrow, context.source, context.enclosingType);
+		result = makeUniqueSimpleType(classType);
+		SYMBOLS_ASSERT(!isDependent(result));
+	}
+	void visit(const struct ClassMemberAccessExpression& node)
+	{
+		UniqueTypeWrapper type = typeOfExpression(node.left, context);
+		SYMBOLS_ASSERT(!isDependent(type)); // TODO: substitute dependent
+		const SimpleType& classType = getSimpleType(type.value);
 		result = typeOfExpression(node.right, InstantiationContext(context.source, &classType, context.enclosingScope));
 		SYMBOLS_ASSERT(!isDependent(result));
 	}
@@ -3275,7 +3345,17 @@ struct EvaluateVisitor : ExpressionNodeVisitor
 		// cannot be a constant expression
 		SYMBOLS_ASSERT(false);
 	}
-	void visit(const struct MemberAccessExpression& node)
+	void visit(const struct ObjectExpression& node)
+	{
+		// cannot be a constant expression
+		SYMBOLS_ASSERT(false);
+	}
+	void visit(const struct DependentObjectExpression& node)
+	{
+		// cannot be a constant expression
+		SYMBOLS_ASSERT(false);
+	}
+	void visit(const struct ClassMemberAccessExpression& node)
 	{
 		// cannot be a constant expression
 		SYMBOLS_ASSERT(false);
@@ -3589,7 +3669,6 @@ struct DeduceVisitor : TypeElementVisitor
 
 inline UniqueTypeWrapper applyArrayToPointerConversion(UniqueTypeWrapper type);
 inline UniqueTypeWrapper applyFunctionToPointerConversion(UniqueTypeWrapper type);
-inline UniqueTypeWrapper makeUniqueSimpleType(const SimpleType& type);
 
 struct DeductionFailure
 {
@@ -7224,7 +7303,15 @@ struct SymbolPrinter : TypeElementVisitor, ExpressionNodeVisitor
 	{
 		// TODO
 	}
-	void visit(const struct MemberAccessExpression& node)
+	void visit(const struct ObjectExpression& node)
+	{
+		// TODO
+	}
+	void visit(const struct DependentObjectExpression& node)
+	{
+		// TODO
+	}
+	void visit(const struct ClassMemberAccessExpression& node)
 	{
 		// TODO
 	}
