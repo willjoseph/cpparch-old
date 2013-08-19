@@ -2502,19 +2502,6 @@ inline InstantiationContext setEnclosingTypeSafe(const InstantiationContext& con
 	return setEnclosingType(context, enclosingType);
 }
 
-inline InstantiationContext setMemberEnclosing(const InstantiationContext& context, const SimpleType* memberEnclosing)
-{
-	const SimpleType* enclosingType = memberEnclosing != 0 ? memberEnclosing : context.enclosingType;
-	return InstantiationContext(context.source, enclosingType, context.enclosingScope);
-}
-
-// precondition: member-enclosing is already combined with context.enclosingType
-inline InstantiationContext setMemberEnclosingSafe(const InstantiationContext& context, const SimpleType* memberEnclosing)
-{
-	SYMBOLS_ASSERT(memberEnclosing != 0 || context.enclosingType == 0);
-	return setMemberEnclosing(context, memberEnclosing);
-}
-
 struct Argument : ExpressionWrapper
 {
 	UniqueTypeWrapper type;
@@ -7788,7 +7775,7 @@ struct OverloadResolver
 	{
 		// DR 903: a value-dependent expression may or may not be a null pointer constant, but the behaviour is unspecified.
 		// simple fix: don't allow a value-dependent expression to be a null pointer constant.
-#if 0
+#if 1
 		UniqueTypeWrapper type = typeOfExpression(from, context);
 		SYMBOLS_ASSERT(removeReference(type) == removeReference(from.type));
 #endif

@@ -768,3 +768,9 @@ described for lookup in namespace member function definitions.
 - investigate: evaluate enclosing-class for id-expression that names member when parsed?
 	- if unqualified, depends on context: object-expression or enclosing-class
 	- must also evaluate whether it's a pointer-to-member expression '&C::m' when parsed.
+
+- investigate: when do we need to evaluate an expression's type?
+	- when determining whether it's a constant-expression
+		- how exactly?
+	- when determining whether it's a pointer-to-member-expression
+	- when determining types of arguments for overload resolution

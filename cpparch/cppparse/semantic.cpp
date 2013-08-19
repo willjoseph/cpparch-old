@@ -448,6 +448,19 @@ const SimpleType* findAssociatedClass(const KoenigAssociated& associated, const 
 	return 0;
 }
 
+void addOverloaded(OverloadSet& result, const DeclarationInstance& declaration, const SimpleType* memberEnclosing)
+{
+	for(Declaration* p = findOverloaded(declaration); p != 0; p = p->overloaded)
+	{
+		if(p->specifiers.isFriend)
+		{
+			SEMANTIC_ASSERT(memberEnclosing == 0);
+			continue; // ignore (namespace-scope) friend functions
+		}
+		addUniqueOverload(result, Overload(p, memberEnclosing));
+	}
+}
+
 void addOverloaded(OverloadSet& result, const DeclarationInstance& declaration, const KoenigAssociated& associated = KoenigAssociated())
 {
 	for(Declaration* p = findOverloaded(declaration); p != 0; p = p->overloaded)
@@ -510,7 +523,7 @@ inline void addOverloads(OverloadResolver& resolver, const OverloadSet& overload
 	for(OverloadSet::const_iterator i = overloads.begin(); i != overloads.end(); ++i)
 	{
 		const Overload& overload = *i;
-		addOverload(resolver, *overload.declaration, setMemberEnclosing(context, overload.memberEnclosing));
+		addOverload(resolver, *overload.declaration, setEnclosingType(context, overload.memberEnclosing));
 	}
 }
 
@@ -519,7 +532,7 @@ inline void printOverloads(OverloadResolver& resolver, const OverloadSet& overlo
 	for(OverloadSet::const_iterator i = overloads.begin(); i != overloads.end(); ++i)
 	{
 		const Overload& overload = *i;
-		addOverload(resolver, *overload.declaration, setMemberEnclosing(context, overload.memberEnclosing));
+		addOverload(resolver, *overload.declaration, setEnclosingType(context, overload.memberEnclosing));
 	
 		const Declaration* p = overload.declaration;
 		ParameterTypes parameters = addOverload(resolver, *p, context);
@@ -1474,8 +1487,8 @@ inline UniqueTypeWrapper typeOfSubscriptExpression(Argument left, Argument right
 		LookupResultRef declaration = ::findDeclaration(object, tmp, IsAny());
 		SEMANTIC_ASSERT(declaration != 0); // TODO: non-fatal error: expected array
 
-		const SimpleType* idEnclosing = findEnclosingType(&object, declaration->scope); // find the base class which contains the member-declaration
-		SEMANTIC_ASSERT(idEnclosing != 0);
+		const SimpleType* memberEnclosing = findEnclosingType(&object, declaration->scope); // find the base class which contains the member-declaration
+		SEMANTIC_ASSERT(memberEnclosing != 0);
 
 		// The argument list submitted to overload resolution consists of the argument expressions present in the function
 		// call syntax preceded by the implied object argument (E).
@@ -1484,8 +1497,8 @@ inline UniqueTypeWrapper typeOfSubscriptExpression(Argument left, Argument right
 		arguments.push_back(right);
 
 		OverloadSet overloads;
-		addOverloaded(overloads, declaration);
-		FunctionOverload overload = findBestMatch(overloads, 0, arguments, setEnclosingTypeSafe(context, idEnclosing));
+		addOverloaded(overloads, declaration, memberEnclosing);
+		FunctionOverload overload = findBestMatch(overloads, 0, arguments, setEnclosingTypeSafe(context, memberEnclosing));
 		SEMANTIC_ASSERT(overload.declaration != 0);
 		return overload.type;
 	}
@@ -1555,7 +1568,7 @@ inline UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Argum
 		augmentedArguments.insert(augmentedArguments.end(), arguments.begin(), arguments.end());
 
 		OverloadSet overloads;
-		addOverloaded(overloads, declaration);
+		addOverloaded(overloads, declaration, memberEnclosing);
 
 		SEMANTIC_ASSERT(!overloads.empty());
 
@@ -1625,7 +1638,7 @@ inline UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Argum
 	SEMANTIC_ASSERT(declaration != &gDependentObject); // the id-expression should not be dependent
 
 	// if this is a member-function-call, the type of the class containing the member
-	const SimpleType* idEnclosing = getIdExpressionClass(idExpression.enclosing, idExpression.declaration, memberClass != 0 ? memberClass : context.enclosingType);
+	const SimpleType* memberEnclosing = getIdExpressionClass(idExpression.enclosing, idExpression.declaration, memberClass != 0 ? memberClass : context.enclosingType);
 
 	ExpressionNodeGeneric<ObjectExpression> transientExpression = ObjectExpression(0);
 	Arguments augmentedArguments;
@@ -1646,7 +1659,7 @@ inline UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Argum
 			// If the keyword 'this' is not in scope or refers to another class, then name resolution found a static member of some
 			// class T. In this case, all overloaded declarations of the function name in T become candidate functions and
 			// a contrived object of type T becomes the implied object argument
-			: *idEnclosing;
+			: *memberEnclosing;
 		transientExpression = ObjectExpression(&classType);
 		augmentedArguments.push_back(Argument(ExpressionWrapper(&transientExpression, false), makeUniqueSimpleType(classType)));
 	}
@@ -1654,7 +1667,7 @@ inline UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Argum
 	augmentedArguments.insert(augmentedArguments.end(), arguments.begin(), arguments.end());
 
 	OverloadSet overloads;
-	addOverloaded(overloads, declaration);
+	addOverloaded(overloads, declaration, memberEnclosing);
 	if(!isMember(*declaration))
 	{
 		// [basic.lookup.koenig]
@@ -1668,7 +1681,7 @@ inline UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Argum
 	SEMANTIC_ASSERT(!overloads.empty());
 
 	// TODO: handle empty template-argument list '<>'. If specified, overload resolution should ignore non-templates
-	FunctionOverload overload = findBestMatch(overloads, templateArguments.empty() ? 0 : &templateArguments, augmentedArguments, setEnclosingType(context, idEnclosing));
+	FunctionOverload overload = findBestMatch(overloads, templateArguments.empty() ? 0 : &templateArguments, augmentedArguments, context);
 	SEMANTIC_ASSERT(overload.declaration != 0);
 #if 0 // TODO: record which overload was chosen, for dependency-tracking
 	{
@@ -1677,6 +1690,7 @@ inline UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Argum
 		setDecoration(id, instance);
 	}
 #endif
+	SEMANTIC_ASSERT(!::isDependent(overload.type));
 	return overload.type;
 }
 
