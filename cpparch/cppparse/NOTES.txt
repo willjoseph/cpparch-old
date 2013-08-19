@@ -755,9 +755,16 @@ described for lookup in namespace member function definitions.
 - task: template<bool b, int x = sizeof(b)>
 	- must defer evaluation of template parameter default until context is known?
 
-- task: function call: correct expression to pass into findBestMatch
-	- either member-call: object-expression id-expression
+- investigate: function call: correct expression to pass into findBestMatch
+	- either member-call: object-expression id-expression ( expression-list )
 		- either explicit class-member-access: a.m()
 		- or implicit: (*this).m()
 		- or static: m()
-	- or ordinary-call: id-expression
+	- or ordinary-call: id-expression ( expression-list )
+	- other forms do not require overload resolution
+		- pointer to function
+		- pointer to member function
+
+- investigate: evaluate enclosing-class for id-expression that names member when parsed?
+	- if unqualified, depends on context: object-expression or enclosing-class
+	- must also evaluate whether it's a pointer-to-member expression '&C::m' when parsed.

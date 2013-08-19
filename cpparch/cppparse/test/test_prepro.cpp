@@ -1,5 +1,16 @@
 
 
+namespace N283
+{
+	struct S
+	{
+		void f()
+		{
+			this->~S();
+		}
+	};
+}
+
 namespace N298
 {
 	template<typename T>
@@ -1335,17 +1346,6 @@ namespace N284
 	{
 		f(i);
 	}
-}
-
-namespace N283
-{
-	struct S
-	{
-		void f()
-		{
-			this->~S();
-		}
-	};
 }
 
 namespace N281

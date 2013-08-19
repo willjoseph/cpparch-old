@@ -1222,7 +1222,7 @@ inline UniqueTypeWrapper typeOfIdExpression(const SimpleType* qualifying, const 
 {
 	if(declaration == gDestructorInstance.p)
 	{
-		return gUniqueTypeNull;
+		return pushType(gUniqueTypeNull, FunctionType()); // type of destructor is 'function taking no parameter and returning no type'
 	}
 	else if(declaration == gCopyAssignmentOperatorInstance.p)
 	{
@@ -1498,10 +1498,12 @@ inline UniqueTypeWrapper typeOfSubscriptExpression(Argument left, Argument right
 	return type;
 }
 
-UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Arguments& arguments, const SimpleType* idEnclosing, const SimpleType* memberClass, const InstantiationContext& context)
+inline UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Arguments& arguments, const InstantiationContext& context)
 {
 	ExpressionWrapper expression = left;
 	UniqueTypeWrapper type = left.type;
+
+	SEMANTIC_ASSERT(expression.p != 0);
 
 	if(isDependentIdExpression(expression)) // if this is an expression of the form 'undeclared-id(args)', the name must be found via ADL 
 	{
@@ -1543,8 +1545,8 @@ UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Arguments& a
 		LookupResultRef declaration = ::findDeclaration(object, tmp, IsAny());
 		SEMANTIC_ASSERT(declaration != 0); // TODO: non-fatal error: expected function
 
-		idEnclosing = findEnclosingType(&object, declaration->scope); // find the base class which contains the member-declaration
-		SEMANTIC_ASSERT(idEnclosing != 0);
+		const SimpleType* memberEnclosing = findEnclosingType(&object, declaration->scope); // find the base class which contains the member-declaration
+		SEMANTIC_ASSERT(memberEnclosing != 0);
 
 		// The argument list submitted to overload resolution consists of the argument expressions present in the function
 		// call syntax preceded by the implied object argument (E).
@@ -1557,7 +1559,7 @@ UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Arguments& a
 
 		SEMANTIC_ASSERT(!overloads.empty());
 
-		FunctionOverload overload = findBestMatch(overloads, 0, augmentedArguments, setEnclosingTypeSafe(context, idEnclosing));
+		FunctionOverload overload = findBestMatch(overloads, 0, augmentedArguments, setEnclosingTypeSafe(context, memberEnclosing));
 		SEMANTIC_ASSERT(overload.declaration != 0);
 #if 0 // TODO: record which overload was chosen, for dependency-tracking
 		{
@@ -1575,11 +1577,13 @@ UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Arguments& a
 		return popType(type);
 	}
 
-	bool isCallToNamedFunction = expression.p != 0
-		&& (isIdExpression(expression)
-		|| isClassMemberAccessExpression(expression));
+	SEMANTIC_ASSERT(type.isFunction());
 
-	if(!isCallToNamedFunction) // if the left-hand expression does not contain an (optionally parenthesised) id-expression (and is not a class which supports 'operator()')
+	bool isClassMemberAccess = isClassMemberAccessExpression(expression);
+	bool isNamed = isClassMemberAccess
+		|| isIdExpression(expression);
+
+	if(!isNamed) // if the left-hand expression does not contain an (optionally parenthesised) id-expression (and is not a class which supports 'operator()')
 	{
 		// the call does not require overload resolution
 		SEMANTIC_ASSERT(type.isFunction());
@@ -1587,16 +1591,15 @@ UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Arguments& a
 	}
 
 	const IdExpression& idExpression = getIdExpression(
-		isClassMemberAccessExpression(expression) ? getClassMemberAccessExpression(expression).right : expression);
+		isClassMemberAccess ? getClassMemberAccessExpression(expression).right : expression);
 	DeclarationInstanceRef declaration = idExpression.declaration;
 	const TemplateArgumentsInstance& templateArguments = idExpression.templateArguments;
 
-	bool isCallToNamedMemberFunction = expression.p != 0
-		&& isClassMemberAccessExpression(expression);
-	SEMANTIC_ASSERT(!type.isFunction() || (memberClass != 0) == isCallToNamedMemberFunction);
-
 	// [over.call.func] Call to named function
 	SEMANTIC_ASSERT(declaration.p != 0);
+
+	// if this is a qualified member-function-call, the class type of the object-expression
+	const SimpleType* memberClass = isClassMemberAccess ? getObjectExpression(getClassMemberAccessExpression(expression).left).classType : 0;
 
 	if(declaration.p == &gDestructorInstance)
 	{
@@ -1614,13 +1617,15 @@ UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Arguments& a
 		SEMANTIC_ASSERT(memberClass != 0 || context.enclosingType != 0);
 		SEMANTIC_ASSERT(memberClass == 0 || memberClass != &gDependentSimpleType);
 
-		SEMANTIC_ASSERT(type.isFunction());
 		return popType(type);
 	}
 
-	SEMANTIC_ASSERT(type.isFunction()); // the identifier names an overloadable function
+	// the identifier names an overloadable function
 
 	SEMANTIC_ASSERT(declaration != &gDependentObject); // the id-expression should not be dependent
+
+	// if this is a member-function-call, the type of the class containing the member
+	const SimpleType* idEnclosing = getIdExpressionClass(idExpression.enclosing, idExpression.declaration, memberClass != 0 ? memberClass : context.enclosingType);
 
 	ExpressionNodeGeneric<ObjectExpression> transientExpression = ObjectExpression(0);
 	Arguments augmentedArguments;
@@ -3701,14 +3706,27 @@ struct PostfixExpressionWalker : public WalkerBase
 					}
 					else
 					{
+						bool isCallToNamedMemberFunction = isClassMemberAccessExpression(expression);
 						const IdExpression& idExpression = getIdExpression(
-							isClassMemberAccessExpression(expression) ? getClassMemberAccessExpression(expression).right : expression);
+							isCallToNamedMemberFunction ? getClassMemberAccessExpression(expression).right : expression);
 						SEMANTIC_ASSERT(idExpression.declaration.p == &getDeclaration(*id));
 						SEMANTIC_ASSERT(idExpression.templateArguments == templateArguments);
+
+						if(type.isFunction())
+						{
+							const SimpleType* tmp = isCallToNamedMemberFunction ? getObjectExpression(getClassMemberAccessExpression(expression).left).classType : 0;
+							SEMANTIC_ASSERT(memberClass == tmp);
+
+							if(!isSpecialMember(*idExpression.declaration))
+							{
+								const SimpleType* tmp = getIdExpressionClass(idExpression.enclosing, idExpression.declaration, memberClass != 0 ? memberClass : enclosingType);
+								SEMANTIC_ASSERT(idEnclosing == tmp);
+							}
+						}
 					}
 				}
 			}
-			type = typeOfFunctionCallExpression(Argument(expression, type), walker.arguments, idEnclosing, memberClass, getInstantiationContext());
+			type = typeOfFunctionCallExpression(Argument(expression, type), walker.arguments, getInstantiationContext());
 			expression = makeExpression(FunctionCallExpression(expression, walker.arguments), false, isDependent(typeDependent), isDependent(valueDependent));
 		}
 		// TODO: set of pointers-to-function

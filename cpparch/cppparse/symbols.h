@@ -3057,6 +3057,7 @@ inline UniqueTypeWrapper typeOfIdExpression(const SimpleType* qualifying, const 
 inline UniqueTypeWrapper typeOfPostfixOperatorExpression(Name operatorName, Argument operand, const InstantiationContext& context);
 inline IdExpression substituteIdExpression(const DependentIdExpression& node, const InstantiationContext& context);
 inline UniqueTypeWrapper getNonTypeTemplateParameterType(const NonTypeTemplateParameter& node, const InstantiationContext& context);
+inline UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Arguments& arguments, const InstantiationContext& context);
 
 struct TypeOfVisitor : ExpressionNodeVisitor
 {
@@ -3155,7 +3156,10 @@ struct TypeOfVisitor : ExpressionNodeVisitor
 	}
 	void visit(const struct FunctionCallExpression& node)
 	{
-		// TODO
+		result = typeOfFunctionCallExpression(
+			Argument(node.left, removeReference(typeOfExpression(node.left, context))),
+			node.arguments,
+			context);
 	}
 	void visit(const struct SubscriptExpression& node)
 	{
