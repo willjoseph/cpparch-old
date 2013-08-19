@@ -7775,10 +7775,6 @@ struct OverloadResolver
 	{
 		// DR 903: a value-dependent expression may or may not be a null pointer constant, but the behaviour is unspecified.
 		// simple fix: don't allow a value-dependent expression to be a null pointer constant.
-#if 1
-		UniqueTypeWrapper type = typeOfExpression(from, context);
-		SYMBOLS_ASSERT(removeReference(type) == removeReference(from.type));
-#endif
 		bool isNullPointerConstant = !from.isValueDependent && from.isConstant && evaluateExpression(from, context).value == 0;
 		return makeImplicitConversionSequence(to, from, context, isNullPointerConstant, true, isUserDefinedConversion); // TODO: l-value
 	}
