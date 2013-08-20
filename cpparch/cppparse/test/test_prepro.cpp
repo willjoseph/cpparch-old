@@ -1,5 +1,119 @@
 
 
+namespace N356
+{
+	struct A
+	{
+		template<class T>
+		struct B
+		{
+		};
+	};
+
+	template<>
+	struct A::B<int>
+	{
+		B();
+	};
+
+	// explicit specialization syntax not used for a member of
+	// explicitly specialized class template specialization
+	A::B<int>::B() { }
+}
+
+namespace N355
+{
+	template<class T1>
+	struct A
+	{
+		template<class T2>
+		struct B
+		{
+			B();
+			typename A<T1>::template B<T2> f();
+		};
+	};
+
+	template<>
+	template<>
+	A<int>::B<int> // ok, typename/template required
+		A<int>::B<int>::f()
+	{
+	}
+	template<>
+	template<>
+	A<int>::B<int>::B()
+	{
+	}
+}
+
+namespace N354
+{
+	template<class T1>
+	struct A
+	{
+		template<class T2>
+		struct B
+		{
+			static B f;
+			static typename A<T2>::template B<T1> g;
+		};
+	};
+
+	template<class T1>
+	template<class T2>
+	typename A<T2>::template B<T1> // ok, typename/template required
+		A<T1>::B<T2>::g;
+
+#if 0 // illegal
+	template<class T1>
+	template<class T2>
+	A<T1>::B<T2> // clang/gcc accept, msvc rejects missing typename
+		A<T1>::B<T2>::f
+#endif
+
+
+	template<class T1>
+	struct C
+	{
+		template<class T2>
+		struct D
+		{
+			static typename A<T1>::template B<T2> f;
+			static typename A<T1>::template B<T2> g;
+		};
+	};
+
+	template<class T1>
+	template<class T2>
+	typename A<T1>::template B<T2> // ok, typename/template required
+		C<T1>::D<T2>::f;
+
+#if 0 // illegal
+	template<class T1>
+	template<class T2>
+	A<T1>::B<T2> // clang rejects with incorrect error
+		C<T1>::D<T2>::g;
+#endif
+}
+
+namespace N353
+{
+	template<class>
+	struct ambiguous
+	{
+		static const int value = 0;
+	};
+
+	namespace N
+	{
+		template<class>
+		int ambiguous();
+
+		int i = ambiguous<int>::value;
+	}
+}
+
 namespace N347
 {
 	template<typename Target, typename Src>

@@ -2811,10 +2811,39 @@ struct TemplateIdWalker : public WalkerBase
 		: WalkerBase(state), id(0), arguments(context), isTemplate(isTemplate)
 	{
 	}
+	template<typename T>
+	void verifyTemplateName(T* symbol)
+	{
+		// [temp.names]
+		// After name lookup (3.4) finds that a name is a template-name or that an operator-function-id or a literal-operator-
+		// id refers to a set of overloaded functions any member of which is a function template if this is
+		// followed by a <, the < is always taken as the delimiter of a template-argument-list and never as the less-than
+		// operator.
+		if(!isTemplate // if the name is not preceded by 'template'
+			&& !isDependent(qualifying_p)) // and the name is not qualified by a dependent type
+		{
+			if(qualifyingClass == 0
+				&& getQualifyingScope() != 0
+				&& getQualifyingScope()->type == SCOPETYPE_CLASS) // special case for declarator qualified by type-name
+			{
+				// TODO: unify lookup for declarator qualified by type name - store dependent qualifyingClass
+				return; // don't bother checking for a template-name, the following cannot be 'less-than'.. we hope.
+			}
+
+			// search qualifying type/namespace, object-expression and/or enclosing scope depending on context
+			LookupResultRef declaration = findDeclaration(symbol->value, IsAny());
+			if(declaration == &gUndeclared
+				|| !isTemplateName(*declaration))
+			{
+				return reportIdentifierMismatch(symbol, symbol->value, declaration, "template-name");
+			}
+		}
+	}
 	void visit(cpp::identifier* symbol)
 	{
 		TREEWALKER_LEAF_CACHED(symbol);
 		id = &symbol->value;
+		return verifyTemplateName(symbol);
 	}
 	void visit(cpp::operator_function_id* symbol) 
 	{
@@ -2824,6 +2853,7 @@ struct TemplateIdWalker : public WalkerBase
 		symbol->value.value = walker.name;
 		symbol->value.source = source;
 		id = &symbol->value;
+		return verifyTemplateName(symbol);
 	}
 	void visit(cpp::template_argument_clause* symbol)
 	{
@@ -4428,9 +4458,9 @@ struct NestedNameSpecifierPrefixWalker : public WalkerBase
 #endif
 	void visit(cpp::namespace_name* symbol)
 	{
-		NamespaceNameWalker walker(getState());
+		NamespaceNameWalker walker(getState()); // considers only namespace names
 		TREEWALKER_WALK(walker, symbol);
-		if(walker.filter.hidingType != 0)
+		if(walker.filter.hidingType != 0) // if the namespace name we found is hidden by a type name
 		{
 			return reportIdentifierMismatch(symbol, walker.filter.hidingType->getName(), walker.filter.hidingType, "namespace-name");
 		}
@@ -4438,9 +4468,9 @@ struct NestedNameSpecifierPrefixWalker : public WalkerBase
 	}
 	void visit(cpp::type_name* symbol)
 	{
-		TypeNameWalker walker(getState(), true);
+		TypeNameWalker walker(getState(), true); // considers only type names
 		TREEWALKER_WALK(walker, symbol);
-		if(walker.filter.hidingNamespace != 0)
+		if(walker.filter.hidingNamespace != 0) // if the type name we found is hidden by a namespace name
 		{
 			return reportIdentifierMismatch(symbol, walker.filter.hidingNamespace->getName(), walker.filter.hidingNamespace, "type-name");
 		}
@@ -4548,21 +4578,20 @@ struct TypeSpecifierWalker : public WalkerQualified
 	{
 		TemplateIdWalker walker(getState());
 		TREEWALKER_WALK_CACHED(walker, symbol);
-		IsHiddenTypeName filter;
-		LookupResultRef declaration = lookupTemplate(*walker.id, makeLookupFilter(filter));
-		if(declaration == &gUndeclared)
+		// [temp]
+		// A class template shall not have the same name as any other template, class, function, variable, enumeration,
+		// enumerator, namespace, or type in the same scope
+		LookupResultRef declaration = lookupTemplate(*walker.id, IsAny());
+		if(declaration == &gUndeclared
+			|| !isTypeName(*declaration)
+			|| !isTemplateName(*declaration))
 		{
-			return reportIdentifierMismatch(symbol, *walker.id, declaration, "type-name");
+			return reportIdentifierMismatch(symbol, *walker.id, declaration, "class-template-name");
 		}
 		if(declaration == &gDependentTemplate)
 		{
 			// dependent type, are you missing a 'typename' keyword?
 			return reportIdentifierMismatch(symbol, *walker.id, &gUndeclared, "typename");
-		}
-		if(filter.nonType != 0)
-		{
-			// 3.3.7: a type-name can be hidden by a non-type name in the same scope (this rule applies to a type-specifier)
-			return reportIdentifierMismatch(symbol, filter.nonType->getName(), filter.nonType, "type-name");
 		}
 		setDecoration(walker.id, declaration);
 		type.declaration = declaration;
@@ -5143,7 +5172,7 @@ struct ClassHeadWalker : public WalkerBase
 	}
 	void visit(cpp::simple_template_id* symbol) // class_name
 	{
-		TemplateIdWalker walker(getState());
+		TemplateIdWalker walker(getState(), true); // TODO: specifying isTemplate as a temporary workaround: name lookup of qualified class-name currently fails.
 		TREEWALKER_WALK_CACHED(walker, symbol);
 		// TODO: don't declare anything - this is a template (partial) specialisation
 		id = walker.id;

@@ -903,7 +903,7 @@ struct DeclarationInstance : DeclarationPtr
 	{
 	}
 	// used when cloning an existing declaration, in the process of copying declarations from one scope to another.
-	explicit DeclarationInstance(Declaration* declaration, std::size_t visibility = VISIBILITY_ALL)
+	explicit DeclarationInstance(Declaration* declaration, std::size_t visibility = 0)
 		: DeclarationPtr(declaration), name(declaration != 0 ? &declaration->getName() : 0), overloaded(0), redeclared(0), visibility(visibility)
 	{
 		SYMBOLS_ASSERT(name != 0);
