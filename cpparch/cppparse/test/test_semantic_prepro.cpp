@@ -1,4 +1,110 @@
-
+typedef unsigned int size_t;
+extern void*operator new(size_t);
+extern void operator delete(void*);
+extern "C" int atexit(void(*)(void));
+typedef struct _PMD
+{
+	int mdisp;
+	int pdisp;
+	int vdisp;
+}
+_PMD;
+typedef void(*_PMFN)(void);
+typedef struct _TypeDescriptor
+{
+	const void*pVFTable;
+	void*spare;
+	char name[];
+}
+_TypeDescriptor;
+typedef const struct _s__CatchableType
+{
+	unsigned int properties;
+	_TypeDescriptor*pType;
+	_PMD thisDisplacement;
+	int sizeOrOffset;
+	_PMFN copyFunction;
+}
+_CatchableType;
+typedef const struct _s__CatchableTypeArray
+{
+	int nCatchableTypes;
+	_CatchableType*arrayOfCatchableTypes[];
+}
+_CatchableTypeArray;
+typedef const struct _s__ThrowInfo
+{
+	unsigned int attributes;
+	_PMFN pmfnUnwind;
+	int(*pForwardCompat)(...);
+	_CatchableTypeArray*pCatachableTypeArray;
+}
+_ThrowInfo;
+extern "C" void _CxxThrowException(void*pExceptionObject, _ThrowInfo*pThrowInfo);
+extern "C" int __CxxExceptionFilter(void*, void*, int, void*);
+extern "C" int __CxxRegisterExceptionObject(void*exception, void*storage);
+extern "C" int __CxxDetectRethrow(void*exception);
+extern "C" int __CxxQueryExceptionSize(void);
+extern "C" void __CxxUnregisterExceptionObject(void*storage, int rethrow);
+typedef const struct _s__RTTIBaseClassDescriptor
+{
+	_TypeDescriptor*pTypeDescriptor;
+	unsigned long numContainedBases;
+	_PMD where;
+	unsigned long attributes;
+}
+__RTTIBaseClassDescriptor;
+typedef const struct _s__RTTIBaseClassArray
+{
+	__RTTIBaseClassDescriptor*arrayOfBaseClassDescriptors[];
+}
+__RTTIBaseClassArray;
+typedef const struct _s__RTTIClassHierarchyDescriptor
+{
+	unsigned long signature;
+	unsigned long attributes;
+	unsigned long numBaseClasses;
+	__RTTIBaseClassArray*pBaseClassArray;
+}
+__RTTIClassHierarchyDescriptor;
+typedef const struct _s__RTTICompleteObjectLocator
+{
+	unsigned long signature;
+	unsigned long offset;
+	unsigned long cdOffset;
+	_TypeDescriptor*pTypeDescriptor;
+	__RTTIClassHierarchyDescriptor*pClassDescriptor;
+}
+__RTTICompleteObjectLocator;
+typedef const class type_info&__RTtypeidReturnType;
+extern "C" void*__RTDynamicCast(void*, long, void*, void*, int)throw(...);
+extern "C" void*__RTtypeid(void*)throw(...);
+extern "C" void*__RTCastToVoid(void*)throw(...);
+struct __s_GUID
+{
+	unsigned long Data1;
+	unsigned short Data2;
+	unsigned short Data3;
+	unsigned char Data4[8];
+};
+typedef const struct _GUID&__rcGUID_t;
+extern "C" void __debugbreak(void);
+extern "C" void __annotation(const wchar_t*, ...);
+void operator delete(void*);
+void*operator new(unsigned int);
+void operator delete[](void*);
+void*operator new[](unsigned int);
+namespace cpp
+{
+	struct declaration_seq;
+	struct statement_seq;
+};
+struct ParserContext;
+cpp::declaration_seq*parseFile(ParserContext&lexer);
+cpp::statement_seq*parseFunction(ParserContext&lexer);
+extern "C"
+{
+}
 extern "C"
 {
 	typedef unsigned int uintptr_t;
@@ -26566,7 +26672,7 @@ namespace boost
 				Data*pData_;
 				void Init(size_type size, size_type capacity)
 				{
-					(void)((!!(size<=capacity))||(_wassert(L"size <= capacity", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 336), 0));
+					(void)((!!(size<=capacity))||(_wassert(L"size <= capacity", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 336), 0));
 					if(capacity==0)
 					{
 						pData_=const_cast<Data*>(&emptyString_);
@@ -26621,7 +26727,7 @@ namespace boost
 				}
 				~SimpleStringStorage()
 				{
-					(void)((!!(begin()<=end()))||(_wassert(L"begin() <= end()", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 405), 0));
+					(void)((!!(begin()<=end()))||(_wassert(L"begin() <= end()", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 405), 0));
 					if(pData_!=&emptyString_)free(pData_);
 				}
 				iterator begin()
@@ -26764,7 +26870,7 @@ namespace boost
 				Data*pData_;
 				void Init(size_type size, size_type cap)
 				{
-					(void)((!!(size<=cap))||(_wassert(L"size <= cap", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 568), 0));
+					(void)((!!(size<=cap))||(_wassert(L"size <= cap", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 568), 0));
 					if(cap==0)
 					{
 						pData_=const_cast<Data*>(&SimpleStringStorage<E, A>::emptyString_);
@@ -26968,7 +27074,7 @@ namespace boost
 				}
 				void reserve(size_type res_arg)
 				{
-					(void)((!!(res_arg<max_size()))||(_wassert(L"res_arg < max_size()", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 809), 0));
+					(void)((!!(res_arg<max_size()))||(_wassert(L"res_arg < max_size()", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 809), 0));
 					base::reserve(res_arg+1);
 				}
 				void append(const E*s, size_type sz)
@@ -27050,13 +27156,13 @@ namespace boost
 				};
 				Storage&GetStorage()
 				{
-					(void)((!!(buf_[maxSmallString]==magic))||(_wassert(L"buf_[maxSmallString] == magic", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 896), 0));
+					(void)((!!(buf_[maxSmallString]==magic))||(_wassert(L"buf_[maxSmallString] == magic", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 896), 0));
 					Storage*p=reinterpret_cast<Storage*>(&buf_[0]);
 					return *p;
 				}
 				const Storage&GetStorage()const
 				{
-					(void)((!!(buf_[maxSmallString]==magic))||(_wassert(L"buf_[maxSmallString] == magic", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 903), 0));
+					(void)((!!(buf_[maxSmallString]==magic))||(_wassert(L"buf_[maxSmallString] == magic", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 903), 0));
 					const Storage*p=reinterpret_cast<const Storage*>(&buf_[0]);
 					return *p;
 				}
@@ -27140,7 +27246,7 @@ namespace boost
 				}
 				size_type size()const
 				{
-					(void)((!!(!Small()||maxSmallString>=buf_[maxSmallString]))||(_wassert(L"!Small() || maxSmallString >= buf_[maxSmallString]", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1002), 0));
+					(void)((!!(!Small()||maxSmallString>=buf_[maxSmallString]))||(_wassert(L"!Small() || maxSmallString >= buf_[maxSmallString]", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1002), 0));
 					return Small()?maxSmallString-buf_[maxSmallString]: GetStorage().size();
 				}
 				size_type max_size()const
@@ -27166,7 +27272,7 @@ namespace boost
 					{
 						GetStorage().reserve(res_arg);
 					}
-					(void)((!!(capacity()>=res_arg))||(_wassert(L"capacity() >= res_arg", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1030), 0));
+					(void)((!!(capacity()>=res_arg))||(_wassert(L"capacity() >= res_arg", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1030), 0));
 				}
 				void append(const value_type*s, size_type sz)
 				{
@@ -27234,7 +27340,7 @@ namespace boost
 						}
 						else
 						{
-							(void)((!!(capacity()>n))||(_wassert(L"capacity() > n", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1115), 0));
+							(void)((!!(capacity()>n))||(_wassert(L"capacity() > n", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1115), 0));
 							SmallStringOpt newObj(data(), n, get_allocator());
 							newObj.swap(*this);
 						}
@@ -27312,19 +27418,19 @@ namespace boost
 				RefCountType GetRefs()const
 				{
 					const Storage&d=Data();
-					(void)((!!(d.size()>0))||(_wassert(L"d.size() > 0", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1218), 0));
-					(void)((!!(static_cast<RefCountType>(*d.begin())!=0))||(_wassert(L"static_cast<RefCountType>(*d.begin()) != 0", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1219), 0));
+					(void)((!!(d.size()>0))||(_wassert(L"d.size() > 0", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1218), 0));
+					(void)((!!(static_cast<RefCountType>(*d.begin())!=0))||(_wassert(L"static_cast<RefCountType>(*d.begin()) != 0", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1219), 0));
 					return *d.begin();
 				}
 				RefCountType&Refs()
 				{
 					Storage&d=Data();
-					(void)((!!(d.size()>0))||(_wassert(L"d.size() > 0", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1226), 0));
+					(void)((!!(d.size()>0))||(_wassert(L"d.size() > 0", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1226), 0));
 					return reinterpret_cast<RefCountType&>(*d.begin());
 				}
 				void MakeUnique()const
 				{
-					(void)((!!(GetRefs()>=1))||(_wassert(L"GetRefs() >= 1", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1232), 0));
+					(void)((!!(GetRefs()>=1))||(_wassert(L"GetRefs() >= 1", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1232), 0));
 					if(GetRefs()==1)return ;
 					union
 					{
@@ -27350,7 +27456,7 @@ namespace boost
 						new(buf_)Storage(s.Data(), flex_string_details::Shallow());
 						++Refs();
 					}
-					(void)((!!(Data().size()>0))||(_wassert(L"Data().size() > 0", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1264), 0));
+					(void)((!!(Data().size()>0))||(_wassert(L"Data().size() > 0", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1264), 0));
 				}
 				CowString(const allocator_type&a)
 				{
@@ -27381,23 +27487,23 @@ namespace boost
 						new(buf_)Storage(rhs.Data(), flex_string_details::Shallow());
 						++Refs();
 					}
-					(void)((!!(Data().size()>0))||(_wassert(L"Data().size() > 0", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1305), 0));
+					(void)((!!(Data().size()>0))||(_wassert(L"Data().size() > 0", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1305), 0));
 					return *this;
 				}
 				~CowString()
 				{
-					(void)((!!(Data().size()>0))||(_wassert(L"Data().size() > 0", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1311), 0));
+					(void)((!!(Data().size()>0))||(_wassert(L"Data().size() > 0", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1311), 0));
 					if(--Refs()==0)Data().~Storage();
 				}
 				iterator begin()
 				{
-					(void)((!!(Data().size()>0))||(_wassert(L"Data().size() > 0", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1318), 0));
+					(void)((!!(Data().size()>0))||(_wassert(L"Data().size() > 0", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1318), 0));
 					MakeUnique();
 					return Data().begin()+1;
 				}
 				const_iterator begin()const
 				{
-					(void)((!!(Data().size()>0))||(_wassert(L"Data().size() > 0", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1325), 0));
+					(void)((!!(Data().size()>0))||(_wassert(L"Data().size() > 0", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1325), 0));
 					return Data().begin()+1;
 				}
 				iterator end()
@@ -27411,22 +27517,22 @@ namespace boost
 				}
 				size_type size()const
 				{
-					(void)((!!(Data().size()>0))||(_wassert(L"Data().size() > 0", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1342), 0));
+					(void)((!!(Data().size()>0))||(_wassert(L"Data().size() > 0", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1342), 0));
 					return Data().size()-1;
 				}
 				size_type max_size()const
 				{
-					(void)((!!(Data().max_size()>0))||(_wassert(L"Data().max_size() > 0", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1348), 0));
+					(void)((!!(Data().max_size()>0))||(_wassert(L"Data().max_size() > 0", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1348), 0));
 					return Data().max_size()-1;
 				}
 				size_type capacity()const
 				{
-					(void)((!!(Data().capacity()>0))||(_wassert(L"Data().capacity() > 0", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1354), 0));
+					(void)((!!(Data().capacity()>0))||(_wassert(L"Data().capacity() > 0", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1354), 0));
 					return Data().capacity()-1;
 				}
 				void resize(size_type n, E c)
 				{
-					(void)((!!(Data().size()>0))||(_wassert(L"Data().size() > 0", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1360), 0));
+					(void)((!!(Data().size()>0))||(_wassert(L"Data().size() > 0", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1360), 0));
 					MakeUnique();
 					Data().resize(n+1, c);
 				}
@@ -27448,12 +27554,12 @@ namespace boost
 				}
 				const E*c_str()const
 				{
-					(void)((!!(Data().size()>0))||(_wassert(L"Data().size() > 0", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1386), 0));
+					(void)((!!(Data().size()>0))||(_wassert(L"Data().size() > 0", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1386), 0));
 					return Data().c_str()+1;
 				}
 				const E*data()const
 				{
-					(void)((!!(Data().size()>0))||(_wassert(L"Data().size() > 0", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1392), 0));
+					(void)((!!(Data().size()>0))||(_wassert(L"Data().size() > 0", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1392), 0));
 					return Data().data()+1;
 				}
 				allocator_type get_allocator()const
@@ -27467,7 +27573,7 @@ namespace boost
 				template<typename Exception>
 				static inline void Enforce(bool condition, Exception*, const char*msg)
 				{
-					(void)((!!(condition&&msg))||(_wassert(L"condition && msg", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1421), 0));
+					(void)((!!(condition&&msg))||(_wassert(L"condition && msg", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1421), 0));
 				}
 				bool Sane()const
 				{
@@ -27479,11 +27585,11 @@ namespace boost
 				{
 					Invariant(const flex_string&s): s_(s)
 					{
-						(void)((!!(s_.Sane()))||(_wassert(L"s_.Sane()", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1442), 0));
+						(void)((!!(s_.Sane()))||(_wassert(L"s_.Sane()", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1442), 0));
 					}
 					~Invariant()
 					{
-						(void)((!!(s_.Sane()))||(_wassert(L"s_.Sane()", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1446), 0));
+						(void)((!!(s_.Sane()))||(_wassert(L"s_.Sane()", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1446), 0));
 					}
 				private:
 					const flex_string&s_;
@@ -27809,7 +27915,7 @@ namespace boost
 				flex_string&InsertImplDiscr(iterator p, size_type n, value_type c, Selector<1>)
 				{
 					Invariant checker(*this);
-					(void)((!!(begin()<=p&&p<=end()))||(_wassert(L"begin() <= p && p <= end()", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1821), 0));
+					(void)((!!(begin()<=p&&p<=end()))||(_wassert(L"begin() <= p && p <= end()", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1821), 0));
 					const size_type insertOffset(p-begin());
 					const size_type originalSize(size());
 					if(n<originalSize-insertOffset)
@@ -27850,13 +27956,13 @@ namespace boost
 					Invariant checker(*this);
 					const size_type pos=i-begin();
 					const typename std::iterator_traits<FwdIterator>::difference_type n2=std::distance(s1, s2);
-					(void)((!!(n2>=0))||(_wassert(L"n2 >= 0", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1887), 0));
+					(void)((!!(n2>=0))||(_wassert(L"n2 >= 0", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1887), 0));
 					using namespace flex_string_details;
-					(void)((!!(pos<=size()))||(_wassert(L"pos <= size()", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1889), 0));
+					(void)((!!(pos<=size()))||(_wassert(L"pos <= size()", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1889), 0));
 					const typename std::iterator_traits<FwdIterator>::difference_type maxn2=capacity()-size();
 					if(maxn2<n2)
 					{
-						(void)((!!(!IsAliasedRange(s1, s2)))||(_wassert(L"!IsAliasedRange(s1, s2)", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1896), 0));
+						(void)((!!(!IsAliasedRange(s1, s2)))||(_wassert(L"!IsAliasedRange(s1, s2)", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1896), 0));
 						reserve(size()+n2);
 						i=begin()+pos;
 					}
@@ -27872,7 +27978,7 @@ namespace boost
 						FwdIterator t=s1;
 						const size_type old_size=size();
 						std::advance(t, old_size-pos);
-						(void)((!!(std::distance(t, s2)>=0))||(_wassert(L"std::distance(t, s2) >= 0", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1913), 0));
+						(void)((!!(std::distance(t, s2)>=0))||(_wassert(L"std::distance(t, s2) >= 0", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1913), 0));
 						Storage::append(t, s2);
 						Storage::append(data()+pos, data()+old_size);
 						std::copy(s1, t, i);
@@ -27952,9 +28058,9 @@ namespace boost
 			private:
 				flex_string&ReplaceImplDiscr(iterator i1, iterator i2, const value_type*s, size_type n, Selector<2>)
 				{
-					(void)((!!(i1<=i2))||(_wassert(L"i1 <= i2", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 2014), 0));
-					(void)((!!(begin()<=i1&&i1<=end()))||(_wassert(L"begin() <= i1 && i1 <= end()", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 2015), 0));
-					(void)((!!(begin()<=i2&&i2<=end()))||(_wassert(L"begin() <= i2 && i2 <= end()", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 2016), 0));
+					(void)((!!(i1<=i2))||(_wassert(L"i1 <= i2", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 2014), 0));
+					(void)((!!(begin()<=i1&&i1<=end()))||(_wassert(L"begin() <= i1 && i1 <= end()", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 2015), 0));
+					(void)((!!(begin()<=i2&&i2<=end()))||(_wassert(L"begin() <= i2 && i2 <= end()", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 2016), 0));
 					return replace(i1, i2, s, s+n);
 				}
 				flex_string&ReplaceImplDiscr(iterator i1, iterator i2, size_type n2, value_type c, Selector<1>)
@@ -27983,9 +28089,9 @@ namespace boost
 				{
 					Invariant checker(*this);
 					const typename std::iterator_traits<iterator>::difference_type n1=i2-i1;
-					(void)((!!(n1>=0))||(_wassert(L"n1 >= 0", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 2055), 0));
+					(void)((!!(n1>=0))||(_wassert(L"n1 >= 0", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 2055), 0));
 					const typename std::iterator_traits<FwdIterator>::difference_type n2=std::distance(s1, s2);
-					(void)((!!(n2>=0))||(_wassert(L"n2 >= 0", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 2058), 0));
+					(void)((!!(n2>=0))||(_wassert(L"n2 >= 0", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 2058), 0));
 					if(IsAliasedRange(s1, s2))
 					{
 						flex_string temporary;
@@ -29359,7 +29465,7 @@ namespace cpp
 		{
 			visitor.visit(this);
 		};
-		typedef TypeList<struct primary_expression, TypeList<struct postfix_expression_disambiguate, TypeList<struct postfix_expression_construct, TypeList<struct postfix_expression_cast, TypeList<struct postfix_expression_typeid, TypeList<struct postfix_expression_typeidtype, TypeList<struct postfix_expression_typetraits_unary, TypeList<struct postfix_expression_typetraits_binary, TypeListEnd> > > > > > > >Types;
+		typedef TypeList<struct primary_expression, TypeList<struct postfix_expression_construct, TypeList<struct postfix_expression_cast, TypeList<struct postfix_expression_typeid, TypeList<struct postfix_expression_typeidtype, TypeList<struct postfix_expression_typetraits_unary, TypeList<struct postfix_expression_typetraits_binary, TypeListEnd> > > > > > >Types;
 		typedef Types Choices;
 		typedef VisitorFuncGeneric<Types>VisitorFuncTable;
 		typedef VisitorCallback<VisitorFuncTable>Visitor;
@@ -31221,27 +31327,6 @@ namespace cpp
 		bool parse(ParserGeneric<Walker>&parser)
 		{
 			return parser.parse(lp)&&parser.parse(args)&&parser.parse(rp);
-		};
-	};
-	struct postfix_expression_disambiguate: public postfix_expression_prefix
-	{
-		virtual void acceptAbstract(const postfix_expression_prefix::Visitor&visitor)
-		{
-			visitor.visit(this);
-		};
-		symbol_required<primary_expression>left;
-		symbol_required<postfix_expression_call>right;
-		template<typename VisitorType>
-		void accept(VisitorType&visitor)
-		{
-			visitor.visit(left);
-			visitor.visit(right);
-		}
-		typedef TypeListEnd Choices;
-		template<typename Walker>
-		bool parse(ParserGeneric<Walker>&parser)
-		{
-			return parser.parse(left)&&parser.parse(right);
 		};
 	};
 	struct member_operator: public terminal_choice
@@ -42134,24 +42219,10 @@ inline IntegralConstant conditional(IntegralConstant first, IntegralConstant sec
 {
 	return IntegralConstant(first.value?second.value: third.value);
 }
-template<boost::wave::token_id id>
-inline Name getBinaryOperatorNameImpl(cpp::terminal<id>op)
-{
-	return op.value;
-}
-template<typename T>
-inline Name getBinaryOperatorNameImpl(T op)
-{
-	return op->value.value;
-}
-template<typename T>
-inline Name getBinaryOperatorName(T*symbol)
-{
-	return getBinaryOperatorNameImpl(symbol->op);
-}
 struct ExpressionNodeVisitor
 {
 	virtual void visit(const struct IntegralConstantExpression&)=0;
+	virtual void visit(const struct CastExpression&)=0;
 	virtual void visit(const struct NonTypeTemplateParameter&)=0;
 	virtual void visit(const struct DependentIdExpression&)=0;
 	virtual void visit(const struct IdExpression&)=0;
@@ -42162,6 +42233,13 @@ struct ExpressionNodeVisitor
 	virtual void visit(const struct TernaryExpression&)=0;
 	virtual void visit(const struct TypeTraitsUnaryExpression&)=0;
 	virtual void visit(const struct TypeTraitsBinaryExpression&)=0;
+	virtual void visit(const struct ExplicitTypeExpression&)=0;
+	virtual void visit(const struct ObjectExpression&)=0;
+	virtual void visit(const struct DependentObjectExpression&)=0;
+	virtual void visit(const struct ClassMemberAccessExpression&)=0;
+	virtual void visit(const struct FunctionCallExpression&)=0;
+	virtual void visit(const struct SubscriptExpression&)=0;
+	virtual void visit(const struct PostfixOperatorExpression&)=0;
 };
 struct ExpressionNode
 {
@@ -42206,7 +42284,7 @@ inline UniqueExpression makeBuiltInExpression(const T&value)
 	return *gBuiltInExpressions.insert(node);
 }
 template<typename T>
-inline UniqueExpression makeExpression(const T&value)
+inline UniqueExpression makeUniqueExpression(const T&value)
 {
 	ExpressionNodeGeneric<T>node(value);
 
@@ -42229,8 +42307,9 @@ struct Location: Source
 	{
 	}
 };
-struct TypeInstance;
-inline IntegralConstant evaluate(ExpressionNode*node, Location source, const TypeInstance*enclosing);
+struct SimpleType;
+struct InstantiationContext;
+inline IntegralConstant evaluate(ExpressionNode*node, const InstantiationContext&context);
 struct ExpressionWrapper: ExpressionPtr
 {
 	bool isConstant;
@@ -42402,7 +42481,7 @@ struct DeclarationInstance: DeclarationPtr
 	DeclarationInstance(): DeclarationPtr(0), name(0), overloaded(0), redeclared(0), visibility(VISIBILITY_ALL)
 	{
 	}
-	explicit DeclarationInstance(Declaration*declaration, std::size_t visibility=VISIBILITY_ALL): DeclarationPtr(declaration), name(declaration!=0?&declaration->getName(): 0), overloaded(0), redeclared(0), visibility(visibility)
+	explicit DeclarationInstance(Declaration*declaration, std::size_t visibility=0): DeclarationPtr(declaration), name(declaration!=0?&declaration->getName(): 0), overloaded(0), redeclared(0), visibility(visibility)
 	{
 		if(!(name!=0))
 		{
@@ -42577,13 +42656,26 @@ inline Scope*getEnclosingClass(Scope*scope)
 	}
 	return 0;
 }
+extern Identifier gGlobalId;
+inline Scope*getEnclosingNamespace(Scope*scope)
+{
+	for(;
+	scope!=0;
+	scope=scope->parent)
+	{
+		if(scope->type==SCOPETYPE_NAMESPACE&&scope->name.value!=gGlobalId.value)
+		{
+			return scope;
+		}
+	}
+	return 0;
+}
 extern Declaration gArithmetic;
 extern Declaration gSpecial;
 extern Declaration gClass;
 extern Declaration gEnum;
 extern Declaration gNamespace;
 extern Declaration gCtor;
-extern Declaration gEnumerator;
 extern Declaration gUnknown;
 inline bool isTemplate(const Scope&scope)
 {
@@ -42744,6 +42836,11 @@ inline bool isNonMemberName(const Declaration&declaration)
 	return isNonMember(declaration);
 }
 typedef LookupFilterDefault<isNonMemberName>IsNonMemberName;
+inline bool isFunctionName(const Declaration&declaration)
+{
+	return isFunction(declaration);
+}
+typedef LookupFilterDefault<isFunctionName>IsFunctionName;
 struct TypeElementVisitor
 {
 	virtual void visit(const struct DependentType&)=0;
@@ -42751,7 +42848,7 @@ struct TypeElementVisitor
 	virtual void visit(const struct DependentNonType&)=0;
 	virtual void visit(const struct TemplateTemplateArgument&)=0;
 	virtual void visit(const struct NonType&)=0;
-	virtual void visit(const struct ObjectType&)=0;
+	virtual void visit(const struct SimpleType&)=0;
 	virtual void visit(const struct PointerType&)=0;
 	virtual void visit(const struct ReferenceType&)=0;
 	virtual void visit(const struct ArrayType&)=0;
@@ -42881,7 +42978,7 @@ struct UniqueTypeWrapper
 	}
 	bool isSimple()const
 	{
-		return typeid(*value)==typeid(TypeElementGeneric<ObjectType>);
+		return typeid(*value)==typeid(TypeElementGeneric<SimpleType>);
 	}
 	bool isPointer()const
 	{
@@ -42940,6 +43037,27 @@ struct UniqueTypeWrapper
 		return isPointer()&&UniqueTypeWrapper(value->next).isFunction();
 	}
 };
+template<typename T>
+inline UniqueTypeWrapper pushType(UniqueTypeWrapper type, const T&t)
+{
+	pushUniqueType(type.value, t);
+	return type;
+}
+template<typename T>
+inline UniqueTypeWrapper pushBuiltInType(UniqueTypeWrapper type, const T&value)
+{
+	return UniqueTypeWrapper(pushBuiltInType(type.value, value));
+}
+inline UniqueTypeWrapper popType(UniqueTypeWrapper type)
+{
+	type.pop_front();
+	return type;
+}
+inline UniqueTypeWrapper qualifyType(UniqueTypeWrapper type, CvQualifiers qualifiers)
+{
+	type.value.setQualifiers(qualifiers);
+	return type;
+}
 inline bool operator==(UniqueTypeWrapper l, UniqueTypeWrapper r)
 {
 	return l.value==r.value;
@@ -42952,9 +43070,13 @@ inline bool operator<(UniqueTypeWrapper l, UniqueTypeWrapper r)
 {
 	return l.value<r.value;
 }
+inline bool isGreaterCvQualification(CvQualifiers l, CvQualifiers r)
+{
+	return l.isConst+l.isVolatile>r.isConst+r.isVolatile;
+}
 inline bool isGreaterCvQualification(UniqueTypeWrapper to, UniqueTypeWrapper from)
 {
-	return to.value.getQualifiers().isConst>from.value.getQualifiers().isConst||to.value.getQualifiers().isVolatile>from.value.getQualifiers().isVolatile;
+	return isGreaterCvQualification(to.value.getQualifiers(), from.value.getQualifiers());
 }
 inline bool isEqualCvQualification(UniqueTypeWrapper to, UniqueTypeWrapper from)
 {
@@ -42983,7 +43105,7 @@ inline bool isEqual(const UniqueTypeId&l, const UniqueTypeId&r)
 }
 inline UniqueType getInner(UniqueType type)
 {
-	if(!(typeid(*type)!=typeid(TypeElementGeneric<struct ObjectType>)))
+	if(!(typeid(*type)!=typeid(TypeElementGeneric<struct SimpleType>)))
 	{
 		throw AllocatorError();
 	};
@@ -43007,7 +43129,7 @@ inline bool operator<(const NonType&left, const NonType&right)
 {
 	return left.value<right.value;
 }
-inline IntegralConstant getNonTypeValue(UniqueType type)
+inline const NonType&getNonTypeValue(UniqueType type)
 {
 	if(!(typeid(*type)==typeid(TypeElementGeneric<NonType>)))
 	{
@@ -43018,25 +43140,25 @@ inline IntegralConstant getNonTypeValue(UniqueType type)
 typedef std::vector<UniqueTypeWrapper>UniqueTypeArray;
 typedef UniqueTypeArray TemplateArgumentsInstance;
 typedef UniqueTypeArray InstantiatedTypes;
-typedef std::vector<const struct TypeInstance*>UniqueBases;
+typedef std::vector<const struct SimpleType*>UniqueBases;
 struct ChildInstantiation
 {
-	const struct TypeInstance*instance;
+	const struct SimpleType*instance;
 	Location source;
-	ChildInstantiation(const struct TypeInstance*instance, Location source): instance(instance), source(source)
+	ChildInstantiation(const struct SimpleType*instance, Location source): instance(instance), source(source)
 	{
 	}
 };
 typedef std::vector<ChildInstantiation>ChildInstantiations;
 typedef std::vector<Location>InstanceLocations;
-struct TypeInstance
+struct SimpleType
 {
 	std::size_t uniqueId;
 	DeclarationPtr primary;
 	DeclarationPtr declaration;
 	TemplateArgumentsInstance templateArguments;
 	TemplateArgumentsInstance deducedArguments;
-	const TypeInstance*enclosing;
+	const SimpleType*enclosing;
 	UniqueBases bases;
 	size_t size;
 	InstantiatedTypes children;
@@ -43048,7 +43170,7 @@ struct TypeInstance
 	mutable bool dumped;
 	Location instantiation;
 	ChildInstantiations childInstantiations;
-	TypeInstance(Declaration*declaration, const TypeInstance*enclosing): uniqueId(0), primary(declaration), declaration(declaration), enclosing(enclosing), size(0), instantiated(false), instantiating(false), allowLookup(false), visited(false), dumped(false)
+	SimpleType(Declaration*declaration, const SimpleType*enclosing): uniqueId(0), primary(declaration), declaration(declaration), enclosing(enclosing), size(0), instantiated(false), instantiating(false), allowLookup(false), visited(false), dumped(false)
 	{
 		if(!(enclosing==0||isClass(*enclosing->declaration)))
 		{
@@ -43056,38 +43178,27 @@ struct TypeInstance
 		};
 	}
 };
-inline bool operator==(const TypeInstance&left, const TypeInstance&right)
+inline bool operator==(const SimpleType&left, const SimpleType&right)
 {
 	return left.primary.p==right.primary.p&&left.enclosing==right.enclosing&&left.templateArguments==right.templateArguments;
 }
-inline bool operator<(const TypeInstance&left, const TypeInstance&right)
+inline bool operator<(const SimpleType&left, const SimpleType&right)
 {
 	return left.primary.p!=right.primary.p?left.primary.p<right.primary.p: left.enclosing!=right.enclosing?left.enclosing<right.enclosing: left.templateArguments!=right.templateArguments?left.templateArguments<right.templateArguments: false;
 }
-struct ObjectType
+inline const SimpleType&getSimpleType(UniqueType type)
 {
-	TypeInstance type;
-	ObjectType(const TypeInstance&type): type(type)
-	{
-	}
-};
-inline bool operator<(const ObjectType&left, const ObjectType&right)
-{
-	return left.type<right.type;
-}
-inline const TypeInstance&getObjectType(UniqueType type)
-{
-	if(!(typeid(*type)==typeid(TypeElementGeneric<ObjectType>)))
+	if(!(typeid(*type)==typeid(TypeElementGeneric<SimpleType>)))
 	{
 		throw AllocatorError();
 	};
-	return static_cast<const TypeElementGeneric<ObjectType>*>(type.getPointer())->value.type;
+	return static_cast<const TypeElementGeneric<SimpleType>*>(type.getPointer())->value;
 }
 struct TemplateTemplateArgument
 {
 	DeclarationPtr declaration;
-	const TypeInstance*enclosing;
-	TemplateTemplateArgument(Declaration*declaration, const TypeInstance*enclosing): declaration(declaration), enclosing(enclosing)
+	const SimpleType*enclosing;
+	TemplateTemplateArgument(Declaration*declaration, const SimpleType*enclosing): declaration(declaration), enclosing(enclosing)
 	{
 	}
 };
@@ -43141,7 +43252,7 @@ struct DependentTypename
 };
 inline bool operator<(const DependentTypename&left, const DependentTypename&right)
 {
-	return left.name!=right.name?left.name<right.name: left.qualifying!=right.qualifying?left.qualifying<right.qualifying: left.isNested!=right.isNested?left.isNested<right.isNested: left.templateArguments<right.templateArguments;
+	return left.name!=right.name?left.name<right.name: left.qualifying!=right.qualifying?left.qualifying<right.qualifying: left.isNested!=right.isNested?left.isNested<right.isNested: left.isTemplate!=right.isTemplate?left.isTemplate<right.isTemplate: left.templateArguments<right.templateArguments;
 }
 struct DependentNonType
 {
@@ -43207,9 +43318,9 @@ inline const MemberPointerType&getMemberPointerType(UniqueType type)
 	};
 	return static_cast<const TypeElementGeneric<MemberPointerType>*>(type.getPointer())->value;
 }
-inline const TypeInstance&getMemberPointerClass(UniqueType type)
+inline const SimpleType&getMemberPointerClass(UniqueType type)
 {
-	return getObjectType(getMemberPointerType(type).type.value);
+	return getSimpleType(getMemberPointerType(type).type.value);
 }
 inline bool operator<(const MemberPointerType&left, const MemberPointerType&right)
 {
@@ -43347,11 +43458,22 @@ inline bool isEquivalent(const ParameterTypes&left, const ParameterTypes&right)
 	}
 	return true;
 }
-struct ObjectTypeId: UniqueTypeId
+template<bool builtIn>
+struct UniqueTypeGeneric: UniqueTypeWrapper
 {
-	ObjectTypeId(Declaration*declaration, const ParserAllocatorWrapper<int>&allocator)
+	UniqueTypeGeneric()
 	{
-		value=pushBuiltInType(value, ObjectType(TypeInstance(declaration, 0)));
+	}
+	explicit UniqueTypeGeneric(UniqueTypeWrapper value): UniqueTypeWrapper(value)
+	{
+	}
+};
+typedef UniqueTypeGeneric<true>BuiltInType;
+struct BuiltInTypeId: BuiltInType
+{
+	BuiltInTypeId(Declaration*declaration, const ParserAllocatorWrapper<int>&allocator)
+	{
+		value=pushBuiltInType(value, SimpleType(declaration, 0));
 		declaration->type.unique=value;
 		declaration->isComplete=true;
 	}
@@ -43401,7 +43523,7 @@ inline const DeclarationInstance&findPrimaryTemplateLastDeclaration(const Declar
 struct LookupResult
 {
 	const DeclarationInstance*filtered;
-	const TypeInstance*enclosing;
+	const SimpleType*enclosing;
 	LookupResult(): filtered(0), enclosing(0)
 	{
 	}
@@ -43461,8 +43583,8 @@ struct LookupResultRef: DeclarationInstanceRef
 inline const DeclarationInstance*findDeclaration(Scope::Declarations&declarations, const Identifier&id, LookupFilter filter=IsAny());
 struct RecursionGuard
 {
-	const TypeInstance&instance;
-	RecursionGuard(const TypeInstance&instance): instance(instance)
+	const SimpleType&instance;
+	RecursionGuard(const SimpleType&instance): instance(instance)
 	{
 		if(!(!instance.visited))
 		{
@@ -43475,8 +43597,8 @@ struct RecursionGuard
 		instance.visited=false;
 	}
 };
-inline void printType(const TypeInstance&type, std::ostream&out=std::cout, bool escape=false);
-inline LookupResult findDeclaration(const TypeInstance&instance, const Identifier&id, LookupFilter filter)
+inline void printType(const SimpleType&type, std::ostream&out=std::cout, bool escape=false);
+inline LookupResult findDeclaration(const SimpleType&instance, const Identifier&id, LookupFilter filter)
 {
 	if(!(instance.declaration->enclosed!=0))
 	{
@@ -43509,7 +43631,7 @@ inline LookupResult findDeclaration(const TypeInstance&instance, const Identifie
 	i!=instance.bases.end();
 	++i)
 	{
-		const TypeInstance&base=*(*i);
+		const SimpleType&base=*(*i);
 		if(!(base.declaration->enclosed!=0))
 		{
 			throw AllocatorError();
@@ -43558,7 +43680,7 @@ struct MemberNotFoundError: TypeErrorBase
 	{
 		TypeErrorBase::report();
 		std::cout<<"member '"<<name.c_str()<<"' not found in ";
-		if(getObjectType(qualifying.value).instantiating)
+		if(getSimpleType(qualifying.value).instantiating)
 		{
 			std::cout<<"(partially instantiated) ";
 		}
@@ -43678,9 +43800,35 @@ struct TooFewTemplateArgumentsError: TypeErrorBase
 		std::cout<<"too few template arguments"<<std::endl;
 	}
 };
-typedef UniqueTypeWrapper(*UnaryTypeOp)(UniqueTypeWrapper);
-typedef UniqueTypeWrapper(*BinaryTypeOp)(UniqueTypeWrapper, UniqueTypeWrapper);
-typedef UniqueTypeWrapper(*TernaryTypeOp)(UniqueTypeWrapper, UniqueTypeWrapper, UniqueTypeWrapper);
+struct InstantiationContext
+{
+	Location source;
+	const SimpleType*enclosingType;
+	ScopePtr enclosingScope;
+	InstantiationContext(Location source, const SimpleType*enclosingType, ScopePtr enclosingScope): source(source), enclosingType(enclosingType), enclosingScope(enclosingScope)
+	{
+	}
+};
+inline InstantiationContext setEnclosingType(const InstantiationContext&context, const SimpleType*enclosingType)
+{
+	return InstantiationContext(context.source, enclosingType, context.enclosingScope);
+}
+inline InstantiationContext setEnclosingTypeSafe(const InstantiationContext&context, const SimpleType*enclosingType)
+{
+	if(!(enclosingType!=0))
+	{
+		throw AllocatorError();
+	};
+	return setEnclosingType(context, enclosingType);
+}
+struct Argument: ExpressionWrapper
+{
+	UniqueTypeWrapper type;
+	Argument(ExpressionWrapper expression, UniqueTypeWrapper type): ExpressionWrapper(expression), type(type)
+	{
+	}
+};
+typedef std::vector<Argument>Arguments;
 struct IntegralConstantExpression
 {
 	UniqueTypeWrapper type;
@@ -43693,11 +43841,36 @@ inline bool operator<(const IntegralConstantExpression&left, const IntegralConst
 {
 	return left.type!=right.type?left.type<right.type: left.value.value<right.value.value;
 }
+struct CastExpression
+{
+	UniqueTypeWrapper type;
+	ExpressionWrapper operand;
+	CastExpression(UniqueTypeWrapper type, ExpressionWrapper operand): type(type), operand(operand)
+	{
+	}
+};
+inline bool operator<(const CastExpression&left, const CastExpression&right)
+{
+	return left.type!=right.type?left.type<right.type: left.operand.p<right.operand.p;
+}
+inline bool isCastExpression(ExpressionNode*node)
+{
+	return typeid(*node)==typeid(ExpressionNodeGeneric<CastExpression>);
+}
+inline const CastExpression&getCastExpression(ExpressionNode*node)
+{
+	if(!(isCastExpression(node)))
+	{
+		throw AllocatorError();
+	};
+	return static_cast<const ExpressionNodeGeneric<CastExpression>*>(node)->value;
+}
 struct DependentIdExpression
 {
 	Name name;
 	UniqueTypeWrapper qualifying;
-	DependentIdExpression(Name name, UniqueTypeWrapper qualifying): name(name), qualifying(qualifying)
+	TemplateArgumentsInstance templateArguments;
+	DependentIdExpression(Name name, UniqueTypeWrapper qualifying, TemplateArgumentsInstance templateArguments): name(name), qualifying(qualifying), templateArguments(templateArguments)
 	{
 		if(!(qualifying.value.p!=0))
 		{
@@ -43707,7 +43880,7 @@ struct DependentIdExpression
 };
 inline bool operator<(const DependentIdExpression&left, const DependentIdExpression&right)
 {
-	return left.name!=right.name?left.name<right.name: left.qualifying<right.qualifying;
+	return left.name!=right.name?left.name<right.name: left.qualifying!=right.qualifying?left.qualifying<right.qualifying: left.templateArguments<right.templateArguments;
 }
 inline bool isDependentIdExpression(ExpressionNode*node)
 {
@@ -43723,15 +43896,19 @@ inline const DependentIdExpression&getDependentIdExpression(ExpressionNode*node)
 }
 struct IdExpression
 {
-	DeclarationPtr declaration;
-	const TypeInstance*enclosing;
-	IdExpression(DeclarationPtr declaration, const TypeInstance*enclosing): declaration(declaration), enclosing(enclosing)
+	DeclarationInstanceRef declaration;
+	const SimpleType*enclosing;
+	TemplateArgumentsInstance templateArguments;
+	IdExpression(DeclarationInstanceRef declaration, const SimpleType*enclosing, const TemplateArgumentsInstance&templateArguments): declaration(declaration), enclosing(enclosing), templateArguments(templateArguments)
 	{
 	}
 };
 inline bool operator<(const IdExpression&left, const IdExpression&right)
 {
-	return left.declaration.p!=right.declaration.p?left.declaration.p<right.declaration.p: left.enclosing<right.enclosing;
+	if(!(false))
+	{
+		throw AllocatorError();
+	};
 }
 inline bool isIdExpression(ExpressionNode*node)
 {
@@ -43770,8 +43947,8 @@ inline const NonTypeTemplateParameter&getNonTypeTemplateParameter(ExpressionNode
 }
 struct SizeofExpression
 {
-	ExpressionPtr operand;
-	SizeofExpression(ExpressionPtr operand): operand(operand)
+	ExpressionWrapper operand;
+	SizeofExpression(ExpressionWrapper operand): operand(operand)
 	{
 	}
 };
@@ -43794,15 +43971,14 @@ struct UnaryExpression
 {
 	Name operatorName;
 	UnaryIceOp operation;
-	UnaryTypeOp type;
-	ExpressionPtr first;
-	UnaryExpression(Name operatorName, UnaryIceOp operation, UnaryTypeOp type, ExpressionPtr first): operatorName(operatorName), operation(operation), type(type), first(first)
+	ExpressionWrapper first;
+	UnaryExpression(Name operatorName, UnaryIceOp operation, ExpressionWrapper first): operatorName(operatorName), operation(operation), first(first)
 	{
 	}
 };
 inline bool operator<(const UnaryExpression&left, const UnaryExpression&right)
 {
-	return left.operation!=right.operation?left.operation<right.operation: left.type!=right.type?left.type<right.type: left.first.p<right.first.p;
+	return left.operation!=right.operation?left.operation<right.operation: left.first.p<right.first.p;
 }
 inline bool isUnaryExpression(ExpressionNode*node)
 {
@@ -43816,14 +43992,15 @@ inline const UnaryExpression&getUnaryExpression(ExpressionNode*node)
 	};
 	return static_cast<const ExpressionNodeGeneric<UnaryExpression>*>(node)->value;
 }
+typedef UniqueTypeWrapper(*BinaryTypeOp)(Name operatorName, Argument first, Argument second, const InstantiationContext&context);
 struct BinaryExpression
 {
 	Name operatorName;
 	BinaryIceOp operation;
 	BinaryTypeOp type;
-	ExpressionPtr first;
-	ExpressionPtr second;
-	BinaryExpression(Name operatorName, BinaryIceOp operation, BinaryTypeOp type, ExpressionPtr first, ExpressionPtr second): operatorName(operatorName), operation(operation), type(type), first(first), second(second)
+	ExpressionWrapper first;
+	ExpressionWrapper second;
+	BinaryExpression(Name operatorName, BinaryIceOp operation, BinaryTypeOp type, ExpressionWrapper first, ExpressionWrapper second): operatorName(operatorName), operation(operation), type(type), first(first), second(second)
 	{
 	}
 };
@@ -43834,20 +44011,19 @@ inline bool operator<(const BinaryExpression&left, const BinaryExpression&right)
 struct TernaryExpression
 {
 	TernaryIceOp operation;
-	TernaryTypeOp type;
-	ExpressionPtr first;
-	ExpressionPtr second;
-	ExpressionPtr third;
-	TernaryExpression(TernaryIceOp operation, TernaryTypeOp type, ExpressionPtr first, ExpressionPtr second, ExpressionPtr third): operation(operation), type(type), first(first), second(second), third(third)
+	ExpressionWrapper first;
+	ExpressionWrapper second;
+	ExpressionWrapper third;
+	TernaryExpression(TernaryIceOp operation, ExpressionWrapper first, ExpressionWrapper second, ExpressionWrapper third): operation(operation), first(first), second(second), third(third)
 	{
 	}
 };
 inline bool operator<(const TernaryExpression&left, const TernaryExpression&right)
 {
-	return left.operation!=right.operation?left.operation<right.operation: left.type!=right.type?left.type<right.type: left.first.p!=right.first.p?left.first.p<right.first.p: left.second.p!=right.second.p?left.second.p<right.second.p: left.third.p<right.third.p;
+	return left.operation!=right.operation?left.operation<right.operation: left.first.p!=right.first.p?left.first.p<right.first.p: left.second.p!=right.second.p?left.second.p<right.second.p: left.third.p<right.third.p;
 }
 typedef bool(*UnaryTypeTraitsOp)(UniqueTypeWrapper);
-typedef bool(*BinaryTypeTraitsOp)(UniqueTypeWrapper, UniqueTypeWrapper, Location source, const TypeInstance*enclosing);
+typedef bool(*BinaryTypeTraitsOp)(UniqueTypeWrapper, UniqueTypeWrapper, const InstantiationContext&context);
 struct TypeTraitsUnaryExpression
 {
 	Name traitName;
@@ -43883,10 +44059,174 @@ inline bool operator<(const TypeTraitsBinaryExpression&left, const TypeTraitsBin
 {
 	return left.operation!=right.operation?left.operation<right.operation: left.first!=right.first?left.first<right.first: left.second<right.second;
 }
-inline UniqueTypeWrapper typeofExpression(ExpressionNode*node, Location source);
+struct ExplicitTypeExpression
+{
+	UniqueTypeWrapper type;
+	ExplicitTypeExpression(UniqueTypeWrapper type): type(type)
+	{
+	}
+};
+inline bool operator<(const ExplicitTypeExpression&left, const ExplicitTypeExpression&right)
+{
+	return left.type<right.type;
+}
+inline bool isExplicitTypeExpression(ExpressionNode*node)
+{
+	return typeid(*node)==typeid(ExpressionNodeGeneric<ExplicitTypeExpression>);
+}
+inline const ExplicitTypeExpression&getExplicitTypeExpression(ExpressionNode*node)
+{
+	if(!(isExplicitTypeExpression(node)))
+	{
+		throw AllocatorError();
+	};
+	return static_cast<const ExpressionNodeGeneric<ExplicitTypeExpression>*>(node)->value;
+}
+struct DependentObjectExpression
+{
+	ExpressionWrapper left;
+	bool isArrow;
+	DependentObjectExpression(ExpressionWrapper left, bool isArrow): left(left), isArrow(isArrow)
+	{
+	}
+};
+inline bool operator<(const DependentObjectExpression&left, const DependentObjectExpression&right)
+{
+	if(!(false))
+	{
+		throw AllocatorError();
+	};
+	return false;
+}
+inline bool isDependentObjectExpression(ExpressionNode*node)
+{
+	return typeid(*node)==typeid(ExpressionNodeGeneric<DependentObjectExpression>);
+}
+inline const DependentObjectExpression&getDependentObjectExpression(ExpressionNode*node)
+{
+	if(!(isDependentObjectExpression(node)))
+	{
+		throw AllocatorError();
+	};
+	return static_cast<const ExpressionNodeGeneric<DependentObjectExpression>*>(node)->value;
+}
+struct ObjectExpression
+{
+	const SimpleType*classType;
+	ObjectExpression(const SimpleType*classType): classType(classType)
+	{
+	}
+};
+inline bool operator<(const ObjectExpression&left, const ObjectExpression&right)
+{
+	if(!(false))
+	{
+		throw AllocatorError();
+	};
+	return false;
+}
+inline bool isObjectExpression(ExpressionNode*node)
+{
+	return typeid(*node)==typeid(ExpressionNodeGeneric<ObjectExpression>);
+}
+inline const ObjectExpression&getObjectExpression(ExpressionNode*node)
+{
+	if(!(isObjectExpression(node)))
+	{
+		throw AllocatorError();
+	};
+	return static_cast<const ExpressionNodeGeneric<ObjectExpression>*>(node)->value;
+}
+struct ClassMemberAccessExpression
+{
+	ExpressionWrapper left;
+	ExpressionWrapper right;
+	ClassMemberAccessExpression(ExpressionWrapper left, ExpressionWrapper right): left(left), right(right)
+	{
+	}
+};
+inline bool operator<(const ClassMemberAccessExpression&left, const ClassMemberAccessExpression&right)
+{
+	if(!(false))
+	{
+		throw AllocatorError();
+	};
+	return false;
+}
+inline bool isClassMemberAccessExpression(ExpressionNode*node)
+{
+	return typeid(*node)==typeid(ExpressionNodeGeneric<ClassMemberAccessExpression>);
+}
+inline const ClassMemberAccessExpression&getClassMemberAccessExpression(ExpressionNode*node)
+{
+	if(!(isClassMemberAccessExpression(node)))
+	{
+		throw AllocatorError();
+	};
+	return static_cast<const ExpressionNodeGeneric<ClassMemberAccessExpression>*>(node)->value;
+}
+struct FunctionCallExpression
+{
+	ExpressionWrapper left;
+	Arguments arguments;
+	FunctionCallExpression(ExpressionWrapper left, Arguments arguments): left(left), arguments(arguments)
+	{
+	}
+};
+inline bool operator<(const FunctionCallExpression&left, const FunctionCallExpression&right)
+{
+	if(!(false))
+	{
+		throw AllocatorError();
+	};
+	return false;
+}
+struct SubscriptExpression
+{
+	ExpressionWrapper left;
+	ExpressionWrapper right;
+	SubscriptExpression(ExpressionWrapper left, ExpressionWrapper right): left(left), right(right)
+	{
+	}
+};
+inline bool operator<(const SubscriptExpression&left, const SubscriptExpression&right)
+{
+	if(!(false))
+	{
+		throw AllocatorError();
+	};
+	return false;
+}
+struct PostfixOperatorExpression
+{
+	Name operatorName;
+	ExpressionWrapper operand;
+	PostfixOperatorExpression(Name operatorName, ExpressionWrapper operand): operatorName(operatorName), operand(operand)
+	{
+	}
+};
+inline bool operator<(const PostfixOperatorExpression&left, const PostfixOperatorExpression&right)
+{
+	if(!(false))
+	{
+		throw AllocatorError();
+	};
+	return false;
+}
+inline UniqueTypeWrapper typeOfExpression(ExpressionNode*node, const InstantiationContext&context);
 inline bool isPointerToMemberExpression(ExpressionNode*expression)
 {
-	return isUnaryExpression(expression)&&getUnaryExpression(expression).operation==addressOf&&isIdExpression(getUnaryExpression(expression).first);
+	if(!isUnaryExpression(expression))
+	{
+		return false;
+	}
+	const UnaryExpression&unary=getUnaryExpression(expression);
+	extern Name gOperatorAndId;
+	if(unary.operatorName!=gOperatorAndId||!isIdExpression(unary.first))
+	{
+		return false;
+	}
+	return getIdExpression(unary.first).enclosing!=0;
 }
 inline bool isPointerToFunctionExpression(ExpressionNode*expression)
 {
@@ -43899,38 +44239,78 @@ inline bool isPointerToFunctionExpression(ExpressionNode*expression)
 		return false;
 	}
 	const IdExpression node=getIdExpression(expression);
-	if(node.declaration->type.declaration==&gEnumerator)
-	{
-		return false;
-	}
 	return UniqueTypeWrapper(node.declaration->type.unique).isFunction();
 }
 inline bool isDependentPointerToMemberExpression(ExpressionNode*expression)
 {
 	return isUnaryExpression(expression)&&getUnaryExpression(expression).operation==addressOf&&isDependentIdExpression(getUnaryExpression(expression).first);
 }
-extern ObjectTypeId gUnsignedInt;
-extern ObjectTypeId gBool;
-struct TypeofVisitor: ExpressionNodeVisitor
+extern BuiltInTypeId gUnsignedInt;
+extern BuiltInTypeId gBool;
+extern const DeclarationInstance gCopyAssignmentOperatorInstance;
+extern const DeclarationInstance gDestructorInstance;
+inline UniqueTypeWrapper removeReference(UniqueTypeWrapper type)
+{
+	if(type.isReference())
+	{
+		type.pop_front();
+	}
+	return type;
+}
+inline bool isDependent(UniqueTypeWrapper type);
+inline UniqueTypeWrapper makeUniqueSimpleType(const SimpleType&type);
+inline UniqueTypeWrapper typeOfUnaryExpression(Name operatorName, Argument operand, const InstantiationContext&context);
+inline UniqueTypeWrapper getConditionalOperatorType(UniqueTypeWrapper leftType, UniqueTypeWrapper rightType);
+inline UniqueTypeWrapper typeOfSubscriptExpression(Argument left, Argument right, const InstantiationContext&context);
+inline const SimpleType&getMemberOperatorType(Argument operand, bool isArrow, const InstantiationContext&context);
+inline UniqueTypeWrapper makeCopyAssignmentOperatorType(const SimpleType&classType);
+inline const SimpleType*findEnclosingType(const SimpleType*enclosing, Scope*scope);
+inline UniqueTypeWrapper getUniqueType(const TypeId&type, const InstantiationContext&context, bool allowDependent=false);
+inline UniqueTypeWrapper getUniqueType(const Type&type, const InstantiationContext&context, bool allowDependent=false);
+inline UniqueTypeWrapper typeOfIdExpression(const SimpleType*qualifying, const DeclarationInstance&declaration, const InstantiationContext&context);
+inline UniqueTypeWrapper typeOfPostfixOperatorExpression(Name operatorName, Argument operand, const InstantiationContext&context);
+inline IdExpression substituteIdExpression(const DependentIdExpression&node, const InstantiationContext&context);
+inline UniqueTypeWrapper getNonTypeTemplateParameterType(const NonTypeTemplateParameter&node, const InstantiationContext&context);
+inline UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Arguments&arguments, const InstantiationContext&context);
+struct TypeOfVisitor: ExpressionNodeVisitor
 {
 	UniqueTypeWrapper result;
-	Location source;
-	explicit TypeofVisitor(Location source): source(source)
+	InstantiationContext context;
+	explicit TypeOfVisitor(const InstantiationContext&context): context(context)
 	{
 	}
-	void visit(const IntegralConstantExpression&literal)
+	void visit(const IntegralConstantExpression&node)
 	{
-		result=literal.type;
+		result=node.type;
+	}
+	void visit(const CastExpression&node)
+	{
+		result=node.type;
+		if(!(!isDependent(result)))
+		{
+			throw AllocatorError();
+		};
 	}
 	void visit(const NonTypeTemplateParameter&node)
 	{
+		result=getNonTypeTemplateParameterType(node, context);
 	}
 	void visit(const DependentIdExpression&node)
 	{
+		const IdExpression expression=substituteIdExpression(node, context);
+		result=typeOfIdExpression(expression.enclosing, expression.declaration, context);
+		if(!(!isDependent(result)))
+		{
+			throw AllocatorError();
+		};
 	}
 	void visit(const IdExpression&node)
 	{
-		result=UniqueTypeWrapper(node.declaration->type.unique);
+		result=typeOfIdExpression(node.enclosing, node.declaration, context);
+		if(!(!isDependent(result)))
+		{
+			throw AllocatorError();
+		};
 	}
 	void visit(const SizeofExpression&node)
 	{
@@ -43942,15 +44322,27 @@ struct TypeofVisitor: ExpressionNodeVisitor
 	}
 	void visit(const UnaryExpression&node)
 	{
-		result=node.type(typeofExpression(node.first, source));
+		result=typeOfUnaryExpression(node.operatorName, Argument(node.first, removeReference(typeOfExpression(node.first, context))), context);
+		if(!(!isDependent(result)))
+		{
+			throw AllocatorError();
+		};
 	}
 	void visit(const BinaryExpression&node)
 	{
-		result=node.type(typeofExpression(node.first, source), typeofExpression(node.second, source));
+		result=node.type(node.operatorName, Argument(node.first, removeReference(typeOfExpression(node.first, context))), Argument(node.second, removeReference(typeOfExpression(node.second, context))), context);
+		if(!(!isDependent(result)))
+		{
+			throw AllocatorError();
+		};
 	}
 	void visit(const TernaryExpression&node)
 	{
-		result=node.type(typeofExpression(node.first, source), typeofExpression(node.second, source), typeofExpression(node.third, source));
+		result=getConditionalOperatorType(removeReference(typeOfExpression(node.second, context)), removeReference(typeOfExpression(node.third, context)));
+		if(!(!isDependent(result)))
+		{
+			throw AllocatorError();
+		};
 	}
 	void visit(const TypeTraitsUnaryExpression&node)
 	{
@@ -43960,21 +44352,77 @@ struct TypeofVisitor: ExpressionNodeVisitor
 	{
 		result=gBool;
 	}
+	void visit(const struct ExplicitTypeExpression&node)
+	{
+		result=node.type;
+		if(!(!isDependent(result)))
+		{
+			throw AllocatorError();
+		};
+	}
+	void visit(const struct ObjectExpression&node)
+	{
+		result=makeUniqueSimpleType(*node.classType);
+		if(!(!isDependent(result)))
+		{
+			throw AllocatorError();
+		};
+	}
+	void visit(const struct DependentObjectExpression&node)
+	{
+		UniqueTypeWrapper type=typeOfExpression(node.left, context);
+		const SimpleType&classType=getMemberOperatorType(Argument(node.left, removeReference(type)), node.isArrow, context);
+		result=makeUniqueSimpleType(classType);
+		if(!(!isDependent(result)))
+		{
+			throw AllocatorError();
+		};
+	}
+	void visit(const struct ClassMemberAccessExpression&node)
+	{
+		UniqueTypeWrapper type=typeOfExpression(node.left, context);
+		if(!(!isDependent(type)))
+		{
+			throw AllocatorError();
+		};
+		const SimpleType&classType=getSimpleType(type.value);
+		result=typeOfExpression(node.right, setEnclosingTypeSafe(context, &classType));
+		if(!(!isDependent(result)))
+		{
+			throw AllocatorError();
+		};
+	}
+	void visit(const struct FunctionCallExpression&node)
+	{
+		result=typeOfFunctionCallExpression(Argument(node.left, removeReference(typeOfExpression(node.left, context))), node.arguments, context);
+	}
+	void visit(const struct SubscriptExpression&node)
+	{
+		result=typeOfSubscriptExpression(Argument(node.left, removeReference(typeOfExpression(node.left, context))), Argument(node.right, removeReference(typeOfExpression(node.right, context))), context);
+	}
+	void visit(const struct PostfixOperatorExpression&node)
+	{
+		result=typeOfPostfixOperatorExpression(node.operatorName, Argument(node.operand, removeReference(typeOfExpression(node.operand, context))), context);
+	}
 };
-inline UniqueTypeWrapper typeofExpression(ExpressionNode*node, Location source)
+inline UniqueTypeWrapper typeOfExpression(ExpressionNode*node, const InstantiationContext&context)
 {
-	TypeofVisitor visitor(source);
+	if(isPointerToMemberExpression(node)||isDependentPointerToMemberExpression(node))
+	{
+		return gUniqueTypeNull;
+	}
+	TypeOfVisitor visitor(context);
 	node->accept(visitor);
 	return visitor.result;
 }
-inline std::size_t instantiateClass(const TypeInstance&instanceConst, Location source, const TypeInstance*enclosing, bool allowDependent=false);
-inline std::size_t requireCompleteObjectType(UniqueTypeWrapper type, Location source, const TypeInstance*enclosing);
+inline std::size_t instantiateClass(const SimpleType&instanceConst, const InstantiationContext&context, bool allowDependent=false);
+inline std::size_t requireCompleteObjectType(UniqueTypeWrapper type, const InstantiationContext&context);
 inline UniqueTypeWrapper removeReference(UniqueTypeWrapper type);
-inline const TypeInstance*makeUniqueEnclosing(const Qualifying&qualifying, Location source, const TypeInstance*enclosing, bool allowDependent=false);
-inline const TypeInstance*findEnclosingType(const TypeInstance*enclosing, Scope*scope);
-inline bool isDependent(const TypeInstance&type);
-inline UniqueTypeWrapper substitute(UniqueTypeWrapper dependent, Location source, const TypeInstance&enclosingType);
-inline const TypeInstance*findEnclosingTemplate(const TypeInstance*enclosing, Declaration*declaration)
+inline const SimpleType*makeUniqueEnclosing(const Qualifying&qualifying, const InstantiationContext&context, bool allowDependent=false);
+inline const SimpleType*findEnclosingType(const SimpleType*enclosing, Scope*scope);
+inline bool isDependent(const SimpleType&type);
+inline UniqueTypeWrapper substitute(UniqueTypeWrapper dependent, const InstantiationContext&context);
+inline const SimpleType*findEnclosingTemplate(const SimpleType*enclosing, Declaration*declaration)
 {
 	Declaration*primary=findPrimaryTemplate(declaration);
 	if(!(primary->isTemplate))
@@ -43985,7 +44433,7 @@ inline const TypeInstance*findEnclosingTemplate(const TypeInstance*enclosing, De
 	{
 		throw AllocatorError();
 	};
-	for(const TypeInstance*i=enclosing;
+	for(const SimpleType*i=enclosing;
 	i!=0;
 	i=(*i).enclosing)
 	{
@@ -44000,7 +44448,7 @@ inline const TypeInstance*findEnclosingTemplate(const TypeInstance*enclosing, De
 	}
 	return 0;
 }
-inline const TypeInstance*findEnclosingTemplate(const TypeInstance*enclosing, Scope*scope)
+inline const SimpleType*findEnclosingTemplate(const SimpleType*enclosing, Scope*scope)
 {
 	if(!(scope!=0))
 	{
@@ -44010,7 +44458,7 @@ inline const TypeInstance*findEnclosingTemplate(const TypeInstance*enclosing, Sc
 	{
 		throw AllocatorError();
 	};
-	for(const TypeInstance*i=enclosing;
+	for(const SimpleType*i=enclosing;
 	i!=0;
 	i=(*i).enclosing)
 	{
@@ -44021,9 +44469,9 @@ inline const TypeInstance*findEnclosingTemplate(const TypeInstance*enclosing, Sc
 	}
 	return 0;
 }
-inline const TypeInstance*getEnclosingType(const TypeInstance*enclosing)
+inline const SimpleType*getEnclosingType(const SimpleType*enclosing)
 {
-	for(const TypeInstance*i=enclosing;
+	for(const SimpleType*i=enclosing;
 	i!=0;
 	i=(*i).enclosing)
 	{
@@ -44034,104 +44482,145 @@ inline const TypeInstance*getEnclosingType(const TypeInstance*enclosing)
 	}
 	return 0;
 }
-inline IntegralConstant evaluateIdExpression(const Declaration*declaration, Location source, const TypeInstance*enclosing)
+inline IntegralConstant evaluateIdExpression(const IdExpression&node, const InstantiationContext&context)
 {
-	if(!(declaration->templateParameter==INDEX_INVALID))
+	if(!(node.declaration->templateParameter==INDEX_INVALID))
 	{
 		throw AllocatorError();
 	};
-	const TypeInstance*memberEnclosing=isMember(*declaration)?findEnclosingType(enclosing, declaration->scope): 0;
-	return evaluate(declaration->initializer, source, memberEnclosing);
+	const SimpleType*enclosing=node.enclosing!=0?node.enclosing: context.enclosingType;
+	const SimpleType*memberEnclosing=isMember(*node.declaration)?findEnclosingType(enclosing, node.declaration->scope): 0;
+	return evaluate(node.declaration->initializer, setEnclosingType(context, memberEnclosing));
 }
-inline IntegralConstant evaluateIdExpression(const IdExpression&node, Location source, const TypeInstance*enclosing)
-{
-	if(node.enclosing!=0)
-	{
-		enclosing=node.enclosing;
-	}
-	return evaluateIdExpression(node.declaration, source, enclosing);
-}
-inline void addInstatiation(TypeInstance&enclosing, const TypeInstance&instance)
-{
-}
-inline IntegralConstant evaluateIdExpression(const DependentIdExpression&node, Location source, const TypeInstance*enclosingType)
+inline IdExpression substituteIdExpression(const DependentIdExpression&node, const InstantiationContext&context)
 {
 	if(!(node.qualifying!=gUniqueTypeNull))
 	{
 		throw AllocatorError();
 	};
+	if(!(context.enclosingType!=0))
+	{
+		throw AllocatorError();
+	};
+	UniqueTypeWrapper substituted=substitute(node.qualifying, context);
+	const SimpleType*qualifyingType=substituted.isSimple()?&getSimpleType(substituted.value): 0;
+	if(qualifyingType==0||!isClass(*qualifyingType->declaration))
+	{
+		throw QualifyingIsNotClassError(context.source, node.qualifying);
+	}
+	instantiateClass(*qualifyingType, context);
+	Identifier id;
+	id.value=node.name;
+	std::size_t visibility=qualifyingType->instantiating?context.enclosingType->instantiation.pointOfInstantiation: VISIBILITY_ALL;
+	LookupResultRef declaration=findDeclaration(*qualifyingType, id, IsAny(visibility));
+	if(declaration==0)
+	{
+		throw MemberNotFoundError(context.source, node.name, node.qualifying);
+	}
+	return IdExpression(declaration, qualifyingType, TemplateArgumentsInstance());
+}
+inline IntegralConstant evaluateIdExpression(const DependentIdExpression&node, const InstantiationContext&context)
+{
+	const IdExpression expression=substituteIdExpression(node, context);
+	return evaluateIdExpression(expression, context);
+}
+inline const Type&getTemplateParameter(const TemplateParameters&templateParameters, std::size_t index)
+{
+	if(!(index<std::size_t(std::distance(templateParameters.begin(), templateParameters.end()))))
+	{
+		throw AllocatorError();
+	};
+	TemplateParameters::const_iterator i=templateParameters.begin();
+	std::advance(i, index);
+	return *i;
+}
+inline UniqueTypeWrapper getNonTypeTemplateParameterType(const NonTypeTemplateParameter&node, const InstantiationContext&context)
+{
+	std::size_t index=node.declaration->templateParameter;
+	if(!(index!=INDEX_INVALID))
+	{
+		throw AllocatorError();
+	};
+	const SimpleType*enclosingType=findEnclosingTemplate(context.enclosingType, node.declaration->scope);
 	if(!(enclosingType!=0))
 	{
 		throw AllocatorError();
 	};
-	UniqueTypeWrapper substituted=substitute(node.qualifying, source, *enclosingType);
-	const TypeInstance*qualifyingType=substituted.isSimple()?&getObjectType(substituted.value): 0;
-	if(qualifyingType==0||!isClass(*qualifyingType->declaration))
+	if(!(!isDependent(*enclosingType)))
 	{
-		throw QualifyingIsNotClassError(source, node.qualifying);
-	}
-	instantiateClass(*qualifyingType, source, enclosingType);
-	Identifier id;
-	id.value=node.name;
-	std::size_t visibility=qualifyingType->instantiating?enclosingType->instantiation.pointOfInstantiation: VISIBILITY_ALL;
-	LookupResultRef declaration=findDeclaration(*qualifyingType, id, IsAny(visibility));
-	if(declaration==0)
+		throw AllocatorError();
+	};
+	if(!(!enclosingType->declaration->isSpecialization||enclosingType->instantiated))
 	{
-		throw MemberNotFoundError(source, node.name, node.qualifying);
-	}
-	return evaluateIdExpression(declaration, source, qualifyingType);
+		throw AllocatorError();
+	};
+	const TemplateParameters&templateParams=enclosingType->declaration->templateParams;
+	const Type&parameter=getTemplateParameter(templateParams, index);
+	UniqueTypeWrapper type=getUniqueType(parameter.declaration->type, context);
+	if(!(!isDependent(type)))
+	{
+		throw AllocatorError();
+	};
+	return type;
+}
+inline const NonType&substituteNonTypeTemplateParameter(const NonTypeTemplateParameter&node, const InstantiationContext&context)
+{
+	size_t index=node.declaration->templateParameter;
+	if(!(index!=INDEX_INVALID))
+	{
+		throw AllocatorError();
+	};
+	const SimpleType*enclosingType=findEnclosingTemplate(context.enclosingType, node.declaration->scope);
+	if(!(enclosingType!=0))
+	{
+		throw AllocatorError();
+	};
+	if(!(!isDependent(*enclosingType)))
+	{
+		throw AllocatorError();
+	};
+	if(!(!enclosingType->declaration->isSpecialization||enclosingType->instantiated))
+	{
+		throw AllocatorError();
+	};
+	const TemplateArgumentsInstance&templateArguments=enclosingType->declaration->isSpecialization?enclosingType->deducedArguments: enclosingType->templateArguments;
+	if(!(index<templateArguments.size()))
+	{
+		throw AllocatorError();
+	};
+	UniqueTypeWrapper argument=templateArguments[index];
+	if(!(argument.isNonType()))
+	{
+		throw AllocatorError();
+	};
+	return getNonTypeValue(argument.value);
 }
 struct EvaluateVisitor: ExpressionNodeVisitor
 {
 	IntegralConstant result;
-	const TypeInstance*enclosing;
-	Location source;
-	explicit EvaluateVisitor(Location source, const TypeInstance*enclosing): source(source), enclosing(enclosing)
+	const InstantiationContext context;
+	explicit EvaluateVisitor(const InstantiationContext&context): context(context)
 	{
 	}
-	void visit(const IntegralConstantExpression&literal)
+	void visit(const IntegralConstantExpression&node)
 	{
-		result=literal.value;
+		result=node.value;
+	}
+	void visit(const CastExpression&node)
+	{
+		result=evaluate(node.operand, context);
 	}
 	void visit(const NonTypeTemplateParameter&node)
 	{
-		size_t index=node.declaration->templateParameter;
-		if(!(index!=INDEX_INVALID))
-		{
-			throw AllocatorError();
-		};
-		const TypeInstance*enclosingType=findEnclosingTemplate(enclosing, node.declaration->scope);
-		if(!(enclosingType!=0))
-		{
-			throw AllocatorError();
-		};
-		if(!(!isDependent(*enclosingType)))
-		{
-			throw AllocatorError();
-		};
-		if(!(!enclosingType->declaration->isSpecialization||enclosingType->instantiated))
-		{
-			throw AllocatorError();
-		};
-		const TemplateArgumentsInstance&templateArguments=enclosingType->declaration->isSpecialization?enclosingType->deducedArguments: enclosingType->templateArguments;
-		if(!(index<templateArguments.size()))
-		{
-			throw AllocatorError();
-		};
-		UniqueTypeWrapper argument=templateArguments[index];
-		if(!(argument.isNonType()))
-		{
-			throw AllocatorError();
-		};
-		result=getNonTypeValue(argument.value);
+		result=substituteNonTypeTemplateParameter(node, context);
 	}
 	void visit(const DependentIdExpression&node)
 	{
-		result=evaluateIdExpression(node, source, enclosing);
+		result=evaluateIdExpression(node, context);
 	}
 	void visit(const IdExpression&node)
 	{
-		result=evaluateIdExpression(node, source, enclosing);
+		result=evaluateIdExpression(node, context);
 	}
 	void visit(const SizeofExpression&node)
 	{
@@ -44148,49 +44637,98 @@ struct EvaluateVisitor: ExpressionNodeVisitor
 		{
 			return ;
 		}
-		UniqueTypeWrapper type=typeofExpression(node.operand, source);
-		result=IntegralConstant(requireCompleteObjectType(removeReference(type), source, enclosing));
+		UniqueTypeWrapper type=typeOfExpression(node.operand, context);
+		result=IntegralConstant(requireCompleteObjectType(removeReference(type), context));
 	}
 	void visit(const SizeofTypeExpression&node)
 	{
-		result=IntegralConstant(requireCompleteObjectType(removeReference(node.type), source, enclosing));
+		result=IntegralConstant(requireCompleteObjectType(removeReference(node.type), context));
 	}
 	void visit(const UnaryExpression&node)
 	{
-		result=node.operation(evaluate(node.first, source, enclosing));
+		result=node.operation(evaluate(node.first, context));
 	}
 	void visit(const BinaryExpression&node)
 	{
-		result=node.operation(evaluate(node.first, source, enclosing), evaluate(node.second, source, enclosing));
+		result=node.operation(evaluate(node.first, context), evaluate(node.second, context));
 	}
 	void visit(const TernaryExpression&node)
 	{
-		result=node.operation(evaluate(node.first, source, enclosing), evaluate(node.second, source, enclosing), evaluate(node.third, source, enclosing));
+		result=node.operation(evaluate(node.first, context), evaluate(node.second, context), evaluate(node.third, context));
 	}
 	void visit(const TypeTraitsUnaryExpression&node)
 	{
-		result=IntegralConstant(node.operation(substitute(node.type, source, *enclosing)));
+		result=IntegralConstant(node.operation(substitute(node.type, context)));
 	}
 	void visit(const TypeTraitsBinaryExpression&node)
 	{
-		result=IntegralConstant(node.operation(substitute(node.first, source, *enclosing), substitute(node.second, source, *enclosing), source, enclosing));
+		result=IntegralConstant(node.operation(substitute(node.first, context), substitute(node.second, context), context));
+	}
+	void visit(const struct ExplicitTypeExpression&node)
+	{
+		if(!(false))
+		{
+			throw AllocatorError();
+		};
+	}
+	void visit(const struct ObjectExpression&node)
+	{
+		if(!(false))
+		{
+			throw AllocatorError();
+		};
+	}
+	void visit(const struct DependentObjectExpression&node)
+	{
+		if(!(false))
+		{
+			throw AllocatorError();
+		};
+	}
+	void visit(const struct ClassMemberAccessExpression&node)
+	{
+		if(!(false))
+		{
+			throw AllocatorError();
+		};
+	}
+	void visit(const struct FunctionCallExpression&node)
+	{
+		if(!(false))
+		{
+			throw AllocatorError();
+		};
+	}
+	void visit(const struct SubscriptExpression&node)
+	{
+		if(!(false))
+		{
+			throw AllocatorError();
+		};
+	}
+	void visit(const struct PostfixOperatorExpression&node)
+	{
+		if(!(false))
+		{
+			throw AllocatorError();
+		};
 	}
 };
-inline IntegralConstant evaluate(ExpressionNode*node, Location source, const TypeInstance*enclosing)
+inline IntegralConstant evaluate(ExpressionNode*node, const InstantiationContext&context)
 {
-	EvaluateVisitor visitor(source, enclosing);
+	EvaluateVisitor visitor(context);
 	node->accept(visitor);
 	return visitor.result;
 }
-inline IntegralConstant evaluateExpression(ExpressionNode*node, Location source, const TypeInstance*enclosing)
+inline IntegralConstant evaluateExpression(ExpressionNode*node, const InstantiationContext&context)
 {
 	if(isDependentPointerToMemberExpression(node))
 	{
 		return IntegralConstant(0);
 	}
-	return evaluate(node, source, enclosing);
+	return evaluate(node, context);
 }
-inline IntegralConstant evaluateExpression(const ExpressionWrapper&expression, Location source, const TypeInstance*enclosing)
+inline IntegralConstant evaluateExpression(const ExpressionWrapper&expression, const InstantiationContext&context)
 {
 	if(isPointerToMemberExpression(expression))
 	{
@@ -44204,9 +44742,8 @@ inline IntegralConstant evaluateExpression(const ExpressionWrapper&expression, L
 	{
 		throw AllocatorError();
 	};
-	return evaluateExpression(expression.p, source, enclosing);
+	return evaluateExpression(expression.p, context);
 }
-inline bool isDependent(UniqueTypeWrapper type);
 inline bool isDependent(const UniqueTypeArray&types)
 {
 	for(UniqueTypeArray::const_iterator i=types.begin();
@@ -44220,7 +44757,7 @@ inline bool isDependent(const UniqueTypeArray&types)
 	}
 	return false;
 }
-inline bool isDependent(const TypeInstance&type)
+inline bool isDependent(const SimpleType&type)
 {
 	if(type.enclosing&&isDependent(*type.enclosing))
 	{
@@ -44256,9 +44793,9 @@ struct IsDependentVisitor: TypeElementVisitor
 	virtual void visit(const NonType&)
 	{
 	}
-	virtual void visit(const ObjectType&element)
+	virtual void visit(const SimpleType&element)
 	{
-		if(isDependent(element.type))
+		if(isDependent(element))
 		{
 			result=true;
 		}
@@ -44317,7 +44854,7 @@ inline bool deducePairs(const UniqueTypeArray&parameters, const UniqueTypeArray&
 	}
 	return true;
 }
-inline bool isNonDeduced(const TypeInstance&type)
+inline bool isNonDeduced(const SimpleType&type)
 {
 	return false;
 }
@@ -44367,7 +44904,7 @@ struct DeduceVisitor: TypeElementVisitor
 					result=false;
 					return ;
 				}
-				const TypeInstance&type=getObjectType(argument.value);
+				const SimpleType&type=getSimpleType(argument.value);
 				if(!type.declaration->isTemplate||!deducePairs(element.templateArguments, type.templateArguments, templateArguments))
 				{
 					result=false;
@@ -44395,21 +44932,21 @@ struct DeduceVisitor: TypeElementVisitor
 	virtual void visit(const NonType&)
 	{
 	}
-	virtual void visit(const ObjectType&element)
+	virtual void visit(const SimpleType&element)
 	{
 		if(!(argument.isSimple()))
 		{
 			throw AllocatorError();
 		};
-		const TypeInstance&type=getObjectType(argument.value);
-		if(type.primary!=element.type.primary)
+		const SimpleType&type=getSimpleType(argument.value);
+		if(type.primary!=element.primary)
 		{
 			result=false;
 			return ;
 		}
-		if(!isNonDeduced(element.type))
+		if(!isNonDeduced(element))
 		{
-			result=deducePairs(element.type.templateArguments, type.templateArguments, templateArguments);
+			result=deducePairs(element.templateArguments, type.templateArguments, templateArguments);
 		}
 	}
 	virtual void visit(const PointerType&)
@@ -44440,11 +44977,10 @@ struct DeduceVisitor: TypeElementVisitor
 };
 inline UniqueTypeWrapper applyArrayToPointerConversion(UniqueTypeWrapper type);
 inline UniqueTypeWrapper applyFunctionToPointerConversion(UniqueTypeWrapper type);
-inline UniqueTypeWrapper makeUniqueObjectType(const TypeInstance&type);
 struct DeductionFailure
 {
 };
-inline const TypeInstance*findUniqueBase(const TypeInstance&derived, const Declaration&type, const TypeInstance*result=0)
+inline const SimpleType*findUniqueBase(const SimpleType&derived, const Declaration&type, const SimpleType*result=0)
 {
 	if(!(derived.instantiated))
 	{
@@ -44462,7 +44998,7 @@ inline const TypeInstance*findUniqueBase(const TypeInstance&derived, const Decla
 	i!=derived.bases.end();
 	++i)
 	{
-		const TypeInstance&base=*(*i);
+		const SimpleType&base=*(*i);
 		if(!(isClass(*base.declaration)))
 		{
 			throw AllocatorError();
@@ -44487,20 +45023,20 @@ inline UniqueTypeWrapper removePointer(UniqueTypeWrapper type)
 	}
 	return type;
 }
-inline const TypeInstance*getClassType(UniqueTypeWrapper type)
+inline const SimpleType*getClassType(UniqueTypeWrapper type)
 {
 	if(!type.isSimple())
 	{
 		return 0;
 	}
-	const TypeInstance*result=&getObjectType(type.value);
+	const SimpleType*result=&getSimpleType(type.value);
 	if(!isClass(*result->declaration))
 	{
 		return 0;
 	}
 	return result;
 }
-inline void adjustFunctionCallDeductionPair(UniqueTypeWrapper&parameter, UniqueTypeWrapper&argument, Location source, const TypeInstance*enclosing)
+inline void adjustFunctionCallDeductionPair(UniqueTypeWrapper&parameter, UniqueTypeWrapper&argument, const InstantiationContext&context)
 {
 	argument=removeReference(argument);
 	parameter.value.setQualifiers(CvQualifiers());
@@ -44523,17 +45059,17 @@ inline void adjustFunctionCallDeductionPair(UniqueTypeWrapper&parameter, UniqueT
 			argument.value.setQualifiers(CvQualifiers());
 		}
 	}
-	const TypeInstance*parameterType=getClassType(removePointer(parameter));
-	const TypeInstance*argumentType=getClassType(removePointer(argument));
-	if(parameterType!=0&&parameterType->declaration->isTemplate&&argumentType!=0&&parameter.isPointer()==argument.isPointer()&&argumentType->primary!=parameterType->primary)
+	const SimpleType*parameterType=getClassType(removePointer(parameter));
+	const SimpleType*argumentType=getClassType(removePointer(argument));
+	if(parameterType!=0&&parameterType->declaration->isTemplate&&argumentType!=0&&isComplete(*argumentType->declaration)&&parameter.isPointer()==argument.isPointer()&&argumentType->primary!=parameterType->primary)
 	{
-		instantiateClass(*argumentType, source, enclosing);
-		const TypeInstance*base=findUniqueBase(*argumentType, *parameterType->primary);
+		instantiateClass(*argumentType, context);
+		const SimpleType*base=findUniqueBase(*argumentType, *parameterType->primary);
 		if(base!=0)
 		{
 			bool isPointer=argument.isPointer();
 			CvQualifiers qualifiers=removePointer(argument).value.getQualifiers();
-			argument=makeUniqueObjectType(*base);
+			argument=makeUniqueSimpleType(*base);
 			argument.value.setQualifiers(qualifiers);
 			if(isPointer)
 			{
@@ -44592,7 +45128,7 @@ inline bool deduce(UniqueTypeWrapper parameter, UniqueTypeWrapper argument, Temp
 	}
 	return true;
 }
-inline bool deduceFunctionCall(const ParameterTypes&parameters, const UniqueTypeArray&arguments, TemplateArgumentsInstance&result, Location source, const TypeInstance*enclosing)
+inline bool deduceFunctionCall(const ParameterTypes&parameters, const UniqueTypeArray&arguments, TemplateArgumentsInstance&result, const InstantiationContext&context)
 {
 	try
 	{
@@ -44603,7 +45139,7 @@ inline bool deduceFunctionCall(const ParameterTypes&parameters, const UniqueType
 		{
 			UniqueTypeWrapper parameter=*p;
 			UniqueTypeWrapper argument=*a;
-			adjustFunctionCallDeductionPair(parameter, argument, source, enclosing);
+			adjustFunctionCallDeductionPair(parameter, argument, context);
 			if(!deduce(parameter, argument, result, true))
 			{
 				throw DeductionFailure();
@@ -44620,25 +45156,26 @@ inline bool deduceFunctionCall(const ParameterTypes&parameters, const UniqueType
 	}
 	return true;
 }
-extern ObjectTypeId gVoid;
-inline void substitute(UniqueTypeArray&substituted, const UniqueTypeArray&dependent, Location source, const TypeInstance&enclosingType)
+extern BuiltInTypeId gVoid;
+inline void substitute(UniqueTypeArray&substituted, const UniqueTypeArray&dependent, const InstantiationContext&context)
 {
 	for(UniqueTypeArray::const_iterator i=dependent.begin();
 	i!=dependent.end();
 	++i)
 	{
-		UniqueTypeWrapper type=substitute(*i, source, enclosingType);
+		UniqueTypeWrapper type=substitute(*i, context);
 		substituted.push_back(type);
 	}
 }
-inline Declaration*findTemplateSpecialization(Declaration*declaration, TemplateArgumentsInstance&deducedArguments, const TemplateArgumentsInstance&arguments, Location source, const TypeInstance*enclosing, bool allowDependent);
-inline UniqueTypeWrapper substitute(Declaration*declaration, const TypeInstance*enclosing, const TemplateArgumentsInstance&templateArguments, Location source, const TypeInstance&enclosingType)
+inline Declaration*findTemplateSpecialization(Declaration*declaration, TemplateArgumentsInstance&deducedArguments, const TemplateArgumentsInstance&arguments, const InstantiationContext&context, bool allowDependent);
+inline UniqueTypeWrapper makeUniqueTemplateArgument(const TemplateArgument&argument, const InstantiationContext&context, bool allowDependent=false);
+inline UniqueTypeWrapper substitute(Declaration*declaration, const SimpleType*enclosing, const TemplateArgumentsInstance&templateArguments, const InstantiationContext&context)
 {
-	TypeInstance result(declaration, enclosing);
+	SimpleType result(declaration, enclosing);
 	if(declaration->isTemplate)
 	{
 		result.declaration=result.primary=findPrimaryTemplate(declaration);
-		substitute(result.templateArguments, templateArguments, source, enclosingType);
+		substitute(result.templateArguments, templateArguments, context);
 		TemplateArguments::const_iterator i=result.declaration->templateParams.defaults.begin();
 		std::advance(i, templateArguments.size());
 		for(;
@@ -44647,15 +45184,10 @@ inline UniqueTypeWrapper substitute(Declaration*declaration, const TypeInstance*
 		{
 			if((*i).type.declaration==0)
 			{
-				throw TooFewTemplateArgumentsError(source);
+				throw TooFewTemplateArgumentsError(context.source);
 			}
-			extern Declaration gNonType;
-			if(!((*i).type.declaration==&gNonType||(*i).type.unique!=0))
-			{
-				throw AllocatorError();
-			};
-			UniqueTypeWrapper argument=UniqueTypeWrapper((*i).type.declaration==&gNonType?pushUniqueType(gUniqueTypes, UNIQUETYPE_NULL, NonType(evaluateExpression((*i).expression, source, &result))): (*i).type.unique);
-			UniqueTypeWrapper substituted=substitute(argument, source, result);
+			UniqueTypeWrapper argument=makeUniqueTemplateArgument(*i, setEnclosingTypeSafe(context, &result), isDependent(result));
+			UniqueTypeWrapper substituted=substitute(argument, setEnclosingTypeSafe(context, &result));
 			result.templateArguments.push_back(substituted);
 		}
 		if(!(std::distance(result.declaration->templateParams.begin(), result.declaration->templateParams.end())==result.templateArguments.size()))
@@ -44665,24 +45197,24 @@ inline UniqueTypeWrapper substitute(Declaration*declaration, const TypeInstance*
 	}
 	static size_t uniqueId=0;
 	result.uniqueId=++uniqueId;
-	return makeUniqueObjectType(result);
+	return makeUniqueSimpleType(result);
 }
-inline const TypeInstance*substitute(const TypeInstance&instance, Location source, const TypeInstance&enclosingType)
+inline const SimpleType*substitute(const SimpleType&instance, const InstantiationContext&context)
 {
-	const TypeInstance*enclosing=0;
+	const SimpleType*enclosing=0;
 	if(instance.enclosing!=0)
 	{
-		enclosing=substitute(*instance.enclosing, source, enclosingType);
+		enclosing=substitute(*instance.enclosing, context);
 	}
-	UniqueTypeWrapper result=substitute(instance.declaration, enclosing, instance.templateArguments, source, enclosingType);
-	return &getObjectType(result.value);
+	UniqueTypeWrapper result=substitute(instance.declaration, enclosing, instance.templateArguments, context);
+	return &getSimpleType(result.value);
 }
+inline LookupResult findNamespaceDeclaration(Scope&scope, const Identifier&id, LookupFilter filter=IsAny());
 struct SubstituteVisitor: TypeElementVisitor
 {
 	UniqueTypeWrapper type;
-	Location source;
-	const TypeInstance&enclosingType;
-	SubstituteVisitor(UniqueTypeWrapper type, Location source, const TypeInstance&enclosingType): type(type), source(source), enclosingType(enclosingType)
+	const InstantiationContext context;
+	SubstituteVisitor(UniqueTypeWrapper type, const InstantiationContext&context): type(type), context(context)
 	{
 	}
 	virtual void visit(const DependentType&element)
@@ -44692,7 +45224,7 @@ struct SubstituteVisitor: TypeElementVisitor
 		{
 			throw AllocatorError();
 		};
-		const TypeInstance*enclosingTemplate=findEnclosingTemplate(&enclosingType, element.type->scope);
+		const SimpleType*enclosingTemplate=findEnclosingTemplate(context.enclosingType, element.type->scope);
 		if(!(enclosingTemplate!=0))
 		{
 			throw AllocatorError();
@@ -44716,7 +45248,7 @@ struct SubstituteVisitor: TypeElementVisitor
 			if(type.isDependentType())
 			{
 				DependentType result=getDependentType(type.value);
-				substitute(result.templateArguments, element.templateArguments, source, enclosingType);
+				substitute(result.templateArguments, element.templateArguments, context);
 				type=gUniqueTypeNull;
 				type.push_front(result);
 			}
@@ -44724,76 +45256,101 @@ struct SubstituteVisitor: TypeElementVisitor
 			{
 				if(!type.isTemplateTemplateArgument())
 				{
-					throw ExpectedTemplateTemplateArgumentError(source, type);
+					throw ExpectedTemplateTemplateArgumentError(context.source, type);
 				}
 				const TemplateTemplateArgument&argument=getTemplateTemplateArgument(type.value);
 				if(std::distance(argument.declaration->templateParams.begin(), argument.declaration->templateParams.end())!=element.templateParameterCount)
 				{
-					throw MismatchedTemplateTemplateArgumentError(source, type);
+					throw MismatchedTemplateTemplateArgumentError(context.source, type);
 				}
 				if(!element.templateArguments.empty())
 				{
-					type=substitute(argument.declaration, argument.enclosing, element.templateArguments, source, enclosingType);
+					type=substitute(argument.declaration, argument.enclosing, element.templateArguments, context);
 				}
 			}
 		}
 	}
 	virtual void visit(const DependentTypename&element)
 	{
-		UniqueTypeWrapper qualifying=substitute(element.qualifying, source, enclosingType);
-		const TypeInstance*enclosing=qualifying==gUniqueTypeNull||!qualifying.isSimple()?0: &getObjectType(qualifying.value);
-		if(enclosing==0||!isClass(*enclosing->declaration))
+		if(isDependent(*context.enclosingType))
 		{
-			throw QualifyingIsNotClassError(source, qualifying);
+			type.push_front(element);
+			return ;
 		}
-		instantiateClass(*enclosing, source, &enclosingType);
 		Identifier id;
 		id.value=element.name;
-		std::size_t visibility=enclosing->instantiating?enclosingType.instantiation.pointOfInstantiation: VISIBILITY_ALL;
-		LookupResultRef declaration=findDeclaration(*enclosing, id, element.isNested?LookupFilter(IsNestedName(visibility)): LookupFilter(IsAny(visibility)));
-		if(declaration==0)
+		Declaration*declaration=0;
+		const SimpleType*memberEnclosing=0;
+
 		{
-			LookupResultRef declaration=findDeclaration(*enclosing, id, element.isNested?LookupFilter(IsNestedName(VISIBILITY_ALL)): LookupFilter(IsAny(VISIBILITY_ALL)));
-			if(declaration!=0)
-			{
-				std::cout<<"visibility: "<<visibility<<std::endl;
-				std::cout<<"found with VISIBILITY_ALL: "<<declaration.p->visibility<<std::endl;
-			}
-			throw MemberNotFoundError(source, element.name, qualifying);
-		}
-		if(!isType(*declaration))
-		{
-			throw MemberIsNotTypeError(source, element.name, qualifying);
-		}
-		if(!(isMember(*declaration)))
-		{
-			throw AllocatorError();
-		};
-		const TypeInstance*memberEnclosing=findEnclosingType(enclosing, declaration->scope);
-		if(!(memberEnclosing!=0))
-		{
-			throw AllocatorError();
-		};
-		if(isClass(*declaration)||isEnum(*declaration))
-		{
-			type=substitute(declaration, memberEnclosing, element.templateArguments, source, enclosingType);
-		}
-		else
-		{
-			if(!(declaration->type.unique!=0))
+			UniqueTypeWrapper qualifying=substitute(element.qualifying, context);
+			if(!(qualifying!=gUniqueTypeNull))
 			{
 				throw AllocatorError();
 			};
-			type=UniqueTypeWrapper(declaration->type.unique);
-			if(declaration->type.isDependent)
+
 			{
-				type=substitute(type, source, *memberEnclosing);
+				const SimpleType*enclosing=qualifying.isSimple()?&getSimpleType(qualifying.value): 0;
+				if(enclosing==0||!isClass(*enclosing->declaration))
+				{
+					throw QualifyingIsNotClassError(context.source, qualifying);
+				}
+				instantiateClass(*enclosing, context);
+				std::size_t visibility=enclosing->instantiating?context.enclosingType->instantiation.pointOfInstantiation: VISIBILITY_ALL;
+				LookupResultRef result=findDeclaration(*enclosing, id, element.isNested?LookupFilter(IsNestedName(visibility)): LookupFilter(IsAny(visibility)));
+				if(result==0)
+				{
+					LookupResultRef result=findDeclaration(*enclosing, id, element.isNested?LookupFilter(IsNestedName(VISIBILITY_ALL)): LookupFilter(IsAny(VISIBILITY_ALL)));
+					if(result!=0)
+					{
+						std::cout<<"visibility: "<<visibility<<std::endl;
+						std::cout<<"found with VISIBILITY_ALL: "<<result.p->visibility<<std::endl;
+					}
+					throw MemberNotFoundError(context.source, element.name, qualifying);
+				}
+				declaration=result;
+				if(!isType(*declaration))
+				{
+					throw MemberIsNotTypeError(context.source, element.name, qualifying);
+				}
+				if(!(isMember(*declaration)))
+				{
+					throw AllocatorError();
+				};
+				memberEnclosing=findEnclosingType(enclosing, declaration->scope);
 			}
+		}
+		if(isClass(*declaration)||isEnum(*declaration))
+		{
+			type=substitute(declaration, memberEnclosing, element.templateArguments, context);
+			return ;
+		}
+		if(!(declaration->specifiers.isTypedef))
+		{
+			throw AllocatorError();
+		};
+		if(!(declaration->type.unique!=0))
+		{
+			throw AllocatorError();
+		};
+		type=UniqueTypeWrapper(declaration->type.unique);
+		if(declaration->type.isDependent)
+		{
+			if(!(memberEnclosing!=0))
+			{
+				throw AllocatorError();
+			};
+			type=substitute(type, setEnclosingTypeSafe(context, memberEnclosing));
 		}
 	}
 	virtual void visit(const DependentNonType&element)
 	{
-		IntegralConstant value=evaluateExpression(element.expression, source, &enclosingType);
+		if(isDependent(*context.enclosingType))
+		{
+			type.push_front(element);
+			return ;
+		}
+		IntegralConstant value=evaluateExpression(element.expression, context);
 		type.push_front(NonType(value));
 	}
 	virtual void visit(const TemplateTemplateArgument&element)
@@ -44804,16 +45361,16 @@ struct SubstituteVisitor: TypeElementVisitor
 	{
 		type.push_front(element);
 	}
-	virtual void visit(const ObjectType&element)
+	virtual void visit(const SimpleType&element)
 	{
-		const TypeInstance*result=substitute(element.type, source, enclosingType);
-		type.push_front(ObjectType(*result));
+		const SimpleType*result=substitute(element, context);
+		type.push_front(*result);
 	}
 	virtual void visit(const PointerType&element)
 	{
 		if(type.isReference())
 		{
-			throw PointerToReferenceError(source);
+			throw PointerToReferenceError(context.source);
 		}
 		type.push_front(element);
 	}
@@ -44821,7 +45378,7 @@ struct SubstituteVisitor: TypeElementVisitor
 	{
 		if(type.isReference()||type==gVoid)
 		{
-			throw ReferenceToReferenceError(source);
+			throw ReferenceToReferenceError(context.source);
 		}
 		type.push_front(element);
 	}
@@ -44829,16 +45386,16 @@ struct SubstituteVisitor: TypeElementVisitor
 	{
 		if(type.isFunction()||type.isReference()||type==gVoid)
 		{
-			throw InvalidArrayError(source);
+			throw InvalidArrayError(context.source);
 		}
 		type.push_front(element);
 	}
 	virtual void visit(const MemberPointerType&element)
 	{
-		UniqueTypeWrapper classType=substitute(element.type, source, enclosingType);
-		if(!classType.isSimple()||!isClass(*getObjectType(classType.value).declaration))
+		UniqueTypeWrapper classType=substitute(element.type, context);
+		if(!classType.isSimple()||!isClass(*getSimpleType(classType.value).declaration))
 		{
-			throw QualifyingIsNotClassError(source, classType);
+			throw QualifyingIsNotClassError(context.source, classType);
 		}
 		type.push_front(MemberPointerType(classType));
 	}
@@ -44846,53 +45403,27 @@ struct SubstituteVisitor: TypeElementVisitor
 	{
 		FunctionType result;
 		result.isEllipsis=element.isEllipsis;
-		substitute(result.parameterTypes, element.parameterTypes, source, enclosingType);
+		substitute(result.parameterTypes, element.parameterTypes, context);
 		if(std::find(result.parameterTypes.begin(), result.parameterTypes.end(), gVoid)!=result.parameterTypes.end())
 		{
-			throw VoidParameterError(source);
+			throw VoidParameterError(context.source);
 		}
 		type.push_front(result);
 	}
 };
-inline UniqueTypeWrapper substitute(UniqueTypeWrapper dependent, Location source, const TypeInstance&enclosingType)
+inline UniqueTypeWrapper substitute(UniqueTypeWrapper dependent, const InstantiationContext&context)
 {
 	UniqueTypeWrapper inner=dependent;
 	inner.pop_front();
-	UniqueTypeWrapper type=inner.empty()?gUniqueTypeNull: substitute(inner, source, enclosingType);
-	SubstituteVisitor visitor(type, source, enclosingType);
+	UniqueTypeWrapper type=inner.empty()?gUniqueTypeNull: substitute(inner, context);
+	SubstituteVisitor visitor(type, context);
 	dependent.value->accept(visitor);
 	visitor.type.value.addQualifiers(dependent.value.getQualifiers());
 	return visitor.type;
 }
-inline UniqueTypeWrapper makeUniqueType(const TypeId&type, Location source);
-inline UniqueTypeWrapper makeUniqueType(const TypeId&type, Location source, const TypeInstance*enclosing, bool allowDependent, std::size_t depth);
-inline UniqueTypeWrapper makeUniqueType(const Type&type, Location source, const TypeInstance*enclosing, bool allowDependent, std::size_t depth);
-inline void checkUniqueType(UniqueTypeWrapper result, const Type&type, Location source, const TypeInstance*enclosing, bool allowDependent)
-{
-	if(!(type.unique==0||type.isDependent||isDependent(result)||result.value==type.unique))
-	{
-		throw AllocatorError();
-	};
-	if(type.isDependent&&!allowDependent)
-	{
-		if(!(enclosing!=0))
-		{
-			throw AllocatorError();
-		};
-		UniqueTypeWrapper substituted=substitute(UniqueTypeWrapper(type.unique), source, *enclosing);
-		if(substituted!=result)
-		{
-			std::cout<<"uniqued: ";
-			printType(result);
-			std::cout<<std::endl;
-			std::cout<<"substituted: ";
-			printType(substituted);
-			std::cout<<std::endl;
-			throw SymbolsError();
-		}
-	}
-}
-inline void reportTypeInfo(const Type&type, const TypeInstance*enclosing)
+inline UniqueTypeWrapper makeUniqueType(const TypeId&type, const InstantiationContext&context, bool allowDependent);
+inline UniqueTypeWrapper makeUniqueType(const Type&type, const InstantiationContext&context, bool allowDependent);
+inline void reportTypeInfo(const Type&type, const SimpleType*enclosing)
 {
 	printPosition(type.id->source);
 	std::cout<<std::endl;
@@ -44911,16 +45442,10 @@ inline void reportTypeInfo(const Type&type, const TypeInstance*enclosing)
 	printType(*enclosing);
 	std::cout<<std::endl;
 }
-extern ObjectTypeId gSignedInt;
+extern BuiltInTypeId gSignedInt;
 template<typename T>
-inline UniqueTypeWrapper getUniqueTypeImpl(const T&type, Location source, const TypeInstance*enclosing, bool allowDependent)
+inline UniqueTypeWrapper getUniqueTypeImpl(const T&type, const InstantiationContext&context, bool allowDependent)
 {
-	if(type.declaration==&gEnumerator)
-	{
-		UniqueTypeWrapper result=gSignedInt;
-		result.value.setQualifiers(CvQualifiers(true, false));
-		return result;
-	}
 	if(!(type.unique!=0))
 	{
 		throw AllocatorError();
@@ -44928,7 +45453,7 @@ inline UniqueTypeWrapper getUniqueTypeImpl(const T&type, Location source, const 
 	UniqueTypeWrapper result=UniqueTypeWrapper(type.unique);
 	if(type.isDependent&&!allowDependent)
 	{
-		UniqueTypeWrapper substituted=substitute(result, source, *enclosing);
+		UniqueTypeWrapper substituted=substitute(result, context);
 		if(!(!isDependent(substituted)))
 		{
 			throw AllocatorError();
@@ -44937,41 +45462,13 @@ inline UniqueTypeWrapper getUniqueTypeImpl(const T&type, Location source, const 
 	}
 	return result;
 }
-inline UniqueTypeWrapper getUniqueType(const TypeId&type, Location source, const TypeInstance*enclosing, bool allowDependent=false)
+inline UniqueTypeWrapper getUniqueType(const TypeId&type, const InstantiationContext&context, bool allowDependent)
 {
-	return getUniqueTypeImpl(type, source, enclosing, allowDependent);
+	return getUniqueTypeImpl(type, context, allowDependent);
 }
-inline UniqueTypeWrapper getUniqueType(const Type&type, Location source, const TypeInstance*enclosing, bool allowDependent=false)
+inline UniqueTypeWrapper getUniqueType(const Type&type, const InstantiationContext&context, bool allowDependent)
 {
-	return getUniqueTypeImpl(type, source, enclosing, allowDependent);
-}
-inline UniqueTypeWrapper makeUniqueType(const TypeId&type, Location source, const TypeInstance*enclosing, bool allowDependent=false)
-{
-	try
-	{
-		UniqueTypeWrapper result=makeUniqueType(type, source, enclosing, allowDependent, 0);
-		checkUniqueType(result, type, source, enclosing, allowDependent);
-		return result;
-	}
-	catch(TypeError&)
-	{
-		reportTypeInfo(type, enclosing);
-		throw;
-	}
-}
-inline UniqueTypeWrapper makeUniqueType(const Type&type, Location source, const TypeInstance*enclosing, bool allowDependent=false)
-{
-	try
-	{
-		UniqueTypeWrapper result=makeUniqueType(type, source, enclosing, allowDependent, 0);
-		checkUniqueType(result, type, source, enclosing, allowDependent);
-		return result;
-	}
-	catch(TypeError&)
-	{
-		reportTypeInfo(type, enclosing);
-		throw;
-	}
+	return getUniqueTypeImpl(type, context, allowDependent);
 }
 inline Scope*getEnclosingTemplate(Scope*enclosing)
 {
@@ -45041,7 +45538,7 @@ inline Declaration*findOverloaded(const DeclarationInstance&instance)
 	}
 	return 0;
 }
-inline std::size_t addBase(TypeInstance&instance, UniqueTypeWrapper base, Location source)
+inline std::size_t addBase(SimpleType&instance, UniqueTypeWrapper base, const InstantiationContext&context)
 {
 	if(!(!isDependent(base)))
 	{
@@ -45051,8 +45548,8 @@ inline std::size_t addBase(TypeInstance&instance, UniqueTypeWrapper base, Locati
 	{
 		throw AllocatorError();
 	};
-	const TypeInstance&objectType=getObjectType(base.value);
-	std::size_t size=instantiateClass(objectType, source, &instance);
+	const SimpleType&objectType=getSimpleType(base.value);
+	std::size_t size=instantiateClass(objectType, setEnclosingTypeSafe(context, &instance));
 	if(!(isClass(*objectType.declaration)))
 	{
 		throw AllocatorError();
@@ -45064,7 +45561,7 @@ inline std::size_t addBase(TypeInstance&instance, UniqueTypeWrapper base, Locati
 	instance.bases.push_back(&objectType);
 	return size;
 }
-inline bool isTemplate(const TypeInstance&instance)
+inline bool isTemplate(const SimpleType&instance)
 {
 	if(instance.declaration->isTemplate)
 	{
@@ -45072,18 +45569,18 @@ inline bool isTemplate(const TypeInstance&instance)
 	}
 	return instance.enclosing!=0&&isTemplate(*instance.enclosing);
 }
-void dumpTemplateInstantiations(const TypeInstance&instance, bool root=false);
-inline std::size_t instantiateClass(const TypeInstance&instanceConst, Location source, const TypeInstance*enclosing, bool allowDependent)
+void dumpTemplateInstantiations(const SimpleType&instance, bool root=false);
+inline std::size_t instantiateClass(const SimpleType&instanceConst, const InstantiationContext&context, bool allowDependent)
 {
-	TypeInstance&instance=const_cast<TypeInstance&>(instanceConst);
+	SimpleType&instance=const_cast<SimpleType&>(instanceConst);
 	if(!(isClass(*instance.declaration)))
 	{
 		throw AllocatorError();
 	};
-	if(enclosing!=0)
+	if(context.enclosingType!=0)
 	{
-		ChildInstantiations&instantiations=const_cast<TypeInstance*>(enclosing)->childInstantiations;
-		instantiations.push_back(ChildInstantiation(&instance, source));
+		ChildInstantiations&instantiations=const_cast<SimpleType*>(context.enclosingType)->childInstantiations;
+		instantiations.push_back(ChildInstantiation(&instance, context.source));
 	}
 	if(instance.instantiated)
 	{
@@ -45097,7 +45594,7 @@ inline std::size_t instantiateClass(const TypeInstance&instanceConst, Location s
 			throw AllocatorError();
 		};
 		instance.instantiating=true;
-		instance.instantiation=source;
+		instance.instantiation=context.source;
 		static std::size_t uniqueId=0;
 		instance.uniqueId=++uniqueId;
 		if(!allowDependent&&instance.declaration->isTemplate)
@@ -45107,7 +45604,7 @@ inline std::size_t instantiateClass(const TypeInstance&instanceConst, Location s
 			{
 				throw AllocatorError();
 			};
-			Declaration*specialization=findTemplateSpecialization(findOverloaded(*declaration), instance.deducedArguments, instance.templateArguments, source, instance.enclosing, false);
+			Declaration*specialization=findTemplateSpecialization(findOverloaded(*declaration), instance.deducedArguments, instance.templateArguments, InstantiationContext(context.source, instance.enclosing, context.enclosingScope), false);
 			if(specialization!=0)
 			{
 				instance.declaration=specialization;
@@ -45124,7 +45621,7 @@ inline std::size_t instantiateClass(const TypeInstance&instanceConst, Location s
 		{
 			throw AllocatorError();
 		};
-		const TypeInstance&original=getObjectType(instance.declaration->type.unique);
+		const SimpleType&original=getSimpleType(instance.declaration->type.unique);
 		instance.size=4;
 		if(!(instance.declaration->enclosed!=0))
 		{
@@ -45136,7 +45633,8 @@ inline std::size_t instantiateClass(const TypeInstance&instanceConst, Location s
 		i!=bases.end();
 		++i)
 		{
-			UniqueTypeId base=getUniqueType(*i, original.instantiation, &instance, allowDependent);
+			InstantiationContext baseContext=InstantiationContext(original.instantiation, &instance, context.enclosingScope);
+			UniqueTypeId base=getUniqueType(*i, baseContext, allowDependent);
 			if(!((*i).unique!=0))
 			{
 				throw AllocatorError();
@@ -45149,7 +45647,7 @@ inline std::size_t instantiateClass(const TypeInstance&instanceConst, Location s
 			{
 				continue;
 			}
-			instance.size+=addBase(instance, base, original.instantiation);
+			instance.size+=addBase(instance, base, baseContext);
 		}
 		instance.allowLookup=true;
 		if(!allowDependent)
@@ -45166,7 +45664,8 @@ inline std::size_t instantiateClass(const TypeInstance&instanceConst, Location s
 				i!=original.children.end();
 				++i, ++l)
 				{
-					UniqueTypeWrapper substituted=substitute(*i, *l, instance);
+					InstantiationContext childContext(*l, &instance, context.enclosingScope);
+					UniqueTypeWrapper substituted=substitute(*i, childContext);
 					if(!(!isDependent(substituted)))
 					{
 						throw AllocatorError();
@@ -45179,7 +45678,7 @@ inline std::size_t instantiateClass(const TypeInstance&instanceConst, Location s
 	}
 	catch(TypeError&)
 	{
-		printPosition(source);
+		printPosition(context.source);
 		std::cout<<"while instantiating ";
 		printType(instance);
 		std::cout<<std::endl;
@@ -45200,7 +45699,7 @@ inline std::size_t instantiateClass(const TypeInstance&instanceConst, Location s
 				std::cout<<std::endl;
 			}
 		}
-		if(enclosing==0||!isTemplate(*enclosing))
+		if(context.enclosingType==0||!isTemplate(*context.enclosingType))
 		{
 			dumpTemplateInstantiations(instance, true);
 		}
@@ -45208,7 +45707,7 @@ inline std::size_t instantiateClass(const TypeInstance&instanceConst, Location s
 	}
 	return instance.size;
 }
-inline std::size_t requireCompleteObjectType(UniqueTypeWrapper type, Location source, const TypeInstance*enclosing)
+inline std::size_t requireCompleteObjectType(UniqueTypeWrapper type, const InstantiationContext&context)
 {
 	std::size_t count=1;
 	while(type.isArray()&&getArrayType(type.value).size!=0)
@@ -45218,23 +45717,19 @@ inline std::size_t requireCompleteObjectType(UniqueTypeWrapper type, Location so
 	}
 	if(type.isSimple())
 	{
-		const TypeInstance&objectType=getObjectType(type.value);
+		const SimpleType&objectType=getSimpleType(type.value);
 		if(isClass(*objectType.declaration))
 		{
-			return instantiateClass(objectType, source, enclosing)*count;
+			return instantiateClass(objectType, context)*count;
 		}
 	}
 	return 4;
 }
-inline UniqueTypeWrapper removeReference(UniqueTypeWrapper type)
+inline UniqueTypeWrapper makeUniqueQualifying(const Qualifying&qualifying, const InstantiationContext&context, bool allowDependent=false)
 {
-	if(type.isReference())
-	{
-		type.pop_front();
-	}
-	return type;
+	return qualifying.empty()||isNamespace(*qualifying.back().declaration)?gUniqueTypeNull: getUniqueType(qualifying.back(), context, allowDependent);
 }
-inline const TypeInstance*makeUniqueEnclosing(const Qualifying&qualifying, Location source, const TypeInstance*enclosing, bool allowDependent, std::size_t depth, UniqueTypeWrapper&unique)
+inline const SimpleType*makeUniqueEnclosing(const Qualifying&qualifying, const InstantiationContext&context, bool allowDependent, UniqueTypeWrapper&unique)
 {
 	if(!qualifying.empty())
 	{
@@ -45242,53 +45737,32 @@ inline const TypeInstance*makeUniqueEnclosing(const Qualifying&qualifying, Locat
 		{
 			return 0;
 		}
-		unique=getUniqueType(qualifying.back(), source, enclosing, allowDependent);
+		unique=getUniqueType(qualifying.back(), context, allowDependent);
 		if(allowDependent&&qualifying.back().isDependent)
 		{
 			return 0;
 		}
-		const TypeInstance&type=getObjectType(unique.value);
-		instantiateClass(type, source, enclosing, allowDependent);
+		const SimpleType&type=getSimpleType(unique.value);
+		instantiateClass(type, context, allowDependent);
 		return &type;
 	}
-	return enclosing;
+	return context.enclosingType;
 }
-inline const TypeInstance*makeUniqueEnclosing(const Qualifying&qualifying, Location source, const TypeInstance*enclosing, bool allowDependent, std::size_t depth)
+inline const SimpleType*makeUniqueEnclosing(const Qualifying&qualifying, const InstantiationContext&context, bool allowDependent)
 {
 	UniqueTypeWrapper tmp;
-	return makeUniqueEnclosing(qualifying, source, enclosing, allowDependent, depth, tmp);
+	return makeUniqueEnclosing(qualifying, context, allowDependent, tmp);
 }
-inline const TypeInstance*makeUniqueEnclosing(const Qualifying&qualifying, Location source, const TypeInstance*enclosing, bool allowDependent)
+inline bool deduceAndSubstitute(const UniqueTypeArray&parameters, const UniqueTypeArray&arguments, const InstantiationContext&context, SimpleType&enclosing, TemplateArgumentsInstance&substituted)
 {
-	try
-	{
-		return makeUniqueEnclosing(qualifying, source, enclosing, allowDependent, 0);
-	}
-	catch(TypeError&)
-	{
-		if(!qualifying.empty())
-		{
-			const Type&type=qualifying.back();
-			std::cout<<"while uniquing: ";
-			if(!(type.unique!=0))
-			{
-				throw AllocatorError();
-			};
-			printType(UniqueTypeWrapper(type.unique));
-			std::cout<<std::endl;
-		}
-		throw;
-	}
-}
-inline bool deduceAndSubstitute(const UniqueTypeArray&parameters, const UniqueTypeArray&arguments, Location source, TypeInstance&enclosing, TemplateArgumentsInstance&substituted)
-{
-	if(!deducePairs(parameters, arguments, enclosing.deducedArguments)||std::find(enclosing.deducedArguments.begin(), enclosing.deducedArguments.end(), gUniqueTypeNull)!=enclosing.deducedArguments.end())
+	TemplateArgumentsInstance&deduced=enclosing.deducedArguments;
+	if(!deducePairs(parameters, arguments, deduced)||std::find(deduced.begin(), deduced.end(), gUniqueTypeNull)!=deduced.end())
 	{
 		return false;
 	}
 	try
 	{
-		substitute(substituted, parameters, source, enclosing);
+		substitute(substituted, parameters, setEnclosingTypeSafe(context, &enclosing));
 	}
 	catch(TypeError&)
 	{
@@ -45300,7 +45774,7 @@ inline bool deduceAndSubstitute(const UniqueTypeArray&parameters, const UniqueTy
 	}
 	return true;
 }
-inline bool matchTemplatePartialSpecialization(Declaration*declaration, TemplateArgumentsInstance&deducedArguments, const TemplateArgumentsInstance&specializationArguments, const TemplateArgumentsInstance&arguments, Location source)
+inline bool matchTemplatePartialSpecialization(Declaration*declaration, TemplateArgumentsInstance&deducedArguments, const TemplateArgumentsInstance&specializationArguments, const TemplateArgumentsInstance&arguments, const InstantiationContext&context)
 {
 	if(!(!declaration->templateParams.empty()))
 	{
@@ -45308,10 +45782,10 @@ inline bool matchTemplatePartialSpecialization(Declaration*declaration, Template
 	};
 	TemplateArgumentsInstance deduced(std::distance(declaration->templateParams.begin(), declaration->templateParams.end()), gUniqueTypeNull);
 	TemplateArgumentsInstance substituted;
-	TypeInstance enclosing(declaration, 0);
+	SimpleType enclosing(declaration, 0);
 	enclosing.deducedArguments.swap(deduced);
 	enclosing.instantiated=true;
-	if(!deduceAndSubstitute(specializationArguments, arguments, source, enclosing, substituted))
+	if(!deduceAndSubstitute(specializationArguments, arguments, context, enclosing, substituted))
 	{
 		return false;
 	}
@@ -45322,43 +45796,40 @@ inline bool matchTemplatePartialSpecialization(Declaration*declaration, Template
 	}
 	return false;
 }
-inline bool matchTemplatePartialSpecialization(Declaration*declaration, const TemplateArgumentsInstance&specializationArguments, const TemplateArgumentsInstance&arguments, Location source)
+inline bool matchTemplatePartialSpecialization(Declaration*declaration, const TemplateArgumentsInstance&specializationArguments, const TemplateArgumentsInstance&arguments, const InstantiationContext&context)
 {
 	TemplateArgumentsInstance deducedArguments;
-	return matchTemplatePartialSpecialization(declaration, deducedArguments, specializationArguments, arguments, source);
+	return matchTemplatePartialSpecialization(declaration, deducedArguments, specializationArguments, arguments, context);
 }
-inline void makeUniqueTemplateArguments(TemplateArguments&templateArguments, TemplateArgumentsInstance&result, Location source, const TypeInstance*enclosing, bool allowDependent=false)
+inline UniqueTypeWrapper makeUniqueTemplateArgument(const TemplateArgument&argument, const InstantiationContext&context, bool allowDependent)
+{
+	if(!(argument.type.declaration!=0))
+	{
+		throw AllocatorError();
+	};
+	extern Declaration gNonType;
+	if(argument.type.declaration==&gNonType)
+	{
+		if(allowDependent&&argument.expression.isValueDependent)
+		{
+			return pushType(gUniqueTypeNull, DependentNonType(argument.expression));
+		}
+		IntegralConstant value=evaluateExpression(argument.expression, context);
+		return pushType(gUniqueTypeNull, NonType(value));
+	}
+	return getUniqueType(argument.type, context, allowDependent&&argument.type.isDependent);
+}
+inline void makeUniqueTemplateArguments(TemplateArguments&templateArguments, TemplateArgumentsInstance&result, const InstantiationContext&context, bool allowDependent=false)
 {
 	for(TemplateArguments::const_iterator i=templateArguments.begin();
 	i!=templateArguments.end();
 	++i)
 	{
-		UniqueTypeWrapper type;
-		if(!((*i).type.declaration!=0))
-		{
-			throw AllocatorError();
-		};
-		extern Declaration gNonType;
-		if((*i).type.declaration==&gNonType)
-		{
-			allowDependent&&(*i).expression.isValueDependent?pushUniqueType(type.value, DependentNonType((*i).expression)): pushUniqueType(type.value, NonType(evaluateExpression((*i).expression, (*i).source, enclosing)));
-		}
-		else
-		{
-			if(!((*i).type.unique!=0))
-			{
-				throw AllocatorError();
-			};
-			type=getUniqueType((*i).type, (*i).source, enclosing, allowDependent&&(*i).type.isDependent);
-			if(!((*i).type.unique==type.value))
-			{
-				throw AllocatorError();
-			};
-		}
+		UniqueTypeWrapper type=makeUniqueTemplateArgument(*i, context, allowDependent);
 		result.push_back(type);
 	}
 }
-inline void makeUniqueTemplateParameters(TemplateParameters&templateParams, TemplateArgumentsInstance&arguments, Location source, const TypeInstance*enclosing, bool allowDependent)
+inline void makeUniqueTemplateParameters(const TemplateParameters&templateParams, TemplateArgumentsInstance&arguments, const InstantiationContext&context, bool allowDependent)
 {
 	for(Types::const_iterator i=templateParams.begin();
 	i!=templateParams.end();
@@ -45369,7 +45840,7 @@ inline void makeUniqueTemplateParameters(TemplateParameters&templateParams, Temp
 		extern Declaration gParam;
 		if(argument.declaration->type.declaration==&gParam)
 		{
-			result=getUniqueType(argument, source, enclosing, allowDependent);
+			result=getUniqueType(argument, context, allowDependent);
 			if(!(result.value!=UNIQUETYPE_NULL))
 			{
 				throw AllocatorError();
@@ -45377,8 +45848,16 @@ inline void makeUniqueTemplateParameters(TemplateParameters&templateParams, Temp
 		}
 		else
 		{
-			UniqueExpression expression=makeExpression(NonTypeTemplateParameter(argument.declaration));
-			allowDependent?pushUniqueType(result.value, DependentNonType(expression)): pushUniqueType(result.value, NonType(evaluateExpression(expression, source, enclosing)));
+			UniqueExpression expression=makeUniqueExpression(NonTypeTemplateParameter(argument.declaration));
+			if(allowDependent)
+			{
+				result=pushType(gUniqueTypeNull, DependentNonType(expression));
+			}
+			else
+			{
+				IntegralConstant value=evaluateExpression(expression, context);
+				result=pushType(gUniqueTypeNull, NonType(value));
+			}
 		}
 		arguments.push_back(result);
 	}
@@ -45387,7 +45866,7 @@ inline void makeUniqueTemplateParameters(TemplateParameters&templateParams, Temp
 		throw AllocatorError();
 	};
 }
-inline Declaration*findTemplateSpecialization(Declaration*declaration, TemplateArgumentsInstance&deducedArguments, const TemplateArgumentsInstance&arguments, Location source, const TypeInstance*enclosing, bool allowDependent)
+inline Declaration*findTemplateSpecialization(Declaration*declaration, TemplateArgumentsInstance&deducedArguments, const TemplateArgumentsInstance&arguments, const InstantiationContext&context, bool allowDependent)
 {
 	Declaration*best=0;
 	TemplateArgumentsInstance bestArguments;
@@ -45400,7 +45879,7 @@ inline Declaration*findTemplateSpecialization(Declaration*declaration, TemplateA
 			continue;
 		}
 		TemplateArgumentsInstance specializationArguments;
-		makeUniqueTemplateArguments(declaration->templateArguments, specializationArguments, source, enclosing, true);
+		makeUniqueTemplateArguments(declaration->templateArguments, specializationArguments, context, true);
 		if(!(specializationArguments.size()<=arguments.size()))
 		{
 			throw AllocatorError();
@@ -45415,12 +45894,12 @@ inline Declaration*findTemplateSpecialization(Declaration*declaration, TemplateA
 			continue;
 		}
 		TemplateArgumentsInstance deduced;
-		if(matchTemplatePartialSpecialization(declaration, deduced, specializationArguments, arguments, source))
+		if(matchTemplatePartialSpecialization(declaration, deduced, specializationArguments, arguments, context))
 		{
 			if(best!=0)
 			{
-				bool atLeastAsSpecializedCurrent=matchTemplatePartialSpecialization(best, bestArguments, specializationArguments, source);
-				bool atLeastAsSpecializedBest=matchTemplatePartialSpecialization(declaration, specializationArguments, bestArguments, source);
+				bool atLeastAsSpecializedCurrent=matchTemplatePartialSpecialization(best, bestArguments, specializationArguments, context);
+				bool atLeastAsSpecializedBest=matchTemplatePartialSpecialization(declaration, specializationArguments, bestArguments, context);
 				if(atLeastAsSpecializedCurrent&&atLeastAsSpecializedBest)
 				{
 					struct AmbiguousSpecialization: TypeError
@@ -45445,7 +45924,7 @@ inline Declaration*findTemplateSpecialization(Declaration*declaration, TemplateA
 	}
 	return best;
 }
-inline void makeUniqueTemplateArguments(const TemplateArguments&arguments, TemplateArgumentsInstance&templateArguments, Location source, const TypeInstance*enclosingType, bool allowDependent)
+inline void makeUniqueTemplateArguments(const TemplateArguments&arguments, TemplateArgumentsInstance&templateArguments, const InstantiationContext&context, bool allowDependent)
 {
 	for(TemplateArguments::const_iterator i=arguments.begin();
 	i!=arguments.end();
@@ -45456,24 +45935,11 @@ inline void makeUniqueTemplateArguments(const TemplateArguments&arguments, Templ
 		{
 			throw AllocatorError();
 		};
-		UniqueTypeWrapper result;
-		extern Declaration gNonType;
-		if(argument.type.declaration==&gNonType)
-		{
-			allowDependent&&argument.expression.isValueDependent?pushUniqueType(result.value, DependentNonType(argument.expression)): pushUniqueType(result.value, NonType(evaluateExpression(argument.expression, argument.source, enclosingType)));
-		}
-		else
-		{
-			result=getUniqueType(argument.type, argument.source, enclosingType, allowDependent);
-			if(!(result.value!=UNIQUETYPE_NULL))
-			{
-				throw AllocatorError();
-			};
-		}
+		UniqueTypeWrapper result=makeUniqueTemplateArgument(argument, context, allowDependent);
 		templateArguments.push_back(result);
 	}
 }
-inline const TypeInstance*findEnclosingType(const TypeInstance&enclosing, Scope*scope)
+inline const SimpleType*findEnclosingType(const SimpleType&enclosing, Scope*scope)
 {
 	if(!(scope!=0))
 	{
@@ -45498,7 +45964,7 @@ inline const TypeInstance*findEnclosingType(const TypeInstance&enclosing, Scope*
 	i!=enclosing.bases.end();
 	++i)
 	{
-		const TypeInstance*result=findEnclosingType(*(*i), scope);
+		const SimpleType*result=findEnclosingType(*(*i), scope);
 		if(result!=0)
 		{
 			return result;
@@ -45506,17 +45972,17 @@ inline const TypeInstance*findEnclosingType(const TypeInstance&enclosing, Scope*
 	}
 	return 0;
 }
-inline const TypeInstance*findEnclosingType(const TypeInstance*enclosing, Scope*scope)
+inline const SimpleType*findEnclosingType(const SimpleType*enclosing, Scope*scope)
 {
 	if(!(scope!=0))
 	{
 		throw AllocatorError();
 	};
-	for(const TypeInstance*i=enclosing;
+	for(const SimpleType*i=enclosing;
 	i!=0;
 	i=(*i).enclosing)
 	{
-		const TypeInstance*result=findEnclosingType(*i, scope);
+		const SimpleType*result=findEnclosingType(*i, scope);
 		if(result!=0)
 		{
 			return result;
@@ -45524,19 +45990,19 @@ inline const TypeInstance*findEnclosingType(const TypeInstance*enclosing, Scope*
 	}
 	return 0;
 }
-inline UniqueTypeWrapper makeUniqueObjectType(const TypeInstance&type)
+inline UniqueTypeWrapper makeUniqueSimpleType(const SimpleType&type)
 {
 	if(!(!(type.primary->isTemplate&&isSpecialization(*type.primary))))
 	{
 		throw AllocatorError();
 	};
-	return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, UNIQUETYPE_NULL, ObjectType(type)));
+	return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, UNIQUETYPE_NULL, type));
 }
 struct LookupFailed: TypeError
 {
-	const TypeInstance*enclosing;
+	const SimpleType*enclosing;
 	const Identifier*id;
-	LookupFailed(const TypeInstance*enclosing, const Identifier*id): enclosing(enclosing), id(id)
+	LookupFailed(const SimpleType*enclosing, const Identifier*id): enclosing(enclosing), id(id)
 	{
 	}
 	void report()
@@ -45546,21 +46012,10 @@ struct LookupFailed: TypeError
 		std::cout<<"::"<<id->value.c_str()<<std::endl;
 	}
 };
-inline UniqueTypeWrapper makeUniqueType(const Type&type, Location source, const TypeInstance*enclosingType, bool allowDependent, std::size_t depth)
+inline UniqueTypeWrapper makeUniqueType(const Type&type, const InstantiationContext&context, bool allowDependent)
 {
-	if(depth++==256)
-	{
-		struct MaximumRecursionDepth: TypeError
-		{
-			void report()
-			{
-				std::cout<<"makeUniqueType reached maximum recursion depth!"<<std::endl;
-			}
-		};
-		throw MaximumRecursionDepth();
-	}
 	UniqueTypeWrapper qualifying;
-	const TypeInstance*enclosing=makeUniqueEnclosing(type.qualifying, source, enclosingType, allowDependent, depth, qualifying);
+	const SimpleType*enclosing=makeUniqueEnclosing(type.qualifying, context, allowDependent, qualifying);
 	Declaration*declaration=type.declaration;
 	extern Declaration gDependentType;
 	extern Declaration gDependentTemplate;
@@ -45568,81 +46023,58 @@ inline UniqueTypeWrapper makeUniqueType(const Type&type, Location source, const 
 	extern Declaration gDependentNestedTemplate;
 	if(declaration==&gDependentType||declaration==&gDependentTemplate||declaration==&gDependentNested||declaration==&gDependentNestedTemplate)
 	{
-		bool isNested=declaration==&gDependentNested||declaration==&gDependentNestedTemplate;
-		if(!(!type.qualifying.empty()))
+		if(!(allowDependent))
 		{
 			throw AllocatorError();
 		};
+		bool isNested=declaration==&gDependentNested||declaration==&gDependentNestedTemplate;
 		if(!(type.id!=IdentifierPtr(0)))
 		{
 			throw AllocatorError();
 		};
-		const DeclarationInstance*instance=0;
-		if(!allowDependent&&enclosing->declaration->enclosed!=0)
-		{
-			if(enclosing->instantiating)
-			{
-				std::cout<<"not finished instantiating: ";
-				printType(*enclosing);
-				std::cout<<std::endl;
-			}
-			else
-			{
-				instance=findDeclaration(*enclosing, *type.id, isNested?LookupFilter(IsNestedName()): LookupFilter(IsAny()));
-			}
-		}
-		if(instance==0)
-		{
-			if(allowDependent)
-			{
-				TemplateArgumentsInstance templateArguments;
-				makeUniqueTemplateArguments(type.templateArguments, templateArguments, source, enclosingType, allowDependent);
-				return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, UNIQUETYPE_NULL, DependentTypename(type.id->value, qualifying, templateArguments, isNested, declaration->isTemplate)));
-			}
-			throw LookupFailed(enclosing, type.id);
-		}
-		declaration=*instance;
+		TemplateArgumentsInstance templateArguments;
+		makeUniqueTemplateArguments(type.templateArguments, templateArguments, context, allowDependent);
+		return pushType(gUniqueTypeNull, DependentTypename(type.id->value, qualifying, templateArguments, isNested, declaration->isTemplate));
 	}
 	size_t index=declaration->templateParameter;
 	if(index!=INDEX_INVALID)
 	{
+		if(!(allowDependent))
+		{
+			throw AllocatorError();
+		};
 		if(!(type.qualifying.empty()))
 		{
 			throw AllocatorError();
 		};
-		const TypeInstance*enclosingType=findEnclosingType(enclosing, declaration->scope);
-		if(enclosingType!=0&&(!allowDependent||!isDependent(*enclosingType)))
+		const SimpleType*parameterEnclosing=findEnclosingType(enclosing, declaration->scope);
+		if(parameterEnclosing!=0&&!isDependent(*parameterEnclosing))
 		{
-			if(!(allowDependent||!isDependent(*enclosingType)))
+			if(!(!parameterEnclosing->declaration->isSpecialization||parameterEnclosing->instantiated))
 			{
 				throw AllocatorError();
 			};
-			if(!(!enclosingType->declaration->isSpecialization||enclosingType->instantiated))
-			{
-				throw AllocatorError();
-			};
-			const TemplateArgumentsInstance&arguments=enclosingType->declaration->isSpecialization?enclosingType->deducedArguments: enclosingType->templateArguments;
+			const TemplateArgumentsInstance&arguments=parameterEnclosing->declaration->isSpecialization?parameterEnclosing->deducedArguments: parameterEnclosing->templateArguments;
 			if(!(index<arguments.size()))
 			{
 				throw AllocatorError();
 			};
 			UniqueTypeWrapper result=arguments[index];
+			if(!(result!=gUniqueTypeNull))
+			{
+				throw AllocatorError();
+			};
 			return result;
 		}
-		if(allowDependent)
-		{
-			TemplateArgumentsInstance templateArguments;
-			makeUniqueTemplateArguments(type.templateArguments, templateArguments, source, enclosingType, allowDependent);
-			std::size_t templateParameterCount=declaration->isTemplate?std::distance(declaration->templateParams.begin(), declaration->templateParams.end()): 0;
-			return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, UNIQUETYPE_NULL, DependentType(declaration, templateArguments, templateParameterCount)));
-		}
-		throw SymbolsError();
-		return gUniqueTypeNull;
+		TemplateArgumentsInstance templateArguments;
+		makeUniqueTemplateArguments(type.templateArguments, templateArguments, context, allowDependent);
+		std::size_t templateParameterCount=declaration->isTemplate?std::distance(declaration->templateParams.begin(), declaration->templateParams.end()): 0;
+		return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, UNIQUETYPE_NULL, DependentType(declaration, templateArguments, templateParameterCount)));
 	}
-	const TypeInstance*memberEnclosing=isMember(*declaration)?findEnclosingType(enclosing, declaration->scope): 0;
+	const SimpleType*memberEnclosing=isMember(*declaration)?findEnclosingType(enclosing, declaration->scope): 0;
 	if(declaration->specifiers.isTypedef)
 	{
-		UniqueTypeWrapper result=getUniqueType(declaration->type, source, memberEnclosing, allowDependent);
+		UniqueTypeWrapper result=getUniqueType(declaration->type, setEnclosingType(context, memberEnclosing), allowDependent);
 		if(memberEnclosing!=0&&!allowDependent&&declaration->instance!=INDEX_INVALID)
 		{
 			if(!(memberEnclosing->instantiated))
@@ -45664,7 +46096,7 @@ inline UniqueTypeWrapper makeUniqueType(const Type&type, Location source, const 
 	{
 		return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, UNIQUETYPE_NULL, TemplateTemplateArgument(declaration, memberEnclosing)));
 	}
-	TypeInstance tmp(declaration, memberEnclosing);
+	SimpleType tmp(declaration, memberEnclosing);
 	if(!(declaration->type.declaration!=&gArithmetic||tmp.enclosing==0))
 	{
 		throw AllocatorError();
@@ -45681,7 +46113,7 @@ inline UniqueTypeWrapper makeUniqueType(const Type&type, Location source, const 
 		if(type.isImplicitTemplateId&&!isEnclosingSpecialization)
 		{
 			bool dependent=allowDependent||!type.isEnclosingClass;
-			makeUniqueTemplateParameters(tmp.declaration->templateParams, tmp.templateArguments, source, enclosingType, dependent);
+			makeUniqueTemplateParameters(tmp.declaration->templateParams, tmp.templateArguments, context, dependent);
 		}
 		else
 		{
@@ -45701,21 +46133,8 @@ inline UniqueTypeWrapper makeUniqueType(const Type&type, Location source, const 
 				{
 					throw AllocatorError();
 				};
-				UniqueTypeWrapper result;
-				extern Declaration gNonType;
-				if(argument.type.declaration==&gNonType)
-				{
-					allowDependent&&argument.expression.isValueDependent?pushUniqueType(result.value, DependentNonType(argument.expression)): pushUniqueType(result.value, NonType(evaluateExpression(argument.expression, argument.source, enclosingType)));
-				}
-				else
-				{
-					const TypeInstance*enclosing=isTemplateParamDefault?&tmp: enclosingType;
-					result=getUniqueType(argument.type, argument.source, enclosing, allowDependent);
-					if(!(result.value!=UNIQUETYPE_NULL))
-					{
-						throw AllocatorError();
-					};
-				}
+				const SimpleType*enclosing=isTemplateParamDefault?&tmp: context.enclosingType;
+				UniqueTypeWrapper result=makeUniqueTemplateArgument(argument, InstantiationContext(argument.source, enclosing, context.enclosingScope), allowDependent);
 				tmp.templateArguments.push_back(result);
 			}
 			if(!(allowDependent||!tmp.templateArguments.empty()))
@@ -45734,13 +46153,9 @@ inline UniqueTypeWrapper makeUniqueType(const Type&type, Location source, const 
 	};
 	static size_t uniqueId=0;
 	tmp.uniqueId=++uniqueId;
-	return makeUniqueObjectType(tmp);
+	return makeUniqueSimpleType(tmp);
 }
-inline UniqueTypeWrapper makeUniqueType(const Type&type, Location source)
-{
-	return makeUniqueType(type, source, 0);
-}
-inline std::size_t evaluateArraySize(const ExpressionWrapper&expression, Location source, const TypeInstance*enclosing)
+inline std::size_t evaluateArraySize(const ExpressionWrapper&expression, const InstantiationContext&context)
 {
 	if(expression==0)
 	{
@@ -45754,15 +46169,14 @@ inline std::size_t evaluateArraySize(const ExpressionWrapper&expression, Locatio
 	{
 		throw AllocatorError();
 	};
-	return evaluate(expression, source, enclosing).value;
+	return evaluate(expression, context).value;
 }
 struct TypeSequenceMakeUnique: TypeSequenceVisitor
 {
 	UniqueType&type;
-	Location source;
-	const TypeInstance*enclosing;
+	const InstantiationContext context;
 	bool allowDependent;
-	TypeSequenceMakeUnique(UniqueType&type, Location source, const TypeInstance*enclosing, bool allowDependent): type(type), source(source), enclosing(enclosing), allowDependent(allowDependent)
+	TypeSequenceMakeUnique(UniqueType&type, const InstantiationContext&context, bool allowDependent): type(type), context(context), allowDependent(allowDependent)
 	{
 	}
 	void visit(const DeclaratorPointerType&element)
@@ -45780,12 +46194,12 @@ struct TypeSequenceMakeUnique: TypeSequenceVisitor
 		i!=element.rank.rend();
 		++i)
 		{
-			pushUniqueType(type, ArrayType(evaluateArraySize(*i, source, enclosing)));
+			pushUniqueType(type, ArrayType(evaluateArraySize(*i, context)));
 		}
 	}
 	void visit(const DeclaratorMemberPointerType&element)
 	{
-		UniqueTypeWrapper tmp=getUniqueType(element.type, source, enclosing, allowDependent);
+		UniqueTypeWrapper tmp=getUniqueType(element.type, context, allowDependent);
 		if(!(allowDependent||!tmp.isDependent()))
 		{
 			throw AllocatorError();
@@ -45802,23 +46216,19 @@ struct TypeSequenceMakeUnique: TypeSequenceVisitor
 		i!=element.parameters.end();
 		++i)
 		{
-			result.parameterTypes.push_back(getUniqueType((*i).declaration->type, source, enclosing, allowDependent));
+			result.parameterTypes.push_back(getUniqueType((*i).declaration->type, context, allowDependent));
 		}
 		pushUniqueType(type, result);
 		type.setQualifiers(element.qualifiers);
 	}
 };
-inline UniqueTypeWrapper makeUniqueType(const TypeId&type, Location source, const TypeInstance*enclosing, bool allowDependent, std::size_t depth)
+inline UniqueTypeWrapper makeUniqueType(const TypeId&type, const InstantiationContext&context, bool allowDependent)
 {
-	UniqueTypeWrapper result=makeUniqueType(*static_cast<const Type*>(&type), source, enclosing, allowDependent, depth);
+	UniqueTypeWrapper result=makeUniqueType(*static_cast<const Type*>(&type), context, allowDependent);
 	result.value.addQualifiers(type.qualifiers);
-	TypeSequenceMakeUnique visitor(result.value, source, enclosing, allowDependent);
+	TypeSequenceMakeUnique visitor(result.value, context, allowDependent);
 	type.typeSequence.accept(visitor);
 	return result;
-}
-inline UniqueTypeWrapper makeUniqueType(const TypeId&type, Location source)
-{
-	return makeUniqueType(type, source, 0);
 }
 template<typename T, bool isExpression=IsConvertible<T, cpp::expression>::RESULT>
 struct ExpressionType;
@@ -45885,6 +46295,7 @@ struct BuiltInTypeDeclaration: Declaration
 	{
 	}
 };
+extern Declaration gEnumerator;
 extern BuiltInTypeDeclaration gCharDeclaration;
 extern BuiltInTypeDeclaration gSignedCharDeclaration;
 extern BuiltInTypeDeclaration gUnsignedCharDeclaration;
@@ -45902,30 +46313,75 @@ extern BuiltInTypeDeclaration gFloatDeclaration;
 extern BuiltInTypeDeclaration gDoubleDeclaration;
 extern BuiltInTypeDeclaration gLongDoubleDeclaration;
 extern BuiltInTypeDeclaration gVoidDeclaration;
-extern ObjectTypeId gChar;
-extern ObjectTypeId gSignedChar;
-extern ObjectTypeId gUnsignedChar;
-extern ObjectTypeId gSignedShortInt;
-extern ObjectTypeId gUnsignedShortInt;
-extern ObjectTypeId gSignedInt;
-extern ObjectTypeId gUnsignedInt;
-extern ObjectTypeId gSignedLongInt;
-extern ObjectTypeId gUnsignedLongInt;
-extern ObjectTypeId gSignedLongLongInt;
-extern ObjectTypeId gUnsignedLongLongInt;
-extern ObjectTypeId gWCharT;
-extern ObjectTypeId gBool;
-extern ObjectTypeId gFloat;
-extern ObjectTypeId gDouble;
-extern ObjectTypeId gLongDouble;
-extern ObjectTypeId gVoid;
+extern BuiltInTypeId gChar;
+extern BuiltInTypeId gSignedChar;
+extern BuiltInTypeId gUnsignedChar;
+extern BuiltInTypeId gSignedShortInt;
+extern BuiltInTypeId gUnsignedShortInt;
+extern BuiltInTypeId gSignedInt;
+extern BuiltInTypeId gUnsignedInt;
+extern BuiltInTypeId gSignedLongInt;
+extern BuiltInTypeId gUnsignedLongInt;
+extern BuiltInTypeId gSignedLongLongInt;
+extern BuiltInTypeId gUnsignedLongLongInt;
+extern BuiltInTypeId gWCharT;
+extern BuiltInTypeId gBool;
+extern BuiltInTypeId gFloat;
+extern BuiltInTypeId gDouble;
+extern BuiltInTypeId gLongDouble;
+extern BuiltInTypeId gVoid;
+typedef ArrayRange<BuiltInType>BuiltInTypeArrayRange;
+typedef UniqueTypeGeneric<false>UserType;
+template<bool builtIn, int N>
+struct TypeTuple;
+template<bool builtIn>
+struct TypeTuple<builtIn, 1>: UniqueTypeGeneric<builtIn>
+{
+	TypeTuple(UniqueTypeGeneric<builtIn>type): UniqueTypeGeneric<builtIn>(type)
+	{
+	}
+};
+template<bool builtIn>
+struct TypeTuple<builtIn, 2>: std::pair<UniqueTypeGeneric<builtIn>, UniqueTypeGeneric<builtIn> >
+{
+	typedef UniqueTypeGeneric<builtIn>Value;
+	TypeTuple(Value first, Value second): std::pair<Value, Value>(first, second)
+	{
+	}
+};
+template<int N>
+struct BuiltInGenericType: BuiltInType
+{
+	typedef UserType(*Substitute)(TypeTuple<false, N>args);
+	Substitute substitute;
+	BuiltInGenericType(BuiltInType type, Substitute substitute): BuiltInType(type), substitute(substitute)
+	{
+	}
+};
+typedef BuiltInGenericType<1>BuiltInGenericType1;
+typedef BuiltInGenericType<2>BuiltInGenericType2;
+typedef ArrayRange<BuiltInGenericType1>BuiltInGenericType1ArrayRange;
+typedef ArrayRange<BuiltInGenericType2>BuiltInGenericType2ArrayRange;
+inline bool isVoid(UniqueTypeWrapper type)
+{
+	return type.value.getPointer()==gVoid.value.getPointer();
+}
+inline bool isVoidPointer(UniqueTypeWrapper type)
+{
+	if(!type.isPointer())
+	{
+		return false;
+	}
+	type.pop_front();
+	return isVoid(type);
+}
 inline bool isVoidParameter(const TypeId&type)
 {
 	return type.declaration==&gVoidDeclaration&&type.typeSequence.empty();
 }
-struct StringLiteralTypeId: ObjectTypeId
+struct StringLiteralTypeId: BuiltInTypeId
 {
-	StringLiteralTypeId(Declaration*declaration, const ParserAllocatorWrapper<int>&allocator): ObjectTypeId(declaration, allocator)
+	StringLiteralTypeId(Declaration*declaration, const ParserAllocatorWrapper<int>&allocator): BuiltInTypeId(declaration, allocator)
 	{
 		value=pushBuiltInType(value, ArrayType(0));
 	}
@@ -46234,6 +46690,16 @@ inline Name getOverloadableOperatorId(cpp::array_operator*symbol)
 {
 	return gOperatorSubscriptId;
 }
+inline Name getOverloadedOperatorId(cpp::postfix_operator*symbol)
+{
+	switch(symbol->id)
+	{
+		case cpp::postfix_operator::PLUSPLUS: return gOperatorPlusPlusId;
+		case cpp::postfix_operator::MINUSMINUS: return gOperatorMinusMinusId;
+		default: break;
+	}
+	throw SymbolsError();
+}
 inline Name getOverloadedOperatorId(cpp::unary_operator*symbol)
 {
 	switch(symbol->id)
@@ -46246,6 +46712,106 @@ inline Name getOverloadedOperatorId(cpp::unary_operator*symbol)
 		case cpp::unary_operator::MINUS: return gOperatorMinusId;
 		case cpp::unary_operator::NOT: return gOperatorNotId;
 		case cpp::unary_operator::COMPL: return gOperatorComplId;
+		default: break;
+	}
+	throw SymbolsError();
+}
+inline Name getOverloadedOperatorId(cpp::pm_expression_default*symbol)
+{
+	if(symbol->op->id==cpp::pm_operator::ARROWSTAR)
+	{
+		return gOperatorArrowStarId;
+	}
+	return Name();
+}
+inline Name getOverloadedOperatorId(cpp::multiplicative_expression_default*symbol)
+{
+	switch(symbol->op->id)
+	{
+		case cpp::multiplicative_operator::STAR: return gOperatorStarId;
+		case cpp::multiplicative_operator::DIVIDE: return gOperatorDivideId;
+		case cpp::multiplicative_operator::PERCENT: return gOperatorPercentId;
+		default: break;
+	}
+	throw SymbolsError();
+}
+inline Name getOverloadedOperatorId(cpp::additive_expression_default*symbol)
+{
+	switch(symbol->op->id)
+	{
+		case cpp::additive_operator::PLUS: return gOperatorPlusId;
+		case cpp::additive_operator::MINUS: return gOperatorMinusId;
+		default: break;
+	}
+	throw SymbolsError();
+}
+inline Name getOverloadedOperatorId(cpp::shift_expression_default*symbol)
+{
+	switch(symbol->op->id)
+	{
+		case cpp::shift_operator::SHIFTLEFT: return gOperatorShiftLeftId;
+		case cpp::shift_operator::SHIFTRIGHT: return gOperatorShiftRightId;
+		default: break;
+	}
+	throw SymbolsError();
+}
+inline Name getOverloadedOperatorId(cpp::relational_expression_default*symbol)
+{
+	switch(symbol->op->id)
+	{
+		case cpp::relational_operator::LESS: return gOperatorLessId;
+		case cpp::relational_operator::GREATER: return gOperatorGreaterId;
+		case cpp::relational_operator::LESSEQUAL: return gOperatorLessEqualId;
+		case cpp::relational_operator::GREATEREQUAL: return gOperatorGreaterEqualId;
+		default: break;
+	}
+	throw SymbolsError();
+}
+inline Name getOverloadedOperatorId(cpp::equality_expression_default*symbol)
+{
+	switch(symbol->op->id)
+	{
+		case cpp::equality_operator::EQUAL: return gOperatorEqualId;
+		case cpp::equality_operator::NOTEQUAL: return gOperatorNotEqualId;
+		default: break;
+	}
+	throw SymbolsError();
+}
+inline Name getOverloadedOperatorId(cpp::and_expression_default*symbol)
+{
+	return gOperatorAndId;
+}
+inline Name getOverloadedOperatorId(cpp::exclusive_or_expression_default*symbol)
+{
+	return gOperatorXorId;
+}
+inline Name getOverloadedOperatorId(cpp::inclusive_or_expression_default*symbol)
+{
+	return gOperatorOrId;
+}
+inline Name getOverloadedOperatorId(cpp::logical_and_expression_default*symbol)
+{
+	return gOperatorAndAndId;
+}
+inline Name getOverloadedOperatorId(cpp::logical_or_expression_default*symbol)
+{
+	return gOperatorOrOrId;
+}
+inline Name getOverloadedOperatorId(cpp::assignment_expression_suffix*symbol)
+{
+	switch(symbol->op->id)
+	{
+		case cpp::assignment_operator::ASSIGN: return gOperatorAssignId;
+		case cpp::assignment_operator::STAR: return gOperatorStarAssignId;
+		case cpp::assignment_operator::DIVIDE: return gOperatorDivideAssignId;
+		case cpp::assignment_operator::PERCENT: return gOperatorPercentAssignId;
+		case cpp::assignment_operator::PLUS: return gOperatorPlusAssignId;
+		case cpp::assignment_operator::MINUS: return gOperatorMinusAssignId;
+		case cpp::assignment_operator::SHIFTRIGHT: return gOperatorShiftRightAssignId;
+		case cpp::assignment_operator::SHIFTLEFT: return gOperatorShiftLeftAssignId;
+		case cpp::assignment_operator::AND: return gOperatorAndAssignId;
+		case cpp::assignment_operator::XOR: return gOperatorXorAssignId;
+		case cpp::assignment_operator::OR: return gOperatorOrAssignId;
 		default: break;
 	}
 	throw SymbolsError();
@@ -46266,9 +46832,9 @@ inline UniqueTypeWrapper binaryOperatorBoolean(UniqueTypeWrapper left, UniqueTyp
 {
 	return gBool;
 }
-inline UniqueTypeWrapper binaryOperatorNull(UniqueTypeWrapper left, UniqueTypeWrapper right)
+inline UniqueTypeWrapper binaryOperatorMemberPointer(UniqueTypeWrapper left, UniqueTypeWrapper right)
 {
-	return gUniqueTypeNull;
+	return popType(right);
 }
 inline UniqueTypeWrapper ternaryOperatorNull(UniqueTypeWrapper first, UniqueTypeWrapper second, UniqueTypeWrapper third)
 {
@@ -46276,11 +46842,11 @@ inline UniqueTypeWrapper ternaryOperatorNull(UniqueTypeWrapper first, UniqueType
 }
 inline bool isClass(UniqueTypeWrapper type)
 {
-	return type.isSimple()&&getObjectType(type.value).declaration->type.declaration==&gClass;
+	return type.isSimple()&&getSimpleType(type.value).declaration->type.declaration==&gClass;
 }
 inline bool isEnum(UniqueTypeWrapper type)
 {
-	return type.isSimple()&&getObjectType(type.value).declaration->type.declaration==&gEnum;
+	return type.isSimple()&&getSimpleType(type.value).declaration->type.declaration==&gEnum;
 }
 inline bool isObject(UniqueTypeWrapper type)
 {
@@ -46288,11 +46854,11 @@ inline bool isObject(UniqueTypeWrapper type)
 }
 inline bool isComplete(const UniqueTypeId&type)
 {
-	return type.isSimple()&&isComplete(*getObjectType(type.value).declaration);
+	return type.isSimple()&&isComplete(*getSimpleType(type.value).declaration);
 }
 inline bool isArithmetic(const UniqueTypeId&type)
 {
-	return type.isSimple()&&getObjectType(type.value).declaration->type.declaration==&gArithmetic;
+	return type.isSimple()&&getSimpleType(type.value).declaration->type.declaration==&gArithmetic;
 }
 inline bool isFloating(const UniqueTypeId&type)
 {
@@ -46414,13 +46980,14 @@ struct StandardConversionSequence
 {
 	ScsRank rank;
 	CvQualifiers adjustment;
+	bool isReference;
 	UniqueTypeWrapper matched;
-	StandardConversionSequence(ScsRank rank, CvQualifiers adjustment, UniqueTypeWrapper matched=gUniqueTypeNull): rank(rank), adjustment(adjustment), matched(matched)
+	StandardConversionSequence(ScsRank rank, CvQualifiers adjustment, UniqueTypeWrapper matched=gUniqueTypeNull): rank(rank), adjustment(adjustment), isReference(false), matched(matched)
 	{
 	}
 };
 const StandardConversionSequence STANDARDCONVERSIONSEQUENCE_INVALID=StandardConversionSequence(SCSRANK_INVALID, CvQualifiers());
-inline bool findBase(const TypeInstance&other, const TypeInstance&type)
+inline bool findBase(const SimpleType&other, const SimpleType&type)
 {
 	if(!(other.declaration!=&gParam))
 	{
@@ -46438,7 +47005,7 @@ inline bool findBase(const TypeInstance&other, const TypeInstance&type)
 	i!=other.bases.end();
 	++i)
 	{
-		const TypeInstance&base=*(*i);
+		const SimpleType&base=*(*i);
 		if(!(isClass(*base.declaration)))
 		{
 			throw AllocatorError();
@@ -46454,7 +47021,7 @@ inline bool findBase(const TypeInstance&other, const TypeInstance&type)
 	}
 	return false;
 }
-inline bool isBaseOf(const TypeInstance&type, const TypeInstance&other, Location source, const TypeInstance*enclosing)
+inline bool isBaseOf(const SimpleType&type, const SimpleType&other, const InstantiationContext&context)
 {
 	if(!isClass(*type.declaration)||!isClass(*other.declaration))
 	{
@@ -46464,7 +47031,7 @@ inline bool isBaseOf(const TypeInstance&type, const TypeInstance&other, Location
 	{
 		return false;
 	}
-	instantiateClass(other, source, enclosing);
+	instantiateClass(other, context);
 	return findBase(other, type);
 }
 inline const UniqueTypeId&promoteToIntegralType(const UniqueTypeId&type)
@@ -46482,6 +47049,56 @@ inline const UniqueTypeId&promoteToIntegralType(const UniqueTypeId&type)
 		return gSignedInt;
 	}
 	return type;
+}
+inline BuiltInType usualArithmeticConversions(UniqueTypeWrapper left, UniqueTypeWrapper right)
+{
+	if(!(left!=gUniqueTypeNull))
+	{
+		throw AllocatorError();
+	};
+	if(!(right!=gUniqueTypeNull))
+	{
+		throw AllocatorError();
+	};
+	if(!(isArithmetic(left)||isEnumeration(left)))
+	{
+		throw AllocatorError();
+	};
+	if(!(isArithmetic(right)||isEnumeration(right)))
+	{
+		throw AllocatorError();
+	};
+	if(isEqual(left, gLongDouble)||isEqual(right, gLongDouble))
+	{
+		return gLongDouble;
+	}
+	if(isEqual(left, gDouble)||isEqual(right, gDouble))
+	{
+		return gDouble;
+	}
+	if(isEqual(left, gFloat)||isEqual(right, gFloat))
+	{
+		return gFloat;
+	}
+	left=promoteToIntegralType(left);
+	right=promoteToIntegralType(right);
+	if(isEqual(left, gUnsignedLongInt)||isEqual(right, gUnsignedLongInt))
+	{
+		return gUnsignedLongInt;
+	}
+	if((isEqual(left, gSignedLongInt)&&isEqual(right, gUnsignedInt))||(isEqual(left, gUnsignedInt)&&isEqual(right, gSignedLongInt)))
+	{
+		return gUnsignedLongInt;
+	}
+	if(isEqual(left, gSignedLongInt)||isEqual(right, gSignedLongInt))
+	{
+		return gSignedLongInt;
+	}
+	if(isEqual(left, gUnsignedInt)||isEqual(right, gUnsignedInt))
+	{
+		return gUnsignedInt;
+	}
+	return gSignedInt;
 }
 inline UniqueTypeWrapper applyArrayToPointerConversion(UniqueTypeWrapper type)
 {
@@ -46524,26 +47141,22 @@ struct TargetType: UniqueTypeWrapper
 	{
 	}
 };
-extern ObjectTypeId gAnyTypePlaceholder;
-extern ObjectTypeId gArithmeticPlaceholder;
-extern ObjectTypeId gIntegralPlaceholder;
-extern ObjectTypeId gEnumerationPlaceholder;
-extern ObjectTypeId gPromotedIntegralPlaceholder;
-extern ObjectTypeId gPromotedArithmeticPlaceholder;
-extern ObjectTypeId gObjectTypePlaceholder;
-extern ObjectTypeId gClassTypePlaceholder;
-extern ObjectTypeId gFunctionTypePlaceholder;
-extern ObjectTypeId gMemberPointerPlaceholder;
+extern BuiltInTypeId gArithmeticPlaceholder;
+extern BuiltInTypeId gIntegralPlaceholder;
+extern BuiltInTypeId gPromotedIntegralPlaceholder;
+extern BuiltInTypeId gPromotedArithmeticPlaceholder;
+extern BuiltInTypeId gEnumerationPlaceholder;
+extern BuiltInTypeId gPointerToAnyPlaceholder;
+extern BuiltInTypeId gPointerToObjectPlaceholder;
+extern BuiltInTypeId gPointerToClassPlaceholder;
+extern BuiltInTypeId gPointerToFunctionPlaceholder;
+extern BuiltInTypeId gPointerToMemberPlaceholder;
 inline UniqueTypeWrapper getExactMatch(UniqueTypeWrapper to, UniqueTypeWrapper from)
 {
 	return isEqual(to, from)?from: gUniqueTypeNull;
 }
 inline UniqueTypeWrapper getExactMatch(TargetType to, UniqueTypeWrapper from)
 {
-	if(to==gAnyTypePlaceholder)
-	{
-		return from;
-	}
 	if(to==gPromotedArithmeticPlaceholder&&isPromotedArithmetic(from))
 	{
 		return from;
@@ -46564,27 +47177,28 @@ inline UniqueTypeWrapper getExactMatch(TargetType to, UniqueTypeWrapper from)
 	{
 		return from;
 	}
-	if(to==gObjectTypePlaceholder&&isObject(from))
+	if(from.isPointer())
+	{
+		if(to==gPointerToAnyPlaceholder)
+		{
+			return from;
+		}
+		if(to==gPointerToObjectPlaceholder&&isObject(popType(from)))
+		{
+			return from;
+		}
+		if(to==gPointerToClassPlaceholder&&isClass(popType(from)))
+		{
+			return from;
+		}
+		if(to==gPointerToFunctionPlaceholder&&popType(from).isFunction())
+		{
+			return from;
+		}
+	}
+	if(to==gPointerToMemberPlaceholder&&from.isMemberPointer())
 	{
 		return from;
-	}
-	if(to==gClassTypePlaceholder&&isClass(from))
-	{
-		return from;
-	}
-	if(to==gFunctionTypePlaceholder&&from.isFunction())
-	{
-		return from;
-	}
-	if(to==gMemberPointerPlaceholder&&from.isMemberPointer())
-	{
-		return from;
-	}
-	if(isEqualCvQualification(to, from)&&to.isPointer()&&from.isPointer())
-	{
-		to.pop_front();
-		from.pop_front();
-		return getExactMatch(to, from);
 	}
 	return getExactMatch(UniqueTypeWrapper(to), from);
 }
@@ -46628,8 +47242,20 @@ inline StandardConversionSequence makeScsPromotion(To to, UniqueTypeWrapper from
 	}
 	return STANDARDCONVERSIONSEQUENCE_INVALID;
 }
+inline bool isGeneralPointer(UniqueTypeWrapper type)
+{
+	return type.isPointer()||type.isMemberPointer();
+}
+inline bool isPointerPlaceholder(UniqueTypeWrapper type)
+{
+	return type==gPointerToAnyPlaceholder||type==gPointerToObjectPlaceholder||type==gPointerToClassPlaceholder||type==gPointerToFunctionPlaceholder;
+}
+inline bool isGeneralPointer(TargetType type)
+{
+	return isPointerPlaceholder(type)||type==gPointerToMemberPlaceholder||isGeneralPointer(UniqueTypeWrapper(type));
+}
 template<typename To>
-inline StandardConversionSequence makeScsConversion(Location source, const TypeInstance*enclosing, To to, UniqueTypeWrapper from, bool isNullPointerConstant=false)
+inline StandardConversionSequence makeScsConversion(const InstantiationContext&context, To to, UniqueTypeWrapper from, bool isNullPointerConstant=false)
 {
 	if(!(to.value.getQualifiers()==CvQualifiers()))
 	{
@@ -46643,7 +47269,7 @@ inline StandardConversionSequence makeScsConversion(Location source, const TypeI
 	{
 		return StandardConversionSequence(SCSRANK_CONVERSION, CvQualifiers(), gSignedInt);
 	}
-	if((to.isPointer()||to.isMemberPointer())&&isIntegral(from)&&isNullPointerConstant)
+	if(isGeneralPointer(to)&&isIntegral(from)&&isNullPointerConstant)
 	{
 		return StandardConversionSequence(SCSRANK_CONVERSION, CvQualifiers());
 	}
@@ -46653,13 +47279,13 @@ inline StandardConversionSequence makeScsConversion(Location source, const TypeI
 		from.pop_front();
 		return isEqualCvQualification(to, from)||isGreaterCvQualification(to, from)?StandardConversionSequence(SCSRANK_CONVERSION, makeQualificationAdjustment(to, from)): STANDARDCONVERSIONSEQUENCE_INVALID;
 	}
-	if(to.isSimplePointer()&&from.isSimplePointer()&&isBaseOf(getObjectType(getInner(to.value)), getObjectType(getInner(from.value)), source, enclosing))
+	if(to.isSimplePointer()&&from.isSimplePointer()&&isBaseOf(getSimpleType(getInner(to.value)), getSimpleType(getInner(from.value)), context))
 	{
 		to.pop_front();
 		from.pop_front();
 		return isEqualCvQualification(to, from)||isGreaterCvQualification(to, from)?StandardConversionSequence(SCSRANK_CONVERSION, makeQualificationAdjustment(to, from)): STANDARDCONVERSIONSEQUENCE_INVALID;
 	}
-	if(to.isMemberPointer()&&from.isMemberPointer()&&isBaseOf(getMemberPointerClass(to.value), getMemberPointerClass(from.value), source, enclosing))
+	if(to.isMemberPointer()&&from.isMemberPointer()&&isBaseOf(getMemberPointerClass(to.value), getMemberPointerClass(from.value), context))
 	{
 		return StandardConversionSequence(SCSRANK_CONVERSION, CvQualifiers());
 	}
@@ -46667,20 +47293,21 @@ inline StandardConversionSequence makeScsConversion(Location source, const TypeI
 	{
 		return StandardConversionSequence(SCSRANK_CONVERSION, CvQualifiers());
 	}
-	if(to.isSimple()&&from.isSimple()&&isBaseOf(getObjectType(to.value), getObjectType(from.value), source, enclosing))
+	if(to.isSimple()&&from.isSimple()&&isBaseOf(getSimpleType(to.value), getSimpleType(from.value), context))
 	{
 		return StandardConversionSequence(SCSRANK_CONVERSION, CvQualifiers());
 	}
 	return STANDARDCONVERSIONSEQUENCE_INVALID;
 }
 template<typename To>
-inline StandardConversionSequence makeScsExactMatch(To to, UniqueTypeWrapper from)
+inline StandardConversionSequence makeScsExactMatch(To target, UniqueTypeWrapper from)
 {
+	UniqueTypeWrapper matched=getExactMatchNoQualifiers(target, from);
+	UniqueTypeWrapper to=target;
 	for(;
 	;
 	)
 	{
-		UniqueTypeWrapper matched=getExactMatchNoQualifiers(to, from);
 		if(matched!=gUniqueTypeNull)
 		{
 			return isEqualCvQualification(to, from)||isGreaterCvQualification(to, from)?StandardConversionSequence(SCSRANK_EXACT, makeQualificationAdjustment(to, from), matched): STANDARDCONVERSIONSEQUENCE_INVALID;
@@ -46697,11 +47324,12 @@ inline StandardConversionSequence makeScsExactMatch(To to, UniqueTypeWrapper fro
 		}
 		to.pop_front();
 		from.pop_front();
+		matched=getExactMatchNoQualifiers(to, from);
 	}
 	return STANDARDCONVERSIONSEQUENCE_INVALID;
 }
 template<typename To>
-inline StandardConversionSequence makeStandardConversionSequence(To to, UniqueTypeWrapper from, Location source, const TypeInstance*enclosing, bool isNullPointerConstant=false, bool isLvalue=false)
+inline StandardConversionSequence makeStandardConversionSequence(To to, UniqueTypeWrapper from, const InstantiationContext&context, bool isNullPointerConstant=false, bool isLvalue=false)
 {
 	if(!(to!=gUniqueTypeNull))
 	{
@@ -46737,7 +47365,7 @@ inline StandardConversionSequence makeStandardConversionSequence(To to, UniqueTy
 	}
 
 	{
-		StandardConversionSequence result=makeScsConversion(source, enclosing, to, from, isNullPointerConstant);
+		StandardConversionSequence result=makeScsConversion(context, to, from, isNullPointerConstant);
 		if(result.rank!=SCSRANK_INVALID)
 		{
 			return result;
@@ -46747,11 +47375,11 @@ inline StandardConversionSequence makeStandardConversionSequence(To to, UniqueTy
 }
 inline bool isProperSubsequence(CvQualifiers l, CvQualifiers r)
 {
-	return (!l.isConst&&r.isConst)||(!l.isVolatile&&r.isVolatile);
+	return !l.isConst&&!l.isVolatile&&(r.isConst||r.isVolatile);
 }
 inline bool isProperSubsequence(const StandardConversionSequence&l, const StandardConversionSequence&r)
 {
-	return (l.rank==SCSRANK_IDENTITY&&r.rank!=SCSRANK_IDENTITY)||isProperSubsequence(l.adjustment, r.adjustment);
+	return (l.rank==SCSRANK_IDENTITY&&r.rank!=SCSRANK_IDENTITY)||(l.rank==r.rank&&!l.isReference&&!r.isReference&&isProperSubsequence(l.adjustment, r.adjustment));
 }
 inline bool isBetter(const StandardConversionSequence&l, const StandardConversionSequence&r)
 {
@@ -46760,6 +47388,10 @@ inline bool isBetter(const StandardConversionSequence&l, const StandardConversio
 		return true;
 	}
 	if(l.rank<r.rank)
+	{
+		return true;
+	}
+	if(l.isReference&&r.isReference&&isGreaterCvQualification(r.adjustment, l.adjustment))
 	{
 		return true;
 	}
@@ -46778,7 +47410,6 @@ struct ImplicitConversion
 	{
 	}
 };
-const ImplicitConversion IMPLICITCONVERSION_USERDEFINED=ImplicitConversion(StandardConversionSequence(SCSRANK_IDENTITY, CvQualifiers()), ICSTYPE_USERDEFINED);
 const ImplicitConversion IMPLICITCONVERSION_ELLIPSIS=ImplicitConversion(StandardConversionSequence(SCSRANK_IDENTITY, CvQualifiers()), ICSTYPE_ELLIPSIS);
 struct FunctionOverload
 {
@@ -46788,43 +47419,54 @@ struct FunctionOverload
 	{
 	}
 };
-inline FunctionOverload findBestConversionFunction(UniqueTypeWrapper to, UniqueTypeWrapper from, Location source, const TypeInstance*enclosing, bool isNullPointerConstant=false, bool isLvalue=false);
 template<typename To>
-inline ImplicitConversion makeImplicitConversionSequence(To to, UniqueTypeWrapper from, Location source, const TypeInstance*enclosing, bool isNullPointerConstant=false, bool isLvalue=false, bool isUserDefinedConversion=false)
+FunctionOverload findBestConversionFunction(To to, Argument from, const InstantiationContext&context, bool isNullPointerConstant=false, bool isLvalue=false);
+template<typename To>
+ImplicitConversion makeImplicitConversionSequence(To to, Argument from, const InstantiationContext&context, bool isNullPointerConstant=false, bool isLvalue=false, bool isUserDefinedConversion=false)
 {
 	if(!(to!=gUniqueTypeNull))
 	{
 		throw AllocatorError();
 	};
-	if(!(from!=gUniqueTypeNull))
+	if(!(from.p!=0))
 	{
 		throw AllocatorError();
 	};
-	if(from.isReference())
+	if(!(from.type!=gUniqueTypeNull))
+	{
+		throw AllocatorError();
+	};
+	bool isReference=false;
+	if(from.type.isReference())
 	{
 		isLvalue=true;
-		from.pop_front();
+		isReference=true;
+		from.type.pop_front();
 	}
 	if(to.isReference())
 	{
 		to.pop_front();
-		if(isLvalue&&(isEqualCvQualification(to, from)||isGreaterCvQualification(to, from)))
+		if(isLvalue&&(isEqualCvQualification(to, from.type)||isGreaterCvQualification(to, from.type)))
 		{
-			UniqueTypeWrapper matched=getExactMatchNoQualifiers(to, from);
+			UniqueTypeWrapper matched=getExactMatchNoQualifiers(to, from.type);
 			if(matched!=gUniqueTypeNull)
 			{
-				return ImplicitConversion(StandardConversionSequence(SCSRANK_IDENTITY, makeQualificationAdjustment(to, from), matched));
+				StandardConversionSequence sequence(SCSRANK_IDENTITY, to.value.getQualifiers(), matched);
+				sequence.isReference=true;
+				return ImplicitConversion(sequence);
 			}
-			if(to.isSimple()&&from.isSimple()&&isBaseOf(getObjectType(to.value), getObjectType(from.value), source, enclosing))
+			if(to.isSimple()&&from.type.isSimple()&&isBaseOf(getSimpleType(to.value), getSimpleType(from.type.value), context))
 			{
-				return ImplicitConversion(StandardConversionSequence(SCSRANK_CONVERSION, makeQualificationAdjustment(to, from)));
+				StandardConversionSequence sequence(SCSRANK_CONVERSION, to.value.getQualifiers());
+				sequence.isReference=true;
+				return ImplicitConversion(sequence);
 			}
 		}
-		if(isClass(from))
+		if(isClass(from.type))
 		{
-			UniqueTypeWrapper tmp=to;
+			To tmp=to;
 			tmp.push_front(ReferenceType());
-			FunctionOverload overload=findBestConversionFunction(tmp, from, source, enclosing);
+			FunctionOverload overload=findBestConversionFunction(tmp, from, context);
 			if(overload.declaration!=0)
 			{
 				UniqueTypeWrapper type=overload.type;
@@ -46834,7 +47476,8 @@ inline ImplicitConversion makeImplicitConversionSequence(To to, UniqueTypeWrappe
 				};
 				type.pop_front();
 				bool isIdentity=type.value.getPointer()==to.value.getPointer();
-				StandardConversionSequence second(isIdentity?SCSRANK_IDENTITY: SCSRANK_CONVERSION, makeQualificationAdjustment(to, type));
+				StandardConversionSequence second(isIdentity?SCSRANK_IDENTITY: SCSRANK_CONVERSION, to.value.getQualifiers());
+				second.isReference=true;
 				return ImplicitConversion(second, ICSTYPE_USERDEFINED, overload.declaration);
 			}
 		}
@@ -46845,27 +47488,31 @@ inline ImplicitConversion makeImplicitConversionSequence(To to, UniqueTypeWrappe
 	}
 	if(isClass(to))
 	{
-		UniqueTypeWrapper matched=getExactMatchNoQualifiers(to, from);
+		UniqueTypeWrapper matched=getExactMatchNoQualifiers(to, from.type);
 		if(matched!=gUniqueTypeNull)
 		{
 			return ImplicitConversion(StandardConversionSequence(SCSRANK_IDENTITY, CvQualifiers(), matched));
 		}
-		if(to.isSimple()&&from.isSimple()&&isBaseOf(getObjectType(to.value), getObjectType(from.value), source, enclosing))
+		if(to.isSimple()&&from.type.isSimple()&&isBaseOf(getSimpleType(to.value), getSimpleType(from.type.value), context))
 		{
 			return ImplicitConversion(StandardConversionSequence(SCSRANK_CONVERSION, CvQualifiers()));
 		}
 	}
-	if(!isUserDefinedConversion&&(isClass(to)||isClass(from)))
+	if(!isUserDefinedConversion&&(isClass(to)||isClass(from.type)))
 	{
-		FunctionOverload overload=findBestConversionFunction(to, from, source, enclosing, isNullPointerConstant, isLvalue);
+		FunctionOverload overload=findBestConversionFunction(to, from, context, isNullPointerConstant, isLvalue);
 		if(overload.declaration==0)
 		{
 			return ImplicitConversion(STANDARDCONVERSIONSEQUENCE_INVALID);
 		}
-		StandardConversionSequence second=makeStandardConversionSequence(to, overload.type, source, enclosing);
+		bool isLvalue=overload.type.isReference();
+		StandardConversionSequence second=makeStandardConversionSequence(to, removeReference(overload.type), context, false, isLvalue);
+		second.isReference=isReference;
 		return ImplicitConversion(second, ICSTYPE_USERDEFINED, overload.declaration);
 	}
-	return ImplicitConversion(makeStandardConversionSequence(to, from, source, enclosing, isNullPointerConstant, isLvalue));
+	StandardConversionSequence sequence=makeStandardConversionSequence(to, from.type, context, isNullPointerConstant, isLvalue);
+	sequence.isReference=isReference;
+	return ImplicitConversion(sequence);
 }
 inline IcsRank getIcsRank(ScsRank rank)
 {
@@ -46877,9 +47524,11 @@ inline IcsRank getIcsRank(ScsRank rank)
 	}
 	return ICSRANK_INVALID;
 }
-inline IcsRank getIcsRank(UniqueTypeWrapper to, UniqueTypeWrapper from, Location source, const TypeInstance*enclosing, bool isNullPointerConstant=false, bool isLvalue=false)
+inline IcsRank getIcsRank(UniqueTypeWrapper to, UniqueTypeWrapper from, const InstantiationContext&context, bool isNullPointerConstant=false, bool isLvalue=false)
 {
-	ImplicitConversion conversion=makeImplicitConversionSequence(to, from, source, enclosing, isNullPointerConstant, isLvalue);
+	ExpressionNodeGeneric<ExplicitTypeExpression>transientExpression=ExplicitTypeExpression(from);
+	Argument argument(ExpressionWrapper(&transientExpression, false), from);
+	ImplicitConversion conversion=makeImplicitConversionSequence(to, argument, context, isNullPointerConstant, isLvalue);
 	return getIcsRank(conversion.sequence.rank);
 }
 inline bool isBetter(const ImplicitConversion&l, const ImplicitConversion&r)
@@ -46917,7 +47566,7 @@ struct CandidateFunction: FunctionOverload, FunctionTemplate
 	{
 	}
 };
-extern ObjectTypeId gImplicitObjectParameter;
+extern BuiltInTypeId gImplicitObjectParameter;
 inline bool isMoreSpecialized(const FunctionTemplate&left, const FunctionTemplate&right)
 {
 	bool isMoreCvQualified=false;
@@ -46971,7 +47620,12 @@ inline bool isBetter(const CandidateFunction&l, const CandidateFunction&r)
 	{
 		throw AllocatorError();
 	};
-	for(size_t i=0;
+	std::size_t first=0;
+	if((!l.parameters.empty()&&l.parameters.front()==gImplicitObjectParameter)||(!r.parameters.empty()&&r.parameters.front()==gImplicitObjectParameter))
+	{
+		++first;
+	}
+	for(std::size_t i=first;
 	i!=l.conversions.size();
 	++i)
 	{
@@ -46980,7 +47634,7 @@ inline bool isBetter(const CandidateFunction&l, const CandidateFunction&r)
 			return false;
 		}
 	}
-	for(size_t i=0;
+	for(std::size_t i=first;
 	i!=l.conversions.size();
 	++i)
 	{
@@ -47122,7 +47776,6 @@ inline LookupResult findDeclaration(Scope&scope, const Identifier&id, LookupFilt
 	result.filtered=findDeclaration(scope.declarations, id, filter);
 	return result;
 }
-inline LookupResult findNamespaceDeclaration(Scope&scope, const Identifier&id, LookupFilter filter=IsAny());
 inline LookupResult findDeclaration(Scope::Scopes&scopes, const Identifier&id, LookupFilter filter=IsAny())
 {
 	LookupResult result;
@@ -47178,7 +47831,7 @@ inline LookupResult findMemberDeclaration(Scope&scope, const Identifier&id, Look
 		{
 			continue;
 		}
-		const TypeInstance&base=getObjectType((*i).unique);
+		const SimpleType&base=getSimpleType((*i).unique);
 		if(base.declaration->getName().value==id.value&&filter(DeclarationInstance(base.declaration)))
 		{
 			result.filtered=base.declaration->getName().dec.p;
@@ -47354,9 +48007,12 @@ struct SymbolPrinter: TypeElementVisitor, ExpressionNodeVisitor
 			}
 		}
 	}
-	void visit(const IntegralConstantExpression&literal)
+	void visit(const IntegralConstantExpression&node)
 	{
-		printer.out<<literal.value.value;
+		printer.out<<node.value.value;
+	}
+	void visit(const CastExpression&node)
+	{
 	}
 	void visit(const NonTypeTemplateParameter&node)
 	{
@@ -47430,8 +48086,34 @@ struct SymbolPrinter: TypeElementVisitor, ExpressionNodeVisitor
 		printType(node.second);
 		printer.out<<")";
 	}
+	void visit(const struct ExplicitTypeExpression&node)
+	{
+	}
+	void visit(const struct ObjectExpression&node)
+	{
+	}
+	void visit(const struct DependentObjectExpression&node)
+	{
+	}
+	void visit(const struct ClassMemberAccessExpression&node)
+	{
+	}
+	void visit(const struct FunctionCallExpression&node)
+	{
+	}
+	void visit(const struct SubscriptExpression&node)
+	{
+	}
+	void visit(const struct PostfixOperatorExpression&node)
+	{
+	}
 	void printExpression(ExpressionNode*node)
 	{
+		if(node==0)
+		{
+			printer.out<<"[unknown]";
+			return ;
+		}
 		node->accept(*this);
 	}
 	std::vector<bool>typeStack;
@@ -47493,7 +48175,7 @@ struct SymbolPrinter: TypeElementVisitor, ExpressionNodeVisitor
 		printer.out<<element.value;
 		visitTypeElement();
 	}
-	void visit(const ObjectType&object)
+	void visit(const SimpleType&element)
 	{
 		if(qualifierStack.back().isConst)
 		{
@@ -47503,17 +48185,17 @@ struct SymbolPrinter: TypeElementVisitor, ExpressionNodeVisitor
 		{
 			printer.out<<"volatile ";
 		}
-		printType(object.type);
+		printType(element);
 		visitTypeElement();
 	}
-	void visit(const ReferenceType&pointer)
+	void visit(const ReferenceType&element)
 	{
 		pushType(true);
 		printer.out<<"&";
 		visitTypeElement();
 		popType();
 	}
-	void visit(const PointerType&pointer)
+	void visit(const PointerType&element)
 	{
 		pushType(true);
 		printer.out<<"*";
@@ -47528,25 +48210,25 @@ struct SymbolPrinter: TypeElementVisitor, ExpressionNodeVisitor
 		visitTypeElement();
 		popType();
 	}
-	void visit(const ArrayType&array)
+	void visit(const ArrayType&element)
 	{
 		pushType(false);
 		visitTypeElement();
 		printer.out<<"[";
-		if(array.size!=0)
+		if(element.size!=0)
 		{
-			printer.out<<array.size;
+			printer.out<<element.size;
 		}
 		printer.out<<"]";
 		popType();
 	}
-	void visit(const MemberPointerType&pointer)
+	void visit(const MemberPointerType&element)
 	{
 		pushType(true);
 
 		{
 			SymbolPrinter walker(printer, escape);
-			walker.printType(pointer.type);
+			walker.printType(element.type);
 		}
 		printer.out<<"::*";
 		if(qualifierStack.back().isConst)
@@ -47599,7 +48281,7 @@ struct SymbolPrinter: TypeElementVisitor, ExpressionNodeVisitor
 		};
 		printType(UniqueTypeWrapper(type.unique));
 	}
-	void printType(const TypeInstance&type)
+	void printType(const SimpleType&type)
 	{
 		if(type.enclosing!=0)
 		{
@@ -47704,7 +48386,7 @@ inline void printName(const Scope*scope, std::ostream&out=std::cout)
 	SymbolPrinter printer(tokenPrinter);
 	printer.printName(scope);
 }
-inline void printType(const TypeInstance&type, std::ostream&out, bool escape)
+inline void printType(const SimpleType&type, std::ostream&out, bool escape)
 {
 	FileTokenPrinter tokenPrinter(out);
 	SymbolPrinter printer(tokenPrinter, escape);
@@ -47720,25 +48402,16 @@ inline void printType(UniqueTypeWrapper type, std::ostream&out, bool escape)
 	SymbolPrinter printer(tokenPrinter, escape);
 	printer.printType(type);
 }
-struct Argument: ExpressionWrapper
-{
-	UniqueTypeWrapper type;
-	Argument(ExpressionWrapper expression, UniqueTypeWrapper type): ExpressionWrapper(expression), type(type)
-	{
-	}
-};
-typedef std::vector<Argument>Arguments;
 const CandidateFunction gOverloadNull;
 struct OverloadResolver
 {
 	const Arguments&arguments;
 	const TemplateArgumentsInstance*templateArguments;
-	Location source;
-	const TypeInstance*enclosing;
+	InstantiationContext context;
 	CandidateFunction best;
 	Declaration*ambiguous;
 	bool isUserDefinedConversion;
-	OverloadResolver(const Arguments&arguments, const TemplateArgumentsInstance*templateArguments, Location source, const TypeInstance*enclosing, bool isUserDefinedConversion=false): arguments(arguments), templateArguments(templateArguments), source(source), enclosing(enclosing), ambiguous(0), isUserDefinedConversion(isUserDefinedConversion)
+	OverloadResolver(const Arguments&arguments, const TemplateArgumentsInstance*templateArguments, const InstantiationContext&context, bool isUserDefinedConversion=false): arguments(arguments), templateArguments(templateArguments), context(context), ambiguous(0), isUserDefinedConversion(isUserDefinedConversion)
 	{
 		best.conversions.resize(arguments.size(), ImplicitConversion(STANDARDCONVERSIONSEQUENCE_INVALID));
 	}
@@ -47765,10 +48438,6 @@ struct OverloadResolver
 	}
 	void add(const CandidateFunction&candidate)
 	{
-		if(best.declaration!=0&&candidate.declaration->enclosed==best.declaration->enclosed)
-		{
-			return ;
-		}
 		if(!isViable(candidate))
 		{
 			return ;
@@ -47783,7 +48452,13 @@ struct OverloadResolver
 			ambiguous=candidate.declaration;
 		}
 	}
-	void add(const FunctionOverload&overload, const ParameterTypes&parameters, bool isEllipsis, const TypeInstance*memberEnclosing, FunctionTemplate&functionTemplate=FunctionTemplate())
+	template<typename To>
+	ImplicitConversion makeConversion(To to, const Argument&from)
+	{
+		bool isNullPointerConstant=!from.isValueDependent&&from.isConstant&&evaluateExpression(from, context).value==0;
+		return makeImplicitConversionSequence(to, from, context, isNullPointerConstant, true, isUserDefinedConversion);
+	}
+	void add(const FunctionOverload&overload, const ParameterTypes&parameters, bool isEllipsis, const SimpleType*memberEnclosing, FunctionTemplate&functionTemplate=FunctionTemplate())
 	{
 		CandidateFunction candidate(overload, functionTemplate);
 		candidate.conversions.reserve(best.conversions.size());
@@ -47807,39 +48482,50 @@ struct OverloadResolver
 			};
 			if(!isStatic(*overload.declaration))
 			{
-				candidate.conversions.push_back(makeImplicitConversionSequence(implicitObjectParameter, impliedObjectArgument.type, source, enclosing, false, true));
+				candidate.conversions.push_back(makeImplicitConversionSequence(implicitObjectParameter, impliedObjectArgument, context, false, true));
 			}
 			else
 			{
-				candidate.conversions.push_back(ImplicitConversion(StandardConversionSequence(SCSRANK_EXACT, CvQualifiers())));
+				candidate.conversions.push_back(ImplicitConversion(StandardConversionSequence(SCSRANK_IDENTITY, CvQualifiers())));
 			}
 		}
-		const Parameters&defaults=getParameters(overload.declaration->type);
-		Parameters::const_iterator d=defaults.begin();
-		for(;
-		p!=parameters.end();
-		++p)
+		if(arguments.size()<parameters.size())
 		{
-			UniqueTypeWrapper to=(*p);
-			if(a!=arguments.end())
-			{
-				const Argument&from=*a;
-				bool isNullPointerConstant=from.isConstant&&evaluateExpression(from, source, enclosing).value==0;
-				candidate.conversions.push_back(makeImplicitConversionSequence(to, from.type, source, enclosing, isNullPointerConstant, true, isUserDefinedConversion));
-				++a;
-			}
-			else if((*d).argument==0)
+			if(overload.declaration==&gUnknown)
 			{
 				return ;
 			}
-			else
+			std::size_t argumentCount=arguments.end()-a;
+			const Parameters&defaults=getParameters(overload.declaration->type);
+			Parameters::const_iterator d=defaults.begin();
+			std::advance(d, argumentCount);
+			for(ParameterTypes::const_iterator i=p+argumentCount;
+			i!=parameters.end();
+			++i)
 			{
-				if(!((*d).argument->expr!=0))
+				if(!(d!=defaults.end()))
 				{
 					throw AllocatorError();
 				};
+				if((*d).argument==0)
+				{
+					return ;
+				}
+				else
+				{
+					if(!((*d).argument->expr!=0))
+					{
+						throw AllocatorError();
+					};
+				}
+				++d;
 			}
-			++d;
+		}
+		for(;
+		a!=arguments.end()&&p!=parameters.end();
+		++a, ++p)
+		{
+			candidate.conversions.push_back(makeConversion(*p, *a));
 		}
 		if(!isEllipsis&&a!=arguments.end())
 		{
@@ -47854,6 +48540,225 @@ struct OverloadResolver
 		add(candidate);
 	}
 };
+inline ParameterTypes addOverload(OverloadResolver&resolver, const Declaration&declaration, const InstantiationContext&context)
+{
+	UniqueTypeWrapper type=getUniqueType(declaration.type, context, declaration.isTemplate);
+	if(!(type.isFunction()))
+	{
+		throw AllocatorError();
+	};
+	ParameterTypes parameters;
+	if(isMember(declaration)&&declaration.type.declaration!=&gCtor)
+	{
+		if(!(isClass(*context.enclosingType->declaration)))
+		{
+			throw AllocatorError();
+		};
+		UniqueTypeWrapper implicitObjectParameter=gImplicitObjectParameter;
+		if(!isStatic(declaration))
+		{
+			implicitObjectParameter=makeUniqueSimpleType(*context.enclosingType);
+			implicitObjectParameter.value.setQualifiers(type.value.getQualifiers());
+			implicitObjectParameter.push_front(ReferenceType());
+		}
+		parameters.push_back(implicitObjectParameter);
+	}
+	bool isEllipsis=getFunctionType(type.value).isEllipsis;
+	parameters.insert(parameters.end(), getParameterTypes(type.value).begin(), getParameterTypes(type.value).end());
+	type.pop_front();
+	if(!declaration.isTemplate)
+	{
+		if(resolver.templateArguments!=0)
+		{
+			return ParameterTypes();
+		}
+		resolver.add(FunctionOverload(const_cast<Declaration*>(&declaration), type), parameters, isEllipsis, context.enclosingType);
+		return parameters;
+	}
+	if(declaration.isSpecialization)
+	{
+		return ParameterTypes();
+	}
+	FunctionTemplate functionTemplate;
+	functionTemplate.parameters.swap(parameters);
+	makeUniqueTemplateParameters(declaration.templateParams, functionTemplate.templateParameters, context, true);
+	if(resolver.arguments.size()>functionTemplate.parameters.size())
+	{
+		return ParameterTypes();
+	}
+	try
+	{
+		if(resolver.templateArguments!=0&&resolver.templateArguments->size()>functionTemplate.templateParameters.size())
+		{
+			throw TypeErrorBase(context.source);
+		}
+		SimpleType specialization(const_cast<Declaration*>(&declaration), context.enclosingType);
+		specialization.instantiated=true;
+
+		{
+			UniqueTypeArray::const_iterator p=functionTemplate.templateParameters.begin();
+			if(resolver.templateArguments!=0)
+			{
+				for(TemplateArgumentsInstance::const_iterator a=resolver.templateArguments->begin();
+				a!=resolver.templateArguments->end();
+				++a, ++p)
+				{
+					if(!(p!=functionTemplate.templateParameters.end()))
+					{
+						throw AllocatorError();
+					};
+					if((*a).isNonType()!=(*p).isDependentNonType())
+					{
+						throw TypeErrorBase(context.source);
+					}
+					specialization.templateArguments.push_back(*a);
+				}
+			}
+			for(;
+			p!=functionTemplate.templateParameters.end();
+			++p)
+			{
+				specialization.templateArguments.push_back(*p);
+			}
+		}
+		ParameterTypes substituted1;
+		substitute(substituted1, functionTemplate.parameters, setEnclosingTypeSafe(context, &specialization));
+		UniqueTypeArray arguments;
+		arguments.reserve(resolver.arguments.size());
+		for(Arguments::const_iterator a=resolver.arguments.begin();
+		a!=resolver.arguments.end();
+		++a)
+		{
+			arguments.push_back((*a).type);
+		}
+		specialization.templateArguments.resize(resolver.templateArguments==0?0: resolver.templateArguments->size());
+		specialization.templateArguments.resize(functionTemplate.templateParameters.size(), gUniqueTypeNull);
+		if(!deduceFunctionCall(substituted1, arguments, specialization.templateArguments, resolver.context))
+		{
+			throw TypeErrorBase(context.source);
+		}
+		ParameterTypes substituted2;
+		substitute(substituted2, substituted1, setEnclosingTypeSafe(context, &specialization));
+		type=substitute(type, setEnclosingTypeSafe(context, &specialization));
+		resolver.add(FunctionOverload(const_cast<Declaration*>(&declaration), type), substituted2, isEllipsis, context.enclosingType, functionTemplate);
+		return substituted2;
+	}
+	catch(TypeError&)
+	{
+	}
+	return ParameterTypes();
+}
+inline bool isBaseOf(UniqueTypeWrapper base, UniqueTypeWrapper derived, const InstantiationContext&context);
+template<typename To>
+inline void addConversionFunctionOverloads(OverloadResolver&resolver, const SimpleType&classType, To to, const InstantiationContext&context)
+{
+	instantiateClass(classType, context);
+	LookupResultRef declaration=::findDeclaration(classType, gConversionFunctionId, IsAny());
+	if(declaration!=0)
+	{
+		const SimpleType*memberEnclosing=findEnclosingType(&classType, declaration->scope);
+		if(!(memberEnclosing!=0))
+		{
+			throw AllocatorError();
+		};
+		for(Declaration*p=findOverloaded(declaration);
+		p!=0;
+		p=p->overloaded)
+		{
+			if(!(p->enclosed!=0))
+			{
+				throw AllocatorError();
+			};
+			if(!(!p->isTemplate))
+			{
+				throw AllocatorError();
+			};
+			UniqueTypeWrapper yielded=getUniqueType(p->type, setEnclosingTypeSafe(context, memberEnclosing));
+			yielded.pop_front();
+			if(isClass(to))
+			{
+				if(!(getExactMatch(to, removeReference(yielded))!=gUniqueTypeNull||isBaseOf(to, removeReference(yielded), context)))
+				{
+					continue;
+				}
+			}
+			else if(to.isReference())
+			{
+				UniqueTypeWrapper tmpTo=to;
+				tmpTo.pop_front();
+				if(!yielded.isReference())
+				{
+					continue;
+				}
+				yielded.pop_front();
+				if(!((getExactMatch(tmpTo, yielded)!=gUniqueTypeNull||isBaseOf(tmpTo, yielded, context))&&(isEqualCvQualification(tmpTo, yielded)||isGreaterCvQualification(tmpTo, yielded))))
+				{
+					continue;
+				}
+			}
+			else
+			{
+				bool isLvalue=yielded.isReference();
+				yielded=removeReference(yielded);
+				yielded.value.setQualifiers(CvQualifiers());
+				if(makeStandardConversionSequence(to, yielded, context, false, isLvalue).rank==SCSRANK_INVALID)
+				{
+					continue;
+				}
+			}
+			addOverload(resolver, *p, setEnclosingTypeSafe(context, memberEnclosing));
+		}
+	}
+}
+template<typename To>
+FunctionOverload findBestConversionFunction(To to, Argument from, const InstantiationContext&context, bool isNullPointerConstant, bool isLvalue)
+{
+	Arguments arguments;
+	arguments.push_back(from);
+	OverloadResolver resolver(arguments, 0, context, true);
+	if(isClass(to)&&isComplete(to))
+	{
+		const SimpleType&classType=getSimpleType(to.value);
+		instantiateClass(classType, context);
+		Identifier tmp;
+		tmp.value=classType.declaration->getName().value;
+		tmp.source=context.source;
+		LookupResultRef declaration=::findDeclaration(classType, tmp, IsConstructor());
+		if(declaration!=0)
+		{
+			const SimpleType*memberEnclosing=findEnclosingType(&classType, declaration->scope);
+			if(!(memberEnclosing!=0))
+			{
+				throw AllocatorError();
+			};
+			for(Declaration*p=findOverloaded(declaration);
+			p!=0;
+			p=p->overloaded)
+			{
+				if(!(p->enclosed!=0))
+				{
+					throw AllocatorError();
+				};
+				if(declaration->specifiers.isExplicit)
+				{
+					continue;
+				}
+				addOverload(resolver, *p, setEnclosingTypeSafe(context, memberEnclosing));
+			}
+		}
+	}
+	if(isClass(from.type)&&isComplete(from.type))
+	{
+		addConversionFunctionOverloads(resolver, getSimpleType(from.type.value), to, context);
+	}
+	FunctionOverload result=resolver.get();
+	if(result.declaration!=0&&result.type.isSimple()&&getSimpleType(result.type.value).declaration==&gCtor)
+	{
+		result.type=to;
+		result.type.value.setQualifiers(CvQualifiers());
+	}
+	return result;
+}
 template<typename T>
 inline Name getTypeTraitName(T*symbol)
 {
@@ -47907,14 +48812,14 @@ inline bool isUnion(UniqueTypeWrapper type)
 {
 	return false;
 }
-inline bool isBaseOf(UniqueTypeWrapper base, UniqueTypeWrapper derived, Location source, const TypeInstance*enclosing)
+inline bool isBaseOf(UniqueTypeWrapper base, UniqueTypeWrapper derived, const InstantiationContext&context)
 {
 	if(!base.isSimple()||!derived.isSimple())
 	{
 		return false;
 	}
-	const TypeInstance&baseType=getObjectType(base.value);
-	const TypeInstance&derivedType=getObjectType(derived.value);
+	const SimpleType&baseType=getSimpleType(base.value);
+	const SimpleType&derivedType=getSimpleType(derived.value);
 	if(&baseType==&derivedType)
 	{
 		return true;
@@ -47923,9 +48828,9 @@ inline bool isBaseOf(UniqueTypeWrapper base, UniqueTypeWrapper derived, Location
 	{
 		throw AllocatorError();
 	};
-	return isBaseOf(baseType, derivedType, source, enclosing);
+	return isBaseOf(baseType, derivedType, context);
 }
-inline bool isConvertibleTo(UniqueTypeWrapper from, UniqueTypeWrapper to, Location source, const TypeInstance*enclosing)
+inline bool isConvertibleTo(UniqueTypeWrapper type, UniqueTypeWrapper other, const InstantiationContext&context)
 {
 	return false;
 }
@@ -47961,7 +48866,7 @@ inline BinaryTypeTraitsOp getBinaryTypeTraitsOp(cpp::typetraits_binary*symbol)
 	}
 	throw SymbolsError();
 }
-extern const TypeInstance gDependentObjectType;
+extern const SimpleType gDependentSimpleType;
 struct DefaultParser
 {
 	template<typename Walker, typename T>
@@ -50316,138 +51221,282 @@ inline const DeclarationInstance*findRedeclared(const Declaration&declaration, c
 	}
 	return 0;
 }
-inline ParameterTypes addOverload(OverloadResolver&resolver, Declaration*p, Location source, const TypeInstance*enclosing=0)
+struct Overload
 {
-	UniqueTypeWrapper type=getUniqueType(p->type, source, enclosing, p->isTemplate);
-	if(!(type.isFunction()))
+	const Declaration*declaration;
+	const SimpleType*memberEnclosing;
+	Overload(const Declaration*declaration, const SimpleType*memberEnclosing): declaration(declaration), memberEnclosing(memberEnclosing)
 	{
-		throw AllocatorError();
+	}
+};
+inline bool operator==(const Overload&left, const Overload&right)
+{
+	return left.declaration==right.declaration&&left.memberEnclosing==right.memberEnclosing;
+}
+typedef std::vector<Overload>OverloadSet;
+struct KoenigAssociated
+{
+	typedef std::vector<Scope*>Namespaces;
+	Namespaces namespaces;
+	typedef std::vector<const SimpleType*>Classes;
+	Classes classes;
+};
+void addAssociatedNamespace(KoenigAssociated&associated, Scope&scope)
+{
+	if(!(scope.type==SCOPETYPE_NAMESPACE))
+	{
+		throw SemanticError();
 	};
-	ParameterTypes parameters;
-	if(isMember(*p)&&p->type.declaration!=&gCtor)
+	if(std::find(associated.namespaces.begin(), associated.namespaces.end(), &scope)==associated.namespaces.end())
 	{
-		if(!(isClass(*enclosing->declaration)))
-		{
-			throw AllocatorError();
-		};
-		UniqueTypeWrapper implicitObjectParameter=gImplicitObjectParameter;
-		if(!isStatic(*p))
-		{
-			implicitObjectParameter=makeUniqueObjectType(*enclosing);
-			implicitObjectParameter.value.setQualifiers(type.value.getQualifiers());
-			implicitObjectParameter.push_front(ReferenceType());
-		}
-		parameters.push_back(implicitObjectParameter);
+		associated.namespaces.push_back(&scope);
 	}
-	bool isEllipsis=getFunctionType(type.value).isEllipsis;
-	parameters.insert(parameters.end(), getParameterTypes(type.value).begin(), getParameterTypes(type.value).end());
-	type.pop_front();
-	if(!p->isTemplate)
-	{
-		if(resolver.templateArguments!=0)
-		{
-			return ParameterTypes();
-		}
-		resolver.add(FunctionOverload(p, type), parameters, isEllipsis, enclosing);
-		return parameters;
-	}
-	if(p->isSpecialization)
-	{
-		return ParameterTypes();
-	}
-	FunctionTemplate functionTemplate;
-	functionTemplate.parameters.swap(parameters);
-	makeUniqueTemplateParameters(p->templateParams, functionTemplate.templateParameters, source, enclosing, true);
-	if(resolver.arguments.size()>functionTemplate.parameters.size())
-	{
-		return ParameterTypes();
-	}
-	try
-	{
-		if(resolver.templateArguments!=0&&resolver.templateArguments->size()>functionTemplate.templateParameters.size())
-		{
-			throw TypeErrorBase(source);
-		}
-		TypeInstance specialization(p, enclosing);
-		specialization.instantiated=true;
-
-		{
-			UniqueTypeArray::const_iterator p=functionTemplate.templateParameters.begin();
-			if(resolver.templateArguments!=0)
-			{
-				for(TemplateArgumentsInstance::const_iterator a=resolver.templateArguments->begin();
-				a!=resolver.templateArguments->end();
-				++a, ++p)
-				{
-					if(!(p!=functionTemplate.templateParameters.end()))
-					{
-						throw AllocatorError();
-					};
-					if((*a).isNonType()!=(*p).isDependentNonType())
-					{
-						throw TypeErrorBase(source);
-					}
-					specialization.templateArguments.push_back(*a);
-				}
-			}
-			for(;
-			p!=functionTemplate.templateParameters.end();
-			++p)
-			{
-				specialization.templateArguments.push_back(*p);
-			}
-		}
-		ParameterTypes substituted1;
-		substitute(substituted1, functionTemplate.parameters, source, specialization);
-		UniqueTypeArray arguments;
-		arguments.reserve(resolver.arguments.size());
-		for(Arguments::const_iterator a=resolver.arguments.begin();
-		a!=resolver.arguments.end();
-		++a)
-		{
-			arguments.push_back((*a).type);
-		}
-		specialization.templateArguments.resize(resolver.templateArguments==0?0: resolver.templateArguments->size());
-		specialization.templateArguments.resize(functionTemplate.templateParameters.size(), gUniqueTypeNull);
-		if(!deduceFunctionCall(substituted1, arguments, specialization.templateArguments, resolver.source, resolver.enclosing))
-		{
-			throw TypeErrorBase(source);
-		}
-		ParameterTypes substituted2;
-		substitute(substituted2, substituted1, source, specialization);
-		type=substitute(type, source, specialization);
-		resolver.add(FunctionOverload(p, type), substituted2, isEllipsis, enclosing, functionTemplate);
-		return substituted2;
-	}
-	catch(TypeError&)
-	{
-	}
-	return ParameterTypes();
 }
-inline void addOverloads(OverloadResolver&resolver, Declaration*declaration, Location source, const TypeInstance*enclosing=0)
+void addAssociatedClass(KoenigAssociated&associated, const SimpleType&type)
 {
-	for(Declaration*p=declaration;
+	if(!(isClass(*type.declaration)))
+	{
+		throw SemanticError();
+	};
+	if(std::find(associated.classes.begin(), associated.classes.end(), &type)==associated.classes.end())
+	{
+		associated.classes.push_back(&type);
+	}
+}
+void addAssociatedEnclosingNamespace(KoenigAssociated&associated, const SimpleType&type)
+{
+	Scope*scope=getEnclosingNamespace(type.declaration->scope);
+	if(scope!=0)
+	{
+		addAssociatedNamespace(associated, *scope);
+	}
+}
+void addAssociatedClassAndNamespace(KoenigAssociated&associated, const SimpleType&classType)
+{
+	if(!(isClass(*classType.declaration)))
+	{
+		throw SemanticError();
+	};
+	addAssociatedClass(associated, classType);
+	addAssociatedEnclosingNamespace(associated, classType);
+}
+void addAssociatedClassRecursive(KoenigAssociated&associated, const SimpleType&classType)
+{
+	if(!(isClass(*classType.declaration)))
+	{
+		throw SemanticError();
+	};
+	addAssociatedClassAndNamespace(associated, classType);
+	for(UniqueBases::const_iterator i=classType.bases.begin();
+	i!=classType.bases.end();
+	++i)
+	{
+		const SimpleType*base=*i;
+		addAssociatedClassRecursive(associated, *base);
+	}
+}
+void addKoenigAssociated(KoenigAssociated&associated, const SimpleType&classType)
+{
+	if(classType.enclosing!=0)
+	{
+		addAssociatedClassAndNamespace(associated, *classType.enclosing);
+	}
+	addAssociatedClassRecursive(associated, classType);
+}
+void addKoenigAssociated(KoenigAssociated&associated, UniqueTypeWrapper type);
+struct KoenigVisitor: TypeElementVisitor
+{
+	KoenigAssociated&associated;
+	KoenigVisitor(KoenigAssociated&associated): associated(associated)
+	{
+	}
+	virtual void visit(const DependentType&element)
+	{
+	}
+	virtual void visit(const DependentTypename&)
+	{
+	}
+	virtual void visit(const DependentNonType&element)
+	{
+	}
+	virtual void visit(const TemplateTemplateArgument&element)
+	{
+		if(element.enclosing!=0)
+		{
+			addAssociatedClass(associated, *element.enclosing);
+		}
+	}
+	virtual void visit(const NonType&)
+	{
+	}
+	virtual void visit(const SimpleType&element)
+	{
+		if(isClass(*element.declaration))
+		{
+			addKoenigAssociated(associated, element);
+		}
+		else if(isEnum(*element.declaration))
+		{
+			if(element.enclosing!=0)
+			{
+				addAssociatedClass(associated, *element.enclosing);
+			}
+			addAssociatedEnclosingNamespace(associated, element);
+		}
+		if(element.declaration->isTemplate)
+		{
+			for(TemplateArgumentsInstance::const_iterator i=element.templateArguments.begin();
+			i!=element.templateArguments.end();
+			++i)
+			{
+				addKoenigAssociated(associated, *i);
+			}
+		}
+	}
+	virtual void visit(const PointerType&)
+	{
+	}
+	virtual void visit(const ReferenceType&)
+	{
+	}
+	virtual void visit(const ArrayType&)
+	{
+	}
+	virtual void visit(const MemberPointerType&element)
+	{
+		addKoenigAssociated(associated, getSimpleType(element.type.value));
+	}
+	virtual void visit(const FunctionType&element)
+	{
+		for(ParameterTypes::const_iterator i=element.parameterTypes.begin();
+		i!=element.parameterTypes.end();
+		++i)
+		{
+			addKoenigAssociated(associated, *i);
+		}
+	}
+};
+void addKoenigAssociated(KoenigAssociated&associated, UniqueTypeWrapper type)
+{
+	for(;
+	type!=gUniqueTypeNull;
+	type.pop_front())
+	{
+		KoenigVisitor visitor(associated);
+		type.value->accept(visitor);
+	}
+}
+void addUniqueOverload(OverloadSet&result, const Overload&overload)
+{
+	if(std::find(result.begin(), result.end(), overload)==result.end())
+	{
+		result.push_back(overload);
+	}
+}
+const SimpleType*findAssociatedClass(const KoenigAssociated&associated, const Declaration&declaration)
+{
+	if(!(isClass(declaration)))
+	{
+		throw SemanticError();
+	}
+	for(KoenigAssociated::Classes::const_iterator i=associated.classes.begin();
+	i!=associated.classes.end();
+	++i)
+	{
+		const SimpleType*classType=*i;
+		if(classType->declaration==&declaration)
+		{
+			return classType;
+		}
+	}
+	return 0;
+}
+void addOverloaded(OverloadSet&result, const DeclarationInstance&declaration, const SimpleType*memberEnclosing)
+{
+	for(Declaration*p=findOverloaded(declaration);
 	p!=0;
 	p=p->overloaded)
 	{
-		if(!(p->enclosed!=0))
+		if(p->specifiers.isFriend)
 		{
-			throw AllocatorError();
-		};
-		addOverload(resolver, p, source, enclosing);
+			if(!(memberEnclosing==0))
+			{
+				throw SemanticError();
+			};
+			continue;
+		}
+		addUniqueOverload(result, Overload(p, memberEnclosing));
 	}
 }
-inline void printOverloads(OverloadResolver&resolver, Declaration*declaration, Location source, const TypeInstance*enclosing=0)
+void addOverloaded(OverloadSet&result, const DeclarationInstance&declaration, const KoenigAssociated&associated=KoenigAssociated())
 {
-	for(Declaration*p=declaration;
+	for(Declaration*p=findOverloaded(declaration);
 	p!=0;
 	p=p->overloaded)
 	{
-		if(!(p->enclosed!=0))
+		const SimpleType*memberEnclosing=0;
+		if(p->specifiers.isFriend)
 		{
-			throw AllocatorError();
-		};
-		ParameterTypes parameters=addOverload(resolver, p, source, enclosing);
+			Scope*enclosingClass=getEnclosingClass(p->enclosed);
+			memberEnclosing=findAssociatedClass(associated, *getDeclaration(enclosingClass->name));
+			if(memberEnclosing==0)
+			{
+				continue;
+			}
+		}
+		addUniqueOverload(result, Overload(p, memberEnclosing));
+	}
+}
+void argumentDependentLookup(OverloadSet&result, const Identifier&id, const Arguments&arguments)
+{
+	KoenigAssociated associated;
+	for(Arguments::const_iterator i=arguments.begin();
+	i!=arguments.end();
+	++i)
+	{
+		UniqueTypeWrapper type=(*i).type;
+		addKoenigAssociated(associated, type);
+	}
+	for(KoenigAssociated::Namespaces::const_iterator i=associated.namespaces.begin();
+	i!=associated.namespaces.end();
+	++i)
+	{
+		if(const DeclarationInstance*p=findDeclaration((*i)->declarations, id, IsFunctionName()))
+		{
+			const DeclarationInstance&declaration=*p;
+			addOverloaded(result, *p, associated);
+		}
+	}
+}
+inline void addOverloads(OverloadResolver&resolver, const DeclarationInstance&declaration, const InstantiationContext&context)
+{
+	for(Declaration*p=findOverloaded(declaration);
+	p!=0;
+	p=p->overloaded)
+	{
+		addOverload(resolver, *p, context);
+	}
+}
+inline void addOverloads(OverloadResolver&resolver, const OverloadSet&overloads, const InstantiationContext&context)
+{
+	for(OverloadSet::const_iterator i=overloads.begin();
+	i!=overloads.end();
+	++i)
+	{
+		const Overload&overload=*i;
+		addOverload(resolver, *overload.declaration, setEnclosingType(context, overload.memberEnclosing));
+	}
+}
+inline void printOverloads(OverloadResolver&resolver, const OverloadSet&overloads, const InstantiationContext&context)
+{
+	for(OverloadSet::const_iterator i=overloads.begin();
+	i!=overloads.end();
+	++i)
+	{
+		const Overload&overload=*i;
+		addOverload(resolver, *overload.declaration, setEnclosingType(context, overload.memberEnclosing));
+		const Declaration*p=overload.declaration;
+		ParameterTypes parameters=addOverload(resolver, *p, context);
 		printPosition(p->getName().source);
 		std::cout<<"(";
 		bool separator=false;
@@ -50465,16 +51514,20 @@ inline void printOverloads(OverloadResolver&resolver, Declaration*declaration, L
 		std::cout<<")"<<std::endl;
 	}
 }
-inline FunctionOverload findBestMatch(Declaration*declaration, const TemplateArgumentsInstance*templateArguments, const Arguments&arguments, Location source, const TypeInstance*enclosingType)
+inline FunctionOverload findBestMatch(const OverloadSet&overloads, const TemplateArgumentsInstance*templateArguments, const Arguments&arguments, const InstantiationContext&context)
 {
-	OverloadResolver resolver(arguments, templateArguments, source, enclosingType);
-	addOverloads(resolver, declaration, source, enclosingType);
+	if(!(!overloads.empty()))
+	{
+		throw SemanticError();
+	};
+	OverloadResolver resolver(arguments, templateArguments, context);
+	addOverloads(resolver, overloads, context);
 	if(resolver.ambiguous!=0)
 	{
 	}
 	if(resolver.get().declaration==0)
 	{
-		printPosition(source);
+		printPosition(context.source);
 		std::cout<<"overload resolution failed when matching arguments (";
 		bool separator=false;
 		for(Arguments::const_iterator i=arguments.begin();
@@ -50490,67 +51543,417 @@ inline FunctionOverload findBestMatch(Declaration*declaration, const TemplateArg
 		}
 		std::cout<<")"<<std::endl;
 		std::cout<<"candidates for ";
+		const Declaration*declaration=overloads.front().declaration;
 		printName(declaration->scope);
 		std::cout<<getValue(declaration->getName());
 		std::cout<<std::endl;
-		printOverloads(resolver, declaration, source, enclosingType);
+		printOverloads(resolver, overloads, context);
 	}
 	return resolver.get();
 }
-inline FunctionOverload findBestOverloadedOperator(cpp::unary_operator*op, Argument operand, Scope*enclosing, Location source, const TypeInstance*enclosingType)
+inline void addBuiltInOperatorOverload(OverloadResolver&resolver, UniqueTypeWrapper type)
 {
-	UniqueTypeWrapper type=operand.type;
-	if(isClass(type)||isEnumeration(type))
+	const ParameterTypes&parameters=getParameterTypes(type.value);
+	resolver.add(FunctionOverload(&gUnknown, popType(type)), parameters, false, 0);
+}
+inline void addBuiltInOperatorOverloads(OverloadResolver&resolver, BuiltInTypeArrayRange overloads)
+{
+	for(const BuiltInType*i=overloads.first;
+	i!=overloads.last;
+	++i)
 	{
-		Identifier id;
-		id.value=getOverloadedOperatorId(op);
-		id.source=source;
-		Arguments arguments(1, operand);
-		OverloadResolver resolver(arguments, 0, source, enclosingType);
-		if(isClass(type))
+		BuiltInType overload=*i;
+		const ParameterTypes&parameters=getParameterTypes(overload.value);
+		if(resolver.arguments.size()!=parameters.size())
 		{
-			if(!(isComplete(type)))
+			continue;
+		}
+		addBuiltInOperatorOverload(resolver, overload);
+	}
+}
+typedef std::vector<UserType>UserTypeArray;
+extern BuiltInTypeArrayRange gIntegralTypesRange;
+extern BuiltInTypeArrayRange gPromotedIntegralTypesRange;
+extern BuiltInTypeArrayRange gArithmeticTypesRange;
+extern BuiltInTypeArrayRange gPromotedArithmeticTypesRange;
+inline void addBuiltInTypeConversions(UserTypeArray&conversions, BuiltInTypeArrayRange types)
+{
+	for(const BuiltInType*i=types.first;
+	i!=types.last;
+	++i)
+	{
+		conversions.push_back(UserType(*i));
+	}
+}
+template<typename Op>
+inline void forEachBase(const SimpleType&classType, Op op)
+{
+	if(!(classType.instantiated))
+	{
+		throw AllocatorError();
+	};
+	op(classType);
+	for(UniqueBases::const_iterator i=classType.bases.begin();
+	i!=classType.bases.end();
+	++i)
+	{
+		forEachBase(**i, op);
+	}
+}
+template<typename T>
+inline void addQualificationPermutations(UserTypeArray&conversions, UniqueTypeWrapper type, const T&pointerType)
+{
+	conversions.push_back(UserType(pushType(qualifyType(type, CvQualifiers(false, false)), pointerType)));
+	conversions.push_back(UserType(pushType(qualifyType(type, CvQualifiers(true, false)), pointerType)));
+	conversions.push_back(UserType(pushType(qualifyType(type, CvQualifiers(false, true)), pointerType)));
+	conversions.push_back(UserType(pushType(qualifyType(type, CvQualifiers(true, true)), pointerType)));
+}
+inline void addQualificationPermutations(UserTypeArray&conversions, UniqueTypeWrapper type)
+{
+	addQualificationPermutations(conversions, type, PointerType());
+}
+struct AddPointerConversions
+{
+	UserTypeArray&conversions;
+	CvQualifiers qualifiers;
+	AddPointerConversions(UserTypeArray&conversions, CvQualifiers qualifiers): conversions(conversions), qualifiers(qualifiers)
+	{
+	}
+	void operator()(const SimpleType&classType)const
+	{
+		addQualificationPermutations(conversions, qualifyType(makeUniqueSimpleType(classType), qualifiers));
+	}
+};
+struct AddMemberPointerConversions
+{
+	UserTypeArray&conversions;
+	UniqueTypeWrapper type;
+	AddMemberPointerConversions(UserTypeArray&conversions, UniqueTypeWrapper type): conversions(conversions), type(type)
+	{
+	}
+	void operator()(const SimpleType&classType)const
+	{
+		addQualificationPermutations(conversions, type, MemberPointerType(makeUniqueSimpleType(classType)));
+	}
+};
+inline bool isPlaceholder(UniqueTypeWrapper type)
+{
+	type=removeReference(type);
+	return type==gArithmeticPlaceholder||type==gIntegralPlaceholder||type==gPromotedIntegralPlaceholder||type==gPromotedArithmeticPlaceholder||type==gEnumerationPlaceholder||type==gPointerToAnyPlaceholder||type==gPointerToObjectPlaceholder||type==gPointerToClassPlaceholder||type==gPointerToFunctionPlaceholder||type==gPointerToMemberPlaceholder;
+}
+inline void addBuiltInOperatorConversions(UserTypeArray&conversions, UniqueTypeWrapper to, UniqueTypeWrapper from, const InstantiationContext&context)
+{
+	if(!(isPlaceholder(removeReference(to))))
+	{
+		throw AllocatorError();
+	};
+	if(to.isReference())
+	{
+		conversions.push_back(UserType(from));
+		return ;
+	}
+	if(isPointerPlaceholder(to))
+	{
+		if(!(from.isPointer()))
+		{
+			throw AllocatorError();
+		};
+		UniqueTypeWrapper type=popType(from);
+		CvQualifiers qualifiers=type.value.getQualifiers();
+		if(isClass(type)&&isComplete(type))
+		{
+			const SimpleType&classType=getSimpleType(type.value);
+			instantiateClass(classType, context);
+			forEachBase(classType, AddPointerConversions(conversions, qualifiers));
+		}
+		else
+		{
+			addQualificationPermutations(conversions, type);
+		}
+		addQualificationPermutations(conversions, qualifyType(gVoid, qualifiers));
+		return ;
+	}
+	if(to==gPointerToMemberPlaceholder)
+	{
+		if(!(from.isMemberPointer()))
+		{
+			throw AllocatorError();
+		};
+		UniqueTypeWrapper type=popType(from);
+		if(isComplete(from))
+		{
+			const SimpleType&classType=getMemberPointerClass(from.value);
+			instantiateClass(classType, context);
+			forEachBase(classType, AddMemberPointerConversions(conversions, type));
+		}
+		else
+		{
+			addQualificationPermutations(conversions, type, getMemberPointerType(from.value));
+		}
+		return ;
+	}
+	if(to==gEnumerationPlaceholder)
+	{
+		if(!(isEnum(from)))
+		{
+			throw AllocatorError();
+		};
+		conversions.push_back(UserType(from));
+	}
+	return addBuiltInTypeConversions(conversions, gArithmeticTypesRange);
+}
+typedef std::vector<UserTypeArray>ConversionPairs;
+typedef TypeTuple<false, 1>Permutation1;
+typedef TypeTuple<false, 2>Permutation2;
+typedef std::vector<Permutation1>Permutation1Array;
+typedef std::vector<Permutation2>Permutation2Array;
+inline void addBuiltInOperatorPermutations(Permutation1Array&result, ConversionPairs&conversionPairs)
+{
+	if(!(!conversionPairs.empty()))
+	{
+		throw SemanticError();
+	};
+	if(conversionPairs.size()==1)
+	{
+		std::copy(conversionPairs[0].begin(), conversionPairs[0].end(), std::back_inserter(result));
+	}
+	else
+	{
+		if(!(conversionPairs.size()==2))
+		{
+			throw SemanticError();
+		};
+		std::sort(conversionPairs[0].begin(), conversionPairs[0].end());
+		std::sort(conversionPairs[1].begin(), conversionPairs[1].end());
+		std::set_intersection(conversionPairs[0].begin(), conversionPairs[0].end(), conversionPairs[1].begin(), conversionPairs[1].end(), std::back_inserter(result));
+	}
+}
+inline void addBuiltInOperatorPermutations(Permutation2Array&result, ConversionPairs&conversionPairs)
+{
+	if(!(!conversionPairs.empty()))
+	{
+		throw SemanticError();
+	};
+	if(conversionPairs.size()==1)
+	{
+		return ;
+	}
+	else
+	{
+		if(!(conversionPairs.size()==2))
+		{
+			throw SemanticError();
+		};
+		for(UserTypeArray::const_iterator i=conversionPairs[0].begin();
+		i!=conversionPairs[0].end();
+		++i)
+		{
+			UserType left=*i;
+			for(UserTypeArray::const_iterator i=conversionPairs[0].begin();
+			i!=conversionPairs[0].end();
+			++i)
+			{
+				UserType right=*i;
+				result.push_back(Permutation2(left, right));
+			}
+		}
+	}
+}
+template<int N>
+inline void addBuiltInOperatorOverloads(OverloadResolver&resolver, ArrayRange<BuiltInGenericType<N> >overloads)
+{
+	for(const BuiltInGenericType<N>*i=overloads.first;
+	i!=overloads.last;
+	++i)
+	{
+		BuiltInGenericType<N>overload=*i;
+		const ParameterTypes&parameters=getParameterTypes(overload.value);
+		if(resolver.arguments.size()!=parameters.size())
+		{
+			continue;
+		}
+		ConversionPairs conversionPairs;
+		conversionPairs.reserve(2);
+		Arguments::const_iterator a=resolver.arguments.begin();
+		ParameterTypes::const_iterator p=parameters.begin();
+		for(;
+		a!=resolver.arguments.end();
+		++a, ++p)
+		{
+			UniqueTypeWrapper to=*p;
+			const Argument&from=*a;
+			ImplicitConversion conversion=resolver.makeConversion(TargetType(to), from);
+			if(!isValid(conversion))
+			{
+				conversionPairs.clear();
+				break;
+			}
+			if(!isPlaceholder(to))
+			{
+				continue;
+			}
+			if(isGeneralPointer(TargetType(to))&&isIntegral(from.type))
+			{
+				continue;
+			}
+			conversionPairs.push_back(UserTypeArray());
+			UserTypeArray&conversions=conversionPairs.back();
+			addBuiltInOperatorConversions(conversions, to, conversion.sequence.matched, resolver.context);
+		}
+		if(conversionPairs.empty())
+		{
+			continue;
+		}
+		typedef TypeTuple<false, N>Permutation;
+		typedef std::vector<Permutation>Permutations;
+		Permutations permutations;
+		addBuiltInOperatorPermutations(permutations, conversionPairs);
+		for(typename Permutations::const_iterator i=permutations.begin();
+		i!=permutations.end();
+		++i)
+		{
+			Permutation permutation=*i;
+			UserType substituted=overload.substitute(permutation);
+			addBuiltInOperatorOverload(resolver, substituted);
+		}
+	}
+}
+extern BuiltInTypeArrayRange gUnaryPostIncOperatorTypes;
+extern BuiltInTypeArrayRange gUnaryPreIncOperatorTypes;
+extern BuiltInTypeArrayRange gUnaryArithmeticOperatorTypes;
+extern BuiltInTypeArrayRange gUnaryIntegralOperatorTypes;
+extern BuiltInTypeArrayRange gBinaryArithmeticOperatorTypes;
+extern BuiltInTypeArrayRange gBinaryIntegralOperatorTypes;
+extern BuiltInTypeArrayRange gRelationalArithmeticOperatorTypes;
+extern BuiltInTypeArrayRange gShiftOperatorTypes;
+extern BuiltInTypeArrayRange gAssignArithmeticOperatorTypes;
+extern BuiltInTypeArrayRange gAssignIntegralOperatorTypes;
+extern BuiltInTypeArrayRange gBinaryLogicalOperatorTypes;
+extern BuiltInTypeArrayRange gUnaryLogicalOperatorTypes;
+extern BuiltInGenericType1ArrayRange gPointerAddOperatorTypes;
+extern BuiltInGenericType1ArrayRange gPointerSubtractOperatorTypes;
+extern BuiltInGenericType1ArrayRange gSubscriptOperatorTypes;
+extern BuiltInGenericType1ArrayRange gRelationalOperatorTypes;
+extern BuiltInGenericType1ArrayRange gEqualityOperatorTypes;
+extern BuiltInGenericType2ArrayRange gMemberPointerOperatorTypes;
+inline void addBuiltInOperatorOverloads(OverloadResolver&resolver, const Identifier&id)
+{
+	if(id.value==gOperatorPlusPlusId||id.value==gOperatorMinusMinusId)
+	{
+		addBuiltInOperatorOverloads(resolver, gUnaryPreIncOperatorTypes);
+		addBuiltInOperatorOverloads(resolver, gUnaryPostIncOperatorTypes);
+	}
+	else if(id.value==gOperatorStarId||id.value==gOperatorDivideId)
+	{
+		addBuiltInOperatorOverloads(resolver, gBinaryArithmeticOperatorTypes);
+	}
+	else if(id.value==gOperatorPlusId||id.value==gOperatorMinusId)
+	{
+		addBuiltInOperatorOverloads(resolver, gBinaryArithmeticOperatorTypes);
+		addBuiltInOperatorOverloads(resolver, gUnaryArithmeticOperatorTypes);
+	}
+	else if(id.value==gOperatorComplId)
+	{
+		addBuiltInOperatorOverloads(resolver, gUnaryIntegralOperatorTypes);
+	}
+	else if(id.value==gOperatorLessId||id.value==gOperatorGreaterId||id.value==gOperatorLessEqualId||id.value==gOperatorGreaterEqualId||id.value==gOperatorEqualId||id.value==gOperatorNotEqualId)
+	{
+		addBuiltInOperatorOverloads(resolver, gRelationalArithmeticOperatorTypes);
+	}
+	else if(id.value==gOperatorPercentId||id.value==gOperatorAndId||id.value==gOperatorXorId||id.value==gOperatorOrId)
+	{
+		addBuiltInOperatorOverloads(resolver, gBinaryIntegralOperatorTypes);
+	}
+	else if(id.value==gOperatorShiftLeftId||id.value==gOperatorShiftRightId)
+	{
+		addBuiltInOperatorOverloads(resolver, gShiftOperatorTypes);
+	}
+	else if(id.value==gOperatorAssignId||id.value==gOperatorStarAssignId||id.value==gOperatorDivideAssignId||id.value==gOperatorPlusAssignId||id.value==gOperatorMinusAssignId)
+	{
+		addBuiltInOperatorOverloads(resolver, gAssignArithmeticOperatorTypes);
+	}
+	else if(id.value==gOperatorPercentAssignId||id.value==gOperatorShiftLeftAssignId||id.value==gOperatorShiftRightAssignId||id.value==gOperatorAndAssignId||id.value==gOperatorXorAssignId||id.value==gOperatorOrAssignId)
+	{
+		addBuiltInOperatorOverloads(resolver, gAssignIntegralOperatorTypes);
+	}
+	else if(id.value==gOperatorAndAndId||id.value==gOperatorOrOrId)
+	{
+		addBuiltInOperatorOverloads(resolver, gBinaryLogicalOperatorTypes);
+	}
+	else if(id.value==gOperatorNotId)
+	{
+		addBuiltInOperatorOverloads(resolver, gUnaryLogicalOperatorTypes);
+	}
+	if(id.value==gOperatorPlusId)
+	{
+		addBuiltInOperatorOverloads(resolver, gPointerAddOperatorTypes);
+	}
+	else if(id.value==gOperatorMinusId)
+	{
+		addBuiltInOperatorOverloads(resolver, gPointerSubtractOperatorTypes);
+	}
+	else if(id.value==gOperatorSubscriptId)
+	{
+		addBuiltInOperatorOverloads(resolver, gSubscriptOperatorTypes);
+	}
+	else if(id.value==gOperatorLessId||id.value==gOperatorGreaterId||id.value==gOperatorLessEqualId||id.value==gOperatorGreaterEqualId)
+	{
+		addBuiltInOperatorOverloads(resolver, gRelationalOperatorTypes);
+	}
+	else if(id.value==gOperatorEqualId||id.value==gOperatorNotEqualId)
+	{
+		addBuiltInOperatorOverloads(resolver, gEqualityOperatorTypes);
+	}
+	else if(id.value==gOperatorArrowStarId)
+	{
+		addBuiltInOperatorOverloads(resolver, gMemberPointerOperatorTypes);
+	}
+}
+inline FunctionOverload findBestOverloadedOperator(const Identifier&id, const Arguments&arguments, const InstantiationContext&context)
+{
+	Arguments::const_iterator i=arguments.begin();
+	UniqueTypeWrapper left=(*i++).type;
+	UniqueTypeWrapper right=i==arguments.end()?gUniqueTypeNull: (*i).type;
+	if(!isClass(left)&&!isEnumeration(left)&&!isClass(right)&&!isEnumeration(right))
+	{
+		return FunctionOverload(&gUnknown, gUniqueTypeNull);
+	}
+	OverloadResolver resolver(arguments, 0, context);
+	if(isClass(left)&&isComplete(left))
+	{
+		const SimpleType&operand=getSimpleType(left.value);
+		instantiateClass(operand, context);
+		LookupResultRef declaration=::findDeclaration(operand, id, IsAny());
+		if(declaration!=0)
+		{
+			const SimpleType*memberEnclosing=findEnclosingType(&operand, declaration->scope);
+			if(!(memberEnclosing!=0))
 			{
 				throw SemanticError();
 			};
-			const TypeInstance&operand=getObjectType(type.value);
-			instantiateClass(operand, source, enclosingType);
-			LookupResultRef declaration=::findDeclaration(operand, id, IsAny());
-			if(declaration!=0)
-			{
-				const TypeInstance*memberEnclosing=findEnclosingType(&operand, declaration->scope);
-				if(!(memberEnclosing!=0))
-				{
-					throw SemanticError();
-				};
-				addOverloads(resolver, findOverloaded(declaration), source, memberEnclosing);
-			}
+			addOverloads(resolver, declaration, setEnclosingTypeSafe(context, memberEnclosing));
 		}
-		LookupResultRef declaration=findClassOrNamespaceMemberDeclaration(*enclosing, id, IsNonMemberName());
-		if(declaration!=0&&!declaration->specifiers.isFriend)
-		{
-			addOverloads(resolver, findOverloaded(declaration), source);
-		}
-
-		{
-			CandidateFunction candidate(FunctionOverload(&gUnknown, gUniqueTypeNull));
-			candidate.conversions.reserve(1);
-			candidate.conversions.push_back(IMPLICITCONVERSION_USERDEFINED);
-			resolver.add(candidate);
-		}
-		return resolver.get();
 	}
-	return FunctionOverload(&gUnknown, gUniqueTypeNull);
+	OverloadSet overloads;
+	LookupResultRef declaration=findClassOrNamespaceMemberDeclaration(*context.enclosingScope, id, IsNonMemberName());
+	if(declaration!=0)
+	{
+		addOverloaded(overloads, declaration);
+	}
+	argumentDependentLookup(overloads, id, arguments);
+	addOverloads(resolver, overloads, setEnclosingType(context, 0));
+	addBuiltInOperatorOverloads(resolver, id);
+	return resolver.get();
 }
-inline UniqueTypeWrapper getBuiltInUnaryOperatorReturnType(cpp::unary_operator*symbol, UniqueTypeWrapper type)
+inline UniqueTypeWrapper getBuiltInUnaryOperatorReturnType(Name operatorName, UniqueTypeWrapper type)
 {
-	if(symbol->id==cpp::unary_operator::AND)
+	if(operatorName==gOperatorAndId)
 	{
 		UniqueTypeId result=type;
 		result.push_front(PointerType());
 		return result;
 	}
-	else if(symbol->id==cpp::unary_operator::STAR)
+	else if(operatorName==gOperatorStarId)
 	{
 		UniqueTypeId result=applyLvalueToRvalueConversion(type);
 		if(!(!result.empty()))
@@ -50564,7 +51967,7 @@ inline UniqueTypeWrapper getBuiltInUnaryOperatorReturnType(cpp::unary_operator*s
 		result.pop_front();
 		return result;
 	}
-	else if(symbol->id==cpp::unary_operator::PLUS||symbol->id==cpp::unary_operator::MINUS)
+	else if(operatorName==gOperatorPlusId||operatorName==gOperatorMinusId)
 	{
 		if(!isFloating(type))
 		{
@@ -50572,35 +51975,39 @@ inline UniqueTypeWrapper getBuiltInUnaryOperatorReturnType(cpp::unary_operator*s
 		}
 		return type;
 	}
-	else if(symbol->id==cpp::unary_operator::NOT)
+	else if(operatorName==gOperatorNotId)
 	{
 		return gBool;
 	}
-	else if(symbol->id==cpp::unary_operator::COMPL)
+	else if(operatorName==gOperatorComplId)
 	{
 		return promoteToIntegralType(type);
 	}
-	if(!(symbol->id==cpp::unary_operator::PLUSPLUS||symbol->id==cpp::unary_operator::MINUSMINUS))
+	if(!(operatorName==gOperatorPlusPlusId||operatorName==gOperatorMinusMinusId))
 	{
 		throw SemanticError();
 	};
 	return type;
 }
-inline UniqueTypeWrapper typeOfUnaryExpression(cpp::unary_operator*op, Argument operand, Scope*enclosing, Location source, const TypeInstance*enclosingType)
+inline UniqueTypeWrapper typeOfUnaryExpression(Name operatorName, Argument operand, const InstantiationContext&context)
 {
-	FunctionOverload overload=findBestOverloadedOperator(op, operand, enclosing, source, enclosingType);
-	if(overload.declaration==&gUnknown)
+	Identifier id;
+	id.value=operatorName;
+	id.source=context.source;
+	Arguments arguments(1, operand);
+	FunctionOverload overload=findBestOverloadedOperator(id, arguments, context);
+	if(overload.declaration==&gUnknown||(overload.declaration==0&&operatorName==gOperatorAndId))
 	{
-		if(op->id==cpp::unary_operator::AND&&operand.isQualifiedNonStaticMemberName)
+		if(operatorName==gOperatorAndId&&operand.isQualifiedNonStaticMemberName)
 		{
-			UniqueTypeWrapper classType=makeUniqueObjectType(*getIdExpression(operand).enclosing);
+			UniqueTypeWrapper classType=makeUniqueSimpleType(*getIdExpression(operand).enclosing);
 			UniqueTypeWrapper type=operand.type;
 			type.push_front(MemberPointerType(classType));
 			return type;
 		}
 		else
 		{
-			return getBuiltInUnaryOperatorReturnType(op, operand.type);
+			return getBuiltInUnaryOperatorReturnType(operatorName, operand.type);
 		}
 	}
 	else
@@ -50609,31 +52016,143 @@ inline UniqueTypeWrapper typeOfUnaryExpression(cpp::unary_operator*op, Argument 
 		{
 			throw SemanticError();
 		};
+		if(!(overload.type!=gUniqueTypeNull))
+		{
+			throw SemanticError();
+		};
 		return overload.type;
 	}
 }
-UniqueTypeWrapper getOverloadedMemberOperatorType(UniqueTypeWrapper operand, Location source, const TypeInstance*enclosing)
+inline UniqueTypeWrapper typeOfPostfixOperatorExpression(Name operatorName, Argument operand, const InstantiationContext&context)
 {
-	const TypeInstance&classType=getObjectType(operand.value);
+	Identifier id;
+	id.value=operatorName;
+	id.source=context.source;
+	ExpressionWrapper zero=ExpressionWrapper(makeUniqueExpression(IntegralConstantExpression(gSignedInt, IntegralConstant(0))), true);
+	Arguments arguments;
+	arguments.push_back(operand);
+	arguments.push_back(Argument(zero, gSignedInt));
+	FunctionOverload overload=findBestOverloadedOperator(id, arguments, context);
+	if(overload.declaration==&gUnknown)
+	{
+		UniqueTypeWrapper type=operand.type;
+		type.value.setQualifiers(CvQualifiers());
+		requireCompleteObjectType(type, context);
+		return operand.type;
+	}
+	else
+	{
+		if(!(overload.declaration!=0))
+		{
+			throw SemanticError();
+		};
+		if(!(overload.type!=gUniqueTypeNull))
+		{
+			throw SemanticError();
+		};
+		return overload.type;
+	}
+}
+typedef UniqueTypeWrapper(*BuiltInBinaryTypeOp)(UniqueTypeWrapper, UniqueTypeWrapper);
+template<BuiltInBinaryTypeOp typeOp>
+inline UniqueTypeWrapper typeOfBinaryExpression(Name operatorName, Argument left, Argument right, const InstantiationContext&context)
+{
+	if(!(left.type!=gUniqueTypeNull))
+	{
+		throw AllocatorError();
+	};
+	if(!(right.type!=gUniqueTypeNull))
+	{
+		throw AllocatorError();
+	};
+	Identifier id;
+	id.value=operatorName;
+	id.source=context.source;
+	FunctionOverload overload(&gUnknown, gUniqueTypeNull);
+	if(!id.value.empty())
+	{
+		Arguments arguments;
+		arguments.push_back(left);
+		arguments.push_back(right);
+		overload=findBestOverloadedOperator(id, arguments, context);
+	}
+	if(overload.declaration==&gUnknown||(overload.declaration==0&&id.value==gOperatorAssignId))
+	{
+		return typeOp(left.type, right.type);
+	}
+	if(!(overload.declaration!=0))
+	{
+		throw SemanticError();
+	};
+	return overload.type;
+}
+inline bool isSpecialMember(const Declaration&declaration)
+{
+	return &declaration==gDestructorInstance.p||&declaration==gCopyAssignmentOperatorInstance.p;
+}
+inline const SimpleType*getIdExpressionClass(const SimpleType*qualifying, const DeclarationInstance&declaration, const SimpleType*enclosingType)
+{
+	if(!(!isSpecialMember(*declaration)))
+	{
+		throw SemanticError();
+	}
+	if(!isMember(*declaration))
+	{
+		return 0;
+	}
+	const SimpleType*idEnclosing=qualifying!=0?qualifying: enclosingType;
+	if(!(idEnclosing!=0))
+	{
+		throw AllocatorError();
+	};
+	idEnclosing=findEnclosingType(idEnclosing, declaration->scope);
+	if(!(idEnclosing!=0))
+	{
+		throw AllocatorError();
+	};
+	return idEnclosing;
+}
+inline UniqueTypeWrapper typeOfIdExpression(const SimpleType*qualifying, const DeclarationInstance&declaration, const InstantiationContext&context)
+{
+	if(declaration==gDestructorInstance.p)
+	{
+		return pushType(gUniqueTypeNull, FunctionType());
+	}
+	else if(declaration==gCopyAssignmentOperatorInstance.p)
+	{
+		const SimpleType*idEnclosing=qualifying!=0?qualifying: context.enclosingType;
+		if(!(idEnclosing!=0))
+		{
+			throw AllocatorError();
+		};
+		return makeCopyAssignmentOperatorType(*idEnclosing);
+	}
+	const SimpleType*idEnclosing=getIdExpressionClass(qualifying, declaration, context.enclosingType);
+	return getUniqueType(declaration->type, setEnclosingType(context, idEnclosing), declaration->isTemplate);
+}
+UniqueTypeWrapper getOverloadedMemberOperatorType(UniqueTypeWrapper operand, const InstantiationContext&context)
+{
+	const SimpleType&classType=getSimpleType(operand.value);
 	if(!(isClass(*classType.declaration)))
 	{
 		throw SemanticError();
 	};
-	instantiateClass(classType, source, enclosing);
+	instantiateClass(classType, context);
 	Identifier id;
 	id.value=gOperatorArrowId;
-	id.source=source;
-	Arguments arguments(1, Argument(0, operand));
-	OverloadResolver resolver(arguments, 0, source, enclosing);
+	id.source=context.source;
+	ExpressionNodeGeneric<ExplicitTypeExpression>transientExpression=ExplicitTypeExpression(operand);
+	Arguments arguments(1, Argument(ExpressionWrapper(&transientExpression, false), operand));
+	OverloadResolver resolver(arguments, 0, context);
 	LookupResultRef declaration=::findDeclaration(classType, id, IsAny());
 	if(declaration!=0)
 	{
-		const TypeInstance*memberEnclosing=findEnclosingType(&classType, declaration->scope);
+		const SimpleType*memberEnclosing=findEnclosingType(&classType, declaration->scope);
 		if(!(memberEnclosing!=0))
 		{
 			throw SemanticError();
 		};
-		addOverloads(resolver, findOverloaded(declaration), source, memberEnclosing);
+		addOverloads(resolver, declaration, setEnclosingTypeSafe(context, memberEnclosing));
 	}
 	FunctionOverload result=resolver.get();
 	if(!(result.declaration!=0))
@@ -50642,147 +52161,411 @@ UniqueTypeWrapper getOverloadedMemberOperatorType(UniqueTypeWrapper operand, Loc
 	};
 	return result.type;
 }
-const TypeInstance&getMemberOperatorType(UniqueTypeWrapper operand, bool isArrow, Location source, const TypeInstance*enclosing)
+inline const SimpleType&getMemberOperatorType(Argument operand, bool isArrow, const InstantiationContext&context)
 {
+	UniqueTypeWrapper type=operand.type;
 	if(isArrow)
 	{
-		while(isClass(operand))
+		while(isClass(type))
 		{
-			operand=getOverloadedMemberOperatorType(operand, source, enclosing);
+			type=getOverloadedMemberOperatorType(type, context);
 		}
 	}
-	bool isPointer=operand.isPointer();
+	bool isPointer=type.isPointer();
 	if(!(isPointer==isArrow))
 	{
 		throw SemanticError();
 	};
 	if(isPointer)
 	{
-		operand.pop_front();
+		type.pop_front();
 	}
-	if(!(operand.isSimple()))
+	if(!(type.isSimple()))
 	{
 		throw SemanticError();
 	};
-	const TypeInstance&result=getObjectType(operand.value);
+	const SimpleType&result=getSimpleType(type.value);
 	if(!(isClass(*result.declaration)))
 	{
 		throw SemanticError();
 	};
-	instantiateClass(result, source, enclosing);
+	instantiateClass(result, context);
 	return result;
 }
-inline void addConversionFunctionOverloads(OverloadResolver&resolver, const TypeInstance&classType, UniqueTypeWrapper to, Location source, const TypeInstance*enclosing)
+inline UniqueTypeWrapper makeCopyAssignmentOperatorType(const SimpleType&classType)
 {
-	instantiateClass(classType, source, enclosing);
-	LookupResultRef declaration=::findDeclaration(classType, gConversionFunctionId, IsAny());
-	if(declaration!=0)
+	UniqueTypeWrapper type=makeUniqueSimpleType(classType);
+	UniqueTypeWrapper parameter=type;
+	parameter.value.setQualifiers(CvQualifiers(true, false));
+	parameter.push_front(ReferenceType());
+	type.push_front(ReferenceType());
+	FunctionType function;
+	function.parameterTypes.push_back(parameter);
+	type.push_front(function);
+	return type;
+}
+inline UniqueTypeWrapper binaryOperatorArithmeticType(UniqueTypeWrapper left, UniqueTypeWrapper right)
+{
+	return usualArithmeticConversions(left, right);
+}
+inline UniqueTypeWrapper binaryOperatorAdditiveType(UniqueTypeWrapper left, UniqueTypeWrapper right)
+{
+	if(!(left!=gUniqueTypeNull))
 	{
-		const TypeInstance*memberEnclosing=findEnclosingType(&classType, declaration->scope);
+		throw SemanticError();
+	};
+	if(!(right!=gUniqueTypeNull))
+	{
+		throw SemanticError();
+	};
+	left=applyLvalueToRvalueConversion(left);
+	right=applyLvalueToRvalueConversion(right);
+	if(left.isPointer())
+	{
+		if(isIntegral(right)||isEnumeration(right))
+		{
+			return left;
+		}
+		if(right.isPointer())
+		{
+			return gSignedLongLongInt;
+		}
+	}
+	return usualArithmeticConversions(left, right);
+}
+inline UniqueTypeWrapper makePointerCvUnion(UniqueTypeWrapper left, UniqueTypeWrapper right)
+{
+	CvQualifiers qualifiers=left.value.getQualifiers();
+	qualifiers.isConst|=right.value.getQualifiers().isConst;
+	qualifiers.isVolatile|=right.value.getQualifiers().isVolatile;
+	UniqueTypeWrapper result=left;
+	if((left.isPointer()&&right.isPointer())||(left.isMemberPointer()&&right.isMemberPointer()&&getMemberPointerType(left.value).type==getMemberPointerType(right.value).type))
+	{
+		result=makePointerCvUnion(popType(left), popType(right));
+		if(left.isPointer())
+		{
+			result.push_front(PointerType());
+		}
+		else
+		{
+			result.push_front(getMemberPointerType(left.value));
+		}
+	}
+	else
+	{
+		if(!(left.value.getPointer()==right.value.getPointer()))
+		{
+			throw SemanticError();
+		};
+	}
+	result.value.setQualifiers(qualifiers);
+	return result;
+}
+inline UniqueTypeWrapper binaryOperatorPointerType(UniqueTypeWrapper left, UniqueTypeWrapper right)
+{
+	if(!(left.isPointer()||left.isMemberPointer()))
+	{
+		throw SemanticError();
+	};
+	if(!(right.isPointer()||right.isMemberPointer()))
+	{
+		throw SemanticError();
+	};
+	UniqueTypeWrapper result=left;
+	if(isVoidPointer(left)||isVoidPointer(right))
+	{
+		if(!(left.isPointer()&&right.isPointer()))
+		{
+			throw SemanticError();
+		};
+		CvQualifiers qualifiers=left.value.getQualifiers();
+		qualifiers.isConst|=right.value.getQualifiers().isConst;
+		qualifiers.isVolatile|=right.value.getQualifiers().isVolatile;
+		left.value.setQualifiers(qualifiers);
+		left.push_front(PointerType());
+		return left;
+	}
+	return makePointerCvUnion(left, right);
+}
+inline UniqueTypeWrapper getConditionalOperatorType(UniqueTypeWrapper leftType, UniqueTypeWrapper rightType)
+{
+	if(!(leftType!=gUniqueTypeNull))
+	{
+		throw SemanticError();
+	};
+	if(!(rightType!=gUniqueTypeNull))
+	{
+		throw SemanticError();
+	};
+	leftType.value.setQualifiers(CvQualifiers());
+	rightType.value.setQualifiers(CvQualifiers());
+	if(leftType==gVoid)
+	{
+		return rightType;
+	}
+	if(rightType==gVoid)
+	{
+		return leftType;
+	}
+	if(leftType==rightType)
+	{
+		return leftType;
+	}
+	if(isClass(leftType)||isClass(rightType))
+	{
+		if(!(false))
+		{
+			throw SemanticError();
+		};
+		return gUniqueTypeNull;
+	}
+	UniqueTypeWrapper left=applyLvalueToRvalueConversion(leftType);
+	UniqueTypeWrapper right=applyLvalueToRvalueConversion(rightType);
+	if(left==right)
+	{
+		return left;
+	}
+	if((isArithmetic(left)||isEnumeration(left))&&(isArithmetic(right)||isEnumeration(right)))
+	{
+		return binaryOperatorArithmeticType(left, right);
+	}
+	bool leftPointer=left.isPointer()||left.isMemberPointer();
+	bool rightPointer=right.isPointer()||right.isMemberPointer();
+	if(!(leftPointer||rightPointer))
+	{
+		throw SemanticError();
+	};
+	if(leftPointer&&!right.isPointer())
+	{
+		return left;
+	}
+	if(rightPointer&&!left.isPointer())
+	{
+		return right;
+	}
+	if(!(leftPointer&&rightPointer))
+	{
+		throw SemanticError();
+	};
+	return binaryOperatorPointerType(left, right);
+}
+inline UniqueTypeWrapper typeOfSubscriptExpression(Argument left, Argument right, const InstantiationContext&context)
+{
+	if(!(left.type!=gUniqueTypeNull))
+	{
+		throw SemanticError();
+	};
+	if(isClass(left.type))
+	{
+		if(!(isComplete(left.type)))
+		{
+			throw SemanticError();
+		};
+		const SimpleType&object=getSimpleType(left.type.value);
+		instantiateClass(object, context);
+		Identifier tmp;
+		tmp.value=gOperatorSubscriptId;
+		tmp.source=context.source;
+		LookupResultRef declaration=::findDeclaration(object, tmp, IsAny());
+		if(!(declaration!=0))
+		{
+			throw SemanticError();
+		};
+		const SimpleType*memberEnclosing=findEnclosingType(&object, declaration->scope);
 		if(!(memberEnclosing!=0))
 		{
 			throw SemanticError();
 		};
-		for(Declaration*p=findOverloaded(declaration);
-		p!=0;
-		p=p->overloaded)
+		Arguments arguments;
+		arguments.push_back(left);
+		arguments.push_back(right);
+		OverloadSet overloads;
+		addOverloaded(overloads, declaration, memberEnclosing);
+		FunctionOverload overload=findBestMatch(overloads, 0, arguments, setEnclosingTypeSafe(context, memberEnclosing));
+		if(!(overload.declaration!=0))
 		{
-			if(!(p->enclosed!=0))
-			{
-				throw AllocatorError();
-			};
-			if(!(!p->isTemplate))
-			{
-				throw AllocatorError();
-			};
-			UniqueTypeWrapper type=getUniqueType(p->type, source, memberEnclosing);
-			type.pop_front();
-			if(isClass(to))
-			{
-				if(!isBaseOf(to, removeReference(type), source, enclosing))
-				{
-					continue;
-				}
-			}
-			else if(to.isReference())
-			{
-				UniqueTypeWrapper tmpTo=to;
-				tmpTo.pop_front();
-				if(!type.isReference())
-				{
-					continue;
-				}
-				type.pop_front();
-				if(!(isBaseOf(tmpTo, type, source, enclosing)&&(isEqualCvQualification(tmpTo, type)||isGreaterCvQualification(tmpTo, type))))
-				{
-					continue;
-				}
-			}
-			else
-			{
-				bool isLvalue=type.isReference();
-				type=removeReference(type);
-				type.value.setQualifiers(CvQualifiers());
-				if(type.value.getPointer()!=to.value.getPointer()&&makeStandardConversionSequence(to, type, source, enclosing, false, isLvalue).rank==SCSRANK_INVALID)
-				{
-					continue;
-				}
-			}
-			addOverload(resolver, p, source, memberEnclosing);
-		}
+			throw SemanticError();
+		};
+		return overload.type;
 	}
+	UniqueTypeWrapper type=left.type;
+	if(!(type.isArray()||type.isPointer()))
+	{
+		throw SemanticError();
+	};
+	type.pop_front();
+	requireCompleteObjectType(type, context);
+	return type;
 }
-inline FunctionOverload findBestConversionFunction(UniqueTypeWrapper to, UniqueTypeWrapper from, Location source, const TypeInstance*enclosing, bool isNullPointerConstant, bool isLvalue)
+inline UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Arguments&arguments, const InstantiationContext&context)
 {
-	UniqueExpression nullPointerConstantExpression=makeExpression(IntegralConstantExpression(gSignedInt, IntegralConstant(0)));
-	ExpressionWrapper expression(isNullPointerConstant?nullPointerConstantExpression: 0, isNullPointerConstant);
-	Arguments arguments;
-	arguments.push_back(Argument(expression, from));
-	OverloadResolver resolver(arguments, 0, source, enclosing, true);
-	if(isClass(to)&&isComplete(to))
+	ExpressionWrapper expression=left;
+	UniqueTypeWrapper type=left.type;
+	if(!(expression.p!=0))
 	{
-		const TypeInstance&classType=getObjectType(to.value);
-		instantiateClass(classType, source, enclosing);
-		Identifier tmp;
-		tmp.value=classType.declaration->getName().value;
-		tmp.source=source;
-		LookupResultRef declaration=::findDeclaration(classType, tmp, IsConstructor());
-		if(declaration!=0)
+		throw SemanticError();
+	};
+	if(isDependentIdExpression(expression))
+	{
+		if(!(!arguments.empty()))
 		{
-			const TypeInstance*memberEnclosing=findEnclosingType(&classType, declaration->scope);
-			if(!(memberEnclosing!=0))
-			{
-				throw SemanticError();
-			};
-			for(Declaration*p=findOverloaded(declaration);
-			p!=0;
-			p=p->overloaded)
-			{
-				if(!(p->enclosed!=0))
-				{
-					throw AllocatorError();
-				};
-				if(declaration->specifiers.isExplicit)
-				{
-					continue;
-				}
-				addOverload(resolver, p, source, memberEnclosing);
-			}
-		}
+			throw SemanticError();
+		};
+		if(!(getDependentIdExpression(expression).templateArguments.empty()))
+		{
+			throw SemanticError();
+		};
+		if(!(getDependentIdExpression(expression).qualifying==gUniqueTypeNull))
+		{
+			throw SemanticError();
+		};
+		Identifier id;
+		id.value=getDependentIdExpression(expression).name;
+		OverloadSet overloads;
+		argumentDependentLookup(overloads, id, arguments);
+		if(!(!overloads.empty()))
+		{
+			throw SemanticError();
+		};
+		FunctionOverload overload=findBestMatch(overloads, 0, arguments, context);
+		if(!(overload.declaration!=0))
+		{
+			throw SemanticError();
+		};
+		return overload.type;
 	}
-	if(isClass(from)&&isComplete(from))
+	type=removeReference(type);
+	if(isClass(type))
 	{
-		addConversionFunctionOverloads(resolver, getObjectType(from.value), to, source, enclosing);
+		if(!(isComplete(type)))
+		{
+			throw SemanticError();
+		};
+		const SimpleType&object=getSimpleType(type.value);
+		instantiateClass(object, context);
+		Identifier tmp;
+		tmp.value=gOperatorFunctionId;
+		tmp.source=context.source;
+		LookupResultRef declaration=::findDeclaration(object, tmp, IsAny());
+		if(!(declaration!=0))
+		{
+			throw SemanticError();
+		};
+		const SimpleType*memberEnclosing=findEnclosingType(&object, declaration->scope);
+		if(!(memberEnclosing!=0))
+		{
+			throw SemanticError();
+		};
+		Arguments augmentedArguments;
+		augmentedArguments.push_back(left);
+		augmentedArguments.insert(augmentedArguments.end(), arguments.begin(), arguments.end());
+		OverloadSet overloads;
+		addOverloaded(overloads, declaration, memberEnclosing);
+		if(!(!overloads.empty()))
+		{
+			throw SemanticError();
+		};
+		FunctionOverload overload=findBestMatch(overloads, 0, augmentedArguments, setEnclosingTypeSafe(context, memberEnclosing));
+		if(!(overload.declaration!=0))
+		{
+			throw SemanticError();
+		};
+		return overload.type;
 	}
-	FunctionOverload result=resolver.get();
-	if(result.declaration!=0&&result.type.isSimple()&&getObjectType(result.type.value).declaration==&gCtor)
+	if(type.isPointer())
 	{
-		result.type=to;
-		result.type.value.setQualifiers(CvQualifiers());
+		type.pop_front();
+		if(!(type.isFunction()))
+		{
+			throw SemanticError();
+		};
+		return popType(type);
 	}
-	return result;
+	if(!(type.isFunction()))
+	{
+		throw SemanticError();
+	};
+	bool isClassMemberAccess=isClassMemberAccessExpression(expression);
+	bool isNamed=isClassMemberAccess||isIdExpression(expression);
+	if(!isNamed)
+	{
+		if(!(type.isFunction()))
+		{
+			throw SemanticError();
+		};
+		return popType(type);
+	}
+	const IdExpression&idExpression=getIdExpression(isClassMemberAccess?getClassMemberAccessExpression(expression).right: expression);
+	DeclarationInstanceRef declaration=idExpression.declaration;
+	const TemplateArgumentsInstance&templateArguments=idExpression.templateArguments;
+	if(!(declaration.p!=0))
+	{
+		throw SemanticError();
+	};
+	const SimpleType*memberClass=isClassMemberAccess?getObjectExpression(getClassMemberAccessExpression(expression).left).classType: 0;
+	if(declaration.p==&gDestructorInstance)
+	{
+		return gUniqueTypeNull;
+	}
+	if(declaration.p==&gCopyAssignmentOperatorInstance)
+	{
+		if(!(memberClass!=0||context.enclosingType!=0))
+		{
+			throw SemanticError();
+		};
+		if(!(memberClass==0||memberClass!=&gDependentSimpleType))
+		{
+			throw SemanticError();
+		};
+		return popType(type);
+	}
+	if(!(declaration!=&gDependentObject))
+	{
+		throw SemanticError();
+	};
+	const SimpleType*memberEnclosing=getIdExpressionClass(idExpression.enclosing, idExpression.declaration, memberClass!=0?memberClass: context.enclosingType);
+	ExpressionNodeGeneric<ObjectExpression>transientExpression=ObjectExpression(0);
+	Arguments augmentedArguments;
+	if(isMember(*declaration))
+	{
+		if(!(memberClass!=0||context.enclosingType!=0||isStatic(*declaration)))
+		{
+			throw SemanticError();
+		};
+		if(!(memberClass==0||memberClass!=&gDependentSimpleType))
+		{
+			throw SemanticError();
+		};
+		const SimpleType&classType=memberClass!=0?*memberClass: context.enclosingType!=0?*context.enclosingType: *memberEnclosing;
+		transientExpression=ObjectExpression(&classType);
+		augmentedArguments.push_back(Argument(ExpressionWrapper(&transientExpression, false), makeUniqueSimpleType(classType)));
+	}
+	augmentedArguments.insert(augmentedArguments.end(), arguments.begin(), arguments.end());
+	OverloadSet overloads;
+	addOverloaded(overloads, declaration, memberEnclosing);
+	if(!isMember(*declaration))
+	{
+		argumentDependentLookup(overloads, declaration->getName(), augmentedArguments);
+	}
+	if(!(!overloads.empty()))
+	{
+		throw SemanticError();
+	};
+	FunctionOverload overload=findBestMatch(overloads, templateArguments.empty()?0: &templateArguments, augmentedArguments, context);
+	if(!(overload.declaration!=0))
+	{
+		throw SemanticError();
+	};
+	if(!(!::isDependent(overload.type)))
+	{
+		throw SemanticError();
+	};
+	return overload.type;
 }
-Identifier gGlobalId=makeIdentifier("$global");
+inline bool isIntegralConstant(UniqueTypeWrapper type)
+{
+	return type.isSimple()&&type.value.getQualifiers().isConst&&(isIntegral(type)||isEnumeration(type));
+}
 struct WalkerContext: public ParserAllocatorWrapper<int>
 {
 	Scope global;
@@ -50816,19 +52599,20 @@ struct WalkerState: public ContextBase
 	typedef WalkerState State;
 	WalkerContext&context;
 	ScopePtr enclosing;
-	const TypeInstance*enclosingType;
+	const SimpleType*enclosingType;
 	Dependent enclosingDependent;
 	TypePtr qualifying_p;
 	DeclarationPtr qualifyingScope;
-	const TypeInstance*qualifyingType;
-	const TypeInstance*memberObject;
+	const SimpleType*qualifyingClass;
+	const SimpleType*memberClass;
 	UniqueTypeWrapper memberType;
+	ExpressionWrapper objectExpression;
 	SafePtr<const TemplateParameters>templateParams;
 	ScopePtr templateParamScope;
 	DeferredSymbols*deferred;
 	std::size_t templateDepth;
 	bool isExplicitInstantiation;
-	WalkerState(WalkerContext&context): context(context), enclosing(0), enclosingType(0), qualifying_p(0), qualifyingScope(0), qualifyingType(0), memberObject(0), templateParams(0), templateParamScope(0), deferred(0), templateDepth(0), isExplicitInstantiation(false)
+	WalkerState(WalkerContext&context): context(context), enclosing(0), enclosingType(0), qualifying_p(0), qualifyingScope(0), qualifyingClass(0), memberClass(0), templateParams(0), templateParamScope(0), deferred(0), templateDepth(0), isExplicitInstantiation(false)
 	{
 	}
 	const WalkerState&getState()const
@@ -50838,6 +52622,10 @@ struct WalkerState: public ContextBase
 	Location getLocation()const
 	{
 		return Location(parser->get_source(), context.declarationCount);
+	}
+	InstantiationContext getInstantiationContext()const
+	{
+		return InstantiationContext(getLocation(), enclosingType, enclosing);
 	}
 	UniqueTypeWrapper getTypeInfoType()
 	{
@@ -50868,31 +52656,61 @@ struct WalkerState: public ContextBase
 				throw SemanticError();
 			};
 			Type type(declaration, context);
-			context.typeInfoType=makeUniqueType(type, Location(), 0);
+			context.typeInfoType=makeUniqueType(type, InstantiationContext(Location(), 0, 0), false);
 			context.typeInfoType.value.setQualifiers(CvQualifiers(true, false));
 		}
 		return context.typeInfoType;
 	}
-	bool allowNameLookup()
+	bool objectExpressionIsDependent()const
+	{
+		return objectExpression.p!=0&&objectExpression.isTypeDependent&&memberClass!=0;
+	}
+	bool allowNameLookup()const
 	{
 		if(isDependent(qualifying_p))
 		{
 			return false;
 		}
-		if(memberType!=gUniqueTypeNull&&memberObject!=0&&::isDependent(memberType))
+		if(objectExpressionIsDependent())
 		{
 			return false;
 		}
 		return true;
 	}
-	LookupResult findDeclaration(const Identifier&id, bool isDeclarator, LookupFilter filter=IsAny())
+	LookupResult lookupQualified(const Identifier&id, bool isDeclarator, LookupFilter filter=IsAny())
 	{
-		return isDeclarator?findDeclaratorDeclaration(id, filter): findDeclaration(id, filter);
+		return isDeclarator?findDeclaratorDeclaration(id, filter): lookupQualified(id, filter);
 	}
 	LookupResult findDeclaratorDeclaration(const Identifier&id, LookupFilter filter=IsAny())
 	{
+		if(!(getQualifyingScope()!=0))
+		{
+			throw SemanticError();
+		};
 		LookupResult result;
 		if(result.append(::findDeclaration(*getQualifyingScope(), id, filter)))
+		{
+			return result;
+		}
+		result.filtered=&gUndeclaredInstance;
+		return result;
+	}
+	LookupResult lookupQualified(const Identifier&id, LookupFilter filter=IsAny())
+	{
+		if(!(getQualifyingScope()!=0))
+		{
+			throw SemanticError();
+		};
+		LookupResult result;
+		if(qualifyingClass!=0)
+		{
+			instantiateClass(*qualifyingClass, getInstantiationContext());
+			if(result.append(::findDeclaration(*qualifyingClass, id, filter)))
+			{
+				return result;
+			}
+		}
+		else if(result.append(::findNamespaceDeclaration(*getQualifyingScope(), id, filter)))
 		{
 			return result;
 		}
@@ -50903,36 +52721,24 @@ struct WalkerState: public ContextBase
 	{
 		ProfileScope profile(gProfileLookup);
 		LookupResult result;
-		Scope*qualifying=getQualifyingScope();
-		if(qualifying!=0)
+		if(getQualifyingScope()!=0)
 		{
-			if(qualifyingType!=0)
-			{
-				instantiateClass(*qualifyingType, getLocation(), enclosingType);
-				if(result.append(::findDeclaration(*qualifyingType, id, filter)))
-				{
-					return result;
-				}
-			}
-			else if(result.append(::findNamespaceDeclaration(*qualifying, id, filter)))
-			{
-				return result;
-			}
+			return lookupQualified(id, filter);
 		}
 		else
 		{
-			bool isQualified=memberType!=gUniqueTypeNull&&memberObject!=0;
-			if(isQualified)
+			bool isQualified=objectExpression.p!=0&&memberClass!=0;
+			if(!(!(isUnqualifiedId&&objectExpression.isTypeDependent)))
 			{
-				if(!(!::isDependent(memberType)))
+				throw AllocatorError();
+			};
+			if(isQualified&&!objectExpression.isTypeDependent)
+			{
+				if(!(memberClass!=&gDependentSimpleType))
 				{
 					throw AllocatorError();
 				};
-				if(!(memberObject!=&gDependentObjectType))
-				{
-					throw AllocatorError();
-				};
-				if(result.append(::findDeclaration(*memberObject, id, filter)))
+				if(result.append(::findDeclaration(*memberClass, id, filter)))
 				{
 					return result;
 				}
@@ -51131,9 +52937,10 @@ struct WalkerState: public ContextBase
 	{
 		qualifying_p=0;
 		qualifyingScope=0;
-		qualifyingType=0;
+		qualifyingClass=0;
 		memberType=gUniqueTypeNull;
-		memberObject=0;
+		memberClass=0;
+		objectExpression=ExpressionWrapper();
 	}
 	const TemplateParameters&getTemplateParams()const
 	{
@@ -51416,6 +53223,12 @@ struct WalkerBase: public WalkerState
 	{
 		return allocatorNew(context, Scope(context, name, type));
 	}
+	template<typename T>
+	ExpressionWrapper makeExpression(const T&value, bool isConstant=false, bool isTypeDependent=false, bool isValueDependent=false)
+	{
+		ExpressionNode*node=isConstant?makeUniqueExpression(value): allocatorNew(context, ExpressionNodeGeneric<T>(value));
+		return ExpressionWrapper(node, isConstant, isTypeDependent, isValueDependent);
+	}
 	void disableBacktrack()
 	{
 		parser->addBacktrackCallback(makeBacktrackErrorCallback());
@@ -51461,13 +53274,13 @@ struct WalkerBase: public WalkerState
 		UniqueTypeWrapper uniqueType=UniqueTypeWrapper(type.unique);
 		if(parent->type==SCOPETYPE_CLASS&&!uniqueType.isFunction()&&!isStatic(*declaration)&&type.declaration!=&gCtor)
 		{
-			TypeInstance*enclosingClass=const_cast<TypeInstance*>(getEnclosingType(enclosingType));
+			SimpleType*enclosingClass=const_cast<SimpleType*>(getEnclosingType(enclosingType));
 			std::size_t size=0;
 			if(!type.isDependent)
 			{
 				if(!(parent->type==SCOPETYPE_CLASS&&isStatic(*declaration))&&!specifiers.isTypedef&&(uniqueType.isSimple()||uniqueType.isArray()))
 				{
-					size=requireCompleteObjectType(uniqueType, getLocation(), enclosingType);
+					size=requireCompleteObjectType(uniqueType, getInstantiationContext());
 				}
 			}
 			else if(enclosingClass!=0&&templateParams==0)
@@ -51518,7 +53331,7 @@ struct WalkerBase: public WalkerState
 	}
 	LookupResultRef lookupTemplate(const Identifier&id, LookupFilter filter)
 	{
-		if(allowNameLookup())
+		if(!isDependent(qualifying_p))
 		{
 			return LookupResultRef(findDeclaration(id, filter));
 		}
@@ -51535,101 +53348,40 @@ struct WalkerBase: public WalkerState
 	}
 	static UniqueTypeWrapper binaryOperatorIntegralType(UniqueTypeWrapper left, UniqueTypeWrapper right)
 	{
-		if(!(left!=gUniqueTypeNull))
+		if(!(!isFloating(left)))
 		{
 			throw SemanticError();
 		};
-		if(!(right!=gUniqueTypeNull))
+		if(!(!isFloating(right)))
 		{
 			throw SemanticError();
 		};
-		if(isEqual(left, gUnsignedLongInt)||isEqual(right, gUnsignedLongInt))
-		{
-			return gUnsignedLongInt;
-		}
-		if((isEqual(left, gSignedLongInt)&&isEqual(right, gUnsignedInt))||(isEqual(left, gUnsignedInt)&&isEqual(right, gSignedLongInt)))
-		{
-			return gUnsignedLongInt;
-		}
-		if(isEqual(left, gSignedLongInt)||isEqual(right, gSignedLongInt))
-		{
-			return gSignedLongInt;
-		}
-		if(isEqual(left, gUnsignedInt)||isEqual(right, gUnsignedInt))
-		{
-			return gUnsignedInt;
-		}
-		return gSignedInt;
-	}
-	static UniqueTypeWrapper binaryOperatorArithmeticType(UniqueTypeWrapper left, UniqueTypeWrapper right)
-	{
-		if(!(left!=gUniqueTypeNull))
-		{
-			throw SemanticError();
-		};
-		if(!(right!=gUniqueTypeNull))
-		{
-			throw SemanticError();
-		};
-		if(isEqual(left, gLongDouble)||isEqual(right, gLongDouble))
-		{
-			return gLongDouble;
-		}
-		if(isEqual(left, gDouble)||isEqual(right, gDouble))
-		{
-			return gDouble;
-		}
-		if(isEqual(left, gFloat)||isEqual(right, gFloat))
-		{
-			return gFloat;
-		}
-		return binaryOperatorIntegralType(promoteToIntegralType(left), promoteToIntegralType(right));
-	}
-	static UniqueTypeWrapper binaryOperatorAdditiveType(UniqueTypeWrapper left, UniqueTypeWrapper right)
-	{
-		if(!(left!=gUniqueTypeNull))
-		{
-			throw SemanticError();
-		};
-		if(!(right!=gUniqueTypeNull))
-		{
-			throw SemanticError();
-		};
-		left=applyLvalueToRvalueConversion(left);
-		right=applyLvalueToRvalueConversion(right);
-		if(left.isPointer())
-		{
-			if(isIntegral(right)||isEnumeration(right))
-			{
-				return left;
-			}
-			if(right.isPointer())
-			{
-				return gSignedLongLongInt;
-			}
-		}
-		return binaryOperatorArithmeticType(left, right);
+		return usualArithmeticConversions(left, right);
 	}
 	template<typename T>
-	void makeUniqueTypeImpl(T&type, Location source)
+	void makeUniqueTypeImpl(T&type)
 	{
-		if(memberType!=gUniqueTypeNull&&memberObject!=0&&::isDependent(memberType))
+		if(!(type.unique==0))
 		{
-			type.isDependent=true;
-			type.unique=memberType.value;
-			return ;
-		}
-		type.isDependent=isDependent(type);
-		type.unique=makeUniqueType(type, source, enclosingType, type.isDependent).value;
+			throw AllocatorError();
+		};
+		type.isDependent=isDependent(type)||objectExpressionIsDependent();
+		type.unique=makeUniqueType(type, getInstantiationContext(), type.isDependent).value;
 	}
-	UniqueTypeWrapper makeUniqueTypeSafe(Type&type, Location source)
+	void makeUniqueTypeSafe(Type&type)
 	{
-		makeUniqueTypeImpl(type, source);
-		return type.isDependent?gUniqueTypeNull: UniqueTypeWrapper(type.unique);
+		makeUniqueTypeImpl(type);
 	}
-	UniqueTypeWrapper makeUniqueTypeSafe(TypeId&type, Location source)
+	void makeUniqueTypeSafe(TypeId&type)
 	{
-		makeUniqueTypeImpl(type, source);
+		makeUniqueTypeImpl(type);
+	}
+	UniqueTypeWrapper getUniqueTypeSafe(const TypeId&type)
+	{
+		if(!(type.unique!=0))
+		{
+			throw SemanticError();
+		};
 		return type.isDependent?gUniqueTypeNull: UniqueTypeWrapper(type.unique);
 	}
 };
@@ -51647,7 +53399,7 @@ struct WalkerQualified: public WalkerBase
 		};
 		qualifying_p=context.globalType.get_ref();
 		qualifyingScope=qualifying_p->declaration;
-		qualifyingType=0;
+		qualifyingClass=0;
 	}
 	void swapQualifying(const Type&type, bool isDeclarator=false)
 	{
@@ -51669,14 +53421,14 @@ struct WalkerQualified: public WalkerBase
 			{
 				qualifyingScope=declaration;
 			}
-			else if(!allowNameLookup())
+			else if(isDependent(qualifying_p))
 			{
 				qualifyingScope=0;
 			}
 			else
 			{
-				qualifyingType=&getObjectType(getUniqueType(*qualifying_p, getLocation(), enclosingType).value);
-				qualifyingScope=qualifyingType->declaration;
+				qualifyingClass=&getSimpleType(getUniqueType(*qualifying_p, getInstantiationContext(), isDeclarator).value);
+				qualifyingScope=qualifyingClass->declaration;
 			}
 		}
 	}
@@ -51769,9 +53521,9 @@ struct Walker
 			if((result=symbol=makeParser(symbol).parseSymbol(getParser(walker), symbol))==0)return ;
 			result=symbol=parseHit(getParser(walker), symbol);
 			;
+			walker.commit();
 			argument.type.swap(walker.type);
 			argument.source=getLocation();
-			makeUniqueTypeSafe(argument.type, argument.source);
 		}
 		void visit(cpp::assignment_expression*symbol)
 		{
@@ -51857,8 +53609,25 @@ struct Walker
 		};
 		IdentifierPtr id;
 		TemplateArguments arguments;
-		TemplateIdWalker(const WalkerState&state): WalkerBase(state), id(0), arguments(context)
+		bool isTemplate;
+		TemplateIdWalker(const WalkerState&state, bool isTemplate=false): WalkerBase(state), id(0), arguments(context), isTemplate(isTemplate)
 		{
+		}
+		template<typename T>
+		void verifyTemplateName(T*symbol)
+		{
+			if(!isTemplate&&!isDependent(qualifying_p))
+			{
+				if(qualifyingClass==0&&getQualifyingScope()!=0&&getQualifyingScope()->type==SCOPETYPE_CLASS)
+				{
+					return ;
+				}
+				LookupResultRef declaration=findDeclaration(symbol->value, IsAny());
+				if(declaration==&gUndeclared||!isTemplateName(*declaration))
+				{
+					return reportIdentifierMismatch(symbol, symbol->value, declaration, "template-name");
+				}
+			}
 		}
 		void visit(cpp::identifier*symbol)
 		{
@@ -51876,6 +53645,7 @@ struct Walker
 				result=symbol;
 			};
 			id=&symbol->value;
+			return verifyTemplateName(symbol);
 		}
 		void visit(cpp::operator_function_id*symbol)
 		{
@@ -51887,6 +53657,7 @@ struct Walker
 			symbol->value.value=walker.name;
 			symbol->value.source=source;
 			id=&symbol->value;
+			return verifyTemplateName(symbol);
 		}
 		void visit(cpp::template_argument_clause*symbol)
 		{
@@ -51951,7 +53722,7 @@ struct Walker
 		}
 		void visit(cpp::simple_template_id*symbol)
 		{
-			TemplateIdWalker walker(getState());
+			TemplateIdWalker walker(getState(), isTemplate);
 			if(!parser->cacheLookup((symbol), (walker)))
 			{
 				CachedSymbols::Key key=parser->context.position;
@@ -51978,7 +53749,7 @@ struct Walker
 		}
 		void visit(cpp::template_id_operator_function*symbol)
 		{
-			TemplateIdWalker walker(getState());
+			TemplateIdWalker walker(getState(), isTemplate);
 			if(!parser->cacheLookup((symbol), (walker)))
 			{
 				CachedSymbols::Key key=parser->context.position;
@@ -52016,17 +53787,20 @@ struct Walker
 			if(allowNameLookup())
 			{
 				declaration=findDeclaration(*id, IsAny(), true);
+				if(declaration==&gUndeclared&&id->value==gOperatorAssignId)
+				{
+					declaration=gCopyAssignmentOperatorInstance;
+				}
 			}
 		}
 		void visit(cpp::conversion_function_id*symbol)
 		{
 			Source source=parser->get_source();
 			TypeIdWalker walker(getState());
-			walker.clearQualifying();
 			if((result=symbol=makeParser(symbol).parseSymbol(getParser(walker), symbol))==0)return ;
 			result=symbol=parseHit(getParser(walker), symbol);
 			;
-			UniqueTypeWrapper type=makeUniqueTypeSafe(walker.type, getLocation());
+			walker.commit();
 			symbol->value=gConversionFunctionId;
 			symbol->value.source=source;
 			id=&symbol->value;
@@ -52040,7 +53814,12 @@ struct Walker
 			if((result=symbol=makeParser(symbol).parseSymbol(getParser(*this), symbol))==0)return ;
 			result=symbol=parseHit(getParser(*this), symbol);
 			;
-			id=&gDestructorId;
+			id=&symbol->name->value;
+			if(objectExpression.p==0)
+			{
+				return reportIdentifierMismatch(symbol, *id, declaration, "class member access expression");
+			}
+			declaration=gDestructorInstance;
 		}
 	};
 	struct QualifiedIdWalker: public WalkerQualified
@@ -52120,12 +53899,16 @@ struct Walker
 		void visit(cpp::terminal<id>symbol)
 		{
 		};
+		ExpressionWrapper expression;
 		LookupResultRef declaration;
 		IdentifierPtr id;
 		TemplateArguments arguments;
+		Dependent typeDependent;
+		Dependent valueDependent;
 		bool isIdentifier;
+		bool isUndeclared;
 		bool isTemplate;
-		IdExpressionWalker(const WalkerState&state, bool isTemplate=false): WalkerQualified(state), id(0), arguments(context), isIdentifier(false), isTemplate(isTemplate)
+		IdExpressionWalker(const WalkerState&state, bool isTemplate=false): WalkerQualified(state), id(0), arguments(context), isIdentifier(false), isUndeclared(false), isTemplate(isTemplate)
 		{
 		}
 		void visit(cpp::qualified_id_default*symbol)
@@ -52150,6 +53933,14 @@ struct Walker
 			arguments.swap(walker.arguments);
 			swapQualifying(walker.qualifying);
 		}
+		void visit(cpp::qualified_id*symbol)
+		{
+			if((result=symbol=makeParser(symbol).parseSymbol(getParser(*this), symbol))==0)return ;
+			result=symbol=parseHit(getParser(*this), symbol);
+			;
+			setDependent(typeDependent, qualifying.get());
+			setDependent(valueDependent, qualifying.get());
+		}
 		void visit(cpp::unqualified_id*symbol)
 		{
 			UnqualifiedIdWalker walker(getState(), isTemplate);
@@ -52160,6 +53951,58 @@ struct Walker
 			id=walker.id;
 			arguments.swap(walker.arguments);
 			isIdentifier=walker.isIdentifier;
+		}
+		bool commit()
+		{
+			UniqueTypeWrapper qualifyingType=makeUniqueQualifying(qualifying, getInstantiationContext(), isDependent(qualifying.get_ref()));
+			TemplateArgumentsInstance templateArguments;
+			makeUniqueTemplateArguments(arguments, templateArguments, getInstantiationContext(), isDependent(arguments));
+			expression=ExpressionWrapper();
+			if(isDependent(typeDependent)||objectExpressionIsDependent())
+			{
+				setDecoration(id, gDependentObjectInstance);
+				expression=makeExpression(DependentIdExpression(id->value, qualifyingType, templateArguments), true, true, true);
+			}
+			else if(isIdentifier&&declaration==&gUndeclared)
+			{
+				isUndeclared=true;
+				setDecoration(id, gDependentObjectInstance);
+				expression=makeExpression(DependentIdExpression(id->value, gUniqueTypeNull, TemplateArgumentsInstance()));
+			}
+			else
+			{
+				if(!(declaration!=0))
+				{
+					throw SemanticError();
+				};
+				if(declaration==&gUndeclared||!isObject(*declaration))
+				{
+					return false;
+				}
+				addDependentType(typeDependent, declaration);
+				setDependent(typeDependent, arguments);
+				addDependentOverloads(typeDependent, declaration);
+				addDependentType(valueDependent, declaration);
+				addDependentName(valueDependent, declaration);
+				setDecoration(id, declaration);
+				if(!(!isDependent(qualifying.get_ref())))
+				{
+					throw SemanticError();
+				};
+				const SimpleType*qualifyingClass=qualifyingType==gUniqueTypeNull?0: &getSimpleType(qualifyingType.value);
+				if(!(qualifyingClass==this->qualifyingClass))
+				{
+					throw SemanticError();
+				};
+				if(!(declaration->templateParameter==INDEX_INVALID||qualifying.empty()))
+				{
+					throw SemanticError();
+				};
+				expression=declaration->templateParameter==INDEX_INVALID?makeExpression(IdExpression(declaration, qualifyingClass, templateArguments), false, isDependent(typeDependent), isDependent(valueDependent)): makeExpression(NonTypeTemplateParameter(declaration), true, isDependent(typeDependent), isDependent(valueDependent));
+				expression.isNonStaticMemberName=isMember(*declaration)&&!isStatic(*declaration);
+				expression.isQualifiedNonStaticMemberName=expression.isNonStaticMemberName&&qualifyingType!=gUniqueTypeNull;
+			}
+			return true;
 		}
 	};
 	struct ExplicitTypeExpressionWalker: public WalkerBase
@@ -52193,7 +54036,7 @@ struct Walker
 				type=getFundamentalType(walker.fundamental);
 			}
 			addDependent(typeDependent, type);
-			makeUniqueTypeSafe(type, getLocation());
+			makeUniqueTypeSafe(type);
 		}
 		void visit(cpp::typename_specifier*symbol)
 		{
@@ -52203,7 +54046,7 @@ struct Walker
 			;
 			type.swap(walker.type);
 			addDependent(typeDependent, type);
-			makeUniqueTypeSafe(type, getLocation());
+			makeUniqueTypeSafe(type);
 		}
 		void visit(cpp::type_id*symbol)
 		{
@@ -52211,9 +54054,9 @@ struct Walker
 			if((result=symbol=makeParser(symbol).parseSymbol(getParser(walker), symbol))==0)return ;
 			result=symbol=parseHit(getParser(walker), symbol);
 			;
+			walker.commit();
 			type.swap(walker.type);
 			addDependent(typeDependent, type);
-			makeUniqueTypeSafe(type, getLocation());
 		}
 		void visit(cpp::new_type*symbol)
 		{
@@ -52224,7 +54067,7 @@ struct Walker
 			type.swap(walker.type);
 			addDependent(typeDependent, type);
 			addDependent(typeDependent, walker.valueDependent);
-			makeUniqueTypeSafe(type, getLocation());
+			makeUniqueTypeSafe(type);
 		}
 		void visit(cpp::assignment_expression*symbol)
 		{
@@ -52300,129 +54143,14 @@ struct Walker
 			{
 				symbol->id=isFloatingLiteral(symbol->value.value.c_str())?cpp::numeric_literal::FLOATING: cpp::numeric_literal::INTEGER;
 			}
-			expression=makeExpression(parseNumericLiteral(symbol));
+			expression=makeUniqueExpression(parseNumericLiteral(symbol));
 		}
 		void visit(cpp::string_literal*symbol)
 		{
 			if((result=symbol=makeParser(symbol).parseSymbol(getParser(*this), symbol))==0)return ;
 			result=symbol=parseHit(getParser(*this), symbol);
 			;
-			expression=makeExpression(IntegralConstantExpression(getStringLiteralType(symbol), IntegralConstant()));
-		}
-	};
-	struct DependentPrimaryExpressionWalker: public WalkerBase
-	{
-		template<typename T>
-		void visit(T*symbol)
-		{
-			if((result=symbol=makeParser(symbol).parseSymbol(getParser(*this), symbol))==0)return ;
-			result=symbol=parseHit(getParser(*this), symbol);
-		}
-		template<LexTokenId id>
-		void visit(cpp::terminal<id>symbol)
-		{
-		};
-		LookupResultRef declaration;
-		IdentifierPtr id;
-		Dependent typeDependent;
-		DependentPrimaryExpressionWalker(const WalkerState&state): WalkerBase(state), id(0)
-		{
-		}
-		void visit(cpp::id_expression*symbol)
-		{
-			IdExpressionWalker walker(getState());
-			if((result=symbol=makeParser(symbol).parseSymbol(getParser(walker), symbol))==0)return ;
-			result=symbol=parseHit(getParser(walker), symbol);
-			;
-			declaration=walker.declaration;
-			if(walker.isIdentifier&&(declaration==&gUndeclared||(isObject(*declaration)&&declaration->scope->type==SCOPETYPE_NAMESPACE)))
-			{
-				id=walker.id;
-			}
-			else
-			{
-				if(declaration!=0)
-				{
-					if(declaration==&gUndeclared||!isObject(*declaration))
-					{
-						return reportIdentifierMismatch(symbol, *walker.id, declaration, "object-name");
-					}
-					setDecoration(walker.id, declaration);
-					addDependentType(typeDependent, declaration);
-				}
-				else if(walker.id!=0)
-				{
-					setDecoration(walker.id, gDependentObjectInstance);
-					if(!walker.qualifying.empty())
-					{
-						setDependent(typeDependent, walker.qualifying.get());
-					}
-				}
-			}
-		}
-		void visit(cpp::primary_expression_parenthesis*symbol)
-		{
-			ExpressionWalker walker(getState());
-			if((result=symbol=makeParser(symbol).parseSymbol(getParser(walker), symbol))==0)return ;
-			result=symbol=parseHit(getParser(walker), symbol);
-			;
-			addDependent(typeDependent, walker.typeDependent);
-		}
-	};
-	struct DependentPostfixExpressionWalker: public WalkerBase
-	{
-		template<typename T>
-		void visit(T*symbol)
-		{
-			if((result=symbol=makeParser(symbol).parseSymbol(getParser(*this), symbol))==0)return ;
-			result=symbol=parseHit(getParser(*this), symbol);
-		}
-		template<LexTokenId id>
-		void visit(cpp::terminal<id>symbol)
-		{
-		};
-		LookupResultRef declaration;
-		IdentifierPtr id;
-		Dependent typeDependent;
-		DependentPostfixExpressionWalker(const WalkerState&state): WalkerBase(state), id(0)
-		{
-		}
-		void visit(cpp::primary_expression*symbol)
-		{
-			DependentPrimaryExpressionWalker walker(getState());
-			if((result=symbol=makeParser(symbol).parseSymbol(getParser(walker), symbol))==0)return ;
-			result=symbol=parseHit(getParser(walker), symbol);
-			;
-			declaration=walker.declaration;
-			id=walker.id;
-			addDependent(typeDependent, walker.typeDependent);
-		}
-		void visit(cpp::postfix_expression_call*symbol)
-		{
-			ArgumentListWalker walker(getState());
-			if((result=symbol=makeParser(symbol).parseSymbol(getParser(walker), symbol))==0)return ;
-			result=symbol=parseHit(getParser(walker), symbol);
-			;
-			addDependent(typeDependent, walker.typeDependent);
-			if(id!=0)
-			{
-				if(!isDependent(walker.typeDependent))
-				{
-					if(declaration!=0)
-					{
-						if(declaration==&gUndeclared||!isObject(*declaration))
-						{
-							return reportIdentifierMismatch(symbol, *id, declaration, "object-name");
-						}
-						addDependentType(typeDependent, declaration);
-						setDecoration(id, declaration);
-					}
-				}
-				else
-				{
-					setDecoration(id, gDependentObjectInstance);
-				}
-			}
+			expression=makeUniqueExpression(IntegralConstantExpression(getStringLiteralType(symbol), IntegralConstant()));
 		}
 	};
 	struct PrimaryExpressionWalker: public WalkerBase
@@ -52441,10 +54169,11 @@ struct Walker
 		ExpressionWrapper expression;
 		IdentifierPtr id;
 		TemplateArguments arguments;
-		const TypeInstance*idEnclosing;
+		const SimpleType*idEnclosing;
 		Dependent typeDependent;
 		Dependent valueDependent;
-		PrimaryExpressionWalker(const WalkerState&state): WalkerBase(state), id(0), arguments(context), idEnclosing(0)
+		bool isUndeclared;
+		PrimaryExpressionWalker(const WalkerState&state): WalkerBase(state), id(0), arguments(context), idEnclosing(0), isUndeclared(false)
 		{
 		}
 		void visit(cpp::literal*symbol)
@@ -52454,7 +54183,7 @@ struct Walker
 			result=symbol=parseHit(getParser(walker), symbol);
 			;
 			expression=walker.expression;
-			type=typeofExpression(expression, getLocation());
+			type=typeOfExpression(expression, getInstantiationContext());
 			if(!(!type.empty()))
 			{
 				throw SemanticError();
@@ -52467,82 +54196,38 @@ struct Walker
 			if((result=symbol=makeParser(symbol).parseSymbol(getParser(walker), symbol))==0)return ;
 			result=symbol=parseHit(getParser(walker), symbol);
 			;
+			if(!walker.commit())
+			{
+				return reportIdentifierMismatch(symbol, *walker.id, walker.declaration, "object-name");
+			}
 			id=walker.id;
 			arguments.swap(walker.arguments);
 			type=gUniqueTypeNull;
 			LookupResultRef declaration=walker.declaration;
-			setDependent(typeDependent, walker.qualifying.get());
-			setDependent(valueDependent, walker.qualifying.get());
-			UniqueTypeWrapper qualifying=walker.qualifying.empty()||isNamespace(*walker.qualifying.back().declaration)?gUniqueTypeNull: UniqueTypeWrapper(walker.qualifying.back().unique);
-			if(declaration==&gUndeclared&&id->value==gOperatorAssignId)
+			addDependent(typeDependent, walker.typeDependent);
+			addDependent(valueDependent, walker.valueDependent);
+			expression=walker.expression;
+			isUndeclared=walker.isUndeclared;
+			if(!(memberClass==0))
 			{
-				declaration=LookupResultRef();
-				expression=ExpressionWrapper();
+				throw SemanticError();
+			};
+			if(isUndeclared)
+			{
+				type=gUniqueTypeNull;
+				idEnclosing=0;
 			}
-			else if(isDependent(walker.qualifying.get_ref()))
+			else if(expression.p!=0&&!isDependent(typeDependent))
 			{
-				setDecoration(id, gDependentObjectInstance);
-				expression=ExpressionWrapper(makeExpression(DependentIdExpression(id->value, qualifying)), true, true, true);
-			}
-			else
-			{
-				if(!(declaration!=0))
-				{
-					throw SemanticError();
-				};
-				if(!(memberObject==0))
-				{
-					throw SemanticError();
-				}
-				if(declaration==&gUndeclared||!isObject(*declaration))
-				{
-					return reportIdentifierMismatch(symbol, *id, declaration, "object-name");
-				}
-				addDependentType(typeDependent, declaration);
-				setDependent(typeDependent, arguments);
-				addDependentOverloads(typeDependent, declaration);
-				addDependentType(valueDependent, declaration);
-				addDependentName(valueDependent, declaration);
-				setDecoration(id, declaration);
-				if(!(!isDependent(walker.qualifying.get_ref())))
-				{
-					throw SemanticError();
-				};
-				const TypeInstance*qualifyingType=qualifying==gUniqueTypeNull?0: &getObjectType(qualifying.value);
-				if(!(qualifyingType==walker.qualifyingType))
-				{
-					throw SemanticError();
-				};
-				if(!(declaration->templateParameter==INDEX_INVALID||walker.qualifying.empty()))
-				{
-					throw SemanticError();
-				};
-				expression=ExpressionWrapper(declaration->templateParameter==INDEX_INVALID?makeExpression(IdExpression(declaration, qualifyingType)): makeExpression(NonTypeTemplateParameter(declaration)), false, isDependent(typeDependent), isDependent(valueDependent));
-				expression.isNonStaticMemberName=isMember(*declaration)&&!isStatic(*declaration);
-				expression.isQualifiedNonStaticMemberName=expression.isNonStaticMemberName&&qualifying!=gUniqueTypeNull;
-				idEnclosing=makeUniqueEnclosing(walker.qualifying, Location(id->source, context.declarationCount), enclosingType);
-				if(isMember(*declaration))
-				{
-					if(!(idEnclosing!=0))
-					{
-						throw SemanticError();
-					};
-					idEnclosing=findEnclosingType(idEnclosing, declaration->scope);
-					if(!(idEnclosing!=0))
-					{
-						throw SemanticError();
-					};
-				}
-				type=getUniqueType(declaration->type, Location(id->source, context.declarationCount), idEnclosing, expression.isTypeDependent||declaration->isTemplate);
+				UniqueTypeWrapper qualifyingType=makeUniqueQualifying(walker.qualifying, getInstantiationContext());
+				const SimpleType*qualifyingClass=qualifyingType==gUniqueTypeNull?0: &getSimpleType(qualifyingType.value);
+				type=typeOfIdExpression(qualifyingClass, declaration, getInstantiationContext());
+				idEnclosing=isSpecialMember(*declaration)?0: getIdExpressionClass(qualifyingClass, declaration, enclosingType);
 				if(!type.isFunction())
 				{
-					expression.isConstant=declaration->templateParameter!=INDEX_INVALID||(isIntegralConstant(type)&&declaration->initializer.isConstant);
+					expression.isConstant|=(isIntegralConstant(type)&&declaration->initializer.isConstant);
 				}
 			}
-		}
-		inline bool isIntegralConstant(UniqueTypeWrapper type)
-		{
-			return type.isSimple()&&type.value.getQualifiers().isConst&&(isIntegral(type)||isEnumeration(type));
 		}
 		void visit(cpp::primary_expression_parenthesis*symbol)
 		{
@@ -52565,8 +54250,9 @@ struct Walker
 			{
 				throw SemanticError();
 			};
-			type=UniqueTypeWrapper(pushUniqueType(gUniqueTypes, makeUniqueObjectType(*enclosingType).value, PointerType()));
+			type=UniqueTypeWrapper(pushUniqueType(gUniqueTypes, makeUniqueSimpleType(*enclosingType).value, PointerType()));
 			addDependent(typeDependent, enclosingDependent);
+			expression=makeExpression(ExplicitTypeExpression(type), false, isDependent(typeDependent));
 			setExpressionType(symbol, type);
 		}
 	};
@@ -52582,9 +54268,12 @@ struct Walker
 		void visit(cpp::terminal<id>symbol)
 		{
 		};
+		ExpressionWrapper expression;
 		LookupResultRef declaration;
 		IdentifierPtr id;
 		TemplateArguments arguments;
+		Dependent typeDependent;
+		Dependent valueDependent;
 		bool isTemplate;
 		PostfixExpressionMemberWalker(const WalkerState&state): WalkerQualified(state), id(0), arguments(context), isTemplate(false)
 		{
@@ -52595,11 +54284,16 @@ struct Walker
 			result=symbol=parseHit(getParser(*this), symbol);
 			;
 			bool isArrow=symbol->id==cpp::member_operator::ARROW;
-			memberObject=&gDependentObjectType;
-			if(memberType!=gUniqueTypeNull&&!::isDependent(memberType))
+			memberClass=&gDependentSimpleType;
+			if(!(objectExpression.p!=0))
+			{
+				throw SemanticError();
+			};
+			if(!objectExpression.isTypeDependent)
 			{
 				UniqueTypeWrapper operand=removeReference(memberType);
-				memberObject=&getMemberOperatorType(operand, isArrow, getLocation(), enclosingType);
+				memberClass=&getMemberOperatorType(Argument(expression, operand), isArrow, getInstantiationContext());
+				objectExpression=makeExpression(ObjectExpression(memberClass));
 			}
 		}
 		void visit(cpp::terminal<boost::wave::T_TEMPLATE>symbol)
@@ -52612,10 +54306,18 @@ struct Walker
 			if((result=symbol=makeParser(symbol).parseSymbol(getParser(walker), symbol))==0)return ;
 			result=symbol=parseHit(getParser(walker), symbol);
 			;
+			bool isObjectName=walker.commit();
+			if(!(isObjectName))
+			{
+				throw SemanticError();
+			};
 			id=walker.id;
 			arguments.swap(walker.arguments);
 			declaration=walker.declaration;
 			swapQualifying(walker.qualifying);
+			addDependent(typeDependent, walker.typeDependent);
+			addDependent(valueDependent, walker.valueDependent);
+			expression=walker.expression;
 		}
 	};
 	struct TypeTraitsIntrinsicWalker: public WalkerBase
@@ -52647,11 +54349,11 @@ struct Walker
 			result=symbol=parseHit(getParser(walker), symbol);
 			;
 			symbol->source=source_;
+			walker.commit();
 			addDependent(valueDependent, walker.type);
-			makeUniqueTypeImpl(walker.type, Location(symbol->source, context.declarationCount));
-			UniqueTypeWrapper uniqueType=UniqueTypeWrapper(walker.type.unique);
-			setExpressionType(symbol, uniqueType);
-			(first==gUniqueTypeNull?first: second)=uniqueType;
+			UniqueTypeWrapper type=UniqueTypeWrapper(walker.type.unique);
+			setExpressionType(symbol, type);
+			(first==gUniqueTypeNull?first: second)=type;
 		}
 	};
 	struct PostfixExpressionWalker: public WalkerBase
@@ -52670,19 +54372,35 @@ struct Walker
 		ExpressionWrapper expression;
 		IdentifierPtr id;
 		TemplateArguments arguments;
-		const TypeInstance*idEnclosing;
+		const SimpleType*idEnclosing;
 		Dependent typeDependent;
 		Dependent valueDependent;
-		PostfixExpressionWalker(const WalkerState&state): WalkerBase(state), id(0), arguments(context), idEnclosing(0)
+		bool isUndeclared;
+		PostfixExpressionWalker(const WalkerState&state): WalkerBase(state), id(0), arguments(context), idEnclosing(0), isUndeclared(false)
 		{
 		}
 		void clearMemberType()
 		{
 			memberType=gUniqueTypeNull;
+			objectExpression=ExpressionWrapper();
 		}
 		void updateMemberType()
 		{
-			memberType=type.isFunction()?gUniqueTypeNull: type;
+			memberClass=0;
+			if(type.isFunction())
+			{
+				memberType=gUniqueTypeNull;
+				objectExpression=ExpressionWrapper();
+			}
+			else
+			{
+				memberType=type;
+				objectExpression=makeExpression(ExplicitTypeExpression(type), false, isDependent(typeDependent), isDependent(valueDependent));
+				if(!(objectExpression.isTypeDependent||!::isDependent(type)))
+				{
+					throw SemanticError();
+				};
+			}
 		}
 		void visit(cpp::primary_expression*symbol)
 		{
@@ -52697,16 +54415,8 @@ struct Walker
 			id=walker.id;
 			arguments.swap(walker.arguments);
 			idEnclosing=walker.idEnclosing;
+			isUndeclared=walker.isUndeclared;
 			setExpressionType(symbol, type);
-			updateMemberType();
-		}
-		void visit(cpp::postfix_expression_disambiguate*symbol)
-		{
-			DependentPostfixExpressionWalker walker(getState());
-			if((result=symbol=makeParser(symbol).parseSymbol(getParser(walker), symbol))==0)return ;
-			result=symbol=parseHit(getParser(walker), symbol);
-			;
-			addDependent(typeDependent, walker.typeDependent);
 			updateMemberType();
 		}
 		void visit(cpp::postfix_expression_construct*symbol)
@@ -52717,13 +54427,13 @@ struct Walker
 			result=symbol=parseHit(getParser(walker), symbol);
 			;
 			symbol->source=source_;
-			expression=walker.expression;
 			addDependent(typeDependent, walker.typeDependent);
-			type=makeUniqueTypeSafe(walker.type, Location(symbol->source, context.declarationCount));
-			requireCompleteObjectType(type, Location(symbol->source, context.declarationCount), enclosingType);
+			type=getUniqueTypeSafe(walker.type);
+			requireCompleteObjectType(type, getInstantiationContext());
+			expression=makeExpression(CastExpression(type, walker.expression), walker.expression.isConstant, isDependent(typeDependent), false);
+			expression.isTemplateArgumentAmbiguity=symbol->args==0;
 			setExpressionType(symbol, type);
 			updateMemberType();
-			expression.isTemplateArgumentAmbiguity=symbol->args==0;
 		}
 		void visit(cpp::postfix_expression_cast*symbol)
 		{
@@ -52733,9 +54443,8 @@ struct Walker
 			result=symbol=parseHit(getParser(walker), symbol);
 			;
 			symbol->source=source_;
-			expression=walker.expression;
-			type=makeUniqueTypeSafe(walker.type, Location(symbol->source, context.declarationCount));
-			requireCompleteObjectType(type, Location(symbol->source, context.declarationCount), enclosingType);
+			type=getUniqueTypeSafe(walker.type);
+			requireCompleteObjectType(type, getInstantiationContext());
 			if(symbol->op->id!=cpp::cast_operator::DYNAMIC)
 			{
 				Dependent tmp(walker.typeDependent);
@@ -52743,6 +54452,7 @@ struct Walker
 			}
 			addDependent(typeDependent, walker.typeDependent);
 			addDependent(valueDependent, walker.valueDependent);
+			expression=makeExpression(CastExpression(type, walker.expression), walker.expression.isConstant, isDependent(typeDependent), isDependent(valueDependent));
 			setExpressionType(symbol, type);
 			updateMemberType();
 		}
@@ -52753,6 +54463,7 @@ struct Walker
 			result=symbol=parseHit(getParser(walker), symbol);
 			;
 			type=getTypeInfoType();
+			expression=makeExpression(ExplicitTypeExpression(type));
 			updateMemberType();
 		}
 		void visit(cpp::postfix_expression_typeidtype*symbol)
@@ -52762,6 +54473,7 @@ struct Walker
 			result=symbol=parseHit(getParser(walker), symbol);
 			;
 			type=getTypeInfoType();
+			expression=makeExpression(ExplicitTypeExpression(type));
 			updateMemberType();
 		}
 		void visit(cpp::postfix_expression_subscript*symbol)
@@ -52787,47 +54499,9 @@ struct Walker
 					throw SemanticError();
 				};
 				type=removeReference(type);
-				if(isClass(type))
-				{
-					if(!(isComplete(type)))
-					{
-						throw SemanticError();
-					};
-					const TypeInstance&object=getObjectType(type.value);
-					instantiateClass(object, getLocation(), enclosingType);
-					Identifier tmp;
-					tmp.value=gOperatorSubscriptId;
-					tmp.source=getLocation();
-					LookupResultRef declaration=::findDeclaration(object, tmp, IsAny());
-					if(!(declaration!=0))
-					{
-						throw SemanticError();
-					};
-					const TypeInstance*idEnclosing=findEnclosingType(&object, declaration->scope);
-					if(!(idEnclosing!=0))
-					{
-						throw SemanticError();
-					};
-					Arguments arguments;
-					arguments.push_back(Argument(ExpressionWrapper(0), type));
-					arguments.push_back(Argument(walker.expression, walker.type));
-					FunctionOverload overload=findBestMatch(declaration, 0, arguments, getLocation(), idEnclosing);
-					if(!(overload.declaration!=0))
-					{
-						throw SemanticError();
-					};
-					type=overload.type;
-				}
-				else
-				{
-					if(!(type.isArray()||type.isPointer()))
-					{
-						throw SemanticError();
-					};
-					type.pop_front();
-					requireCompleteObjectType(type, Location(symbol->source, context.declarationCount), enclosingType);
-				}
+				type=typeOfSubscriptExpression(Argument(expression, type), Argument(walker.expression, walker.type), getInstantiationContext());
 			}
+			expression=makeExpression(SubscriptExpression(expression, walker.expression), false, isDependent(typeDependent), isDependent(valueDependent));
 			setExpressionType(symbol, type);
 			updateMemberType();
 		}
@@ -52842,7 +54516,7 @@ struct Walker
 			setExpressionType(symbol, type);
 			addDependent(typeDependent, walker.typeDependent);
 			addDependent(valueDependent, walker.valueDependent);
-			if(expression.isNonStaticMemberName)
+			if(!isDependent(typeDependent)&&expression.isNonStaticMemberName&&memberClass==0)
 			{
 				if(!(enclosingType!=0))
 				{
@@ -52857,96 +54531,81 @@ struct Walker
 					id->dec.deferred=true;
 				}
 				type=gUniqueTypeNull;
-			}
-			else if(id!=0&&!isDecorated(*id)&&id->value==gOperatorAssignId)
-			{
-				if(!(memberObject!=0||enclosingType!=0))
-				{
-					throw SemanticError();
-				};
-				if(!(memberObject==0||memberObject!=&gDependentObjectType))
-				{
-					throw SemanticError();
-				};
-				type=makeUniqueObjectType(memberObject!=0?*memberObject: *enclosingType);
-				type.push_front(ReferenceType());
+				expression=ExpressionWrapper();
 			}
 			else
 			{
-				type=removeReference(type);
-				if(isClass(type))
+
 				{
-					if(!(isComplete(type)))
+					if(!(isUndeclared==isDependentIdExpression(expression)))
 					{
 						throw SemanticError();
 					};
-					const TypeInstance&object=getObjectType(type.value);
-					instantiateClass(object, getLocation(), enclosingType);
-					Identifier tmp;
-					tmp.value=gOperatorFunctionId;
-					tmp.source=getLocation();
-					LookupResultRef declaration=::findDeclaration(object, tmp, IsAny());
-					if(!(declaration!=0))
-					{
-						throw SemanticError();
-					};
-					id=&declaration->getName();
-					idEnclosing=findEnclosingType(&object, declaration->scope);
-					if(!(idEnclosing!=0))
-					{
-						throw SemanticError();
-					};
-					memberObject=&object;
-				}
-				if(id==0)
-				{
-					if(!(type.isFunction()))
-					{
-						throw SemanticError();
-					};
-					type.pop_front();
-				}
-				else if(type.isFunction())
-				{
-					if(!(isDecorated(*id)))
-					{
-						throw SemanticError();
-					};
-					if(!(getDeclaration(*id)!=&gDependentObject))
+					if(!(!isUndeclared||getDependentIdExpression(expression).name==id->value))
 					{
 						throw SemanticError();
 					};
 					TemplateArgumentsInstance templateArguments;
-					makeUniqueTemplateArguments(arguments, templateArguments, Location(id->source, context.declarationCount), enclosingType);
-					Arguments arguments;
-					if(isMember(*getDeclaration(*id)))
+					makeUniqueTemplateArguments(arguments, templateArguments, getInstantiationContext());
+					if(isUndeclared)
 					{
-						if(!(memberObject!=0||enclosingType!=0||isStatic(*getDeclaration(*id))))
+						if(!(templateArguments.empty()))
 						{
 							throw SemanticError();
 						};
-						if(!(memberObject==0||memberObject!=&gDependentObjectType))
+					}
+					else
+					{
+						bool isCallToNamedFunction=expression.p!=0&&(isIdExpression(expression)||isClassMemberAccessExpression(expression));
+						if(!((id!=0)==(isCallToNamedFunction||(expression.p!=0&&isNonTypeTemplateParameter(expression)))))
 						{
 							throw SemanticError();
 						};
-						arguments.push_back(Argument(ExpressionWrapper(0), makeUniqueObjectType(memberObject!=0?*memberObject: enclosingType!=0?*enclosingType: *idEnclosing)));
+						if(!isCallToNamedFunction)
+						{
+							if(!(templateArguments.empty()))
+							{
+								throw SemanticError();
+							};
+						}
+						else
+						{
+							bool isCallToNamedMemberFunction=isClassMemberAccessExpression(expression);
+							const IdExpression&idExpression=getIdExpression(isCallToNamedMemberFunction?getClassMemberAccessExpression(expression).right: expression);
+							if(!(idExpression.declaration.p==&getDeclaration(*id)))
+							{
+								throw SemanticError();
+							};
+							if(!(idExpression.templateArguments==templateArguments))
+							{
+								throw SemanticError();
+							};
+							if(type.isFunction())
+							{
+								const SimpleType*tmp=isCallToNamedMemberFunction?getObjectExpression(getClassMemberAccessExpression(expression).left).classType: 0;
+								if(!(memberClass==tmp))
+								{
+									throw SemanticError();
+								};
+								if(!isSpecialMember(*idExpression.declaration))
+								{
+									const SimpleType*tmp=getIdExpressionClass(idExpression.enclosing, idExpression.declaration, memberClass!=0?memberClass: enclosingType);
+									if(!(idEnclosing==tmp))
+									{
+										throw SemanticError();
+									};
+								}
+							}
+						}
 					}
-					arguments.insert(arguments.end(), walker.arguments.begin(), walker.arguments.end());
-					FunctionOverload overload=findBestMatch(findOverloaded(getDeclaration(*id)), templateArguments.empty()?0: &templateArguments, arguments, Location(id->source, context.declarationCount), idEnclosing);
-					if(!(overload.declaration!=0))
-					{
-						throw SemanticError();
-					};
-
-					{
-						DeclarationInstanceRef instance=findLastDeclaration(getDeclaration(*id), overload.declaration);
-						setDecoration(id, instance);
-					}
-					type=overload.type;
 				}
+				type=typeOfFunctionCallExpression(Argument(expression, type), walker.arguments, getInstantiationContext());
+				expression=makeExpression(FunctionCallExpression(expression, walker.arguments), false, isDependent(typeDependent), isDependent(valueDependent));
 			}
 			id=0;
+			idEnclosing=0;
 			updateMemberType();
+			isUndeclared=false;
 		}
 		void visit(cpp::postfix_expression_member*symbol)
 		{
@@ -52961,73 +54620,38 @@ struct Walker
 			arguments.swap(walker.arguments);
 			type=gUniqueTypeNull;
 			LookupResultRef declaration=walker.declaration;
-			setDependent(typeDependent, walker.qualifying.get());
-			setDependent(valueDependent, walker.qualifying.get());
-			UniqueTypeWrapper qualifying=walker.qualifying.empty()||isNamespace(*walker.qualifying.back().declaration)?gUniqueTypeNull: UniqueTypeWrapper(walker.qualifying.back().unique);
-			if(isDependent(typeDependent))
+			addDependent(typeDependent, walker.typeDependent);
+			addDependent(valueDependent, walker.valueDependent);
+			expression=ExpressionWrapper();
+			if(walker.expression.p!=0&&!isDependent(typeDependent))
 			{
-				if(!(declaration!=0||isDependent(walker.qualifying.get_ref())||::isDependent(memberType)))
+				if(!(objectExpression.p!=0))
 				{
 					throw SemanticError();
 				};
-				setDecoration(id, gDependentObjectInstance);
-			}
-			else if(id==&gDestructorId)
-			{
-			}
-			else
-			{
-				if(!(declaration!=0))
+				if(!(!objectExpression.isTypeDependent))
 				{
 					throw SemanticError();
 				};
-				if(!(memberType!=gUniqueTypeNull))
+				if(!(walker.memberClass!=0))
 				{
 					throw SemanticError();
 				};
-				if(!(!::isDependent(memberType)))
+				if(!(walker.memberClass!=&gDependentSimpleType))
 				{
 					throw SemanticError();
 				};
-				if(!(walker.memberObject!=0))
-				{
-					throw SemanticError();
-				};
-				if(!(walker.memberObject!=&gDependentObjectType))
-				{
-					throw SemanticError();
-				};
-				if(!(declaration!=&gUndeclared))
-				{
-					throw SemanticError();
-				};
-				if(!(isObject(*declaration)))
-				{
-					throw SemanticError();
-				};
-				addDependentType(typeDependent, declaration);
-				setDependent(typeDependent, arguments);
-				addDependentOverloads(typeDependent, declaration);
-				addDependentType(valueDependent, declaration);
-				addDependentName(valueDependent, declaration);
-				setDecoration(id, declaration);
-				if(!(declaration->scope->type==SCOPETYPE_CLASS))
-				{
-					throw SemanticError();
-				};
-				idEnclosing=makeUniqueEnclosing(walker.qualifying, Location(id->source, context.declarationCount), walker.memberObject);
-				idEnclosing=findEnclosingType(idEnclosing, declaration->scope);
-				if(!(idEnclosing!=0))
-				{
-					throw SemanticError();
-				};
-				type=getUniqueType(declaration->type, Location(id->source, context.declarationCount), idEnclosing, isDependent(typeDependent)||declaration->isTemplate);
-				if(type.isFunction())
-				{
-					memberObject=walker.memberObject;
-				}
+				UniqueTypeWrapper qualifyingType=makeUniqueQualifying(walker.qualifying, getInstantiationContext());
+				const SimpleType*qualifyingClass=qualifyingType==gUniqueTypeNull?0: &getSimpleType(qualifyingType.value);
+				type=typeOfIdExpression(qualifyingClass, declaration, setEnclosingTypeSafe(getInstantiationContext(), walker.memberClass));
+				idEnclosing=isSpecialMember(*declaration)?0: getIdExpressionClass(qualifyingClass, declaration, walker.memberClass);
+				expression=makeExpression(ClassMemberAccessExpression(walker.objectExpression, walker.expression), false, isDependent(typeDependent), isDependent(valueDependent));
 			}
 			updateMemberType();
+			if(type.isFunction())
+			{
+				memberClass=walker.memberClass;
+			}
 		}
 		void visit(cpp::postfix_expression_destructor*symbol)
 		{
@@ -53039,6 +54663,7 @@ struct Walker
 			setExpressionType(symbol, type);
 			type=gVoid;
 			id=0;
+			expression=ExpressionWrapper();
 			clearMemberType();
 		}
 		void visit(cpp::postfix_operator*symbol)
@@ -53048,12 +54673,16 @@ struct Walker
 			result=symbol=parseHit(getParser(*this), symbol);
 			;
 			symbol->source=source_;
-			type=removeReference(type);
-			if(type.isPointer())
+			if(isDependent(typeDependent))
 			{
-				UniqueTypeWrapper deref=type;
-				deref.pop_front();
-				requireCompleteObjectType(deref, Location(symbol->source, context.declarationCount), enclosingType);
+				type=gUniqueTypeNull;
+				expression=ExpressionWrapper();
+			}
+			else
+			{
+				type=removeReference(type);
+				type=typeOfPostfixOperatorExpression(getOverloadedOperatorId(symbol), Argument(expression, type), getInstantiationContext());
+				expression=makeExpression(PostfixOperatorExpression(getOverloadedOperatorId(symbol), expression));
 			}
 			setExpressionType(symbol, type);
 			id=0;
@@ -53069,7 +54698,7 @@ struct Walker
 			type=gBool;
 			UnaryTypeTraitsOp operation=getUnaryTypeTraitsOp(symbol->trait);
 			Name name=getTypeTraitName(symbol);
-			expression=ExpressionWrapper(makeExpression(TypeTraitsUnaryExpression(name, operation, walker.first)), true, false, isDependent(valueDependent));
+			expression=makeExpression(TypeTraitsUnaryExpression(name, operation, walker.first), true, false, isDependent(valueDependent));
 		}
 		void visit(cpp::postfix_expression_typetraits_binary*symbol)
 		{
@@ -53081,7 +54710,7 @@ struct Walker
 			type=gBool;
 			BinaryTypeTraitsOp operation=getBinaryTypeTraitsOp(symbol->trait);
 			Name name=getTypeTraitName(symbol);
-			expression=ExpressionWrapper(makeExpression(TypeTraitsBinaryExpression(name, operation, walker.first, walker.second)), true, false, isDependent(valueDependent));
+			expression=makeExpression(TypeTraitsBinaryExpression(name, operation, walker.first, walker.second), true, false, isDependent(valueDependent));
 		}
 	};
 	struct SizeofTypeExpressionWalker: public WalkerBase
@@ -53109,10 +54738,11 @@ struct Walker
 			result=symbol=parseHit(getParser(walker), symbol);
 			;
 			symbol->source=source_;
+			walker.commit();
 			addDependent(valueDependent, walker.type);
-			UniqueTypeId uniqueType=makeUniqueTypeSafe(walker.type, Location(symbol->source, context.declarationCount));
-			setExpressionType(symbol, uniqueType);
-			expression=ExpressionWrapper(makeExpression(SizeofTypeExpression(uniqueType)), true, false, isDependent(valueDependent));
+			UniqueTypeId type=getUniqueTypeSafe(walker.type);
+			setExpressionType(symbol, type);
+			expression=makeExpression(SizeofTypeExpression(type), true, false, isDependent(valueDependent));
 		}
 	};
 	struct ConditionalExpressionWalker: public WalkerBase
@@ -53179,8 +54809,8 @@ struct Walker
 		ExpressionWalker(const WalkerState&state): WalkerBase(state), id(0)
 		{
 		}
-		template<typename T, typename TypeOp>
-		void walkBinaryExpression(T*&symbol, TypeOp typeOp)
+		template<BuiltInBinaryTypeOp typeOp, typename T>
+		void walkBinaryExpression(T*&symbol)
 		{
 			ExpressionWalker walker(getState());
 			Source source_=parser->get_source();
@@ -53192,38 +54822,43 @@ struct Walker
 			addDependent(typeDependent, walker.typeDependent);
 			addDependent(valueDependent, walker.valueDependent);
 			BinaryIceOp iceOp=getBinaryIceOp(symbol);
-			expression=ExpressionWrapper(makeExpression(BinaryExpression(getBinaryOperatorName(symbol), iceOp, typeOp, expression, walker.expression)), expression.isConstant&&walker.expression.isConstant&&iceOp!=0, isDependent(typeDependent), isDependent(valueDependent));
+			ExpressionWrapper leftExpression=expression;
+			expression=makeExpression(BinaryExpression(getOverloadedOperatorId(symbol), iceOp, typeOfBinaryExpression<typeOp>, expression, walker.expression), expression.isConstant&&walker.expression.isConstant&&iceOp!=0, isDependent(typeDependent), isDependent(valueDependent));
 			if(!expression.isTypeDependent)
 			{
 				UniqueTypeWrapper left=removeReference(type);
 				UniqueTypeWrapper right=removeReference(walker.type);
-				type=typeOp(left, right);
+				type=typeOfBinaryExpression<typeOp>(getOverloadedOperatorId(symbol), Argument(leftExpression, left), Argument(walker.expression, right), getInstantiationContext());
+				if(!(type!=gUniqueTypeNull))
+				{
+					throw AllocatorError();
+				};
 			}
 			ExpressionType<T>::set(symbol, type);
 		}
 		template<typename T>
 		void walkBinaryArithmeticExpression(T*symbol)
 		{
-			walkBinaryExpression(symbol, binaryOperatorArithmeticType);
+			walkBinaryExpression<binaryOperatorArithmeticType>(symbol);
 		}
 		template<typename T>
 		void walkBinaryAdditiveExpression(T*symbol)
 		{
-			walkBinaryExpression(symbol, binaryOperatorAdditiveType);
+			walkBinaryExpression<binaryOperatorAdditiveType>(symbol);
 		}
 		template<typename T>
 		void walkBinaryIntegralExpression(T*symbol)
 		{
-			walkBinaryExpression(symbol, binaryOperatorIntegralType);
+			walkBinaryExpression<binaryOperatorIntegralType>(symbol);
 		}
 		template<typename T>
 		void walkBinaryBooleanExpression(T*symbol)
 		{
-			walkBinaryExpression(symbol, binaryOperatorBoolean);
+			walkBinaryExpression<binaryOperatorBoolean>(symbol);
 		}
 		void visit(cpp::assignment_expression_suffix*symbol)
 		{
-			walkBinaryExpression(symbol, binaryOperatorAssignment);
+			walkBinaryExpression<binaryOperatorAssignment>(symbol);
 		}
 		void visit(cpp::conditional_expression_suffix*symbol)
 		{
@@ -53233,33 +54868,10 @@ struct Walker
 			;
 			addDependent(typeDependent, walker.typeDependent);
 			addDependent(valueDependent, walker.valueDependent);
-			expression=ExpressionWrapper(makeExpression(TernaryExpression(conditional, ternaryOperatorNull, expression, walker.left, walker.right)), expression.isConstant&&walker.left.isConstant&&walker.right.isConstant, isDependent(typeDependent), isDependent(valueDependent));
+			expression=makeExpression(TernaryExpression(conditional, expression, walker.left, walker.right), expression.isConstant&&walker.left.isConstant&&walker.right.isConstant, isDependent(typeDependent), isDependent(valueDependent));
 			if(!expression.isTypeDependent)
 			{
-				if(!(walker.leftType!=gUniqueTypeNull))
-				{
-					throw SemanticError();
-				};
-				if(!(walker.rightType!=gUniqueTypeNull))
-				{
-					throw SemanticError();
-				};
-				if(walker.leftType==gVoid)
-				{
-					type=walker.rightType;
-				}
-				else if(walker.rightType==gVoid)
-				{
-					type=walker.leftType;
-				}
-				else if(walker.leftType==walker.rightType)
-				{
-					type=walker.leftType;
-				}
-				else
-				{
-					type=walker.leftType;
-				}
+				type=getConditionalOperatorType(removeReference(walker.leftType), removeReference(walker.rightType));
 			}
 		}
 		void visit(cpp::logical_or_expression_default*symbol)
@@ -53304,7 +54916,8 @@ struct Walker
 		}
 		void visit(cpp::pm_expression_default*symbol)
 		{
-			walkBinaryExpression(symbol, binaryOperatorNull);
+			walkBinaryExpression<binaryOperatorMemberPointer>(symbol);
+			id=0;
 		}
 		void visit(cpp::assignment_expression*symbol)
 		{
@@ -53336,6 +54949,10 @@ struct Walker
 			result=symbol=parseHit(getParser(walker), symbol);
 			;
 			symbol->source=source_;
+			if(walker.isUndeclared)
+			{
+				return reportIdentifierMismatch(symbol, *id, &gUndeclared, "object-name");
+			}
 			id=walker.id;
 			type.swap(walker.type);
 			expression=walker.expression;
@@ -53345,12 +54962,9 @@ struct Walker
 		}
 		void visit(cpp::unary_expression_op*symbol)
 		{
-			Source source=parser->get_source();
-			Source source_=parser->get_source();
 			if((result=symbol=makeParser(symbol).parseSymbol(getParser(*this), symbol))==0)return ;
 			result=symbol=parseHit(getParser(*this), symbol);
 			;
-			symbol->source=source_;
 			id=0;
 			if(!isDependent(typeDependent))
 			{
@@ -53366,19 +54980,19 @@ struct Walker
 				{
 					throw SemanticError();
 				};
-				if(!(!(memberType!=gUniqueTypeNull&&memberObject!=0)))
+				if(!(!(objectExpression.p!=0&&memberClass!=0)))
 				{
 					throw SemanticError();
 				};
 				type=removeReference(type);
-				type=typeOfUnaryExpression(symbol->op, Argument(expression, type), enclosing, Location(source, context.declarationCount), enclosingType);
+				type=typeOfUnaryExpression(getOverloadedOperatorId(symbol->op), Argument(expression, type), getInstantiationContext());
 			}
 			else
 			{
 				type=gUniqueTypeNull;
 			}
 			UnaryIceOp iceOp=getUnaryIceOp(symbol);
-			expression=ExpressionWrapper(makeExpression(UnaryExpression(symbol->op->value.value, iceOp, 0, expression)), expression.isConstant&&iceOp!=0, isDependent(typeDependent), isDependent(valueDependent));
+			expression=makeExpression(UnaryExpression(getOverloadedOperatorId(symbol->op), iceOp, expression), expression.isConstant&&iceOp!=0, isDependent(typeDependent), isDependent(valueDependent));
 			setExpressionType(symbol, type);
 		}
 		void visit(cpp::new_expression_placement*symbol)
@@ -53389,10 +55003,11 @@ struct Walker
 			result=symbol=parseHit(getParser(walker), symbol);
 			;
 			symbol->source=source_;
-			type=makeUniqueTypeSafe(walker.type, Location(symbol->source, context.declarationCount));
-			requireCompleteObjectType(type, Location(symbol->source, context.declarationCount), enclosingType);
+			type=getUniqueTypeSafe(walker.type);
+			requireCompleteObjectType(type, getInstantiationContext());
 			type.push_front(PointerType());
 			addDependent(typeDependent, walker.typeDependent);
+			expression=makeExpression(ExplicitTypeExpression(type), false, isDependent(typeDependent));
 			setExpressionType(symbol, type);
 		}
 		void visit(cpp::new_expression_default*symbol)
@@ -53403,10 +55018,11 @@ struct Walker
 			result=symbol=parseHit(getParser(walker), symbol);
 			;
 			symbol->source=source_;
-			type=makeUniqueTypeSafe(walker.type, Location(symbol->source, context.declarationCount));
-			requireCompleteObjectType(type, Location(symbol->source, context.declarationCount), enclosingType);
+			type=getUniqueTypeSafe(walker.type);
+			requireCompleteObjectType(type, getInstantiationContext());
 			type.push_front(PointerType());
 			addDependent(typeDependent, walker.typeDependent);
+			expression=makeExpression(ExplicitTypeExpression(type), false, isDependent(typeDependent));
 			setExpressionType(symbol, type);
 		}
 		void visit(cpp::cast_expression_default*symbol)
@@ -53417,13 +55033,13 @@ struct Walker
 			result=symbol=parseHit(getParser(walker), symbol);
 			;
 			symbol->source=source_;
-			expression=walker.expression;
-			type=makeUniqueTypeSafe(walker.type, Location(symbol->source, context.declarationCount));
-			requireCompleteObjectType(type, Location(symbol->source, context.declarationCount), enclosingType);
+			type=getUniqueTypeSafe(walker.type);
+			requireCompleteObjectType(type, getInstantiationContext());
 			Dependent tmp(walker.typeDependent);
 			addDependent(valueDependent, tmp);
 			addDependent(typeDependent, walker.typeDependent);
 			addDependent(valueDependent, walker.valueDependent);
+			expression=makeExpression(CastExpression(type, walker.expression), walker.expression.isConstant, isDependent(typeDependent), isDependent(valueDependent));
 			setExpressionType(symbol, type);
 		}
 		void visit(cpp::unary_expression_sizeof*symbol)
@@ -53437,7 +55053,7 @@ struct Walker
 			addDependent(valueDependent, walker.typeDependent);
 			type=gUnsignedInt;
 			setExpressionType(symbol, type);
-			expression=ExpressionWrapper(makeExpression(SizeofExpression(walker.expression)), true, false, isDependent(valueDependent));
+			expression=makeExpression(SizeofExpression(walker.expression), true, false, isDependent(valueDependent));
 		}
 		void visit(cpp::unary_expression_sizeoftype*symbol)
 		{
@@ -53530,7 +55146,7 @@ struct Walker
 				result=symbol;
 			};
 			LookupResultRef declaration=gDependentTypeInstance;
-			if(allowNameLookup())
+			if(!isDependent(qualifying_p))
 			{
 				declaration=findDeclaration(symbol->value, makeLookupFilter(filter));
 				if(declaration==&gUndeclared)
@@ -53547,7 +55163,7 @@ struct Walker
 			if(type.declaration->isTemplate)
 			{
 				type.isImplicitTemplateId=true;
-				const TypeInstance*enclosingTemplate=findEnclosingTemplate(enclosingType, type.declaration);
+				const SimpleType*enclosingTemplate=findEnclosingTemplate(enclosingType, type.declaration);
 				if(enclosingTemplate!=0)
 				{
 					type.isEnclosingClass=true;
@@ -53642,9 +55258,9 @@ struct Walker
 				result=symbol;
 			};
 			LookupResultRef declaration=gDependentNestedInstance;
-			if(isDeclarator||allowNameLookup())
+			if(isDeclarator||!isDependent(qualifying_p))
 			{
-				declaration=findDeclaration(symbol->value, isDeclarator, IsNestedName());
+				declaration=lookupQualified(symbol->value, isDeclarator, IsNestedName());
 				if(declaration==&gUndeclared)
 				{
 					return reportIdentifierMismatch(symbol, symbol->value, declaration, "nested-name");
@@ -53660,7 +55276,7 @@ struct Walker
 		}
 		void visit(cpp::simple_template_id*symbol)
 		{
-			TemplateIdWalker walker(getState());
+			TemplateIdWalker walker(getState(), isTemplate);
 			if(!parser->cacheLookup((symbol), (walker)))
 			{
 				CachedSymbols::Key key=parser->context.position;
@@ -53674,9 +55290,9 @@ struct Walker
 				result=symbol;
 			};
 			LookupResultRef declaration=gDependentNestedTemplateInstance;
-			if(isDeclarator||allowNameLookup())
+			if(isDeclarator||!isDependent(qualifying_p))
 			{
-				declaration=findDeclaration(*walker.id, isDeclarator, IsNestedName());
+				declaration=lookupQualified(*walker.id, isDeclarator, IsNestedName());
 				if(declaration==&gUndeclared)
 				{
 					return reportIdentifierMismatch(symbol, *walker.id, declaration, "nested-name");
@@ -53764,7 +55380,7 @@ struct Walker
 			{
 				throw SemanticError();
 			};
-			makeUniqueTypeSafe(walker.type, getLocation());
+			makeUniqueTypeSafe(walker.type);
 			swapQualifying(walker.type, isDeclarator);
 		}
 		void visit(cpp::nested_name_specifier_suffix_template*symbol)
@@ -53779,7 +55395,7 @@ struct Walker
 			};
 			walker.type.qualifying.swap(qualifying);
 			setDependent(walker.type.dependent, walker.type.qualifying);
-			makeUniqueTypeSafe(walker.type, getLocation());
+			makeUniqueTypeSafe(walker.type);
 			swapQualifying(walker.type, isDeclarator);
 		}
 		void visit(cpp::nested_name_specifier_suffix_default*symbol)
@@ -53794,7 +55410,7 @@ struct Walker
 			};
 			walker.type.qualifying.swap(qualifying);
 			setDependent(walker.type.dependent, walker.type.qualifying);
-			makeUniqueTypeSafe(walker.type, getLocation());
+			makeUniqueTypeSafe(walker.type);
 			swapQualifying(walker.type, isDeclarator);
 		}
 	};
@@ -53887,19 +55503,14 @@ struct Walker
 			{
 				result=symbol;
 			};
-			IsHiddenTypeName filter;
-			LookupResultRef declaration=lookupTemplate(*walker.id, makeLookupFilter(filter));
-			if(declaration==&gUndeclared)
+			LookupResultRef declaration=lookupTemplate(*walker.id, IsAny());
+			if(declaration==&gUndeclared||!isTypeName(*declaration)||!isTemplateName(*declaration))
 			{
-				return reportIdentifierMismatch(symbol, *walker.id, declaration, "type-name");
+				return reportIdentifierMismatch(symbol, *walker.id, declaration, "class-template-name");
 			}
 			if(declaration==&gDependentTemplate)
 			{
 				return reportIdentifierMismatch(symbol, *walker.id, &gUndeclared, "typename");
-			}
-			if(filter.nonType!=0)
-			{
-				return reportIdentifierMismatch(symbol, filter.nonType->getName(), filter.nonType, "type-name");
 			}
 			setDecoration(walker.id, declaration);
 			type.declaration=declaration;
@@ -54433,7 +56044,7 @@ struct Walker
 			}
 			if(qualifying!=gUniqueTypeNull)
 			{
-				enclosingType=&getObjectType(qualifying.value);
+				enclosingType=&getSimpleType(qualifying.value);
 				if(enclosingType->declaration->isTemplate&&!enclosingType->declaration->templateParams.empty())
 				{
 					setDependent(enclosingDependent, enclosingType->declaration->templateParams.back().declaration);
@@ -54595,7 +56206,7 @@ struct Walker
 			type.swap(walker.type);
 			type.qualifying.swap(qualifying);
 			setDependent(type.dependent, type.qualifying);
-			makeUniqueTypeSafe(type, getLocation());
+			makeUniqueTypeSafe(type);
 		}
 	};
 	struct ClassHeadWalker: public WalkerBase
@@ -54679,7 +56290,7 @@ struct Walker
 		}
 		void visit(cpp::simple_template_id*symbol)
 		{
-			TemplateIdWalker walker(getState());
+			TemplateIdWalker walker(getState(), true);
 			if(!parser->cacheLookup((symbol), (walker)))
 			{
 				CachedSymbols::Key key=parser->context.position;
@@ -55014,7 +56625,6 @@ struct Walker
 				enclosing->templateDepth=templateDepth;
 			}
 			declaration->templateParamScope=templateParamScope;
-			Location source=getLocation();
 			Type type(declaration, context);
 			type.id=&declaration->getName();
 			setDependent(type);
@@ -55028,10 +56638,10 @@ struct Walker
 			bool isExplicitSpecialization=isSpecialization&&declaration->templateParams.empty();
 			bool allowDependent=type.isDependent||(declaration->isTemplate&&!isExplicitSpecialization);
 			declaration->type.isDependent=type.isDependent;
-			declaration->type.unique=makeUniqueType(type, source, enclosingType, allowDependent).value;
-			enclosingType=&getObjectType(declaration->type.unique);
-			const_cast<TypeInstance*>(enclosingType)->declaration=declaration;
-			instantiateClass(*enclosingType, source, 0, allowDependent);
+			declaration->type.unique=makeUniqueType(type, getInstantiationContext(), allowDependent).value;
+			enclosingType=&getSimpleType(declaration->type.unique);
+			const_cast<SimpleType*>(enclosingType)->declaration=declaration;
+			instantiateClass(*enclosingType, InstantiationContext(getLocation(), 0, 0), allowDependent);
 			addDependent(enclosingDependent, type);
 			clearTemplateParams();
 		}
@@ -55045,6 +56655,26 @@ struct Walker
 			if((result=symbol=makeParser(symbol).parseSymbol(getParser(walker), symbol))==0)return ;
 			result=symbol=parseHit(getParser(walker), symbol);
 			;
+		}
+		inline bool hasCopyAssignmentOperator(const Declaration&declaration)
+		{
+			Identifier id;
+			id.value=gOperatorAssignId;
+			const DeclarationInstance*result=::findDeclaration(declaration.enclosed->declarations, id);
+			if(result==0)
+			{
+				return false;
+			}
+			for(const Declaration*p=findOverloaded(*result);
+			p!=0;
+			p=p->overloaded)
+			{
+				if(p->isTemplate)
+				{
+					continue;
+				}
+			}
+			return false;
 		}
 		void visit(cpp::terminal<boost::wave::T_RIGHTBRACE>symbol)
 		{
@@ -55128,7 +56758,7 @@ struct Walker
 				setDecoration(id, instance);
 				declaration=instance;
 			}
-			value=makeExpression(IntegralConstantExpression(gSignedInt, IntegralConstant(0)));
+			value=makeUniqueExpression(IntegralConstantExpression(gSignedInt, IntegralConstant(0)));
 		}
 		void visit(cpp::enumerator_definition*symbol)
 		{
@@ -55144,7 +56774,8 @@ struct Walker
 			;
 			walker.declaration->type=declaration;
 			walker.declaration->type.qualifiers=CvQualifiers(true, false);
-			makeUniqueTypeSafe(walker.declaration->type, getLocation());
+			setDependent(walker.declaration->type);
+			makeUniqueTypeSafe(walker.declaration->type);
 			if(walker.isInitialized)
 			{
 				if(!(isDependent(walker.declaration->valueDependent)||walker.declaration->initializer.isConstant))
@@ -55157,8 +56788,8 @@ struct Walker
 			{
 				walker.declaration->initializer=value;
 			}
-			ExpressionPtr one=makeExpression(IntegralConstantExpression(gSignedInt, IntegralConstant(1)));
-			value=ExpressionWrapper(makeExpression(BinaryExpression(Name("+"), operator+, binaryOperatorAssignment, value, one)), true, value.isTypeDependent, value.isValueDependent);
+			ExpressionWrapper one=makeUniqueExpression(IntegralConstantExpression(gSignedInt, IntegralConstant(1)));
+			value=makeExpression(BinaryExpression(Name("+"), operator+, 0, value, one), true, value.isTypeDependent, value.isValueDependent);
 		}
 	};
 	struct ElaboratedTypeSpecifierWalker: public WalkerQualified
@@ -55401,8 +57032,7 @@ struct Walker
 		CvQualifiers qualifiers;
 		IdentifierPtr forward;
 		bool isUnion;
-		bool isTemplateParameter;
-		DeclSpecifierSeqWalker(const WalkerState&state, bool isTemplateParameter=false): WalkerBase(state), type(0, context), fundamental(0), forward(0), isUnion(false), isTemplateParameter(isTemplateParameter)
+		DeclSpecifierSeqWalker(const WalkerState&state): WalkerBase(state), type(0, context), fundamental(0), forward(0), isUnion(false)
 		{
 		}
 		void visit(cpp::simple_type_specifier*symbol)
@@ -55890,6 +57520,10 @@ struct Walker
 			if((result=symbol=makeParser(symbol).parseSymbol(getParser(*this), symbol))==0)return ;
 			result=symbol=parseHit(getParser(*this), symbol);
 			;
+			if(!(getQualifyingScope()==0))
+			{
+				throw SemanticError();
+			};
 			LookupResultRef declaration=findDeclaration(symbol->value);
 			if(declaration==&gUndeclared||!isObject(*declaration))
 			{
@@ -55965,6 +57599,10 @@ struct Walker
 		TypeId type;
 		TypeIdWalker(const WalkerState&state): WalkerBase(state), type(0, context)
 		{
+		}
+		void commit()
+		{
+			makeUniqueTypeSafe(type);
 		}
 		void visit(cpp::terminal<boost::wave::T_OPERATOR>symbol)
 		{
@@ -56119,7 +57757,7 @@ struct Walker
 				}
 				DeclarationPtr tmpDependent=type.dependent;
 				setDependent(type.dependent, typeDependent);
-				makeUniqueTypeSafe(type, getLocation());
+				makeUniqueTypeSafe(type);
 				if(enclosed==0&&templateParamScope!=0)
 				{
 					templateParamScope->parent=parent;
@@ -56141,7 +57779,7 @@ struct Walker
 		}
 		void visit(cpp::decl_specifier_seq*symbol)
 		{
-			DeclSpecifierSeqWalker walker(getState(), templateParameter!=INDEX_INVALID);
+			DeclSpecifierSeqWalker walker(getState());
 			if((result=symbol=makeParser(symbol).parseSymbol(getParser(walker), symbol))==0)return ;
 			result=symbol=parseHit(getParser(walker), symbol);
 			;
@@ -56211,7 +57849,7 @@ struct Walker
 				{
 					throw SemanticError();
 				};
-				enclosingType=&getObjectType(walker.qualifying.value);
+				enclosingType=&getSimpleType(walker.qualifying.value);
 				enclosingDependent=walker.enclosingDependent;
 			}
 			templateParams=walker.templateParams;
@@ -56246,7 +57884,7 @@ struct Walker
 			{
 				DeclarationPtr tmpDependent=type.dependent;
 				setDependent(type.dependent, typeDependent);
-				makeUniqueTypeSafe(type, getLocation());
+				makeUniqueTypeSafe(type);
 				DeclarationInstanceRef instance=pointOfDeclaration(context, enclosing, *walker.id, type, 0, specifiers);
 				trackDeclaration(instance);
 				setDecoration(walker.id, instance);
@@ -56631,8 +58269,8 @@ struct Walker
 			if((result=symbol=makeParser(symbol).parseSymbol(getParser(walker), symbol))==0)return ;
 			result=symbol=parseHit(getParser(walker), symbol);
 			;
+			walker.commit();
 			argument.type.swap(walker.type);
-			makeUniqueTypeSafe(argument.type, getLocation());
 		}
 		void visit(cpp::template_parameter_clause*symbol)
 		{
@@ -56686,7 +58324,7 @@ struct Walker
 			walker.commit();
 			param=walker.declaration;
 			setDependent(param);
-			makeUniqueTypeSafe(param, getLocation());
+			makeUniqueTypeSafe(param);
 			param.argument.swap(walker.argument);
 			++count;
 		}
@@ -56703,7 +58341,7 @@ struct Walker
 			};
 			param=walker.declaration;
 			setDependent(param);
-			makeUniqueTypeSafe(param, getLocation());
+			makeUniqueTypeSafe(param);
 			param.argument.swap(walker.argument);
 			++count;
 		}
@@ -57048,6 +58686,15 @@ cpp::declaration_seq*parseFile(ParserContext&context)
 	}
 	catch(SemanticError&)
 	{
+		printPosition(parser.context.getErrorPosition());
+		std::cout<<"caught SemanticError"<<std::endl;
+		throw;
+	}
+	catch(SymbolsError&)
+	{
+		printPosition(parser.context.getErrorPosition());
+		std::cout<<"caught SymbolsError"<<std::endl;
+		throw;
 	}
 	catch(TypeError&e)
 	{

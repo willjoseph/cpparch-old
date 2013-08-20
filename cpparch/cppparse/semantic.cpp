@@ -866,7 +866,7 @@ inline void addBuiltInOperatorOverloads(OverloadResolver& resolver, ArrayRange<B
 		addBuiltInOperatorPermutations(permutations, conversionPairs);
 
 		// TODO: limit qualification permutations for pointer / member-pointer to only those with equal or greater cv-qualification than type of argument expression
-		for(Permutations::const_iterator i = permutations.begin(); i != permutations.end(); ++i)
+		for(typename Permutations::const_iterator i = permutations.begin(); i != permutations.end(); ++i)
 		{
 			Permutation permutation = *i;
 			UserType substituted = overload.substitute(permutation);

@@ -1,4 +1,30 @@
 
+namespace N357
+{
+	template<int N>
+	struct A
+	{
+	};
+
+	template<class T>
+	struct B
+	{
+		typedef const T* const_iterator;
+	};
+
+	template<int N>
+	void f()
+	{
+		for(const A<N>* i=0; i!=2; ++i)
+		{
+			typedef A<N> Tmp;
+			typedef B<Tmp> Blah;
+			for(typename Blah::const_iterator i=0; i!=2; ++i)
+			{
+			}
+		}
+	}
+}
 
 namespace N356
 {

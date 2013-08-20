@@ -778,6 +778,7 @@ described for lookup in namespace member function definitions.
 - investigate: don't need to handle template-id ambiguity between id-expression and type-name?
 	- can template-name ever be hidden?
 	- always look up template-name immediately and reject if first name found is not template?
+		- test implementation works well
 	- what if hiding name is non-template?
 		- gcc, clang, msvc all reject
 	- what if within class-member-access?
@@ -802,6 +803,10 @@ described for lookup in namespace member function definitions.
 			- still ok to look up template name if not preceded by 'template'
 			- if qualified, look up in qualifying
 		- issueL within declarator, qualifyingClass is not valid even when type was not dependent
+
+- investigate: when looking up whether first identifier is template-name for template-id, is it safe to use the resulting declaration rather than performing lookup again?
+	- would break name-hiding of class-template by function-template, but that's consistent with other implementations
+	- probably need to unify qualified name lookup between declarator and non-declarator anyway
 
 - investigate: in 'template<> struct A::B<int> {};' lookup of 'B' fails because 'A' is not considered as the qualifying name?
 			

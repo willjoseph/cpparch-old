@@ -26290,7 +26290,7 @@ namespace boost
 				Data*pData_;
 				void Init(size_type size, size_type capacity)
 				{
-					(void)((!!(size<=capacity))||(_wassert(L"size <= capacity", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 336), 0));
+					(void)((!!(size<=capacity))||(_wassert(L"size <= capacity", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 336), 0));
 					if(capacity==0)
 					{
 						pData_=const_cast<Data*>(&emptyString_);
@@ -26345,7 +26345,7 @@ namespace boost
 				}
 				~SimpleStringStorage()
 				{
-					(void)((!!(begin()<=end()))||(_wassert(L"begin() <= end()", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 405), 0));
+					(void)((!!(begin()<=end()))||(_wassert(L"begin() <= end()", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 405), 0));
 					if(pData_!=&emptyString_)free(pData_);
 				}
 				iterator begin()
@@ -26488,7 +26488,7 @@ namespace boost
 				Data*pData_;
 				void Init(size_type size, size_type cap)
 				{
-					(void)((!!(size<=cap))||(_wassert(L"size <= cap", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 568), 0));
+					(void)((!!(size<=cap))||(_wassert(L"size <= cap", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 568), 0));
 					if(cap==0)
 					{
 						pData_=const_cast<Data*>(&SimpleStringStorage<E, A>::emptyString_);
@@ -26692,7 +26692,7 @@ namespace boost
 				}
 				void reserve(size_type res_arg)
 				{
-					(void)((!!(res_arg<max_size()))||(_wassert(L"res_arg < max_size()", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 809), 0));
+					(void)((!!(res_arg<max_size()))||(_wassert(L"res_arg < max_size()", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 809), 0));
 					base::reserve(res_arg+1);
 				}
 				void append(const E*s, size_type sz)
@@ -26774,13 +26774,13 @@ namespace boost
 				};
 				Storage&GetStorage()
 				{
-					(void)((!!(buf_[maxSmallString]==magic))||(_wassert(L"buf_[maxSmallString] == magic", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 896), 0));
+					(void)((!!(buf_[maxSmallString]==magic))||(_wassert(L"buf_[maxSmallString] == magic", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 896), 0));
 					Storage*p=reinterpret_cast<Storage*>(&buf_[0]);
 					return *p;
 				}
 				const Storage&GetStorage()const
 				{
-					(void)((!!(buf_[maxSmallString]==magic))||(_wassert(L"buf_[maxSmallString] == magic", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 903), 0));
+					(void)((!!(buf_[maxSmallString]==magic))||(_wassert(L"buf_[maxSmallString] == magic", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 903), 0));
 					const Storage*p=reinterpret_cast<const Storage*>(&buf_[0]);
 					return *p;
 				}
@@ -26864,7 +26864,7 @@ namespace boost
 				}
 				size_type size()const
 				{
-					(void)((!!(!Small()||maxSmallString>=buf_[maxSmallString]))||(_wassert(L"!Small() || maxSmallString >= buf_[maxSmallString]", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1002), 0));
+					(void)((!!(!Small()||maxSmallString>=buf_[maxSmallString]))||(_wassert(L"!Small() || maxSmallString >= buf_[maxSmallString]", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1002), 0));
 					return Small()?maxSmallString-buf_[maxSmallString]: GetStorage().size();
 				}
 				size_type max_size()const
@@ -26890,7 +26890,7 @@ namespace boost
 					{
 						GetStorage().reserve(res_arg);
 					}
-					(void)((!!(capacity()>=res_arg))||(_wassert(L"capacity() >= res_arg", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1030), 0));
+					(void)((!!(capacity()>=res_arg))||(_wassert(L"capacity() >= res_arg", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1030), 0));
 				}
 				void append(const value_type*s, size_type sz)
 				{
@@ -26958,7 +26958,7 @@ namespace boost
 						}
 						else
 						{
-							(void)((!!(capacity()>n))||(_wassert(L"capacity() > n", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1115), 0));
+							(void)((!!(capacity()>n))||(_wassert(L"capacity() > n", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1115), 0));
 							SmallStringOpt newObj(data(), n, get_allocator());
 							newObj.swap(*this);
 						}
@@ -27036,19 +27036,19 @@ namespace boost
 				RefCountType GetRefs()const
 				{
 					const Storage&d=Data();
-					(void)((!!(d.size()>0))||(_wassert(L"d.size() > 0", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1218), 0));
-					(void)((!!(static_cast<RefCountType>(*d.begin())!=0))||(_wassert(L"static_cast<RefCountType>(*d.begin()) != 0", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1219), 0));
+					(void)((!!(d.size()>0))||(_wassert(L"d.size() > 0", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1218), 0));
+					(void)((!!(static_cast<RefCountType>(*d.begin())!=0))||(_wassert(L"static_cast<RefCountType>(*d.begin()) != 0", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1219), 0));
 					return *d.begin();
 				}
 				RefCountType&Refs()
 				{
 					Storage&d=Data();
-					(void)((!!(d.size()>0))||(_wassert(L"d.size() > 0", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1226), 0));
+					(void)((!!(d.size()>0))||(_wassert(L"d.size() > 0", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1226), 0));
 					return reinterpret_cast<RefCountType&>(*d.begin());
 				}
 				void MakeUnique()const
 				{
-					(void)((!!(GetRefs()>=1))||(_wassert(L"GetRefs() >= 1", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1232), 0));
+					(void)((!!(GetRefs()>=1))||(_wassert(L"GetRefs() >= 1", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1232), 0));
 					if(GetRefs()==1)return ;
 					union
 					{
@@ -27074,7 +27074,7 @@ namespace boost
 						new(buf_)Storage(s.Data(), flex_string_details::Shallow());
 						++Refs();
 					}
-					(void)((!!(Data().size()>0))||(_wassert(L"Data().size() > 0", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1264), 0));
+					(void)((!!(Data().size()>0))||(_wassert(L"Data().size() > 0", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1264), 0));
 				}
 				CowString(const allocator_type&a)
 				{
@@ -27105,23 +27105,23 @@ namespace boost
 						new(buf_)Storage(rhs.Data(), flex_string_details::Shallow());
 						++Refs();
 					}
-					(void)((!!(Data().size()>0))||(_wassert(L"Data().size() > 0", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1305), 0));
+					(void)((!!(Data().size()>0))||(_wassert(L"Data().size() > 0", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1305), 0));
 					return *this;
 				}
 				~CowString()
 				{
-					(void)((!!(Data().size()>0))||(_wassert(L"Data().size() > 0", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1311), 0));
+					(void)((!!(Data().size()>0))||(_wassert(L"Data().size() > 0", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1311), 0));
 					if(--Refs()==0)Data().~Storage();
 				}
 				iterator begin()
 				{
-					(void)((!!(Data().size()>0))||(_wassert(L"Data().size() > 0", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1318), 0));
+					(void)((!!(Data().size()>0))||(_wassert(L"Data().size() > 0", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1318), 0));
 					MakeUnique();
 					return Data().begin()+1;
 				}
 				const_iterator begin()const
 				{
-					(void)((!!(Data().size()>0))||(_wassert(L"Data().size() > 0", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1325), 0));
+					(void)((!!(Data().size()>0))||(_wassert(L"Data().size() > 0", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1325), 0));
 					return Data().begin()+1;
 				}
 				iterator end()
@@ -27135,22 +27135,22 @@ namespace boost
 				}
 				size_type size()const
 				{
-					(void)((!!(Data().size()>0))||(_wassert(L"Data().size() > 0", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1342), 0));
+					(void)((!!(Data().size()>0))||(_wassert(L"Data().size() > 0", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1342), 0));
 					return Data().size()-1;
 				}
 				size_type max_size()const
 				{
-					(void)((!!(Data().max_size()>0))||(_wassert(L"Data().max_size() > 0", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1348), 0));
+					(void)((!!(Data().max_size()>0))||(_wassert(L"Data().max_size() > 0", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1348), 0));
 					return Data().max_size()-1;
 				}
 				size_type capacity()const
 				{
-					(void)((!!(Data().capacity()>0))||(_wassert(L"Data().capacity() > 0", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1354), 0));
+					(void)((!!(Data().capacity()>0))||(_wassert(L"Data().capacity() > 0", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1354), 0));
 					return Data().capacity()-1;
 				}
 				void resize(size_type n, E c)
 				{
-					(void)((!!(Data().size()>0))||(_wassert(L"Data().size() > 0", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1360), 0));
+					(void)((!!(Data().size()>0))||(_wassert(L"Data().size() > 0", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1360), 0));
 					MakeUnique();
 					Data().resize(n+1, c);
 				}
@@ -27172,12 +27172,12 @@ namespace boost
 				}
 				const E*c_str()const
 				{
-					(void)((!!(Data().size()>0))||(_wassert(L"Data().size() > 0", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1386), 0));
+					(void)((!!(Data().size()>0))||(_wassert(L"Data().size() > 0", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1386), 0));
 					return Data().c_str()+1;
 				}
 				const E*data()const
 				{
-					(void)((!!(Data().size()>0))||(_wassert(L"Data().size() > 0", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1392), 0));
+					(void)((!!(Data().size()>0))||(_wassert(L"Data().size() > 0", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1392), 0));
 					return Data().data()+1;
 				}
 				allocator_type get_allocator()const
@@ -27191,7 +27191,7 @@ namespace boost
 				template<typename Exception>
 				static inline void Enforce(bool condition, Exception*, const char*msg)
 				{
-					(void)((!!(condition&&msg))||(_wassert(L"condition && msg", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1421), 0));
+					(void)((!!(condition&&msg))||(_wassert(L"condition && msg", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1421), 0));
 				}
 				bool Sane()const
 				{
@@ -27203,11 +27203,11 @@ namespace boost
 				{
 					Invariant(const flex_string&s): s_(s)
 					{
-						(void)((!!(s_.Sane()))||(_wassert(L"s_.Sane()", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1442), 0));
+						(void)((!!(s_.Sane()))||(_wassert(L"s_.Sane()", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1442), 0));
 					}
 					~Invariant()
 					{
-						(void)((!!(s_.Sane()))||(_wassert(L"s_.Sane()", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1446), 0));
+						(void)((!!(s_.Sane()))||(_wassert(L"s_.Sane()", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1446), 0));
 					}
 				private:
 					const flex_string&s_;
@@ -27533,7 +27533,7 @@ namespace boost
 				flex_string&InsertImplDiscr(iterator p, size_type n, value_type c, Selector<1>)
 				{
 					Invariant checker(*this);
-					(void)((!!(begin()<=p&&p<=end()))||(_wassert(L"begin() <= p && p <= end()", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1821), 0));
+					(void)((!!(begin()<=p&&p<=end()))||(_wassert(L"begin() <= p && p <= end()", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1821), 0));
 					const size_type insertOffset(p-begin());
 					const size_type originalSize(size());
 					if(n<originalSize-insertOffset)
@@ -27574,13 +27574,13 @@ namespace boost
 					Invariant checker(*this);
 					const size_type pos=i-begin();
 					const typename std::iterator_traits<FwdIterator>::difference_type n2=std::distance(s1, s2);
-					(void)((!!(n2>=0))||(_wassert(L"n2 >= 0", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1887), 0));
+					(void)((!!(n2>=0))||(_wassert(L"n2 >= 0", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1887), 0));
 					using namespace flex_string_details;
-					(void)((!!(pos<=size()))||(_wassert(L"pos <= size()", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1889), 0));
+					(void)((!!(pos<=size()))||(_wassert(L"pos <= size()", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1889), 0));
 					const typename std::iterator_traits<FwdIterator>::difference_type maxn2=capacity()-size();
 					if(maxn2<n2)
 					{
-						(void)((!!(!IsAliasedRange(s1, s2)))||(_wassert(L"!IsAliasedRange(s1, s2)", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1896), 0));
+						(void)((!!(!IsAliasedRange(s1, s2)))||(_wassert(L"!IsAliasedRange(s1, s2)", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1896), 0));
 						reserve(size()+n2);
 						i=begin()+pos;
 					}
@@ -27596,7 +27596,7 @@ namespace boost
 						FwdIterator t=s1;
 						const size_type old_size=size();
 						std::advance(t, old_size-pos);
-						(void)((!!(std::distance(t, s2)>=0))||(_wassert(L"std::distance(t, s2) >= 0", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 1913), 0));
+						(void)((!!(std::distance(t, s2)>=0))||(_wassert(L"std::distance(t, s2) >= 0", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 1913), 0));
 						Storage::append(t, s2);
 						Storage::append(data()+pos, data()+old_size);
 						std::copy(s1, t, i);
@@ -27676,9 +27676,9 @@ namespace boost
 			private:
 				flex_string&ReplaceImplDiscr(iterator i1, iterator i2, const value_type*s, size_type n, Selector<2>)
 				{
-					(void)((!!(i1<=i2))||(_wassert(L"i1 <= i2", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 2014), 0));
-					(void)((!!(begin()<=i1&&i1<=end()))||(_wassert(L"begin() <= i1 && i1 <= end()", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 2015), 0));
-					(void)((!!(begin()<=i2&&i2<=end()))||(_wassert(L"begin() <= i2 && i2 <= end()", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 2016), 0));
+					(void)((!!(i1<=i2))||(_wassert(L"i1 <= i2", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 2014), 0));
+					(void)((!!(begin()<=i1&&i1<=end()))||(_wassert(L"begin() <= i1 && i1 <= end()", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 2015), 0));
+					(void)((!!(begin()<=i2&&i2<=end()))||(_wassert(L"begin() <= i2 && i2 <= end()", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 2016), 0));
 					return replace(i1, i2, s, s+n);
 				}
 				flex_string&ReplaceImplDiscr(iterator i1, iterator i2, size_type n2, value_type c, Selector<1>)
@@ -27707,9 +27707,9 @@ namespace boost
 				{
 					Invariant checker(*this);
 					const typename std::iterator_traits<iterator>::difference_type n1=i2-i1;
-					(void)((!!(n1>=0))||(_wassert(L"n1 >= 0", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 2055), 0));
+					(void)((!!(n1>=0))||(_wassert(L"n1 >= 0", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 2055), 0));
 					const typename std::iterator_traits<FwdIterator>::difference_type n2=std::distance(s1, s2);
-					(void)((!!(n2>=0))||(_wassert(L"n2 >= 0", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\flex_string.hpp", 2058), 0));
+					(void)((!!(n2>=0))||(_wassert(L"n2 >= 0", L"D:\\dev\\external\\boost\\boost\\wave\\util\\flex_string.hpp", 2058), 0));
 					if(IsAliasedRange(s1, s2))
 					{
 						flex_string temporary;
@@ -31203,7 +31203,7 @@ namespace boost
 				{
 					"remark", "warning", "error", "fatal error", "command line error"
 				};
-				(void)((!!(severity_remark<=level&&level<=last_severity_code))||(_wassert(L"severity_remark <= level && level <= last_severity_code", L"D:\\dev\\boost_1_41_0\\boost\\wave\\cpp_exceptions.hpp", 57), 0));
+				(void)((!!(severity_remark<=level&&level<=last_severity_code))||(_wassert(L"severity_remark <= level && level <= last_severity_code", L"D:\\dev\\external\\boost\\boost\\wave\\cpp_exceptions.hpp", 57), 0));
 				return severity_text[level];
 			}
 		}
@@ -31292,7 +31292,7 @@ namespace boost
 				{
 					"no error", "unexpected error (should not happen)", "illegal macro redefinition", "macro definition failed (out of memory?)", "could not find include file", "ill formed #include directive", "ill formed preprocessor directive", "encountered #error directive or #pragma wave stop()", "encountered #warning directive", "ill formed preprocessor expression", "the #if for this directive is missing", "detected at least one missing #endif directive", "ill formed preprocessing operator", "ill formed #define directive", "__VA_ARGS__ can only appear in the " "expansion of a C99 variadic macro", "too few macro arguments", "too many macro arguments", "empty macro arguments are not supported in pure C++ mode, " "use variadics mode to allow these", "improperly terminated macro invocation " "or replacement-list terminates in partial " "macro expansion (not supported yet)", "ill formed #line directive", "line number argument of #line directive " "should consist out of decimal digits " "only and must be in range of [1..INT_MAX]", "filename argument of #line directive should " "be a narrow string literal", "#undef may not be used on this predefined name", "invalid macro definition", "this predefined name may not be redefined", "duplicate macro parameter name", "pasting the following two tokens does not " "give a valid preprocessing token", "last line of file ends without a newline", "unknown or illformed pragma option", "include files nested too deep", "misplaced operator defined()", "the name is already used in this scope as " "a macro or scope name", "undefined macro or scope name may not be imported", "ill formed macro name", "qualified names are supported in C++0x mode only", "division by zero in preprocessor expression", "integer overflow in preprocessor expression", "this cannot be used as a macro name as it is " "an operator in C++", "ill formed integer literal or integer constant too large", "ill formed character literal", "unbalanced #if/#endif in include file", "expression contains out of range character literal", "could not open output file", "incompatible state information", "illformed pragma message", "encountered #pragma message directive"
 				};
-				(void)((!!(no_error<=code&&code<=last_error_number))||(_wassert(L"no_error <= code && code <= last_error_number", L"D:\\dev\\boost_1_41_0\\boost\\wave\\cpp_exceptions.hpp", 300), 0));
+				(void)((!!(no_error<=code&&code<=last_error_number))||(_wassert(L"no_error <= code && code <= last_error_number", L"D:\\dev\\external\\boost\\boost\\wave\\cpp_exceptions.hpp", 300), 0));
 				return preprocess_exception_errors[code];
 			}
 			static util::severity severity_level(int code)
@@ -31301,7 +31301,7 @@ namespace boost
 				{
 					util::severity_remark, util::severity_fatal, util::severity_warning, util::severity_fatal, util::severity_error, util::severity_error, util::severity_error, util::severity_fatal, util::severity_warning, util::severity_error, util::severity_error, util::severity_error, util::severity_error, util::severity_error, util::severity_error, util::severity_warning, util::severity_warning, util::severity_warning, util::severity_error, util::severity_warning, util::severity_warning, util::severity_warning, util::severity_warning, util::severity_commandline_error, util::severity_warning, util::severity_error, util::severity_error, util::severity_warning, util::severity_warning, util::severity_fatal, util::severity_error, util::severity_error, util::severity_error, util::severity_error, util::severity_error, util::severity_fatal, util::severity_error, util::severity_error, util::severity_error, util::severity_error, util::severity_warning, util::severity_warning, util::severity_error, util::severity_remark, util::severity_warning, util::severity_remark,
 				};
-				(void)((!!(no_error<=code&&code<=last_error_number))||(_wassert(L"no_error <= code && code <= last_error_number", L"D:\\dev\\boost_1_41_0\\boost\\wave\\cpp_exceptions.hpp", 354), 0));
+				(void)((!!(no_error<=code&&code<=last_error_number))||(_wassert(L"no_error <= code && code <= last_error_number", L"D:\\dev\\external\\boost\\boost\\wave\\cpp_exceptions.hpp", 354), 0));
 				return preprocess_exception_severity[code];
 			}
 			static char const*severity_text(int code)
@@ -31363,7 +31363,7 @@ namespace boost
 					{
 						"remark", "warning", "error", "fatal error"
 					};
-					(void)((!!(severity_remark<=level&&level<=severity_fatal))||(_wassert(L"severity_remark <= level && level <= severity_fatal", L"D:\\dev\\boost_1_41_0\\boost\\wave\\cpplexer\\cpplexer_exceptions.hpp", 124), 0));
+					(void)((!!(severity_remark<=level&&level<=severity_fatal))||(_wassert(L"severity_remark <= level && level <= severity_fatal", L"D:\\dev\\external\\boost\\boost\\wave\\cpplexer\\cpplexer_exceptions.hpp", 124), 0));
 					return severity_text[level];
 				}
 			}
@@ -35947,7 +35947,7 @@ namespace boost
 			}
 			inline friend bool operator<(const error_condition&lhs, const error_condition&rhs)
 			{
-				return (lhs.m_cat<rhs.m_cat)||(lhs.m_cat==rhs.m_cat&&lhs.m_val<rhs.m_val);
+				return lhs.m_cat<rhs.m_cat||(lhs.m_cat==rhs.m_cat&&lhs.m_val<rhs.m_val);
 			}
 		private:
 			int m_val;
@@ -36017,7 +36017,7 @@ namespace boost
 			}
 			inline friend bool operator<(const error_code&lhs, const error_code&rhs)
 			{
-				return (lhs.m_cat<rhs.m_cat)||(lhs.m_cat==rhs.m_cat&&lhs.m_val<rhs.m_val);
+				return lhs.m_cat<rhs.m_cat||(lhs.m_cat==rhs.m_cat&&lhs.m_val<rhs.m_val);
 			}
 		private:
 			int m_val;
@@ -37040,7 +37040,7 @@ namespace boost
 		template<class Y>
 		void reset(Y*p)
 		{
-			(void)((!!(p==0||p!=px))||(_wassert(L"p == 0 || p != px", L"D:\\dev\\boost_1_41_0\\boost\\smart_ptr\\shared_ptr.hpp", 391), 0));
+			(void)((!!(p==0||p!=px))||(_wassert(L"p == 0 || p != px", L"D:\\dev\\external\\boost\\boost\\smart_ptr\\shared_ptr.hpp", 391), 0));
 			this_type(p).swap(*this);
 		}
 		template<class Y, class D>
@@ -37060,12 +37060,12 @@ namespace boost
 		}
 		reference operator*()const
 		{
-			(void)((!!(px!=0))||(_wassert(L"px != 0", L"D:\\dev\\boost_1_41_0\\boost\\smart_ptr\\shared_ptr.hpp", 412), 0));
+			(void)((!!(px!=0))||(_wassert(L"px != 0", L"D:\\dev\\external\\boost\\boost\\smart_ptr\\shared_ptr.hpp", 412), 0));
 			return *px;
 		}
 		T*operator->()const
 		{
-			(void)((!!(px!=0))||(_wassert(L"px != 0", L"D:\\dev\\boost_1_41_0\\boost\\smart_ptr\\shared_ptr.hpp", 418), 0));
+			(void)((!!(px!=0))||(_wassert(L"px != 0", L"D:\\dev\\external\\boost\\boost\\smart_ptr\\shared_ptr.hpp", 418), 0));
 			return px;
 		}
 		T*get()const
@@ -37163,7 +37163,7 @@ namespace boost
 	template<class T, class U>
 	shared_ptr<T>shared_polymorphic_downcast(shared_ptr<U>const&r)
 	{
-		(void)((!!(dynamic_cast<T*>(r.get())==r.get()))||(_wassert(L"dynamic_cast<T *>(r.get()) == r.get()", L"D:\\dev\\boost_1_41_0\\boost\\smart_ptr\\shared_ptr.hpp", 544), 0));
+		(void)((!!(dynamic_cast<T*>(r.get())==r.get()))||(_wassert(L"dynamic_cast<T *>(r.get()) == r.get()", L"D:\\dev\\external\\boost\\boost\\smart_ptr\\shared_ptr.hpp", 544), 0));
 		return shared_static_cast<T>(r);
 	}
 	template<class T>
@@ -39382,7 +39382,7 @@ namespace boost
 			bool is_non_root_slash(const String&str, typename String::size_type pos)
 			{
 				typedef typename boost::filesystem::basic_path<String, Traits>path_type;
-				(void)((!!(!str.empty()&&str[pos]==slash<path_type>::value&&"precondition violation"))||(_wassert(L"!str.empty() && str[pos] == slash<path_type>::value && \"precondition violation\"", L"D:\\dev\\boost_1_41_0\\boost\\filesystem\\path.hpp", 921), 0));
+				(void)((!!(!str.empty()&&str[pos]==slash<path_type>::value&&"precondition violation"))||(_wassert(L"!str.empty() && str[pos] == slash<path_type>::value && \"precondition violation\"", L"D:\\dev\\external\\boost\\boost\\filesystem\\path.hpp", 921), 0));
 				while(pos>0&&str[pos-1]==slash<path_type>::value)--pos;
 				return pos!=0&&(pos<=2||str[1]!=slash<path_type>::value||str.find(slash<path_type>::value, 2)!=pos)&&(pos!=2||str[1]!=colon<path_type>::value);
 			}
@@ -39650,7 +39650,7 @@ namespace boost
 			{
 				typedef typename Path::string_type string_type;
 				typedef typename Path::traits_type traits_type;
-				(void)((!!(itr.m_pos<itr.m_path_ptr->m_path.size()&&"basic_path::iterator increment past end()"))||(_wassert(L"itr.m_pos < itr.m_path_ptr->m_path.size() && \"basic_path::iterator increment past end()\"", L"D:\\dev\\boost_1_41_0\\boost\\filesystem\\path.hpp", 1385), 0));
+				(void)((!!(itr.m_pos<itr.m_path_ptr->m_path.size()&&"basic_path::iterator increment past end()"))||(_wassert(L"itr.m_pos < itr.m_path_ptr->m_path.size() && \"basic_path::iterator increment past end()\"", L"D:\\dev\\external\\boost\\boost\\filesystem\\path.hpp", 1385), 0));
 				bool was_net(itr.m_name.size()>2&&itr.m_name[0]==slash<Path>::value&&itr.m_name[1]==slash<Path>::value&&itr.m_name[2]!=slash<Path>::value);
 				itr.m_pos+=itr.m_name.size();
 				if(itr.m_pos==itr.m_path_ptr->m_path.size())
@@ -39682,7 +39682,7 @@ namespace boost
 			template<class Path>
 			void iterator_helper<Path>::do_decrement(iterator&itr)
 			{
-				(void)((!!(itr.m_pos&&"basic_path::iterator decrement past begin()"))||(_wassert(L"itr.m_pos && \"basic_path::iterator decrement past begin()\"", L"D:\\dev\\boost_1_41_0\\boost\\filesystem\\path.hpp", 1444), 0));
+				(void)((!!(itr.m_pos&&"basic_path::iterator decrement past begin()"))||(_wassert(L"itr.m_pos && \"basic_path::iterator decrement past begin()\"", L"D:\\dev\\external\\boost\\boost\\filesystem\\path.hpp", 1444), 0));
 				typedef typename Path::string_type string_type;
 				typedef typename Path::traits_type traits_type;
 				typename string_type::size_type end_pos(itr.m_pos);
@@ -42312,7 +42312,7 @@ namespace boost
 		template<class Path>
 		typename boost::enable_if<is_basic_path<Path>, Path>::type complete(const Path&ph, const Path&base)
 		{
-			(void)((!!(base.is_complete()&&(ph.is_complete()||!ph.has_root_name())&&"boost::filesystem::complete() precondition not met"))||(_wassert(L"base.is_complete() && (ph.is_complete() || !ph.has_root_name()) && \"boost::filesystem::complete() precondition not met\"", L"D:\\dev\\boost_1_41_0\\boost\\filesystem\\operations.hpp", 583), 0));
+			(void)((!!(base.is_complete()&&(ph.is_complete()||!ph.has_root_name())&&"boost::filesystem::complete() precondition not met"))||(_wassert(L"base.is_complete() && (ph.is_complete() || !ph.has_root_name()) && \"boost::filesystem::complete() precondition not met\"", L"D:\\dev\\external\\boost\\boost\\filesystem\\operations.hpp", 583), 0));
 			if(ph.empty()||ph.is_complete())return ph;
 			if(!ph.has_root_name())return ph.has_root_directory()?Path(base.root_name())/ph: base/ph;
 			return base/ph;
@@ -42630,7 +42630,7 @@ namespace boost
 			friend class boost::iterator_core_access;
 			typename boost::iterator_facade<basic_directory_iterator<Path>, basic_directory_entry<Path>, boost::single_pass_traversal_tag>::reference dereference()const
 			{
-				(void)((!!(m_imp.get()&&"attempt to dereference end iterator"))||(_wassert(L"m_imp.get() && \"attempt to dereference end iterator\"", L"D:\\dev\\boost_1_41_0\\boost\\filesystem\\operations.hpp", 918), 0));
+				(void)((!!(m_imp.get()&&"attempt to dereference end iterator"))||(_wassert(L"m_imp.get() && \"attempt to dereference end iterator\"", L"D:\\dev\\external\\boost\\boost\\filesystem\\operations.hpp", 918), 0));
 				return m_imp->m_directory_entry;
 			}
 			void increment();
@@ -42686,8 +42686,8 @@ namespace boost
 		template<class Path>
 		void basic_directory_iterator<Path>::increment()
 		{
-			(void)((!!(m_imp.get()&&"attempt to increment end iterator"))||(_wassert(L"m_imp.get() && \"attempt to increment end iterator\"", L"D:\\dev\\boost_1_41_0\\boost\\filesystem\\operations.hpp", 1000), 0));
-			(void)((!!(m_imp->m_handle!=0&&"internal program error"))||(_wassert(L"m_imp->m_handle != 0 && \"internal program error\"", L"D:\\dev\\boost_1_41_0\\boost\\filesystem\\operations.hpp", 1001), 0));
+			(void)((!!(m_imp.get()&&"attempt to increment end iterator"))||(_wassert(L"m_imp.get() && \"attempt to increment end iterator\"", L"D:\\dev\\external\\boost\\boost\\filesystem\\operations.hpp", 1000), 0));
+			(void)((!!(m_imp->m_handle!=0&&"internal program error"))||(_wassert(L"m_imp->m_handle != 0 && \"internal program error\"", L"D:\\dev\\external\\boost\\boost\\filesystem\\operations.hpp", 1001), 0));
 			typename Path::external_string_type name;
 			file_status fs, symlink_fs;
 			system::error_code ec;
@@ -57995,7 +57995,7 @@ namespace boost
 						position const&p2=static_cast<OtherDerivedT const&>(x).get_position();
 						std::size_t pos1=p.pos;
 						std::size_t pos2=p2.pos;
-						(void)((!!(p.self==p2.self))||(_wassert(L"p.self == p2.self", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 113), 0));
+						(void)((!!(p.self==p2.self))||(_wassert(L"p.self == p2.self", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 113), 0));
 						if(pos1<p.self->m_head)pos1+=QueueT::MAX_SIZE;
 						if(pos2<p2.self->m_head)pos2+=QueueT::MAX_SIZE;
 						if(pos2>pos1)return diff_t(pos2-pos1);
@@ -58094,19 +58094,19 @@ namespace boost
 			template<typename T, std::size_t N>
 			inline fixed_size_queue<T, N>::fixed_size_queue(): m_head(0), m_tail(0), m_size(0)
 			{
-				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 261), 0));
-				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 262), 0));
-				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 263), 0));
-				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 264), 0));
+				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 261), 0));
+				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 262), 0));
+				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 263), 0));
+				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 264), 0));
 			}
 			template<typename T, std::size_t N>
 			inline fixed_size_queue<T, N>::fixed_size_queue(const fixed_size_queue&x): m_head(x.m_head), m_tail(x.m_tail), m_size(x.m_size)
 			{
 				copy(x.begin(), x.end(), begin());
-				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 275), 0));
-				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 276), 0));
-				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 277), 0));
-				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 278), 0));
+				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 275), 0));
+				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 276), 0));
+				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 277), 0));
+				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 278), 0));
 			}
 			template<typename T, std::size_t N>
 			inline fixed_size_queue<T, N>&fixed_size_queue<T, N>::operator=(const fixed_size_queue&x)
@@ -58118,78 +58118,78 @@ namespace boost
 					m_size=x.m_size;
 					copy(x.begin(), x.end(), begin());
 				}
-				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 292), 0));
-				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 293), 0));
-				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 294), 0));
-				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 295), 0));
+				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 292), 0));
+				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 293), 0));
+				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 294), 0));
+				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 295), 0));
 				return *this;
 			}
 			template<typename T, std::size_t N>
 			inline fixed_size_queue<T, N>::~fixed_size_queue()
 			{
-				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 304), 0));
-				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 305), 0));
-				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 306), 0));
-				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 307), 0));
+				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 304), 0));
+				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 305), 0));
+				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 306), 0));
+				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 307), 0));
 			}
 			template<typename T, std::size_t N>
 			inline void fixed_size_queue<T, N>::push_back(const T&e)
 			{
-				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 314), 0));
-				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 315), 0));
-				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 316), 0));
-				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 317), 0));
-				(void)((!!(!full()))||(_wassert(L"!full()", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 319), 0));
+				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 314), 0));
+				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 315), 0));
+				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 316), 0));
+				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 317), 0));
+				(void)((!!(!full()))||(_wassert(L"!full()", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 319), 0));
 				m_queue[m_tail]=e;
 				++m_size;
 				++m_tail;
 				if(m_tail==N+1)m_tail=0;
-				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 328), 0));
-				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 329), 0));
-				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 330), 0));
-				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 331), 0));
+				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 328), 0));
+				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 329), 0));
+				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 330), 0));
+				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 331), 0));
 			}
 			template<typename T, std::size_t N>
 			inline void fixed_size_queue<T, N>::push_front(const T&e)
 			{
-				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 338), 0));
-				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 339), 0));
-				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 340), 0));
-				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 341), 0));
-				(void)((!!(!full()))||(_wassert(L"!full()", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 343), 0));
+				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 338), 0));
+				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 339), 0));
+				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 340), 0));
+				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 341), 0));
+				(void)((!!(!full()))||(_wassert(L"!full()", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 343), 0));
 				if(m_head==0)m_head=N;
 				else--m_head;
 				m_queue[m_head]=e;
 				++m_size;
-				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 353), 0));
-				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 354), 0));
-				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 355), 0));
-				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 356), 0));
+				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 353), 0));
+				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 354), 0));
+				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 355), 0));
+				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 356), 0));
 			}
 			template<typename T, std::size_t N>
 			inline void fixed_size_queue<T, N>::serve(T&e)
 			{
-				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 364), 0));
-				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 365), 0));
-				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 366), 0));
-				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 367), 0));
+				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 364), 0));
+				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 365), 0));
+				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 366), 0));
+				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 367), 0));
 				e=m_queue[m_head];
 				pop_front();
 			}
 			template<typename T, std::size_t N>
 			inline void fixed_size_queue<T, N>::pop_front()
 			{
-				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 379), 0));
-				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 380), 0));
-				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 381), 0));
-				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 382), 0));
+				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 379), 0));
+				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 380), 0));
+				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 381), 0));
+				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 382), 0));
 				++m_head;
 				if(m_head==N+1)m_head=0;
 				--m_size;
-				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 389), 0));
-				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 390), 0));
-				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 391), 0));
-				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 392), 0));
+				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 389), 0));
+				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 390), 0));
+				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 391), 0));
+				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\fixed_size_queue.hpp", 392), 0));
 			}
 		}
 	}
@@ -58378,7 +58378,7 @@ namespace boost
 						}
 						void destroy()
 						{
-							(void)((!!(0!=queuedElements))||(_wassert(L"0 != queuedElements", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\multi_pass.hpp", 269), 0));
+							(void)((!!(0!=queuedElements))||(_wassert(L"0 != queuedElements", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\multi_pass.hpp", 269), 0));
 							delete queuedElements;
 							queuedElements=0;
 						}
@@ -58471,7 +58471,7 @@ namespace boost
 						}
 						void destroy()
 						{
-							(void)((!!(0!=queuedElements))||(_wassert(L"0 != queuedElements", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\multi_pass.hpp", 408), 0));
+							(void)((!!(0!=queuedElements))||(_wassert(L"0 != queuedElements", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\multi_pass.hpp", 408), 0));
 							delete queuedElements;
 							queuedElements=0;
 						}
@@ -58580,13 +58580,13 @@ namespace boost
 					public:
 						reference get_input()const
 						{
-							(void)((!!(0!=data))||(_wassert(L"0 != data", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\multi_pass.hpp", 572), 0));
+							(void)((!!(0!=data))||(_wassert(L"0 != data", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\multi_pass.hpp", 572), 0));
 							ensure_initialized();
 							return data->curtok;
 						}
 						void advance_input()
 						{
-							(void)((!!(0!=data))||(_wassert(L"0 != data", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\iterator\\multi_pass.hpp", 579), 0));
+							(void)((!!(0!=data))||(_wassert(L"0 != data", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\iterator\\multi_pass.hpp", 579), 0));
 							data->was_initialized=false;
 							++data->input;
 						}
@@ -59429,12 +59429,12 @@ namespace boost
 		}
 		reference_const_type get()const
 		{
-			(void)((!!(this->is_initialized()))||(_wassert(L"this->is_initialized()", L"D:\\dev\\boost_1_41_0\\boost\\optional\\optional.hpp", 577), 0));
+			(void)((!!(this->is_initialized()))||(_wassert(L"this->is_initialized()", L"D:\\dev\\external\\boost\\boost\\optional\\optional.hpp", 577), 0));
 			return this->get_impl();
 		}
 		reference_type get()
 		{
-			(void)((!!(this->is_initialized()))||(_wassert(L"this->is_initialized()", L"D:\\dev\\boost_1_41_0\\boost\\optional\\optional.hpp", 578), 0));
+			(void)((!!(this->is_initialized()))||(_wassert(L"this->is_initialized()", L"D:\\dev\\external\\boost\\boost\\optional\\optional.hpp", 578), 0));
 			return this->get_impl();
 		}
 		reference_const_type get_value_or(reference_const_type v)const
@@ -59447,12 +59447,12 @@ namespace boost
 		}
 		pointer_const_type operator->()const
 		{
-			(void)((!!(this->is_initialized()))||(_wassert(L"this->is_initialized()", L"D:\\dev\\boost_1_41_0\\boost\\optional\\optional.hpp", 587), 0));
+			(void)((!!(this->is_initialized()))||(_wassert(L"this->is_initialized()", L"D:\\dev\\external\\boost\\boost\\optional\\optional.hpp", 587), 0));
 			return this->get_ptr_impl();
 		}
 		pointer_type operator->()
 		{
-			(void)((!!(this->is_initialized()))||(_wassert(L"this->is_initialized()", L"D:\\dev\\boost_1_41_0\\boost\\optional\\optional.hpp", 588), 0));
+			(void)((!!(this->is_initialized()))||(_wassert(L"this->is_initialized()", L"D:\\dev\\external\\boost\\boost\\optional\\optional.hpp", 588), 0));
 			return this->get_ptr_impl();
 		}
 		reference_const_type operator*()const
@@ -59833,7 +59833,7 @@ namespace boost
 				template<typename MatchT>
 				void concat(MatchT const&other)
 				{
-					(void)((!!(*this&&other))||(_wassert(L"*this && other", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\core\\match.hpp", 103), 0));
+					(void)((!!(*this&&other))||(_wassert(L"*this && other", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\core\\match.hpp", 103), 0));
 					len+=other.length();
 				}
 				template<typename ValueT>
@@ -59877,7 +59877,7 @@ namespace boost
 				template<typename T>
 				void concat(match<T>const&other)
 				{
-					(void)((!!(*this&&other))||(_wassert(L"*this && other", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\core\\match.hpp", 165), 0));
+					(void)((!!(*this&&other))||(_wassert(L"*this && other", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\core\\match.hpp", 165), 0));
 					len+=other.length();
 				}
 				bool operator_bool()const
@@ -59926,7 +59926,7 @@ namespace boost
 			template<typename T>
 			inline typename match<T>::return_t match<T>::value()const
 			{
-				(void)((!!(val.is_initialized()))||(_wassert(L"val.is_initialized()", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\core\\impl\\match.ipp", 54), 0));
+				(void)((!!(val.is_initialized()))||(_wassert(L"val.is_initialized()", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\core\\impl\\match.ipp", 54), 0));
 				return *val;
 			}
 			template<typename T>
@@ -61024,7 +61024,7 @@ namespace boost
 			{
 				range(CharT first_, CharT last_): first(first_), last(last_)
 				{
-					(void)((!!(!(last<first)))||(_wassert(L"!(last < first)", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\core\\primitives\\primitives.hpp", 155), 0));
+					(void)((!!(!(last<first)))||(_wassert(L"!(last < first)", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\core\\primitives\\primitives.hpp", 155), 0));
 				}
 				template<typename T>
 				bool test(T ch)const
@@ -63083,17 +63083,17 @@ namespace boost
 		}
 		void reset(T*p=0)
 		{
-			(void)((!!(p==0||p!=px))||(_wassert(L"p == 0 || p != px", L"D:\\dev\\boost_1_41_0\\boost\\smart_ptr\\scoped_ptr.hpp", 85), 0));
+			(void)((!!(p==0||p!=px))||(_wassert(L"p == 0 || p != px", L"D:\\dev\\external\\boost\\boost\\smart_ptr\\scoped_ptr.hpp", 85), 0));
 			this_type(p).swap(*this);
 		}
 		T&operator*()const
 		{
-			(void)((!!(px!=0))||(_wassert(L"px != 0", L"D:\\dev\\boost_1_41_0\\boost\\smart_ptr\\scoped_ptr.hpp", 91), 0));
+			(void)((!!(px!=0))||(_wassert(L"px != 0", L"D:\\dev\\external\\boost\\boost\\smart_ptr\\scoped_ptr.hpp", 91), 0));
 			return *px;
 		}
 		T*operator->()const
 		{
-			(void)((!!(px!=0))||(_wassert(L"px != 0", L"D:\\dev\\boost_1_41_0\\boost\\smart_ptr\\scoped_ptr.hpp", 97), 0));
+			(void)((!!(px!=0))||(_wassert(L"px != 0", L"D:\\dev\\external\\boost\\boost\\smart_ptr\\scoped_ptr.hpp", 97), 0));
 			return px;
 		}
 		T*get()const
@@ -65915,7 +65915,7 @@ namespace boost
 						i!=i_end;
 						++i)
 						{
-							(void)((!!(i->children.size()==0))||(_wassert(L"i->children.size() == 0", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\tree\\common.hpp", 465), 0));
+							(void)((!!(i->children.size()==0))||(_wassert(L"i->children.size() == 0", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\tree\\common.hpp", 465), 0));
 							c.insert(c.end(), i->value.begin(), i->value.end());
 						}
 						return node_t(c.begin(), c.end());
@@ -65949,7 +65949,7 @@ namespace boost
 						i!=i_end;
 						++i)
 						{
-							(void)((!!(i->children.size()==0))||(_wassert(L"i->children.size() == 0", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\tree\\common.hpp", 507), 0));
+							(void)((!!(i->children.size()==0))||(_wassert(L"i->children.size() == 0", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\tree\\common.hpp", 507), 0));
 							c.insert(c.end(), i->value.begin(), i->value.end());
 						}
 						return node_t(c.begin(), c.end());
@@ -66093,7 +66093,7 @@ namespace boost
 				template<typename Match1T, typename Match2T>
 				static void concat_match(Match1T&a, Match2T const&b)
 				{
-					(void)((!!(a&&b))||(_wassert(L"a && b", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\tree\\common.hpp", 742), 0));
+					(void)((!!(a&&b))||(_wassert(L"a && b", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\tree\\common.hpp", 742), 0));
 					if(a.length()==0)
 					{
 						a=b;
@@ -66311,7 +66311,7 @@ namespace boost
 					container_t new_children;
 					std::size_t length=0;
 					std::size_t tree_size=m.trees.size();
-					(void)((!!(tree_size>=1))||(_wassert(L"tree_size >= 1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\tree\\common.hpp", 1066), 0));
+					(void)((!!(tree_size>=1))||(_wassert(L"tree_size >= 1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\tree\\common.hpp", 1066), 0));
 					bool keep=true;
 					new_children.reserve((tree_size+1)/2);
 					iter_t i_end=m.trees.end();
@@ -66349,7 +66349,7 @@ namespace boost
 					container_t new_children;
 					std::size_t length=0;
 					std::size_t tree_size=m.trees.size();
-					(void)((!!(tree_size>=1))||(_wassert(L"tree_size >= 1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\tree\\common.hpp", 1121), 0));
+					(void)((!!(tree_size>=1))||(_wassert(L"tree_size >= 1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\tree\\common.hpp", 1121), 0));
 					if(tree_size>1)
 					{
 						new_children.reserve(tree_size-1);
@@ -66388,7 +66388,7 @@ namespace boost
 					container_t new_children;
 					std::size_t length=0;
 					std::size_t tree_size=m.trees.size();
-					(void)((!!(tree_size>=1))||(_wassert(L"tree_size >= 1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\tree\\common.hpp", 1185), 0));
+					(void)((!!(tree_size>=1))||(_wassert(L"tree_size >= 1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\tree\\common.hpp", 1185), 0));
 					if(tree_size>1)
 					{
 						m.trees.pop_back();
@@ -66428,7 +66428,7 @@ namespace boost
 					container_t new_children;
 					std::size_t length=0;
 					std::size_t tree_size=m.trees.size();
-					(void)((!!(tree_size>=2))||(_wassert(L"tree_size >= 2", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\tree\\common.hpp", 1245), 0));
+					(void)((!!(tree_size>=2))||(_wassert(L"tree_size >= 2", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\tree\\common.hpp", 1245), 0));
 					if(tree_size>2)
 					{
 						m.trees.pop_back();
@@ -66658,7 +66658,7 @@ namespace boost
 				static void concat(MatchAT&a, MatchBT const&b)
 				{
 					typedef typename match_t::attr_t attr_t;
-					(void)((!!(a&&b))||(_wassert(L"a && b", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\tree\\parse_tree.hpp", 80), 0));
+					(void)((!!(a&&b))||(_wassert(L"a && b", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\tree\\parse_tree.hpp", 80), 0));
 					std::copy(b.trees.begin(), b.trees.end(), std::back_insert_iterator<typename match_t::container_t>(a.trees));
 				}
 				template<typename MatchT, typename Iterator1T, typename Iterator2T>
@@ -67475,7 +67475,7 @@ namespace boost
 				}
 				explicit file_position(string_type const&file_, unsigned int line_=1, unsigned int column_=1): file(file_), line(line_), column(column_)
 				{
-					(void)((!!(!debug::is_escaped_lit(file)))||(_wassert(L"!debug::is_escaped_lit(file)", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\file_position.hpp", 89), 0));
+					(void)((!!(!debug::is_escaped_lit(file)))||(_wassert(L"!debug::is_escaped_lit(file)", L"D:\\dev\\external\\boost\\boost\\wave\\util\\file_position.hpp", 89), 0));
 				}
 				string_type const&get_file()const
 				{
@@ -67492,7 +67492,7 @@ namespace boost
 				void set_file(string_type const&file_)
 				{
 					file=file_;
-					(void)((!!(!debug::is_escaped_lit(file)))||(_wassert(L"!debug::is_escaped_lit(file)", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\file_position.hpp", 100), 0));
+					(void)((!!(!debug::is_escaped_lit(file)))||(_wassert(L"!debug::is_escaped_lit(file)", L"D:\\dev\\external\\boost\\boost\\wave\\util\\file_position.hpp", 100), 0));
 				}
 				void set_line(unsigned int line_)
 				{
@@ -67650,7 +67650,7 @@ namespace boost
 					typename StringT::size_type pos=name.find_first_of('\\');
 					while(StringT::npos!=pos)
 					{
-						(void)((!!('u'==name[pos+1]||'U'==name[pos+1]))||(_wassert(L"'u' == name[pos+1] || 'U' == name[pos+1]", L"D:\\dev\\boost_1_41_0\\boost\\wave\\cpplexer\\validate_universal_char.hpp", 231), 0));
+						(void)((!!('u'==name[pos+1]||'U'==name[pos+1]))||(_wassert(L"'u' == name[pos+1] || 'U' == name[pos+1]", L"D:\\dev\\external\\boost\\boost\\wave\\cpplexer\\validate_universal_char.hpp", 231), 0));
 						StringT uchar_val(name.substr(pos+2, ('u'==name[pos+1])?4: 8));
 						universal_char_type type=classify_universal_char(strtoul(uchar_val.c_str(), 0, 16));
 						if(universal_char_type_valid!=type)
@@ -67846,7 +67846,7 @@ namespace boost
 				{
 					using namespace boost::wave;
 					typedef typename ContainerT::value_type::string_type string_type;
-					(void)((!!(i<arguments.size()))||(_wassert(L"i < arguments.size()", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\macro_helpers.hpp", 156), 0));
+					(void)((!!(i<arguments.size()))||(_wassert(L"i < arguments.size()", L"D:\\dev\\external\\boost\\boost\\wave\\util\\macro_helpers.hpp", 156), 0));
 					string_type result("\"");
 					bool was_whitespace=false;
 					for(;
@@ -69160,7 +69160,7 @@ namespace boost
 						}
 						if(values.size()>=2)
 						{
-							(void)((!!(T_LEFTPAREN==values.front()&&T_RIGHTPAREN==values.back()))||(_wassert(L"T_LEFTPAREN == values.front() && T_RIGHTPAREN == values.back()", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\interpret_pragma.hpp", 117), 0));
+							(void)((!!(T_LEFTPAREN==values.front()&&T_RIGHTPAREN==values.back()))||(_wassert(L"T_LEFTPAREN == values.front() && T_RIGHTPAREN == values.back()", L"D:\\dev\\external\\boost\\boost\\wave\\util\\interpret_pragma.hpp", 117), 0));
 							values.erase(values.begin());
 							typename ContainerT::reverse_iterator rit=values.rbegin();
 							values.erase((++rit).base());
@@ -69211,7 +69211,7 @@ namespace boost
 						}
 						if(values.size()>0)
 						{
-							(void)((!!(T_RIGHTPAREN==values.back()||T_NEWLINE==values.back()))||(_wassert(L"T_RIGHTPAREN == values.back() || T_NEWLINE == values.back()", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\interpret_pragma.hpp", 179), 0));
+							(void)((!!(T_RIGHTPAREN==values.back()||T_NEWLINE==values.back()))||(_wassert(L"T_RIGHTPAREN == values.back() || T_NEWLINE == values.back()", L"D:\\dev\\external\\boost\\boost\\wave\\util\\interpret_pragma.hpp", 179), 0));
 							typename ContainerT::reverse_iterator rit=values.rbegin();
 							values.erase((++rit).base());
 						}
@@ -76718,7 +76718,7 @@ namespace boost
 				typedef ParseTreeNodeT const&argument_type;
 				static result_type transform(argument_type node)
 				{
-					(void)((!!(1==std::distance(node.value.begin(), node.value.end())))||(_wassert(L"1 == std::distance(node.value.begin(), node.value.end())", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\transform_iterator.hpp", 73), 0));
+					(void)((!!(1==std::distance(node.value.begin(), node.value.end())))||(_wassert(L"1 == std::distance(node.value.begin(), node.value.end())", L"D:\\dev\\external\\boost\\boost\\wave\\util\\transform_iterator.hpp", 73), 0));
 					return *node.value.begin();
 				}
 			};
@@ -76797,7 +76797,7 @@ namespace boost
 					}
 					void advance_input()
 					{
-						(void)((!!(0!=data))||(_wassert(L"0 != data", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\functor_input.hpp", 123), 0));
+						(void)((!!(0!=data))||(_wassert(L"0 != data", L"D:\\dev\\external\\boost\\boost\\wave\\util\\functor_input.hpp", 123), 0));
 						data->curtok=(data->ftor)();
 						data->was_initialized=true;
 					}
@@ -76808,7 +76808,7 @@ namespace boost
 					}
 					FunctorT&get_functor()const
 					{
-						(void)((!!(0!=data))||(_wassert(L"0 != data", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\functor_input.hpp", 136), 0));
+						(void)((!!(0!=data))||(_wassert(L"0 != data", L"D:\\dev\\external\\boost\\boost\\wave\\util\\functor_input.hpp", 136), 0));
 						return data->ftor;
 					}
 				private:
@@ -77672,7 +77672,7 @@ namespace boost
 						if(((((id)&boost::wave::TokenTypeMask)==(EOLTokenType))?true: false))break;
 						ctx.get_hooks().skipped_token(ctx.derived(), *it);
 					}
-					(void)((!!(it==end||id!=T_UNKNOWN))||(_wassert(L"it == end || id != T_UNKNOWN", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\cpp_iterator.hpp", 878), 0));
+					(void)((!!(it==end||id!=T_UNKNOWN))||(_wassert(L"it == end || id != T_UNKNOWN", L"D:\\dev\\external\\boost\\boost\\wave\\util\\cpp_iterator.hpp", 878), 0));
 					return it!=end&&((((id)&boost::wave::TokenTypeMask)==(PPTokenType))?true: false);
 				}
 				template<typename ContextT>
@@ -78019,7 +78019,7 @@ namespace boost
 			template<typename ContextT>
 			inline void pp_iterator_functor<ContextT>::on_include(string_type const&s, bool is_system, bool include_next)
 			{
-				(void)((!!(ctx.get_if_block_status()))||(_wassert(L"ctx.get_if_block_status()", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\cpp_iterator.hpp", 1461), 0));
+				(void)((!!(ctx.get_if_block_status()))||(_wassert(L"ctx.get_if_block_status()", L"D:\\dev\\external\\boost\\boost\\wave\\util\\cpp_iterator.hpp", 1461), 0));
 				typename string_type::size_type pos_end=s.find_last_of(is_system?'>': '\"');
 				if(string_type::npos==pos_end)
 				{
@@ -78126,7 +78126,7 @@ namespace boost
 			template<typename ContextT>
 			inline void pp_iterator_functor<ContextT>::on_include(typename parse_tree_type::const_iterator const&begin, typename parse_tree_type::const_iterator const&end, bool include_next)
 			{
-				(void)((!!(ctx.get_if_block_status()))||(_wassert(L"ctx.get_if_block_status()", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\cpp_iterator.hpp", 1606), 0));
+				(void)((!!(ctx.get_if_block_status()))||(_wassert(L"ctx.get_if_block_status()", L"D:\\dev\\external\\boost\\boost\\wave\\util\\cpp_iterator.hpp", 1606), 0));
 				get_token_value<result_type, parse_node_type>get_value;
 				token_sequence_type expanded;
 				token_sequence_type toexpand;
@@ -78153,7 +78153,7 @@ namespace boost
 			template<typename ContextT>
 			inline void pp_iterator_functor<ContextT>::on_define(parse_node_type const&node)
 			{
-				(void)((!!(ctx.get_if_block_status()))||(_wassert(L"ctx.get_if_block_status()", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\cpp_iterator.hpp", 1644), 0));
+				(void)((!!(ctx.get_if_block_status()))||(_wassert(L"ctx.get_if_block_status()", L"D:\\dev\\external\\boost\\boost\\wave\\util\\cpp_iterator.hpp", 1644), 0));
 				result_type macroname;
 				std::vector<result_type>macroparameters;
 				token_sequence_type macrodefinition;
@@ -78261,7 +78261,7 @@ namespace boost
 			template<typename ContextT>
 			inline void pp_iterator_functor<ContextT>::on_undefine(lexer_type const&it)
 			{
-				(void)((!!(ctx.get_if_block_status()))||(_wassert(L"ctx.get_if_block_status()", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\cpp_iterator.hpp", 1756), 0));
+				(void)((!!(ctx.get_if_block_status()))||(_wassert(L"ctx.get_if_block_status()", L"D:\\dev\\external\\boost\\boost\\wave\\util\\cpp_iterator.hpp", 1756), 0));
 				ctx.remove_macro_definition((*it).get_value());
 			}
 			template<typename ContextT>
@@ -78511,7 +78511,7 @@ namespace boost
 			template<typename ContextT>
 			inline void pp_iterator_functor<ContextT>::on_illformed(typename result_type::string_type s)
 			{
-				(void)((!!(ctx.get_if_block_status()))||(_wassert(L"ctx.get_if_block_status()", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\cpp_iterator.hpp", 2092), 0));
+				(void)((!!(ctx.get_if_block_status()))||(_wassert(L"ctx.get_if_block_status()", L"D:\\dev\\external\\boost\\boost\\wave\\util\\cpp_iterator.hpp", 2092), 0));
 				typename string_type::size_type p=s.find_last_not_of('\n');
 				if(string_type::npos!=p)s=s.substr(0, p+1);
 
@@ -78564,7 +78564,7 @@ namespace boost
 			template<typename ContextT>
 			inline void pp_iterator_functor<ContextT>::on_line(typename parse_tree_type::const_iterator const&begin, typename parse_tree_type::const_iterator const&end)
 			{
-				(void)((!!(ctx.get_if_block_status()))||(_wassert(L"ctx.get_if_block_status()", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\cpp_iterator.hpp", 2167), 0));
+				(void)((!!(ctx.get_if_block_status()))||(_wassert(L"ctx.get_if_block_status()", L"D:\\dev\\external\\boost\\boost\\wave\\util\\cpp_iterator.hpp", 2167), 0));
 				token_sequence_type expanded;
 				get_token_value<result_type, parse_node_type>get_value;
 				typedef typename ref_transform_iterator_generator<get_token_value<result_type, parse_node_type>, typename parse_tree_type::const_iterator>::type const_tree_iterator_t;
@@ -78599,8 +78599,8 @@ namespace boost
 				{
 					ctx.get_hooks().found_line_directive(ctx.derived(), toexpand, line, file_name.c_str());
 				}
-				(void)((!!(unput_queue.empty()))||(_wassert(L"unput_queue.empty()", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\cpp_iterator.hpp", 2217), 0));
-				(void)((!!(pending_queue.empty()))||(_wassert(L"pending_queue.empty()", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\cpp_iterator.hpp", 2218), 0));
+				(void)((!!(unput_queue.empty()))||(_wassert(L"unput_queue.empty()", L"D:\\dev\\external\\boost\\boost\\wave\\util\\cpp_iterator.hpp", 2217), 0));
+				(void)((!!(pending_queue.empty()))||(_wassert(L"pending_queue.empty()", L"D:\\dev\\external\\boost\\boost\\wave\\util\\cpp_iterator.hpp", 2218), 0));
 				must_emit_line_directive=true;
 				if(error!=preprocess_exception::no_error)
 				{
@@ -78626,7 +78626,7 @@ namespace boost
 			template<typename ContextT>
 			inline void pp_iterator_functor<ContextT>::on_error(typename parse_tree_type::const_iterator const&begin, typename parse_tree_type::const_iterator const&end)
 			{
-				(void)((!!(ctx.get_if_block_status()))||(_wassert(L"ctx.get_if_block_status()", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\cpp_iterator.hpp", 2250), 0));
+				(void)((!!(ctx.get_if_block_status()))||(_wassert(L"ctx.get_if_block_status()", L"D:\\dev\\external\\boost\\boost\\wave\\util\\cpp_iterator.hpp", 2250), 0));
 				token_sequence_type expanded;
 				get_token_value<result_type, parse_node_type>get_value;
 				typename ref_transform_iterator_generator<get_token_value<result_type, parse_node_type>, typename parse_tree_type::const_iterator>::type first=make_ref_transform_iterator(begin, get_value);
@@ -78650,7 +78650,7 @@ namespace boost
 			template<typename ContextT>
 			inline void pp_iterator_functor<ContextT>::on_warning(typename parse_tree_type::const_iterator const&begin, typename parse_tree_type::const_iterator const&end)
 			{
-				(void)((!!(ctx.get_if_block_status()))||(_wassert(L"ctx.get_if_block_status()", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\cpp_iterator.hpp", 2298), 0));
+				(void)((!!(ctx.get_if_block_status()))||(_wassert(L"ctx.get_if_block_status()", L"D:\\dev\\external\\boost\\boost\\wave\\util\\cpp_iterator.hpp", 2298), 0));
 				token_sequence_type expanded;
 				get_token_value<result_type, parse_node_type>get_value;
 				typename ref_transform_iterator_generator<get_token_value<result_type, parse_node_type>, typename parse_tree_type::const_iterator>::type first=make_ref_transform_iterator(begin, get_value);
@@ -78675,7 +78675,7 @@ namespace boost
 			inline bool pp_iterator_functor<ContextT>::on_pragma(typename parse_tree_type::const_iterator const&begin, typename parse_tree_type::const_iterator const&end)
 			{
 				using namespace boost::wave;
-				(void)((!!(ctx.get_if_block_status()))||(_wassert(L"ctx.get_if_block_status()", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\cpp_iterator.hpp", 2348), 0));
+				(void)((!!(ctx.get_if_block_status()))||(_wassert(L"ctx.get_if_block_status()", L"D:\\dev\\external\\boost\\boost\\wave\\util\\cpp_iterator.hpp", 2348), 0));
 				token_sequence_type expanded;
 				get_token_value<result_type, parse_node_type>get_value;
 				typedef typename ref_transform_iterator_generator<get_token_value<result_type, parse_node_type>, typename parse_tree_type::const_iterator>::type const_tree_iterator_t;
@@ -78699,8 +78699,8 @@ namespace boost
 					}
 				}
 				expanded.push_back(result_type(T_NEWLINE, "\n", act_token.get_position()));
-				(void)((!!(unput_queue.empty()))||(_wassert(L"unput_queue.empty()", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\cpp_iterator.hpp", 2397), 0));
-				(void)((!!(pending_queue.empty()))||(_wassert(L"pending_queue.empty()", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\cpp_iterator.hpp", 2398), 0));
+				(void)((!!(unput_queue.empty()))||(_wassert(L"unput_queue.empty()", L"D:\\dev\\external\\boost\\boost\\wave\\util\\cpp_iterator.hpp", 2397), 0));
+				(void)((!!(pending_queue.empty()))||(_wassert(L"pending_queue.empty()", L"D:\\dev\\external\\boost\\boost\\wave\\util\\cpp_iterator.hpp", 2398), 0));
 				token_sequence_type pending;
 				if(interpret_pragma(expanded, pending))
 				{
@@ -78948,7 +78948,7 @@ namespace boost
 						if(first==last)return 0;
 						node_t**np=&root;
 						CharT ch=*first;
-						(void)((!!((first==last||ch!=0)&&"Won't add string containing null character"))||(_wassert(L"(first == last || ch != 0) && \"Won't add string containing null character\"", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\symbols\\impl\\tst.ipp", 139), 0));
+						(void)((!!((first==last||ch!=0)&&"Won't add string containing null character"))||(_wassert(L"(first == last || ch != 0) && \"Won't add string containing null character\"", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\symbols\\impl\\tst.ipp", 139), 0));
 						for(;
 						;
 						)
@@ -78982,7 +78982,7 @@ namespace boost
 									}
 									++first;
 									ch=(first==last)?CharT(0): *first;
-									(void)((!!((first==last||ch!=0)&&"Won't add string containing null character"))||(_wassert(L"(first == last || ch != 0) && \"Won't add string containing null character\"", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\classic\\symbols\\impl\\tst.ipp", 177), 0));
+									(void)((!!((first==last||ch!=0)&&"Won't add string containing null character"))||(_wassert(L"(first == last || ch != 0) && \"Won't add string containing null character\"", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\classic\\symbols\\impl\\tst.ipp", 177), 0));
 									np=&(**np).middle.link;
 								}
 								else
@@ -79193,7 +79193,7 @@ namespace boost
 							g.correct_year();
 							compile_time=mktime(&g.time_stamp);
 						}
-						(void)((!!(0!=compile_time))||(_wassert(L"0 != compile_time", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\time_conversion_helper.hpp", 127), 0));
+						(void)((!!(0!=compile_time))||(_wassert(L"0 != compile_time", L"D:\\dev\\external\\boost\\boost\\wave\\util\\time_conversion_helper.hpp", 127), 0));
 					}
 					time_t get_time()const
 					{
@@ -79277,12 +79277,12 @@ namespace boost
 		}
 		T&operator*()const
 		{
-			(void)((!!(px!=0))||(_wassert(L"px != 0", L"D:\\dev\\boost_1_41_0\\boost\\smart_ptr\\intrusive_ptr.hpp", 160), 0));
+			(void)((!!(px!=0))||(_wassert(L"px != 0", L"D:\\dev\\external\\boost\\boost\\smart_ptr\\intrusive_ptr.hpp", 160), 0));
 			return *px;
 		}
 		T*operator->()const
 		{
-			(void)((!!(px!=0))||(_wassert(L"px != 0", L"D:\\dev\\boost_1_41_0\\boost\\smart_ptr\\intrusive_ptr.hpp", 166), 0));
+			(void)((!!(px!=0))||(_wassert(L"px != 0", L"D:\\dev\\external\\boost\\boost\\smart_ptr\\intrusive_ptr.hpp", 166), 0));
 			return px;
 		}
 		typedef T*this_type::*unspecified_bool_type;
@@ -79616,7 +79616,7 @@ namespace boost
 					return buffer;
 				}
 			public:
-				predefined_macros(): compilation_time_("Jul 31 2013" " " "21:37:55")
+				predefined_macros(): compilation_time_("Aug 20 2013" " " "23:38:20")
 				{
 					reset();
 					reset_version();
@@ -79652,7 +79652,7 @@ namespace boost
 							0, T_EOF, 0
 						}
 					};
-					(void)((!!(i<sizeof(data)/sizeof(data[0])))||(_wassert(L"i < sizeof(data)/sizeof(data[0])", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\cpp_macromap_predef.hpp", 222), 0));
+					(void)((!!(i<sizeof(data)/sizeof(data[0])))||(_wassert(L"i < sizeof(data)/sizeof(data[0])", L"D:\\dev\\external\\boost\\boost\\wave\\util\\cpp_macromap_predef.hpp", 222), 0));
 					return data[i];
 				}
 				static_macros const&static_data_c99(std::size_t i)const
@@ -79680,7 +79680,7 @@ namespace boost
 							0, T_EOF, 0
 						}
 					};
-					(void)((!!(i<sizeof(data)/sizeof(data[0])))||(_wassert(L"i < sizeof(data)/sizeof(data[0])", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\cpp_macromap_predef.hpp", 237), 0));
+					(void)((!!(i<sizeof(data)/sizeof(data[0])))||(_wassert(L"i < sizeof(data)/sizeof(data[0])", L"D:\\dev\\external\\boost\\boost\\wave\\util\\cpp_macromap_predef.hpp", 237), 0));
 					return data[i];
 				}
 				dynamic_macros const&dynamic_data(std::size_t i)const
@@ -79728,7 +79728,7 @@ namespace boost
 							0, T_EOF, 0
 						}
 					};
-					(void)((!!(i<sizeof(data)/sizeof(data[0])))||(_wassert(L"i < sizeof(data)/sizeof(data[0])", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\cpp_macromap_predef.hpp", 256), 0));
+					(void)((!!(i<sizeof(data)/sizeof(data[0])))||(_wassert(L"i < sizeof(data)/sizeof(data[0])", L"D:\\dev\\external\\boost\\boost\\wave\\util\\cpp_macromap_predef.hpp", 256), 0));
 					return data[i];
 				}
 			};
@@ -80255,7 +80255,7 @@ namespace boost
 				}
 				if(0==parameter_count&&0==count_arguments)
 				{
-					(void)((!!(1==arguments.size()))||(_wassert(L"1 == arguments.size()", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\cpp_macromap.hpp", 841), 0));
+					(void)((!!(1==arguments.size()))||(_wassert(L"1 == arguments.size()", L"D:\\dev\\external\\boost\\boost\\wave\\util\\cpp_macromap.hpp", 841), 0));
 					arguments.clear();
 				}
 				return count_arguments;
@@ -80276,7 +80276,7 @@ namespace boost
 				{
 					expanded.push_back(expand_tokensequence_worker(pending_queue, first_it, last_it, seen_newline, expand_operator_defined));
 				}
-				(void)((!!(pending_queue.empty()))||(_wassert(L"pending_queue.empty()", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\cpp_macromap.hpp", 881), 0));
+				(void)((!!(pending_queue.empty()))||(_wassert(L"pending_queue.empty()", L"D:\\dev\\external\\boost\\boost\\wave\\util\\cpp_macromap.hpp", 881), 0));
 			}
 			template<typename ContextT>
 			template<typename ContainerT>
@@ -80333,7 +80333,7 @@ namespace boost
 						bool is_ellipsis=false;
 						if((((((*cit))&boost::wave::ExtTokenTypeMask)==(ExtParameterTokenType))?true: false))
 						{
-							(void)((!!(boost::wave::need_variadics(ctx.get_language())))||(_wassert(L"boost::wave::need_variadics(ctx.get_language())", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\cpp_macromap.hpp", 975), 0));
+							(void)((!!(boost::wave::need_variadics(ctx.get_language())))||(_wassert(L"boost::wave::need_variadics(ctx.get_language())", L"D:\\dev\\external\\boost\\boost\\wave\\util\\cpp_macromap.hpp", 975), 0));
 							i=token_id(*cit)-T_EXTPARAMETERBASE;
 							is_ellipsis=true;
 						}
@@ -80341,13 +80341,13 @@ namespace boost
 						{
 							i=token_id(*cit)-T_PARAMETERBASE;
 						}
-						(void)((!!(i<arguments.size()))||(_wassert(L"i < arguments.size()", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\cpp_macromap.hpp", 985), 0));
+						(void)((!!(i<arguments.size()))||(_wassert(L"i < arguments.size()", L"D:\\dev\\external\\boost\\boost\\wave\\util\\cpp_macromap.hpp", 985), 0));
 						if(use_replaced_arg)
 						{
 							if(is_ellipsis)
 							{
 								position_type const&pos=(*cit).get_position();
-								(void)((!!(boost::wave::need_variadics(ctx.get_language())))||(_wassert(L"boost::wave::need_variadics(ctx.get_language())", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\cpp_macromap.hpp", 992), 0));
+								(void)((!!(boost::wave::need_variadics(ctx.get_language())))||(_wassert(L"boost::wave::need_variadics(ctx.get_language())", L"D:\\dev\\external\\boost\\boost\\wave\\util\\cpp_macromap.hpp", 992), 0));
 								for(typename vector<ContainerT>::size_type arg=i;
 								arg<expanded_args.size();
 								++arg)
@@ -80365,7 +80365,7 @@ namespace boost
 						}
 						else if(adjacent_stringize&&!((((*cit)&boost::wave::TokenTypeMask)==(WhiteSpaceTokenType))?true: false))
 						{
-							(void)((!!(!arguments[i].empty()))||(_wassert(L"!arguments[i].empty()", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\cpp_macromap.hpp", 1021), 0));
+							(void)((!!(!arguments[i].empty()))||(_wassert(L"!arguments[i].empty()", L"D:\\dev\\external\\boost\\boost\\wave\\util\\cpp_macromap.hpp", 1021), 0));
 							position_type pos((*arguments[i].begin()).get_position());
 							if(is_ellipsis&&boost::wave::need_variadics(ctx.get_language()))
 							{
@@ -80387,7 +80387,7 @@ namespace boost
 								position_type const&pos=(*cit).get_position();
 								impl::trim_sequence_left(arguments[i]);
 								impl::trim_sequence_right(arguments.back());
-								(void)((!!(boost::wave::need_variadics(ctx.get_language())))||(_wassert(L"boost::wave::need_variadics(ctx.get_language())", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\cpp_macromap.hpp", 1050), 0));
+								(void)((!!(boost::wave::need_variadics(ctx.get_language())))||(_wassert(L"boost::wave::need_variadics(ctx.get_language())", L"D:\\dev\\external\\boost\\boost\\wave\\util\\cpp_macromap.hpp", 1050), 0));
 								impl::replace_ellipsis(arguments, i, expanded, pos);
 							}
 							else
@@ -80460,7 +80460,7 @@ namespace boost
 			{
 				using namespace boost::wave;
 				if(0==scope)scope=current_macros;
-				(void)((!!(T_IDENTIFIER==token_id(curr_token)||((((token_id(curr_token))&boost::wave::TokenTypeMask)==(KeywordTokenType))?true: false)||((((token_id(curr_token))&boost::wave::ExtTokenTypeMask)==(OperatorTokenType|AltExtTokenType))?true: false)||((((token_id(curr_token))&boost::wave::TokenTypeMask)==(BoolLiteralTokenType))?true: false)))||(_wassert(L"T_IDENTIFIER == token_id(curr_token) || ((((token_id(curr_token)) & boost::wave::TokenTypeMask) == (KeywordTokenType)) ? true : false) || ((((token_id(curr_token)) & boost::wave::ExtTokenTypeMask) == (OperatorTokenType|AltExtTokenType)) ? true : false) || ((((token_id(curr_token)) & boost::wave::TokenTypeMask) == (BoolLiteralTokenType)) ? true : false)", L"D:\\dev\\boost_1_41_0\\boost\\wave\\util\\cpp_macromap.hpp", 1162), 0));
+				(void)((!!(T_IDENTIFIER==token_id(curr_token)||((((token_id(curr_token))&boost::wave::TokenTypeMask)==(KeywordTokenType))?true: false)||((((token_id(curr_token))&boost::wave::ExtTokenTypeMask)==(OperatorTokenType|AltExtTokenType))?true: false)||((((token_id(curr_token))&boost::wave::TokenTypeMask)==(BoolLiteralTokenType))?true: false)))||(_wassert(L"T_IDENTIFIER == token_id(curr_token) || ((((token_id(curr_token)) & boost::wave::TokenTypeMask) == (KeywordTokenType)) ? true : false) || ((((token_id(curr_token)) & boost::wave::ExtTokenTypeMask) == (OperatorTokenType|AltExtTokenType)) ? true : false) || ((((token_id(curr_token)) & boost::wave::TokenTypeMask) == (BoolLiteralTokenType)) ? true : false)", L"D:\\dev\\external\\boost\\boost\\wave\\util\\cpp_macromap.hpp", 1162), 0));
 				if(it==scope->end())
 				{
 					++first;
@@ -81351,14 +81351,14 @@ namespace boost
 					}
 					void init(token_id id_, string_type const&value_, position_type const&pos_)
 					{
-						(void)((!!(refcnt==1))||(_wassert(L"refcnt == 1", L"D:\\dev\\boost_1_41_0\\boost\\wave\\cpplexer\\cpp_lex_token.hpp", 90), 0));
+						(void)((!!(refcnt==1))||(_wassert(L"refcnt == 1", L"D:\\dev\\external\\boost\\boost\\wave\\cpplexer\\cpp_lex_token.hpp", 90), 0));
 						id=id_;
 						value=value_;
 						pos=pos_;
 					}
 					void init(token_data const&rhs)
 					{
-						(void)((!!(refcnt==1))||(_wassert(L"refcnt == 1", L"D:\\dev\\boost_1_41_0\\boost\\wave\\cpplexer\\cpp_lex_token.hpp", 98), 0));
+						(void)((!!(refcnt==1))||(_wassert(L"refcnt == 1", L"D:\\dev\\external\\boost\\boost\\wave\\cpplexer\\cpp_lex_token.hpp", 98), 0));
 						id=rhs.id;
 						value=rhs.value;
 						pos=rhs.pos;
@@ -81377,7 +81377,7 @@ namespace boost
 				template<typename StringTypeT, typename PositionT>
 				inline void*token_data<StringTypeT, PositionT>::operator new(std::size_t size)
 				{
-					(void)((!!(sizeof(token_data<StringTypeT, PositionT>)==size))||(_wassert(L"sizeof(token_data<StringTypeT, PositionT>) == size", L"D:\\dev\\boost_1_41_0\\boost\\wave\\cpplexer\\cpp_lex_token.hpp", 151), 0));
+					(void)((!!(sizeof(token_data<StringTypeT, PositionT>)==size))||(_wassert(L"sizeof(token_data<StringTypeT, PositionT>) == size", L"D:\\dev\\external\\boost\\boost\\wave\\cpplexer\\cpp_lex_token.hpp", 151), 0));
 					typedef boost::singleton_pool<token_data_tag, sizeof(token_data<StringTypeT, PositionT>)>pool_type;
 					void*ret=pool_type::malloc();
 					if(0==ret)boost::throw_exception(std::bad_alloc());
@@ -81386,7 +81386,7 @@ namespace boost
 				template<typename StringTypeT, typename PositionT>
 				inline void token_data<StringTypeT, PositionT>::operator delete(void*p, std::size_t size)
 				{
-					(void)((!!(sizeof(token_data<StringTypeT, PositionT>)==size))||(_wassert(L"sizeof(token_data<StringTypeT, PositionT>) == size", L"D:\\dev\\boost_1_41_0\\boost\\wave\\cpplexer\\cpp_lex_token.hpp", 166), 0));
+					(void)((!!(sizeof(token_data<StringTypeT, PositionT>)==size))||(_wassert(L"sizeof(token_data<StringTypeT, PositionT>) == size", L"D:\\dev\\external\\boost\\boost\\wave\\cpplexer\\cpp_lex_token.hpp", 166), 0));
 					typedef boost::singleton_pool<token_data_tag, sizeof(token_data<StringTypeT, PositionT>)>pool_type;
 					if(0!=p)pool_type::free(p);
 				}
@@ -82151,7 +82151,7 @@ namespace boost
 					position_type const&p2=static_cast<OtherDerived const&>(x).get_position();
 					std::size_t pos1=p.pos;
 					std::size_t pos2=p2.pos;
-					(void)((!!(p.self==p2.self))||(_wassert(L"p.self == p2.self", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 105), 0));
+					(void)((!!(p.self==p2.self))||(_wassert(L"p.self == p2.self", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 105), 0));
 					if(pos1<p.self->m_head)pos1+=Queue::MAX_SIZE;
 					if(pos2<p2.self->m_head)pos2+=Queue::MAX_SIZE;
 					if(pos2>pos1)return difference_type(pos2-pos1);
@@ -82249,19 +82249,19 @@ namespace boost
 			template<typename T, std::size_t N>
 			inline fixed_size_queue<T, N>::fixed_size_queue(): m_head(0), m_tail(0), m_size(0)
 			{
-				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 250), 0));
-				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 251), 0));
-				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 252), 0));
-				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 253), 0));
+				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 250), 0));
+				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 251), 0));
+				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 252), 0));
+				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 253), 0));
 			}
 			template<typename T, std::size_t N>
 			inline fixed_size_queue<T, N>::fixed_size_queue(const fixed_size_queue&x): m_head(x.m_head), m_tail(x.m_tail), m_size(x.m_size)
 			{
 				copy(x.begin(), x.end(), begin());
-				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 264), 0));
-				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 265), 0));
-				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 266), 0));
-				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 267), 0));
+				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 264), 0));
+				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 265), 0));
+				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 266), 0));
+				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 267), 0));
 			}
 			template<typename T, std::size_t N>
 			inline fixed_size_queue<T, N>&fixed_size_queue<T, N>::operator=(const fixed_size_queue&x)
@@ -82273,78 +82273,78 @@ namespace boost
 					m_size=x.m_size;
 					copy(x.begin(), x.end(), begin());
 				}
-				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 281), 0));
-				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 282), 0));
-				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 283), 0));
-				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 284), 0));
+				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 281), 0));
+				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 282), 0));
+				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 283), 0));
+				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 284), 0));
 				return *this;
 			}
 			template<typename T, std::size_t N>
 			inline fixed_size_queue<T, N>::~fixed_size_queue()
 			{
-				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 293), 0));
-				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 294), 0));
-				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 295), 0));
-				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 296), 0));
+				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 293), 0));
+				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 294), 0));
+				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 295), 0));
+				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 296), 0));
 			}
 			template<typename T, std::size_t N>
 			inline void fixed_size_queue<T, N>::push_back(const T&e)
 			{
-				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 303), 0));
-				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 304), 0));
-				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 305), 0));
-				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 306), 0));
-				(void)((!!(!full()))||(_wassert(L"!full()", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 308), 0));
+				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 303), 0));
+				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 304), 0));
+				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 305), 0));
+				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 306), 0));
+				(void)((!!(!full()))||(_wassert(L"!full()", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 308), 0));
 				m_queue[m_tail]=e;
 				++m_size;
 				++m_tail;
 				if(m_tail==N+1)m_tail=0;
-				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 317), 0));
-				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 318), 0));
-				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 319), 0));
-				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 320), 0));
+				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 317), 0));
+				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 318), 0));
+				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 319), 0));
+				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 320), 0));
 			}
 			template<typename T, std::size_t N>
 			inline void fixed_size_queue<T, N>::push_front(const T&e)
 			{
-				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 327), 0));
-				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 328), 0));
-				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 329), 0));
-				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 330), 0));
-				(void)((!!(!full()))||(_wassert(L"!full()", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 332), 0));
+				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 327), 0));
+				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 328), 0));
+				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 329), 0));
+				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 330), 0));
+				(void)((!!(!full()))||(_wassert(L"!full()", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 332), 0));
 				if(m_head==0)m_head=N;
 				else--m_head;
 				m_queue[m_head]=e;
 				++m_size;
-				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 342), 0));
-				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 343), 0));
-				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 344), 0));
-				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 345), 0));
+				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 342), 0));
+				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 343), 0));
+				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 344), 0));
+				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 345), 0));
 			}
 			template<typename T, std::size_t N>
 			inline void fixed_size_queue<T, N>::serve(T&e)
 			{
-				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 353), 0));
-				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 354), 0));
-				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 355), 0));
-				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 356), 0));
+				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 353), 0));
+				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 354), 0));
+				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 355), 0));
+				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 356), 0));
 				e=m_queue[m_head];
 				pop_front();
 			}
 			template<typename T, std::size_t N>
 			inline void fixed_size_queue<T, N>::pop_front()
 			{
-				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 368), 0));
-				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 369), 0));
-				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 370), 0));
-				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 371), 0));
+				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 368), 0));
+				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 369), 0));
+				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 370), 0));
+				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 371), 0));
 				++m_head;
 				if(m_head==N+1)m_head=0;
 				--m_size;
-				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 378), 0));
-				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 379), 0));
-				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 380), 0));
-				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 381), 0));
+				(void)((!!(m_size<=N+1))||(_wassert(L"m_size <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 378), 0));
+				(void)((!!(((m_tail+N+1)-m_head)%(N+1)==m_size%(N+1)))||(_wassert(L"((m_tail + N + 1) - m_head) % (N+1) == m_size % (N+1)", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 379), 0));
+				(void)((!!(m_head<=N+1))||(_wassert(L"m_head <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 380), 0));
+				(void)((!!(m_tail<=N+1))||(_wassert(L"m_tail <= N+1", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\fixed_size_queue.hpp", 381), 0));
 			}
 		}
 	}
@@ -82462,7 +82462,7 @@ namespace boost
 					static typename MultiPass::reference dereference(MultiPass const&mp)
 					{
 						queue_type&queue=mp.shared()->queued_elements;
-						(void)((!!(mp.queued_position>0&&mp.queued_position<=queue.size()))||(_wassert(L"mp.queued_position > 0 && mp.queued_position <= queue.size()", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\split_std_deque_policy.hpp", 57), 0));
+						(void)((!!(mp.queued_position>0&&mp.queued_position<=queue.size()))||(_wassert(L"mp.queued_position > 0 && mp.queued_position <= queue.size()", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\split_std_deque_policy.hpp", 57), 0));
 						Value&v(queue[mp.queued_position-1]);
 						if(!MultiPass::input_is_valid(mp, v))return MultiPass::advance_input(mp, v);
 						return v;
@@ -82472,7 +82472,7 @@ namespace boost
 					{
 						queue_type&queue=mp.shared()->queued_elements;
 						typename queue_type::size_type size=queue.size();
-						(void)((!!(mp.queued_position>0&&mp.queued_position<=size))||(_wassert(L"mp.queued_position > 0 && mp.queued_position <= size", L"D:\\dev\\boost_1_41_0\\boost\\spirit\\home\\support\\iterators\\detail\\split_std_deque_policy.hpp", 74), 0));
+						(void)((!!(mp.queued_position>0&&mp.queued_position<=size))||(_wassert(L"mp.queued_position > 0 && mp.queued_position <= size", L"D:\\dev\\external\\boost\\boost\\spirit\\home\\support\\iterators\\detail\\split_std_deque_policy.hpp", 74), 0));
 						if(size>0&&!MultiPass::input_is_valid(mp, queue[mp.queued_position-1]))return ;
 						if(mp.queued_position==size)
 						{
@@ -84379,8 +84379,8 @@ namespace boost
 				template<typename IteratorT, typename PositionT, typename TokenT>
 				inline int lexer<IteratorT, PositionT, TokenT>::report_error(Scanner const*s, int errcode, char const*msg, ...)
 				{
-					(void)((!!(0!=s))||(_wassert(L"0 != s", L"D:\\dev\\boost_1_41_0\\boost\\wave\\cpplexer\\re2clex\\cpp_re2c_lexer.hpp", 306), 0));
-					(void)((!!(0!=msg))||(_wassert(L"0 != msg", L"D:\\dev\\boost_1_41_0\\boost\\wave\\cpplexer\\re2clex\\cpp_re2c_lexer.hpp", 307), 0));
+					(void)((!!(0!=s))||(_wassert(L"0 != s", L"D:\\dev\\external\\boost\\boost\\wave\\cpplexer\\re2clex\\cpp_re2c_lexer.hpp", 306), 0));
+					(void)((!!(0!=msg))||(_wassert(L"0 != msg", L"D:\\dev\\external\\boost\\boost\\wave\\cpplexer\\re2clex\\cpp_re2c_lexer.hpp", 307), 0));
 					using namespace std;
 					char buffer[200];
 					va_list params;
@@ -84439,4 +84439,3 @@ namespace boost
 }
 template struct boost::wave::cpplexer::new_lexer_gen<input_policy_type::iterator_type, LexFilePosition>
 ;
-
