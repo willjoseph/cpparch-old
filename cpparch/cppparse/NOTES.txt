@@ -804,9 +804,11 @@ described for lookup in namespace member function definitions.
 			- if qualified, look up in qualifying
 		- issueL within declarator, qualifyingClass is not valid even when type was not dependent
 
-- investigate: when looking up whether first identifier is template-name for template-id, is it safe to use the resulting declaration rather than performing lookup again?
+- investigate: when checking whether identifier in template-id is template-name, is it safe to re-use the result of name-lookup rather than performing lookup again?
 	- would break name-hiding of class-template by function-template, but that's consistent with other implementations
 	- probably need to unify qualified name lookup between declarator and non-declarator anyway
+	- check rule: lookup of name found after :: finds only namespace or type names
+		- could find function-template name
 
 - investigate: in 'template<> struct A::B<int> {};' lookup of 'B' fails because 'A' is not considered as the qualifying name?
 			
