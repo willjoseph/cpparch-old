@@ -2068,12 +2068,6 @@ struct WalkerState
 
 	void addBase(Declaration* declaration, const Type& base)
 	{
-#if 0
-		if(getUnderlyingType(base).declaration == declaration)
-		{
-			return; // TODO: implement template-instantiation, and disallow inheriting from current-instantiation
-		}
-#endif
 		declaration->enclosed->bases.push_front(base);
 	}
 
@@ -2944,10 +2938,6 @@ struct UnqualifiedIdWalker : public WalkerBase
 	{
 		Source source = parser->get_source();
 		TypeIdWalker walker(getState());
-#if 0
-		// do not look up type-name within qualifying scope: e.g. x.operator T(): T is looked up scope of entire postfix-expression, not within 'x'
-		walker.clearQualifying();
-#endif
 		TREEWALKER_WALK(walker, symbol);
 		walker.commit();
 		symbol->value = gConversionFunctionId;
@@ -3263,110 +3253,6 @@ struct LiteralWalker : public WalkerBase
 	}
 };
 
-#if 0
-struct DependentPrimaryExpressionWalker : public WalkerBase
-{
-	TREEWALKER_DEFAULT;
-
-	LookupResultRef declaration;
-	IdentifierPtr id;
-	Dependent typeDependent;
-	DependentPrimaryExpressionWalker(const WalkerState& state)
-		: WalkerBase(state), id(0)
-	{
-	}
-	void visit(cpp::id_expression* symbol)
-	{
-		// this handles the rare case that the unqualified-id in the id-expression names an undeclared identifier
-		IdExpressionWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
-		declaration = walker.declaration;
-		if(walker.isIdentifier // expression is 'identifier'
-			&& (declaration == &gUndeclared // identifier was not previously declared
-				|| (isObject(*declaration) && declaration->scope->type == SCOPETYPE_NAMESPACE))) // identifier was previously declared in namespace-scope
-		{
-			// defer name-lookup: this identifier may be a dependent-name.
-			id = walker.id;
-		}
-		else
-		{
-			if(declaration != 0)
-			{
-				if(declaration == &gUndeclared
-					|| !isObject(*declaration))
-				{
-					return reportIdentifierMismatch(symbol, *walker.id, declaration, "object-name");
-				}
-				setDecoration(walker.id, declaration);
-				addDependentType(typeDependent, declaration); // an id-expression is type-dependent if it contains an identifier that was declared with a dependent type
-			}
-			else if(walker.id != 0)
-			{
-				setDecoration(walker.id, gDependentObjectInstance);
-				if(!walker.qualifying.empty())
-				{
-					setDependent(typeDependent, walker.qualifying.get());
-				}
-			}
-		}
-	}
-	void visit(cpp::primary_expression_parenthesis* symbol)
-	{
-		ExpressionWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
-		addDependent(typeDependent, walker.typeDependent);
-	}
-};
-
-// walks an argument-dependent-lookup function-call expression: postfix-expression ( expression-list. )
-struct DependentPostfixExpressionWalker : public WalkerBase
-{
-	TREEWALKER_DEFAULT;
-
-	LookupResultRef declaration;
-	IdentifierPtr id;
-	Dependent typeDependent;
-	DependentPostfixExpressionWalker(const WalkerState& state)
-		: WalkerBase(state), id(0)
-	{
-	}
-	void visit(cpp::primary_expression* symbol)
-	{
-		DependentPrimaryExpressionWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
-		declaration = walker.declaration;
-		id = walker.id;
-		addDependent(typeDependent, walker.typeDependent);
-	}
-	void visit(cpp::postfix_expression_call* symbol)
-	{
-		ArgumentListWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
-		addDependent(typeDependent, walker.typeDependent);
-		if(id != 0)
-		{
-			if(!isDependent(walker.typeDependent))
-			{
-				if(declaration != 0)
-				{
-					if(declaration == &gUndeclared
-						|| !isObject(*declaration))
-					{
-						return reportIdentifierMismatch(symbol, *id, declaration, "object-name");
-					}
-					addDependentType(typeDependent, declaration);
-					setDecoration(id, declaration);
-				}
-			}
-			else
-			{
-				setDecoration(id, gDependentObjectInstance);
-			}
-		}
-	}
-};
-#endif
-
 struct PrimaryExpressionWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
@@ -3598,25 +3484,6 @@ struct PostfixExpressionWalker : public WalkerBase
 		setExpressionType(symbol, type);
 		updateMemberType();
 	}
-#if 0
-	// prefix
-	void visit(cpp::postfix_expression_disambiguate* symbol)
-	{
-		// this is reached only if the lookup of the identifier in the primary-expression failed.
-		// TODO: 
-		/* 14.6.2-1
-		In an expression of the form:
-		postfix-expression ( expression-list. )
-		where the postfix-expression is an unqualified-id but not a template-id, the unqualified-id denotes a dependent
-		name if and only if any of the expressions in the expression-list is a type-dependent expression (
-		*/
-		DependentPostfixExpressionWalker walker(getState());
-		TREEWALKER_WALK(walker, symbol);
-		// TODO: type = &gDependent;
-		addDependent(typeDependent, walker.typeDependent);
-		updateMemberType();
-	}
-#endif
 	void visit(cpp::postfix_expression_construct* symbol)
 	{
 		ExplicitTypeExpressionWalker walker(getState());
@@ -5189,12 +5056,10 @@ struct ClassHeadWalker : public WalkerBase
 	{
 		BaseSpecifierWalker walker(getState());
 		TREEWALKER_WALK_SRC(walker, symbol);
-		if(walker.type.declaration != 0) // declaration == 0 if base-class is dependent
-		{
-			SEMANTIC_ASSERT(declaration->enclosed != 0);
-			addBase(declaration, walker.type);
-		}
+		SEMANTIC_ASSERT(walker.type.declaration != 0);
+		SEMANTIC_ASSERT(declaration->enclosed != 0);
 		SEMANTIC_ASSERT(walker.type.unique != 0);
+		addBase(declaration, walker.type);
 		setExpressionType(symbol, walker.type.isDependent ? gUniqueTypeNull : UniqueTypeWrapper(walker.type.unique));
 	}
 };
@@ -5462,6 +5327,7 @@ struct ClassSpecifierWalker : public WalkerBase
 		}
 		TREEWALKER_WALK(walker, symbol);
 	}
+#if 0 // TODO!
 	inline bool hasCopyAssignmentOperator(const Declaration& declaration)
 	{
 		Identifier id;
@@ -5481,6 +5347,7 @@ struct ClassSpecifierWalker : public WalkerBase
 		}
 		return false;
 	}
+#endif
 	void visit(cpp::terminal<boost::wave::T_RIGHTBRACE> symbol)
 	{
 		declaration->isComplete = true;

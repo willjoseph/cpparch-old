@@ -1,4 +1,49 @@
 
+#if 0 // TODO: fails because cannot obtain type of 'b' outside context of 'A'
+namespace N360
+{
+	template<int i>
+	struct B
+	{
+		typedef int Type;
+	};
+
+	template<bool b, int x = sizeof(B<sizeof(b)>::Type)>
+	struct A
+	{
+	};
+}
+#endif
+
+#if 0 // TODO: tests that expect syntax error
+namespace N359
+{
+	template<typename T>
+	void f(int i)
+	{
+		T ac;
+		ac.operator int*i; // syntax error:
+		// parsed as: &(ac.operator int *) i
+		// not as: &(ac.operator int)*i
+	}
+}
+#endif
+
+namespace N358
+{
+	struct A
+	{
+		typedef A Type;
+	};
+
+	template<typename T>
+	struct B : T::Type
+	{
+	};
+
+	typedef B<A>::Type Type;
+}
+
 namespace N357
 {
 	template<int N>

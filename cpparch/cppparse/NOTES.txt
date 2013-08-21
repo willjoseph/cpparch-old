@@ -258,6 +258,31 @@
 	[expr.add]
 	For addition, either both operands shall have arithmetic or enumeration type, or one operand shall be a
 	pointer to a completely defined object type and the other shall have integral or enumeration type.
++ task: ADL should filter everything but functions and function templates
++ task: allow undeclared bare-identifier followed by (params), assume to be found via ADL
+	- disallow undeclared[], undeclared.m, undeclared.~X(), undeclared++
++ task: assert (walker.type.declaration != 0) before addBase
++ task: type of overloaded operators: required to determine type of expression
+	+ postfix operator[]
+	+ postfix operator++
+	+ operator->
++ task: remove special-cases for gEnumerator
++ task: built-in operator overload resolution for ptr-to-member expression
++ task: overload resolution: implicit object parameter/argument
+	// [over.match.funcs] a member function is considered to have an extra parameter, called the implicit object parameter, which
+	// represents the object for which the member function has been called. For the purposes of overload resolution,
+	// both static and non-static member functions have an implicit object parameter, but constructors do not.
+	// Similarly, when appropriate, the context can construct an argument list that contains an implied object
+	// argument to denote the object to be operated on.
+	- when calling a member function, must always supply an implicit-object-argument
+		- when that member is static and is called without a class object, the implied-object-argument is the type of the class containing the member
++ task: clean up makeUniqueType
+	- remove redundant code
++ task: rename TypeInstance
+	+ merge TypeInstance with ObjectType
+		- new name: not an object type
+		- class type or built-in type - terminates declarator
+		- SimpleType, as in simple-type-specifier
 
 
 
@@ -274,10 +299,10 @@
 - investigate: can explicit/partial-specializations omit template arguments where there are defaults in the primary template?
 	- clang allows with c++98
 
-- investigate: need to compare two function templates with different numbers of parameters when determining partial ordering?
+- investigate: is there ever a need to compare two function templates with different numbers of parameters when determining partial ordering?
 
-- investigate: is typename required in operator T::Dependent?
-	- seems to be..
+- investigate: is typename required in conversion-function-id: operator T::Dependent?
+	- yes - perhaps research to confirm?
 
 - investigate: partial specializations: how to substitute template-arguments when uniquing
 - investigate: what is the dependent unique-type of a template-partial-specialization?
@@ -325,11 +350,12 @@
 		- why?
 
 - test: correct type of expression x = y (should be type of 'x'?)
+	- test overload resolution against user defined operator=
 
 - task: determine type of dependent pointer-to-member expression
 	- for SFINAE during substitution of nontype pointer-to-member parameter &T::member -> int T::*member
 
-- task: determine type of dependent expression
+- task: deferred evaluation of type of dependent expression
 	- requires two-phase name lookup for unqualified names within expression. e.g. f(dependent);
 		- for now: [temp.dep.res] Declarations that are visible at the point of definition of the template.
 		- if operand is dependent, must store unqualified-id and point-of-definition.
@@ -342,16 +368,16 @@
 	- member-functions: no
 	- member-classes: no
 
-- task: remove if(walker.type.declaration != 0) and addBase even if declaration is not found
-
 - issue: parser loses track of current token just after parsing last token of default-parameter (and other deferred parse?)
+	- syntax error at last token of deferred-parse block results in invalid parser location
 
 - task: construct templateParamScope when parsing 'template' token
 	- construct empty template param scope for explicit specialization?
 
 - task: avoid having to revert changes to TypeId in between parsing multiple declarators in init-declarator-list
+	- in SimpleDeclarationWalker
 
-- task: when complete type is required for dependent type, add it to children list in enclosing template class
+- task: when complete type is required and type is dependent, add type to children list in enclosing template class
 
 - task: determine type of all non-dependent expressions
 	- overload resolution
@@ -365,24 +391,10 @@
 			- substitute unspecified template params with themselves?
 				- much like when name of current-instantiation is used in class template definition
 
-- task: type of overloaded operators: required to determine type of expression
-	- postfix operator[]
-	- postfix operator++
-	- operator->
-
 - task: determine type of conditional-expression with differing second and third operands
 	- write tests!
 
 - task: refactor PARSE_EXPRESSION
-
-+ task: overload resolution: implicit object parameter/argument
-	// [over.match.funcs] a member function is considered to have an extra parameter, called the implicit object parameter, which
-	// represents the object for which the member function has been called. For the purposes of overload resolution,
-	// both static and non-static member functions have an implicit object parameter, but constructors do not.
-	// Similarly, when appropriate, the context can construct an argument list that contains an implied object
-	// argument to denote the object to be operated on.
-	- when calling a member function, must always supply an implicit-object-argument
-		- when that member is static and is called without a class object, the implied-object-argument is ???
 
 - task: declare copy-assign if not already declared
 	- name lookup fails for id-expression 'operator=' when it has not been declared
@@ -426,13 +438,16 @@
 + task: fix type of conversion function declaration: declarator-ptr not correctly parsed
 
 - task: test conversion function parse special-case
-	The conversion-type-id shall not represent a function type nor an array type. The conversion-type-id in a
-	conversion-function-id is the longest possible sequence of conversion-declarators. [Note: this prevents
-	ambiguities between the declarator operator * and its expression counterparts. [Example:
-	&ac.operator int*i; // syntax error:
-	// parsed as: &(ac.operator int *) i
-	// not as: &(ac.operator int)*i
-	The * is the pointer declarator and not the multiplication operator. ] ]
+	- standard quote:
+		The conversion-type-id shall not represent a function type nor an array type. The conversion-type-id in a
+		conversion-function-id is the longest possible sequence of conversion-declarators. [Note: this prevents
+		ambiguities between the declarator operator * and its expression counterparts. [Example:
+		&ac.operator int*i; // syntax error:
+		// parsed as: &(ac.operator int *) i
+		// not as: &(ac.operator int)*i
+		The * is the pointer declarator and not the multiplication operator. ] ]
+	- produces syntax error as expected
+	- add test that checks for a syntax error in this case
 
 - task: function parameter type transformations during template argument deduction
 	[dcl.fct] After determining the
@@ -577,8 +592,35 @@
 	- in case of 'a < b || c' causes error evaluating expression type if 'b' is not convertible to bool
 	- ideally, defer evaluation of expression type until ambiguity is resolved.
 	- temporary hack to avoid?
-
-+ task: remove special-cases for gEnumerator
+	- conformant solution (see below): look up identifier during template-id parse, and reject if it does not name a template
+- don't need to handle template-id ambiguity between id-expression and type-name?
+	- can template-name ever be hidden?
+	- always look up template-name immediately and reject if first name found is not template?
+		- test implementation works well
+	- what if hiding name is non-template?
+		- gcc, clang, msvc all reject
+	- what if within class-member-access?
+		- lookup first in class of object-expression, then in enclosing scope
+		- if object expression is dependent, name lookup should be deferred when looking for non-type name?
+			- only if preceded by 'template'
+		- if not preceded by 'template', first look in class of object expression (if present and non-dependent), then in enclosing scope
+	- what if within declarator?
+		- e.g. 'C<T>::C()' vs 'C<T> f()'
+			- still ok to look up 'C' to find whether it's a template
+		- e.g. 'C<T>::M<U>::M()' vs 'typename C<T>::template M<U> f()'
+			- different behaviour when in declarator?
+				- 'C<T>' is known to be the current instantiation, therefore lookup of M is not deferred
+			- otherwise, lookup of second 'M' deferred because qualified by dependent
+			- still ok to look up template name if not preceded by 'template'?
+				- even if qualified by dependent type name?
+					- don't bother with lookup in this case?
+					- what if 'C<T>::M' names a non-type and therefore '<' could be less-than?
+					- impossible, always preceded by 'template<>'?
+		- e.g. 'template<> template<> C<int>::M<int>::M()' vs 'template<> template<> C<int>::M<int> C<int>::M<int>::f()'
+			- different behaviour when in declarator?
+			- still ok to look up template name if not preceded by 'template'
+			- if qualified, look up in qualifying
+		- issueL within declarator, qualifyingClass is not valid even when type was not dependent
 
 - task: check for undesired forward declaration of 'A' in elaborated type specifier: template<class T> friend struct N::A;
 
@@ -632,10 +674,6 @@
 	- explicit-type: cast, construct
 		- type
 
-- task: remove unused 'isTemplate' stuff
-
-- investigate: special handling for declarator name lookup still required?
-
 - investigate: 'T->T' and 'T->const T&' are indistinguishable conversion sequences?
 	- T->T: identity
 	- T->const T&:
@@ -653,9 +691,7 @@
 		is the standard conversion sequence consisting of the identity conversion.
 
 
-+ task: built-in operator overload resolution for ptr-to-member expression
-
-- task: ptr-to-member expression: built-in candidates for overload resolution
+- task: improve: ptr-to-member expression: built-in candidates for overload resolution
 	- cull invalid candidates (e.g. incompatible class type between arguments, incompatible const)
 		- could break in case of passing class-type args, which can also be converted to C* or T C::*
 	- write tests
@@ -676,17 +712,13 @@
 	- need to make everything buildable from svn
 		- boost
 		- stlport
+	- proper database!
 
 - task: name lookup should always find primary template
 
-+ task: clean up makeUniqueType
-	- remove redundant code
 
 - task: rename stuff
-	+ merge TypeInstance with ObjectType
-		- new name: not an object type
-		- class type or built-in type - terminates declarator
-		- SimpleType, as in simple-type-specifier
+	- UniqueTypeWrapper
 
 - task: deferred name lookup for nested name specifier in dependent class member access
 	- e.g. dependent.A::B::C::m
@@ -742,18 +774,16 @@ not defined in the class granting friendship, name lookup in the friend function
 described for lookup in namespace member function definitions.
 
 
-+ task: ADL should filter everything but functions and function templates
-
-
-- task: allow undeclared bare-identifier followed by (params), assume to be found via ADL
-	- disallow undeclared[], undeclared.m, undeclared.~X(), undeclared++
-
 - investigate: function-scope using directive?
+	- supported?
 
-- task: detect expression 'enum < 0' (otherwise constant) would call an overloaded operator
+- task: detect when expression 'enum < 0' (otherwise constant) would call an overloaded operator
+	- expression should longer be constant
 
 - task: template<bool b, int x = sizeof(b)>
 	- must defer evaluation of template parameter default until context is known?
+	- should be evaluated immediately as is non-dependent?
+	- value is not required for correct parse 
 
 - investigate: function call: correct expression to pass into findBestMatch
 	- either member-call: object-expression id-expression ( expression-list )
@@ -774,35 +804,10 @@ described for lookup in namespace member function definitions.
 		- how exactly?
 	- when determining whether it's a pointer-to-member-expression
 	- when determining types of arguments for overload resolution
+	- need to evaluate in order to discover side effects that affect name binding
+		- non-dependent expressions should be immediately evaluated
+		- dependent expressions should be evaluated at point of instantiation
 
-- investigate: don't need to handle template-id ambiguity between id-expression and type-name?
-	- can template-name ever be hidden?
-	- always look up template-name immediately and reject if first name found is not template?
-		- test implementation works well
-	- what if hiding name is non-template?
-		- gcc, clang, msvc all reject
-	- what if within class-member-access?
-		- lookup first in class of object-expression, then in enclosing scope
-		- if object expression is dependent, name lookup should be deferred when looking for non-type name?
-			- only if preceded by 'template'
-		- if not preceded by 'template', first look in class of object expression (if present and non-dependent), then in enclosing scope
-	- what if within declarator?
-		- e.g. 'C<T>::C()' vs 'C<T> f()'
-			- still ok to look up 'C' to find whether it's a template
-		- e.g. 'C<T>::M<U>::M()' vs 'typename C<T>::template M<U> f()'
-			- different behaviour when in declarator?
-				- 'C<T>' is known to be the current instantiation, therefore lookup of M is not deferred
-			- otherwise, lookup of second 'M' deferred because qualified by dependent
-			- still ok to look up template name if not preceded by 'template'?
-				- even if qualified by dependent type name?
-					- don't bother with lookup in this case?
-					- what if 'C<T>::M' names a non-type and therefore '<' could be less-than?
-					- impossible, always preceded by 'template<>'?
-		- e.g. 'template<> template<> C<int>::M<int>::M()' vs 'template<> template<> C<int>::M<int> C<int>::M<int>::f()'
-			- different behaviour when in declarator?
-			- still ok to look up template name if not preceded by 'template'
-			- if qualified, look up in qualifying
-		- issueL within declarator, qualifyingClass is not valid even when type was not dependent
 
 - investigate: when checking whether identifier in template-id is template-name, is it safe to re-use the result of name-lookup rather than performing lookup again?
 	- would break name-hiding of class-template by function-template, but that's consistent with other implementations
@@ -811,4 +816,6 @@ described for lookup in namespace member function definitions.
 		- could find function-template name
 
 - investigate: in 'template<> struct A::B<int> {};' lookup of 'B' fails because 'A' is not considered as the qualifying name?
-			
+
+- investigate: special handling for declarator name lookup still required?
+

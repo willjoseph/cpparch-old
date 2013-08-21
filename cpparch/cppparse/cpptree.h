@@ -540,7 +540,6 @@ namespace cpp
 		VISITABLE_DERIVED(postfix_expression);
 		VISITABLE_BASE(TYPELIST7(
 			SYMBOLFWD(primary_expression),
-			//SYMBOLFWD(postfix_expression_disambiguate), // matched when 'identifier' in primary-expression is dependent
 			SYMBOLFWD(postfix_expression_construct),
 			SYMBOLFWD(postfix_expression_cast),
 			SYMBOLFWD(postfix_expression_typeid),
@@ -678,9 +677,9 @@ namespace cpp
 		));
 	};
 
-	struct template_argument_clause : public template_argument_clause_disambiguate
+	struct template_argument_clause// : public template_argument_clause_disambiguate
 	{
-		VISITABLE_DERIVED(template_argument_clause_disambiguate);
+		//VISITABLE_DERIVED(template_argument_clause_disambiguate);
 		terminal<boost::wave::T_LESS> lb;
 		symbol_optional<template_argument_list> args;
 		terminal<boost::wave::T_GREATER> rb;
@@ -692,7 +691,7 @@ namespace cpp
 		VISITABLE_DERIVED(class_name);
 		VISITABLE_DERIVED(template_id);
 		symbol_required<identifier> id;
-		symbol_required<template_argument_clause_disambiguate> args;
+		symbol_required<template_argument_clause/*_disambiguate*/> args;
 		FOREACH2(id, args);
 	};
 
@@ -906,7 +905,7 @@ namespace cpp
 	{
 		VISITABLE_DERIVED(template_id);
 		symbol_required<operator_function_id> id;
-		symbol_required<template_argument_clause_disambiguate> args;
+		symbol_required<template_argument_clause/*_disambiguate*/> args;
 		FOREACH2(id, args);
 	};
 
@@ -1309,16 +1308,6 @@ namespace cpp
 		terminal<boost::wave::T_RIGHTPAREN> rp;
 		FOREACH3(lp, args, rp);
 	};
-
-#if 0
-	struct postfix_expression_disambiguate : public postfix_expression_prefix
-	{
-		VISITABLE_DERIVED(postfix_expression_prefix);
-		symbol_required<primary_expression> left;
-		symbol_required<postfix_expression_call> right;
-		FOREACH2(left, right);
-	};
-#endif
 
 	struct member_operator : public terminal_choice
 	{

@@ -228,7 +228,8 @@
 		- disambiguates: < CONSTANT_EXPRESSION < 0 >
 		- how?
 		- only required when template-id appears in an expression
-	- explain postfix_expression_disambiguate
+		- no longer required, possibly because of accurate checking of whether 'identifier' is a template-name
+	+ explain postfix_expression_disambiguate
 		- required in the context of a template definition
 		- matches: unqualified-id ( expression-list )
 		- handles dependent names (somehow?)
