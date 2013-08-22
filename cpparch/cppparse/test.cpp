@@ -166,10 +166,10 @@ Inner makeInner(WalkerType& walker, WalkerArgs<Inner, Args2<A1, A2> > args)
 
 struct WalkerPassThrough
 {
-	template<typename WalkerType, typename Result, typename T>
-	static bool invokeAction(WalkerType& walker, T* symbol, const Result* result)
+	template<typename WalkerType, typename T, typename Inner>
+	static bool invokeAction(WalkerType& walker, T* symbol, const Inner* inner)
 	{
-		return result == 0 ? false : walker.action(symbol);
+		return inner == 0 ? false : walker.action(symbol);
 	};
 };
 
