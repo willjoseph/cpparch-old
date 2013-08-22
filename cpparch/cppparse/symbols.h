@@ -1628,9 +1628,9 @@ inline bool isEqualCvQualification(UniqueTypeWrapper to, UniqueTypeWrapper from)
 struct Parameter
 {
 	DeclarationPtr declaration;
-	cpp::default_argument* argument;
-	Parameter(Declaration* declaration, cpp::default_argument* argument)
-		: declaration(declaration), argument(argument)
+	cpp::default_argument* defaultArgument;
+	Parameter(Declaration* declaration, cpp::default_argument* defaultArgument)
+		: declaration(declaration), defaultArgument(defaultArgument)
 	{
 	}
 };
@@ -7827,13 +7827,13 @@ struct OverloadResolver
 			for(ParameterTypes::const_iterator i = p + argumentCount; i != parameters.end(); ++i)
 			{
 				SYMBOLS_ASSERT(d != defaults.end());
-				if((*d).argument == 0) // TODO: catch this earlier
+				if((*d).defaultArgument == 0) // TODO: catch this earlier
 				{
 					return; // [over.match.viable] no default-argument available, this candidate is not viable
 				}
 				else
 				{
-					SYMBOLS_ASSERT((*d).argument->expr != 0); // TODO: non-fatal error: trying to use a default-argument before it has been declared. 
+					SYMBOLS_ASSERT((*d).defaultArgument->expr != 0); // TODO: non-fatal error: trying to use a default-argument before it has been declared. 
 				}
 				++d;
 			}

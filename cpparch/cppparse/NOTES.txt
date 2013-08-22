@@ -819,3 +819,22 @@ described for lookup in namespace member function definitions.
 
 - investigate: special handling for declarator name lookup still required?
 
+- investigate: refactor Walker to allow splitting across multiple files
+	- eliminate circular dependency between all walker types?
+	- refactor visit methods, split up?
+	- declare out of line? nonmember?
+		- moves related code apart: definition of walker state vs code using the state
+		- semantic actions don't care about internal walker state though, only inner walker result
+		- separate result type for each walker?
+		- also need to instantiate inner walker: need to call constructor and allocate stack space
+	- SFINAE to choose overload for specific symbol type?
+	#define HAS_MEM_FUNC(func, name)                                        \
+    template<typename T, typename Sign>                                 \
+    struct name {                                                       \
+        typedef char yes[1];                                            \
+        typedef char no [2];                                            \
+        template <typename U, U> struct type_check;                     \
+        template <typename _1> static yes &chk(type_check<Sign, &_1::func> *); \
+        template <typename   > static no  &chk(...);                    \
+        static bool const value = sizeof(chk<T>(0)) == sizeof(yes);     \
+    }

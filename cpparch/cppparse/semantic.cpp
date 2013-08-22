@@ -118,6 +118,7 @@ void printIdentifierMismatch(const IdentifierMismatch& e)
 inline void setDecoration(Identifier* id, const DeclarationInstance& declaration)
 {
 	SEMANTIC_ASSERT(declaration.name != 0);
+	SEMANTIC_ASSERT(id != &gAnonymousId);
 	id->dec.p = &declaration;
 }
 
@@ -2726,6 +2727,10 @@ struct TemplateArgumentListWalker : public WalkerBase
 		: WalkerBase(state), argument(context), arguments(context)
 	{
 	}
+	void commit()
+	{
+		arguments.push_front(argument); // allocates last element first!
+	}
 	void visit(cpp::type_id* symbol)
 	{
 		TypeIdWalker walker(getState());
@@ -2753,8 +2758,8 @@ struct TemplateArgumentListWalker : public WalkerBase
 	{
 		TemplateArgumentListWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
+		walker.commit();
 		arguments.swap(walker.arguments);
-		arguments.push_front(walker.argument); // allocates last element first!
 	}
 };
 
@@ -5366,10 +5371,9 @@ struct EnumeratorDefinitionWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	DeclarationPtr declaration;
-	bool isInitialized;
+	DeclarationPtr declaration; // result
 	EnumeratorDefinitionWalker(const WalkerState& state)
-		: WalkerBase(state), declaration(0), isInitialized(false)
+		: WalkerBase(state), declaration(0)
 	{
 	}
 
@@ -5393,7 +5397,6 @@ struct EnumeratorDefinitionWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		SEMANTIC_ASSERT(isDependent(walker.valueDependent) || walker.expression.isConstant); // TODO: non-fatal error: expected constant expression
 		declaration->initializer = walker.expression;
-		isInitialized = true;
 		addDependent(declaration->valueDependent, walker.valueDependent);
 	}
 };
@@ -5402,8 +5405,8 @@ struct EnumSpecifierWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	DeclarationPtr declaration;
-	IdentifierPtr id;
+	DeclarationPtr declaration; // result
+	IdentifierPtr id; // internal state
 	ExpressionWrapper value;
 	EnumSpecifierWalker(const WalkerState& state)
 		: WalkerBase(state), declaration(0), id(0)
@@ -5442,18 +5445,19 @@ struct EnumSpecifierWalker : public WalkerBase
 		}
 		EnumeratorDefinitionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
-		walker.declaration->type = declaration; // give the enumerator the type of its enumeration
-		walker.declaration->type.qualifiers = CvQualifiers(true, false); // an enumerator may be used in an integral constant expression
-		setDependent(walker.declaration->type); // the enumeration type is dependent if it is a member of a class template
-		makeUniqueTypeSafe(walker.declaration->type);
-		if(walker.isInitialized)
+		Declaration& enumerator = *walker.declaration;
+		enumerator.type = declaration; // give the enumerator the type of its enumeration
+		enumerator.type.qualifiers = CvQualifiers(true, false); // an enumerator may be used in an integral constant expression
+		setDependent(enumerator.type); // the enumeration type is dependent if it is a member of a class template
+		makeUniqueTypeSafe(enumerator.type);
+		if(enumerator.initializer.p != 0)
 		{
-			SEMANTIC_ASSERT(isDependent(walker.declaration->valueDependent) || walker.declaration->initializer.isConstant);
-			value = walker.declaration->initializer;
+			SEMANTIC_ASSERT(isDependent(enumerator.valueDependent) || enumerator.initializer.isConstant);
+			value = enumerator.initializer;
 		}
 		else
 		{
-			walker.declaration->initializer = value;
+			enumerator.initializer = value;
 		}
 		// [dcl.enum] An enumerator-definition without an initializer gives the enumerator the value obtained by increasing the value of the previous enumerator by one.
 		ExpressionWrapper one = makeUniqueExpression(IntegralConstantExpression(gSignedInt, IntegralConstant(1)));
@@ -6178,8 +6182,8 @@ struct SimpleDeclarationWalker : public WalkerBase
 
 	SimpleDeclarationWalker(const WalkerState& state, bool isParameter = false, size_t templateParameter = INDEX_INVALID) : WalkerBase(state),
 		declaration(0),
-		parent(0),
-		id(0),
+		parent(state.enclosing),
+		id(&gAnonymousId),
 		type(&gCtor, context),
 		enclosed(0),
 		forward(0),
@@ -6196,6 +6200,12 @@ struct SimpleDeclarationWalker : public WalkerBase
 	{
 		if(id != 0)
 		{
+			if(id == &gAnonymousId // if the declaration is anonymous
+				&& !(isParameter || templateParameter != INDEX_INVALID)) // and this is not the declaration of a function parameter or non-type template parameter
+			{
+				id = 0; // do not declare anything
+				return;
+			}
 			if(isConversionFunction)
 			{
 				type.typeSequence.push_back(DeclaratorFunctionType(Parameters(), conversionFunctionQualifiers));
@@ -6235,11 +6245,11 @@ struct SimpleDeclarationWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		type.swap(walker.type);
 		type.qualifiers = walker.qualifiers;
-		declaration = type.declaration; // if no declarator is specified later, this is probably a class-declaration
 		specifiers = walker.specifiers;
 		forward = walker.forward;
 		templateParams = walker.templateParams;
 		isUnion = walker.isUnion;
+		declaration = type.declaration; // if no declarator is specified later, this is probably a class-declaration
 	}
 	void visit(cpp::type_specifier_seq* symbol)
 	{
@@ -6247,10 +6257,10 @@ struct SimpleDeclarationWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		type.swap(walker.type);
 		type.qualifiers = walker.qualifiers;
-		declaration = type.declaration; // if no declarator is specified later, this is probably a class-declaration
 		forward = walker.forward;
 		templateParams = walker.templateParams;
 		isUnion = walker.isUnion;
+		declaration = type.declaration; // if no declarator is specified later, this is probably a class-declaration
 	}
 	void visit(cpp::function_specifier* symbol) // in constructor_definition/member_declaration_implicit -> function_specifier_seq
 	{
@@ -6625,9 +6635,9 @@ struct ParameterDeclarationWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	DeclarationPtr declaration;
+	DeclarationPtr declaration; // result
 	size_t templateParameter;
-	cpp::default_argument* defaultArgument;
+	cpp::default_argument* defaultArgument; // parsing of this symbol will be deferred if this is a member-declaration
 	bool isParameter;
 
 	ParameterDeclarationWalker(const WalkerState& state, bool isParameter = false, size_t templateParameter = INDEX_INVALID)
@@ -6646,8 +6656,6 @@ struct ParameterDeclarationWalker : public WalkerBase
 	{
 		SimpleDeclarationWalker walker(getState(), isParameter, templateParameter);
 		TREEWALKER_WALK(walker, symbol);
-		walker.parent = enclosing;
-		walker.id = &gAnonymousId;
 		walker.commit();
 		declaration = walker.declaration;
 		defaultArgument = symbol->init;
@@ -6658,18 +6666,18 @@ struct TypeParameterWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
+	TemplateParameter param; // result
 	IdentifierPtr id;
-	DeclarationPtr declaration;
 	TemplateArgument argument; // the default argument for this param
 	TemplateParameters params; // the template parameters for this param (if template-template-param)
 	size_t templateParameter;
 	TypeParameterWalker(const WalkerState& state, size_t templateParameter)
-		: WalkerBase(state), id(&gAnonymousId), declaration(0), argument(context), params(context), templateParameter(templateParameter)
+		: WalkerBase(state), param(context), id(&gAnonymousId), argument(context), params(context), templateParameter(templateParameter)
 	{
 	}
 	void commit()
 	{
-		SEMANTIC_ASSERT(declaration == 0); // may only be called once, after parse of type-parameter succeeds
+		SEMANTIC_ASSERT(param.declaration == 0); // may only be called once, after parse of type-parameter succeeds
 		DeclarationInstanceRef instance = pointOfDeclaration(context, enclosing, *id, TYPE_PARAM, 0, DECLSPEC_TYPEDEF, !params.empty(), params, false, TEMPLATEARGUMENTS_NULL, templateParameter);
 #ifdef ALLOCATOR_DEBUG
 		trackDeclaration(instance);
@@ -6678,7 +6686,10 @@ struct TypeParameterWalker : public WalkerBase
 		{
 			setDecoration(id, instance);
 		}
-		declaration = instance;
+		param = instance;
+		setDependent(param);
+		makeUniqueTypeSafe(param);
+		param.argument.swap(argument);
 	}
 	void visit(cpp::identifier* symbol)
 	{
@@ -6699,7 +6710,7 @@ struct TypeParameterWalker : public WalkerBase
 		TREEWALKER_WALK(walker, symbol);
 		params.swap(walker.params);
 	}
-	void visit(cpp::id_expression* symbol)
+	void visit(cpp::id_expression* symbol) // the default argument for a template-template-parameter
 	{
 		IdExpressionWalker walker(getState());
 		TREEWALKER_WALK(walker, symbol);
@@ -6720,22 +6731,23 @@ struct TemplateParameterListWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	TemplateParameter param;
-	TemplateParameters params;
-	size_t count;
+	TemplateParameter param; // internal state
+	TemplateParameters params; // result
+	size_t count; // internal state
 	TemplateParameterListWalker(const WalkerState& state, size_t count)
 		: WalkerBase(state), param(context), params(context), count(count)
 	{
+	}
+	void commit()
+	{
+		params.push_front(param);
 	}
 	void visit(cpp::type_parameter_default* symbol)
 	{
 		TypeParameterWalker walker(getState(), count);
 		TREEWALKER_WALK(walker, symbol);
 		walker.commit();
-		param = walker.declaration;
-		setDependent(param);
-		makeUniqueTypeSafe(param);
-		param.argument.swap(walker.argument);
+		param.swap(walker.param);
 		++count;
 	}
 	void visit(cpp::type_parameter_template* symbol)
@@ -6743,11 +6755,7 @@ struct TemplateParameterListWalker : public WalkerBase
 		TypeParameterWalker walker(getState(), count);
 		TREEWALKER_WALK(walker, symbol);
 		walker.commit();
-		SEMANTIC_ASSERT( walker.declaration != 0);
-		param = walker.declaration;
-		setDependent(param);
-		makeUniqueTypeSafe(param);
-		param.argument.swap(walker.argument);
+		param.swap(walker.param);
 		++count;
 	}
 	void visit(cpp::parameter_declaration* symbol)
@@ -6768,8 +6776,8 @@ struct TemplateParameterListWalker : public WalkerBase
 	{
 		TemplateParameterListWalker walker(getState(), count);
 		TREEWALKER_WALK(walker, symbol);
+		walker.commit();
 		params.swap(walker.params);
-		params.push_front(walker.param);
 	}
 };
 
@@ -6777,7 +6785,7 @@ struct TemplateParameterClauseWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	TemplateParameters params;
+	TemplateParameters params; // result
 	TemplateParameterClauseWalker(const WalkerState& state)
 		: WalkerBase(state), params(context)
 	{
@@ -6794,8 +6802,8 @@ struct TemplateParameterClauseWalker : public WalkerBase
 	{
 		TemplateParameterListWalker walker(getState(), 0);
 		TREEWALKER_WALK(walker, symbol);
+		walker.commit();
 		params.swap(walker.params);
-		params.push_front(walker.param);
 	}
 };
 
@@ -6803,8 +6811,9 @@ struct TemplateDeclarationWalker : public WalkerBase
 {
 	TREEWALKER_DEFAULT;
 
-	DeclarationPtr declaration;
-	TemplateParameters params;
+	DeclarationPtr declaration; // result
+
+	TemplateParameters params; // internal state
 	TemplateDeclarationWalker(const WalkerState& state)
 		: WalkerBase(state), declaration(0), params(context)
 	{
