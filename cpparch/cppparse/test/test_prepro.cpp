@@ -1,4 +1,17 @@
 
+
+namespace N352
+{
+	template<bool b, int x = sizeof(b)>
+	struct A
+	{
+		static const int value = x;
+	};
+
+	int f(int);
+	int x = f(A<false>::value);
+}
+
 namespace N361
 {
 	class A
@@ -294,17 +307,6 @@ namespace N298
 	int i = f(&a); // calls f(const int*)
 }
 
-namespace N352
-{
-	template<bool b, int x = sizeof(b)>
-	struct A
-	{
-		static const int value = x;
-	};
-
-	int f(int);
-	int x = f(A<false>::value);
-}
 
 namespace N351
 {

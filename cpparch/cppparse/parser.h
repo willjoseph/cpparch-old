@@ -1040,7 +1040,7 @@ struct Args2
 struct InvokeChecked
 {
 	template<typename WalkerType, typename T, typename Result>
-	static bool apply(WalkerType& walker, T* symbol, Result& result)
+	static bool invokeAction(WalkerType& walker, T* symbol, Result& result)
 	{
 		return walker.action(symbol);
 	}
@@ -1049,7 +1049,7 @@ struct InvokeChecked
 struct InvokeUnchecked
 {
 	template<typename WalkerType, typename T, typename Result>
-	static bool apply(WalkerType& walker, T* symbol, Result& result)
+	static bool invokeAction(WalkerType& walker, T* symbol, Result& result)
 	{
 		walker.action(symbol);
 		return true;
@@ -1059,7 +1059,7 @@ struct InvokeUnchecked
 struct InvokeCheckedResult
 {
 	template<typename WalkerType, typename T, typename Result>
-	static bool apply(WalkerType& walker, T* symbol, Result& result)
+	static bool invokeAction(WalkerType& walker, T* symbol, Result& result)
 	{
 		return walker.action(symbol, result);
 	}
@@ -1068,7 +1068,7 @@ struct InvokeCheckedResult
 struct InvokeUncheckedResult
 {
 	template<typename WalkerType, typename T, typename Result>
-	static bool apply(WalkerType& walker, T* symbol, Result& result)
+	static bool invokeAction(WalkerType& walker, T* symbol, Result& result)
 	{
 		walker.action(symbol, result);
 		return true;
@@ -1112,19 +1112,18 @@ struct CachedWalk
 typedef CachedLeaf<false> DisableCache;
 typedef CachedLeaf<true> EnableCache;
 
-
 template<typename Inner, typename Invoke, typename Cache = DisableCache, typename Args = Args0>
-struct WalkerArgs : Cache, Args
+struct WalkerArgs : Invoke, Cache, Args
 {
-	WalkerArgs(Args args = Args())
+	WalkerArgs(Args args)
 		: Args(args)
 	{
 	}
-	template<typename WalkerType, typename T>
-	static bool invokeAction(WalkerType& walker, T* symbol, Inner* inner)
-	{
-		return inner == 0 ? false : Invoke::apply(walker, symbol, *inner);
-	}
+};
+
+template<typename Inner, typename Invoke, typename Cache>
+struct WalkerArgs<Inner, Invoke, Cache, Args0> : Invoke, Cache
+{
 };
 
 template<typename WalkerType, typename Invoke, typename Inner, typename Cache>
@@ -1146,13 +1145,8 @@ Inner makeWalker(WalkerType& walker, WalkerArgs<Inner, Invoke, Cache, Args2<A1, 
 }
 
 template<typename Invoke, typename Cache = DisableCache>
-struct WalkerPassThrough : Cache
+struct WalkerPassThrough : Invoke, Cache
 {
-	template<typename WalkerType, typename T, typename Inner>
-	static bool invokeAction(WalkerType& walker, T* symbol, Inner* inner)
-	{
-		return inner == 0 ? false : Invoke::apply(walker, symbol, *inner);
-	};
 };
 
 
@@ -1210,14 +1204,6 @@ struct TreeWalkerWalkIndex : WalkerArgs<WalkerType, InvokeUncheckedResult, Disab
 	}
 };
 
-typedef Args2<bool, std::size_t> ParameterDeclarationWalkerArgs;
-template<typename WalkerType>
-struct TreeWalkerWalkParameter : WalkerArgs<WalkerType, InvokeUncheckedResult, DisableCache, ParameterDeclarationWalkerArgs >
-{
-	TreeWalkerWalkParameter(ParameterDeclarationWalkerArgs value) : WalkerArgs(value)
-	{
-	}
-};
 
 
 
@@ -1313,7 +1299,13 @@ public:
 			return &walker;
 		}
 		return 0;
-	}	
+	}
+
+	template<typename T, typename Inner, typename Policy>
+	static bool invokeAction(WalkerType& walker, T* symbol, Inner* inner, Policy)
+	{
+		return inner == 0 ? false : Policy::invokeAction(walker, symbol, *inner);
+	}
 
 	template<typename T>
 	T* newVisit(WalkerType& walker, T* symbol)
@@ -1321,10 +1313,10 @@ public:
 		// Construct an inner walker from the current walker, based on the current walker's policy for this symbol.
 		// Try to parse the symbol using the inner walker.
 		// Report success if the parse was successful and the current walker's associated semantic action also passed.
-		bool success = walker.makePolicy(NULLSYMBOL(T))
-			.invokeAction(walker, symbol,
+		bool success = invokeAction(walker, symbol,
 				getParser(makeWalker(walker, walker.makePolicy(NULLSYMBOL(T))))
-					.parseSymbolTmp(symbol, walker.makePolicy(NULLSYMBOL(T))));
+					.parseSymbolTmp(symbol, walker.makePolicy(NULLSYMBOL(T))),
+					walker.makePolicy(NULLSYMBOL(T)));
 		return success ? symbol : 0;
 	}	
 

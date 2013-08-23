@@ -2388,13 +2388,20 @@ namespace cpp
 		FOREACH5(key, isGlobal, context, isTemplate, id);
 	};
 
-	struct parameter_declaration : public choice<parameter_declaration>, public template_parameter
+	struct parameter_declaration_suffix : public choice<parameter_declaration_suffix>
 	{
-		VISITABLE_DERIVED(template_parameter);
 		VISITABLE_BASE(TYPELIST2(
 			SYMBOLFWD(parameter_declaration_default), // TODO: ambiguity: 'C::A(X)' could be 'C::A X' or 'C::A(*)(X)'
 			SYMBOLFWD(parameter_declaration_abstract)
 		));
+	};
+
+	struct parameter_declaration : public template_parameter
+	{
+		VISITABLE_DERIVED(template_parameter);
+		symbol_required<decl_specifier_seq> spec;
+		symbol_required<parameter_declaration_suffix> suffix;
+		FOREACH2(spec, suffix);
 	};
 
 	struct type_parameter : public choice<type_parameter>, public template_parameter
@@ -2457,24 +2464,22 @@ namespace cpp
 		FOREACH1(expr);
 	};
 
-	struct parameter_declaration_default : public parameter_declaration
+	struct parameter_declaration_default : public parameter_declaration_suffix
 	{
-		VISITABLE_DERIVED(parameter_declaration);
-		symbol_required<decl_specifier_seq> spec;
+		VISITABLE_DERIVED(parameter_declaration_suffix);
 		symbol_required<declarator> decl;
 		terminal_suffix<boost::wave::T_ASSIGN> assign;
 		symbol_required<default_argument> init;
-		FOREACH4(spec, decl, assign, init);
+		FOREACH3(decl, assign, init);
 	};
 
-	struct parameter_declaration_abstract : public parameter_declaration
+	struct parameter_declaration_abstract : public parameter_declaration_suffix
 	{
-		VISITABLE_DERIVED(parameter_declaration);
-		symbol_required<decl_specifier_seq> spec;
+		VISITABLE_DERIVED(parameter_declaration_suffix);
 		symbol_optional<abstract_declarator> decl;
 		terminal_suffix<boost::wave::T_ASSIGN> assign;
 		symbol_required<default_argument> init;
-		FOREACH4(spec, decl, assign, init);
+		FOREACH3(decl, assign, init);
 	};
 
 	struct parameter_declaration_list
@@ -2794,14 +2799,20 @@ namespace cpp
 		));
 	};
 
+	struct condition_declarator
+	{
+		symbol_required<declarator> decl;
+		terminal<boost::wave::T_ASSIGN> assign;
+		symbol_required<assignment_expression> init;
+		FOREACH3(decl, assign, init);
+	};
+
 	struct condition_init : public condition
 	{
 		VISITABLE_DERIVED(condition);
 		symbol_required<type_specifier_seq> type;
-		symbol_required<declarator> decl;
-		terminal<boost::wave::T_ASSIGN> assign;
-		symbol_required<assignment_expression> init;
-		FOREACH4(type, decl, assign, init);
+		symbol_required<condition_declarator> decl;
+		FOREACH2(type, decl);
 	};
 
 	struct selection_statement_if : public selection_statement
