@@ -838,3 +838,40 @@ described for lookup in namespace member function definitions.
         template <typename   > static no  &chk(...);                    \
         static bool const value = sizeof(chk<T>(0)) == sizeof(yes);     \
     }
+
+	- major refactor to turn 'visit' methods into actions
+		+ overloadable-operator matches any T
+		+ clearQualifying called before creating Walker
+		+ enumerator_definition calls stuff before creating Walker
+		+ declareEts for parameter declaration in SimpleDeclarationWalker
+		+ cached parse
+		- declare-ets-guard
+			- leaf only
+			- required because decl-spec-seq may contain forward-declared class
+			- and declarator parse may cause modification of typeSequence
+		- deferred parse
+			+ member_declaration
+			- declarator
+			- leaf only: default_argument, statement_seq_wrapper, mem_initializer_clause
+		- source
+		- include-events (declaration)
+
+- investigate: what's going on with SimpleDeclarationWalker
+	- complex
+	- used with:
+		- decl-spec-seq <suffix>
+			simple_declaration -> simple_declaration_suffix: type_declaration_suffix/simple_declaration_named
+			general_declaration -> general_declaration_suffix: type_declaration_suffix/simple_declaration_named/function_definition
+			member_declaration_default -> member_declaration_suffix: type_declaration_suffix/member_declaration_bitfield/member_declaration_named/function_definition
+			parameter_declaration -> declarator
+		- type-specifier-seq <suffix>
+			condition_init -> declarator
+			exception_declaration_default -> declarator
+		- function-specifier-seq <suffix>
+			constructor_definition -> function_definition
+			member_declaration_implicit -> member_declaration_suffix
+	- all variations contain some type of declarator
+	- decl-spec/type-spec may contain forward-declaration
+		- declare immediately after decl-spec?
+		- target scope depends on whether this is an explicit forward-declaration or occurs within another declaration
+	- split into prefix/suffix?

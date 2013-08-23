@@ -1,4 +1,79 @@
 
+namespace N361
+{
+	class A
+	{
+	public:
+		void f(const A&lhs, const A&rhs)
+		{
+			lhs.m_cat<rhs.m_cat||(lhs.m_cat==rhs.m_cat&&lhs.m_val<rhs.m_val);
+		}
+	private:
+		int m_val;
+		int* m_cat;
+	};
+}
+
+namespace N357
+{
+	template<int N>
+	struct A
+	{
+	};
+
+	template<class T>
+	struct B
+	{
+		typedef const T* const_iterator;
+	};
+
+	template<int N>
+	void f()
+	{
+		for(const A<N>* i=0; i!=2; ++i)
+		{
+			typedef A<N> Tmp;
+			typedef B<Tmp> Blah;
+			for(typename Blah::const_iterator i=0; i!=2; ++i)
+			{
+			}
+		}
+	}
+}
+
+namespace N163
+{
+	struct large_size
+	{
+		char c[256];
+	};
+	large_size dispatch(struct exception*);
+	struct small_size
+	{
+	};
+	small_size dispatch(void*);
+	template<class, int>
+	struct S;
+	template<class T>
+	struct S<T, sizeof(large_size)>
+	{
+		typedef int type;
+	};
+	template<class T>
+	struct S<T, sizeof(small_size)>
+	{
+		typedef int type;
+	};
+	template<class T>
+	struct A
+	{
+		typedef typename S<T, sizeof(dispatch((T*)0))>::type type; // overload resolution is performed within sizeof
+	};
+
+	A<struct exception> a;
+	A<struct Blah> b;
+}
+
 #if 0 // TODO: fails because cannot obtain type of 'b' outside context of 'A'
 namespace N360
 {
@@ -44,32 +119,6 @@ namespace N358
 	typedef B<A>::Type Type;
 }
 
-namespace N357
-{
-	template<int N>
-	struct A
-	{
-	};
-
-	template<class T>
-	struct B
-	{
-		typedef const T* const_iterator;
-	};
-
-	template<int N>
-	void f()
-	{
-		for(const A<N>* i=0; i!=2; ++i)
-		{
-			typedef A<N> Tmp;
-			typedef B<Tmp> Blah;
-			for(typename Blah::const_iterator i=0; i!=2; ++i)
-			{
-			}
-		}
-	}
-}
 
 namespace N356
 {

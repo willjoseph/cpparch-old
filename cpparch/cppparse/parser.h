@@ -744,7 +744,7 @@ struct Parser : public ParserState
 
 	void addBacktrackCallback(const BacktrackCallback& callback)
 	{
-		context.allocator.addBacktrackCallback(allocation, callback);
+		context.allocator.addBacktrackCallback(context.allocator.position, callback);
 	}
 
 	template<typename Symbol, typename Walker>
@@ -1009,6 +1009,220 @@ inline ParseResult parseTerminal(Parser& parser, cpp::terminal_suffix<id>& resul
 	return parseTerminal(parser, getTokenId(result), result.value) ? PARSERESULT_PASS : PARSERESULT_SKIP;
 }
 
+#if 1 // new stuff
+
+
+
+struct Args0
+{
+};
+
+template<typename A1>
+struct Args1
+{
+	A1 a1;
+	Args1(A1 a1) : a1(a1)
+	{
+	}
+};
+
+template<typename A1, typename A2>
+struct Args2
+{
+	A1 a1;
+	A2 a2;
+	Args2(A1 a1, A2 a2) : a1(a1), a2(a2)
+	{
+	}
+};
+
+
+struct InvokeChecked
+{
+	template<typename WalkerType, typename T, typename Result>
+	static bool apply(WalkerType& walker, T* symbol, Result& result)
+	{
+		return walker.action(symbol);
+	}
+};
+
+struct InvokeUnchecked
+{
+	template<typename WalkerType, typename T, typename Result>
+	static bool apply(WalkerType& walker, T* symbol, Result& result)
+	{
+		walker.action(symbol);
+		return true;
+	}
+};
+
+struct InvokeCheckedResult
+{
+	template<typename WalkerType, typename T, typename Result>
+	static bool apply(WalkerType& walker, T* symbol, Result& result)
+	{
+		return walker.action(symbol, result);
+	}
+};
+
+struct InvokeUncheckedResult
+{
+	template<typename WalkerType, typename T, typename Result>
+	static bool apply(WalkerType& walker, T* symbol, Result& result)
+	{
+		walker.action(symbol, result);
+		return true;
+	}
+};
+
+template<bool CACHED>
+struct CachedLeaf
+{
+	static const bool isCached = CACHED;
+
+	template<typename WalkerType>
+	static int& getCachedWalker(WalkerType& walker)
+	{
+		static int dummy;
+		return dummy;
+	}
+
+	const CachedLeaf& getCachePolicy() const
+	{
+		return *this;
+	}
+};
+
+struct CachedWalk
+{
+	static const bool isCached = true;
+
+	template<typename WalkerType>
+	static WalkerType& getCachedWalker(WalkerType& walker)
+	{
+		return walker;
+	}
+
+	const CachedWalk& getCachePolicy() const
+	{
+		return *this;
+	}
+};
+
+typedef CachedLeaf<false> DisableCache;
+typedef CachedLeaf<true> EnableCache;
+
+
+template<typename Inner, typename Invoke, typename Cache = DisableCache, typename Args = Args0>
+struct WalkerArgs : Cache, Args
+{
+	WalkerArgs(Args args = Args())
+		: Args(args)
+	{
+	}
+	template<typename WalkerType, typename T>
+	static bool invokeAction(WalkerType& walker, T* symbol, Inner* inner)
+	{
+		return inner == 0 ? false : Invoke::apply(walker, symbol, *inner);
+	}
+};
+
+template<typename WalkerType, typename Invoke, typename Inner, typename Cache>
+Inner makeWalker(WalkerType& walker, WalkerArgs<Inner, Invoke, Cache, Args0> args)
+{
+	return Inner(walker.getState());
+}
+
+template<typename WalkerType, typename Invoke, typename Inner, typename Cache, typename A1>
+Inner makeWalker(WalkerType& walker, WalkerArgs<Inner, Invoke, Cache, Args1<A1> > args)
+{
+	return Inner(walker.getState(), args.a1);
+}
+
+template<typename WalkerType, typename Invoke, typename Inner, typename Cache, typename A1, typename A2>
+Inner makeWalker(WalkerType& walker, WalkerArgs<Inner, Invoke, Cache, Args2<A1, A2> > args)
+{
+	return Inner(walker.getState(), args.a1, args.a2);
+}
+
+template<typename Invoke, typename Cache = DisableCache>
+struct WalkerPassThrough : Cache
+{
+	template<typename WalkerType, typename T, typename Inner>
+	static bool invokeAction(WalkerType& walker, T* symbol, Inner* inner)
+	{
+		return inner == 0 ? false : Invoke::apply(walker, symbol, *inner);
+	};
+};
+
+
+template<typename WalkerType, typename Invoke, typename Cache>
+WalkerType& makeWalker(WalkerType& walker, WalkerPassThrough<Invoke, Cache>)
+{
+	return walker;
+}
+
+
+#define TREEWALKER_POLICY(Symbol, Policy) \
+	Policy makePolicy(Symbol*) \
+	{ \
+		return Policy(); \
+	}
+
+#define TREEWALKER_POLICY_ARGS(Symbol, Policy, args) \
+	Policy makePolicy(Symbol*) \
+	{ \
+		return Policy(args); \
+	}
+
+
+typedef WalkerPassThrough<InvokeUnchecked> TreeWalkerLeaf;
+typedef WalkerPassThrough<InvokeChecked> TreeWalkerLeafChecked;
+typedef WalkerPassThrough<InvokeUnchecked, EnableCache> TreeWalkerLeafCached;
+typedef WalkerPassThrough<InvokeChecked, EnableCache> TreeWalkerLeafCachedChecked;
+template<typename WalkerType>
+struct TreeWalkerWalk : WalkerArgs<WalkerType, InvokeUncheckedResult> {};
+template<typename WalkerType>
+struct TreeWalkerWalkChecked : WalkerArgs<WalkerType, InvokeCheckedResult> {};
+template<typename WalkerType>
+struct TreeWalkerWalkCached : WalkerArgs<WalkerType, InvokeUncheckedResult, CachedWalk> {};
+template<typename WalkerType>
+struct TreeWalkerWalkCachedChecked : WalkerArgs<WalkerType, InvokeCheckedResult, CachedWalk> {};
+template<typename WalkerType>
+struct TreeWalkerWalkBool : WalkerArgs<WalkerType, InvokeUncheckedResult, DisableCache, Args1<bool> >
+{
+	TreeWalkerWalkBool(bool value) : WalkerArgs(Args1<bool>(value))
+	{
+	}
+};
+template<typename WalkerType>
+struct TreeWalkerWalkBoolChecked : WalkerArgs<WalkerType, InvokeCheckedResult, DisableCache, Args1<bool> >
+{
+	TreeWalkerWalkBoolChecked(bool value) : WalkerArgs(Args1<bool>(value))
+	{
+	}
+};
+template<typename WalkerType>
+struct TreeWalkerWalkIndex : WalkerArgs<WalkerType, InvokeUncheckedResult, DisableCache, Args1<std::size_t> >
+{
+	TreeWalkerWalkIndex(std::size_t value) : WalkerArgs(Args1<std::size_t>(value))
+	{
+	}
+};
+
+typedef Args2<bool, std::size_t> ParameterDeclarationWalkerArgs;
+template<typename WalkerType>
+struct TreeWalkerWalkParameter : WalkerArgs<WalkerType, InvokeUncheckedResult, DisableCache, ParameterDeclarationWalkerArgs >
+{
+	TreeWalkerWalkParameter(ParameterDeclarationWalkerArgs value) : WalkerArgs(value)
+	{
+	}
+};
+
+
+
+#endif // new stuff
+
 struct ParserOpaque : public Parser
 {
 	void* walker;
@@ -1072,6 +1286,48 @@ public:
 		return result;
 	}
 
+	ParserGeneric& getParser(WalkerType& walker)
+	{
+		this->walker = &walker;  // pass walker as hidden argument to parseSymbol
+		return *this;
+	}
+
+	template<typename T, typename Policy>
+	WalkerType* parseSymbolTmp(T*& symbol, Policy)
+	{
+		WalkerType& walker = getWalker();
+		if(Policy::isCached
+			&& cacheLookup(symbol, Policy::getCachedWalker(walker)))
+		{
+			return &walker;
+		}
+		CachedSymbols::Key key = context.position;
+		symbol = makeParser(symbol).parseSymbol(*this, symbol);
+		if(symbol != 0)
+		{
+			symbol = parseHit(*this, symbol); // if the parse succeeded, return a persistent version of the symbol.
+			if(Policy::isCached)
+			{
+				cacheStore(key, symbol, Policy::getCachedWalker(walker));
+			}
+			return &walker;
+		}
+		return 0;
+	}	
+
+	template<typename T>
+	T* newVisit(WalkerType& walker, T* symbol)
+	{
+		// Construct an inner walker from the current walker, based on the current walker's policy for this symbol.
+		// Try to parse the symbol using the inner walker.
+		// Report success if the parse was successful and the current walker's associated semantic action also passed.
+		bool success = walker.makePolicy(NULLSYMBOL(T))
+			.invokeAction(walker, symbol,
+				getParser(makeWalker(walker, walker.makePolicy(NULLSYMBOL(T))))
+					.parseSymbolTmp(symbol, walker.makePolicy(NULLSYMBOL(T))));
+		return success ? symbol : 0;
+	}	
+
 	template<typename T, bool required>
 	bool parse(cpp::symbol_generic<T, required>& s)
 	{
@@ -1094,7 +1350,8 @@ public:
 		}
 		T* result = static_cast<T*>(walker.result);
 #else
-		T* result = tmp.parse(holder.get());
+		WalkerType& walker = getWalker();
+		T* result = tmp.newVisit(walker, holder.get());
 #endif
 		if(result != 0)
 		{
@@ -1153,19 +1410,6 @@ public:
 		return !skip;
 	}
 };
-
-
-#define SYMBOL_WALK(walker, symbol) if((result = symbol = makeParser(symbol).parseSymbol(getParser(walker), symbol)) == 0) return; result = symbol = parseHit(getParser(walker), symbol)
-#define PARSERCONTEXT_DEFAULT \
-	template<typename T> \
-	void visit(T* symbol) \
-{ \
-	SYMBOL_WALK(*this, symbol); \
-} \
-	template<LexTokenId id> \
-	void visit(cpp::terminal<id> symbol) \
-{ \
-}
 
 
 #define TOKEN_EQUAL(parser, token) isToken((parser).get_id(), token)

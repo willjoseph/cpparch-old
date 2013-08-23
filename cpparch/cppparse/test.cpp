@@ -94,20 +94,6 @@ struct WalkerN
 };
 #else
 
-struct Symbol1Result
-{
-	int value;
-};
-
-struct Symbol2Result
-{
-	int value;
-};
-
-struct State
-{
-};
-
 struct Args0
 {
 };
@@ -131,10 +117,10 @@ struct Args2
 	}
 };
 
-template<typename Inner, typename Args = Args0>
+template<typename Inner, bool CHECKED, typename Args = Args0>
 struct WalkerArgs : Args
 {
-	WalkerArgs(Args args = Args0())
+	WalkerArgs(Args args = Args())
 		: Args(args)
 	{
 	}
@@ -145,25 +131,44 @@ struct WalkerArgs : Args
 	};
 };
 
-template<typename WalkerType, typename Inner>
-Inner makeInner(WalkerType& walker, WalkerArgs<Inner, Args0> args)
+template<typename Inner, typename Args>
+struct WalkerArgs<Inner, false, Args> : Args
+{
+	WalkerArgs(Args args = Args())
+		: Args(args)
+	{
+	}
+	template<typename WalkerType, typename T, typename Inner>
+	static bool invokeAction(WalkerType& walker, T* symbol, const Inner* inner)
+	{
+		if(inner == 0)
+		{
+			return false;
+		}
+		walker.action(symbol, inner->result);
+		return true;
+	};
+};
+
+template<typename WalkerType, bool CHECKED, typename Inner>
+Inner makeWalker(WalkerType& walker, WalkerArgs<Inner, CHECKED, Args0> args)
 {
 	return Inner(walker);
 }
 
-template<typename WalkerType, typename Inner, typename A1>
-Inner makeInner(WalkerType& walker, WalkerArgs<Inner, Args1<A1> > args)
+template<typename WalkerType, bool CHECKED, typename Inner, typename A1>
+Inner makeWalker(WalkerType& walker, WalkerArgs<Inner, CHECKED, Args1<A1> > args)
 {
 	return Inner(walker, args.a1);
 }
 
-template<typename WalkerType, typename Inner, typename A1, typename A2>
-Inner makeInner(WalkerType& walker, WalkerArgs<Inner, Args2<A1, A2> > args)
+template<typename WalkerType, bool CHECKED, typename Inner, typename A1, typename A2>
+Inner makeWalker(WalkerType& walker, WalkerArgs<Inner, CHECKED, Args2<A1, A2> > args)
 {
 	return Inner(walker, args.a1, args.a2);
 }
 
-
+template<bool CHECKED>
 struct WalkerPassThrough
 {
 	template<typename WalkerType, typename T, typename Inner>
@@ -173,8 +178,23 @@ struct WalkerPassThrough
 	};
 };
 
-template<typename WalkerType>
-WalkerType& makeInner(WalkerType& walker, WalkerPassThrough)
+template<>
+struct WalkerPassThrough<false>
+{
+	template<typename WalkerType, typename T, typename Inner>
+	static bool invokeAction(WalkerType& walker, T* symbol, const Inner* inner)
+	{
+		if(inner == 0)
+		{
+			return false;
+		}
+		walker.action(symbol);
+		return true;
+	};
+};
+
+template<typename WalkerType, bool CHECKED>
+WalkerType& makeWalker(WalkerType& walker, WalkerPassThrough<CHECKED>)
 {
 	return walker;
 }
@@ -183,8 +203,45 @@ WalkerType& makeInner(WalkerType& walker, WalkerPassThrough)
 template<typename WalkerType, typename T>
 bool visit(WalkerType& walker, T* symbol)
 {
-	return walker.makePolicy(symbol).invokeAction(walker, symbol, parseSymbol(makeInner(walker, walker.makePolicy(symbol)), symbol));
+	return walker.makePolicy(symbol).invokeAction(walker, symbol, parseSymbol(makeWalker(walker, walker.makePolicy(symbol)), symbol));
 }	
+
+#define TREEWALKER_TRY(Symbol) \
+	WalkerPassThrough<false> makePolicy(Symbol*) \
+	{ \
+		return WalkerPassThrough<false>(); \
+	}
+
+#define TREEWALKER_TRY_CHECKED(Symbol) \
+	WalkerPassThrough<true> makePolicy(Symbol*) \
+	{ \
+		return WalkerPassThrough<true>(); \
+	}
+
+#define TREEWALKER_PUSH(Symbol, Walker) \
+	WalkerArgs<Walker, false> makePolicy(Symbol*) \
+	{ \
+		return WalkerArgs<Walker, false>(); \
+	}
+
+#define TREEWALKER_PUSH_ARGS(Symbol, Walker, Args, args) \
+	WalkerArgs<Walker, false, Args > makePolicy(Symbol*) \
+	{ \
+		return WalkerArgs<Walker, false, Args >(Args args); \
+	}
+
+#define TREEWALKER_PUSH_CHECKED(Symbol, Walker) \
+	WalkerArgs<Walker, true> makePolicy(Symbol*) \
+	{ \
+		return WalkerArgs<Walker, true>(); \
+	}
+
+#define TREEWALKER_PUSH_ARGS_CHECKED(Symbol, Walker, Args, args) \
+	WalkerArgs<Walker, true, Args > makePolicy(Symbol*) \
+	{ \
+		return WalkerArgs<Walker, true, Args >(Args args); \
+	}
+
 
 template<typename WalkerType>
 WalkerType* parseSymbol(WalkerType& walker, symbol1* p)
@@ -213,24 +270,19 @@ WalkerType* parseSymbol(WalkerType& walker, symbol3* p)
 	return &walker;
 }
 
-#define TREEWALKER_TRY(Symbol) \
-	WalkerPassThrough makePolicy(Symbol*) \
-	{ \
-		return WalkerPassThrough(); \
-	}
+struct Symbol1Result
+{
+	int value;
+};
 
-#define TREEWALKER_PUSH(Symbol, Walker) \
-	WalkerArgs<Walker> makePolicy(Symbol*) \
-	{ \
-		return WalkerArgs<Walker>(); \
-	}
+struct Symbol2Result
+{
+	int value;
+};
 
-#define TREEWALKER_PUSH_ARGS(Symbol, Walker, Args, args) \
-	WalkerArgs<Walker, Args > makePolicy(Symbol*) \
-	{ \
-		return WalkerArgs<Walker, Args >(Args args); \
-	}
-
+struct State
+{
+};
 
 typedef Args1<bool> Symbol1WalkerArgs;
 typedef Args0 Symbol2WalkerArgs;
@@ -242,7 +294,7 @@ struct Symbol1Walker : State
 	{
 	}
 
-	TREEWALKER_PUSH_ARGS(symbol2, struct Symbol2Walker, Symbol2WalkerArgs, ())
+	TREEWALKER_PUSH_ARGS_CHECKED(symbol2, struct Symbol2Walker, Symbol2WalkerArgs, ())
 	bool action(symbol2* symbol, const Symbol2Result& inner)
 	{
 		result.value = inner.value;
@@ -258,13 +310,12 @@ struct Symbol2Walker : State
 	}
 
 	TREEWALKER_PUSH_ARGS(symbol1, struct Symbol1Walker, Symbol1WalkerArgs, (false))
-	bool action(symbol1* symbol, const Symbol1Result& inner)
+	void action(symbol1* symbol, const Symbol1Result& inner)
 	{
 		result.value = inner.value;
-		return true;
 	}
 
-	TREEWALKER_TRY(symbol3)
+	TREEWALKER_TRY_CHECKED(symbol3)
 	bool action(symbol3* symbol)
 	{
 		return true;

@@ -963,40 +963,6 @@ namespace N155
 }
 
 
-namespace N163
-{
-	struct large_size
-	{
-		char c[256];
-	};
-	large_size dispatch(struct exception*);
-	struct small_size
-	{
-	};
-	small_size dispatch(void*);
-	template<class, int>
-	struct S;
-	template<class T>
-	struct S<T, sizeof(large_size)>
-	{
-		typedef int type;
-	};
-	template<class T>
-	struct S<T, sizeof(small_size)>
-	{
-		typedef int type;
-	};
-	template<class T>
-	struct A
-	{
-		typedef typename S<T, sizeof(dispatch((T*)0))>::type type; // overload resolution is performed within sizeof
-	};
-
-	A<struct exception> a;
-	A<struct Blah> b;
-}
-
-
 namespace N178
 {
 	template<class T, class U = void>
@@ -4690,7 +4656,7 @@ namespace N81
 
 	struct S
 	{
-		template<bool b = Bool<int>::value> // default template-argument parse is incorrectly deferred - should be parsed immediately
+		template<bool b = Bool<int>::value> // default template-argument parse should not be deferred - should be parsed immediately
 		class M;
 	};
 }
