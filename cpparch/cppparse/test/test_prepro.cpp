@@ -1,5 +1,45 @@
 
 
+namespace N116
+{
+	struct S
+	{
+		void f(float)
+		{
+			return f(); // calls f(int) with default-argument '0'. Parse of this statement should be deferred until after deferred-parse of default-arguments
+		}
+		void f(int i = 0)
+		{
+		}
+	};
+}
+
+namespace N362
+{
+	void f()
+	{
+		if(struct S* p = 0)
+		{
+			S* x;
+		}
+	}
+}
+
+namespace N362
+{
+	void f()
+	{
+		try
+		{
+		}
+		catch(struct S*)
+		{
+			S* x;
+		}
+	}
+}
+
+
 namespace N352
 {
 	template<bool b, int x = sizeof(b)>

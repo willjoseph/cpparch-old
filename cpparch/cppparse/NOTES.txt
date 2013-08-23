@@ -863,10 +863,10 @@ described for lookup in namespace member function definitions.
 			simple_declaration -> simple_declaration_suffix: type_declaration_suffix/simple_declaration_named
 			general_declaration -> general_declaration_suffix: type_declaration_suffix/simple_declaration_named/function_definition
 			member_declaration_default -> member_declaration_suffix: type_declaration_suffix/member_declaration_bitfield/member_declaration_named/function_definition
-			parameter_declaration -> declarator
+			parameter_declaration -> parameter_declaration_suffix
 		- type-specifier-seq <suffix>
-			condition_init -> declarator
-			exception_declaration_default -> declarator
+			condition_init -> condition_declarator
+			exception_declaration_default -> exception_declarator
 		- function-specifier-seq <suffix>
 			constructor_definition -> function_definition
 			member_declaration_implicit -> member_declaration_suffix
@@ -875,3 +875,12 @@ described for lookup in namespace member function definitions.
 		- declare immediately after decl-spec?
 		- target scope depends on whether this is an explicit forward-declaration or occurs within another declaration
 	- split into prefix/suffix?
+
+
+- investigate: refactoring makes avoidance of double-parsing of default-argument unnecessary in this scenario
+	- as described
+		// while parsing simple-declaration-named declarator which contains deferred default-argument expression,
+		// on finding '{', we backtrack and try parsing function-definition.
+		// symbols may be deferred during attempt to parse shared-prefix declarator: f(int i = j)
+		// first parsed as member_declaration_named, backtracks on reaching '{'
+	- no longer necessary because Declarator parse is successfully cached

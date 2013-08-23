@@ -1954,20 +1954,6 @@ namespace N118
 	typedef S S; // redeclaration of typedef
 }
 
-namespace N116
-{
-	struct S
-	{
-		void f(float)
-		{
-			return f(); // calls f(int) with default-argument '0'. Parse of this statement should be deferred until after deferred-parse of default-arguments
-		}
-		void f(int i = 0)
-		{
-		}
-	};
-}
-
 namespace N063
 {
 	template<typename T>

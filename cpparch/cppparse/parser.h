@@ -1621,6 +1621,8 @@ inline SkipParenthesised<Declare> makeSkipParenthesised(Declare declare)
 }
 
 // skips a default-argument
+// We cannot correctly skip a template-id in a default-argument if it refers to a template declared later in the class.
+// This is considered to be correct: http://www.open-std.org/jtc1/sc22/wg21/docs/cwg_active.html#325
 template<typename IsTemplateName>
 struct SkipDefaultArgument
 {
