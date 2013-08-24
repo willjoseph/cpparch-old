@@ -1,4 +1,3 @@
-
 extern "C"
 {
 	typedef unsigned int uintptr_t;
@@ -79616,7 +79615,7 @@ namespace boost
 					return buffer;
 				}
 			public:
-				predefined_macros(): compilation_time_("Aug 20 2013" " " "23:38:20")
+				predefined_macros(): compilation_time_("Aug 24 2013" " " "19:34:49")
 				{
 					reset();
 					reset_version();

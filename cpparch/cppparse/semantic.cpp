@@ -10,6 +10,9 @@
 
 #include <iostream>
 
+#include <list> // deferred-parse
+
+
 struct SemanticError
 {
 	SemanticError()

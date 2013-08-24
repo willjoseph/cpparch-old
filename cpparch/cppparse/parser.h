@@ -802,6 +802,7 @@ inline void printSequence(Parser& parser)
 #define PARSE_ERROR() throw ParseError()
 #define PARSE_ASSERT(condition) if(!(condition)) { PARSE_ERROR(); }
 
+
 template<typename T>
 inline cpp::symbol_required<T> makeSymbolRequired(T* p)
 {
@@ -1049,6 +1050,131 @@ struct ParserOpaque : public Parser
 	{
 	}
 };
+
+
+
+
+
+
+template<typename Walker, typename T>
+struct DeferredParseThunk
+{
+	static void* thunk(ParserContext& context, const typename Walker::State& state, void* p)
+	{
+		Walker walker(state);
+		T* symbol = static_cast<T*>(p);
+		ParserGeneric<Walker> parser(context, walker);
+		void* result = makeParser(symbol).parseSymbol(parser, symbol);
+		return result;
+	}
+};
+
+template<typename ContextType>
+struct DeferredParseBase
+{
+	typedef void* (*Func)(ParserContext&, const ContextType&, void*);
+	ContextType context;
+	void* symbol;
+	Func func;
+};
+
+template<typename ContextType>
+struct DeferredParse : public DeferredParseBase<ContextType>
+{
+	BacktrackBuffer buffer;
+
+	// hack!
+	DeferredParse(const DeferredParseBase<ContextType>& base)
+		: buffer(), DeferredParseBase<ContextType>(base)
+	{
+	}
+	DeferredParse(const DeferredParse& other)
+		: buffer(), DeferredParseBase<ContextType>(other)
+	{
+	}
+	DeferredParse& operator=(const DeferredParse& other)
+	{
+		if(&other != this)
+		{
+			this->~DeferredParse();
+			new(this) DeferredParse(other);
+		}
+		return *this;
+	}
+};
+
+struct ContextBase
+{
+	template<typename WalkerType>
+	ParserGeneric<WalkerType>& getParser(WalkerType& walker, ParserOpaque* parser)
+	{
+		parser->walker = &walker;  // pass walker as hidden argument to parseSymbol
+		return *static_cast<ParserGeneric<WalkerType>*>(parser);
+	}
+};
+
+
+template<typename Walker, typename T>
+inline DeferredParse<typename Walker::State> makeDeferredParse(const Walker& walker, T* symbol)
+{
+	DeferredParseBase<typename Walker::State> result = { walker, symbol, DeferredParseThunk<Walker, T>::thunk };
+	return result;
+}
+
+template<typename ListType>
+inline void parseDeferred(ListType& deferred, ParserContext& context)
+{
+	const Token* position = context.position;
+	for(typename ListType::iterator i = deferred.begin(); i != deferred.end(); ++i)
+	{
+		typename ListType::value_type& item = (*i);
+
+		context.history.swap(item.buffer);
+		context.position = context.error = context.history.tokens;
+
+		void* result = item.func(context, item.context, item.symbol);
+
+		if(result == 0
+			|| context.position != context.history.end() - 1)
+		{
+			printError(context);
+		}
+
+		context.history.swap(item.buffer);
+	}
+	context.position = context.error = position;
+}
+
+template<typename ListType, typename ContextType, typename T, typename Func>
+inline T* addDeferredParse(Parser& parser, ListType& deferred, ContextType& walker, Func skipFunc, T* symbol)
+{
+	const Token* first = parser.context.position;
+
+	skipFunc(parser);
+
+	size_t count = ::distance(parser.context.history, first, parser.context.position);
+	if(count != 0)
+	{
+		T* result = parseHit(parser, symbol);
+		deferred.push_back(makeDeferredParse(walker, result));
+
+		BacktrackBuffer buffer;
+		buffer.resize(count + 2); // adding 1 for EOF and 1 to allow use as circular buffer
+		for(const Token* p = first; p != parser.context.position; p = ::next(parser.context.history, p))
+		{
+			*buffer.position++ = *p;
+		}
+		FilePosition nullPos = { "$null.cpp", 0, 0 };
+		*buffer.position++ = Token(boost::wave::T_EOF, TokenValue(), nullPos);
+
+		deferred.back().buffer.swap(buffer);
+
+		return result;
+	}
+	return 0;
+}
+
+
 
 template<typename WalkerType>
 class ParserGeneric : public ParserOpaque
@@ -1557,129 +1683,6 @@ inline void skipMemInitializerClause(Parser& parser)
 	}
 }
 
-
-
-#include <list>
-
-
-
-template<typename Walker, typename T>
-struct DeferredParseThunk
-{
-	static void* thunk(ParserContext& context, const typename Walker::State& state, void* p)
-	{
-		Walker walker(state);
-		T* symbol = static_cast<T*>(p);
-		ParserGeneric<Walker> parser(context, walker);
-		void* result = makeParser(symbol).parseSymbol(parser, symbol);
-		return result;
-	}
-};
-
-template<typename ContextType>
-struct DeferredParseBase
-{
-	typedef void* (*Func)(ParserContext&, const ContextType&, void*);
-	ContextType context;
-	void* symbol;
-	Func func;
-};
-
-template<typename ContextType>
-struct DeferredParse : public DeferredParseBase<ContextType>
-{
-	BacktrackBuffer buffer;
-
-	// hack!
-	DeferredParse(const DeferredParseBase<ContextType>& base)
-		: buffer(), DeferredParseBase<ContextType>(base)
-	{
-	}
-	DeferredParse(const DeferredParse& other)
-		: buffer(), DeferredParseBase<ContextType>(other)
-	{
-	}
-	DeferredParse& operator=(const DeferredParse& other)
-	{
-		if(&other != this)
-		{
-			this->~DeferredParse();
-			new(this) DeferredParse(other);
-		}
-		return *this;
-	}
-};
-
-struct ContextBase
-{
-	template<typename WalkerType>
-	ParserGeneric<WalkerType>& getParser(WalkerType& walker, ParserOpaque* parser)
-	{
-		parser->walker = &walker;  // pass walker as hidden argument to parseSymbol
-		return *static_cast<ParserGeneric<WalkerType>*>(parser);
-	}
-};
-
-
-template<typename Walker, typename T>
-inline DeferredParse<typename Walker::State> makeDeferredParse(const Walker& walker, T* symbol)
-{
-	DeferredParseBase<typename Walker::State> result = { walker, symbol, DeferredParseThunk<Walker, T>::thunk };
-	return result;
-}
-
-template<typename ListType>
-inline void parseDeferred(ListType& deferred, ParserContext& context)
-{
-	const Token* position = context.position;
-	for(typename ListType::iterator i = deferred.begin(); i != deferred.end(); ++i)
-	{
-		typename ListType::value_type& item = (*i);
-
-		context.history.swap(item.buffer);
-		context.position = context.error = context.history.tokens;
-
-		void* result = item.func(context, item.context, item.symbol);
-
-		if(result == 0
-			|| context.position != context.history.end() - 1)
-		{
-			printError(context);
-		}
-
-		context.history.swap(item.buffer);
-	}
-	context.position = context.error = position;
-}
-
-template<typename ListType, typename ContextType, typename T, typename Func>
-inline T* addDeferredParse(Parser& parser, ListType& deferred, ContextType& walker, Func skipFunc, T* symbol)
-{
-	const Token* first = parser.context.position;
-
-	skipFunc(parser);
-
-	size_t count = ::distance(parser.context.history, first, parser.context.position);
-	if(count != 0)
-	{
-		T* result = parseHit(parser, symbol);
-		deferred.push_back(makeDeferredParse(walker, result));
-
-		BacktrackBuffer buffer;
-		buffer.resize(count + 2); // adding 1 for EOF and 1 to allow use as circular buffer
-		for(const Token* p = first; p != parser.context.position; p = ::next(parser.context.history, p))
-		{
-			*buffer.position++ = *p;
-		}
-		FilePosition nullPos = { "$null.cpp", 0, 0 };
-		*buffer.position++ = Token(boost::wave::T_EOF, TokenValue(), nullPos);
-
-		deferred.back().buffer.swap(buffer);
-
-		return result;
-	}
-	return 0;
-}
 
 #endif
 
