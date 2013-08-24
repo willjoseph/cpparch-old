@@ -260,14 +260,14 @@ public:
 	}
 };
 
-template<typename Symbol, typename Walker>
+template<typename Symbol, typename SemaT>
 struct Cached
 {
 	size_t count;
 	size_t allocation;
 	Symbol* symbol;
-	Walker walker;
-	Cached(Symbol* symbol, const Walker& walker)
+	SemaT walker;
+	Cached(Symbol* symbol, const SemaT& walker)
 		: symbol(symbol), walker(walker)
 	{
 	}
@@ -742,17 +742,17 @@ struct Parser : public ParserState
 		}
 	}
 
-	template<typename Symbol, typename Walker>
-	bool cacheLookup(Symbol*& symbol, Walker& walker)
+	template<typename Symbol, typename SemaT>
+	bool cacheLookup(Symbol*& symbol, SemaT& walker)
 	{
 		CachedSymbols::Key key = context.position;
-		const Cached<Symbol, Walker>* p = 0;
+		const Cached<Symbol, SemaT>* p = 0;
 		context.allocator.cachedSymbols.find(context.position, p);
 		if(p != 0)
 		{
 			symbol = p->symbol;
-			walker.~Walker();
-			new(&walker) Walker(p->walker);
+			walker.~SemaT();
+			new(&walker) SemaT(p->walker);
 
 			context.allocator.position = p->allocation;
 			position = p->count;
@@ -762,11 +762,11 @@ struct Parser : public ParserState
 		ASSERT(context.position == key);
 		return false;
 	}
-	template<typename Symbol, typename Walker>
-	void cacheStore(CachedSymbols::Key key, Symbol* symbol, const Walker& walker)
+	template<typename Symbol, typename SemaT>
+	void cacheStore(CachedSymbols::Key key, Symbol* symbol, const SemaT& walker)
 	{
 #if 1
-		Cached<Symbol, Walker>& entry = context.allocator.cachedSymbols.insert(cachePosition, key, Cached<Symbol, Walker>(symbol, walker));
+		Cached<Symbol, SemaT>& entry = context.allocator.cachedSymbols.insert(cachePosition, key, Cached<Symbol, SemaT>(symbol, walker));
 		entry.count = position;
 		entry.allocation = context.allocator.position; // this must be stored after all allocations performed by cachedSymbols
 #endif
@@ -1029,13 +1029,13 @@ typedef CachedLeaf EnableCache;
 
 struct DeferDefault
 {
-	template<typename WalkerType>
-	static bool isDeferredParse(WalkerType& walker)
+	template<typename SemaT>
+	static bool isDeferredParse(SemaT& walker)
 	{
 		return false;
 	}
-	template<typename WalkerType, typename T>
-	static T* addDeferredParse(WalkerType& walker, T* symbol)
+	template<typename SemaT, typename T>
+	static T* addDeferredParse(SemaT& walker, T* symbol)
 	{
 		return 0;
 	}
@@ -1056,14 +1056,14 @@ struct ParserOpaque : public Parser
 
 
 
-template<typename Walker, typename T>
+template<typename SemaT, typename T>
 struct DeferredParseThunk
 {
-	static void* thunk(ParserContext& context, const typename Walker::State& state, void* p)
+	static void* thunk(ParserContext& context, const typename SemaT::State& state, void* p)
 	{
-		Walker walker(state);
+		SemaT walker(state);
 		T* symbol = static_cast<T*>(p);
-		ParserGeneric<Walker> parser(context, walker);
+		ParserGeneric<SemaT> parser(context, walker);
 		void* result = makeParser(symbol).parseSymbol(parser, symbol);
 		return result;
 	}
@@ -1105,19 +1105,19 @@ struct DeferredParse : public DeferredParseBase<ContextType>
 
 struct ContextBase
 {
-	template<typename WalkerType>
-	ParserGeneric<WalkerType>& getParser(WalkerType& walker, ParserOpaque* parser)
+	template<typename SemaT>
+	ParserGeneric<SemaT>& getParser(SemaT& walker, ParserOpaque* parser)
 	{
 		parser->walker = &walker;  // pass walker as hidden argument to parseSymbol
-		return *static_cast<ParserGeneric<WalkerType>*>(parser);
+		return *static_cast<ParserGeneric<SemaT>*>(parser);
 	}
 };
 
 
-template<typename Walker, typename T>
-inline DeferredParse<typename Walker::State> makeDeferredParse(const Walker& walker, T* symbol)
+template<typename SemaT, typename T>
+inline DeferredParse<typename SemaT::State> makeDeferredParse(const SemaT& walker, T* symbol)
 {
-	DeferredParseBase<typename Walker::State> result = { walker, symbol, DeferredParseThunk<Walker, T>::thunk };
+	DeferredParseBase<typename SemaT::State> result = { walker, symbol, DeferredParseThunk<SemaT, T>::thunk };
 	return result;
 }
 
@@ -1175,18 +1175,18 @@ inline T* addDeferredParse(Parser& parser, ListType& deferred, ContextType& walk
 }
 
 
-template<typename WalkerType>
+template<typename SemaT>
 class ParserGeneric : public ParserOpaque
 {
 public:
 	bool skip;
-	ParserGeneric(ParserContext& context, WalkerType& walker)
+	ParserGeneric(ParserContext& context, SemaT& walker)
 		: ParserOpaque(context, &walker), skip(false)
 	{
 	}
-	WalkerType& getWalker()
+	SemaT& getWalker()
 	{
-		return *static_cast<WalkerType*>(ParserOpaque::walker);
+		return *static_cast<SemaT*>(ParserOpaque::walker);
 	}
 
 	template<typename T, typename Base>
@@ -1220,7 +1220,7 @@ public:
 		ParseResult result = ::parseTerminal(*this, t);
 		if(!t.value.empty())
 		{
-			WalkerType& walker = getWalker();
+			SemaT& walker = getWalker();
 			walker.action(t);
 		}
 		return result;
@@ -1234,59 +1234,59 @@ public:
 	}
 
 	template<typename Symbol>
-	bool cacheLookup(const CachedNull&, Symbol*& symbol, WalkerType& walker)
+	bool cacheLookup(const CachedNull&, Symbol*& symbol, SemaT& walker)
 	{
 		return false;
 	}
 	template<typename Symbol>
-	void cacheStore(const CachedNull&, CachedSymbols::Key key, Symbol* symbol, const WalkerType& walker)
+	void cacheStore(const CachedNull&, CachedSymbols::Key key, Symbol* symbol, const SemaT& walker)
 	{
 	}
 	template<typename Symbol>
-	bool cacheLookup(const CachedLeaf&, Symbol*& symbol, WalkerType& walker)
+	bool cacheLookup(const CachedLeaf&, Symbol*& symbol, SemaT& walker)
 	{
 		int dummy;
 		return Parser::cacheLookup(symbol, dummy);
 	}
 	template<typename Symbol>
-	void cacheStore(const CachedLeaf&, CachedSymbols::Key key, Symbol* symbol, const WalkerType& walker)
+	void cacheStore(const CachedLeaf&, CachedSymbols::Key key, Symbol* symbol, const SemaT& walker)
 	{
 		int dummy;
 		Parser::cacheStore(key, symbol, dummy);
 	}
 	template<typename Symbol>
-	bool cacheLookup(const CachedWalk&, Symbol*& symbol, WalkerType& walker)
+	bool cacheLookup(const CachedWalk&, Symbol*& symbol, SemaT& walker)
 	{
 		return Parser::cacheLookup(symbol, walker);
 	}
 	template<typename Symbol>
-	void cacheStore(const CachedWalk&, CachedSymbols::Key key, Symbol* symbol, const WalkerType& walker)
+	void cacheStore(const CachedWalk&, CachedSymbols::Key key, Symbol* symbol, const SemaT& walker)
 	{
 		Parser::cacheStore(key, symbol, walker);
 	}
 
-	bool isDeferredParse(const DeferDefault&, WalkerType& walker)
+	bool isDeferredParse(const DeferDefault&, SemaT& walker)
 	{
 		return false;
 	}
 	template<typename T>
-	T* addDeferredParse(const DeferDefault&, WalkerType& walker, T* symbol)
+	T* addDeferredParse(const DeferDefault&, SemaT& walker, T* symbol)
 	{
 		return 0;
 	}
 	template<typename Defer>
-	bool isDeferredParse(const Defer&, WalkerType& walker)
+	bool isDeferredParse(const Defer&, SemaT& walker)
 	{
 		return Defer::isDeferredParse(walker);
 	}
 	template<typename Defer, typename T>
-	T* addDeferredParse(const Defer&, WalkerType& walker, T* symbol)
+	T* addDeferredParse(const Defer&, SemaT& walker, T* symbol)
 	{
 		return ::addDeferredParse(*this, Defer::getDeferredSymbolsList(walker), walker, Defer::getSkipFunc(walker), symbol);
 	}
 
 	template<typename T, typename InnerWalker, typename Inner, typename Annotate, typename Action, typename Cache, typename Defer>
-	T* visit(WalkerType& walker, T* symbol, const InnerWalker& innerConst, const Inner& inner, const Annotate&, const Action& action, const Cache& cache, const Defer& defer)
+	T* visit(SemaT& walker, T* symbol, const InnerWalker& innerConst, const Inner& inner, const Annotate&, const Action& action, const Cache& cache, const Defer& defer)
 	{
 		InnerWalker& innerWalker = *const_cast<InnerWalker*>(&innerConst); // 'innerConst' is a temporary with lifetime longer than this function.
 		ParserGeneric<InnerWalker>& innerParser = getParser(innerWalker, this);
@@ -1329,12 +1329,12 @@ public:
 		PARSE_ASSERT(s.p == 0);
 		PARSE_ASSERT(!checkBacktrack(*this));
 #endif
-		ParserGeneric<WalkerType> tmp(*this);
+		ParserGeneric<SemaT> tmp(*this);
 #ifdef PARSER_DEBUG
 		context.visualiser.push(SYMBOL_NAME(T), context.position);
 #endif
 		SymbolHolder<T> holder(context);
-		WalkerType& walker = getWalker();
+		SemaT& walker = getWalker();
 
 		// Construct an inner walker from the current walker, based on the current walker's policy for this symbol.
 		// Try to parse the symbol using the inner walker.
@@ -1460,8 +1460,8 @@ struct ChoiceParser
 	template<typename T> \
 	struct ChoiceParser<T, N> \
 	{ \
-		template<typename Walker> \
-		static T* parseSymbol(ParserGeneric<Walker>& parser, T* result) \
+		template<typename SemaT> \
+		static T* parseSymbol(ParserGeneric<SemaT>& parser, T* result) \
 		{ \
 			GENERIC_ITERATE##N(0, CHOICEPARSER_OP) \
 			return result; \

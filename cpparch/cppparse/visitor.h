@@ -7,7 +7,7 @@
 
 
 #define VISITABLE_ACCEPT template<typename VisitorType> void accept(VisitorType& visitor)
-#define PARSEABLE_ACCEPT typedef TypeListEnd Choices; template<typename Walker> bool parse(ParserGeneric<Walker>& parser)
+#define PARSEABLE_ACCEPT typedef TypeListEnd Choices; template<typename SemaT> bool parse(ParserGeneric<SemaT>& parser)
 #define FOREACH1(a) VISITABLE_ACCEPT { visitor.visit(a); } \
 	PARSEABLE_ACCEPT { return parser.parse(a); }
 #define FOREACH2(a, b) VISITABLE_ACCEPT { visitor.visit(a); visitor.visit(b); } \

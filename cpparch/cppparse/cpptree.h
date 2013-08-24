@@ -13,7 +13,7 @@ typedef boost::wave::token_id LexTokenId;
 
 struct DeclarationInstance;
 struct TypeElement;
-template<typename Walker>
+template<typename SemaT>
 class ParserGeneric;
 
 struct CvQualifiers
