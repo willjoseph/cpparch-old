@@ -213,6 +213,12 @@ struct TypeId : Type
 		Type::operator=(declaration);
 		return *this;
 	}
+	TypeId& operator=(const Type& type)
+	{
+		SYMBOLS_ASSERT(typeSequence.empty());
+		Type::operator=(type);
+		return *this;
+	}
 	void swap(TypeId& other)
 	{
 		Type::swap(other);

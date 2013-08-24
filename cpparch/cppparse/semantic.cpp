@@ -2077,7 +2077,7 @@ struct WalkerState
 		declaration->enclosed->bases.push_front(base);
 	}
 
-	Declaration* getDeclaratorQualifying()
+	Declaration* getDeclaratorQualifying() const
 	{
 		if(qualifying_p == TypePtr(0))
 		{
@@ -2613,9 +2613,9 @@ struct WalkerQualified : public WalkerBase
 		Qualifying tmp(type, context);
 		swapQualifying(tmp, isDeclarator);
 	}
-	void swapQualifying(Qualifying& other, bool isDeclarator = false)
+	void swapQualifying(const Qualifying& other, bool isDeclarator = false)
 	{
-		qualifying.swap(other);
+		qualifying = other;
 		qualifying_p = qualifying.get_ref();
 		if(isDeclarator)
 		{
@@ -2713,8 +2713,16 @@ struct InvokeUncheckedResult
 };
 
 
+struct CommitNull
+{
+};
 
-template<typename Inner, typename Args = Args0>
+struct CommitEnable
+{
+};
+
+
+template<typename Inner, typename Commit = CommitNull, typename Args = Args0>
 struct SemaPush : Args
 {
 	typedef Args ArgsType;
@@ -2724,31 +2732,31 @@ struct SemaPush : Args
 	}
 };
 
-template<typename Inner>
-struct SemaPush<Inner, Args0>
+template<typename Inner, typename Commit>
+struct SemaPush<Inner, Commit, Args0>
 {
 	typedef SemaPush ArgsType;
 };
 
-template<typename WalkerType, typename Inner>
-Inner makeInnerWalker(WalkerType& walker, const SemaPush<Inner, Args0>& args)
+template<typename WalkerType, typename Inner, typename Commit>
+Inner makeInnerWalker(WalkerType& walker, const SemaPush<Inner, Commit, Args0>& args)
 {
 	return Inner(walker.getState());
 }
 
-template<typename WalkerType, typename Inner, typename A1>
-Inner makeInnerWalker(WalkerType& walker, const SemaPush<Inner, Args1<A1> >& args)
+template<typename WalkerType, typename Inner, typename Commit, typename A1>
+Inner makeInnerWalker(WalkerType& walker, const SemaPush<Inner, Commit, Args1<A1> >& args)
 {
 	return Inner(walker.getState(), args.a1);
 }
 
-template<typename WalkerType, typename Inner, typename A1, typename A2>
-Inner makeInnerWalker(WalkerType& walker, const SemaPush<Inner, Args2<A1, A2> >& args)
+template<typename WalkerType, typename Inner, typename Commit, typename A1, typename A2>
+Inner makeInnerWalker(WalkerType& walker, const SemaPush<Inner, Commit, Args2<A1, A2> >& args)
 {
 	return Inner(walker.getState(), args.a1, args.a2);
 }
 
-
+#if 0 // not currently used
 template<typename T, T m>
 struct SfinaeNonType
 {
@@ -2766,19 +2774,18 @@ struct HasCommit<T, typename SfinaeNonType<void(T::*)(), &T::commitTest>::Type>
 {
 	static const bool value = true;
 };
+#endif
 
 template<typename WalkerType, typename Inner, typename Args>
-typename EnableIf<!HasCommit<WalkerType>::value>::Type
-	conditionalCommit(WalkerType& walker, const SemaPush<Inner, Args>& inner)
+void conditionalCommit(WalkerType& walker, const SemaPush<Inner, CommitNull, Args>& inner)
 {
-	// do nothing, no commit()
+	// do nothing
 }
 
 template<typename WalkerType, typename Inner, typename Args>
-typename EnableIf<HasCommit<WalkerType>::value>::Type
-	conditionalCommit(WalkerType& walker, const SemaPush<Inner, Args>& inner)
+void conditionalCommit(WalkerType& walker, const SemaPush<Inner, CommitEnable, Args>& inner)
 {
-	walker.commitTest(); // TODO: experimental, disabled
+	walker.commit();
 }
 
 struct Once
@@ -2793,7 +2800,7 @@ struct Once
 		SEMANTIC_ASSERT(!done);
 		done = true;
 	}
-	void test()
+	void test() const
 	{
 		SEMANTIC_ASSERT(done);
 	}
@@ -2928,9 +2935,13 @@ typedef SemaPolicyGeneric<SemaIdentity, AnnotateNull, InvokeChecked, EnableCache
 template<typename WalkerType>
 struct SemaPolicyPush : SemaPolicyGeneric<SemaPush<WalkerType>, AnnotateNull> {};
 template<typename WalkerType>
+struct SemaPolicyPushCommit : SemaPolicyGeneric<SemaPush<WalkerType, CommitEnable>, AnnotateNull> {};
+template<typename WalkerType>
 struct SemaPolicyPushSrc : SemaPolicyGeneric<SemaPush<WalkerType>, AnnotateSrc> {};
 template<typename WalkerType>
 struct SemaPolicyPushId : SemaPolicyGeneric<SemaPush<WalkerType>, AnnotateId> {};
+template<typename WalkerType>
+struct SemaPolicyPushIdCommit : SemaPolicyGeneric<SemaPush<WalkerType, CommitEnable>, AnnotateId> {};
 template<typename WalkerType>
 struct SemaPolicyPushTop : SemaPolicyGeneric<SemaPush<WalkerType>, AnnotateTop> {};
 template<typename WalkerType>
@@ -2944,43 +2955,43 @@ struct SemaPolicyPushCached : SemaPolicyGeneric<SemaPush<WalkerType>, AnnotateNu
 template<typename WalkerType>
 struct SemaPolicyPushCachedChecked : SemaPolicyGeneric<SemaPush<WalkerType>, AnnotateNull, InvokeCheckedResult, CachedWalk> {};
 template<typename WalkerType>
-struct SemaPolicyPushBool : SemaPolicyGeneric<SemaPush<WalkerType, Args1<bool> >, AnnotateNull, InvokeUncheckedResult, DisableCache>
+struct SemaPolicyPushBool : SemaPolicyGeneric<SemaPush<WalkerType, CommitNull, Args1<bool> >, AnnotateNull, InvokeUncheckedResult, DisableCache>
 {
 	SemaPolicyPushBool(bool value) : SemaPolicyGeneric(Args1<bool>(value))
 	{
 	}
 };
 template<typename WalkerType>
-struct SemaPolicyPushCheckedBool : SemaPolicyGeneric<SemaPush<WalkerType, Args1<bool> >, AnnotateNull, InvokeCheckedResult, DisableCache>
+struct SemaPolicyPushCheckedBool : SemaPolicyGeneric<SemaPush<WalkerType, CommitNull, Args1<bool> >, AnnotateNull, InvokeCheckedResult, DisableCache>
 {
 	SemaPolicyPushCheckedBool(bool value) : SemaPolicyGeneric(Args1<bool>(value))
 	{
 	}
 };
 template<typename WalkerType>
-struct SemaPolicyPushCachedBool : SemaPolicyGeneric<SemaPush<WalkerType, Args1<bool> >, AnnotateNull, InvokeUncheckedResult, CachedWalk>
+struct SemaPolicyPushCachedBool : SemaPolicyGeneric<SemaPush<WalkerType, CommitNull, Args1<bool> >, AnnotateNull, InvokeUncheckedResult, CachedWalk>
 {
 	SemaPolicyPushCachedBool(bool value) : SemaPolicyGeneric(Args1<bool>(value))
 	{
 	}
 };
 template<typename WalkerType>
-struct SemaPolicyPushCachedCheckedBool : SemaPolicyGeneric<SemaPush<WalkerType, Args1<bool> >, AnnotateNull, InvokeCheckedResult, CachedWalk>
+struct SemaPolicyPushCachedCheckedBool : SemaPolicyGeneric<SemaPush<WalkerType, CommitNull, Args1<bool> >, AnnotateNull, InvokeCheckedResult, CachedWalk>
 {
 	SemaPolicyPushCachedCheckedBool(bool value) : SemaPolicyGeneric(Args1<bool>(value))
 	{
 	}
 };
 template<typename WalkerType>
-struct SemaPolicyPushIndex : SemaPolicyGeneric<SemaPush<WalkerType, Args1<std::size_t> >, AnnotateNull, InvokeUncheckedResult, DisableCache>
+struct SemaPolicyPushIndexCommit : SemaPolicyGeneric<SemaPush<WalkerType, CommitEnable, Args1<std::size_t> >, AnnotateNull, InvokeUncheckedResult, DisableCache>
 {
-	SemaPolicyPushIndex(std::size_t value) : SemaPolicyGeneric(Args1<std::size_t>(value))
+	SemaPolicyPushIndexCommit(std::size_t value) : SemaPolicyGeneric(Args1<std::size_t>(value))
 	{
 	}
 };
 
 template<typename WalkerType, typename Defer>
-struct SemaPolicyPushDeferred : SemaPolicyGeneric<SemaPush<WalkerType, Args0>, AnnotateNull, InvokeUncheckedResult, DisableCache, Defer>
+struct SemaPolicyPushDeferred : SemaPolicyGeneric<SemaPush<WalkerType, CommitNull, Args0>, AnnotateNull, InvokeUncheckedResult, DisableCache, Defer>
 {
 };
 
@@ -3046,7 +3057,7 @@ struct DeclarationWalkerArgs
 };
 
 template<typename WalkerType>
-struct SemaPolicyParameterDeclaration : SemaPolicyGeneric<SemaPush<WalkerType, Args1<DeclarationWalkerArgs> > >
+struct SemaPolicyParameterDeclaration : SemaPolicyGeneric<SemaPush<WalkerType, CommitNull, Args1<DeclarationWalkerArgs> > >
 {
 	SemaPolicyParameterDeclaration(DeclarationWalkerArgs value) : SemaPolicyGeneric(value)
 	{
@@ -3191,12 +3202,11 @@ struct TemplateArgumentListWalker : public WalkerBase
 		committed();
 		arguments.push_front(argument); // allocates last element first!
 	}
-	SEMA_POLICY(cpp::type_id, SemaPolicyPush<TypeIdWalker>)
-	void action(cpp::type_id* symbol, TypeIdWalker& walker)
+	SEMA_POLICY(cpp::type_id, SemaPolicyPushCommit<TypeIdWalker>)
+	void action(cpp::type_id* symbol, const TypeIdWalker& walker)
 	{
-		walker.commit();
 		walker.committed.test();
-		argument.type.swap(walker.type);
+		argument.type = walker.type;
 		argument.source = getLocation();
 	}
 	SEMA_POLICY(cpp::assignment_expression, SemaPolicyPushChecked<ExpressionWalker>)
@@ -3218,7 +3228,7 @@ struct TemplateArgumentListWalker : public WalkerBase
 	{
 		walker.commit();
 		walker.committed.test();
-		arguments.swap(walker.arguments);
+		arguments = walker.arguments;
 	}
 };
 
@@ -3317,7 +3327,7 @@ struct TemplateIdWalker : public WalkerBase
 	SEMA_POLICY(cpp::template_argument_clause, SemaPolicyPushCached<TemplateArgumentListWalker>)
 	void action(cpp::template_argument_clause* symbol, TemplateArgumentListWalker& walker)
 	{
-		arguments.swap(walker.arguments);
+		arguments = walker.arguments;
 	}
 };
 
@@ -3358,7 +3368,7 @@ struct UnqualifiedIdWalker : public WalkerBase
 			this->declaration = declaration;
 		}
 		id = walker.id;
-		arguments.swap(walker.arguments);
+		arguments = walker.arguments;
 		return true;
 	}
 	SEMA_POLICY_ARGS(cpp::template_id_operator_function, SemaPolicyPushCachedCheckedBool<TemplateIdWalker>, isTemplate)
@@ -3375,11 +3385,11 @@ struct UnqualifiedIdWalker : public WalkerBase
 			this->declaration = declaration;
 		}
 		id = walker.id;
-		arguments.swap(walker.arguments);
+		arguments = walker.arguments;
 		return true;
 	}
 	SEMA_POLICY(cpp::operator_function_id, SemaPolicyPushId<OperatorFunctionIdWalker>)
-	void action(cpp::operator_function_id* symbol, OperatorFunctionIdWalker& walker)
+	void action(cpp::operator_function_id* symbol, const OperatorFunctionIdWalker& walker)
 	{
 		symbol->value.value = walker.name;
 		id = &symbol->value;
@@ -3394,10 +3404,9 @@ struct UnqualifiedIdWalker : public WalkerBase
 			}
 		}
 	}
-	SEMA_POLICY(cpp::conversion_function_id, SemaPolicyPushId<TypeIdWalker>)
-	void action(cpp::conversion_function_id* symbol, TypeIdWalker& walker)
+	SEMA_POLICY(cpp::conversion_function_id, SemaPolicyPushIdCommit<TypeIdWalker>)
+	void action(cpp::conversion_function_id* symbol, const TypeIdWalker& walker)
 	{
-		walker.commit();
 		walker.committed.test();
 		symbol->value = gConversionFunctionId;
 		id = &symbol->value;
@@ -3449,18 +3458,18 @@ struct QualifiedIdWalker : public WalkerQualified
 	}
 
 	SEMA_POLICY_ARGS(cpp::unqualified_id, SemaPolicyPushBool<UnqualifiedIdWalker>, isTemplate)
-	void action(cpp::unqualified_id* symbol, UnqualifiedIdWalker& walker)
+	void action(cpp::unqualified_id* symbol, const UnqualifiedIdWalker& walker)
 	{
 		declaration = walker.declaration;
 		id = walker.id;
-		arguments.swap(walker.arguments);
+		arguments = walker.arguments;
 	}
 	SEMA_POLICY_ARGS(cpp::qualified_id_suffix, SemaPolicyPushBool<UnqualifiedIdWalker>, isTemplate)
-	void action(cpp::qualified_id_suffix* symbol, UnqualifiedIdWalker& walker)
+	void action(cpp::qualified_id_suffix* symbol, const UnqualifiedIdWalker& walker)
 	{
 		declaration = walker.declaration;
 		id = walker.id;
-		arguments.swap(walker.arguments);
+		arguments = walker.arguments;
 	}
 };
 
@@ -3490,19 +3499,19 @@ struct IdExpressionWalker : public WalkerQualified
 	{
 	}
 	SEMA_POLICY(cpp::qualified_id_default, SemaPolicyPush<QualifiedIdWalker>)
-	void action(cpp::qualified_id_default* symbol, QualifiedIdWalker& walker)
+	void action(cpp::qualified_id_default* symbol, const QualifiedIdWalker& walker)
 	{
 		declaration = walker.declaration;
 		id = walker.id;
-		arguments.swap(walker.arguments);
+		arguments = walker.arguments;
 		swapQualifying(walker.qualifying);
 	}
 	SEMA_POLICY(cpp::qualified_id_global, SemaPolicyPush<QualifiedIdWalker>)
-	void action(cpp::qualified_id_global* symbol, QualifiedIdWalker& walker)
+	void action(cpp::qualified_id_global* symbol, const QualifiedIdWalker& walker)
 	{
 		declaration = walker.declaration;
 		id = walker.id;
-		arguments.swap(walker.arguments);
+		arguments = walker.arguments;
 		swapQualifying(walker.qualifying);
 	}
 	SEMA_POLICY(cpp::qualified_id, SemaPolicyIdentity)
@@ -3513,11 +3522,11 @@ struct IdExpressionWalker : public WalkerQualified
 		setDependent(valueDependent, qualifying.get()); // it's clearly value-dependent too, because name lookup must be deferred
 	}
 	SEMA_POLICY_ARGS(cpp::unqualified_id, SemaPolicyPushBool<UnqualifiedIdWalker>, isTemplate)
-	void action(cpp::unqualified_id* symbol, UnqualifiedIdWalker& walker)
+	void action(cpp::unqualified_id* symbol, const UnqualifiedIdWalker& walker)
 	{
 		declaration = walker.declaration;
 		id = walker.id;
-		arguments.swap(walker.arguments);
+		arguments = walker.arguments;
 		isIdentifier = walker.isIdentifier;
 	}
 	bool commit()
@@ -3606,9 +3615,9 @@ struct ExplicitTypeExpressionWalker : public WalkerBase
 	{
 	}
 	SEMA_POLICY(cpp::simple_type_specifier, SemaPolicyPush<TypeSpecifierWalker>)
-	void action(cpp::simple_type_specifier* symbol, TypeSpecifierWalker& walker)
+	void action(cpp::simple_type_specifier* symbol, const TypeSpecifierWalker& walker)
 	{
-		type.swap(walker.type);
+		type = walker.type;
 		if(type.declaration == 0)
 		{
 			type = getFundamentalType(walker.fundamental);
@@ -3617,36 +3626,35 @@ struct ExplicitTypeExpressionWalker : public WalkerBase
 		makeUniqueTypeSafe(type);
 	}
 	SEMA_POLICY(cpp::typename_specifier, SemaPolicyPush<TypenameSpecifierWalker>)
-	void action(cpp::typename_specifier* symbol, TypenameSpecifierWalker& walker)
+	void action(cpp::typename_specifier* symbol, const TypenameSpecifierWalker& walker)
 	{
-		type.swap(walker.type);
+		type = walker.type;
 		addDependent(typeDependent, type);
 		makeUniqueTypeSafe(type);
 	}
-	SEMA_POLICY(cpp::type_id, SemaPolicyPush<TypeIdWalker>)
-	void action(cpp::type_id* symbol, TypeIdWalker& walker)
+	SEMA_POLICY(cpp::type_id, SemaPolicyPushCommit<TypeIdWalker>)
+	void action(cpp::type_id* symbol, const TypeIdWalker& walker)
 	{
-		walker.commit();
 		walker.committed.test();
-		type.swap(walker.type);
+		type = walker.type;
 		addDependent(typeDependent, type);
 	}
 	SEMA_POLICY(cpp::new_type, SemaPolicyPush<NewTypeWalker>)
-	void action(cpp::new_type* symbol, NewTypeWalker& walker)
+	void action(cpp::new_type* symbol, const NewTypeWalker& walker)
 	{
-		type.swap(walker.type);
+		type = walker.type;
 		addDependent(typeDependent, type);
 		addDependent(typeDependent, walker.valueDependent);
 		makeUniqueTypeSafe(type);
 	}
 	SEMA_POLICY(cpp::assignment_expression, SemaPolicyPush<ExpressionWalker>)
-	void action(cpp::assignment_expression* symbol, ExpressionWalker& walker)
+	void action(cpp::assignment_expression* symbol, const ExpressionWalker& walker)
 	{
 		expression = walker.expression;
 		addDependent(valueDependent, walker.valueDependent);
 	}
 	SEMA_POLICY(cpp::cast_expression, SemaPolicyPush<ExpressionWalker>)
-	void action(cpp::cast_expression* symbol, ExpressionWalker& walker)
+	void action(cpp::cast_expression* symbol, const ExpressionWalker& walker)
 	{
 		expression = walker.expression;
 		addDependent(valueDependent, walker.valueDependent);
@@ -3666,7 +3674,7 @@ struct ArgumentListWalker : public WalkerBase
 		clearQualifying();
 	}
 	SEMA_POLICY(cpp::assignment_expression, SemaPolicyPush<ExpressionWalker>)
-	void action(cpp::assignment_expression* symbol, ExpressionWalker& walker)
+	void action(cpp::assignment_expression* symbol, const ExpressionWalker& walker)
 	{
 		arguments.push_back(Argument(walker.expression, walker.type));
 		addDependent(typeDependent, walker.typeDependent);
@@ -3691,7 +3699,7 @@ struct SubscriptWalker : public WalkerBase
 		clearQualifying(); // the expression in [] is looked up in the context of the entire postfix expression
 	}
 	SEMA_POLICY(cpp::expression, SemaPolicyPush<ExpressionWalker>)
-	void action(cpp::expression* symbol, ExpressionWalker& walker)
+	void action(cpp::expression* symbol, const ExpressionWalker& walker)
 	{
 		expression = walker.expression;
 		type = walker.type;
@@ -3743,7 +3751,7 @@ struct PrimaryExpressionWalker : public WalkerBase
 	{
 	}
 	SEMA_POLICY(cpp::literal, SemaPolicyPush<LiteralWalker>)
-	void action(cpp::literal* symbol, LiteralWalker& walker)
+	void action(cpp::literal* symbol, const LiteralWalker& walker)
 	{
 		expression = walker.expression;
 		type = typeOfExpression(expression, getInstantiationContext());
@@ -3757,7 +3765,7 @@ struct PrimaryExpressionWalker : public WalkerBase
 			return reportIdentifierMismatch(symbol, *walker.id, walker.declaration, "object-name");
 		}
 		id = walker.id;
-		arguments.swap(walker.arguments);
+		arguments = walker.arguments;
 		type = gUniqueTypeNull;
 		LookupResultRef declaration = walker.declaration;
 		addDependent(typeDependent, walker.typeDependent);
@@ -3792,9 +3800,9 @@ struct PrimaryExpressionWalker : public WalkerBase
 		return true;
 	}
 	SEMA_POLICY(cpp::primary_expression_parenthesis, SemaPolicyPush<ExpressionWalker>)
-	void action(cpp::primary_expression_parenthesis* symbol, ExpressionWalker& walker)
+	void action(cpp::primary_expression_parenthesis* symbol, const ExpressionWalker& walker)
 	{
-		type.swap(walker.type);
+		type = walker.type;
 		expression = walker.expression;
 		id = walker.id;
 		addDependent(typeDependent, walker.typeDependent);
@@ -3862,7 +3870,7 @@ struct PostfixExpressionMemberWalker : public WalkerQualified
 		bool isObjectName = walker.commit();
 		SEMANTIC_ASSERT(isObjectName); // TODO: non-fatal error: expected object name
 		id = walker.id;
-		arguments.swap(walker.arguments);
+		arguments = walker.arguments;
 		declaration = walker.declaration;
 		swapQualifying(walker.qualifying);
 		addDependent(typeDependent, walker.typeDependent);
@@ -3886,10 +3894,9 @@ struct TypeTraitsIntrinsicWalker : public WalkerBase
 	{
 		// debugging
 	}
-	SEMA_POLICY(cpp::type_id, SemaPolicyPush<TypeIdWalker>)
-	void action(cpp::type_id* symbol, TypeIdWalker& walker)
+	SEMA_POLICY(cpp::type_id, SemaPolicyPushCommit<TypeIdWalker>)
+	void action(cpp::type_id* symbol, const TypeIdWalker& walker)
 	{
-		walker.commit();
 		walker.committed.test();
 		addDependent(valueDependent, walker.type);
 
@@ -3939,21 +3946,21 @@ struct PostfixExpressionWalker : public WalkerBase
 		}
 	}
 	SEMA_POLICY(cpp::primary_expression, SemaPolicyPush<PrimaryExpressionWalker>)
-	void action(cpp::primary_expression* symbol, PrimaryExpressionWalker& walker)
+	void action(cpp::primary_expression* symbol, const PrimaryExpressionWalker& walker)
 	{
-		type.swap(walker.type);
+		type = walker.type;
 		expression = walker.expression;
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
 		id = walker.id;
-		arguments.swap(walker.arguments);
+		arguments = walker.arguments;
 		idEnclosing = walker.idEnclosing;
 		isUndeclared = walker.isUndeclared;
 		setExpressionType(symbol, type);
 		updateMemberType();
 	}
 	SEMA_POLICY(cpp::postfix_expression_construct, SemaPolicyPushSrc<ExplicitTypeExpressionWalker>)
-	void action(cpp::postfix_expression_construct* symbol, ExplicitTypeExpressionWalker& walker)
+	void action(cpp::postfix_expression_construct* symbol, const ExplicitTypeExpressionWalker& walker)
 	{
 		addDependent(typeDependent, walker.typeDependent);
 		type = getUniqueTypeSafe(walker.type);
@@ -3965,7 +3972,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		updateMemberType();
 	}
 	SEMA_POLICY(cpp::postfix_expression_cast, SemaPolicyPushSrc<ExplicitTypeExpressionWalker>)
-	void action(cpp::postfix_expression_cast* symbol, ExplicitTypeExpressionWalker& walker)
+	void action(cpp::postfix_expression_cast* symbol, const ExplicitTypeExpressionWalker& walker)
 	{
 		type = getUniqueTypeSafe(walker.type);
 		// [basic.lval] An expression which holds a temporary object resulting from a cast to a non-reference type is an rvalue
@@ -3982,15 +3989,15 @@ struct PostfixExpressionWalker : public WalkerBase
 		updateMemberType();
 	}
 	SEMA_POLICY(cpp::postfix_expression_typeid, SemaPolicyPush<ExpressionWalker>)
-	void action(cpp::postfix_expression_typeid* symbol, ExpressionWalker& walker)
+	void action(cpp::postfix_expression_typeid* symbol, const ExpressionWalker& walker)
 	{
 		// TODO: operand type required to be complete?
 		type = getTypeInfoType();
 		expression = makeExpression(ExplicitTypeExpression(type));
 		updateMemberType();
 	}
-	SEMA_POLICY(cpp::postfix_expression_typeidtype, SemaPolicyPush<TypeIdWalker>)
-	void action(cpp::postfix_expression_typeidtype* symbol, TypeIdWalker& walker)
+	SEMA_POLICY(cpp::postfix_expression_typeidtype, SemaPolicyPushCommit<TypeIdWalker>)
+	void action(cpp::postfix_expression_typeidtype* symbol, const TypeIdWalker& walker)
 	{
 		// TODO: operand type required to be complete?
 		type = getTypeInfoType();
@@ -4000,7 +4007,7 @@ struct PostfixExpressionWalker : public WalkerBase
 
 	// suffix
 	SEMA_POLICY(cpp::postfix_expression_subscript, SemaPolicyPushSrc<SubscriptWalker>)
-	void action(cpp::postfix_expression_subscript* symbol, SubscriptWalker& walker)
+	void action(cpp::postfix_expression_subscript* symbol, const SubscriptWalker& walker)
 	{
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
@@ -4024,7 +4031,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		updateMemberType();
 	}
 	SEMA_POLICY(cpp::postfix_expression_call, SemaPolicyPushSrc<ArgumentListWalker>)
-	void action(cpp::postfix_expression_call* symbol, ArgumentListWalker& walker)
+	void action(cpp::postfix_expression_call* symbol, const ArgumentListWalker& walker)
 	{
 		setExpressionType(symbol, type);
 		addDependent(typeDependent, walker.typeDependent);
@@ -4109,11 +4116,11 @@ struct PostfixExpressionWalker : public WalkerBase
 	}
 
 	SEMA_POLICY(cpp::postfix_expression_member, SemaPolicyPushSrc<PostfixExpressionMemberWalker>)
-	void action(cpp::postfix_expression_member* symbol, PostfixExpressionMemberWalker& walker)
+	void action(cpp::postfix_expression_member* symbol, const PostfixExpressionMemberWalker& walker)
 	{
 		setExpressionType(symbol, type);
 		id = walker.id; // perform overload resolution for a.m(x);
-		arguments.swap(walker.arguments);
+		arguments = walker.arguments;
 		type = gUniqueTypeNull;
 		LookupResultRef declaration = walker.declaration;
 		addDependent(typeDependent, walker.typeDependent);
@@ -4181,7 +4188,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		updateMemberType();
 	}
 	SEMA_POLICY(cpp::postfix_expression_typetraits_unary, SemaPolicyPush<TypeTraitsIntrinsicWalker>)
-	void action(cpp::postfix_expression_typetraits_unary* symbol, TypeTraitsIntrinsicWalker& walker)
+	void action(cpp::postfix_expression_typetraits_unary* symbol, const TypeTraitsIntrinsicWalker& walker)
 	{
 		addDependent(valueDependent, walker.valueDependent);
 		type = gBool;
@@ -4190,7 +4197,7 @@ struct PostfixExpressionWalker : public WalkerBase
 		expression = makeExpression(TypeTraitsUnaryExpression(name, operation, walker.first), true, false, isDependent(valueDependent));
 	}
 	SEMA_POLICY(cpp::postfix_expression_typetraits_binary, SemaPolicyPush<TypeTraitsIntrinsicWalker>)
-	void action(cpp::postfix_expression_typetraits_binary* symbol, TypeTraitsIntrinsicWalker& walker)
+	void action(cpp::postfix_expression_typetraits_binary* symbol, const TypeTraitsIntrinsicWalker& walker)
 	{
 		addDependent(valueDependent, walker.valueDependent);
 		type = gBool;
@@ -4210,10 +4217,9 @@ struct SizeofTypeExpressionWalker : public WalkerBase
 		: WalkerBase(state)
 	{
 	}
-	SEMA_POLICY(cpp::type_id, SemaPolicyPush<TypeIdWalker>)
-	void action(cpp::type_id* symbol, TypeIdWalker& walker)
+	SEMA_POLICY(cpp::type_id, SemaPolicyPushCommit<TypeIdWalker>)
+	void action(cpp::type_id* symbol, const TypeIdWalker& walker)
 	{
-		walker.commit();
 		walker.committed.test();
 		// [temp.dep.expr] Expressions of the following form [sizeof(T)] are never type-dependent (because the type of the expression cannot be dependent)
 		// [temp.dep.constexpr] Expressions of the following form [sizeof(T)] are value-dependent if ... the type-id is dependent
@@ -4241,7 +4247,7 @@ struct ConditionalExpressionWalker : public WalkerBase
 	{
 	}
 	SEMA_POLICY(cpp::expression, SemaPolicyPush<ExpressionWalker>)
-	void action(cpp::expression* symbol, ExpressionWalker& walker)
+	void action(cpp::expression* symbol, const ExpressionWalker& walker)
 	{
 		left = walker.expression;
 		addDependent(typeDependent, walker.typeDependent);
@@ -4249,7 +4255,7 @@ struct ConditionalExpressionWalker : public WalkerBase
 		leftType = walker.type;
 	}
 	SEMA_POLICY(cpp::assignment_expression, SemaPolicyPush<ExpressionWalker>)
-	void action(cpp::assignment_expression* symbol, ExpressionWalker& walker)
+	void action(cpp::assignment_expression* symbol, const ExpressionWalker& walker)
 	{
 		right = walker.expression;
 		addDependent(typeDependent, walker.typeDependent);
@@ -4323,14 +4329,14 @@ struct ExpressionWalker : public WalkerBase
 		walkBinaryExpression<binaryOperatorBoolean>(symbol, walker);
 	}
 	SEMA_POLICY(cpp::assignment_expression_suffix, SemaPolicyPushSrc<ExpressionWalker>)
-	void action(cpp::assignment_expression_suffix* symbol, ExpressionWalker& walker)
+	void action(cpp::assignment_expression_suffix* symbol, const ExpressionWalker& walker)
 	{
 		// 5.1.7 Assignment operators
 		// the type of an assignment expression is that of its left operand
 		walkBinaryExpression<binaryOperatorAssignment>(symbol, walker);
 	}
 	SEMA_POLICY(cpp::conditional_expression_suffix, SemaPolicyPush<ConditionalExpressionWalker>)
-	void action(cpp::conditional_expression_suffix* symbol, ConditionalExpressionWalker& walker)
+	void action(cpp::conditional_expression_suffix* symbol, const ConditionalExpressionWalker& walker)
 	{
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
@@ -4345,63 +4351,63 @@ struct ExpressionWalker : public WalkerBase
 		}
 	}
 	SEMA_POLICY(cpp::logical_or_expression_default, SemaPolicyPushSrc<ExpressionWalker>)
-	void action(cpp::logical_or_expression_default* symbol, ExpressionWalker& walker)
+	void action(cpp::logical_or_expression_default* symbol, const ExpressionWalker& walker)
 	{
 		walkBinaryIntegralExpression(symbol, walker);
 	}
 	SEMA_POLICY(cpp::logical_and_expression_default, SemaPolicyPushSrc<ExpressionWalker>)
-	void action(cpp::logical_and_expression_default* symbol, ExpressionWalker& walker)
+	void action(cpp::logical_and_expression_default* symbol, const ExpressionWalker& walker)
 	{
 		walkBinaryBooleanExpression(symbol, walker);
 	}
 	SEMA_POLICY(cpp::inclusive_or_expression_default, SemaPolicyPushSrc<ExpressionWalker>)
-	void action(cpp::inclusive_or_expression_default* symbol, ExpressionWalker& walker)
+	void action(cpp::inclusive_or_expression_default* symbol, const ExpressionWalker& walker)
 	{
 		walkBinaryIntegralExpression(symbol, walker);
 	}
 	SEMA_POLICY(cpp::exclusive_or_expression_default, SemaPolicyPushSrc<ExpressionWalker>)
-	void action(cpp::exclusive_or_expression_default* symbol, ExpressionWalker& walker)
+	void action(cpp::exclusive_or_expression_default* symbol, const ExpressionWalker& walker)
 	{
 		walkBinaryIntegralExpression(symbol, walker);
 	}
 	SEMA_POLICY(cpp::and_expression_default, SemaPolicyPushSrc<ExpressionWalker>)
-	void action(cpp::and_expression_default* symbol, ExpressionWalker& walker)
+	void action(cpp::and_expression_default* symbol, const ExpressionWalker& walker)
 	{
 		walkBinaryIntegralExpression(symbol, walker);
 	}
 	SEMA_POLICY(cpp::equality_expression_default, SemaPolicyPushSrc<ExpressionWalker>)
-	void action(cpp::equality_expression_default* symbol, ExpressionWalker& walker)
+	void action(cpp::equality_expression_default* symbol, const ExpressionWalker& walker)
 	{
 		walkBinaryBooleanExpression(symbol, walker);
 	}
 	SEMA_POLICY(cpp::relational_expression_default, SemaPolicyPushSrc<ExpressionWalker>)
-	void action(cpp::relational_expression_default* symbol, ExpressionWalker& walker)
+	void action(cpp::relational_expression_default* symbol, const ExpressionWalker& walker)
 	{
 		walkBinaryBooleanExpression(symbol, walker);
 	}
 	SEMA_POLICY(cpp::shift_expression_default, SemaPolicyPushSrc<ExpressionWalker>)
-	void action(cpp::shift_expression_default* symbol, ExpressionWalker& walker)
+	void action(cpp::shift_expression_default* symbol, const ExpressionWalker& walker)
 	{
 		walkBinaryIntegralExpression(symbol, walker);
 	}
 	SEMA_POLICY(cpp::additive_expression_default, SemaPolicyPushSrc<ExpressionWalker>)
-	void action(cpp::additive_expression_default* symbol, ExpressionWalker& walker)
+	void action(cpp::additive_expression_default* symbol, const ExpressionWalker& walker)
 	{
 		walkBinaryAdditiveExpression(symbol, walker);
 	}
 	SEMA_POLICY(cpp::multiplicative_expression_default, SemaPolicyPushSrc<ExpressionWalker>)
-	void action(cpp::multiplicative_expression_default* symbol, ExpressionWalker& walker)
+	void action(cpp::multiplicative_expression_default* symbol, const ExpressionWalker& walker)
 	{
 		walkBinaryArithmeticExpression(symbol, walker);
 	}
 	SEMA_POLICY(cpp::pm_expression_default, SemaPolicyPushSrc<ExpressionWalker>)
-	void action(cpp::pm_expression_default* symbol, ExpressionWalker& walker)
+	void action(cpp::pm_expression_default* symbol, const ExpressionWalker& walker)
 	{
 		walkBinaryExpression<binaryOperatorMemberPointer>(symbol, walker);
 		id = 0; // not a parenthesised id-expression, expression is not 'call to named function' [over.call.func]
 	}
 	SEMA_POLICY(cpp::assignment_expression, SemaPolicyPushSrc<ExpressionWalker>)
-	void action(cpp::assignment_expression* symbol, ExpressionWalker& walker) // expression_list, assignment_expression_suffix, conditional_expression_suffix
+	void action(cpp::assignment_expression* symbol, const ExpressionWalker& walker) // expression_list, assignment_expression_suffix, conditional_expression_suffix
 	{
 		// [expr.comma] The type and value of the result are the type and value of the right operand
 		expression = walker.expression;
@@ -4417,14 +4423,14 @@ struct ExpressionWalker : public WalkerBase
 		setExpressionType(symbol, type);
 	}
 	SEMA_POLICY(cpp::postfix_expression, SemaPolicyPushSrcChecked<PostfixExpressionWalker>)
-	bool action(cpp::postfix_expression* symbol, PostfixExpressionWalker& walker)
+	bool action(cpp::postfix_expression* symbol, const PostfixExpressionWalker& walker)
 	{
 		if(walker.isUndeclared)
 		{
 			return reportIdentifierMismatch(symbol, *id, &gUndeclared, "object-name");
 		}
 		id = walker.id;
-		type.swap(walker.type);
+		type = walker.type;
 		expression = walker.expression;
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
@@ -4482,7 +4488,7 @@ struct ExpressionWalker : public WalkerBase
 	( type-id ) cast-expression
 	*/
 	SEMA_POLICY(cpp::new_expression_placement, SemaPolicyPushSrc<ExplicitTypeExpressionWalker>)
-	void action(cpp::new_expression_placement* symbol, ExplicitTypeExpressionWalker& walker)
+	void action(cpp::new_expression_placement* symbol, const ExplicitTypeExpressionWalker& walker)
 	{
 		type = getUniqueTypeSafe(walker.type);
 		// [expr.new] The new expression attempts to create an object of the type-id or new-type-id to which it is applied. The type shall be a complete type...
@@ -4493,7 +4499,7 @@ struct ExpressionWalker : public WalkerBase
 		setExpressionType(symbol, type);
 	}
 	SEMA_POLICY(cpp::new_expression_default, SemaPolicyPushSrc<ExplicitTypeExpressionWalker>)
-	void action(cpp::new_expression_default* symbol, ExplicitTypeExpressionWalker& walker)
+	void action(cpp::new_expression_default* symbol, const ExplicitTypeExpressionWalker& walker)
 	{
 		type = getUniqueTypeSafe(walker.type);
 		// [expr.new] The new expression attempts to create an object of the type-id or new-type-id to which it is applied. The type shall be a complete type...
@@ -4504,7 +4510,7 @@ struct ExpressionWalker : public WalkerBase
 		setExpressionType(symbol, type);
 	}
 	SEMA_POLICY(cpp::cast_expression_default, SemaPolicyPushSrc<ExplicitTypeExpressionWalker>)
-	void action(cpp::cast_expression_default* symbol, ExplicitTypeExpressionWalker& walker)
+	void action(cpp::cast_expression_default* symbol, const ExplicitTypeExpressionWalker& walker)
 	{
 		type = getUniqueTypeSafe(walker.type);
 		// [basic.lval] An expression which holds a temporary object resulting from a cast to a non-reference type is an rvalue
@@ -4540,7 +4546,7 @@ struct ExpressionWalker : public WalkerBase
 	sizeof ( type-id )
 	*/
 	SEMA_POLICY(cpp::unary_expression_sizeof, SemaPolicyPushSrc<ExpressionWalker>)
-	void action(cpp::unary_expression_sizeof* symbol, ExpressionWalker& walker)
+	void action(cpp::unary_expression_sizeof* symbol, const ExpressionWalker& walker)
 	{
 		// [temp.dep.expr] Expressions of the following form [sizeof(expr)] are never type-dependent (because the type of the expression cannot be dependent)
 		// [temp.dep.constexpr] Expressions of the following form [sizeof(expr)] are value-dependent if the unary-expression is type-dependent
@@ -4550,7 +4556,7 @@ struct ExpressionWalker : public WalkerBase
 		expression = makeExpression(SizeofExpression(walker.expression), true, false, isDependent(valueDependent));
 	}
 	SEMA_POLICY(cpp::unary_expression_sizeoftype, SemaPolicyPushSrc<SizeofTypeExpressionWalker>)
-	void action(cpp::unary_expression_sizeoftype* symbol, SizeofTypeExpressionWalker& walker)
+	void action(cpp::unary_expression_sizeoftype* symbol, const SizeofTypeExpressionWalker& walker)
 	{
 		addDependent(valueDependent, walker.valueDependent);
 		type = gUnsignedInt;
@@ -4558,14 +4564,14 @@ struct ExpressionWalker : public WalkerBase
 		expression = walker.expression;
 	}
 	SEMA_POLICY(cpp::delete_expression, SemaPolicyPushSrc<ExpressionWalker>)
-	void action(cpp::delete_expression* symbol, ExpressionWalker& walker)
+	void action(cpp::delete_expression* symbol, const ExpressionWalker& walker)
 	{
 		type = gVoid; // TODO: check compliance: type of delete-expression
 		setExpressionType(symbol, type);
 		expression = ExpressionWrapper();
 	}
 	SEMA_POLICY(cpp::throw_expression, SemaPolicyPushSrc<ExpressionWalker>)
-	void action(cpp::throw_expression* symbol, ExpressionWalker& walker)
+	void action(cpp::throw_expression* symbol, const ExpressionWalker& walker)
 	{
 		type = gVoid; // [except] A throw-expression is of type void.
 		expression = ExpressionWrapper();
@@ -4665,7 +4671,7 @@ struct TypeNameWalker : public WalkerBase
 	}
 
 	SEMA_POLICY(cpp::simple_template_id, SemaPolicyPushCachedChecked<TemplateIdWalker>)
-	bool action(cpp::simple_template_id* symbol, TemplateIdWalker& walker)
+	bool action(cpp::simple_template_id* symbol, const TemplateIdWalker& walker)
 	{
 		LookupResultRef declaration = lookupTemplate(*walker.id, makeLookupFilter(filter));
 		if(declaration == &gUndeclared)
@@ -4682,7 +4688,7 @@ struct TypeNameWalker : public WalkerBase
 		setDecoration(walker.id, declaration);
 		type.id = walker.id;
 		type.declaration = findOverloaded(declaration); // NOTE: stores the declaration from which all explicit/partial specializations are visible via 'Declaration::overloaded'
-		type.templateArguments.swap(walker.arguments);
+		type.templateArguments = walker.arguments;
 		setDependent(type); // a template-id is dependent if the 'identifier' is a template-parameter
 		setDependent(type.dependent, type.templateArguments); // a template-id is dependent if any of its arguments are dependent
 		return true;
@@ -4727,7 +4733,7 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 		return true;
 	}
 	SEMA_POLICY_ARGS(cpp::simple_template_id, SemaPolicyPushCachedCheckedBool<TemplateIdWalker>, isTemplate)
-	bool action(cpp::simple_template_id* symbol, TemplateIdWalker& walker)
+	bool action(cpp::simple_template_id* symbol, const TemplateIdWalker& walker)
 	{
 		LookupResultRef declaration = gDependentNestedTemplateInstance;
 		if(isDeclarator
@@ -4741,7 +4747,7 @@ struct NestedNameSpecifierSuffixWalker : public WalkerBase
 		}
 		type = declaration;
 		type.id = walker.id;
-		type.templateArguments.swap(walker.arguments);
+		type.templateArguments = walker.arguments;
 		if(declaration != &gDependentNestedTemplate)
 		{
 			setDependent(type); // a template-id is dependent if the 'identifier' is a template-parameter
@@ -4766,13 +4772,13 @@ struct NestedNameSpecifierPrefixWalker : public WalkerBase
 
 #if 0 // for debugging parse-tree cache
 	SEMA_POLICY_ARGS(cpp::nested_name, SemaPolicyPushCachedBool<NestedNameSpecifierPrefixWalker>, isDeclarator)
-	void action(cpp::nested_name* symbol, NestedNameSpecifierPrefixWalker& walker)
+	void action(cpp::nested_name* symbol, const NestedNameSpecifierPrefixWalker& walker)
 	{
-		type.swap(walker.type);
+		type = walker.type;
 	}
 #endif
 	SEMA_POLICY(cpp::namespace_name, SemaPolicyPushChecked<NamespaceNameWalker>) // considers only namespace names
-	bool action(cpp::namespace_name* symbol, NamespaceNameWalker& walker)
+	bool action(cpp::namespace_name* symbol, const NamespaceNameWalker& walker)
 	{
 		if(walker.filter.hidingType != 0) // if the namespace name we found is hidden by a type name
 		{
@@ -4782,7 +4788,7 @@ struct NestedNameSpecifierPrefixWalker : public WalkerBase
 		return true;
 	}
 	SEMA_POLICY_ARGS(cpp::type_name, SemaPolicyPushCheckedBool<TypeNameWalker>, true) // considers only type names
-	bool action(cpp::type_name* symbol, TypeNameWalker& walker)
+	bool action(cpp::type_name* symbol, const TypeNameWalker& walker)
 	{
 		if(walker.filter.hidingNamespace != 0) // if the type name we found is hidden by a namespace name
 		{
@@ -4794,7 +4800,7 @@ struct NestedNameSpecifierPrefixWalker : public WalkerBase
 			// the prefix of the nested-name-specifier in a qualified declarator-id must be a class-name (not a typedef)
 			return reportIdentifierMismatch(symbol, walker.type.declaration->getName(), walker.type.declaration, "class-name");
 		}
-		type.swap(walker.type);
+		type = walker.type;
 		return true;
 	}
 };
@@ -4809,31 +4815,34 @@ struct NestedNameSpecifierWalker : public WalkerQualified
 	{
 	}
 	SEMA_POLICY_ARGS(cpp::nested_name_specifier_prefix, SemaPolicyPushBool<NestedNameSpecifierPrefixWalker>, isDeclarator)
-	void action(cpp::nested_name_specifier_prefix* symbol, NestedNameSpecifierPrefixWalker& walker)
+	void action(cpp::nested_name_specifier_prefix* symbol, const NestedNameSpecifierPrefixWalker& walker)
 	{
 		SEMANTIC_ASSERT(walker.type.declaration != 0);
-		makeUniqueTypeSafe(walker.type);
-		swapQualifying(walker.type, isDeclarator);
+		Type type = walker.type;
+		makeUniqueTypeSafe(type);
+		swapQualifying(type, isDeclarator);
 		//disableBacktrack();
 	}
 	SEMA_POLICY_ARGS(cpp::nested_name_specifier_suffix_template, SemaPolicyPushBool<NestedNameSpecifierSuffixWalker>, isDeclarator)
-	void action(cpp::nested_name_specifier_suffix_template* symbol, NestedNameSpecifierSuffixWalker& walker)
+	void action(cpp::nested_name_specifier_suffix_template* symbol, const NestedNameSpecifierSuffixWalker& walker)
 	{
 		SEMANTIC_ASSERT(walker.type.declaration != 0);
-		walker.type.qualifying.swap(qualifying);
-		setDependent(walker.type.dependent, walker.type.qualifying);
-		makeUniqueTypeSafe(walker.type);
-		swapQualifying(walker.type, isDeclarator);
+		Type type = walker.type;
+		type.qualifying.swap(qualifying);
+		setDependent(type.dependent, type.qualifying);
+		makeUniqueTypeSafe(type);
+		swapQualifying(type, isDeclarator);
 		//disableBacktrack();
 	}
 	SEMA_POLICY_ARGS(cpp::nested_name_specifier_suffix_default, SemaPolicyPushBool<NestedNameSpecifierSuffixWalker>, isDeclarator)
-	void action(cpp::nested_name_specifier_suffix_default* symbol, NestedNameSpecifierSuffixWalker& walker)
+	void action(cpp::nested_name_specifier_suffix_default* symbol, const NestedNameSpecifierSuffixWalker& walker)
 	{
 		SEMANTIC_ASSERT(walker.type.declaration != 0);
-		walker.type.qualifying.swap(qualifying);
-		setDependent(walker.type.dependent, walker.type.qualifying);
-		makeUniqueTypeSafe(walker.type);
-		swapQualifying(walker.type, isDeclarator);
+		Type type = walker.type;
+		type.qualifying.swap(qualifying);
+		setDependent(type.dependent, type.qualifying);
+		makeUniqueTypeSafe(type);
+		swapQualifying(type, isDeclarator);
 		//disableBacktrack();
 	}
 };
@@ -4849,19 +4858,19 @@ struct TypeSpecifierWalker : public WalkerQualified
 	{
 	}
 	SEMA_POLICY(cpp::simple_type_specifier_name, SemaPolicyPush<TypeSpecifierWalker>)
-	void action(cpp::simple_type_specifier_name* symbol, TypeSpecifierWalker& walker)
+	void action(cpp::simple_type_specifier_name* symbol, const TypeSpecifierWalker& walker)
 	{
-		type.swap(walker.type);
+		type = walker.type;
 		fundamental = walker.fundamental;
 	}
 	SEMA_POLICY(cpp::simple_type_specifier_template, SemaPolicyPush<TypeSpecifierWalker>)
-	void action(cpp::simple_type_specifier_template* symbol, TypeSpecifierWalker& walker) // X::template Y<Z>
+	void action(cpp::simple_type_specifier_template* symbol, const TypeSpecifierWalker& walker) // X::template Y<Z>
 	{
-		type.swap(walker.type);
+		type = walker.type;
 		fundamental = walker.fundamental;
 	}
 	SEMA_POLICY(cpp::type_name, SemaPolicyPushChecked<TypeNameWalker>)
-	bool action(cpp::type_name* symbol, TypeNameWalker& walker) // simple_type_specifier_name
+	bool action(cpp::type_name* symbol, const TypeNameWalker& walker) // simple_type_specifier_name
 	{
 		if(walker.filter.nonType != 0)
 		{
@@ -4869,7 +4878,7 @@ struct TypeSpecifierWalker : public WalkerQualified
 			return reportIdentifierMismatch(symbol, walker.filter.nonType->getName(), walker.filter.nonType, "type-name");
 		}
 		SEMANTIC_ASSERT(walker.type.declaration != 0);
-		type.swap(walker.type);
+		type = walker.type;
 		type.qualifying.swap(qualifying);
 		setDependent(type.dependent, type.qualifying);
 		return true;
@@ -4879,12 +4888,12 @@ struct TypeSpecifierWalker : public WalkerQualified
 		setQualifyingGlobal();
 	}
 	SEMA_POLICY(cpp::nested_name_specifier, SemaPolicyPushCached<NestedNameSpecifierWalker>)
-	void action(cpp::nested_name_specifier* symbol, NestedNameSpecifierWalker& walker) // simple_type_specifier_name | simple_type_specifier_template
+	void action(cpp::nested_name_specifier* symbol, const NestedNameSpecifierWalker& walker) // simple_type_specifier_name | simple_type_specifier_template
 	{
 		swapQualifying(walker.qualifying);
 	}
 	SEMA_POLICY(cpp::simple_template_id, SemaPolicyPushCachedChecked<TemplateIdWalker>)
-	bool action(cpp::simple_template_id* symbol, TemplateIdWalker& walker) // simple_type_specifier_template
+	bool action(cpp::simple_template_id* symbol, const TemplateIdWalker& walker) // simple_type_specifier_template
 	{
 		// [temp]
 		// A class template shall not have the same name as any other template, class, function, variable, enumeration,
@@ -4903,7 +4912,7 @@ struct TypeSpecifierWalker : public WalkerQualified
 		}
 		setDecoration(walker.id, declaration);
 		type.declaration = declaration;
-		type.templateArguments.swap(walker.arguments);
+		type.templateArguments = walker.arguments;
 		type.qualifying.swap(qualifying);
 		setDependent(type); // a template-id is dependent if the template-name is a template-parameter
 		setDependent(type.dependent, type.templateArguments); // a template-id is dependent if any of the template arguments are dependent
@@ -4933,22 +4942,23 @@ struct UnqualifiedDeclaratorIdWalker : public WalkerBase
 		id = &symbol->value;
 	}
 	SEMA_POLICY(cpp::template_id, SemaPolicyPushCached<TemplateIdWalker>)
-	void action(cpp::template_id* symbol, TemplateIdWalker& walker) 
+	void action(cpp::template_id* symbol, const TemplateIdWalker& walker) 
 	{
 		id = walker.id;
 	}
 	SEMA_POLICY(cpp::operator_function_id, SemaPolicyPushId<OperatorFunctionIdWalker>)
-	void action(cpp::operator_function_id* symbol, OperatorFunctionIdWalker& walker) 
+	void action(cpp::operator_function_id* symbol, const OperatorFunctionIdWalker& walker) 
 	{
 		symbol->value.value = walker.name;
 		id = &symbol->value;
 	}
 	SEMA_POLICY(cpp::conversion_function_id, SemaPolicyPushId<TypeIdWalker>)
-	void action(cpp::conversion_function_id* symbol, TypeIdWalker& walker) 
+	void action(cpp::conversion_function_id* symbol, const TypeIdWalker& walker) 
 	{
+		// note: no commit here, because type-id will be uniqued later on..
 		symbol->value = gConversionFunctionId;
 		id = &symbol->value;
-		conversionType.swap(walker.type);
+		conversionType = walker.type;
 	}
 	SEMA_POLICY(cpp::destructor_id, SemaPolicyIdentity)
 	void action(cpp::destructor_id* symbol) 
@@ -4973,12 +4983,12 @@ struct QualifiedDeclaratorIdWalker : public WalkerQualified
 	// in a template member definition, the qualifying nested-name-specifier may be dependent on a template-parameter
 	// no need to cache: the nested-name-specifier is not a shared-prefix
 	SEMA_POLICY_ARGS(cpp::nested_name_specifier, SemaPolicyPushBool<NestedNameSpecifierWalker>, true)
-	void action(cpp::nested_name_specifier* symbol, NestedNameSpecifierWalker& walker)
+	void action(cpp::nested_name_specifier* symbol, const NestedNameSpecifierWalker& walker)
 	{
 		swapQualifying(walker.qualifying, true);
 	}
 	SEMA_POLICY(cpp::unqualified_id, SemaPolicyPush<UnqualifiedDeclaratorIdWalker>)
-	void action(cpp::unqualified_id* symbol, UnqualifiedDeclaratorIdWalker& walker)
+	void action(cpp::unqualified_id* symbol, const UnqualifiedDeclaratorIdWalker& walker)
 	{
 		id = walker.id;
 	}
@@ -4995,22 +5005,22 @@ struct DeclaratorIdWalker : public WalkerQualified
 	{
 	}
 	SEMA_POLICY(cpp::qualified_id_default, SemaPolicyPush<QualifiedDeclaratorIdWalker>)
-	void action(cpp::qualified_id_default* symbol, QualifiedDeclaratorIdWalker& walker)
+	void action(cpp::qualified_id_default* symbol, const QualifiedDeclaratorIdWalker& walker)
 	{
 		id = walker.id;
 		swapQualifying(walker.qualifying, true);
 	}
 	SEMA_POLICY(cpp::qualified_id_global, SemaPolicyPush<QualifiedDeclaratorIdWalker>)
-	void action(cpp::qualified_id_global* symbol, QualifiedDeclaratorIdWalker& walker)
+	void action(cpp::qualified_id_global* symbol, const QualifiedDeclaratorIdWalker& walker)
 	{
 		id = walker.id;
 		swapQualifying(walker.qualifying, true);
 	}
 	SEMA_POLICY(cpp::unqualified_id, SemaPolicyPush<UnqualifiedDeclaratorIdWalker>)
-	void action(cpp::unqualified_id* symbol, UnqualifiedDeclaratorIdWalker& walker)
+	void action(cpp::unqualified_id* symbol, const UnqualifiedDeclaratorIdWalker& walker)
 	{
 		id = walker.id;
-		conversionType.swap(walker.conversionType);
+		conversionType = walker.conversionType;
 	}
 };
 
@@ -5026,7 +5036,7 @@ struct ParameterDeclarationListWalker : public WalkerBase
 	}
 
 	SEMA_POLICY_ARGS(cpp::parameter_declaration, SemaPolicyPushBool<SimpleDeclarationWalker>, true)
-	void action(cpp::parameter_declaration* symbol, SimpleDeclarationWalker& walker)
+	void action(cpp::parameter_declaration* symbol, const SimpleDeclarationWalker& walker)
 	{
 		if(!isVoidParameter(walker.declaration->type))
 		{
@@ -5056,7 +5066,7 @@ struct ParameterDeclarationClauseWalker : public WalkerBase
 	}
 
 	SEMA_POLICY(cpp::parameter_declaration_list, SemaPolicyPush<ParameterDeclarationListWalker>)
-	void action(cpp::parameter_declaration_list* symbol, ParameterDeclarationListWalker& walker)
+	void action(cpp::parameter_declaration_list* symbol, const ParameterDeclarationListWalker& walker)
 	{
 		parameters = walker.parameters;
 	}
@@ -5074,8 +5084,8 @@ struct ExceptionSpecificationWalker : public WalkerBase
 		: WalkerBase(state)
 	{
 	}
-	SEMA_POLICY(cpp::type_id, SemaPolicyPush<TypeIdWalker>)
-	void action(cpp::type_id* symbol, TypeIdWalker& walker)
+	SEMA_POLICY(cpp::type_id, SemaPolicyPushCommit<TypeIdWalker>)
+	void action(cpp::type_id* symbol, const TypeIdWalker& walker)
 	{
 	}
 };
@@ -5114,12 +5124,12 @@ struct PtrOperatorWalker : public WalkerQualified
 	{
 	}
 	SEMA_POLICY(cpp::nested_name_specifier, SemaPolicyPushCached<NestedNameSpecifierWalker>)
-	void action(cpp::nested_name_specifier* symbol, NestedNameSpecifierWalker& walker)
+	void action(cpp::nested_name_specifier* symbol, const NestedNameSpecifierWalker& walker)
 	{
 		swapQualifying(walker.qualifying);
 	}
 	SEMA_POLICY(cpp::cv_qualifier_seq, SemaPolicyPush<CvQualifierSeqWalker>)
-	void action(cpp::cv_qualifier_seq* symbol, CvQualifierSeqWalker& walker)
+	void action(cpp::cv_qualifier_seq* symbol, const CvQualifierSeqWalker& walker)
 	{
 		qualifiers = walker.qualifiers;
 	}
@@ -5138,17 +5148,17 @@ struct DeclaratorFunctionWalker : public WalkerBase
 	}
 
 	SEMA_POLICY(cpp::parameter_declaration_clause, SemaPolicyPush<ParameterDeclarationClauseWalker>)
-	void action(cpp::parameter_declaration_clause* symbol, ParameterDeclarationClauseWalker& walker)
+	void action(cpp::parameter_declaration_clause* symbol, const ParameterDeclarationClauseWalker& walker)
 	{
 		paramScope = walker.enclosing; // store reference for later resumption
 		parameters = walker.parameters;
 	}
 	SEMA_POLICY(cpp::exception_specification, SemaPolicyPush<ExceptionSpecificationWalker>)
-	void action(cpp::exception_specification* symbol, ExceptionSpecificationWalker& walker)
+	void action(cpp::exception_specification* symbol, const ExceptionSpecificationWalker& walker)
 	{
 	}
 	SEMA_POLICY(cpp::cv_qualifier_seq, SemaPolicyPush<CvQualifierSeqWalker>)
-	void action(cpp::cv_qualifier_seq* symbol, CvQualifierSeqWalker& walker)
+	void action(cpp::cv_qualifier_seq* symbol, const CvQualifierSeqWalker& walker)
 	{
 		qualifiers = walker.qualifiers;
 	}
@@ -5172,7 +5182,7 @@ struct DeclaratorArrayWalker : public WalkerBase
 		expression = ExpressionWrapper();
 	}
 	SEMA_POLICY(cpp::constant_expression, SemaPolicyPush<ExpressionWalker>)
-	void action(cpp::constant_expression* symbol, ExpressionWalker& walker)
+	void action(cpp::constant_expression* symbol, const ExpressionWalker& walker)
 	{
 		SEMANTIC_ASSERT(isDependent(walker.valueDependent) || walker.expression.isConstant); // TODO: non-fatal error: expected constant expression
 		// [temp.dep.constexpr] An identifier is value-dependent if it is:- a constant with integral or enumeration type and is initialized with an expression that is value-dependent.
@@ -5223,10 +5233,10 @@ struct DeclaratorWalker : public WalkerBase
 	}
 
 	SEMA_POLICY(cpp::ptr_operator, SemaPolicyPush<PtrOperatorWalker>)
-	void action(cpp::ptr_operator* symbol, PtrOperatorWalker& walker)
+	void action(cpp::ptr_operator* symbol, const PtrOperatorWalker& walker)
 	{
 		qualifiers = walker.qualifiers;
-		memberPointer.swap(walker.qualifying);
+		memberPointer = walker.qualifying;
 	}
 	template<typename T>
 	void walkDeclaratorPtr(T* symbol, DeclaratorWalker& walker)
@@ -5245,8 +5255,8 @@ struct DeclaratorWalker : public WalkerBase
 		typeSequence = walker.typeSequence;
 
 		qualifiers = walker.qualifiers;
-		memberPointer.swap(walker.memberPointer);
-		conversionType.swap(walker.conversionType);
+		memberPointer = walker.memberPointer;
+		conversionType = walker.conversionType;
 	}
 	SEMA_POLICY(cpp::declarator_ptr, SemaPolicyPush<DeclaratorWalker>)
 	void action(cpp::declarator_ptr* symbol, DeclaratorWalker& walker)
@@ -5304,12 +5314,12 @@ struct DeclaratorWalker : public WalkerBase
 
 		if(walker.conversionType.declaration != 0)
 		{
-			conversionType.swap(walker.conversionType);
+			conversionType = walker.conversionType;
 		}
 		addDependent(dependent, conversionType); // TODO: check compliance: conversion-function declarator-id is dependent if it contains a dependent type?
 	}
 	template<typename T>
-	void walkDeclaratorArray(T* symbol, DeclaratorArrayWalker& walker)
+	void walkDeclaratorArray(T* symbol, const DeclaratorArrayWalker& walker)
 	{
 		// [temp.dep.type] A type is dependent if it is - an array type [...] whose size is specified by a constant expression that is value-dependent
 		addDependent(dependent, walker.valueDependent);
@@ -5317,12 +5327,12 @@ struct DeclaratorWalker : public WalkerBase
 		typeSequence.push_front(DeclaratorArrayType(walker.rank));
 	}
 	SEMA_POLICY(cpp::declarator_suffix_array, SemaPolicyPushCached<DeclaratorArrayWalker>)
-	void action(cpp::declarator_suffix_array* symbol, DeclaratorArrayWalker& walker)
+	void action(cpp::declarator_suffix_array* symbol, const DeclaratorArrayWalker& walker)
 	{
 		return walkDeclaratorArray(symbol, walker);
 	}
 	SEMA_POLICY(cpp::declarator_suffix_function, SemaPolicyPushCached<DeclaratorFunctionWalker>)
-	void action(cpp::declarator_suffix_function* symbol, DeclaratorFunctionWalker& walker)
+	void action(cpp::declarator_suffix_function* symbol, const DeclaratorFunctionWalker& walker)
 	{
 		if(paramScope == 0) // only interested in the innermost parameter-list
 		{
@@ -5332,16 +5342,16 @@ struct DeclaratorWalker : public WalkerBase
 		setDependent(dependent, walker.parameters);
 	}
 	SEMA_POLICY(cpp::new_declarator_suffix, SemaPolicyPushCached<DeclaratorArrayWalker>)
-	void action(cpp::new_declarator_suffix* symbol, DeclaratorArrayWalker& walker)
+	void action(cpp::new_declarator_suffix* symbol, const DeclaratorArrayWalker& walker)
 	{
 		return walkDeclaratorArray(symbol, walker);
 	}
 	SEMA_POLICY(cpp::expression, SemaPolicyPush<ExpressionWalker>)
-	void action(cpp::expression* symbol, ExpressionWalker& walker) // in direct_new_declarator
+	void action(cpp::expression* symbol, const ExpressionWalker& walker) // in direct_new_declarator
 	{
 	}
 	template<typename T>
-	void walkDeclarator(T* symbol, DeclaratorWalker& walker)
+	void walkDeclarator(T* symbol, const DeclaratorWalker& walker)
 	{
 		id = walker.id;
 		qualifying = walker.qualifying;
@@ -5353,35 +5363,35 @@ struct DeclaratorWalker : public WalkerBase
 		addDependent(enclosingDependent, walker.enclosingDependent);
 		SYMBOLS_ASSERT(typeSequence.empty());
 		typeSequence = walker.typeSequence;
-		conversionType.swap(walker.conversionType);
+		conversionType = walker.conversionType;
 	}
 	SEMA_POLICY(cpp::direct_abstract_declarator, SemaPolicyPush<DeclaratorWalker>)
-	void action(cpp::direct_abstract_declarator* symbol, DeclaratorWalker& walker)
+	void action(cpp::direct_abstract_declarator* symbol, const DeclaratorWalker& walker)
 	{
 		return walkDeclarator(symbol, walker); // if parse fails, state of typeSeqence is not modified. e.g. type-id: int((int))
 	}
 	SEMA_POLICY(cpp::direct_abstract_declarator_parenthesis, SemaPolicyPush<DeclaratorWalker>)
-	void action(cpp::direct_abstract_declarator_parenthesis* symbol, DeclaratorWalker& walker)
+	void action(cpp::direct_abstract_declarator_parenthesis* symbol, const DeclaratorWalker& walker)
 	{
 		return walkDeclarator(symbol, walker); // if parse fails, state of typeSeqence is not modified. e.g. function-style-cast type-id followed by parenthesised expression: int(*this)
 	}
 	SEMA_POLICY(cpp::direct_new_declarator, SemaPolicyPush<DeclaratorWalker>)
-	void action(cpp::direct_new_declarator* symbol, DeclaratorWalker& walker)
+	void action(cpp::direct_new_declarator* symbol, const DeclaratorWalker& walker)
 	{
 		return walkDeclarator(symbol, walker);
 	}
 	SEMA_POLICY(cpp::declarator, SemaPolicyPush<DeclaratorWalker>)
-	void action(cpp::declarator* symbol, DeclaratorWalker& walker)
+	void action(cpp::declarator* symbol, const DeclaratorWalker& walker)
 	{
 		return walkDeclarator(symbol, walker);
 	}
 	SEMA_POLICY(cpp::abstract_declarator, SemaPolicyPush<DeclaratorWalker>)
-	void action(cpp::abstract_declarator* symbol, DeclaratorWalker& walker)
+	void action(cpp::abstract_declarator* symbol, const DeclaratorWalker& walker)
 	{
 		return walkDeclarator(symbol, walker);
 	}
 	SEMA_POLICY(cpp::new_declarator, SemaPolicyPush<DeclaratorWalker>)
-	void action(cpp::new_declarator* symbol, DeclaratorWalker& walker)
+	void action(cpp::new_declarator* symbol, const DeclaratorWalker& walker)
 	{
 		return walkDeclarator(symbol, walker);
 	}
@@ -5398,19 +5408,19 @@ struct BaseSpecifierWalker : public WalkerQualified
 	}
 
 	SEMA_POLICY(cpp::nested_name_specifier, SemaPolicyPushCached<NestedNameSpecifierWalker>)
-	void action(cpp::nested_name_specifier* symbol, NestedNameSpecifierWalker& walker)
+	void action(cpp::nested_name_specifier* symbol, const NestedNameSpecifierWalker& walker)
 	{
 		swapQualifying(walker.qualifying);
 	}
 	SEMA_POLICY_ARGS(cpp::class_name, SemaPolicyPushBool<TypeNameWalker>, true)
-	void action(cpp::class_name* symbol, TypeNameWalker& walker)
+	void action(cpp::class_name* symbol, const TypeNameWalker& walker)
 	{
 		/* [class.derived]
 		The class-name in a base-specifier shall not be an incompletely defined class (Clause class); this class is
 		called a direct base class for the class being defined. During the lookup for a base class name, non-type
 		names are ignored (3.3.10)
 		*/
-		type.swap(walker.type);
+		type = walker.type;
 		type.qualifying.swap(qualifying);
 		setDependent(type.dependent, type.qualifying);
 		makeUniqueTypeSafe(type);
@@ -5443,7 +5453,7 @@ struct ClassHeadWalker : public WalkerBase
 		id = &symbol->value;
 	}
 	SEMA_POLICY(cpp::nested_name_specifier, SemaPolicyPushCached<NestedNameSpecifierWalker>)
-	void action(cpp::nested_name_specifier* symbol, NestedNameSpecifierWalker& walker)
+	void action(cpp::nested_name_specifier* symbol, const NestedNameSpecifierWalker& walker)
 	{
 		// resolve the (possibly dependent) qualifying scope
 		if(walker.getDeclaratorQualifying() != 0)
@@ -5459,11 +5469,11 @@ struct ClassHeadWalker : public WalkerBase
 		}
 	}
 	SEMA_POLICY_ARGS(cpp::simple_template_id, SemaPolicyPushCachedBool<TemplateIdWalker>, true) // TODO: specifying isTemplate as a temporary workaround: name lookup of qualified class-name currently fails.
-	void action(cpp::simple_template_id* symbol, TemplateIdWalker& walker) // class_name
+	void action(cpp::simple_template_id* symbol, const TemplateIdWalker& walker) // class_name
 	{
 		// TODO: don't declare anything - this is a template (partial) specialization
 		id = walker.id;
-		arguments.swap(walker.arguments);
+		arguments = walker.arguments;
 		isSpecialization = true;
 	}
 	void action(cpp::terminal<boost::wave::T_COLON> symbol)
@@ -5473,7 +5483,7 @@ struct ClassHeadWalker : public WalkerBase
 		declaration = declareClass(parent, id, isSpecialization, arguments);
 	}
 	SEMA_POLICY(cpp::base_specifier, SemaPolicyPush<BaseSpecifierWalker>)
-	void action(cpp::base_specifier* symbol, BaseSpecifierWalker& walker) 
+	void action(cpp::base_specifier* symbol, const BaseSpecifierWalker& walker) 
 	{
 		SEMANTIC_ASSERT(walker.type.declaration != 0);
 		SEMANTIC_ASSERT(declaration->enclosed != 0);
@@ -5497,12 +5507,12 @@ struct UsingDeclarationWalker : public WalkerQualified
 		setQualifyingGlobal();
 	}
 	SEMA_POLICY(cpp::nested_name_specifier, SemaPolicyPushCached<NestedNameSpecifierWalker>)
-	void action(cpp::nested_name_specifier* symbol, NestedNameSpecifierWalker& walker)
+	void action(cpp::nested_name_specifier* symbol, const NestedNameSpecifierWalker& walker)
 	{
 		swapQualifying(walker.qualifying);
 	}
 	SEMA_POLICY(cpp::unqualified_id, SemaPolicyPushChecked<UnqualifiedIdWalker>)
-	bool action(cpp::unqualified_id* symbol, UnqualifiedIdWalker& walker)
+	bool action(cpp::unqualified_id* symbol, const UnqualifiedIdWalker& walker)
 	{
 		if(!isTypename
 			&& !isDependent(qualifying_p))
@@ -5553,7 +5563,7 @@ struct UsingDirectiveWalker : public WalkerQualified
 		setQualifyingGlobal();
 	}
 	SEMA_POLICY(cpp::nested_name_specifier, SemaPolicyPushCached<NestedNameSpecifierWalker>)
-	void action(cpp::nested_name_specifier* symbol, NestedNameSpecifierWalker& walker)
+	void action(cpp::nested_name_specifier* symbol, const NestedNameSpecifierWalker& walker)
 	{
 		swapQualifying(walker.qualifying);
 	}
@@ -5561,7 +5571,7 @@ struct UsingDirectiveWalker : public WalkerQualified
 	// When looking up a namespace-name in a using-directive or namespace-alias-definition, only namespace
 	// names are considered.
 	SEMA_POLICY(cpp::namespace_name, SemaPolicyPush<NamespaceNameWalker>)
-	void action(cpp::namespace_name* symbol, NamespaceNameWalker& walker)
+	void action(cpp::namespace_name* symbol, const NamespaceNameWalker& walker)
 	{
 		if(!findScope(enclosing, walker.declaration->enclosed))
 		{
@@ -5584,7 +5594,7 @@ struct NamespaceAliasDefinitionWalker : public WalkerQualified
 		setQualifyingGlobal();
 	}
 	SEMA_POLICY(cpp::nested_name_specifier, SemaPolicyPushCached<NestedNameSpecifierWalker>)
-	void action(cpp::nested_name_specifier* symbol, NestedNameSpecifierWalker& walker)
+	void action(cpp::nested_name_specifier* symbol, const NestedNameSpecifierWalker& walker)
 	{
 		swapQualifying(walker.qualifying);
 	}
@@ -5624,26 +5634,26 @@ struct MemberDeclarationWalker : public WalkerBase
 	{
 	}
 	SEMA_POLICY(cpp::member_template_declaration, SemaPolicyPush<TemplateDeclarationWalker>)
-	void action(cpp::member_template_declaration* symbol, TemplateDeclarationWalker& walker)
+	void action(cpp::member_template_declaration* symbol, const TemplateDeclarationWalker& walker)
 	{
 		declaration = walker.declaration;
 	}
 	SEMA_POLICY(cpp::member_declaration_implicit, SemaPolicyPush<SimpleDeclarationWalker>)
-	void action(cpp::member_declaration_implicit* symbol, SimpleDeclarationWalker& walker)
+	void action(cpp::member_declaration_implicit* symbol, const SimpleDeclarationWalker& walker)
 	{
 		declaration = walker.declaration;
 	}
 	SEMA_POLICY(cpp::member_declaration_default, SemaPolicyPush<SimpleDeclarationWalker>)
-	void action(cpp::member_declaration_default* symbol, SimpleDeclarationWalker& walker)
+	void action(cpp::member_declaration_default* symbol, const SimpleDeclarationWalker& walker)
 	{
 		declaration = walker.declaration;
 	}
 	SEMA_POLICY(cpp::member_declaration_nested, SemaPolicyPush<QualifiedIdWalker>)
-	void action(cpp::member_declaration_nested* symbol, QualifiedIdWalker& walker)
+	void action(cpp::member_declaration_nested* symbol, const QualifiedIdWalker& walker)
 	{
 	}
 	SEMA_POLICY(cpp::using_declaration, SemaPolicyPush<UsingDeclarationWalker>)
-	void action(cpp::using_declaration* symbol, UsingDeclarationWalker& walker)
+	void action(cpp::using_declaration* symbol, const UsingDeclarationWalker& walker)
 	{
 	}
 };
@@ -5665,13 +5675,13 @@ struct ClassSpecifierWalker : public WalkerBase
 	}
 
 	SEMA_POLICY(cpp::class_head, SemaPolicyPush<ClassHeadWalker>)
-	void action(cpp::class_head* symbol, ClassHeadWalker& walker)
+	void action(cpp::class_head* symbol, const ClassHeadWalker& walker)
 	{
 		declaration = walker.declaration;
 		id = walker.id;
 		isUnion = walker.isUnion;
 		isSpecialization = walker.isSpecialization;
-		arguments.swap(walker.arguments);
+		arguments = walker.arguments;
 		enclosing = walker.parent;
 		templateParams = walker.templateParams; // template-params may have been consumed by qualifying template-name
 	}
@@ -5732,7 +5742,7 @@ struct ClassSpecifierWalker : public WalkerBase
 		}
 	}
 	SEMA_POLICY(cpp::member_declaration, SemaPolicyPush<MemberDeclarationWalker>)
-	void action(cpp::member_declaration* symbol, MemberDeclarationWalker& walker)
+	void action(cpp::member_declaration* symbol, const MemberDeclarationWalker& walker)
 	{
 	}
 #if 0 // TODO!
@@ -5795,7 +5805,7 @@ struct EnumeratorDefinitionWalker : public WalkerBase
 		declaration = instance;
 	}
 	SEMA_POLICY(cpp::constant_expression, SemaPolicyPush<ExpressionWalker>)
-	void action(cpp::constant_expression* symbol, ExpressionWalker& walker)
+	void action(cpp::constant_expression* symbol, const ExpressionWalker& walker)
 	{
 		SEMANTIC_ASSERT(isDependent(walker.valueDependent) || walker.expression.isConstant); // TODO: non-fatal error: expected constant expression
 		declaration->initializer = walker.expression;
@@ -5844,7 +5854,7 @@ struct EnumSpecifierWalker : public WalkerBase
 	}
 
 	SEMA_POLICY(cpp::enumerator_definition, SemaPolicyPush<EnumeratorDefinitionWalker>)
-	void action(cpp::enumerator_definition* symbol, EnumeratorDefinitionWalker& walker)
+	void action(cpp::enumerator_definition* symbol, const EnumeratorDefinitionWalker& walker)
 	{
 		Declaration& enumerator = *walker.declaration;
 		enumerator.type = declaration; // give the enumerator the type of its enumeration
@@ -5884,9 +5894,9 @@ struct ElaboratedTypeSpecifierWalker : public WalkerQualified
 		setQualifyingGlobal();
 	}
 	SEMA_POLICY(cpp::elaborated_type_specifier_default, SemaPolicyPush<ElaboratedTypeSpecifierWalker>)
-	void action(cpp::elaborated_type_specifier_default* symbol, ElaboratedTypeSpecifierWalker& walker)
+	void action(cpp::elaborated_type_specifier_default* symbol, const ElaboratedTypeSpecifierWalker& walker)
 	{
-		type.swap(walker.type);
+		type = walker.type;
 		id = walker.id;
 
 		if(!isUnqualified(symbol)
@@ -5896,13 +5906,13 @@ struct ElaboratedTypeSpecifierWalker : public WalkerQualified
 		}
 	}
 	SEMA_POLICY(cpp::elaborated_type_specifier_template, SemaPolicyPush<ElaboratedTypeSpecifierWalker>)
-	void action(cpp::elaborated_type_specifier_template* symbol, ElaboratedTypeSpecifierWalker& walker)
+	void action(cpp::elaborated_type_specifier_template* symbol, const ElaboratedTypeSpecifierWalker& walker)
 	{
-		type.swap(walker.type);
+		type = walker.type;
 		id = walker.id;
 	}
 	SEMA_POLICY(cpp::nested_name_specifier, SemaPolicyPushCached<NestedNameSpecifierWalker>)
-	void action(cpp::nested_name_specifier* symbol, NestedNameSpecifierWalker& walker) // elaborated_type_specifier_default | elaborated_type_specifier_template
+	void action(cpp::nested_name_specifier* symbol, const NestedNameSpecifierWalker& walker) // elaborated_type_specifier_default | elaborated_type_specifier_template
 	{
 		swapQualifying(walker.qualifying);
 	}
@@ -5917,7 +5927,7 @@ struct ElaboratedTypeSpecifierWalker : public WalkerQualified
 		key = &gEnum;
 	}
 	SEMA_POLICY(cpp::simple_template_id, SemaPolicyPushCachedChecked<TemplateIdWalker>)
-	bool action(cpp::simple_template_id* symbol, TemplateIdWalker& walker) // elaborated_type_specifier_default | elaborated_type_specifier_template
+	bool action(cpp::simple_template_id* symbol, const TemplateIdWalker& walker) // elaborated_type_specifier_default | elaborated_type_specifier_template
 	{
 		SEMANTIC_ASSERT(key == &gClass);
 		// 3.4.4-2: when looking up 'identifier' in elaborated-type-specifier, ignore any non-type names that have been declared. 
@@ -5934,7 +5944,7 @@ struct ElaboratedTypeSpecifierWalker : public WalkerQualified
 		setDecoration(walker.id, declaration);
 		id = walker.id;
 		type.declaration = declaration;
-		type.templateArguments.swap(walker.arguments);
+		type.templateArguments = walker.arguments;
 		type.qualifying.swap(qualifying);
 		return true;
 	}
@@ -6030,18 +6040,18 @@ struct TypenameSpecifierWalker : public WalkerQualified
 		// TODO
 	}
 	SEMA_POLICY(cpp::nested_name_specifier, SemaPolicyPushCached<NestedNameSpecifierWalker>)
-	void action(cpp::nested_name_specifier* symbol, NestedNameSpecifierWalker& walker)
+	void action(cpp::nested_name_specifier* symbol, const NestedNameSpecifierWalker& walker)
 	{
 		swapQualifying(walker.qualifying);
 	}
 	SEMA_POLICY_ARGS(cpp::type_name, SemaPolicyPushCheckedBool<TypeNameWalker>, true)
-	bool action(cpp::type_name* symbol, TypeNameWalker& walker)
+	bool action(cpp::type_name* symbol, const TypeNameWalker& walker)
 	{
 		if(walker.filter.nonType != 0)
 		{
 			return reportIdentifierMismatch(symbol, walker.filter.nonType->getName(), walker.filter.nonType, "type-name");
 		}
-		type.swap(walker.type);
+		type = walker.type;
 		type.qualifying.swap(qualifying);
 		setDependent(type.dependent, type.qualifying);
 		return true;
@@ -6067,9 +6077,9 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 	}
 
 	SEMA_POLICY(cpp::simple_type_specifier, SemaPolicyPush<TypeSpecifierWalker>)
-	void action(cpp::simple_type_specifier* symbol, TypeSpecifierWalker& walker)
+	void action(cpp::simple_type_specifier* symbol, const TypeSpecifierWalker& walker)
 	{
-		seq.type.swap(walker.type);
+		seq.type = walker.type;
 		if(seq.type.declaration == 0)
 		{
 			fundamental = walker.fundamental;
@@ -6083,18 +6093,18 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 		seq.type = getFundamentalType(fundamental);
 	}
 	SEMA_POLICY(cpp::elaborated_type_specifier, SemaPolicyPush<ElaboratedTypeSpecifierWalker>)
-	void action(cpp::elaborated_type_specifier* symbol, ElaboratedTypeSpecifierWalker& walker)
+	void action(cpp::elaborated_type_specifier* symbol, const ElaboratedTypeSpecifierWalker& walker)
 	{
 		seq.forward = walker.id;
-		seq.type.swap(walker.type);
+		seq.type = walker.type;
 	}
 	SEMA_POLICY(cpp::typename_specifier, SemaPolicyPush<TypenameSpecifierWalker>)
-	void action(cpp::typename_specifier* symbol, TypenameSpecifierWalker& walker)
+	void action(cpp::typename_specifier* symbol, const TypenameSpecifierWalker& walker)
 	{
-		seq.type.swap(walker.type);
+		seq.type = walker.type;
 	}
 	SEMA_POLICY(cpp::class_specifier, SemaPolicyPush<ClassSpecifierWalker>)
-	void action(cpp::class_specifier* symbol, ClassSpecifierWalker& walker)
+	void action(cpp::class_specifier* symbol, const ClassSpecifierWalker& walker)
 	{
 		seq.type = walker.declaration;
 		setDependent(seq.type); // a class-specifier is dependent if it declares a nested class of a template class
@@ -6102,7 +6112,7 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 		seq.isUnion = walker.isUnion;
 	}
 	SEMA_POLICY(cpp::enum_specifier, SemaPolicyPush<EnumSpecifierWalker>)
-	void action(cpp::enum_specifier* symbol, EnumSpecifierWalker& walker)
+	void action(cpp::enum_specifier* symbol, const EnumSpecifierWalker& walker)
 	{
 		seq.type = walker.declaration;
 	}
@@ -6154,11 +6164,11 @@ struct TryBlockWalker : public WalkerBase
 	}
 
 	SEMA_POLICY(cpp::compound_statement, SemaPolicyPush<CompoundStatementWalker>)
-	void action(cpp::compound_statement* symbol, CompoundStatementWalker& walker)
+	void action(cpp::compound_statement* symbol, const CompoundStatementWalker& walker)
 	{
 	}
 	SEMA_POLICY(cpp::handler_seq, SemaPolicyPush<HandlerSeqWalker>)
-	void action(cpp::handler_seq* symbol, HandlerSeqWalker& walker)
+	void action(cpp::handler_seq* symbol, const HandlerSeqWalker& walker)
 	{
 	}
 };
@@ -6177,12 +6187,12 @@ struct LabeledStatementWalker : public WalkerBase
 		// TODO: goto label
 	}
 	SEMA_POLICY(cpp::constant_expression, SemaPolicyPush<ExpressionWalker>)
-	void action(cpp::constant_expression* symbol, ExpressionWalker& walker)
+	void action(cpp::constant_expression* symbol, const ExpressionWalker& walker)
 	{
 		SEMANTIC_ASSERT(walker.expression.isConstant); // TODO: non-fatal error: expected constant expression
 	}
 	SEMA_POLICY(cpp::statement, SemaPolicyPush<StatementWalker>)
-	void action(cpp::statement* symbol, StatementWalker& walker)
+	void action(cpp::statement* symbol, const StatementWalker& walker)
 	{
 	}
 };
@@ -6196,35 +6206,35 @@ struct StatementWalker : public WalkerBase
 	{
 	}
 	SEMA_POLICY(cpp::simple_declaration, SemaPolicyPush<SimpleDeclarationWalker>)
-	void action(cpp::simple_declaration* symbol, SimpleDeclarationWalker& walker)
+	void action(cpp::simple_declaration* symbol, const SimpleDeclarationWalker& walker)
 	{
 	}
 	SEMA_POLICY(cpp::try_block, SemaPolicyPush<TryBlockWalker>)
-	void action(cpp::try_block* symbol, TryBlockWalker& walker)
+	void action(cpp::try_block* symbol, const TryBlockWalker& walker)
 	{
 	}
 	SEMA_POLICY(cpp::namespace_alias_definition, SemaPolicyPush<NamespaceAliasDefinitionWalker>)
-	void action(cpp::namespace_alias_definition* symbol, NamespaceAliasDefinitionWalker& walker)
+	void action(cpp::namespace_alias_definition* symbol, const NamespaceAliasDefinitionWalker& walker)
 	{
 	}
 	SEMA_POLICY(cpp::selection_statement, SemaPolicyPush<ControlStatementWalker>)
-	void action(cpp::selection_statement* symbol, ControlStatementWalker& walker)
+	void action(cpp::selection_statement* symbol, const ControlStatementWalker& walker)
 	{
 	}
 	SEMA_POLICY(cpp::iteration_statement, SemaPolicyPush<ControlStatementWalker>)
-	void action(cpp::iteration_statement* symbol, ControlStatementWalker& walker)
+	void action(cpp::iteration_statement* symbol, const ControlStatementWalker& walker)
 	{
 	}
 	SEMA_POLICY(cpp::compound_statement, SemaPolicyPush<CompoundStatementWalker>)
-	void action(cpp::compound_statement* symbol, CompoundStatementWalker& walker)
+	void action(cpp::compound_statement* symbol, const CompoundStatementWalker& walker)
 	{
 	}
 	SEMA_POLICY(cpp::expression_statement, SemaPolicyPush<ExpressionWalker>)
-	void action(cpp::expression_statement* symbol, ExpressionWalker& walker)
+	void action(cpp::expression_statement* symbol, const ExpressionWalker& walker)
 	{
 	}
 	SEMA_POLICY(cpp::jump_statement_return, SemaPolicyPush<ExpressionWalker>)
-	void action(cpp::jump_statement_return* symbol, ExpressionWalker& walker)
+	void action(cpp::jump_statement_return* symbol, const ExpressionWalker& walker)
 	{
 	}
 	SEMA_POLICY(cpp::jump_statement_goto, SemaPolicyIdentity)
@@ -6233,15 +6243,15 @@ struct StatementWalker : public WalkerBase
 		// TODO
 	}
 	SEMA_POLICY(cpp::labeled_statement, SemaPolicyPush<LabeledStatementWalker>)
-	void action(cpp::labeled_statement* symbol, LabeledStatementWalker& walker)
+	void action(cpp::labeled_statement* symbol, const LabeledStatementWalker& walker)
 	{
 	}
 	SEMA_POLICY(cpp::using_declaration, SemaPolicyPush<UsingDeclarationWalker>)
-	void action(cpp::using_declaration* symbol, UsingDeclarationWalker& walker)
+	void action(cpp::using_declaration* symbol, const UsingDeclarationWalker& walker)
 	{
 	}
 	SEMA_POLICY(cpp::using_directive, SemaPolicyPush<UsingDirectiveWalker>)
-	void action(cpp::using_directive* symbol, UsingDirectiveWalker& walker)
+	void action(cpp::using_directive* symbol, const UsingDirectiveWalker& walker)
 	{
 	}
 };
@@ -6259,19 +6269,19 @@ struct ControlStatementWalker : public WalkerBase
 		pushScope(newScope(enclosing->getUniqueName(), SCOPETYPE_LOCAL));
 	}
 	SEMA_POLICY(cpp::condition_init, SemaPolicyPush<SimpleDeclarationWalker>)
-	void action(cpp::condition_init* symbol, SimpleDeclarationWalker& walker)
+	void action(cpp::condition_init* symbol, const SimpleDeclarationWalker& walker)
 	{
 	}
 	SEMA_POLICY(cpp::simple_declaration, SemaPolicyPush<SimpleDeclarationWalker>)
-	void action(cpp::simple_declaration* symbol, SimpleDeclarationWalker& walker)
+	void action(cpp::simple_declaration* symbol, const SimpleDeclarationWalker& walker)
 	{
 	}
 	SEMA_POLICY(cpp::statement, SemaPolicyPush<StatementWalker>)
-	void action(cpp::statement* symbol, StatementWalker& walker)
+	void action(cpp::statement* symbol, const StatementWalker& walker)
 	{
 	}
 	SEMA_POLICY(cpp::expression, SemaPolicyPush<ExpressionWalker>)
-	void action(cpp::expression* symbol, ExpressionWalker& walker)
+	void action(cpp::expression* symbol, const ExpressionWalker& walker)
 	{
 	}
 };
@@ -6290,7 +6300,7 @@ struct CompoundStatementWalker : public WalkerBase
 		pushScope(newScope(enclosing->getUniqueName(), SCOPETYPE_LOCAL));
 	}
 	SEMA_POLICY(cpp::statement, SemaPolicyPush<StatementWalker>)
-	void action(cpp::statement* symbol, StatementWalker& walker)
+	void action(cpp::statement* symbol, const StatementWalker& walker)
 	{
 	}
 };
@@ -6308,11 +6318,11 @@ struct HandlerWalker : public WalkerBase
 		pushScope(newScope(enclosing->getUniqueName(), SCOPETYPE_LOCAL));
 	}
 	SEMA_POLICY(cpp::exception_declaration_default, SemaPolicyPush<SimpleDeclarationWalker>)
-	void action(cpp::exception_declaration_default* symbol, SimpleDeclarationWalker& walker)
+	void action(cpp::exception_declaration_default* symbol, const SimpleDeclarationWalker& walker)
 	{
 	}
 	SEMA_POLICY(cpp::compound_statement, SemaPolicyPush<CompoundStatementWalker>)
-	void action(cpp::compound_statement* symbol, CompoundStatementWalker& walker)
+	void action(cpp::compound_statement* symbol, const CompoundStatementWalker& walker)
 	{
 	}
 };
@@ -6326,7 +6336,7 @@ struct HandlerSeqWalker : public WalkerBase
 	{
 	}
 	SEMA_POLICY(cpp::handler, SemaPolicyPush<HandlerWalker>)
-	void action(cpp::handler* symbol, HandlerWalker& walker)
+	void action(cpp::handler* symbol, const HandlerWalker& walker)
 	{
 	}
 };
@@ -6344,12 +6354,12 @@ struct QualifiedTypeNameWalker : public WalkerQualified
 		setQualifyingGlobal();
 	}
 	SEMA_POLICY(cpp::nested_name_specifier, SemaPolicyPushCached<NestedNameSpecifierWalker>)
-	void action(cpp::nested_name_specifier* symbol, NestedNameSpecifierWalker& walker)
+	void action(cpp::nested_name_specifier* symbol, const NestedNameSpecifierWalker& walker)
 	{
 		swapQualifying(walker.qualifying);
 	}
 	SEMA_POLICY(cpp::class_name, SemaPolicyPushChecked<TypeNameWalker>)
-	bool action(cpp::class_name* symbol, TypeNameWalker& walker)
+	bool action(cpp::class_name* symbol, const TypeNameWalker& walker)
 	{
 		if(walker.filter.nonType != 0)
 		{
@@ -6368,7 +6378,7 @@ struct MemInitializerWalker : public WalkerBase
 	{
 	}
 	SEMA_POLICY(cpp::mem_initializer_id_base, SemaPolicyPush<QualifiedTypeNameWalker>)
-	void action(cpp::mem_initializer_id_base* symbol, QualifiedTypeNameWalker& walker)
+	void action(cpp::mem_initializer_id_base* symbol, const QualifiedTypeNameWalker& walker)
 	{
 	}
 	SEMA_POLICY(cpp::identifier, SemaPolicyIdentityChecked)
@@ -6385,7 +6395,7 @@ struct MemInitializerWalker : public WalkerBase
 		return true;
 	}
 	SEMA_POLICY(cpp::expression_list, SemaPolicyPush<ExpressionWalker>)
-	void action(cpp::expression_list* symbol, ExpressionWalker& walker)
+	void action(cpp::expression_list* symbol, const ExpressionWalker& walker)
 	{
 	}
 };
@@ -6405,7 +6415,7 @@ struct MemberDeclaratorBitfieldWalker : public WalkerBase
 		id = &symbol->value;
 	}
 	SEMA_POLICY(cpp::constant_expression, SemaPolicyPush<ExpressionWalker>)
-	void action(cpp::constant_expression* symbol, ExpressionWalker& walker)
+	void action(cpp::constant_expression* symbol, const ExpressionWalker& walker)
 	{
 		SEMANTIC_ASSERT(isDependent(walker.valueDependent) || walker.expression.isConstant); // TODO: non-fatal error: expected constant expression
 	}
@@ -6430,16 +6440,15 @@ struct TypeIdWalker : public WalkerBase
 	void action(cpp::terminal<boost::wave::T_OPERATOR> symbol) // conversion_function_id
 	{
 	}
-	SEMA_POLICY(cpp::type_specifier_seq, SemaPolicyPush<DeclSpecifierSeqWalker>)
-	void action(cpp::type_specifier_seq* symbol, DeclSpecifierSeqWalker& walker)
+	SEMA_POLICY(cpp::type_specifier_seq, SemaPolicyPushCommit<DeclSpecifierSeqWalker>)
+	void action(cpp::type_specifier_seq* symbol, const DeclSpecifierSeqWalker& walker)
 	{
-		walker.commit();
 		walker.committed.test();
-		type.swap(walker.seq.type);
+		type = walker.seq.type;
 		type.qualifiers = walker.seq.qualifiers;
 	}
 	SEMA_POLICY(cpp::abstract_declarator, SemaPolicyPush<DeclaratorWalker>)
-	void action(cpp::abstract_declarator* symbol, DeclaratorWalker& walker)
+	void action(cpp::abstract_declarator* symbol, const DeclaratorWalker& walker)
 	{
 		type.typeSequence = walker.typeSequence;
 		// [temp.dep.type] A type is dependent if it is a compound type constructed from any dependent type
@@ -6476,16 +6485,15 @@ struct NewTypeWalker : public WalkerBase
 	{
 		// for debugging purposes
 	}
-	SEMA_POLICY(cpp::type_specifier_seq, SemaPolicyPush<DeclSpecifierSeqWalker>)
-	void action(cpp::type_specifier_seq* symbol, DeclSpecifierSeqWalker& walker)
+	SEMA_POLICY(cpp::type_specifier_seq, SemaPolicyPushCommit<DeclSpecifierSeqWalker>)
+	void action(cpp::type_specifier_seq* symbol, const DeclSpecifierSeqWalker& walker)
 	{
-		walker.commit();
 		walker.committed.test();
-		type.swap(walker.seq.type);
+		type = walker.seq.type;
 		type.qualifiers = walker.seq.qualifiers;
 	}
 	SEMA_POLICY(cpp::new_declarator, SemaPolicyPush<DeclaratorWalker>)
-	void action(cpp::new_declarator* symbol, DeclaratorWalker& walker)
+	void action(cpp::new_declarator* symbol, const DeclaratorWalker& walker)
 	{
 		addDependent(valueDependent, walker.valueDependent);
 		type.typeSequence = walker.typeSequence;
@@ -6522,7 +6530,7 @@ struct InitializerWalker : public WalkerBase
 	{
 	}
 	SEMA_POLICY(cpp::assignment_expression, SemaPolicyPush<ExpressionWalker>)
-	void action(cpp::assignment_expression* symbol, ExpressionWalker& walker)
+	void action(cpp::assignment_expression* symbol, const ExpressionWalker& walker)
 	{
 		expression = walker.expression;
 		addDependent(valueDependent, walker.valueDependent);
@@ -6537,7 +6545,7 @@ struct MemInitializerClauseWalker : public WalkerBase
 	{
 	}
 	SEMA_POLICY(cpp::mem_initializer, SemaPolicyPush<MemInitializerWalker>)
-	void action(cpp::mem_initializer* symbol, MemInitializerWalker& walker)
+	void action(cpp::mem_initializer* symbol, const MemInitializerWalker& walker)
 	{
 	}
 };
@@ -6551,7 +6559,7 @@ struct StatementSeqWalker : public WalkerBase
 	{
 	}
 	SEMA_POLICY(cpp::statement, SemaPolicyPush<StatementWalker>)
-	void action(cpp::statement* symbol, StatementWalker& walker)
+	void action(cpp::statement* symbol, const StatementWalker& walker)
 	{
 	}
 };
@@ -6640,7 +6648,7 @@ struct DeclarationSuffixWalker : public WalkerBase
 	}
 
 	SEMA_POLICY(cpp::declarator, SemaPolicyPushCached<DeclaratorWalker>)
-	void action(cpp::declarator* symbol, DeclaratorWalker& walker)
+	void action(cpp::declarator* symbol, const DeclaratorWalker& walker)
 	{
 		parent = walker.enclosing; // if the id-expression in the declarator is a qualified-id, this is the qualifying scope
 		id = walker.id;
@@ -6668,19 +6676,19 @@ struct DeclarationSuffixWalker : public WalkerBase
 			// [class.conv.fct] The type of a conversion function is "function taking no parameter returning conversion-type-id."
 			// take the cv-qualifiers from the declarator
 			conversionFunctionQualifiers = getDeclaratorFunctionType(type.typeSequence.get()).qualifiers;
-			type.swap(walker.conversionType);
+			type = walker.conversionType;
 			isConversionFunction = true;
 		}
 	}
 	SEMA_POLICY(cpp::abstract_declarator, SemaPolicyPush<DeclaratorWalker>)
-	void action(cpp::abstract_declarator* symbol, DeclaratorWalker& walker)
+	void action(cpp::abstract_declarator* symbol, const DeclaratorWalker& walker)
 	{
 		enclosed = walker.paramScope;
 		type.typeSequence = walker.typeSequence;
 		addDependent(typeDependent, walker.dependent);
 	}
 	SEMA_POLICY(cpp::member_declarator_bitfield, SemaPolicyPush<MemberDeclaratorBitfieldWalker>)
-	void action(cpp::member_declarator_bitfield* symbol, MemberDeclaratorBitfieldWalker& walker)
+	void action(cpp::member_declarator_bitfield* symbol, const MemberDeclaratorBitfieldWalker& walker)
 	{
 		if(walker.id != 0)
 		{
@@ -6753,7 +6761,7 @@ struct DeclarationSuffixWalker : public WalkerBase
 	typedef SemaPolicyPushDeferred<InitializerWalker, DeferDefaultArgument> SemaPolicyDefaultArgument;
 	// in case of an inline member-function-definition, default-argument parse will be deferred - otherwise parsed as normal
 	SEMA_POLICY(cpp::default_argument, SemaPolicyDefaultArgument)
-	void action(cpp::default_argument* symbol, InitializerWalker& walker) // parameter_declaration (looks like an initializer)
+	void action(cpp::default_argument* symbol, const InitializerWalker& walker) // parameter_declaration (looks like an initializer)
 	{
 		if(!args.isParameter // if this is not a parameter declaration (parameters cannot be constants)
 			&& WalkerState::enclosingDeferred == 0) // and parse was not defered
@@ -6764,7 +6772,7 @@ struct DeclarationSuffixWalker : public WalkerBase
 	}
 	// handle assignment-expression(s) in initializer
 	SEMA_POLICY(cpp::assignment_expression, SemaPolicyPush<ExpressionWalker>)
-	void action(cpp::assignment_expression* symbol, ExpressionWalker& walker) // condition_init
+	void action(cpp::assignment_expression* symbol, const ExpressionWalker& walker) // condition_init
 	{
 		if(!args.isParameter) // parameters cannot be constants
 		{
@@ -6774,7 +6782,7 @@ struct DeclarationSuffixWalker : public WalkerBase
 	}
 	// handle initializer in separate context to avoid ',' confusing recognition of declaration
 	SEMA_POLICY(cpp::initializer_clause, SemaPolicyPush<InitializerWalker>)
-	void action(cpp::initializer_clause* symbol, InitializerWalker& walker) // initializer_default
+	void action(cpp::initializer_clause* symbol, const InitializerWalker& walker) // initializer_default
 	{
 		SEMANTIC_ASSERT(declaration != 0);
 		declaration->initializer = walker.expression;
@@ -6782,14 +6790,14 @@ struct DeclarationSuffixWalker : public WalkerBase
 	}
 	// handle initializer in separate context to avoid ',' confusing recognition of declaration
 	SEMA_POLICY(cpp::expression_list, SemaPolicyPush<InitializerWalker>)
-	void action(cpp::expression_list* symbol, InitializerWalker& walker) // initializer_parenthesis
+	void action(cpp::expression_list* symbol, const InitializerWalker& walker) // initializer_parenthesis
 	{
 		SEMANTIC_ASSERT(declaration != 0);
 		declaration->initializer = walker.expression;
 		addDependent(declaration->valueDependent, walker.valueDependent);
 	}
 	SEMA_POLICY(cpp::constant_expression, SemaPolicyPush<ExpressionWalker>)
-	void action(cpp::constant_expression* symbol, ExpressionWalker& walker) // member_declarator_bitfield
+	void action(cpp::constant_expression* symbol, const ExpressionWalker& walker) // member_declarator_bitfield
 	{
 		SEMANTIC_ASSERT(declaration != 0);
 		SEMANTIC_ASSERT(isDependent(walker.valueDependent) || walker.expression.isConstant); // TODO: non-fatal error: expected constant expression
@@ -6818,18 +6826,18 @@ struct DeclarationSuffixWalker : public WalkerBase
 	typedef SemaPolicyPushDeferred<MemInitializerClauseWalker, DeferMemInitializerClause> SemaPolicyDeferMemInitializerClause;
 	// in case of an inline constructor-definition, parse will be deferred - otherwise parsed as normal
 	SEMA_POLICY(cpp::mem_initializer_clause, SemaPolicyDeferMemInitializerClause)
-	void action(cpp::mem_initializer_clause* symbol, MemInitializerClauseWalker& walker) // function_definition_suffix->ctor_initializer
+	void action(cpp::mem_initializer_clause* symbol, const MemInitializerClauseWalker& walker) // function_definition_suffix->ctor_initializer
 	{
 	}
 	typedef DeferBody<StatementSeqWalker, skipBraced> DeferFunctionBody;
 	typedef SemaPolicyPushDeferred<StatementSeqWalker, DeferFunctionBody> SemaPolicyDeferFunctionBody;
 	// in case of an inline member-function-definition, parse will be deferred - otherwise parsed as normal
 	SEMA_POLICY(cpp::statement_seq_wrapper, SemaPolicyDeferFunctionBody)
-	void action(cpp::statement_seq_wrapper* symbol, StatementSeqWalker& walker) // function_definition_suffix->function_body
+	void action(cpp::statement_seq_wrapper* symbol, const StatementSeqWalker& walker) // function_definition_suffix->function_body
 	{
 	}
 	SEMA_POLICY(cpp::handler_seq, SemaPolicyPush<HandlerSeqWalker>)
-	void action(cpp::handler_seq* symbol, HandlerSeqWalker& walker) // function_definition_suffix->function_try_block
+	void action(cpp::handler_seq* symbol, const HandlerSeqWalker& walker) // function_definition_suffix->function_try_block
 	{
 	}
 
@@ -6867,13 +6875,13 @@ struct SimpleDeclarationWalker : public WalkerBase
 	}
 
 	SEMA_POLICY(cpp::decl_specifier_seq, SemaPolicyPush<DeclSpecifierSeqWalker>)
-	void action(cpp::decl_specifier_seq* symbol, DeclSpecifierSeqWalker& walker)
+	void action(cpp::decl_specifier_seq* symbol, const DeclSpecifierSeqWalker& walker)
 	{
 		seq = walker.seq;
 		templateParams = walker.templateParams; // if this is a class template declaration, templateParams will have been cleared
 	}
 	SEMA_POLICY(cpp::type_specifier_seq, SemaPolicyPush<DeclSpecifierSeqWalker>)
-	void action(cpp::type_specifier_seq* symbol, DeclSpecifierSeqWalker& walker)
+	void action(cpp::type_specifier_seq* symbol, const DeclSpecifierSeqWalker& walker)
 	{
 		seq = walker.seq;
 		templateParams = walker.templateParams; // if this is a class template declaration, templateParams will have been cleared
@@ -6887,39 +6895,39 @@ struct SimpleDeclarationWalker : public WalkerBase
 		}
 	}
 	typedef Args2<DeclarationWalkerArgs, const DeclSpecifierSeq&> DeclarationSuffixWalkerArgs;
-	typedef SemaPolicyGeneric<SemaPush<DeclarationSuffixWalker, DeclarationSuffixWalkerArgs> > SemaPolicyDeclarationSuffix;
+	typedef SemaPolicyGeneric<SemaPush<DeclarationSuffixWalker, CommitNull, DeclarationSuffixWalkerArgs> > SemaPolicyDeclarationSuffix;
 	SEMA_POLICY_ARGS(cpp::simple_declaration_named, SemaPolicyDeclarationSuffix, DeclarationSuffixWalkerArgs(args, seq))
-	void action(cpp::simple_declaration_named* symbol, DeclarationSuffixWalker& walker)
+	void action(cpp::simple_declaration_named* symbol, const DeclarationSuffixWalker& walker)
 	{
 		SEMANTIC_ASSERT(walker.type.declaration != 0);
 		declaration = walker.declaration;
 	}
 	SEMA_POLICY_ARGS(cpp::member_declaration_named, SemaPolicyDeclarationSuffix, DeclarationSuffixWalkerArgs(args, seq))
-	void action(cpp::member_declaration_named* symbol, DeclarationSuffixWalker& walker)
+	void action(cpp::member_declaration_named* symbol, const DeclarationSuffixWalker& walker)
 	{
 		SEMANTIC_ASSERT(walker.type.declaration != 0);
 		declaration = walker.declaration;
 	}
 	SEMA_POLICY_ARGS(cpp::member_declaration_bitfield, SemaPolicyDeclarationSuffix, DeclarationSuffixWalkerArgs(args, seq))
-	void action(cpp::member_declaration_bitfield* symbol, DeclarationSuffixWalker& walker)
+	void action(cpp::member_declaration_bitfield* symbol, const DeclarationSuffixWalker& walker)
 	{
 		SEMANTIC_ASSERT(walker.type.declaration != 0);
 		declaration = walker.declaration;
 	}
 	SEMA_POLICY_ARGS(cpp::parameter_declaration_suffix, SemaPolicyDeclarationSuffix, DeclarationSuffixWalkerArgs(args, seq))
-	void action(cpp::parameter_declaration_suffix* symbol, DeclarationSuffixWalker& walker) // parameter_declaration
+	void action(cpp::parameter_declaration_suffix* symbol, const DeclarationSuffixWalker& walker) // parameter_declaration
 	{
 		declaration = walker.declaration;
 		defaultArgument = walker.defaultArgument;
 	}
 	SEMA_POLICY_ARGS(cpp::function_definition, SemaPolicyDeclarationSuffix, DeclarationSuffixWalkerArgs(args, seq))
-	void action(cpp::function_definition* symbol, DeclarationSuffixWalker& walker) // constructor_definition
+	void action(cpp::function_definition* symbol, const DeclarationSuffixWalker& walker) // constructor_definition
 	{
 		SEMANTIC_ASSERT(walker.type.declaration != 0);
 		declaration = walker.declaration;
 	}
 	SEMA_POLICY_ARGS(cpp::condition_declarator, SemaPolicyDeclarationSuffix, DeclarationSuffixWalkerArgs(args, seq))
-	void action(cpp::condition_declarator* symbol, DeclarationSuffixWalker& walker) // condition
+	void action(cpp::condition_declarator* symbol, const DeclarationSuffixWalker& walker) // condition
 	{
 		declaration = walker.declaration;
 	}
@@ -7062,15 +7070,15 @@ struct TypeParameterWalker : public WalkerBase
 		SEMANTIC_ASSERT(params.empty());
 		walker.commit();
 		walker.committed.test();
-		argument.type.swap(walker.type);
+		argument.type = walker.type;
 	}
 	SEMA_POLICY(cpp::template_parameter_clause, SemaPolicyPush<TemplateParameterClauseWalker>)
-	void action(cpp::template_parameter_clause* symbol, TemplateParameterClauseWalker& walker)
+	void action(cpp::template_parameter_clause* symbol, const TemplateParameterClauseWalker& walker)
 	{
-		params.swap(walker.params);
+		params = walker.params;
 	}
 	SEMA_POLICY(cpp::id_expression, SemaPolicyPushChecked<IdExpressionWalker>)
-	bool action(cpp::id_expression* symbol, IdExpressionWalker& walker) // the default argument for a template-template-parameter
+	bool action(cpp::id_expression* symbol, const IdExpressionWalker& walker) // the default argument for a template-template-parameter
 	{
 		LookupResultRef declaration = walker.declaration;
 		if(declaration != 0) // TODO: error, lookup failed?
@@ -7103,24 +7111,22 @@ struct TemplateParameterListWalker : public WalkerBase
 		committed();
 		params.push_front(param);
 	}
-	SEMA_POLICY_ARGS(cpp::type_parameter_default, SemaPolicyPushIndex<TypeParameterWalker>, count)
-	void action(cpp::type_parameter_default* symbol, TypeParameterWalker& walker)
+	SEMA_POLICY_ARGS(cpp::type_parameter_default, SemaPolicyPushIndexCommit<TypeParameterWalker>, count)
+	void action(cpp::type_parameter_default* symbol, const TypeParameterWalker& walker)
 	{
-		walker.commit();
 		walker.committed.test();
-		param.swap(walker.param);
+		param = walker.param;
 		++count;
 	}
-	SEMA_POLICY_ARGS(cpp::type_parameter_template, SemaPolicyPushIndex<TypeParameterWalker>, count)
-	void action(cpp::type_parameter_template* symbol, TypeParameterWalker& walker)
+	SEMA_POLICY_ARGS(cpp::type_parameter_template, SemaPolicyPushIndexCommit<TypeParameterWalker>, count)
+	void action(cpp::type_parameter_template* symbol, const TypeParameterWalker& walker)
 	{
-		walker.commit();
 		walker.committed.test();
-		param.swap(walker.param);
+		param = walker.param;
 		++count;
 	}
 	SEMA_POLICY_ARGS(cpp::parameter_declaration, SemaPolicyParameterDeclaration<SimpleDeclarationWalker>, DeclarationWalkerArgs(false, count))
-	void action(cpp::parameter_declaration* symbol, SimpleDeclarationWalker& walker)
+	void action(cpp::parameter_declaration* symbol, const SimpleDeclarationWalker& walker)
 	{
 		SEMANTIC_ASSERT(walker.declaration != 0);
 		param = walker.declaration;
@@ -7132,12 +7138,11 @@ struct TemplateParameterListWalker : public WalkerBase
 		}
 		++count;
 	}
-	SEMA_POLICY_ARGS(cpp::template_parameter_list, SemaPolicyPushIndex<TemplateParameterListWalker>, count)
-	void action(cpp::template_parameter_list* symbol, TemplateParameterListWalker& walker)
+	SEMA_POLICY_ARGS(cpp::template_parameter_list, SemaPolicyPushIndexCommit<TemplateParameterListWalker>, count)
+	void action(cpp::template_parameter_list* symbol, const TemplateParameterListWalker& walker)
 	{
-		walker.commit();
 		walker.committed.test();
-		params.swap(walker.params);
+		params = walker.params;
 	}
 };
 
@@ -7159,12 +7164,11 @@ struct TemplateParameterClauseWalker : public WalkerBase
 		enclosing->templateDepth = templateDepth;
 		enclosingDeferred = 0; // don't defer parse of default-argument for non-type template-parameter
 	}
-	SEMA_POLICY_ARGS(cpp::template_parameter_list, SemaPolicyPushIndex<TemplateParameterListWalker>, 0)
-	void action(cpp::template_parameter_list* symbol, TemplateParameterListWalker& walker)
+	SEMA_POLICY_ARGS(cpp::template_parameter_list, SemaPolicyPushIndexCommit<TemplateParameterListWalker>, 0)
+	void action(cpp::template_parameter_list* symbol, const TemplateParameterListWalker& walker)
 	{
-		walker.commit();
 		walker.committed.test();
-		params.swap(walker.params);
+		params = walker.params;
 	}
 };
 
@@ -7182,21 +7186,21 @@ struct TemplateDeclarationWalker : public WalkerBase
 		templateParams = &TEMPLATEPARAMETERS_NULL; // explicit specialization has empty template params: template<> struct S;
 	}
 	SEMA_POLICY(cpp::template_parameter_clause, SemaPolicyPush<TemplateParameterClauseWalker>)
-	void action(cpp::template_parameter_clause* symbol, TemplateParameterClauseWalker& walker)
+	void action(cpp::template_parameter_clause* symbol, const TemplateParameterClauseWalker& walker)
 	{
 		templateParamScope = walker.enclosing;
 		enclosing = walker.enclosing->parent;
-		params.swap(walker.params);
+		params = walker.params;
 		templateParams = &params;
 	}
 	SEMA_POLICY(cpp::declaration, SemaPolicyPushSrc<DeclarationWalker>)
-	void action(cpp::declaration* symbol, DeclarationWalker& walker)
+	void action(cpp::declaration* symbol, const DeclarationWalker& walker)
 	{
 		declaration = walker.declaration;
 		SEMANTIC_ASSERT(declaration != 0);
 	}
 	SEMA_POLICY(cpp::member_declaration, SemaPolicyPush<MemberDeclarationWalker>)
-	void action(cpp::member_declaration* symbol, MemberDeclarationWalker& walker)
+	void action(cpp::member_declaration* symbol, const MemberDeclarationWalker& walker)
 	{
 		declaration = walker.declaration;
 		SEMANTIC_ASSERT(declaration != 0);
@@ -7217,7 +7221,7 @@ struct ExplicitInstantiationWalker : public WalkerBase
 		isExplicitInstantiation = true;
 	}
 	SEMA_POLICY(cpp::declaration, SemaPolicyPush<DeclarationWalker>)
-	void action(cpp::declaration* symbol, DeclarationWalker& walker)
+	void action(cpp::declaration* symbol, const DeclarationWalker& walker)
 	{
 		declaration = walker.declaration;
 	}
@@ -7233,56 +7237,56 @@ struct DeclarationWalker : public WalkerBase
 	{
 	}
 	SEMA_POLICY(cpp::linkage_specification, SemaPolicyPush<NamespaceWalker>)
-	void action(cpp::linkage_specification* symbol, NamespaceWalker& walker)
+	void action(cpp::linkage_specification* symbol, const NamespaceWalker& walker)
 	{
 		declaration = walker.declaration;
 	}
 	SEMA_POLICY(cpp::namespace_definition, SemaPolicyPush<NamespaceWalker>)
-	void action(cpp::namespace_definition* symbol, NamespaceWalker& walker)
+	void action(cpp::namespace_definition* symbol, const NamespaceWalker& walker)
 	{
 		declaration = walker.declaration;
 	}
 	SEMA_POLICY(cpp::namespace_alias_definition, SemaPolicyPush<NamespaceAliasDefinitionWalker>)
-	void action(cpp::namespace_alias_definition* symbol, NamespaceAliasDefinitionWalker& walker)
+	void action(cpp::namespace_alias_definition* symbol, const NamespaceAliasDefinitionWalker& walker)
 	{
 	}
 	SEMA_POLICY(cpp::general_declaration, SemaPolicyPush<SimpleDeclarationWalker>)
-	void action(cpp::general_declaration* symbol, SimpleDeclarationWalker& walker)
+	void action(cpp::general_declaration* symbol, const SimpleDeclarationWalker& walker)
 	{
 		declaration = walker.declaration;
 	}
 	// occurs in for-init-statement
 	SEMA_POLICY(cpp::simple_declaration, SemaPolicyPush<SimpleDeclarationWalker>)
-	void action(cpp::simple_declaration* symbol, SimpleDeclarationWalker& walker)
+	void action(cpp::simple_declaration* symbol, const SimpleDeclarationWalker& walker)
 	{
 		declaration = walker.declaration;
 	}
 	SEMA_POLICY(cpp::constructor_definition, SemaPolicyPush<SimpleDeclarationWalker>)
-	void action(cpp::constructor_definition* symbol, SimpleDeclarationWalker& walker)
+	void action(cpp::constructor_definition* symbol, const SimpleDeclarationWalker& walker)
 	{
 		declaration = walker.declaration;
 	}
 	SEMA_POLICY(cpp::template_declaration, SemaPolicyPush<TemplateDeclarationWalker>)
-	void action(cpp::template_declaration* symbol, TemplateDeclarationWalker& walker)
+	void action(cpp::template_declaration* symbol, const TemplateDeclarationWalker& walker)
 	{
 		declaration = walker.declaration;
 	}
 	SEMA_POLICY(cpp::explicit_instantiation, SemaPolicyPush<ExplicitInstantiationWalker>)
-	void action(cpp::explicit_instantiation* symbol, ExplicitInstantiationWalker& walker)
+	void action(cpp::explicit_instantiation* symbol, const ExplicitInstantiationWalker& walker)
 	{
 		declaration = walker.declaration;
 	}
 	SEMA_POLICY(cpp::explicit_specialization, SemaPolicyPush<TemplateDeclarationWalker>)
-	void action(cpp::explicit_specialization* symbol, TemplateDeclarationWalker& walker)
+	void action(cpp::explicit_specialization* symbol, const TemplateDeclarationWalker& walker)
 	{
 		declaration = walker.declaration;
 	}
 	SEMA_POLICY(cpp::using_declaration, SemaPolicyPush<UsingDeclarationWalker>)
-	void action(cpp::using_declaration* symbol, UsingDeclarationWalker& walker)
+	void action(cpp::using_declaration* symbol, const UsingDeclarationWalker& walker)
 	{
 	}
 	SEMA_POLICY(cpp::using_directive, SemaPolicyPush<UsingDirectiveWalker>)
-	void action(cpp::using_directive* symbol, UsingDirectiveWalker& walker)
+	void action(cpp::using_directive* symbol, const UsingDirectiveWalker& walker)
 	{
 	}
 };
@@ -7327,7 +7331,7 @@ struct NamespaceWalker : public WalkerBase
 		}
 	}
 	SEMA_POLICY(cpp::declaration, SemaPolicyPushTop<DeclarationWalker>)
-	void action(cpp::declaration* symbol, DeclarationWalker& walker)
+	void action(cpp::declaration* symbol, const DeclarationWalker& walker)
 	{
 	}
 };
