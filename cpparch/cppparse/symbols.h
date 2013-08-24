@@ -7276,7 +7276,7 @@ struct SymbolPrinter : TypeElementVisitor, ExpressionNodeVisitor
 	void printSymbol(T* symbol)
 	{
 		SourcePrinter walker(getState());
-		TREEWALKER_WALK(walker, symbol);
+		symbol->accept(walker);
 	}
 #endif
 	void printName(const Scope* scope)

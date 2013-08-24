@@ -833,6 +833,7 @@ inline cpp::symbol_sequence<T>& checkSymbolSequence(cpp::symbol_sequence<T>& sym
 }
 
 #define NULLSYMBOL(T) cpp::symbol_required< T >(0)
+#define NULLPTR(T) static_cast<T*>(0)
 
 
 template<typename T>
@@ -1009,108 +1010,21 @@ inline ParseResult parseTerminal(Parser& parser, cpp::terminal_suffix<id>& resul
 	return parseTerminal(parser, getTokenId(result), result.value) ? PARSERESULT_PASS : PARSERESULT_SKIP;
 }
 
-#if 1 // new stuff
 
-
-
-struct Args0
+struct CachedNull
 {
 };
 
-template<typename A1>
-struct Args1
-{
-	A1 a1;
-	Args1(A1 a1) : a1(a1)
-	{
-	}
-};
-
-template<typename A1, typename A2>
-struct Args2
-{
-	A1 a1;
-	A2 a2;
-	Args2(A1 a1, A2 a2) : a1(a1), a2(a2)
-	{
-	}
-};
-
-
-struct InvokeChecked
-{
-	template<typename WalkerType, typename T, typename Result>
-	static bool invokeAction(WalkerType& walker, T* symbol, Result& result)
-	{
-		return walker.action(symbol);
-	}
-};
-
-struct InvokeUnchecked
-{
-	template<typename WalkerType, typename T, typename Result>
-	static bool invokeAction(WalkerType& walker, T* symbol, Result& result)
-	{
-		walker.action(symbol);
-		return true;
-	}
-};
-
-struct InvokeCheckedResult
-{
-	template<typename WalkerType, typename T, typename Result>
-	static bool invokeAction(WalkerType& walker, T* symbol, Result& result)
-	{
-		return walker.action(symbol, result);
-	}
-};
-
-struct InvokeUncheckedResult
-{
-	template<typename WalkerType, typename T, typename Result>
-	static bool invokeAction(WalkerType& walker, T* symbol, Result& result)
-	{
-		walker.action(symbol, result);
-		return true;
-	}
-};
-
-template<bool CACHED>
 struct CachedLeaf
 {
-	static const bool isCached = CACHED;
-
-	template<typename WalkerType>
-	static int& getCachedWalker(WalkerType& walker)
-	{
-		static int dummy;
-		return dummy;
-	}
-
-	const CachedLeaf& getCachePolicy() const
-	{
-		return *this;
-	}
 };
 
 struct CachedWalk
 {
-	static const bool isCached = true;
-
-	template<typename WalkerType>
-	static WalkerType& getCachedWalker(WalkerType& walker)
-	{
-		return walker;
-	}
-
-	const CachedWalk& getCachePolicy() const
-	{
-		return *this;
-	}
 };
 
-typedef CachedLeaf<false> DisableCache;
-typedef CachedLeaf<true> EnableCache;
+typedef CachedNull DisableCache;
+typedef CachedLeaf EnableCache;
 
 struct DeferDefault
 {
@@ -1126,120 +1040,6 @@ struct DeferDefault
 	}
 };
 
-
-template<typename Inner, typename Invoke = InvokeUncheckedResult, typename Cache = DisableCache, typename Args = Args0>
-struct SemaPolicyPushGeneric : Invoke, Cache, Args, DeferDefault
-{
-	SemaPolicyPushGeneric(Args args)
-		: Args(args)
-	{
-	}
-};
-
-template<typename Inner, typename Invoke, typename Cache>
-struct SemaPolicyPushGeneric<Inner, Invoke, Cache, Args0> : Invoke, Cache, DeferDefault
-{
-};
-
-template<typename WalkerType, typename Invoke, typename Inner, typename Cache>
-Inner makeWalker(WalkerType& walker, SemaPolicyPushGeneric<Inner, Invoke, Cache, Args0> args)
-{
-	return Inner(walker.getState());
-}
-
-template<typename WalkerType, typename Invoke, typename Inner, typename Cache, typename A1>
-Inner makeWalker(WalkerType& walker, SemaPolicyPushGeneric<Inner, Invoke, Cache, Args1<A1> > args)
-{
-	return Inner(walker.getState(), args.a1);
-}
-
-template<typename WalkerType, typename Invoke, typename Inner, typename Cache, typename A1, typename A2>
-Inner makeWalker(WalkerType& walker, SemaPolicyPushGeneric<Inner, Invoke, Cache, Args2<A1, A2> > args)
-{
-	return Inner(walker.getState(), args.a1, args.a2);
-}
-
-template<typename Invoke, typename Cache = DisableCache>
-struct SemaPolicyIdentity : Invoke, Cache, DeferDefault
-{
-};
-
-
-template<typename WalkerType, typename Invoke, typename Cache>
-WalkerType& makeWalker(WalkerType& walker, SemaPolicyIdentity<Invoke, Cache>)
-{
-	return walker;
-}
-
-#ifdef _WIN32
-#define PARSER_INLINE __forceinline 
-#endif
-
-#define TREEWALKER_POLICY(Symbol, Policy) \
-	PARSER_INLINE Policy makePolicy(Symbol*) \
-	{ \
-		return Policy(); \
-	}
-
-#define TREEWALKER_POLICY_ARGS(Symbol, Policy, args) \
-	PARSER_INLINE Policy makePolicy(Symbol*) \
-	{ \
-		return Policy(args); \
-	}
-
-
-typedef SemaPolicyIdentity<InvokeUnchecked> TreeWalkerLeaf;
-typedef SemaPolicyIdentity<InvokeChecked> TreeWalkerLeafChecked;
-typedef SemaPolicyIdentity<InvokeUnchecked, EnableCache> TreeWalkerLeafCached;
-typedef SemaPolicyIdentity<InvokeChecked, EnableCache> TreeWalkerLeafCachedChecked;
-template<typename WalkerType>
-struct TreeWalkerWalk : SemaPolicyPushGeneric<WalkerType, InvokeUncheckedResult> {};
-template<typename WalkerType>
-struct TreeWalkerWalkChecked : SemaPolicyPushGeneric<WalkerType, InvokeCheckedResult> {};
-template<typename WalkerType>
-struct TreeWalkerWalkCached : SemaPolicyPushGeneric<WalkerType, InvokeUncheckedResult, CachedWalk> {};
-template<typename WalkerType>
-struct TreeWalkerWalkCachedChecked : SemaPolicyPushGeneric<WalkerType, InvokeCheckedResult, CachedWalk> {};
-template<typename WalkerType>
-struct TreeWalkerWalkBool : SemaPolicyPushGeneric<WalkerType, InvokeUncheckedResult, DisableCache, Args1<bool> >
-{
-	TreeWalkerWalkBool(bool value) : SemaPolicyPushGeneric(Args1<bool>(value))
-	{
-	}
-};
-template<typename WalkerType>
-struct TreeWalkerWalkBoolChecked : SemaPolicyPushGeneric<WalkerType, InvokeCheckedResult, DisableCache, Args1<bool> >
-{
-	TreeWalkerWalkBoolChecked(bool value) : SemaPolicyPushGeneric(Args1<bool>(value))
-	{
-	}
-};
-template<typename WalkerType>
-struct TreeWalkerWalkBoolCached : SemaPolicyPushGeneric<WalkerType, InvokeUncheckedResult, CachedWalk, Args1<bool> >
-{
-	TreeWalkerWalkBoolCached(bool value) : SemaPolicyPushGeneric(Args1<bool>(value))
-	{
-	}
-};
-template<typename WalkerType>
-struct TreeWalkerWalkBoolCachedChecked : SemaPolicyPushGeneric<WalkerType, InvokeCheckedResult, CachedWalk, Args1<bool> >
-{
-	TreeWalkerWalkBoolCachedChecked(bool value) : SemaPolicyPushGeneric(Args1<bool>(value))
-	{
-	}
-};
-template<typename WalkerType>
-struct TreeWalkerWalkIndex : SemaPolicyPushGeneric<WalkerType, InvokeUncheckedResult, DisableCache, Args1<std::size_t> >
-{
-	TreeWalkerWalkIndex(std::size_t value) : SemaPolicyPushGeneric(Args1<std::size_t>(value))
-	{
-	}
-};
-
-
-
-
-#endif // new stuff
 
 struct ParserOpaque : public Parser
 {
@@ -1311,50 +1111,125 @@ public:
 		return *static_cast<ParserGeneric<Inner>*>(static_cast<ParserOpaque*>(this));
 	}
 
-	template<typename T, typename Policy>
-	WalkerType* parseSymbolTmp(T*& symbol, Policy)
+	template<typename Symbol>
+	bool cacheLookup(const CachedNull&, Symbol*& symbol, WalkerType& walker)
+	{
+		return false;
+	}
+	template<typename Symbol>
+	void cacheStore(const CachedNull&, CachedSymbols::Key key, Symbol* symbol, const WalkerType& walker)
+	{
+	}
+	template<typename Symbol>
+	bool cacheLookup(const CachedLeaf&, Symbol*& symbol, WalkerType& walker)
+	{
+		int dummy;
+		return Parser::cacheLookup(symbol, dummy);
+	}
+	template<typename Symbol>
+	void cacheStore(const CachedLeaf&, CachedSymbols::Key key, Symbol* symbol, const WalkerType& walker)
+	{
+		int dummy;
+		Parser::cacheStore(key, symbol, dummy);
+	}
+	template<typename Symbol>
+	bool cacheLookup(const CachedWalk&, Symbol*& symbol, WalkerType& walker)
+	{
+		return Parser::cacheLookup(symbol, walker);
+	}
+	template<typename Symbol>
+	void cacheStore(const CachedWalk&, CachedSymbols::Key key, Symbol* symbol, const WalkerType& walker)
+	{
+		Parser::cacheStore(key, symbol, walker);
+	}
+
+	static bool isDeferred(const DeferDefault&, WalkerType& walker)
+	{
+		return false;
+	}
+	template<typename T>
+	static T* addDeferred(const DeferDefault&, WalkerType& walker, T* symbol)
+	{
+		return 0;
+	}
+	template<typename Defer>
+	static bool isDeferred(const Defer&, WalkerType& walker)
+	{
+		return Defer::isDeferred(walker);
+	}
+	template<typename Defer, typename T>
+	static T* addDeferred(const Defer&, WalkerType& walker, T* symbol)
+	{
+		return Defer::addDeferred(walker, symbol);
+	}
+
+	template<typename T, typename Defer>
+	WalkerType* parseSymbolTmp(T*& symbol, const CachedNull&, const Defer& defer)
 	{
 		WalkerType& walker = getWalker();
-		if(Policy::isDeferred(walker)) // if the parse of this symbol is to be deferred (e.g. body of an inline member function)
+		if(isDeferred(defer, walker)) // if the parse of this symbol is to be deferred (e.g. body of an inline member function)
 		{
-			symbol = Policy::addDeferred(walker, symbol); // skip the tokens that comprise the symbol, add an entry to the appropriate deferred parse list
+			symbol = addDeferred(defer, walker, symbol); // skip the tokens that comprise the symbol, add an entry to the appropriate deferred parse list
 			return symbol == 0 ? 0 : &walker; // null indicates that the symbol was not matched because there were no tokens to skip (e.g. empty function body)
 		}
-		if(Policy::isCached // if enabled, check whether the symbol was previously found by a failed production that shares the same prefix
-			&& cacheLookup(symbol, Policy::getCachedWalker(walker))) // if found, skip the tokens that comprise the symbol, and restore state of both symbol and walker!
-		{
-			return &walker; // indicate that we matched this symbol
-		}
-		CachedSymbols::Key key = context.position;
 		symbol = makeParser(symbol).parseSymbol(*this, symbol);
 		if(symbol != 0)
 		{
 			symbol = parseHit(*this, symbol); // if the parse succeeded, return a persistent version of the symbol.
-			if(Policy::isCached) // if caching is enabled for this symbol
-			{
-				cacheStore(key, symbol, Policy::getCachedWalker(walker)); // save the state of both symbol and walker for later re-use
-			}
 			return &walker; // indicate that we matched this symbol
 		}
 		return 0;
 	}
 
-	template<typename T, typename Inner, typename Policy>
-	static bool invokeAction(WalkerType& walker, T* symbol, Inner* inner, Policy)
+	template<typename T>
+	WalkerType* parseSymbolTmp(T*& symbol, const CachedNull&, const DeferDefault&)
 	{
-		return inner == 0 ? false : Policy::invokeAction(walker, symbol, *inner);
+		WalkerType& walker = getWalker();
+		symbol = makeParser(symbol).parseSymbol(*this, symbol);
+		if(symbol != 0)
+		{
+			symbol = parseHit(*this, symbol); // if the parse succeeded, return a persistent version of the symbol.
+			return &walker; // indicate that we matched this symbol
+		}
+		return 0;
 	}
 
-	template<typename T>
-	T* newVisit(WalkerType& walker, T* symbol)
+	template<typename T, typename Cache>
+	WalkerType* parseSymbolTmp(T*& symbol, const Cache& cache, const DeferDefault&)
+	{
+		WalkerType& walker = getWalker();
+		// if enabled, check whether the symbol was previously found by a failed production that shares the same prefix
+		if(cacheLookup(cache, symbol, walker)) // if found, skip the tokens that comprise the symbol, and restore state of both symbol and walker!
+		{
+			return &walker; // indicate that we matched this symbol
+		}
+		CachedSymbols::Key key = context.position; // record the location of the symbol we are about to parse
+		symbol = makeParser(symbol).parseSymbol(*this, symbol);
+		if(symbol != 0)
+		{
+			symbol = parseHit(*this, symbol); // if the parse succeeded, return a persistent version of the symbol.
+			cacheStore(cache, key, symbol, walker); // if enabled, save the state of both symbol and walker for later re-use
+			return &walker; // indicate that we matched this symbol
+		}
+		return 0;
+	}
+
+	template<typename T, typename Inner, typename Invoke>
+	static bool invokeAction(WalkerType& walker, T* symbol, Inner* inner, const Invoke&)
+	{
+		return inner == 0 ? false : Invoke::invokeAction(walker, symbol, *inner);
+	}
+
+	template<typename T, typename Policy>
+	T* newVisit(WalkerType& walker, T* symbol, const Policy& policy)
 	{
 		// Construct an inner walker from the current walker, based on the current walker's policy for this symbol.
 		// Try to parse the symbol using the inner walker.
 		// Report success if the parse was successful and the current walker's associated semantic action also passed.
 		bool success = invokeAction(walker, symbol,
-				getParser(makeWalker(walker, walker.makePolicy(NULLSYMBOL(T))))
-					.parseSymbolTmp(symbol, walker.makePolicy(NULLSYMBOL(T))),
-					walker.makePolicy(NULLSYMBOL(T)));
+				getParser(makeInnerWalker(walker, policy.getInnerPolicy()))
+					.parseSymbolTmp(symbol, policy.getCachePolicy(), policy.getDeferPolicy()),
+					policy.getActionPolicy());
 		return success ? symbol : 0;
 	}	
 

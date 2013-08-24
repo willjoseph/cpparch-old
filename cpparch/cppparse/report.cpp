@@ -57,7 +57,7 @@ struct TreePrinter // TODO: better name
 	{
 		if(typeid(T) != typeid(*symbol)) // if abstract
 		{
-			TREEWALKER_LEAF(symbol);
+			symbol->accept(*this);
 		}
 		else
 		{

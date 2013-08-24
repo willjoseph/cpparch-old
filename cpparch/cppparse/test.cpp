@@ -169,7 +169,7 @@ Inner makeWalker(WalkerType& walker, SemaPolicyPushGeneric<Inner, CHECKED, Args2
 }
 
 template<bool CHECKED>
-struct SemaPolicyIdentity
+struct SemaPolicyIdentityGeneric
 {
 	template<typename WalkerType, typename T, typename Inner>
 	static bool invokeAction(WalkerType& walker, T* symbol, const Inner* inner)
@@ -179,7 +179,7 @@ struct SemaPolicyIdentity
 };
 
 template<>
-struct SemaPolicyIdentity<false>
+struct SemaPolicyIdentityGeneric<false>
 {
 	template<typename WalkerType, typename T, typename Inner>
 	static bool invokeAction(WalkerType& walker, T* symbol, const Inner* inner)
@@ -194,7 +194,7 @@ struct SemaPolicyIdentity<false>
 };
 
 template<typename WalkerType, bool CHECKED>
-WalkerType& makeWalker(WalkerType& walker, SemaPolicyIdentity<CHECKED>)
+WalkerType& makeWalker(WalkerType& walker, SemaPolicyIdentityGeneric<CHECKED>)
 {
 	return walker;
 }
@@ -207,15 +207,15 @@ bool visit(WalkerType& walker, T* symbol)
 }	
 
 #define TREEWALKER_TRY(Symbol) \
-	SemaPolicyIdentity<false> makePolicy(Symbol*) \
+	SemaPolicyIdentityGeneric<false> makePolicy(Symbol*) \
 	{ \
-		return SemaPolicyIdentity<false>(); \
+		return SemaPolicyIdentityGeneric<false>(); \
 	}
 
 #define TREEWALKER_TRY_CHECKED(Symbol) \
-	SemaPolicyIdentity<true> makePolicy(Symbol*) \
+	SemaPolicyIdentityGeneric<true> makePolicy(Symbol*) \
 	{ \
-		return SemaPolicyIdentity<true>(); \
+		return SemaPolicyIdentityGeneric<true>(); \
 	}
 
 #define TREEWALKER_PUSH(Symbol, Walker) \
