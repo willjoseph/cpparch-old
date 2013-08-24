@@ -742,11 +742,6 @@ struct Parser : public ParserState
 		}
 	}
 
-	void addBacktrackCallback(const BacktrackCallback& callback)
-	{
-		context.allocator.addBacktrackCallback(context.allocator.position, callback);
-	}
-
 	template<typename Symbol, typename Walker>
 	bool cacheLookup(Symbol*& symbol, Walker& walker)
 	{
@@ -778,20 +773,25 @@ struct Parser : public ParserState
 	}
 };
 
-inline void printError(Parser& parser)
+inline void printError(ParserContext& context)
 {
 #if 0
-	for(Lexer::Positions::const_iterator i = parser.context.backtrace.begin(); i != parser.context.backtrace.end(); ++i)
+	for(Lexer::Positions::const_iterator i = context.backtrace.begin(); i != context.backtrace.end(); ++i)
 	{
 	}
-	printPosition(parser.context, context.history[parser.context.stacktrace.back()].position);
+	printPosition(context, context.history[context.stacktrace.back()].position);
 #endif
-	printPosition(parser.context.getErrorPosition());
-	std::cout << "syntax error: '" << parser.context.getErrorValue().c_str() << "'" << std::endl;
+	printPosition(context.getErrorPosition());
+	std::cout << "syntax error: '" << context.getErrorValue().c_str() << "'" << std::endl;
 #if 1 // TODO!
-	parser.context.visualiser.print(parser.context.history);
+	context.visualiser.print(context.history);
 #endif
-	printSequence(parser.context); // rejected tokens
+	printSequence(context); // rejected tokens
+}
+
+inline void printError(Parser& parser)
+{
+	printError(parser.context);
 }
 
 inline void printSequence(Parser& parser)
@@ -1029,12 +1029,12 @@ typedef CachedLeaf EnableCache;
 struct DeferDefault
 {
 	template<typename WalkerType>
-	static bool isDeferred(WalkerType& walker)
+	static bool isDeferredParse(WalkerType& walker)
 	{
 		return false;
 	}
 	template<typename WalkerType, typename T>
-	static T* addDeferred(WalkerType& walker, T* symbol)
+	static T* addDeferredParse(WalkerType& walker, T* symbol)
 	{
 		return 0;
 	}
@@ -1096,19 +1096,16 @@ public:
 		if(!t.value.empty())
 		{
 			WalkerType& walker = getWalker();
-			ParserOpaque* tmp = walker.parser;
-			walker.parser = this; // pass parser as hidden argument to WalkerType::visit 
 			walker.action(t);
-			walker.parser = tmp;
 		}
 		return result;
 	}
 
 	template<typename Inner>
-	ParserGeneric<Inner>& getParser(Inner& walker)
+	static ParserGeneric<Inner>& getParser(Inner& walker, ParserOpaque* parser)
 	{
-		this->walker = &walker;  // pass walker as hidden argument to parseSymbol
-		return *static_cast<ParserGeneric<Inner>*>(static_cast<ParserOpaque*>(this));
+		parser->walker = &walker;  // pass walker as hidden argument to parseSymbol
+		return *static_cast<ParserGeneric<Inner>*>(parser);
 	}
 
 	template<typename Symbol>
@@ -1143,94 +1140,60 @@ public:
 		Parser::cacheStore(key, symbol, walker);
 	}
 
-	static bool isDeferred(const DeferDefault&, WalkerType& walker)
+	bool isDeferredParse(const DeferDefault&, WalkerType& walker)
 	{
 		return false;
 	}
 	template<typename T>
-	static T* addDeferred(const DeferDefault&, WalkerType& walker, T* symbol)
+	T* addDeferredParse(const DeferDefault&, WalkerType& walker, T* symbol)
 	{
 		return 0;
 	}
 	template<typename Defer>
-	static bool isDeferred(const Defer&, WalkerType& walker)
+	bool isDeferredParse(const Defer&, WalkerType& walker)
 	{
-		return Defer::isDeferred(walker);
+		return Defer::isDeferredParse(walker);
 	}
 	template<typename Defer, typename T>
-	static T* addDeferred(const Defer&, WalkerType& walker, T* symbol)
+	T* addDeferredParse(const Defer&, WalkerType& walker, T* symbol)
 	{
-		return Defer::addDeferred(walker, symbol);
+		return ::addDeferredParse(*this, Defer::getDeferredSymbolsList(walker), walker, Defer::getSkipFunc(walker), symbol);
 	}
 
-	template<typename T, typename Defer>
-	WalkerType* parseSymbolTmp(T*& symbol, const CachedNull&, const Defer& defer)
+	template<typename T, typename Inner, typename Annotate, typename Action, typename Cache, typename Defer>
+	T* visit(WalkerType& walker, T* symbol, const Inner& innerConst, const Annotate&, const Action& action, const Cache& cache, const Defer& defer)
 	{
-		WalkerType& walker = getWalker();
-		if(isDeferred(defer, walker)) // if the parse of this symbol is to be deferred (e.g. body of an inline member function)
+		Inner& inner = *const_cast<Inner*>(&innerConst); // 'innerConst' is a temporary with lifetime longer than this function.
+		ParserGeneric<Inner>& innerParser = getParser(inner, this);
+		typename Annotate::Data data = Annotate::makeData(*context.position);
+		if(innerParser.isDeferredParse(defer, inner)) // if the parse of this symbol is to be deferred (e.g. body of an inline member function)
 		{
-			symbol = addDeferred(defer, walker, symbol); // skip the tokens that comprise the symbol, add an entry to the appropriate deferred parse list
-			return symbol == 0 ? 0 : &walker; // null indicates that the symbol was not matched because there were no tokens to skip (e.g. empty function body)
+			symbol = innerParser.addDeferredParse(defer, inner, symbol); // skip the tokens that comprise the symbol, add an entry to the appropriate deferred parse list
+			if(symbol == 0)
+			{
+				return 0; // indicate that the symbol was not matched because there were no tokens to skip (e.g. empty function body)
+			}
 		}
-		symbol = makeParser(symbol).parseSymbol(*this, symbol);
-		if(symbol != 0)
-		{
-			symbol = parseHit(*this, symbol); // if the parse succeeded, return a persistent version of the symbol.
-			return &walker; // indicate that we matched this symbol
-		}
-		return 0;
-	}
-
-	template<typename T>
-	WalkerType* parseSymbolTmp(T*& symbol, const CachedNull&, const DeferDefault&)
-	{
-		WalkerType& walker = getWalker();
-		symbol = makeParser(symbol).parseSymbol(*this, symbol);
-		if(symbol != 0)
-		{
-			symbol = parseHit(*this, symbol); // if the parse succeeded, return a persistent version of the symbol.
-			return &walker; // indicate that we matched this symbol
-		}
-		return 0;
-	}
-
-	template<typename T, typename Cache>
-	WalkerType* parseSymbolTmp(T*& symbol, const Cache& cache, const DeferDefault&)
-	{
-		WalkerType& walker = getWalker();
 		// if enabled, check whether the symbol was previously found by a failed production that shares the same prefix
-		if(cacheLookup(cache, symbol, walker)) // if found, skip the tokens that comprise the symbol, and restore state of both symbol and walker!
+		else if(!innerParser.cacheLookup(cache, symbol, inner)) // if found, skip the tokens that comprise the symbol, and restore state of both symbol and inner!
 		{
-			return &walker; // indicate that we matched this symbol
-		}
-		CachedSymbols::Key key = context.position; // record the location of the symbol we are about to parse
-		symbol = makeParser(symbol).parseSymbol(*this, symbol);
-		if(symbol != 0)
-		{
+			CachedSymbols::Key key = context.position; // record the location of the symbol we are about to parse
+			symbol = makeParser(symbol).parseSymbol(innerParser, symbol);
+			if(symbol == 0)
+			{
+				return 0;
+			}
 			symbol = parseHit(*this, symbol); // if the parse succeeded, return a persistent version of the symbol.
-			cacheStore(cache, key, symbol, walker); // if enabled, save the state of both symbol and walker for later re-use
-			return &walker; // indicate that we matched this symbol
+			innerParser.cacheStore(cache, key, symbol, inner); // if enabled, save the state of both symbol and inner for later re-use
+		}
+		// Report success if the parse was successful and the current walker's associated semantic action also passed.
+		bool success = Action::invokeAction(walker, symbol, inner);
+		if(success)
+		{
+			Annotate::annotate(symbol, data);
+			return symbol;
 		}
 		return 0;
-	}
-
-	template<typename T, typename Inner, typename Invoke>
-	static bool invokeAction(WalkerType& walker, T* symbol, Inner* inner, const Invoke&)
-	{
-		return inner == 0 ? false : Invoke::invokeAction(walker, symbol, *inner);
-	}
-
-	template<typename T, typename Policy>
-	T* newVisit(WalkerType& walker, T* symbol, const Policy& policy)
-	{
-		// Construct an inner walker from the current walker, based on the current walker's policy for this symbol.
-		// Try to parse the symbol using the inner walker.
-		// Report success if the parse was successful and the current walker's associated semantic action also passed.
-		bool success = invokeAction(walker, symbol,
-				getParser(makeInnerWalker(walker, policy.getInnerPolicy()))
-					.parseSymbolTmp(symbol, policy.getCachePolicy(), policy.getDeferPolicy()),
-					policy.getActionPolicy());
-		return success ? symbol : 0;
 	}	
 
 	template<typename T, bool required>
@@ -1245,19 +1208,17 @@ public:
 		context.visualiser.push(SYMBOL_NAME(T), context.position);
 #endif
 		SymbolHolder<T> holder(context);
-#if 1
-		WalkerType& walker = tmp.getWalker();
-		{
-			ParserOpaque* tmpParser = walker.parser;
-			walker.parser = &tmp; // pass parser as hidden argument to WalkerType::visit 
-			walker.visit(holder.get());
-			walker.parser = tmpParser;
-		}
-		T* result = static_cast<T*>(walker.result);
-#else
 		WalkerType& walker = getWalker();
-		T* result = tmp.newVisit(walker, holder.get());
-#endif
+
+		// Construct an inner walker from the current walker, based on the current walker's policy for this symbol.
+		// Try to parse the symbol using the inner walker.
+		T* result = tmp.visit(walker, holder.get(),
+			makeInnerWalker(walker, walker.makePolicy(NULLPTR(T)).getInnerPolicy()),
+			walker.makePolicy(NULLPTR(T)).getAnnotatePolicy(),
+			walker.makePolicy(NULLPTR(T)).getActionPolicy(),
+			walker.makePolicy(NULLPTR(T)).getCachePolicy(),
+			walker.makePolicy(NULLPTR(T)).getDeferPolicy());
+
 		if(result != 0)
 		{
 #ifdef PARSER_DEBUG
@@ -1605,36 +1566,37 @@ inline void skipMemInitializerClause(Parser& parser)
 template<typename Walker, typename T>
 struct DeferredParseThunk
 {
-	static void* thunk(typename Walker::Base& base, const typename Walker::State& state, void* p)
+	static void* thunk(ParserContext& context, const typename Walker::State& state, void* p)
 	{
 		Walker walker(state);
 		T* symbol = static_cast<T*>(p);
-		void* result = makeParser(symbol).parseSymbol(walker.getParser(walker), symbol);
+		ParserGeneric<Walker> parser(context, walker);
+		void* result = makeParser(symbol).parseSymbol(parser, symbol);
 		return result;
 	}
 };
 
-template<typename Base, typename ContextType>
+template<typename ContextType>
 struct DeferredParseBase
 {
-	typedef void* (*Func)(Base&, const ContextType&, void*);
+	typedef void* (*Func)(ParserContext&, const ContextType&, void*);
 	ContextType context;
 	void* symbol;
 	Func func;
 };
 
-template<typename Base, typename ContextType>
-struct DeferredParse : public DeferredParseBase<Base, ContextType>
+template<typename ContextType>
+struct DeferredParse : public DeferredParseBase<ContextType>
 {
 	BacktrackBuffer buffer;
 
 	// hack!
-	DeferredParse(const DeferredParseBase<Base, ContextType>& base)
-		: buffer(), DeferredParseBase<Base, ContextType>(base)
+	DeferredParse(const DeferredParseBase<ContextType>& base)
+		: buffer(), DeferredParseBase<ContextType>(base)
 	{
 	}
 	DeferredParse(const DeferredParse& other)
-		: buffer(), DeferredParseBase<Base, ContextType>(other)
+		: buffer(), DeferredParseBase<ContextType>(other)
 	{
 	}
 	DeferredParse& operator=(const DeferredParse& other)
@@ -1650,11 +1612,8 @@ struct DeferredParse : public DeferredParseBase<Base, ContextType>
 
 struct ContextBase
 {
-	ParserOpaque* parser;
-	void* result;
-
 	template<typename WalkerType>
-	ParserGeneric<WalkerType>& getParser(WalkerType& walker)
+	ParserGeneric<WalkerType>& getParser(WalkerType& walker, ParserOpaque* parser)
 	{
 		parser->walker = &walker;  // pass walker as hidden argument to parseSymbol
 		return *static_cast<ParserGeneric<WalkerType>*>(parser);
@@ -1663,42 +1622,39 @@ struct ContextBase
 
 
 template<typename Walker, typename T>
-inline DeferredParse<typename Walker::Base, typename Walker::State> makeDeferredParse(const Walker& walker, T* symbol)
+inline DeferredParse<typename Walker::State> makeDeferredParse(const Walker& walker, T* symbol)
 {
-	DeferredParseBase<typename Walker::Base, typename Walker::State> result = { walker, symbol, DeferredParseThunk<Walker, T>::thunk };
+	DeferredParseBase<typename Walker::State> result = { walker, symbol, DeferredParseThunk<Walker, T>::thunk };
 	return result;
 }
 
-template<typename ListType, typename Walker>
-inline void parseDeferred(ListType& deferred, Walker& walker)
+template<typename ListType>
+inline void parseDeferred(ListType& deferred, ParserContext& context)
 {
-	ParserOpaque& parser = *walker.parser;
-	const Token* position = parser.context.position;
+	const Token* position = context.position;
 	for(typename ListType::iterator i = deferred.begin(); i != deferred.end(); ++i)
 	{
 		typename ListType::value_type& item = (*i);
 
-		parser.context.history.swap(item.buffer);
-		parser.context.position = parser.context.error = parser.context.history.tokens;
-		item.context.parser = &parser;
+		context.history.swap(item.buffer);
+		context.position = context.error = context.history.tokens;
 
-		void* result = item.func(walker, item.context, item.symbol);
+		void* result = item.func(context, item.context, item.symbol);
 
 		if(result == 0
-			|| parser.context.position != parser.context.history.end() - 1)
+			|| context.position != context.history.end() - 1)
 		{
-			printError(parser);
+			printError(context);
 		}
 
-		parser.context.history.swap(item.buffer);
+		context.history.swap(item.buffer);
 	}
-	parser.context.position = parser.context.error = position;
+	context.position = context.error = position;
 }
 
 template<typename ListType, typename ContextType, typename T, typename Func>
-inline T* addDeferredParse(ListType& deferred, ContextType& walker, Func skipFunc, T* symbol)
+inline T* addDeferredParse(Parser& parser, ListType& deferred, ContextType& walker, Func skipFunc, T* symbol)
 {
-	Parser& parser = *walker.parser;
 	const Token* first = parser.context.position;
 
 	skipFunc(parser);
