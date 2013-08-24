@@ -3223,10 +3223,9 @@ struct TemplateArgumentListWalker : public WalkerBase
 		argument.source = getLocation();
 		return true;
 	}
-	SEMA_POLICY(cpp::template_argument_list, SemaPolicyPush<TemplateArgumentListWalker>)
-	void action(cpp::template_argument_list* symbol, TemplateArgumentListWalker& walker)
+	SEMA_POLICY(cpp::template_argument_list, SemaPolicyPushCommit<TemplateArgumentListWalker>)
+	void action(cpp::template_argument_list* symbol, const TemplateArgumentListWalker& walker)
 	{
-		walker.commit();
 		walker.committed.test();
 		arguments = walker.arguments;
 	}
@@ -7064,11 +7063,10 @@ struct TypeParameterWalker : public WalkerBase
 	{
 		id = &symbol->value;
 	}
-	SEMA_POLICY(cpp::type_id, SemaPolicyPush<TypeIdWalker>)
-	void action(cpp::type_id* symbol, TypeIdWalker& walker)
+	SEMA_POLICY(cpp::type_id, SemaPolicyPushCommit<TypeIdWalker>)
+	void action(cpp::type_id* symbol, const TypeIdWalker& walker)
 	{
 		SEMANTIC_ASSERT(params.empty());
-		walker.commit();
 		walker.committed.test();
 		argument.type = walker.type;
 	}
