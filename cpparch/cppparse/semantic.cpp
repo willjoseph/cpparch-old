@@ -3034,14 +3034,14 @@ bool isUnqualified(cpp::elaborated_type_specifier_default* symbol)
 		&& symbol->context.p == 0;
 }
 
-struct DeclSpecifierSeq
+struct SemaDeclSpecifierSeqResult
 {
 	Type type;
 	IdentifierPtr forward; // if this is an elaborated-type-specifier, the 'identifier'
 	CvQualifiers qualifiers;
 	DeclSpecifiers specifiers;
 	bool isUnion;
-	DeclSpecifierSeq(Declaration* declaration, const TreeAllocator<int>& allocator)
+	SemaDeclSpecifierSeqResult(Declaration* declaration, const TreeAllocator<int>& allocator)
 		: type(declaration, allocator), forward(0), isUnion(false)
 	{
 	}
@@ -3111,20 +3111,20 @@ struct SemaTypeSpecifierResult
 	}
 };
 
-struct TypenameSpecifierResult
+struct SemaTypenameSpecifierResult
 {
 	Type type;
-	TypenameSpecifierResult(const TreeAllocator<int>& allocator)
+	SemaTypenameSpecifierResult(const TreeAllocator<int>& allocator)
 		: type(0, allocator)
 	{
 	}
 };
 
-struct NewTypeResult
+struct SemaNewTypeResult
 {
 	TypeId type;
 	Dependent valueDependent;
-	NewTypeResult(const TreeAllocator<int>& allocator)
+	SemaNewTypeResult(const TreeAllocator<int>& allocator)
 		: type(0, allocator)
 	{
 	}
@@ -3643,7 +3643,7 @@ struct ExplicitTypeExpressionWalker : public WalkerBase
 		makeUniqueTypeSafe(type);
 	}
 	SEMA_POLICY(cpp::typename_specifier, SemaPolicyPush<struct TypenameSpecifierWalker>)
-	void action(cpp::typename_specifier* symbol, const TypenameSpecifierResult& walker)
+	void action(cpp::typename_specifier* symbol, const SemaTypenameSpecifierResult& walker)
 	{
 		type = walker.type;
 		addDependent(typeDependent, type);
@@ -3657,7 +3657,7 @@ struct ExplicitTypeExpressionWalker : public WalkerBase
 		addDependent(typeDependent, type);
 	}
 	SEMA_POLICY(cpp::new_type, SemaPolicyPush<struct NewTypeWalker>)
-	void action(cpp::new_type* symbol, const NewTypeResult& walker)
+	void action(cpp::new_type* symbol, const SemaNewTypeResult& walker)
 	{
 		type = walker.type;
 		addDependent(typeDependent, type);
@@ -6025,12 +6025,12 @@ struct ElaboratedTypeSpecifierWalker : public WalkerQualified
 	}
 };
 
-struct TypenameSpecifierWalker : public WalkerQualified, TypenameSpecifierResult
+struct TypenameSpecifierWalker : public WalkerQualified, SemaTypenameSpecifierResult
 {
 	SEMA_BOILERPLATE;
 
 	TypenameSpecifierWalker(const WalkerState& state)
-		: WalkerQualified(state), TypenameSpecifierResult(context)
+		: WalkerQualified(state), SemaTypenameSpecifierResult(context)
 	{
 	}
 
@@ -6068,7 +6068,7 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 {
 	SEMA_BOILERPLATE;
 
-	DeclSpecifierSeq seq;
+	SemaDeclSpecifierSeqResult seq;
 	unsigned fundamental;
 	Once committed;
 	DeclSpecifierSeqWalker(const WalkerState& state)
@@ -6105,7 +6105,7 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 		seq.type = walker.type;
 	}
 	SEMA_POLICY(cpp::typename_specifier, SemaPolicyPush<struct TypenameSpecifierWalker>)
-	void action(cpp::typename_specifier* symbol, const TypenameSpecifierResult& walker)
+	void action(cpp::typename_specifier* symbol, const SemaTypenameSpecifierResult& walker)
 	{
 		seq.type = walker.type;
 	}
@@ -6468,12 +6468,12 @@ struct TypeIdWalker : public WalkerBase, SemaTypeIdResult
 	}
 };
 
-struct NewTypeWalker : public WalkerBase, NewTypeResult
+struct NewTypeWalker : public WalkerBase, SemaNewTypeResult
 {
 	SEMA_BOILERPLATE;
 
 	NewTypeWalker(const WalkerState& state)
-		: WalkerBase(state), NewTypeResult(context)
+		: WalkerBase(state), SemaNewTypeResult(context)
 	{
 	}
 	void action(cpp::terminal<boost::wave::T_OPERATOR> symbol) 
@@ -6566,7 +6566,7 @@ struct DeclarationSuffixWalker : public WalkerBase
 	DeclarationWalkerArgs args;
 
 	// prefix
-	const DeclSpecifierSeq& seq;
+	const SemaDeclSpecifierSeqResult& seq;
 
 	// declarator
 	TypeId type;
@@ -6581,7 +6581,7 @@ struct DeclarationSuffixWalker : public WalkerBase
 	CvQualifiers conversionFunctionQualifiers;
 
 
-	DeclarationSuffixWalker(const WalkerState& state, DeclarationWalkerArgs args, const DeclSpecifierSeq& seq) : WalkerBase(state),
+	DeclarationSuffixWalker(const WalkerState& state, DeclarationWalkerArgs args, const SemaDeclSpecifierSeqResult& seq) : WalkerBase(state),
 		args(args),
 		seq(seq),
 		type(0, context),
@@ -6858,7 +6858,7 @@ struct SimpleDeclarationWalker : public WalkerBase, SemaSimpleDeclarationResult
 	DeclarationWalkerArgs args;
 
 	// prefix
-	DeclSpecifierSeq seq;
+	SemaDeclSpecifierSeqResult seq;
 
 	SimpleDeclarationWalker(const WalkerState& state, DeclarationWalkerArgs args = DeclarationWalkerArgs())
 		: WalkerBase(state), args(args), seq(&gCtor, context)
@@ -6885,7 +6885,7 @@ struct SimpleDeclarationWalker : public WalkerBase, SemaSimpleDeclarationResult
 			seq.specifiers.isExplicit = true;
 		}
 	}
-	typedef Args2<DeclarationWalkerArgs, const DeclSpecifierSeq&> DeclarationSuffixWalkerArgs;
+	typedef Args2<DeclarationWalkerArgs, const SemaDeclSpecifierSeqResult&> DeclarationSuffixWalkerArgs;
 	typedef SemaPolicyGeneric<SemaPush<DeclarationSuffixWalker, CommitNull, DeclarationSuffixWalkerArgs> > SemaPolicyDeclarationSuffix;
 	SEMA_POLICY_ARGS(cpp::simple_declaration_named, SemaPolicyDeclarationSuffix, DeclarationSuffixWalkerArgs(args, seq))
 	void action(cpp::simple_declaration_named* symbol, const DeclarationSuffixWalker& walker)
