@@ -2742,6 +2742,57 @@ Inner makeInnerWalker(WalkerType& walker, const SemaPush<Inner, Args2<A1, A2> >&
 	return Inner(walker.getState(), args.a1, args.a2);
 }
 
+
+template<typename T, T m>
+struct SfinaeNonType
+{
+	typedef void Type;
+};
+
+template<typename T, typename U = void>
+struct HasCommit
+{
+	static const bool value = false;
+};
+
+template<typename T>
+struct HasCommit<T, typename SfinaeNonType<void(T::*)(), &T::commitTest>::Type>
+{
+	static const bool value = true;
+};
+
+template<typename WalkerType, typename Inner, typename Args>
+typename EnableIf<!HasCommit<WalkerType>::value>::Type
+	conditionalCommit(WalkerType& walker, const SemaPush<Inner, Args>& inner)
+{
+	// do nothing, no commit()
+}
+
+template<typename WalkerType, typename Inner, typename Args>
+typename EnableIf<HasCommit<WalkerType>::value>::Type
+	conditionalCommit(WalkerType& walker, const SemaPush<Inner, Args>& inner)
+{
+	walker.commitTest(); // TODO: experimental, disabled
+}
+
+struct Once
+{
+	bool done;
+	Once()
+		: done(false)
+	{
+	}
+	void operator()()
+	{
+		SEMANTIC_ASSERT(!done);
+		done = true;
+	}
+	void test()
+	{
+		SEMANTIC_ASSERT(done);
+	}
+};
+
 struct SemaIdentity
 {
 	typedef SemaIdentity ArgsType;
@@ -2751,6 +2802,12 @@ template<typename WalkerType>
 WalkerType& makeInnerWalker(WalkerType& walker, const SemaIdentity&)
 {
 	return walker;
+}
+
+template<typename WalkerType>
+void conditionalCommit(WalkerType& walker, const SemaIdentity& inner)
+{
+	// do nothing
 }
 
 struct Nothing
@@ -3113,6 +3170,7 @@ struct TemplateArgumentListWalker : public WalkerBase
 
 	TemplateArgument argument;
 	TemplateArguments arguments;
+	Once committed;
 
 	TemplateArgumentListWalker(const WalkerState& state)
 		: WalkerBase(state), argument(context), arguments(context)
@@ -3121,12 +3179,14 @@ struct TemplateArgumentListWalker : public WalkerBase
 	}
 	void commit()
 	{
+		committed();
 		arguments.push_front(argument); // allocates last element first!
 	}
 	SEMA_POLICY(cpp::type_id, SemaPolicyPush<TypeIdWalker>)
 	void action(cpp::type_id* symbol, TypeIdWalker& walker)
 	{
 		walker.commit();
+		walker.committed.test();
 		argument.type.swap(walker.type);
 		argument.source = getLocation();
 	}
@@ -3148,6 +3208,7 @@ struct TemplateArgumentListWalker : public WalkerBase
 	void action(cpp::template_argument_list* symbol, TemplateArgumentListWalker& walker)
 	{
 		walker.commit();
+		walker.committed.test();
 		arguments.swap(walker.arguments);
 	}
 };
@@ -3328,6 +3389,7 @@ struct UnqualifiedIdWalker : public WalkerBase
 	void action(cpp::conversion_function_id* symbol, TypeIdWalker& walker)
 	{
 		walker.commit();
+		walker.committed.test();
 		symbol->value = gConversionFunctionId;
 		id = &symbol->value;
 		if(allowNameLookup())
@@ -3556,6 +3618,7 @@ struct ExplicitTypeExpressionWalker : public WalkerBase
 	void action(cpp::type_id* symbol, TypeIdWalker& walker)
 	{
 		walker.commit();
+		walker.committed.test();
 		type.swap(walker.type);
 		addDependent(typeDependent, type);
 	}
@@ -3818,6 +3881,7 @@ struct TypeTraitsIntrinsicWalker : public WalkerBase
 	void action(cpp::type_id* symbol, TypeIdWalker& walker)
 	{
 		walker.commit();
+		walker.committed.test();
 		addDependent(valueDependent, walker.type);
 
 		UniqueTypeWrapper type = UniqueTypeWrapper(walker.type.unique);
@@ -4141,6 +4205,7 @@ struct SizeofTypeExpressionWalker : public WalkerBase
 	void action(cpp::type_id* symbol, TypeIdWalker& walker)
 	{
 		walker.commit();
+		walker.committed.test();
 		// [temp.dep.expr] Expressions of the following form [sizeof(T)] are never type-dependent (because the type of the expression cannot be dependent)
 		// [temp.dep.constexpr] Expressions of the following form [sizeof(T)] are value-dependent if ... the type-id is dependent
 		addDependent(valueDependent, walker.type);
@@ -5980,6 +6045,7 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 
 	DeclSpecifierSeq seq;
 	unsigned fundamental;
+	Once committed;
 	DeclSpecifierSeqWalker(const WalkerState& state)
 		: WalkerBase(state), seq(0, context), fundamental(0)
 	{
@@ -5987,6 +6053,7 @@ struct DeclSpecifierSeqWalker : public WalkerBase
 
 	void commit()
 	{
+		committed();
 		declareEts(seq.type, seq.forward);
 	}
 
@@ -6340,6 +6407,7 @@ struct TypeIdWalker : public WalkerBase
 	SEMA_BOILERPLATE;
 
 	TypeId type;
+	Once committed;
 	TypeIdWalker(const WalkerState& state)
 		: WalkerBase(state), type(0, context)
 	{
@@ -6347,6 +6415,7 @@ struct TypeIdWalker : public WalkerBase
 	// called when parse of type-id is complete (necessary because trailing abstract-declarator is optional)
 	void commit()
 	{
+		committed();
 		makeUniqueTypeSafe(type);
 	}
 	void action(cpp::terminal<boost::wave::T_OPERATOR> symbol) // conversion_function_id
@@ -6356,6 +6425,7 @@ struct TypeIdWalker : public WalkerBase
 	void action(cpp::type_specifier_seq* symbol, DeclSpecifierSeqWalker& walker)
 	{
 		walker.commit();
+		walker.committed.test();
 		type.swap(walker.seq.type);
 		type.qualifiers = walker.seq.qualifiers;
 	}
@@ -6394,6 +6464,7 @@ struct NewTypeWalker : public WalkerBase
 	void action(cpp::type_specifier_seq* symbol, DeclSpecifierSeqWalker& walker)
 	{
 		walker.commit();
+		walker.committed.test();
 		type.swap(walker.seq.type);
 		type.qualifiers = walker.seq.qualifiers;
 	}
@@ -6635,7 +6706,7 @@ struct DeclarationSuffixWalker : public WalkerBase
 		// NOTE: we must ensure that symbol-table modifications within the scope of this function are undone on parse fail
 		pushScope(newScope(enclosing->getUniqueName(), SCOPETYPE_LOCAL));
 	}
-	void action(cpp::terminal<boost::wave::T_COMMA> symbol) // mem_initializer_list (unintended), init_declarator_list, member_declarator_list, member_declaration_bitfield
+	void action(cpp::terminal<boost::wave::T_COMMA> symbol) // init_declarator_list, member_declarator_list, member_declaration_bitfield
 	{
 		commit();
 	}
@@ -6749,11 +6820,13 @@ struct DeclarationSuffixWalker : public WalkerBase
 	SEMA_POLICY(cpp::parameter_declaration_default, SemaPolicyIdentity)
 	void action(cpp::parameter_declaration_default* symbol)
 	{
+		commit();
 		defaultArgument = symbol->init;
 	}
 	SEMA_POLICY(cpp::parameter_declaration_abstract, SemaPolicyIdentity)
 	void action(cpp::parameter_declaration_abstract* symbol)
 	{
+		commit();
 		defaultArgument = symbol->init;
 	}
 };
@@ -6802,42 +6875,36 @@ struct SimpleDeclarationWalker : public WalkerBase
 	SEMA_POLICY_ARGS(cpp::simple_declaration_named, SemaPolicyDeclarationSuffix, DeclarationSuffixWalkerArgs(args, seq))
 	void action(cpp::simple_declaration_named* symbol, DeclarationSuffixWalker& walker)
 	{
-		walker.commit();
 		SEMANTIC_ASSERT(walker.type.declaration != 0);
 		declaration = walker.declaration;
 	}
 	SEMA_POLICY_ARGS(cpp::member_declaration_named, SemaPolicyDeclarationSuffix, DeclarationSuffixWalkerArgs(args, seq))
 	void action(cpp::member_declaration_named* symbol, DeclarationSuffixWalker& walker)
 	{
-		walker.commit();
 		SEMANTIC_ASSERT(walker.type.declaration != 0);
 		declaration = walker.declaration;
 	}
 	SEMA_POLICY_ARGS(cpp::member_declaration_bitfield, SemaPolicyDeclarationSuffix, DeclarationSuffixWalkerArgs(args, seq))
 	void action(cpp::member_declaration_bitfield* symbol, DeclarationSuffixWalker& walker)
 	{
-		walker.commit();
 		SEMANTIC_ASSERT(walker.type.declaration != 0);
 		declaration = walker.declaration;
 	}
 	SEMA_POLICY_ARGS(cpp::parameter_declaration_suffix, SemaPolicyDeclarationSuffix, DeclarationSuffixWalkerArgs(args, seq))
 	void action(cpp::parameter_declaration_suffix* symbol, DeclarationSuffixWalker& walker) // parameter_declaration
 	{
-		walker.commit();
 		declaration = walker.declaration;
 		defaultArgument = walker.defaultArgument;
 	}
 	SEMA_POLICY_ARGS(cpp::function_definition, SemaPolicyDeclarationSuffix, DeclarationSuffixWalkerArgs(args, seq))
 	void action(cpp::function_definition* symbol, DeclarationSuffixWalker& walker) // constructor_definition
 	{
-		walker.commit();
 		SEMANTIC_ASSERT(walker.type.declaration != 0);
 		declaration = walker.declaration;
 	}
 	SEMA_POLICY_ARGS(cpp::condition_declarator, SemaPolicyDeclarationSuffix, DeclarationSuffixWalkerArgs(args, seq))
 	void action(cpp::condition_declarator* symbol, DeclarationSuffixWalker& walker) // condition
 	{
-		walker.commit();
 		declaration = walker.declaration;
 	}
 	SEMA_POLICY_ARGS(cpp::exception_declarator, SemaPolicyDeclarationSuffix, DeclarationSuffixWalkerArgs(args, seq))
@@ -6946,12 +7013,14 @@ struct TypeParameterWalker : public WalkerBase
 	TemplateArgument argument; // the default argument for this param
 	TemplateParameters params; // the template parameters for this param (if template-template-param)
 	size_t templateParameter;
+	Once committed;
 	TypeParameterWalker(const WalkerState& state, size_t templateParameter)
 		: WalkerBase(state), param(context), id(&gAnonymousId), argument(context), params(context), templateParameter(templateParameter)
 	{
 	}
 	void commit()
 	{
+		committed();
 		SEMANTIC_ASSERT(param.declaration == 0); // may only be called once, after parse of type-parameter succeeds
 		DeclarationInstanceRef instance = pointOfDeclaration(context, enclosing, *id, TYPE_PARAM, 0, DECLSPEC_TYPEDEF, !params.empty(), params, false, TEMPLATEARGUMENTS_NULL, templateParameter);
 #ifdef ALLOCATOR_DEBUG
@@ -6976,6 +7045,7 @@ struct TypeParameterWalker : public WalkerBase
 	{
 		SEMANTIC_ASSERT(params.empty());
 		walker.commit();
+		walker.committed.test();
 		argument.type.swap(walker.type);
 	}
 	SEMA_POLICY(cpp::template_parameter_clause, SemaPolicyPush<TemplateParameterClauseWalker>)
@@ -7007,18 +7077,21 @@ struct TemplateParameterListWalker : public WalkerBase
 	TemplateParameter param; // internal state
 	TemplateParameters params; // result
 	size_t count; // internal state
+	Once committed;
 	TemplateParameterListWalker(const WalkerState& state, size_t count)
 		: WalkerBase(state), param(context), params(context), count(count)
 	{
 	}
 	void commit()
 	{
+		committed();
 		params.push_front(param);
 	}
 	SEMA_POLICY_ARGS(cpp::type_parameter_default, SemaPolicyPushIndex<TypeParameterWalker>, count)
 	void action(cpp::type_parameter_default* symbol, TypeParameterWalker& walker)
 	{
 		walker.commit();
+		walker.committed.test();
 		param.swap(walker.param);
 		++count;
 	}
@@ -7026,6 +7099,7 @@ struct TemplateParameterListWalker : public WalkerBase
 	void action(cpp::type_parameter_template* symbol, TypeParameterWalker& walker)
 	{
 		walker.commit();
+		walker.committed.test();
 		param.swap(walker.param);
 		++count;
 	}
@@ -7046,6 +7120,7 @@ struct TemplateParameterListWalker : public WalkerBase
 	void action(cpp::template_parameter_list* symbol, TemplateParameterListWalker& walker)
 	{
 		walker.commit();
+		walker.committed.test();
 		params.swap(walker.params);
 	}
 };
@@ -7072,6 +7147,7 @@ struct TemplateParameterClauseWalker : public WalkerBase
 	void action(cpp::template_parameter_list* symbol, TemplateParameterListWalker& walker)
 	{
 		walker.commit();
+		walker.committed.test();
 		params.swap(walker.params);
 	}
 };

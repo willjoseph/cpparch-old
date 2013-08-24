@@ -1175,7 +1175,6 @@ inline T* addDeferredParse(Parser& parser, ListType& deferred, ContextType& walk
 }
 
 
-
 template<typename WalkerType>
 class ParserGeneric : public ParserOpaque
 {
@@ -1286,22 +1285,22 @@ public:
 		return ::addDeferredParse(*this, Defer::getDeferredSymbolsList(walker), walker, Defer::getSkipFunc(walker), symbol);
 	}
 
-	template<typename T, typename Inner, typename Annotate, typename Action, typename Cache, typename Defer>
-	T* visit(WalkerType& walker, T* symbol, const Inner& innerConst, const Annotate&, const Action& action, const Cache& cache, const Defer& defer)
+	template<typename T, typename InnerWalker, typename Inner, typename Annotate, typename Action, typename Cache, typename Defer>
+	T* visit(WalkerType& walker, T* symbol, const InnerWalker& innerConst, const Inner& inner, const Annotate&, const Action& action, const Cache& cache, const Defer& defer)
 	{
-		Inner& inner = *const_cast<Inner*>(&innerConst); // 'innerConst' is a temporary with lifetime longer than this function.
-		ParserGeneric<Inner>& innerParser = getParser(inner, this);
+		InnerWalker& innerWalker = *const_cast<InnerWalker*>(&innerConst); // 'innerConst' is a temporary with lifetime longer than this function.
+		ParserGeneric<InnerWalker>& innerParser = getParser(innerWalker, this);
 		typename Annotate::Data data = Annotate::makeData(*context.position);
-		if(innerParser.isDeferredParse(defer, inner)) // if the parse of this symbol is to be deferred (e.g. body of an inline member function)
+		if(innerParser.isDeferredParse(defer, innerWalker)) // if the parse of this symbol is to be deferred (e.g. body of an inline member function)
 		{
-			symbol = innerParser.addDeferredParse(defer, inner, symbol); // skip the tokens that comprise the symbol, add an entry to the appropriate deferred parse list
+			symbol = innerParser.addDeferredParse(defer, innerWalker, symbol); // skip the tokens that comprise the symbol, add an entry to the appropriate deferred parse list
 			if(symbol == 0)
 			{
 				return 0; // indicate that the symbol was not matched because there were no tokens to skip (e.g. empty function body)
 			}
 		}
 		// if enabled, check whether the symbol was previously found by a failed production that shares the same prefix
-		else if(!innerParser.cacheLookup(cache, symbol, inner)) // if found, skip the tokens that comprise the symbol, and restore state of both symbol and inner!
+		else if(!innerParser.cacheLookup(cache, symbol, innerWalker)) // if found, skip the tokens that comprise the symbol, and restore state of both symbol and innerWalker!
 		{
 			CachedSymbols::Key key = context.position; // record the location of the symbol we are about to parse
 			symbol = makeParser(symbol).parseSymbol(innerParser, symbol);
@@ -1310,10 +1309,11 @@ public:
 				return 0;
 			}
 			symbol = parseHit(*this, symbol); // if the parse succeeded, return a persistent version of the symbol.
-			innerParser.cacheStore(cache, key, symbol, inner); // if enabled, save the state of both symbol and inner for later re-use
+			conditionalCommit(innerWalker, inner); // if the inner sema object's lifetime is about to end, call commit() if exists.
+			innerParser.cacheStore(cache, key, symbol, innerWalker); // if enabled, save the state of both symbol and innerWalker for later re-use
 		}
 		// Report success if the parse was successful and the current walker's associated semantic action also passed.
-		bool success = Action::invokeAction(walker, symbol, inner);
+		bool success = Action::invokeAction(walker, symbol, innerWalker);
 		if(success)
 		{
 			Annotate::annotate(symbol, data);
@@ -1340,6 +1340,7 @@ public:
 		// Try to parse the symbol using the inner walker.
 		T* result = tmp.visit(walker, holder.get(),
 			makeInnerWalker(walker, walker.makePolicy(NULLPTR(T)).getInnerPolicy()),
+			walker.makePolicy(NULLPTR(T)).getInnerPolicy(),
 			walker.makePolicy(NULLPTR(T)).getAnnotatePolicy(),
 			walker.makePolicy(NULLPTR(T)).getActionPolicy(),
 			walker.makePolicy(NULLPTR(T)).getCachePolicy(),

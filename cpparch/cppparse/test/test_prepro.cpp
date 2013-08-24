@@ -1,4 +1,20 @@
 
+namespace N144
+{
+	template<typename T>
+	struct S
+	{
+		const T i : 1,
+j : 1,
+	: 1; // all three declarations have a dependent type
+		void f()
+		{
+			dependent(i);
+			dependent(j);
+		}
+	};
+}
+
 
 namespace N157
 {

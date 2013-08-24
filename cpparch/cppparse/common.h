@@ -174,6 +174,20 @@ typename Caller::Result makeCallback(Caller caller)
 }
 
 
+
+
+template<bool, typename = void>
+struct EnableIf
+{
+};
+
+template<typename T>
+struct EnableIf<true, T>
+{
+	typedef T Type;
+};
+
+
 #endif
 
 
