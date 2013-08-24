@@ -821,6 +821,7 @@ described for lookup in namespace member function definitions.
 
 - investigate: refactor Walker to allow splitting across multiple files
 	- eliminate circular dependency between all walker types?
+		- commit() requires knowing complete type of walker
 	- refactor visit methods, split up?
 	- declare out of line? nonmember?
 		- moves related code apart: definition of walker state vs code using the state

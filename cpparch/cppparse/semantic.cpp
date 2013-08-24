@@ -2668,6 +2668,12 @@ struct Args2
 };
 
 
+template<typename WalkerType>
+WalkerType& getWalkerResult(WalkerType& walker)
+{
+	return walker;
+}
+
 struct InvokeChecked
 {
 	template<typename WalkerType, typename T, typename Result>
@@ -2692,7 +2698,7 @@ struct InvokeCheckedResult
 	template<typename WalkerType, typename T, typename Result>
 	static bool invokeAction(WalkerType& walker, T* symbol, Result& result)
 	{
-		return walker.action(symbol, result);
+		return walker.action(symbol, getWalkerResult(result));
 	}
 };
 
@@ -2701,7 +2707,7 @@ struct InvokeUncheckedResult
 	template<typename WalkerType, typename T, typename Result>
 	static bool invokeAction(WalkerType& walker, T* symbol, Result& result)
 	{
-		walker.action(symbol, result);
+		walker.action(symbol, getWalkerResult(result));
 		return true;
 	}
 };
@@ -2980,6 +2986,7 @@ struct SemaPolicyPushDeferred : SemaPolicyGeneric<SemaPush<WalkerType, Args0>, A
 
 
 
+
 #define SEMA_POLICY(Symbol, Policy) \
 	SEMA_INLINE Policy makePolicy(Symbol*) \
 	{ \
@@ -3046,8 +3053,10 @@ struct SemaPolicyParameterDeclaration : SemaPolicyGeneric<SemaPush<WalkerType, A
 	}
 };
 
+#if 1
 struct Walker
 {
+#endif
 	struct NamespaceNameWalker;
 	struct TemplateArgumentListWalker;
 	struct OverloadableOperatorWalker;
@@ -6446,6 +6455,13 @@ struct TypeIdWalker : public WalkerBase
 	}
 };
 
+#if 0
+TypeId& getWalkerResult(TypeIdWalker& walker)
+{
+	return walker.type;
+}
+#endif
+
 struct NewTypeWalker : public WalkerBase
 {
 	SEMA_BOILERPLATE;
@@ -7316,7 +7332,10 @@ struct NamespaceWalker : public WalkerBase
 	}
 };
 
+
+#if 1
 };
+#endif
 
 
 
