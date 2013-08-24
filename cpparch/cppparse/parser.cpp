@@ -140,7 +140,7 @@ struct ContextTest
 			result = symbol;
 #elif 1
 			DefaultContext walker(*this);
-			defer(*ContextDefer::deferred, walker, makeSkipParenthesised(DeclareEts(walker)), symbol);
+			addDeferredParse(*ContextDefer::deferred, walker, makeSkipParenthesised(DeclareEts(walker)), symbol);
 			result = symbol; // always succeeds!
 #else
 			ScopedSkip<skipParenthesised> skip(*parser);
@@ -155,7 +155,7 @@ struct ContextTest
 			result = symbol;
 #elif 1
 			DefaultContext walker(*this);
-			result = defer(*ContextDefer::deferred, walker, skipMemInitializerClause, symbol);
+			result = addDeferredParse(*ContextDefer::deferred, walker, skipMemInitializerClause, symbol);
 #else
 			ScopedSkip<skipMemInitializerClause> skip(*parser);
 			DefaultContext walker(*this);
@@ -178,7 +178,7 @@ struct ContextTest
 			result = symbol;
 #elif 1
 			DefaultContext walker(*this);
-			result = defer(*ContextDefer::deferred, walker, skipBraced, symbol);
+			result = addDeferredParse(*ContextDefer::deferred, walker, skipBraced, symbol);
 #else
 			ScopedSkip<skipBraced> skip(*parser);
 			DefaultContext walker(*this);

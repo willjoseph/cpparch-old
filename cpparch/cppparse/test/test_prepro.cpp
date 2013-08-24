@@ -1,5 +1,23 @@
 
 
+namespace N157
+{
+	template<class R>
+	struct S
+	{
+	};
+	template<>
+	struct S<void()>
+	{
+	};
+	template<>
+	struct S<void(...)>
+	{
+	};
+
+	S<void()> s;
+}
+
 namespace N116
 {
 	struct S

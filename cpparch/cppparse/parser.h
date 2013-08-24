@@ -1112,94 +1112,126 @@ struct CachedWalk
 typedef CachedLeaf<false> DisableCache;
 typedef CachedLeaf<true> EnableCache;
 
-template<typename Inner, typename Invoke, typename Cache = DisableCache, typename Args = Args0>
-struct WalkerArgs : Invoke, Cache, Args
+struct DeferDefault
 {
-	WalkerArgs(Args args)
+	template<typename WalkerType>
+	static bool isDeferred(WalkerType& walker)
+	{
+		return false;
+	}
+	template<typename WalkerType, typename T>
+	static T* addDeferred(WalkerType& walker, T* symbol)
+	{
+		return 0;
+	}
+};
+
+
+template<typename Inner, typename Invoke = InvokeUncheckedResult, typename Cache = DisableCache, typename Args = Args0>
+struct SemaPolicyPushGeneric : Invoke, Cache, Args, DeferDefault
+{
+	SemaPolicyPushGeneric(Args args)
 		: Args(args)
 	{
 	}
 };
 
 template<typename Inner, typename Invoke, typename Cache>
-struct WalkerArgs<Inner, Invoke, Cache, Args0> : Invoke, Cache
+struct SemaPolicyPushGeneric<Inner, Invoke, Cache, Args0> : Invoke, Cache, DeferDefault
 {
 };
 
 template<typename WalkerType, typename Invoke, typename Inner, typename Cache>
-Inner makeWalker(WalkerType& walker, WalkerArgs<Inner, Invoke, Cache, Args0> args)
+Inner makeWalker(WalkerType& walker, SemaPolicyPushGeneric<Inner, Invoke, Cache, Args0> args)
 {
 	return Inner(walker.getState());
 }
 
 template<typename WalkerType, typename Invoke, typename Inner, typename Cache, typename A1>
-Inner makeWalker(WalkerType& walker, WalkerArgs<Inner, Invoke, Cache, Args1<A1> > args)
+Inner makeWalker(WalkerType& walker, SemaPolicyPushGeneric<Inner, Invoke, Cache, Args1<A1> > args)
 {
 	return Inner(walker.getState(), args.a1);
 }
 
 template<typename WalkerType, typename Invoke, typename Inner, typename Cache, typename A1, typename A2>
-Inner makeWalker(WalkerType& walker, WalkerArgs<Inner, Invoke, Cache, Args2<A1, A2> > args)
+Inner makeWalker(WalkerType& walker, SemaPolicyPushGeneric<Inner, Invoke, Cache, Args2<A1, A2> > args)
 {
 	return Inner(walker.getState(), args.a1, args.a2);
 }
 
 template<typename Invoke, typename Cache = DisableCache>
-struct WalkerPassThrough : Invoke, Cache
+struct SemaPolicyIdentity : Invoke, Cache, DeferDefault
 {
 };
 
 
 template<typename WalkerType, typename Invoke, typename Cache>
-WalkerType& makeWalker(WalkerType& walker, WalkerPassThrough<Invoke, Cache>)
+WalkerType& makeWalker(WalkerType& walker, SemaPolicyIdentity<Invoke, Cache>)
 {
 	return walker;
 }
 
+#ifdef _WIN32
+#define PARSER_INLINE __forceinline 
+#endif
 
 #define TREEWALKER_POLICY(Symbol, Policy) \
-	Policy makePolicy(Symbol*) \
+	PARSER_INLINE Policy makePolicy(Symbol*) \
 	{ \
 		return Policy(); \
 	}
 
 #define TREEWALKER_POLICY_ARGS(Symbol, Policy, args) \
-	Policy makePolicy(Symbol*) \
+	PARSER_INLINE Policy makePolicy(Symbol*) \
 	{ \
 		return Policy(args); \
 	}
 
 
-typedef WalkerPassThrough<InvokeUnchecked> TreeWalkerLeaf;
-typedef WalkerPassThrough<InvokeChecked> TreeWalkerLeafChecked;
-typedef WalkerPassThrough<InvokeUnchecked, EnableCache> TreeWalkerLeafCached;
-typedef WalkerPassThrough<InvokeChecked, EnableCache> TreeWalkerLeafCachedChecked;
+typedef SemaPolicyIdentity<InvokeUnchecked> TreeWalkerLeaf;
+typedef SemaPolicyIdentity<InvokeChecked> TreeWalkerLeafChecked;
+typedef SemaPolicyIdentity<InvokeUnchecked, EnableCache> TreeWalkerLeafCached;
+typedef SemaPolicyIdentity<InvokeChecked, EnableCache> TreeWalkerLeafCachedChecked;
 template<typename WalkerType>
-struct TreeWalkerWalk : WalkerArgs<WalkerType, InvokeUncheckedResult> {};
+struct TreeWalkerWalk : SemaPolicyPushGeneric<WalkerType, InvokeUncheckedResult> {};
 template<typename WalkerType>
-struct TreeWalkerWalkChecked : WalkerArgs<WalkerType, InvokeCheckedResult> {};
+struct TreeWalkerWalkChecked : SemaPolicyPushGeneric<WalkerType, InvokeCheckedResult> {};
 template<typename WalkerType>
-struct TreeWalkerWalkCached : WalkerArgs<WalkerType, InvokeUncheckedResult, CachedWalk> {};
+struct TreeWalkerWalkCached : SemaPolicyPushGeneric<WalkerType, InvokeUncheckedResult, CachedWalk> {};
 template<typename WalkerType>
-struct TreeWalkerWalkCachedChecked : WalkerArgs<WalkerType, InvokeCheckedResult, CachedWalk> {};
+struct TreeWalkerWalkCachedChecked : SemaPolicyPushGeneric<WalkerType, InvokeCheckedResult, CachedWalk> {};
 template<typename WalkerType>
-struct TreeWalkerWalkBool : WalkerArgs<WalkerType, InvokeUncheckedResult, DisableCache, Args1<bool> >
+struct TreeWalkerWalkBool : SemaPolicyPushGeneric<WalkerType, InvokeUncheckedResult, DisableCache, Args1<bool> >
 {
-	TreeWalkerWalkBool(bool value) : WalkerArgs(Args1<bool>(value))
+	TreeWalkerWalkBool(bool value) : SemaPolicyPushGeneric(Args1<bool>(value))
 	{
 	}
 };
 template<typename WalkerType>
-struct TreeWalkerWalkBoolChecked : WalkerArgs<WalkerType, InvokeCheckedResult, DisableCache, Args1<bool> >
+struct TreeWalkerWalkBoolChecked : SemaPolicyPushGeneric<WalkerType, InvokeCheckedResult, DisableCache, Args1<bool> >
 {
-	TreeWalkerWalkBoolChecked(bool value) : WalkerArgs(Args1<bool>(value))
+	TreeWalkerWalkBoolChecked(bool value) : SemaPolicyPushGeneric(Args1<bool>(value))
 	{
 	}
 };
 template<typename WalkerType>
-struct TreeWalkerWalkIndex : WalkerArgs<WalkerType, InvokeUncheckedResult, DisableCache, Args1<std::size_t> >
+struct TreeWalkerWalkBoolCached : SemaPolicyPushGeneric<WalkerType, InvokeUncheckedResult, CachedWalk, Args1<bool> >
 {
-	TreeWalkerWalkIndex(std::size_t value) : WalkerArgs(Args1<std::size_t>(value))
+	TreeWalkerWalkBoolCached(bool value) : SemaPolicyPushGeneric(Args1<bool>(value))
+	{
+	}
+};
+template<typename WalkerType>
+struct TreeWalkerWalkBoolCachedChecked : SemaPolicyPushGeneric<WalkerType, InvokeCheckedResult, CachedWalk, Args1<bool> >
+{
+	TreeWalkerWalkBoolCachedChecked(bool value) : SemaPolicyPushGeneric(Args1<bool>(value))
+	{
+	}
+};
+template<typename WalkerType>
+struct TreeWalkerWalkIndex : SemaPolicyPushGeneric<WalkerType, InvokeUncheckedResult, DisableCache, Args1<std::size_t> >
+{
+	TreeWalkerWalkIndex(std::size_t value) : SemaPolicyPushGeneric(Args1<std::size_t>(value))
 	{
 	}
 };
@@ -1266,37 +1298,43 @@ public:
 			WalkerType& walker = getWalker();
 			ParserOpaque* tmp = walker.parser;
 			walker.parser = this; // pass parser as hidden argument to WalkerType::visit 
-			walker.visit(t);
+			walker.action(t);
 			walker.parser = tmp;
 		}
 		return result;
 	}
 
-	ParserGeneric& getParser(WalkerType& walker)
+	template<typename Inner>
+	ParserGeneric<Inner>& getParser(Inner& walker)
 	{
 		this->walker = &walker;  // pass walker as hidden argument to parseSymbol
-		return *this;
+		return *static_cast<ParserGeneric<Inner>*>(static_cast<ParserOpaque*>(this));
 	}
 
 	template<typename T, typename Policy>
 	WalkerType* parseSymbolTmp(T*& symbol, Policy)
 	{
 		WalkerType& walker = getWalker();
-		if(Policy::isCached
-			&& cacheLookup(symbol, Policy::getCachedWalker(walker)))
+		if(Policy::isDeferred(walker)) // if the parse of this symbol is to be deferred (e.g. body of an inline member function)
 		{
-			return &walker;
+			symbol = Policy::addDeferred(walker, symbol); // skip the tokens that comprise the symbol, add an entry to the appropriate deferred parse list
+			return symbol == 0 ? 0 : &walker; // null indicates that the symbol was not matched because there were no tokens to skip (e.g. empty function body)
+		}
+		if(Policy::isCached // if enabled, check whether the symbol was previously found by a failed production that shares the same prefix
+			&& cacheLookup(symbol, Policy::getCachedWalker(walker))) // if found, skip the tokens that comprise the symbol, and restore state of both symbol and walker!
+		{
+			return &walker; // indicate that we matched this symbol
 		}
 		CachedSymbols::Key key = context.position;
 		symbol = makeParser(symbol).parseSymbol(*this, symbol);
 		if(symbol != 0)
 		{
 			symbol = parseHit(*this, symbol); // if the parse succeeded, return a persistent version of the symbol.
-			if(Policy::isCached)
+			if(Policy::isCached) // if caching is enabled for this symbol
 			{
-				cacheStore(key, symbol, Policy::getCachedWalker(walker));
+				cacheStore(key, symbol, Policy::getCachedWalker(walker)); // save the state of both symbol and walker for later re-use
 			}
-			return &walker;
+			return &walker; // indicate that we matched this symbol
 		}
 		return 0;
 	}
@@ -1783,7 +1821,7 @@ inline void parseDeferred(ListType& deferred, Walker& walker)
 }
 
 template<typename ListType, typename ContextType, typename T, typename Func>
-inline T* defer(ListType& deferred, ContextType& walker, Func skipFunc, T* symbol)
+inline T* addDeferredParse(ListType& deferred, ContextType& walker, Func skipFunc, T* symbol)
 {
 	Parser& parser = *walker.parser;
 	const Token* first = parser.context.position;

@@ -118,9 +118,9 @@ struct Args2
 };
 
 template<typename Inner, bool CHECKED, typename Args = Args0>
-struct WalkerArgs : Args
+struct SemaPolicyPushGeneric : Args
 {
-	WalkerArgs(Args args = Args())
+	SemaPolicyPushGeneric(Args args = Args())
 		: Args(args)
 	{
 	}
@@ -132,9 +132,9 @@ struct WalkerArgs : Args
 };
 
 template<typename Inner, typename Args>
-struct WalkerArgs<Inner, false, Args> : Args
+struct SemaPolicyPushGeneric<Inner, false, Args> : Args
 {
-	WalkerArgs(Args args = Args())
+	SemaPolicyPushGeneric(Args args = Args())
 		: Args(args)
 	{
 	}
@@ -151,25 +151,25 @@ struct WalkerArgs<Inner, false, Args> : Args
 };
 
 template<typename WalkerType, bool CHECKED, typename Inner>
-Inner makeWalker(WalkerType& walker, WalkerArgs<Inner, CHECKED, Args0> args)
+Inner makeWalker(WalkerType& walker, SemaPolicyPushGeneric<Inner, CHECKED, Args0> args)
 {
 	return Inner(walker);
 }
 
 template<typename WalkerType, bool CHECKED, typename Inner, typename A1>
-Inner makeWalker(WalkerType& walker, WalkerArgs<Inner, CHECKED, Args1<A1> > args)
+Inner makeWalker(WalkerType& walker, SemaPolicyPushGeneric<Inner, CHECKED, Args1<A1> > args)
 {
 	return Inner(walker, args.a1);
 }
 
 template<typename WalkerType, bool CHECKED, typename Inner, typename A1, typename A2>
-Inner makeWalker(WalkerType& walker, WalkerArgs<Inner, CHECKED, Args2<A1, A2> > args)
+Inner makeWalker(WalkerType& walker, SemaPolicyPushGeneric<Inner, CHECKED, Args2<A1, A2> > args)
 {
 	return Inner(walker, args.a1, args.a2);
 }
 
 template<bool CHECKED>
-struct WalkerPassThrough
+struct SemaPolicyIdentity
 {
 	template<typename WalkerType, typename T, typename Inner>
 	static bool invokeAction(WalkerType& walker, T* symbol, const Inner* inner)
@@ -179,7 +179,7 @@ struct WalkerPassThrough
 };
 
 template<>
-struct WalkerPassThrough<false>
+struct SemaPolicyIdentity<false>
 {
 	template<typename WalkerType, typename T, typename Inner>
 	static bool invokeAction(WalkerType& walker, T* symbol, const Inner* inner)
@@ -194,7 +194,7 @@ struct WalkerPassThrough<false>
 };
 
 template<typename WalkerType, bool CHECKED>
-WalkerType& makeWalker(WalkerType& walker, WalkerPassThrough<CHECKED>)
+WalkerType& makeWalker(WalkerType& walker, SemaPolicyIdentity<CHECKED>)
 {
 	return walker;
 }
@@ -207,39 +207,39 @@ bool visit(WalkerType& walker, T* symbol)
 }	
 
 #define TREEWALKER_TRY(Symbol) \
-	WalkerPassThrough<false> makePolicy(Symbol*) \
+	SemaPolicyIdentity<false> makePolicy(Symbol*) \
 	{ \
-		return WalkerPassThrough<false>(); \
+		return SemaPolicyIdentity<false>(); \
 	}
 
 #define TREEWALKER_TRY_CHECKED(Symbol) \
-	WalkerPassThrough<true> makePolicy(Symbol*) \
+	SemaPolicyIdentity<true> makePolicy(Symbol*) \
 	{ \
-		return WalkerPassThrough<true>(); \
+		return SemaPolicyIdentity<true>(); \
 	}
 
 #define TREEWALKER_PUSH(Symbol, Walker) \
-	WalkerArgs<Walker, false> makePolicy(Symbol*) \
+	SemaPolicyPushGeneric<Walker, false> makePolicy(Symbol*) \
 	{ \
-		return WalkerArgs<Walker, false>(); \
+		return SemaPolicyPushGeneric<Walker, false>(); \
 	}
 
 #define TREEWALKER_PUSH_ARGS(Symbol, Walker, Args, args) \
-	WalkerArgs<Walker, false, Args > makePolicy(Symbol*) \
+	SemaPolicyPushGeneric<Walker, false, Args > makePolicy(Symbol*) \
 	{ \
-		return WalkerArgs<Walker, false, Args >(Args args); \
+		return SemaPolicyPushGeneric<Walker, false, Args >(Args args); \
 	}
 
 #define TREEWALKER_PUSH_CHECKED(Symbol, Walker) \
-	WalkerArgs<Walker, true> makePolicy(Symbol*) \
+	SemaPolicyPushGeneric<Walker, true> makePolicy(Symbol*) \
 	{ \
-		return WalkerArgs<Walker, true>(); \
+		return SemaPolicyPushGeneric<Walker, true>(); \
 	}
 
 #define TREEWALKER_PUSH_ARGS_CHECKED(Symbol, Walker, Args, args) \
-	WalkerArgs<Walker, true, Args > makePolicy(Symbol*) \
+	SemaPolicyPushGeneric<Walker, true, Args > makePolicy(Symbol*) \
 	{ \
-		return WalkerArgs<Walker, true, Args >(Args args); \
+		return SemaPolicyPushGeneric<Walker, true, Args >(Args args); \
 	}
 
 

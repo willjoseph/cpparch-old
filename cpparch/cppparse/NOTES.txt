@@ -855,6 +855,9 @@ described for lookup in namespace member function definitions.
 			- leaf only: default_argument, statement_seq_wrapper, mem_initializer_clause
 		- source
 		- include-events (declaration)
+		- operator-function source
+
+- task: replace .swap with assignment
 
 - investigate: what's going on with SimpleDeclarationWalker
 	- complex
