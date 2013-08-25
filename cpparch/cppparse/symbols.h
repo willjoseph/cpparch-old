@@ -3193,7 +3193,7 @@ inline bool isDependent(const SimpleType& type);
 inline UniqueTypeWrapper substitute(UniqueTypeWrapper dependent, const InstantiationContext& context);
 
 
-inline const SimpleType* findEnclosingTemplate(const SimpleType* enclosing, Declaration* declaration)
+inline const SimpleType* findEnclosingPrimaryTemplate(const SimpleType* enclosing, Declaration* declaration)
 {
 	Declaration* primary = findPrimaryTemplate(declaration);
 	SYMBOLS_ASSERT(primary->isTemplate);
@@ -3598,7 +3598,7 @@ inline bool isDependent(UniqueTypeWrapper type)
 // ----------------------------------------------------------------------------
 // template argument deduction
 
-inline bool deduce(UniqueTypeWrapper parameter, UniqueTypeWrapper argument, TemplateArgumentsInstance& result, bool allowGreaterCvQualification = false);
+inline bool deduceTemplateArguments(UniqueTypeWrapper parameter, UniqueTypeWrapper argument, TemplateArgumentsInstance& result, bool allowGreaterCvQualification = false);
 
 inline bool deducePairs(const UniqueTypeArray& parameters, const UniqueTypeArray& arguments, TemplateArgumentsInstance& result)
 {
@@ -3609,7 +3609,7 @@ inline bool deducePairs(const UniqueTypeArray& parameters, const UniqueTypeArray
 		// more arguments than parameters: occurs when matching a specialization such as 'struct S<>'
 		++a, ++p)
 	{
-		if(!deduce(*p, *a, result))
+		if(!deduceTemplateArguments(*p, *a, result))
 		{
 			return false;
 		}
@@ -3740,7 +3740,7 @@ struct DeduceVisitor : TypeElementVisitor
 	virtual void visit(const MemberPointerType& element)
 	{
 		SYMBOLS_ASSERT(argument.isMemberPointer());
-		result = deduce(element.type, getMemberPointerType(argument.value).type, templateArguments);
+		result = deduceTemplateArguments(element.type, getMemberPointerType(argument.value).type, templateArguments);
 	}
 	virtual void visit(const FunctionType& element)
 	{
@@ -3873,7 +3873,7 @@ inline void adjustFunctionCallDeductionPair(UniqueTypeWrapper& parameter, Unique
 	}
 }
 
-inline bool deduce(UniqueTypeWrapper parameter, UniqueTypeWrapper argument, TemplateArgumentsInstance& result, bool allowGreaterCvQualification)
+inline bool deduceTemplateArguments(UniqueTypeWrapper parameter, UniqueTypeWrapper argument, TemplateArgumentsInstance& result, bool allowGreaterCvQualification)
 {
 	// [temp.deduct.type]
 	// Template arguments can be deduced in several different contexts, but in each case a type that is specified in
@@ -3957,7 +3957,7 @@ inline bool deduceFunctionCall(const ParameterTypes& parameters, const UniqueTyp
 			UniqueTypeWrapper parameter = *p;
 			UniqueTypeWrapper argument = *a;
 			adjustFunctionCallDeductionPair(parameter, argument, context);
-			if(!deduce(parameter, argument, result, true))
+			if(!deduceTemplateArguments(parameter, argument, result, true))
 			{
 				throw DeductionFailure();
 			}
@@ -6773,11 +6773,11 @@ inline bool isMoreSpecialized(const FunctionTemplate& left, const FunctionTempla
 		// for some set of types and the other template is not more specialized for any types or is not at least as
 		// specialized for any types, then the given template is more specialized than the other template. Otherwise,
 		// neither template is more specialized than the other.
-		if(!deduce(rightType, leftType, rightDeduced)) // if left is not at least as specialized as right
+		if(!deduceTemplateArguments(rightType, leftType, rightDeduced)) // if left is not at least as specialized as right
 		{
 			return false;
 		}
-		if(!deduce(leftType, rightType, leftDeduced)) // if right is not at least as specialized as left
+		if(!deduceTemplateArguments(leftType, rightType, leftDeduced)) // if right is not at least as specialized as left
 		{
 			return true;
 		}

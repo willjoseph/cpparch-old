@@ -2403,281 +2403,6 @@ inline const char* getIdentifierType(IdentifierFunc func)
 }
 
 
-struct SemaBase : public SemaState
-{
-	typedef SemaBase Base;
-
-	SemaBase(SemaContext& context)
-		: SemaState(context)
-	{
-	}
-	SemaBase(const SemaState& state)
-		: SemaState(state)
-	{
-	}
-	Scope* newScope(const Identifier& name, ScopeType type = SCOPETYPE_UNKNOWN)
-	{
-		return allocatorNew(context, Scope(context, name, type));
-	}
-
-	template<typename T>
-	ExpressionWrapper makeExpression(const T& value, bool isConstant = false, bool isTypeDependent = false, bool isValueDependent = false)
-	{
-		ExpressionNode* node = isConstant ? makeUniqueExpression(value) : allocatorNew(context, ExpressionNodeGeneric<T>(value));
-		return ExpressionWrapper(node, isConstant, isTypeDependent, isValueDependent);
-	}
-
-	void addBacktrackCallback(const BacktrackCallback& callback)
-	{
-		context.parserContext.allocator.addBacktrackCallback(context.parserContext.allocator.position, callback);
-	}
-
-	void disableBacktrack()
-	{
-		addBacktrackCallback(makeBacktrackErrorCallback());
-	}
-
-	// Causes /p declaration to be undeclared when backtracking.
-	// In practice this only happens for the declaration in an elaborated-type-specifier.
-	void trackDeclaration(const DeclarationInstance& declaration)
-	{
-		addBacktrackCallback(makeUndeclareCallback(&declaration));
-	}
-
-	Declaration* declareClass(Scope* parent, Identifier* id, bool isSpecialization, TemplateArguments& arguments)
-	{
-		Scope* enclosed = newScope(makeIdentifier("$class"), SCOPETYPE_CLASS);
-		DeclarationInstanceRef declaration = pointOfDeclaration(context, parent, id == 0 ? parent->getUniqueName() : *id, TYPE_CLASS, enclosed, DeclSpecifiers(), templateParams != 0, getTemplateParams(), isSpecialization, arguments);
-#ifdef ALLOCATOR_DEBUG
-		trackDeclaration(declaration);
-#endif
-		if(id != 0)
-		{
-			setDecoration(id, declaration);
-		}
-		enclosed->name = declaration->getName();
-		return declaration;
-	}
-
-	Declaration* declareObject(Scope* parent, Identifier* id, const TypeId& type, Scope* enclosed, DeclSpecifiers specifiers, size_t templateParameter, const Dependent& valueDependent)
-	{
-		// 7.3.1.2 Namespace member definitions
-		// Paragraph 3
-		// Every name first declared in a namespace is a member of that namespace. If a friend declaration in a non-local class
-		// first declares a class or function (this implies that the name of the class or function is unqualified) the friend
-		// class or function is a member of the innermost enclosing namespace.
-		if(specifiers.isFriend // is friend
-			&& parent == enclosing) // is unqualified
-		{
-			parent = getFriendScope();
-		}
-
-		bool isTemplate = templateParams != 0;
-		bool isExplicitSpecialization = isTemplate && templateParams->empty();
-		DeclarationInstanceRef declaration = pointOfDeclaration(context, parent, *id, type, enclosed, specifiers, isTemplate, getTemplateParams(), isExplicitSpecialization, TEMPLATEARGUMENTS_NULL, templateParameter, valueDependent); // 3.3.1.1
-#ifdef ALLOCATOR_DEBUG
-		trackDeclaration(declaration);
-#endif
-		if(id != &gAnonymousId)
-		{
-			setDecoration(id, declaration);
-		}
-
-		if(declaration->templateParamScope == 0)
-		{
-			declaration->templateParamScope = templateParamScope; // required by findEnclosingType
-		}
-
-		// the type of an object is required to be complete
-		// a member's type must be instantiated before the point of declaration of the member, to prevent the member being found by name lookup during the instantiation
-		SEMANTIC_ASSERT(type.unique != 0);
-		UniqueTypeWrapper uniqueType = UniqueTypeWrapper(type.unique);
-		// NOTE: these checks must occur after the declaration because an out-of-line definition of a static member is otherwise not known to be static
-		if(parent->type == SCOPETYPE_CLASS // just members, for now
-			&& !uniqueType.isFunction() // member functions are not instantiated when class is implicitly instantiated
-			&& !isStatic(*declaration) // static members are not instantiated when class is implicitly instantiated
-			&& type.declaration != &gCtor) // ignore constructor
-		{
-			SimpleType* enclosingClass = const_cast<SimpleType*>(getEnclosingType(enclosingType));
-			std::size_t size = 0;
-			if(!type.isDependent)
-			{
-				if(!(parent->type == SCOPETYPE_CLASS && isStatic(*declaration)) // ignore static member
-					&& !specifiers.isTypedef // ignore typedef
-					&& (uniqueType.isSimple() || uniqueType.isArray()))
-				{
-					// TODO: accurate sizeof
-					size = requireCompleteObjectType(uniqueType, getInstantiationContext());
-				}
-			}
-			else if(enclosingClass != 0
-				&& templateParams == 0) // ignore template member functions, for now
-			{
-				enclosingClass->children.push_back(uniqueType);
-				// TODO: check compliance: the point of instantiation of a type used in a member declaration is the point of declaration of the member
-				// .. along with the point of instantiation of types required when naming the member type. e.g. A<T>::B m; B<A<T>::value> m;
-				enclosingClass->childLocations.push_back(getLocation());
-			}
-			if(enclosingClass != 0)
-			{
-				enclosingClass->size += size;
-			}
-		}
-
-		return declaration;
-	}
-
-	bool declareEts(Type& type, Identifier* forward)
-	{
-		if(isClassKey(*type.declaration))
-		{
-			SEMANTIC_ASSERT(forward != 0);
-			/* 3.3.1-6
-			if the elaborated-type-specifier is used in the decl-specifier-seq or parameter-declaration-clause of a
-			function defined in namespace scope, the identifier is declared as a class-name in the namespace that
-			contains the declaration; otherwise, except as a friend declaration, the identifier is declared in the
-			smallest non-class, non-function-prototype scope that contains the declaration.
-			*/
-			DeclarationInstanceRef declaration = pointOfDeclaration(context, getEtsScope(), *forward, TYPE_CLASS, 0);
-			
-			trackDeclaration(declaration);
-			setDecoration(forward, declaration);
-			type = declaration;
-			return true;
-		}
-		return false;
-	}
-
-	bool consumeTemplateParams(const Qualifying& qualifying)
-	{
-		if(qualifying.empty())
-		{
-			return false;
-		}
-		const Type& type = qualifying.back();
-		if(!type.declaration->isTemplate) // if the qualifying type is not a template
-		{
-			return consumeTemplateParams(type.qualifying);
-		}
-		Declaration* primary = findPrimaryTemplate(type.declaration);
-		SEMANTIC_ASSERT(primary->templateParamScope->templateDepth <= templateDepth); // TODO: non-fatal error: not enough template-parameter-clauses in class declaration
-		return primary->templateParamScope->templateDepth == templateDepth;
-	}
-
-	LookupResultRef lookupTemplate(const Identifier& id, LookupFilter filter)
-	{
-		if(!isDependent(qualifying_p))
-		{
-			return LookupResultRef(findDeclaration(id, filter));
-		}
-		return gDependentTemplateInstance;
-	}
-
-	void addDependentOverloads(Dependent& dependent, Declaration* declaration)
-	{
-		for(Declaration* p = declaration; p != 0; p = p->overloaded)
-		{
-			setDependent(dependent, p->type.dependent);
-		}
-	}
-	static UniqueTypeWrapper binaryOperatorIntegralType(UniqueTypeWrapper left, UniqueTypeWrapper right)
-	{
-		SEMANTIC_ASSERT(!isFloating(left));
-		SEMANTIC_ASSERT(!isFloating(right));
-		return usualArithmeticConversions(left, right);
-	}
-
-	template<typename T>
-	void makeUniqueTypeImpl(T& type)
-	{
-		SYMBOLS_ASSERT(type.unique == 0); // type must not be uniqued twice
-		type.isDependent = isDependent(type)
-			|| objectExpressionIsDependent(); // this occurs when uniquing the dependent type name in a nested name-specifier in a class-member-access expression
-		type.unique = makeUniqueType(type, getInstantiationContext(), type.isDependent).value;
-	}
-	void makeUniqueTypeSafe(Type& type)
-	{
-		makeUniqueTypeImpl(type);
-	}
-	void makeUniqueTypeSafe(TypeId& type)
-	{
-		makeUniqueTypeImpl(type);
-	}
-	UniqueTypeWrapper getUniqueTypeSafe(const TypeId& type)
-	{
-		SEMANTIC_ASSERT(type.unique != 0); // type must have previously been uniqued by makeUniqueTypeImpl
-		return type.isDependent ? gUniqueTypeNull : UniqueTypeWrapper(type.unique);
-	}
-};
-
-struct SemaQualifyingResult
-{
-	Qualifying qualifying;
-	SemaQualifyingResult(const TreeAllocator<int>& allocator)
-		: qualifying(allocator)
-	{
-	}
-};
-
-struct SemaQualified : public SemaBase, SemaQualifyingResult
-{
-	SemaQualified(const SemaState& state)
-		: SemaBase(state), SemaQualifyingResult(context)
-	{
-	}
-
-	void setQualifyingGlobal()
-	{
-		SEMANTIC_ASSERT(qualifying.empty());
-		qualifying_p = context.globalType.get_ref();
-		qualifyingScope = qualifying_p->declaration;
-		qualifyingClass = 0;
-	}
-
-	void swapQualifying(const Type& type, bool isDeclarator = false)
-	{
-#if 0 // allow incomplete types as qualifying, for nested-name-specifier in ptr-operator (defining member-function-ptr)
-		if(type.declaration->enclosed == 0)
-		{
-			// TODO
-			//printPosition(symbol->id->value.position);
-			std::cout << "'" << getValue(type.declaration->name) << "' is incomplete, declared here:" << std::endl;
-			printPosition(type.declaration->getName().position);
-			throw SemanticError();
-		}
-#endif
-		Qualifying tmp(type, context);
-		swapQualifying(tmp, isDeclarator);
-	}
-	void swapQualifying(const Qualifying& other, bool isDeclarator = false)
-	{
-		qualifying = other;
-		qualifying_p = qualifying.get_ref();
-		if(isDeclarator)
-		{
-			qualifyingScope = getDeclaratorQualifying();
-		}
-		else if(qualifying_p != TypePtr(0))
-		{
-			Declaration* declaration = qualifying_p->declaration;
-			if(isNamespace(*declaration))
-			{
-				qualifyingScope = declaration;
-			}
-			else if(isDependent(qualifying_p))
-			{
-				qualifyingScope = 0;
-			}
-			else
-			{
-				qualifyingClass = &getSimpleType(getUniqueType(*qualifying_p, getInstantiationContext(), isDeclarator).value);
-				qualifyingScope = qualifyingClass->declaration;
-			}
-		}
-	}
-};
-
-
 
 
 struct Args0
@@ -3191,6 +2916,282 @@ struct SemaDeclarationResult
 };
 
 typedef SemaDeclarationResult SemaNamespaceResult;
+
+
+
+struct SemaBase : public SemaState
+{
+	typedef SemaBase Base;
+
+	SemaBase(SemaContext& context)
+		: SemaState(context)
+	{
+	}
+	SemaBase(const SemaState& state)
+		: SemaState(state)
+	{
+	}
+	Scope* newScope(const Identifier& name, ScopeType type = SCOPETYPE_UNKNOWN)
+	{
+		return allocatorNew(context, Scope(context, name, type));
+	}
+
+	template<typename T>
+	ExpressionWrapper makeExpression(const T& value, bool isConstant = false, bool isTypeDependent = false, bool isValueDependent = false)
+	{
+		ExpressionNode* node = isConstant ? makeUniqueExpression(value) : allocatorNew(context, ExpressionNodeGeneric<T>(value));
+		return ExpressionWrapper(node, isConstant, isTypeDependent, isValueDependent);
+	}
+
+	void addBacktrackCallback(const BacktrackCallback& callback)
+	{
+		context.parserContext.allocator.addBacktrackCallback(context.parserContext.allocator.position, callback);
+	}
+
+	void disableBacktrack()
+	{
+		addBacktrackCallback(makeBacktrackErrorCallback());
+	}
+
+	// Causes /p declaration to be undeclared when backtracking.
+	// In practice this only happens for the declaration in an elaborated-type-specifier.
+	void trackDeclaration(const DeclarationInstance& declaration)
+	{
+		addBacktrackCallback(makeUndeclareCallback(&declaration));
+	}
+
+	Declaration* declareClass(Scope* parent, Identifier* id, bool isSpecialization, TemplateArguments& arguments)
+	{
+		Scope* enclosed = newScope(makeIdentifier("$class"), SCOPETYPE_CLASS);
+		DeclarationInstanceRef declaration = pointOfDeclaration(context, parent, id == 0 ? parent->getUniqueName() : *id, TYPE_CLASS, enclosed, DeclSpecifiers(), templateParams != 0, getTemplateParams(), isSpecialization, arguments);
+#ifdef ALLOCATOR_DEBUG
+		trackDeclaration(declaration);
+#endif
+		if(id != 0)
+		{
+			setDecoration(id, declaration);
+		}
+		enclosed->name = declaration->getName();
+		return declaration;
+	}
+
+	Declaration* declareObject(Scope* parent, Identifier* id, const TypeId& type, Scope* enclosed, DeclSpecifiers specifiers, size_t templateParameter, const Dependent& valueDependent)
+	{
+		// 7.3.1.2 Namespace member definitions
+		// Paragraph 3
+		// Every name first declared in a namespace is a member of that namespace. If a friend declaration in a non-local class
+		// first declares a class or function (this implies that the name of the class or function is unqualified) the friend
+		// class or function is a member of the innermost enclosing namespace.
+		if(specifiers.isFriend // is friend
+			&& parent == enclosing) // is unqualified
+		{
+			parent = getFriendScope();
+		}
+
+		bool isTemplate = templateParams != 0;
+		bool isExplicitSpecialization = isTemplate && templateParams->empty();
+		DeclarationInstanceRef declaration = pointOfDeclaration(context, parent, *id, type, enclosed, specifiers, isTemplate, getTemplateParams(), isExplicitSpecialization, TEMPLATEARGUMENTS_NULL, templateParameter, valueDependent); // 3.3.1.1
+#ifdef ALLOCATOR_DEBUG
+		trackDeclaration(declaration);
+#endif
+		if(id != &gAnonymousId)
+		{
+			setDecoration(id, declaration);
+		}
+
+		if(declaration->templateParamScope == 0)
+		{
+			declaration->templateParamScope = templateParamScope; // required by findEnclosingType
+		}
+
+		// the type of an object is required to be complete
+		// a member's type must be instantiated before the point of declaration of the member, to prevent the member being found by name lookup during the instantiation
+		SEMANTIC_ASSERT(type.unique != 0);
+		UniqueTypeWrapper uniqueType = UniqueTypeWrapper(type.unique);
+		// NOTE: these checks must occur after the declaration because an out-of-line definition of a static member is otherwise not known to be static
+		if(parent->type == SCOPETYPE_CLASS // just members, for now
+			&& !uniqueType.isFunction() // member functions are not instantiated when class is implicitly instantiated
+			&& !isStatic(*declaration) // static members are not instantiated when class is implicitly instantiated
+			&& type.declaration != &gCtor) // ignore constructor
+		{
+			SimpleType* enclosingClass = const_cast<SimpleType*>(getEnclosingType(enclosingType));
+			std::size_t size = 0;
+			if(!type.isDependent)
+			{
+				if(!(parent->type == SCOPETYPE_CLASS && isStatic(*declaration)) // ignore static member
+					&& !specifiers.isTypedef // ignore typedef
+					&& (uniqueType.isSimple() || uniqueType.isArray()))
+				{
+					// TODO: accurate sizeof
+					size = requireCompleteObjectType(uniqueType, getInstantiationContext());
+				}
+			}
+			else if(enclosingClass != 0
+				&& templateParams == 0) // ignore template member functions, for now
+			{
+				enclosingClass->children.push_back(uniqueType);
+				// TODO: check compliance: the point of instantiation of a type used in a member declaration is the point of declaration of the member
+				// .. along with the point of instantiation of types required when naming the member type. e.g. A<T>::B m; B<A<T>::value> m;
+				enclosingClass->childLocations.push_back(getLocation());
+			}
+			if(enclosingClass != 0)
+			{
+				enclosingClass->size += size;
+			}
+		}
+
+		return declaration;
+	}
+
+	bool declareEts(Type& type, Identifier* forward)
+	{
+		if(isClassKey(*type.declaration))
+		{
+			SEMANTIC_ASSERT(forward != 0);
+			/* 3.3.1-6
+			if the elaborated-type-specifier is used in the decl-specifier-seq or parameter-declaration-clause of a
+			function defined in namespace scope, the identifier is declared as a class-name in the namespace that
+			contains the declaration; otherwise, except as a friend declaration, the identifier is declared in the
+			smallest non-class, non-function-prototype scope that contains the declaration.
+			*/
+			DeclarationInstanceRef declaration = pointOfDeclaration(context, getEtsScope(), *forward, TYPE_CLASS, 0);
+			
+			trackDeclaration(declaration);
+			setDecoration(forward, declaration);
+			type = declaration;
+			return true;
+		}
+		return false;
+	}
+
+	bool consumeTemplateParams(const Qualifying& qualifying)
+	{
+		if(qualifying.empty())
+		{
+			return false;
+		}
+		const Type& type = qualifying.back();
+		if(!type.declaration->isTemplate) // if the qualifying type is not a template
+		{
+			return consumeTemplateParams(type.qualifying);
+		}
+		Declaration* primary = findPrimaryTemplate(type.declaration);
+		SEMANTIC_ASSERT(primary->templateParamScope->templateDepth <= templateDepth); // TODO: non-fatal error: not enough template-parameter-clauses in class declaration
+		return primary->templateParamScope->templateDepth == templateDepth;
+	}
+
+	LookupResultRef lookupTemplate(const Identifier& id, LookupFilter filter)
+	{
+		if(!isDependent(qualifying_p))
+		{
+			return LookupResultRef(findDeclaration(id, filter));
+		}
+		return gDependentTemplateInstance;
+	}
+
+	void addDependentOverloads(Dependent& dependent, Declaration* declaration)
+	{
+		for(Declaration* p = declaration; p != 0; p = p->overloaded)
+		{
+			setDependent(dependent, p->type.dependent);
+		}
+	}
+	static UniqueTypeWrapper binaryOperatorIntegralType(UniqueTypeWrapper left, UniqueTypeWrapper right)
+	{
+		SEMANTIC_ASSERT(!isFloating(left));
+		SEMANTIC_ASSERT(!isFloating(right));
+		return usualArithmeticConversions(left, right);
+	}
+
+	template<typename T>
+	void makeUniqueTypeImpl(T& type)
+	{
+		SYMBOLS_ASSERT(type.unique == 0); // type must not be uniqued twice
+		type.isDependent = isDependent(type)
+			|| objectExpressionIsDependent(); // this occurs when uniquing the dependent type name in a nested name-specifier in a class-member-access expression
+		type.unique = makeUniqueType(type, getInstantiationContext(), type.isDependent).value;
+	}
+	void makeUniqueTypeSafe(Type& type)
+	{
+		makeUniqueTypeImpl(type);
+	}
+	void makeUniqueTypeSafe(TypeId& type)
+	{
+		makeUniqueTypeImpl(type);
+	}
+	UniqueTypeWrapper getUniqueTypeSafe(const TypeId& type)
+	{
+		SEMANTIC_ASSERT(type.unique != 0); // type must have previously been uniqued by makeUniqueTypeImpl
+		return type.isDependent ? gUniqueTypeNull : UniqueTypeWrapper(type.unique);
+	}
+};
+
+struct SemaQualifyingResult
+{
+	Qualifying qualifying;
+	SemaQualifyingResult(const TreeAllocator<int>& allocator)
+		: qualifying(allocator)
+	{
+	}
+};
+
+struct SemaQualified : public SemaBase, SemaQualifyingResult
+{
+	SemaQualified(const SemaState& state)
+		: SemaBase(state), SemaQualifyingResult(context)
+	{
+	}
+
+	void setQualifyingGlobal()
+	{
+		SEMANTIC_ASSERT(qualifying.empty());
+		qualifying_p = context.globalType.get_ref();
+		qualifyingScope = qualifying_p->declaration;
+		qualifyingClass = 0;
+	}
+
+	void swapQualifying(const Type& type, bool isDeclarator = false)
+	{
+#if 0 // allow incomplete types as qualifying, for nested-name-specifier in ptr-operator (defining member-function-ptr)
+		if(type.declaration->enclosed == 0)
+		{
+			// TODO
+			//printPosition(symbol->id->value.position);
+			std::cout << "'" << getValue(type.declaration->name) << "' is incomplete, declared here:" << std::endl;
+			printPosition(type.declaration->getName().position);
+			throw SemanticError();
+		}
+#endif
+		Qualifying tmp(type, context);
+		swapQualifying(tmp, isDeclarator);
+	}
+	void swapQualifying(const Qualifying& other, bool isDeclarator = false)
+	{
+		qualifying = other;
+		qualifying_p = qualifying.get_ref();
+		if(isDeclarator)
+		{
+			qualifyingScope = getDeclaratorQualifying();
+		}
+		else if(qualifying_p != TypePtr(0))
+		{
+			Declaration* declaration = qualifying_p->declaration;
+			if(isNamespace(*declaration))
+			{
+				qualifyingScope = declaration;
+			}
+			else if(isDependent(qualifying_p))
+			{
+				qualifyingScope = 0;
+			}
+			else
+			{
+				qualifyingClass = &getSimpleType(getUniqueType(*qualifying_p, getInstantiationContext(), isDeclarator).value);
+				qualifyingScope = qualifyingClass->declaration;
+			}
+		}
+	}
+};
 
 
 struct IsHiddenNamespaceName
@@ -4691,7 +4692,7 @@ struct SemaTypeName : public SemaBase
 		if(type.declaration->isTemplate)
 		{
 			type.isImplicitTemplateId = true; // this is either a template-name or an implicit template-id
-			const SimpleType* enclosingTemplate = findEnclosingTemplate(enclosingType, type.declaration);
+			const SimpleType* enclosingTemplate = findEnclosingPrimaryTemplate(enclosingType, type.declaration);
 			if(enclosingTemplate != 0) // if this is the name of an enclosing class-template definition (which may be an explicit/partial specialization)
 			{
 				type.isEnclosingClass = true; // this is an implicit template-id

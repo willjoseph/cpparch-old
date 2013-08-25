@@ -120,6 +120,7 @@
     <ClInclude Include="report.h" />
     <ClInclude Include="semantic.h" />
     <ClInclude Include="sequence.h" />
+    <ClInclude Include="Source\Sema\Sema.h" />
     <ClInclude Include="symbols.h" />
     <ClInclude Include="test.h" />
     <ClInclude Include="token.h" />
@@ -143,6 +144,7 @@
     <ClCompile Include="report.cpp" />
     <ClCompile Include="semantic.cpp" />
     <ClCompile Include="sequence.cpp" />
+    <ClCompile Include="Source\Sema\Sema.cpp" />
     <ClCompile Include="symbols.cpp">
       <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)%(Filename)1.obj</ObjectFileName>
       <XMLDocumentationFileName Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)%(Filename)1.xdc</XMLDocumentationFileName>

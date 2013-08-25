@@ -867,44 +867,54 @@ described for lookup in namespace member function definitions.
 		- source
 		- include-events (declaration)
 		- operator-function source
-
+	- dir structure
+		- mixed-case names
+		- cppparse
+			- Common: generic data structures, util, sequence, indirect_set, copied, allocator
+			- Language: unique-type, deduce, substitute, overload, conversion, evaluate expression
+			- Ast: Declaration, Type, TemplateParameter etc.. Scope?
+				- Identifier, ExpressionNode, DeclarationInstance
+			- Sema: walkers
+			- Parse: grammar, parser
+			- Lex: lexer, token
+			- Report:
+			- Test: tests in symbols.cpp
 	- split symbols.h
 		- core types: DeclSpecifiers, Identifier, TemplateArguments, TemplateArgument,
 			Types, TypeIds, Type, Scope, Declaration, Dependent, TemplateParameter, TemplateParameters
-		- integral-constant-expression: IntegralConstant, getBinaryIceOp, getUnaryIceOp
-		- abstract expression: ExpressionNode/visitor, UniqueExpressions
-		- ExpressionWrapper
-		- UniqueNames
-		- DeclarationInstance: getDeclaration
-		- undeclare
+		- TypeId, type-sequence
+		- template-param-defaults
+		- integral-constant-evaluation: IntegralConstant, getBinaryIceOp, getUnaryIceOp
+		- abstract expression: ExpressionNode/visitor, UniqueExpressions, ExpressionWrapper
+		- data-structure for declaration map in Scope: DeclarationInstance, getDeclaration
+		- UniqueNames: names of declarations
+		- undeclare: used when undoing semantic actions
 		- enclosesEts, getEnclosingClass, getEnclosingNamespace
-		- type-of-declaration utils: isXYZ - move isAnonymous
-		- lookup-filter
+		- meta-type-of-declaration utils: isXYZ: deals with meta-types: e.g. arithmetic, class, enum 
+			- move isAnonymous
 		- abstract unique-types: TypeElement/visitor, wrapper, isEqual, getInner, isSameType, built-in-type, UniqueTypeGeneric
 		- concrete unique-types: NonType, TemplateTemplateArgument, DependentType/Typename/NonType, Pointer/Reference/MemberPointer/Array/Function
 			SimpleType
-		- type-adjustment: function-param-adjust, remove-reference, removePointer
-		- declaration-equivalence: compare function parameters
+		- instantiateClass: addBase, dumpTemplateInstantiations
+		- declaration-equivalence: compare function parameters at point of declaration
 		- Parameter/Parameters
 		- Location (source + point of instantiation)
-		- type-sequence
 		- findPrimaryTemplate, findLastDeclaration, findPrimaryTemplateLastDeclaration
-		- lookup-result, declaration-instance-ref, lookup-result-ref
-		- name-lookup: findDeclaration(SimpleType)
-		- TypeError objects
-		- InstantiationContext
+		- InstantiationContext: used when evaluating type/value of expression, or subsituting types
 		- concrete expression node types: *Expression
 		- typeOfExpression
-		- findEnclosingTemplate/getEnclosingType
+		- findEnclosingTemplate: given a template parameter and an enclosing template, find the enclosing template that declares the template parameter
+		- findEnclosingPrimaryTemplate: used when determining if name is name of enclosing template definition
+		- getEnclosingType: used only when adding child instantiations
 		- evaluateExpression
 		- isDependent
 		- deduce
+		- TypeError objects: generally used in substitution
 		- substitute
 		- makeUniqueType/getUniqueType/makeUniqueQualifying/makeUniqueEnclosing/makeUniqueTemplateArguments/makeUniqueTemplateParameters
 		- getEnclosingTemplate, findScope, getClassDeclaration, findEnclosingClassTemplate
 		- isDependentImpl
 		- findOverloaded
-		- instantiateClass: addBase, dumpTemplateInstantiations
 		- requireCompleteObjectType
 		- matchTemplatePartialSpecialization/findTemplateSpecialization
 		- findEnclosingType
@@ -913,7 +923,7 @@ described for lookup in namespace member function definitions.
 		- literal parsing
 		- getOverloadableOperatorId
 		- unique-type utils: isXYZ: requires built-in types
-		- non-unique findTemplateSpecialization implementation (used in getDeclaratorQualifying)
+		- type-adjustment: function-param-adjust, remove-reference, removePointer
 		- implicit conversions: array-to-pointer, funtion-to-pointer, integral-promotions, usual-arithmetic-conversions, lvalue-to-rvalue, qualification-adjustment
 			- standard-conversion
 			- ranking conversion sequences
@@ -922,10 +932,15 @@ described for lookup in namespace member function definitions.
 			- ranking candidate functions
 			- addOverload, addConversionFunctionOverloads, findBestConversionFunction
 		- declaration-error, getPrimaryDeclaration
-		- name-lookup: findDeclaration overloads
-		- template-param-defaults
 		- symbol-printer
-		- type-traits
+		- TypeTraits.h
+			- type-traits intrinsic
+		- NameLookup.h
+			- lookup-filter + implementations
+			- lookup-result, declaration-instance-ref, lookup-result-ref
+			- name-lookup: findDeclaration(SimpleType)
+			- name-lookup: findDeclaration overloads
+		- non-unique findTemplateSpecialization implementation (used only in getDeclaratorQualifying)
 	- move common code from semantic.cpp into header(s)
 		- cull unused code?
 		- declaration-equivalence
