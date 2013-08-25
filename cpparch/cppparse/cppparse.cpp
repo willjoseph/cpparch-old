@@ -1,8 +1,8 @@
 
-#include "parser.h"
-#include "semantic.h"
-#include "report.h"
-#include "util.h"
+#include "Parse/Parse.h"
+#include "Sema/Sema.h"
+#include "Report/Report.h"
+#include "Common/Util.h"
 
 #include <iostream>
 #include <fstream>

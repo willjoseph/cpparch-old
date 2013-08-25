@@ -51,7 +51,7 @@
     </BuildLog>
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>..\..\external\boost;..\..\external\STLport\stlport;..\common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>Source;..\..\external\boost;..\..\external\STLport\stlport;..\common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;_CRT_SECURE_NO_DEPRECATE;CRT_SECURE_NO_WARNINGS;_SCL_SECURE_NO_WARNINGS;_STLP_DEBUG=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -80,7 +80,7 @@
     <ClCompile>
       <Optimization>Full</Optimization>
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
-      <AdditionalIncludeDirectories>..\..\external\boost;..\..\external\STLport\stlport;..\common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>Source;..\..\external\boost;..\..\external\STLport\stlport;..\common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;_CRT_SECURE_NO_DEPRECATE;CRT_SECURE_NO_WARNINGS;_SCL_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <BufferSecurityCheck>false</BufferSecurityCheck>
@@ -105,56 +105,47 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="$predefined_msvc.h" />
-    <ClInclude Include="allocator.h" />
-    <ClInclude Include="common.h" />
-    <ClInclude Include="copied.h" />
-    <ClInclude Include="cpptree.h" />
-    <ClInclude Include="generator.h" />
-    <ClInclude Include="indirect_set.h" />
-    <ClInclude Include="lexer.h" />
-    <ClInclude Include="list.h" />
-    <ClInclude Include="parser.h" />
-    <ClInclude Include="parser_symbols.h" />
-    <ClInclude Include="printer.h" />
-    <ClInclude Include="profiler.h" />
-    <ClInclude Include="report.h" />
-    <ClInclude Include="semantic.h" />
-    <ClInclude Include="sequence.h" />
+    <ClInclude Include="Source\Ast\Ast.h" />
+    <ClInclude Include="Source\Common\Allocator.h" />
+    <ClInclude Include="Source\Common\Common.h" />
+    <ClInclude Include="Source\Common\Copied.h" />
+    <ClInclude Include="Source\Common\IndirectSet.h" />
+    <ClInclude Include="Source\Common\List.h" />
+    <ClInclude Include="Source\Common\Profile.h" />
+    <ClInclude Include="Source\Common\Sequence.h" />
+    <ClInclude Include="Source\Common\Util.h" />
+    <ClInclude Include="Source\Common\Visitor.h" />
+    <ClInclude Include="Source\Lex\Lex.h" />
+    <ClInclude Include="Source\Lex\Token.h" />
+    <ClInclude Include="Source\Lex\TokenPrinter.h" />
+    <ClInclude Include="Source\Parse\Grammar.h" />
+    <ClInclude Include="Source\Parse\Parse.h" />
+    <ClInclude Include="Source\Parse\ParseSpecial.h" />
+    <ClInclude Include="Source\Report\Report.h" />
     <ClInclude Include="Source\Sema\Sema.h" />
-    <ClInclude Include="symbols.h" />
-    <ClInclude Include="test.h" />
-    <ClInclude Include="token.h" />
-    <ClInclude Include="util.h" />
-    <ClInclude Include="visitor.h" />
+    <ClInclude Include="Source\Test\Test.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="allocator.cpp" />
-    <ClCompile Include="common.cpp" />
-    <ClCompile Include="copied.cpp" />
     <ClCompile Include="cppparse.cpp" />
-    <ClCompile Include="cpptree.cpp" />
-    <ClCompile Include="generator.cpp" />
-    <ClCompile Include="indirect_set.cpp" />
-    <ClCompile Include="lexer.cpp" />
-    <ClCompile Include="list.cpp" />
-    <ClCompile Include="parser.cpp" />
-    <ClCompile Include="parser_symbols.cpp" />
-    <ClCompile Include="printer.cpp" />
-    <ClCompile Include="profiler.cpp" />
-    <ClCompile Include="report.cpp" />
-    <ClCompile Include="semantic.cpp" />
-    <ClCompile Include="sequence.cpp" />
+    <ClCompile Include="Source\Ast\Ast.cpp" />
+    <ClCompile Include="Source\Common\Allocator.cpp" />
+    <ClCompile Include="Source\Common\Common.cpp" />
+    <ClCompile Include="Source\Common\Copied.cpp" />
+    <ClCompile Include="Source\Common\IndirectSet.cpp" />
+    <ClCompile Include="Source\Common\List.cpp" />
+    <ClCompile Include="Source\Common\Profile.cpp" />
+    <ClCompile Include="Source\Common\Sequence.cpp" />
+    <ClCompile Include="Source\Common\Util.cpp" />
+    <ClCompile Include="Source\Common\Visitor.cpp" />
+    <ClCompile Include="Source\Lex\Lex.cpp" />
+    <ClCompile Include="Source\Lex\Token.cpp" />
+    <ClCompile Include="Source\Lex\TokenPrinter.cpp" />
+    <ClCompile Include="Source\Parse\Grammar.cpp" />
+    <ClCompile Include="Source\Parse\Parse.cpp" />
+    <ClCompile Include="Source\Parse\ParseSpecial.cpp" />
+    <ClCompile Include="Source\Report\Report.cpp" />
     <ClCompile Include="Source\Sema\Sema.cpp" />
-    <ClCompile Include="symbols.cpp">
-      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)%(Filename)1.obj</ObjectFileName>
-      <XMLDocumentationFileName Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)%(Filename)1.xdc</XMLDocumentationFileName>
-      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(IntDir)%(Filename)1.obj</ObjectFileName>
-      <XMLDocumentationFileName Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(IntDir)%(Filename)1.xdc</XMLDocumentationFileName>
-    </ClCompile>
-    <ClCompile Include="test.cpp" />
-    <ClCompile Include="token.cpp" />
-    <ClCompile Include="util.cpp" />
-    <ClCompile Include="visitor.cpp" />
+    <ClCompile Include="Source\Test\Test.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="BUGS.txt" />

@@ -6,140 +6,149 @@
       <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
     </Filter>
     <Filter Include="Source Files\Sema">
-      <UniqueIdentifier>{b7880a36-de99-43e6-bb1e-0bdbf05c1b7c}</UniqueIdentifier>
+      <UniqueIdentifier>{c37f6ada-5fad-42d3-a05d-37e74eea33b1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Parse">
+      <UniqueIdentifier>{f5696678-c558-4de9-839f-270879e5d0d9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Common">
+      <UniqueIdentifier>{15254a73-00ef-4137-9b44-e812fc634f89}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Lex">
+      <UniqueIdentifier>{8bc6f942-839a-4801-be43-a5e8784ae790}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Test">
+      <UniqueIdentifier>{f28f7b62-cf19-4a26-ad42-29134ffd1724}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Ast">
+      <UniqueIdentifier>{ac2f90c4-1ab6-4a1a-a90f-4c43ddafa566}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Report">
+      <UniqueIdentifier>{48f223c5-5c6b-4c68-817f-dced7440488b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Core">
+      <UniqueIdentifier>{f8be9852-a478-4a66-bc73-89dff51f04d7}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="$predefined_msvc.h">
       <Filter>Source Files</Filter>
     </ClInclude>
-    <ClInclude Include="allocator.h">
-      <Filter>Source Files</Filter>
+    <ClInclude Include="Source\Common\Allocator.h">
+      <Filter>Source Files\Common</Filter>
     </ClInclude>
-    <ClInclude Include="common.h">
-      <Filter>Source Files</Filter>
+    <ClInclude Include="Source\Common\Common.h">
+      <Filter>Source Files\Common</Filter>
     </ClInclude>
-    <ClInclude Include="copied.h">
-      <Filter>Source Files</Filter>
+    <ClInclude Include="Source\Common\Copied.h">
+      <Filter>Source Files\Common</Filter>
     </ClInclude>
-    <ClInclude Include="cpptree.h">
-      <Filter>Source Files</Filter>
+    <ClInclude Include="Source\Common\IndirectSet.h">
+      <Filter>Source Files\Common</Filter>
     </ClInclude>
-    <ClInclude Include="generator.h">
-      <Filter>Source Files</Filter>
+    <ClInclude Include="Source\Common\List.h">
+      <Filter>Source Files\Common</Filter>
     </ClInclude>
-    <ClInclude Include="lexer.h">
-      <Filter>Source Files</Filter>
+    <ClInclude Include="Source\Common\Profile.h">
+      <Filter>Source Files\Common</Filter>
     </ClInclude>
-    <ClInclude Include="list.h">
-      <Filter>Source Files</Filter>
+    <ClInclude Include="Source\Common\Sequence.h">
+      <Filter>Source Files\Common</Filter>
     </ClInclude>
-    <ClInclude Include="parser.h">
-      <Filter>Source Files</Filter>
+    <ClInclude Include="Source\Common\Util.h">
+      <Filter>Source Files\Common</Filter>
     </ClInclude>
-    <ClInclude Include="parser_symbols.h">
-      <Filter>Source Files</Filter>
+    <ClInclude Include="Source\Common\Visitor.h">
+      <Filter>Source Files\Common</Filter>
     </ClInclude>
-    <ClInclude Include="printer.h">
-      <Filter>Source Files</Filter>
+    <ClInclude Include="Source\Lex\Lex.h">
+      <Filter>Source Files\Lex</Filter>
     </ClInclude>
-    <ClInclude Include="profiler.h">
-      <Filter>Source Files</Filter>
+    <ClInclude Include="Source\Lex\Token.h">
+      <Filter>Source Files\Lex</Filter>
     </ClInclude>
-    <ClInclude Include="report.h">
-      <Filter>Source Files</Filter>
+    <ClInclude Include="Source\Lex\TokenPrinter.h">
+      <Filter>Source Files\Lex</Filter>
     </ClInclude>
-    <ClInclude Include="semantic.h">
-      <Filter>Source Files</Filter>
+    <ClInclude Include="Source\Ast\Ast.h">
+      <Filter>Source Files\Ast</Filter>
     </ClInclude>
-    <ClInclude Include="symbols.h">
-      <Filter>Source Files</Filter>
+    <ClInclude Include="Source\Report\Report.h">
+      <Filter>Source Files\Report</Filter>
     </ClInclude>
-    <ClInclude Include="test.h">
-      <Filter>Source Files</Filter>
+    <ClInclude Include="Source\Test\Test.h">
+      <Filter>Source Files\Test</Filter>
     </ClInclude>
-    <ClInclude Include="token.h">
-      <Filter>Source Files</Filter>
+    <ClInclude Include="Source\Parse\Grammar.h">
+      <Filter>Source Files\Parse</Filter>
     </ClInclude>
-    <ClInclude Include="util.h">
-      <Filter>Source Files</Filter>
+    <ClInclude Include="Source\Parse\Parse.h">
+      <Filter>Source Files\Parse</Filter>
     </ClInclude>
-    <ClInclude Include="visitor.h">
-      <Filter>Source Files</Filter>
-    </ClInclude>
-    <ClInclude Include="indirect_set.h">
-      <Filter>Source Files</Filter>
-    </ClInclude>
-    <ClInclude Include="sequence.h">
-      <Filter>Source Files</Filter>
+    <ClInclude Include="Source\Parse\ParseSpecial.h">
+      <Filter>Source Files\Parse</Filter>
     </ClInclude>
     <ClInclude Include="Source\Sema\Sema.h">
       <Filter>Source Files\Sema</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="allocator.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="common.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="copied.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="cppparse.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="cpptree.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="Source\Common\Allocator.cpp">
+      <Filter>Source Files\Common</Filter>
     </ClCompile>
-    <ClCompile Include="generator.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="Source\Common\Common.cpp">
+      <Filter>Source Files\Common</Filter>
     </ClCompile>
-    <ClCompile Include="lexer.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="Source\Common\Copied.cpp">
+      <Filter>Source Files\Common</Filter>
     </ClCompile>
-    <ClCompile Include="list.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="Source\Common\IndirectSet.cpp">
+      <Filter>Source Files\Common</Filter>
     </ClCompile>
-    <ClCompile Include="parser.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="Source\Common\List.cpp">
+      <Filter>Source Files\Common</Filter>
     </ClCompile>
-    <ClCompile Include="parser_symbols.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="Source\Common\Profile.cpp">
+      <Filter>Source Files\Common</Filter>
     </ClCompile>
-    <ClCompile Include="printer.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="Source\Common\Sequence.cpp">
+      <Filter>Source Files\Common</Filter>
     </ClCompile>
-    <ClCompile Include="profiler.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="Source\Common\Util.cpp">
+      <Filter>Source Files\Common</Filter>
     </ClCompile>
-    <ClCompile Include="report.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="Source\Common\Visitor.cpp">
+      <Filter>Source Files\Common</Filter>
     </ClCompile>
-    <ClCompile Include="semantic.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="Source\Lex\Lex.cpp">
+      <Filter>Source Files\Lex</Filter>
     </ClCompile>
-    <ClCompile Include="symbols.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="Source\Lex\Token.cpp">
+      <Filter>Source Files\Lex</Filter>
     </ClCompile>
-    <ClCompile Include="test.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="Source\Lex\TokenPrinter.cpp">
+      <Filter>Source Files\Lex</Filter>
     </ClCompile>
-    <ClCompile Include="token.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="Source\Ast\Ast.cpp">
+      <Filter>Source Files\Ast</Filter>
     </ClCompile>
-    <ClCompile Include="util.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="Source\Report\Report.cpp">
+      <Filter>Source Files\Report</Filter>
     </ClCompile>
-    <ClCompile Include="visitor.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="Source\Test\Test.cpp">
+      <Filter>Source Files\Test</Filter>
     </ClCompile>
-    <ClCompile Include="indirect_set.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="Source\Parse\Grammar.cpp">
+      <Filter>Source Files\Parse</Filter>
     </ClCompile>
-    <ClCompile Include="sequence.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="Source\Parse\Parse.cpp">
+      <Filter>Source Files\Parse</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Parse\ParseSpecial.cpp">
+      <Filter>Source Files\Parse</Filter>
     </ClCompile>
     <ClCompile Include="Source\Sema\Sema.cpp">
       <Filter>Source Files\Sema</Filter>
