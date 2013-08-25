@@ -1221,7 +1221,7 @@ public:
 		if(!t.value.empty())
 		{
 			SemaT& walker = getWalker();
-			walker.action(t);
+			semaAction(walker, t);
 		}
 		return result;
 	}
@@ -1309,7 +1309,7 @@ public:
 				return 0;
 			}
 			symbol = parseHit(*this, symbol); // if the parse succeeded, return a persistent version of the symbol.
-			conditionalCommit(innerWalker, inner); // if the inner sema object's lifetime is about to end, call commit() if exists.
+			semaCommit(innerWalker, inner); // if enabled, call the sema object's commit()
 			innerParser.cacheStore(cache, key, symbol, innerWalker); // if enabled, save the state of both symbol and innerWalker for later re-use
 		}
 		// Report success if the parse was successful and the current walker's associated semantic action also passed.

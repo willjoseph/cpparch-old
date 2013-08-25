@@ -1708,6 +1708,13 @@ inline bool isIntegralConstant(UniqueTypeWrapper type)
 		|| isEnumeration(type));
 }
 
+bool isUnqualified(cpp::elaborated_type_specifier_default* symbol)
+{
+	return symbol != 0
+		&& symbol->isGlobal.value.empty()
+		&& symbol->context.p == 0;
+}
+
 
 
 
@@ -2675,6 +2682,15 @@ struct Args2
 	}
 };
 
+struct InvokeNone
+{
+	template<typename SemaT, typename T, typename Result>
+	static bool invokeAction(SemaT& walker, T* symbol, Result& result)
+	{
+		return true;
+	}
+};
+
 struct InvokeChecked
 {
 	template<typename SemaT, typename T, typename Result>
@@ -2757,34 +2773,50 @@ Inner makeInnerWalker(SemaT& walker, const SemaPush<Inner, Commit, Args2<A1, A2>
 	return Inner(walker.getState(), args.a1, args.a2);
 }
 
-#if 0 // not currently used
 template<typename T, T m>
 struct SfinaeNonType
 {
 	typedef void Type;
 };
 
-template<typename T, typename U = void>
-struct HasCommit
+
+
+template<typename SemaT, LexTokenId ID, typename U = void>
+struct HasAction
 {
 	static const bool value = false;
 };
 
-template<typename T>
-struct HasCommit<T, typename SfinaeNonType<void(T::*)(), &T::commitTest>::Type>
+template<typename SemaT, LexTokenId ID>
+struct HasAction<SemaT, ID, typename SfinaeNonType<void(SemaT::*)(cpp::terminal<ID>), &SemaT::action>::Type>
 {
 	static const bool value = true;
 };
-#endif
+
+
+template<typename SemaT, LexTokenId ID>
+typename EnableIf<!HasAction<SemaT, ID>::value>::Type
+	semaAction(SemaT& walker, cpp::terminal<ID>)
+{
+	// do nothing
+}
+
+template<typename SemaT, LexTokenId ID>
+typename EnableIf<HasAction<SemaT, ID>::value>::Type
+	semaAction(SemaT& walker, cpp::terminal<ID> symbol)
+{
+	walker.action(symbol);
+}
+
 
 template<typename SemaT, typename Inner, typename Args>
-void conditionalCommit(SemaT& walker, const SemaPush<Inner, CommitNull, Args>& inner)
+void semaCommit(SemaT& walker, const SemaPush<Inner, CommitNull, Args>& inner)
 {
 	// do nothing
 }
 
 template<typename SemaT, typename Inner, typename Args>
-void conditionalCommit(SemaT& walker, const SemaPush<Inner, CommitEnable, Args>& inner)
+void semaCommit(SemaT& walker, const SemaPush<Inner, CommitEnable, Args>& inner)
 {
 	walker.commit();
 }
@@ -2819,7 +2851,7 @@ SemaT& makeInnerWalker(SemaT& walker, const SemaIdentity&)
 }
 
 template<typename SemaT>
-void conditionalCommit(SemaT& walker, const SemaIdentity& inner)
+void semaCommit(SemaT& walker, const SemaIdentity& inner)
 {
 	// do nothing
 }
@@ -2928,6 +2960,7 @@ struct SemaPolicyGeneric : Inner, Annotate, Invoke, Cache, Defer
 #define SEMA_INLINE __forceinline 
 #endif
 
+typedef SemaPolicyGeneric<SemaIdentity, AnnotateNull, InvokeNone> SemaPolicyNone;
 typedef SemaPolicyGeneric<SemaIdentity, AnnotateNull, InvokeUnchecked> SemaPolicyIdentity;
 typedef SemaPolicyGeneric<SemaIdentity, AnnotateSrc, InvokeUnchecked> SemaPolicySrc;
 typedef SemaPolicyGeneric<SemaIdentity, AnnotateNull, InvokeChecked> SemaPolicyIdentityChecked;
@@ -3013,26 +3046,11 @@ struct SemaPolicyPushDeferred : SemaPolicyGeneric<SemaPush<SemaT, CommitNull, Ar
 
 #define SEMA_BOILERPLATE \
 	template<typename T> \
-	void action(T* symbol) \
+	SemaPolicyNone makePolicy(T* symbol) \
 	{ \
-	} \
-	template<LexTokenId id> \
-	void action(cpp::terminal<id> symbol) \
-	{ \
-	} \
-	template<typename T> \
-	SemaPolicyIdentity makePolicy(T* symbol) \
-	{ \
-		return SemaPolicyIdentity(); \
+		return SemaPolicyNone(); \
 	}
 
-
-bool isUnqualified(cpp::elaborated_type_specifier_default* symbol)
-{
-	return symbol != 0
-		&& symbol->isGlobal.value.empty()
-		&& symbol->context.p == 0;
-}
 
 struct SemaDeclSpecifierSeqResult
 {

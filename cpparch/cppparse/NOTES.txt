@@ -841,6 +841,14 @@ described for lookup in namespace member function definitions.
 		}
 		- alternative way to make overload valid only if class does not contain a specific member
 			- need to obtain true/false for case where it does
+				- use enable-if
+		- apply to default actions
+		- apply to makePolicy
+			- can't check for function with unknown return type?
+			- sfinae taking SemaT and SymbolT and finding return type if overload exists
+			- need to invoke overload resolution during sfinae for this member
+			- appears to be impossible without decltype
+			- pose on stack-overflow
 
 	- major refactor to turn 'visit' methods into actions
 		+ overloadable-operator matches any T
@@ -860,7 +868,74 @@ described for lookup in namespace member function definitions.
 		- include-events (declaration)
 		- operator-function source
 
-- task: replace .swap with assignment
+	- move common code from semantic.cpp into header(s)
+		- cull unused code?
+		- declaration-equivalence
+		- koenig lookup
+		- overload-gathering
+		- overload resolution for builtin operators
+		- expression type determination
+		- SemaContext/SemaState/SemaBase
+		- deferred-symbols-list
+		- sema-result types
+		- sema-qualified
+		- sema policy generic types
+		- sema policy concrete types
+		- sema policy macros
+		- is-hidden filters: type/namespace
+		- sema walker types: group by chapter?
+		- prim
+			- [expr.prim] primary-expression, id-expression, unqualified-id, qualified-id, nested-name-specifier
+		- post
+			- [expr.post] postfix-expression, expression-list, psuedo-destructor-name
+		- new-delete
+			- [expr.new] new-expression, new-placement, new-type-id, new-declarator, new-initializer
+			- [expr.delete] delete-expression
+		- expr
+			- [expr.cast] cast-expression
+			- [expr.mptr.oper] pm-expression
+			- [expr.mul/add/shift/rel/eq/and/xor/or/log.and/log.or/cond/ass/comma] etc
+		- stmt
+			- [stmt.stmt] statement, labeled-statement, expression-statement, compound-statement, statement-seq, 
+				selection-statement, condition, iteration-statement, for-init-statement, jump-statement, declaration-statement
+		- dcl
+			- [dcl.dcl] declaration-seq, declaration, block-declaration, simple-declaration
+		- spec
+			- [dcl.spec] decl-specifier, decl-specifier-seq, storage-class-specifier, function-specifier, typedef-name
+			- [dcl.type] type-specifier, simple-type-specifier, type-name, elaborated-type-specifier
+		- enum
+			- [dcl.enum] enum-specifier, enumerator-definition
+		- namespace
+			- [basic.namespace] namespace-definition
+			- [namespace.alias]
+			- [namespace.udecl] using-declaration
+			- [namespace.udir] using.directive
+		- asm
+			- [dcl.asm] asm-definition
+			- [dcl.link] linkage-specification
+		- decl
+			- [dcl.decl] init-declarator, declarator, ptr-operator
+		- type
+			- [dcl.name] type-id, type-specifier-seq, abstract-declarator
+		- class				
+			- [class] class-head, class-specifier
+			- [class.derived] base-specifier, access-specifier
+			- [class.base.init] mem-initializer
+		- conv
+			- [class.conv.fct] conversion-type-id, conversion-function-id, conversion-declarator
+		- temp
+			- [temp] template-declaration, template-parameter-list, template-parameter, type-parameter
+		- temp.names
+			- [temp.names] template-id, template-argument-list, template-argument
+		- except
+			- [except] try-block, handler-seq, handler, exception-declaration, throw-expression
+		- n/a
+			- [class.mem] member-declaration, member-declarator
+			- [dcl.fct.def] function-definition
+			- [dcl.init] initializer
+
+
++ task: replace .swap with assignment
 
 - investigate: what's going on with SimpleDeclarationWalker
 	- complex
@@ -883,7 +958,7 @@ described for lookup in namespace member function definitions.
 	- split into prefix/suffix?
 
 
-- investigate: refactoring makes avoidance of double-parsing of default-argument unnecessary in this scenario
+- investigate: refactoring makes avoidance of double-parsing of default-argument unnecessary in the following scenario
 	- as described
 		// while parsing simple-declaration-named declarator which contains deferred default-argument expression,
 		// on finding '{', we backtrack and try parsing function-definition.
