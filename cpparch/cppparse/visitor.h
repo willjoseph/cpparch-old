@@ -116,9 +116,9 @@ struct VisitorFuncGeneric<TypeListEnd>
 
 #define VISITABLE_DERIVED_TMPL(Base) \
 	virtual void acceptAbstract(const typename Base::Visitor& visitor) \
-{ \
-	visitor.visit(this); \
-}
+	{ \
+		visitor.visit(this); \
+	}
 
 #else
 

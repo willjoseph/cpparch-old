@@ -868,6 +868,64 @@ described for lookup in namespace member function definitions.
 		- include-events (declaration)
 		- operator-function source
 
+	- split symbols.h
+		- core types: DeclSpecifiers, Identifier, TemplateArguments, TemplateArgument,
+			Types, TypeIds, Type, Scope, Declaration, Dependent, TemplateParameter, TemplateParameters
+		- integral-constant-expression: IntegralConstant, getBinaryIceOp, getUnaryIceOp
+		- abstract expression: ExpressionNode/visitor, UniqueExpressions
+		- ExpressionWrapper
+		- UniqueNames
+		- DeclarationInstance: getDeclaration
+		- undeclare
+		- enclosesEts, getEnclosingClass, getEnclosingNamespace
+		- type-of-declaration utils: isXYZ - move isAnonymous
+		- lookup-filter
+		- abstract unique-types: TypeElement/visitor, wrapper, isEqual, getInner, isSameType, built-in-type, UniqueTypeGeneric
+		- concrete unique-types: NonType, TemplateTemplateArgument, DependentType/Typename/NonType, Pointer/Reference/MemberPointer/Array/Function
+			SimpleType
+		- type-adjustment: function-param-adjust, remove-reference, removePointer
+		- declaration-equivalence: compare function parameters
+		- Parameter/Parameters
+		- Location (source + point of instantiation)
+		- type-sequence
+		- findPrimaryTemplate, findLastDeclaration, findPrimaryTemplateLastDeclaration
+		- lookup-result, declaration-instance-ref, lookup-result-ref
+		- name-lookup: findDeclaration(SimpleType)
+		- TypeError objects
+		- InstantiationContext
+		- concrete expression node types: *Expression
+		- typeOfExpression
+		- findEnclosingTemplate/getEnclosingType
+		- evaluateExpression
+		- isDependent
+		- deduce
+		- substitute
+		- makeUniqueType/getUniqueType/makeUniqueQualifying/makeUniqueEnclosing/makeUniqueTemplateArguments/makeUniqueTemplateParameters
+		- getEnclosingTemplate, findScope, getClassDeclaration, findEnclosingClassTemplate
+		- isDependentImpl
+		- findOverloaded
+		- instantiateClass: addBase, dumpTemplateInstantiations
+		- requireCompleteObjectType
+		- matchTemplatePartialSpecialization/findTemplateSpecialization
+		- findEnclosingType
+		- expression type annotation helper
+		- built-in/fundamental type construction
+		- literal parsing
+		- getOverloadableOperatorId
+		- unique-type utils: isXYZ: requires built-in types
+		- non-unique findTemplateSpecialization implementation (used in getDeclaratorQualifying)
+		- implicit conversions: array-to-pointer, funtion-to-pointer, integral-promotions, usual-arithmetic-conversions, lvalue-to-rvalue, qualification-adjustment
+			- standard-conversion
+			- ranking conversion sequences
+			- depends on findBestConversionFunction (circular!)
+		- overload-resolver:
+			- ranking candidate functions
+			- addOverload, addConversionFunctionOverloads, findBestConversionFunction
+		- declaration-error, getPrimaryDeclaration
+		- name-lookup: findDeclaration overloads
+		- template-param-defaults
+		- symbol-printer
+		- type-traits
 	- move common code from semantic.cpp into header(s)
 		- cull unused code?
 		- declaration-equivalence

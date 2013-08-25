@@ -4875,22 +4875,6 @@ inline UniqueTypeWrapper makeUniqueSimpleType(const SimpleType& type)
 	return UniqueTypeWrapper(pushUniqueType(gUniqueTypes, UNIQUETYPE_NULL, type));
 }
 
-struct LookupFailed : TypeError
-{
-	const SimpleType* enclosing;
-	const Identifier* id;
-	LookupFailed(const SimpleType* enclosing, const Identifier* id)
-		: enclosing(enclosing), id(id)
-	{
-	}
-	void report()
-	{
-		std::cout << "lookup failed: ";
-		printType(*enclosing);
-		std::cout << "::" << id->value.c_str() << std::endl;
-	}
-};
-
 // unqualified object name: int, Object,
 // qualified object name: Qualifying::Object
 // unqualified typedef: Typedef, TemplateParam
@@ -5795,32 +5779,6 @@ extern Identifier gAnonymousId;
 extern Identifier gDestructorId;
 
 
-inline UniqueTypeWrapper binaryOperatorAssignment(UniqueTypeWrapper left, UniqueTypeWrapper right)
-{
-	return left;
-}
-
-inline UniqueTypeWrapper binaryOperatorComma(UniqueTypeWrapper left, UniqueTypeWrapper right)
-{
-	return right;
-}
-
-inline UniqueTypeWrapper binaryOperatorBoolean(UniqueTypeWrapper left, UniqueTypeWrapper right)
-{
-	return gBool;
-}
-
-inline UniqueTypeWrapper binaryOperatorMemberPointer(UniqueTypeWrapper left, UniqueTypeWrapper right)
-{
-	return popType(right);
-}
-
-inline UniqueTypeWrapper ternaryOperatorNull(UniqueTypeWrapper first, UniqueTypeWrapper second, UniqueTypeWrapper third)
-{
-	return gUniqueTypeNull;
-}
-
-
 
 inline bool isClass(UniqueTypeWrapper type)
 {
@@ -5880,40 +5838,6 @@ inline bool isEnumeration(const UniqueTypeId& type)
 	return isEnum(type);
 }
 
-
-// int i; // type -> int
-// typedef int I; // type -> int
-// I i; // type -> I -> int
-// typedef I J; // type -> I -> int
-// J j; // type -> J -> I -> int
-// struct S; // type -> struct
-// typedef struct S S; // type -> S -> struct
-// typedef struct S {} S; // type -> S -> struct
-// typedef enum E {} E; // type -> E -> enum
-
-// returns the type of a declaration
-// int i; -> built-in
-// class A a; -> A
-// enum E e; -> E
-// typedef int T; T t; -> built-in
-inline const Declaration* getType(const Declaration& declaration)
-{
-	if(declaration.specifiers.isTypedef)
-	{
-		return getType(*declaration.type.declaration);
-	}
-	return declaration.type.declaration;
-}
-
-inline const Type& getUnderlyingType(const Type& type)
-{
-	if(type.declaration->specifiers.isTypedef
-		&& type.declaration->templateParameter == INDEX_INVALID)
-	{
-		return getUnderlyingType(type.declaration->type);
-	}
-	return type;
-}
 
 
 inline bool isEqual(const TypeId& l, const TypeId& r)
@@ -6925,19 +6849,6 @@ inline bool isBetter(const CandidateFunction& l, const CandidateFunction& r)
 }
 
 
-inline const char* getDeclarationType(const Declaration& declaration)
-{
-	if(isNamespace(declaration))
-	{
-		return "namespace";
-	}
-	if(isType(declaration))
-	{
-		return declaration.isTemplate ? "templateName" : "type";
-	}
-	return "object";
-}
-
 inline bool isAnonymous(const Declaration& declaration)
 {
 	return *declaration.getName().value.c_str() == '$';
@@ -6950,6 +6861,32 @@ struct DeclarationError
 	{
 	}
 };
+
+
+
+// int i; // type -> int
+// typedef int I; // type -> int
+// I i; // type -> I -> int
+// typedef I J; // type -> I -> int
+// J j; // type -> J -> I -> int
+// struct S; // type -> struct
+// typedef struct S S; // type -> S -> struct
+// typedef struct S {} S; // type -> S -> struct
+// typedef enum E {} E; // type -> E -> enum
+
+// returns the type of a declaration
+// int i; -> built-in
+// class A a; -> A
+// enum E e; -> E
+// typedef int T; T t; -> built-in
+inline const Declaration* getType(const Declaration& declaration)
+{
+	if(declaration.specifiers.isTypedef)
+	{
+		return getType(*declaration.type.declaration);
+	}
+	return declaration.type.declaration;
+}
 
 inline const Declaration& getPrimaryDeclaration(const Declaration& first, const Declaration& second)
 {

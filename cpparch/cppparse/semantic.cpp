@@ -1210,6 +1210,27 @@ inline UniqueTypeWrapper typeOfBinaryExpression(Name operatorName, Argument left
 	return overload.type;
 }
 
+inline UniqueTypeWrapper binaryOperatorAssignment(UniqueTypeWrapper left, UniqueTypeWrapper right)
+{
+	return left;
+}
+
+inline UniqueTypeWrapper binaryOperatorComma(UniqueTypeWrapper left, UniqueTypeWrapper right)
+{
+	return right;
+}
+
+inline UniqueTypeWrapper binaryOperatorBoolean(UniqueTypeWrapper left, UniqueTypeWrapper right)
+{
+	return gBool;
+}
+
+inline UniqueTypeWrapper binaryOperatorMemberPointer(UniqueTypeWrapper left, UniqueTypeWrapper right)
+{
+	return popType(right);
+}
+
+
 inline bool isSpecialMember(const Declaration& declaration)
 {
 	return &declaration == gDestructorInstance.p

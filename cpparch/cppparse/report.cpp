@@ -549,6 +549,19 @@ struct EscapedPath : public Concatenate
 	}
 };
 
+inline const char* getDeclarationType(const Declaration& declaration)
+{
+	if(isNamespace(declaration))
+	{
+		return "namespace";
+	}
+	if(isType(declaration))
+	{
+		return declaration.isTemplate ? "templateName" : "type";
+	}
+	return "object";
+}
+
 
 struct SourcePrinter : SymbolPrinter
 {
