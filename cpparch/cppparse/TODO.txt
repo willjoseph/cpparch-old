@@ -513,7 +513,7 @@
 			- findPrimaryTemplate: first non-explicit-specialization (should skip redeclarations)
 			- findTemplateSpecialization: specialization matching (should skip redeclarations)
 			- copyTemplateParams: after template-declaration, 'overloaded != 0' determines that the definition was previously forward-declared (should ignore explicit-specializations)
-			- findBestMatch: overload matching
+			- findBestOverloadedFunction: overload matching
 		- at point of declaration, determine if it's a redeclaration, add to redeclaration list
 			- or return original declaration?
 				- merge template-parameter defaults

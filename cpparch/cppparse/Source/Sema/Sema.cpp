@@ -4,9 +4,22 @@
 #include "Common/Util.h"
 
 #include "Common/Profile.h"
-#include "Ast/Ast.h"
+//#include "Ast/Ast.h"
 
+#include "Lex/Token.h"
+#include "Parse/Grammar.h"
+#include "Parse/Parse.h"
 #include "Parse/ParseSpecial.h"
+#include "Core/Fundamental.h"
+#include "Core/ExpressionEvaluate.h"
+#include "Core/NameLookup.h"
+#include "Core/TypeInstantiate.h"
+#include "Core/Special.h"
+#include "Core/OperatorId.h"
+#include "Core/TypeUnique.h"
+#include "Core/TypeConvert.h"
+#include "Core/Literal.h"
+#include "Core/TypeTraits.h"
 
 #include <iostream>
 
@@ -125,6 +138,486 @@ inline void setDecoration(Identifier* id, const DeclarationInstance& declaration
 	id->dec.p = &declaration;
 }
 
+
+
+// ----------------------------------------------------------------------------
+
+inline bool enclosesEts(ScopeType type)
+{
+	return type == SCOPETYPE_NAMESPACE
+		|| type == SCOPETYPE_LOCAL;
+}
+
+// ----------------------------------------------------------------------------
+
+inline const SimpleType* findEnclosingPrimaryTemplate(const SimpleType* enclosing, Declaration* declaration)
+{
+	Declaration* primary = findPrimaryTemplate(declaration);
+	SYMBOLS_ASSERT(primary->isTemplate);
+	SYMBOLS_ASSERT(!primary->isSpecialization);
+	for(const SimpleType* i = enclosing; i != 0; i = (*i).enclosing)
+	{
+		SYMBOLS_ASSERT(!(*i).primary->isSpecialization);
+		if((*i).primary->isTemplate
+			&& (*i).primary == primary)
+		{
+			return i;
+		}
+	}
+	return 0;
+}
+
+inline const SimpleType* getEnclosingType(const SimpleType* enclosing)
+{
+	for(const SimpleType* i = enclosing; i != 0; i = (*i).enclosing)
+	{
+		if((*i).declaration->getName().value.c_str()[0] != '$') // ignore anonymous union
+		{
+			return i;
+		}
+	}
+	return 0;
+}
+
+
+// ----------------------------------------------------------------------------
+
+
+
+inline Scope* getEnclosingTemplate(Scope* enclosing)
+{
+	for(Scope* scope = enclosing; scope != 0; scope = scope->parent)
+	{
+		if(isTemplate(*scope))
+		{
+			return scope;
+		}
+	}
+	return 0;
+}
+
+
+inline bool findScope(Scope* scope, Scope* other)
+{
+	if(scope == 0)
+	{
+		return false;
+	}
+	if(scope == other)
+	{
+		return true;
+	}
+	return findScope(scope->parent, other);
+}
+
+inline Declaration* getClassDeclaration(Scope* scope)
+{
+	SYMBOLS_ASSERT(scope);
+	SYMBOLS_ASSERT(scope->type == SCOPETYPE_CLASS);
+	return getDeclaration(scope->name);
+}
+
+inline Declaration* findEnclosingClassTemplate(Declaration* dependent)
+{
+	if(dependent != 0
+		&& (isClass(*dependent)
+		|| isEnum(*dependent)) // type of enum within class template is dependent
+		&& isMember(*dependent))
+	{
+		Scope* scope = getEnclosingClass(dependent->scope);
+		if(scope == 0)
+		{
+			// enclosing class was anonymous and at namespace scope.
+			return 0;
+		}
+		Declaration* declaration = getClassDeclaration(scope);
+		return declaration->isTemplate
+			? declaration
+			: findEnclosingClassTemplate(declaration);
+	}
+	return 0;
+}
+
+inline bool isDependentImpl(Declaration* dependent, Scope* enclosing, Scope* templateParamScope)
+{
+	return dependent != 0
+		&& (findScope(enclosing, dependent->scope) != 0
+		|| findScope(templateParamScope, dependent->scope) != 0); // if we are within the candidate template-parameter's template-definition
+}
+
+// ----------------------------------------------------------------------------
+// expression helper
+
+template<typename T, bool isExpression = IsConvertible<T, cpp::expression>::RESULT>
+struct ExpressionType;
+
+template<typename T>
+struct ExpressionType<T, false>
+{
+	static UniqueTypeId get(T* symbol)
+	{
+		return gUniqueTypeNull;
+	}
+	static void set(T* symbol, UniqueTypeId declaration)
+	{
+	}
+};
+
+inline UniqueTypeId getExpressionType(cpp::expression* symbol)
+{
+	return UniqueTypeId(symbol->type.p);
+}
+inline void setExpressionType(cpp::expression* symbol, UniqueTypeId value)
+{
+	symbol->type.p = value.value;
+}
+
+inline UniqueTypeId getExpressionType(cpp::postfix_expression_suffix* symbol)
+{
+	return UniqueTypeId(symbol->type.p);
+}
+inline void setExpressionType(cpp::postfix_expression_suffix* symbol, UniqueTypeId value)
+{
+	symbol->type.p = value.value;
+}
+
+inline UniqueTypeId getExpressionType(cpp::type_id* symbol)
+{
+	return UniqueTypeId(symbol->type.p);
+}
+inline void setExpressionType(cpp::type_id* symbol, UniqueTypeId value)
+{
+	symbol->type.p = value.value;
+}
+
+inline UniqueTypeId getExpressionType(cpp::base_specifier* symbol)
+{
+	return UniqueTypeId(symbol->type.p);
+}
+inline void setExpressionType(cpp::base_specifier* symbol, UniqueTypeId value)
+{
+	symbol->type.p = value.value;
+}
+
+template<typename T>
+struct ExpressionType<T, true>
+{
+	static UniqueTypeId get(T* symbol)
+	{
+		return getExpressionType(symbol);
+	}
+	static void set(T* symbol, UniqueTypeId declaration)
+	{
+		setExpressionType(symbol, declaration);
+	}
+};
+
+
+inline bool isEqual(const TypeId& l, const TypeId& r)
+{
+	SYMBOLS_ASSERT(l.unique != 0);
+	SYMBOLS_ASSERT(r.unique != 0);
+	return l.unique == r.unique;
+}
+
+inline bool isEqual(const Type& left, const Type& right)
+{
+	SYMBOLS_ASSERT(left.unique != 0);
+	SYMBOLS_ASSERT(right.unique != 0);
+	return left.unique == right.unique;
+}
+
+inline bool isEqual(const TemplateArgument& l, const TemplateArgument& r)
+{
+	if((l.type.declaration == &gNonType)
+		!= (r.type.declaration == &gNonType))
+	{
+		return false;
+	}
+	return l.type.declaration == &gNonType
+		? l.expression.p == r.expression.p
+		: isEqual(l.type, r.type);
+}
+
+inline bool matchTemplateSpecialization(const Declaration& declaration, const TemplateArguments& arguments)
+{
+	// TODO: check that all arguments are specified!
+	TemplateArguments::const_iterator a = arguments.begin();
+	for(TemplateArguments::const_iterator i = declaration.templateArguments.begin(); i != declaration.templateArguments.end(); ++i)
+	{
+		SYMBOLS_ASSERT(a != arguments.end()); // a template-specialization must have no more arguments than the template parameters
+
+		if(!isEqual(*i, *a))
+		{
+			return false;
+		}
+		++a;
+	}
+	SYMBOLS_ASSERT(a == arguments.end());
+	return true;
+}
+
+inline Declaration* findTemplateSpecialization(Declaration* declaration, const TemplateArguments& arguments)
+{
+	for(; declaration != 0; declaration = declaration->overloaded)
+	{
+		if(!isSpecialization(*declaration))
+		{
+			continue;
+		}
+
+		if(matchTemplateSpecialization(*declaration, arguments))
+		{
+			return declaration;
+		}
+	}
+	return 0;
+}
+
+
+inline bool isAnonymous(const Declaration& declaration)
+{
+	return *declaration.getName().value.c_str() == '$';
+}
+
+struct DeclarationError
+{
+	const char* description;
+	DeclarationError(const char* description) : description(description)
+	{
+	}
+};
+
+
+
+// int i; // type -> int
+// typedef int I; // type -> int
+// I i; // type -> I -> int
+// typedef I J; // type -> I -> int
+// J j; // type -> J -> I -> int
+// struct S; // type -> struct
+// typedef struct S S; // type -> S -> struct
+// typedef struct S {} S; // type -> S -> struct
+// typedef enum E {} E; // type -> E -> enum
+
+// returns the type of a declaration
+// int i; -> built-in
+// class A a; -> A
+// enum E e; -> E
+// typedef int T; T t; -> built-in
+inline const Declaration* getType(const Declaration& declaration)
+{
+	if(declaration.specifiers.isTypedef)
+	{
+		return getType(*declaration.type.declaration);
+	}
+	return declaration.type.declaration;
+}
+
+inline const Declaration& getPrimaryDeclaration(const Declaration& first, const Declaration& second)
+{
+	if(isNamespace(first))
+	{
+		if(!isNamespace(second))
+		{
+			throw DeclarationError("non-namespace already declared as namespace");
+		}
+		return first; // namespace continuation
+	}
+	if(isType(first))
+	{
+		if(!isType(second))
+		{
+			throw DeclarationError("non-type already declared as type");
+		}
+		if(getType(first) != getType(second))
+		{
+			throw DeclarationError("type already declared as different type");
+		}
+		if(isTypedef(first))
+		{
+			return second; // redeclaration of typedef, or definition of type previously used in typedef
+		}
+		if(isTypedef(second))
+		{
+			return second; // typedef of type previously declared: typedef struct S {} S;
+		}
+		if(isClass(first))
+		{
+			if(isSpecialization(second))
+			{
+				return second; // TODO: class template partial/explicit-specialization
+			}
+			if(isSpecialization(first))
+			{
+				return second; // TODO: class template partial/explicit-specialization
+			}
+			if(isIncomplete(second))
+			{
+				return second; // redeclaration of previously-declared class
+			}
+			if(isIncomplete(first))
+			{
+				return second; // definition of forward-declared class
+			}
+			throw DeclarationError("class-definition already defined");
+		}
+		if(isEnum(first))
+		{
+			throw DeclarationError("enum-definition already defined");
+		}
+		throw SymbolsError(); // should not be reachable
+	}
+	if(isType(second))
+	{
+		throw DeclarationError("type already declared as non-type");
+	}
+	if(isFunction(first)
+		|| isFunction(second))// TODO: function overloading
+	{
+		return second; // multiple declarations allowed
+	}
+	if(isStaticMember(first))
+	{
+		// TODO: disallow inline definition of static member: class C { static int i; int i; };
+		if(!isMemberObject(second))
+		{
+			throw DeclarationError("non-member-object already declared as static member-object");
+		}
+		return second; // multiple declarations allowed
+	}
+	if(isExtern(first)
+		|| isExtern(second))
+	{
+		return second; // multiple declarations allowed
+	}
+	// HACK: ignore multiple declarations for members of template - e.g. const char Tmpl<char>::VALUE; const int Tmpl<int>::VALUE;
+	if(!first.templateParams.defaults.empty())
+	{
+		// if enclosing is a template
+		return first;
+	}
+	throw DeclarationError("symbol already defined");
+}
+
+inline bool hasTemplateParamDefaults(const TemplateParameters& params)
+{
+	for(TemplateArguments::const_iterator i = params.defaults.begin(); i != params.defaults.end(); ++i)
+	{
+		if((*i).type.declaration != 0)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+// substitute references to template-parameters of 'otherParams' for template-parameters of 'params'
+inline void fixTemplateParamDefault(TemplateArgument& argument, const TemplateParameters& params, const TemplateParameters& otherParams)
+{
+	if(argument.type.declaration == 0)
+	{
+		return;
+	}
+	std::size_t index = argument.type.declaration->templateParameter;
+	if(index != INDEX_INVALID)
+	{
+		Types::const_iterator i = params.begin();
+		std::advance(i, index);
+		Types::const_iterator j = otherParams.begin();
+		std::advance(j, index);
+		if(argument.type.declaration->scope == (*j).declaration->scope)
+		{
+			argument.type.declaration = (*i).declaration;
+		}
+	}
+	for(TemplateArguments::iterator i = argument.type.templateArguments.begin(); i != argument.type.templateArguments.end(); ++i)
+	{
+		fixTemplateParamDefault(*i, params, otherParams);
+	}
+}
+
+inline void copyTemplateParamDefault(TemplateArgument& argument, const TemplateArgument& otherArgument, const TemplateParameters& params, const TemplateParameters& otherParams)
+{
+	argument = otherArgument;
+	fixTemplateParamDefault(argument, params, otherParams);
+}
+
+inline void copyTemplateParamDefaults(TemplateParameters& params, const TemplateParameters& otherParams)
+{
+	SYMBOLS_ASSERT(params.defaults.empty());
+	for(TemplateArguments::const_iterator i = otherParams.defaults.begin(); i != otherParams.defaults.end(); ++i)
+	{
+		params.defaults.push_back(TEMPLATEARGUMENT_NULL);
+		copyTemplateParamDefault(params.defaults.back(), *i, params, otherParams);
+	}
+}
+
+/// 14.1-10: the set of template param defaults is obtained by merging those from the definition and all declarations currently in scope (excluding explicit-specializations)
+inline void mergeTemplateParamDefaults(TemplateParameters& params, const TemplateParameters& otherParams)
+{
+	if(params.defaults.empty())
+	{
+		copyTemplateParamDefaults(params, otherParams);
+		return;
+	}
+	if(!hasTemplateParamDefaults(otherParams)) // ignore declarations with no default-arguments, e.g. explicit/partial-specializations
+	{
+		return;
+	}
+	SYMBOLS_ASSERT(!otherParams.defaults.empty());
+	TemplateArguments::iterator d = params.defaults.begin();
+	for(TemplateArguments::const_iterator i = otherParams.defaults.begin(); i != otherParams.defaults.end(); ++i)
+	{
+		SYMBOLS_ASSERT(d != params.defaults.end());
+		SYMBOLS_ASSERT((*d).type.declaration == 0 || (*i).type.declaration == 0); // TODO: non-fatal error: default param defined more than once
+		if((*d).type.declaration == 0)
+		{
+			copyTemplateParamDefault(*d, *i, params, otherParams);
+		}
+		++d;
+	}
+	SYMBOLS_ASSERT(d == params.defaults.end());
+}
+
+inline void mergeTemplateParamDefaults(Declaration& declaration, const TemplateParameters& templateParams)
+{
+	SYMBOLS_ASSERT(declaration.isTemplate);
+	SYMBOLS_ASSERT(isClass(declaration));
+	SYMBOLS_ASSERT(!isSpecialization(declaration)); // explicit/partial-specializations cannot have default-arguments
+	mergeTemplateParamDefaults(declaration.templateParams, templateParams);
+	SYMBOLS_ASSERT(!declaration.templateParams.defaults.empty());
+}
+
+//-----------------------------------------------------------------------------
+
+inline bool isFunctionParameterEquivalent(UniqueTypeWrapper left, UniqueTypeWrapper right)
+{
+	return adjustFunctionParameter(left) == adjustFunctionParameter(right);
+}
+
+inline bool isEquivalent(const ParameterTypes& left, const ParameterTypes& right)
+{
+	ParameterTypes::const_iterator l = left.begin();
+	ParameterTypes::const_iterator r = right.begin();
+	for(;; ++l, ++r)
+	{
+		if(l == left.end())
+		{
+			return r == right.end();
+		}
+		if(r == right.end())
+		{
+			return false;
+		}
+		if(!isFunctionParameterEquivalent(*l, *r))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
 inline bool isReturnTypeEqual(UniqueTypeWrapper left, UniqueTypeWrapper right)
 {
 	SYMBOLS_ASSERT(left.isFunction());
@@ -214,7 +707,7 @@ inline bool isEquivalent(const Declaration& declaration, const Declaration& othe
 			return declaration.isTemplate == other.isTemplate // early out
 				&& isEquivalentTemplateParameters(declaration.templateParams, other.templateParams)
 				// [over.load] Function declarations that differ only in the return type cannot be overloaded.
-				&& (declaration.getName().value == gConversionFunctionId.value
+				&& (declaration.getName().value == gConversionFunctionId
 					? isReturnTypeEqual(l, r) // return-types match
 					// (only template overloads may differ in return type, return-type is not used to distinguish overloads, except for conversion-function)
 					: isEquivalent(getParameterTypes(l.value), getParameterTypes(r.value))); // and parameter-types match
@@ -237,1489 +730,6 @@ inline const DeclarationInstance* findRedeclared(const Declaration& declaration,
 }
 
 
-struct Overload
-{
-	const Declaration* declaration;
-	const SimpleType* memberEnclosing;
-	Overload(const Declaration* declaration, const SimpleType* memberEnclosing)
-		: declaration(declaration), memberEnclosing(memberEnclosing)
-	{
-	}
-};
-
-inline bool operator==(const Overload& left, const Overload& right)
-{
-	return left.declaration == right.declaration
-		&& left.memberEnclosing == right.memberEnclosing;
-}
-
-typedef std::vector<Overload> OverloadSet;
-
-
-//-----------------------------------------------------------------------------
-// Argument dependent lookup
-
-struct KoenigAssociated
-{
-	typedef std::vector<Scope*> Namespaces;
-	Namespaces namespaces;
-	typedef std::vector<const SimpleType*> Classes;
-	Classes classes;
-};
-
-void addAssociatedNamespace(KoenigAssociated& associated, Scope& scope)
-{
-	SEMANTIC_ASSERT(scope.type == SCOPETYPE_NAMESPACE);
-	if(std::find(associated.namespaces.begin(), associated.namespaces.end(), &scope) == associated.namespaces.end())
-	{
-		associated.namespaces.push_back(&scope);
-	}
-}
-
-void addAssociatedClass(KoenigAssociated& associated, const SimpleType& type)
-{
-	SEMANTIC_ASSERT(isClass(*type.declaration));
-	if(std::find(associated.classes.begin(), associated.classes.end(), &type) == associated.classes.end())
-	{
-		associated.classes.push_back(&type);
-	}
-}
-
-void addAssociatedEnclosingNamespace(KoenigAssociated& associated, const SimpleType& type)
-{
-	Scope* scope = getEnclosingNamespace(type.declaration->scope);
-	if(scope != 0)
-	{
-		addAssociatedNamespace(associated, *scope);
-	}
-}
-
-void addAssociatedClassAndNamespace(KoenigAssociated& associated, const SimpleType& classType)
-{
-	SEMANTIC_ASSERT(isClass(*classType.declaration));
-	addAssociatedClass(associated, classType);
-	addAssociatedEnclosingNamespace(associated, classType);
-}
-
-void addAssociatedClassRecursive(KoenigAssociated& associated, const SimpleType& classType)
-{
-	SEMANTIC_ASSERT(isClass(*classType.declaration));
-	addAssociatedClassAndNamespace(associated, classType);
-	for(UniqueBases::const_iterator i = classType.bases.begin(); i != classType.bases.end(); ++i)
-	{
-		const SimpleType* base = *i;
-		addAssociatedClassRecursive(associated, *base); // TODO: check for cyclic base-class, prevent infinite recursion
-	}
-}
-
-void addKoenigAssociated(KoenigAssociated& associated, const SimpleType& classType)
-{
-	if(classType.enclosing != 0)
-	{
-		addAssociatedClassAndNamespace(associated, *classType.enclosing);
-	}
-	addAssociatedClassRecursive(associated, classType);
-}
-
-void addKoenigAssociated(KoenigAssociated& associated, UniqueTypeWrapper type);
-
-struct KoenigVisitor : TypeElementVisitor
-{
-	KoenigAssociated& associated;
-	KoenigVisitor(KoenigAssociated& associated)
-		: associated(associated)
-	{
-	}
-#if 0
-	virtual void visit(const Namespace& element)
-	{
-		SYMBOLS_ASSERT(false);
-	}
-#endif
-	virtual void visit(const DependentType& element) // deduce from T, TT, TT<...>
-	{
-	}
-	virtual void visit(const DependentTypename&)
-	{
-	}
-	virtual void visit(const DependentNonType& element)
-	{
-	}
-	virtual void visit(const TemplateTemplateArgument& element)
-	{
-		if(element.enclosing != 0)
-		{
-			addAssociatedClass(associated, *element.enclosing);
-		}
-	}
-	virtual void visit(const NonType&)
-	{
-	}
-	virtual void visit(const SimpleType& element)
-	{
-		// - If T is a fundamental type, its associated sets of namespaces and classes are both empty.
-		if(isClass(*element.declaration))
-		{
-			// - If T is a class type (including unions), its associated classes are: the class itself; the class of which it is a
-			//   member, if any; and its direct and indirect base classes. Its associated namespaces are the namespaces
-			//   in which its associated classes are defined.
-			addKoenigAssociated(associated, element);
-		}
-		else if(isEnum(*element.declaration))
-		{
-			// - If T is an enumeration type, its associated namespace is the namespace in which it is defined. If it is
-			//   class member, its associated class is the member’s class; else it has no associated class.
-			if(element.enclosing != 0)
-			{
-				addAssociatedClass(associated, *element.enclosing);
-			}
-			addAssociatedEnclosingNamespace(associated, element);
-		}
-
-		if(element.declaration->isTemplate)
-		{
-			// - If T is a template-id, its associated namespaces and classes are the namespace in which the template is
-			//   defined; for member templates, the member template’s class; the namespaces and classes associated
-			//   with the types of the template arguments provided for template type parameters (excluding template
-			//   template parameters); the namespaces in which any template template arguments are defined; and the
-			//   classes in which any member templates used as template template arguments are defined. [Note: nontype
-			//   template arguments do not contribute to the set of associated namespaces. ]
-			// TODO: does this apply to function-template id 'f<int>()' ?
-			for(TemplateArgumentsInstance::const_iterator i = element.templateArguments.begin(); i != element.templateArguments.end(); ++i)
-			{
-				addKoenigAssociated(associated, *i);
-			}
-		}
-	}
-	// - If T is a pointer to U or an array of U, its associated namespaces and classes are those associated with U.
-	virtual void visit(const PointerType&)
-	{
-	}
-	virtual void visit(const ReferenceType&)
-	{
-	}
-	virtual void visit(const ArrayType&)
-	{
-	}
-	virtual void visit(const MemberPointerType& element)
-	{
-		// - If T is a pointer to a member function of a class X, its associated namespaces and classes are those associated
-		//   with the function parameter types and return type, together with those associated with X.
-		// - If T is a pointer to a data member of class X, its associated namespaces and classes are those associated
-		//   with the member type together with those associated with X.
-		addKoenigAssociated(associated, getSimpleType(element.type.value));
-	}
-	virtual void visit(const FunctionType& element)
-	{
-		// - If T is a function type, its associated namespaces and classes are those associated with the function
-		//   parameter types and those associated with the return type.
-		for(ParameterTypes::const_iterator i = element.parameterTypes.begin(); i != element.parameterTypes.end(); ++i)
-		{
-			addKoenigAssociated(associated, *i);
-		}
-	}
-};
-
-
-void addKoenigAssociated(KoenigAssociated& associated, UniqueTypeWrapper type)
-{
-	for(; type != gUniqueTypeNull; type.pop_front())
-	{
-		KoenigVisitor visitor(associated);
-		type.value->accept(visitor);
-	}
-}
-
-void addUniqueOverload(OverloadSet& result, const Overload& overload)
-{
-	if(std::find(result.begin(), result.end(), overload) == result.end())
-	{
-		result.push_back(overload);
-	}
-}
-
-const SimpleType* findAssociatedClass(const KoenigAssociated& associated, const Declaration& declaration)
-{
-	SEMANTIC_ASSERT(isClass(declaration))
-	for(KoenigAssociated::Classes::const_iterator i = associated.classes.begin(); i != associated.classes.end(); ++i)
-	{
-		const SimpleType* classType = *i;
-		if(classType->declaration == &declaration)
-		{
-			return classType;
-		}
-	}
-	return 0;
-}
-
-void addOverloaded(OverloadSet& result, const DeclarationInstance& declaration, const SimpleType* memberEnclosing)
-{
-	for(Declaration* p = findOverloaded(declaration); p != 0; p = p->overloaded)
-	{
-		if(p->specifiers.isFriend)
-		{
-			SEMANTIC_ASSERT(memberEnclosing == 0);
-			continue; // ignore (namespace-scope) friend functions
-		}
-		addUniqueOverload(result, Overload(p, memberEnclosing));
-	}
-}
-
-void addOverloaded(OverloadSet& result, const DeclarationInstance& declaration, const KoenigAssociated& associated = KoenigAssociated())
-{
-	for(Declaration* p = findOverloaded(declaration); p != 0; p = p->overloaded)
-	{
-		const SimpleType* memberEnclosing = 0;
-		if(p->specifiers.isFriend)
-		{
-			Scope* enclosingClass = getEnclosingClass(p->enclosed);
-			memberEnclosing = findAssociatedClass(associated, *getDeclaration(enclosingClass->name));
-			if(memberEnclosing == 0)
-			{
-				continue; // friend should only be visible if member of an associated class
-			}
-		}
-		addUniqueOverload(result, Overload(p, memberEnclosing));
-	}
-}
-
-void argumentDependentLookup(OverloadSet& result, const Identifier& id, const Arguments& arguments)
-{
-	KoenigAssociated associated;
-	// [basic.lookup.koenig]
-	// For each argument type T in the function call, there is a set of zero or more associated namespaces and a set
-	// of zero or more associated classes to be considered. The sets of namespaces and classes is determined
-	// entirely by the types of the function arguments (and the namespace of any template template argument).
-	// Typedef names and using-declarations used to specify the types do not contribute to this set.
-	for(Arguments::const_iterator i = arguments.begin(); i != arguments.end(); ++i)
-	{
-		UniqueTypeWrapper type = (*i).type;
-		addKoenigAssociated(associated, type);
-	}
-	// TODO:
-	// In addition, if the argument is the name or address of a set of overloaded functions and/or function templates,
-	// its associated classes and namespaces are the union of those associated with each of the members of
-	// the set: the namespace in which the function or function template is defined and the classes and namespaces
-	// associated with its (non-dependent) parameter types and return type.
-	for(KoenigAssociated::Namespaces::const_iterator i = associated.namespaces.begin(); i != associated.namespaces.end(); ++i)
-	{
-		// TODO: Any namespace-scope friend functions declared in associated classes are visible within their respective
-		// namespaces even if they are not visible during an ordinary lookup.
-		// All names except those of (possibly overloaded) functions and function templates are ignored.
-		if(const DeclarationInstance* p = findDeclaration((*i)->declarations, id, IsFunctionName()))
-		{
-			const DeclarationInstance& declaration = *p;
-			addOverloaded(result, *p, associated);
-		}
-	}
-}
-
-inline void addOverloads(OverloadResolver& resolver, const DeclarationInstance& declaration, const InstantiationContext& context)
-{
-	for(Declaration* p = findOverloaded(declaration); p != 0; p = p->overloaded)
-	{
-		addOverload(resolver, *p, context);
-	}
-}
-
-inline void addOverloads(OverloadResolver& resolver, const OverloadSet& overloads, const InstantiationContext& context)
-{
-	for(OverloadSet::const_iterator i = overloads.begin(); i != overloads.end(); ++i)
-	{
-		const Overload& overload = *i;
-		addOverload(resolver, *overload.declaration, setEnclosingType(context, overload.memberEnclosing));
-	}
-}
-
-inline void printOverloads(OverloadResolver& resolver, const OverloadSet& overloads, const InstantiationContext& context)
-{
-	for(OverloadSet::const_iterator i = overloads.begin(); i != overloads.end(); ++i)
-	{
-		const Overload& overload = *i;
-		addOverload(resolver, *overload.declaration, setEnclosingType(context, overload.memberEnclosing));
-	
-		const Declaration* p = overload.declaration;
-		ParameterTypes parameters = addOverload(resolver, *p, context);
-		printPosition(p->getName().source);
-		std::cout << "(";
-		bool separator = false;
-		for(ParameterTypes::const_iterator i = parameters.begin(); i != parameters.end(); ++i)
-		{
-			if(separator)
-			{
-				std::cout << ", ";
-			}
-			printType(*i);
-			separator = true;
-		}
-		std::cout << ")" << std::endl;
-	}
-}
-
-// source: where the overload resolution occurs (point of instantiation)
-// enclosingType: the class of which the declaration is a member (along with all its overloads).
-inline FunctionOverload findBestMatch(const OverloadSet& overloads, const TemplateArgumentsInstance* templateArguments, const Arguments& arguments, const InstantiationContext& context)
-{
-	SEMANTIC_ASSERT(!overloads.empty());
-	OverloadResolver resolver(arguments, templateArguments, context);
-	addOverloads(resolver, overloads, context);
-
-	if(resolver.ambiguous != 0)
-	{
-#if 0
-		std::cout << "overload resolution failed:" << std::endl;
-		std::cout << "  ";
-		printPosition(resolver.ambiguous->getName().position);
-		printName(resolver.ambiguous);
-		std::cout << std::endl;
-		if(resolver.best.declaration != 0)
-		{
-			std::cout << "  ";
-			printPosition(resolver.best.declaration->getName().position);
-			printName(resolver.best.declaration);
-			std::cout << std::endl;
-		}
-#endif
-	}
-
-	if(resolver.get().declaration == 0)
-	{
-		printPosition(context.source);
-		std::cout << "overload resolution failed when matching arguments (";
-		bool separator = false;
-		for(Arguments::const_iterator i = arguments.begin(); i != arguments.end(); ++i)
-		{
-			if(separator)
-			{
-				std::cout << ", ";
-			}
-			printType((*i).type);
-			separator = true;
-		}
-		std::cout << ")" << std::endl;
-		std::cout << "candidates for ";
-		const Declaration* declaration = overloads.front().declaration;
-		printName(declaration->scope);
-		std::cout << getValue(declaration->getName());
-		std::cout << std::endl;
-		printOverloads(resolver, overloads, context);
-	}
-
-	return resolver.get();
-}
-
-
-inline void addBuiltInOperatorOverload(OverloadResolver& resolver, UniqueTypeWrapper type)
-{
-	const ParameterTypes& parameters = getParameterTypes(type.value);
-	resolver.add(FunctionOverload(&gUnknown, popType(type)), parameters, false, 0);
-}
-
-inline void addBuiltInOperatorOverloads(OverloadResolver& resolver, BuiltInTypeArrayRange overloads)
-{
-	for(const BuiltInType* i = overloads.first; i != overloads.last; ++i)
-	{
-		BuiltInType overload = *i;
-		const ParameterTypes& parameters = getParameterTypes(overload.value);
-		if(resolver.arguments.size() != parameters.size())
-		{
-			continue;
-		}
-		addBuiltInOperatorOverload(resolver, overload);
-	}
-}
-
-typedef std::vector<UserType> UserTypeArray;
-
-extern BuiltInTypeArrayRange gIntegralTypesRange;
-extern BuiltInTypeArrayRange gPromotedIntegralTypesRange;
-extern BuiltInTypeArrayRange gArithmeticTypesRange;
-extern BuiltInTypeArrayRange gPromotedArithmeticTypesRange;
-
-inline void addBuiltInTypeConversions(UserTypeArray& conversions, BuiltInTypeArrayRange types)
-{
-	for(const BuiltInType* i = types.first; i != types.last; ++i)
-	{
-		conversions.push_back(UserType(*i));
-	}
-}
-
-template<typename Op>
-inline void forEachBase(const SimpleType& classType, Op op)
-{
-	SYMBOLS_ASSERT(classType.instantiated);
-	op(classType);
-	for(UniqueBases::const_iterator i = classType.bases.begin(); i != classType.bases.end(); ++i)
-	{
-		forEachBase(**i, op);
-	}
-}
-
-template<typename T>
-inline void addQualificationPermutations(UserTypeArray& conversions, UniqueTypeWrapper type, const T& pointerType)
-{
-	conversions.push_back(UserType(pushType(qualifyType(type, CvQualifiers(false, false)), pointerType)));
-	conversions.push_back(UserType(pushType(qualifyType(type, CvQualifiers(true, false)), pointerType)));
-	conversions.push_back(UserType(pushType(qualifyType(type, CvQualifiers(false, true)), pointerType)));
-	conversions.push_back(UserType(pushType(qualifyType(type, CvQualifiers(true, true)), pointerType)));
-}
-
-inline void addQualificationPermutations(UserTypeArray& conversions, UniqueTypeWrapper type)
-{
-	addQualificationPermutations(conversions, type, PointerType());
-}
-
-
-struct AddPointerConversions
-{
-	UserTypeArray& conversions;
-	CvQualifiers qualifiers;
-	AddPointerConversions(UserTypeArray& conversions, CvQualifiers qualifiers)
-		: conversions(conversions), qualifiers(qualifiers)
-	{
-	}
-	void operator()(const SimpleType& classType) const
-	{
-		addQualificationPermutations(conversions, qualifyType(makeUniqueSimpleType(classType), qualifiers));
-	}
-};
-
-struct AddMemberPointerConversions
-{
-	UserTypeArray& conversions;
-	UniqueTypeWrapper type;
-	AddMemberPointerConversions(UserTypeArray& conversions, UniqueTypeWrapper type)
-		: conversions(conversions), type(type)
-	{
-	}
-	void operator()(const SimpleType& classType) const
-	{
-		addQualificationPermutations(conversions, type, MemberPointerType(makeUniqueSimpleType(classType)));
-	}
-};
-
-inline bool isPlaceholder(UniqueTypeWrapper type)
-{
-	type = removeReference(type);
-	return type == gArithmeticPlaceholder
-		|| type == gIntegralPlaceholder
-		|| type == gPromotedIntegralPlaceholder
-		|| type == gPromotedArithmeticPlaceholder
-		|| type == gEnumerationPlaceholder
-		|| type == gPointerToAnyPlaceholder
-		|| type == gPointerToObjectPlaceholder
-		|| type == gPointerToClassPlaceholder
-		|| type == gPointerToFunctionPlaceholder
-		|| type == gPointerToMemberPlaceholder;
-}
-
-// to: The placeholder parameter of the built-in operator.
-// from: The type of the argument expression after lvalue-to-rvalue conversion, or the type yielded by the best conversion function.
-inline void addBuiltInOperatorConversions(UserTypeArray& conversions, UniqueTypeWrapper to, UniqueTypeWrapper from, const InstantiationContext& context)
-{
-	SYMBOLS_ASSERT(isPlaceholder(removeReference(to)));
-	if(to.isReference())
-	{
-		// built-in operators that have reference parameters are always non-const, so must be an exact match.
-		conversions.push_back(UserType(from));
-		return;
-	}
-	if(isPointerPlaceholder(to))
-	{
-		SYMBOLS_ASSERT(from.isPointer());
-		UniqueTypeWrapper type = popType(from);
-		CvQualifiers qualifiers = type.value.getQualifiers();
-		if(isClass(type)
-			&& isComplete(type))
-		{
-			// the argument type 'pointer to class X' is convertible to a pointer to any base class of X
-			const SimpleType& classType = getSimpleType(type.value);
-			instantiateClass(classType, context);
-			forEachBase(classType, AddPointerConversions(conversions, qualifiers));
-		}
-		else
-		{
-			addQualificationPermutations(conversions, type);
-		}
-		// the argument type 'pointer to X' is convertible to a pointer to void
-		addQualificationPermutations(conversions, qualifyType(gVoid, qualifiers));
-		return;
-	}
-
-	if(to == gPointerToMemberPlaceholder)
-	{
-		SYMBOLS_ASSERT(from.isMemberPointer());
-		UniqueTypeWrapper type = popType(from);
-		if(isComplete(from))
-		{
-			// the argument type 'pointer to member of class X of type Y' is convertible to a pointer to member of any base class of X of type Y
-			const SimpleType& classType = getMemberPointerClass(from.value);
-			instantiateClass(classType, context);
-			forEachBase(classType, AddMemberPointerConversions(conversions, type));
-		}
-		else
-		{
-			addQualificationPermutations(conversions, type, getMemberPointerType(from.value));
-		}
-		return;
-	}
-	if(to == gEnumerationPlaceholder)
-	{
-		SYMBOLS_ASSERT(isEnum(from));
-		conversions.push_back(UserType(from));
-		// the argument type 'enumeration of type E' is also convertible to any arithmetic type 
-		// drop through...
-	}
-	return addBuiltInTypeConversions(conversions, gArithmeticTypesRange);
-}
-
-typedef std::vector<UserTypeArray> ConversionPairs;
-typedef TypeTuple<false, 1> Permutation1;
-typedef TypeTuple<false, 2> Permutation2;
-typedef std::vector<Permutation1> Permutation1Array;
-typedef std::vector<Permutation2> Permutation2Array;
-
-inline void addBuiltInOperatorPermutations(Permutation1Array& result, ConversionPairs& conversionPairs)
-{
-	SEMANTIC_ASSERT(!conversionPairs.empty());
-	if(conversionPairs.size() == 1) // one argument was not a placeholder, or one argument is a null pointer constant expression
-	{
-		std::copy(conversionPairs[0].begin(), conversionPairs[0].end(), std::back_inserter(result));
-	}
-	else
-	{
-		SEMANTIC_ASSERT(conversionPairs.size() == 2);
-		std::sort(conversionPairs[0].begin(), conversionPairs[0].end());
-		std::sort(conversionPairs[1].begin(), conversionPairs[1].end());
-
-		// find the union of both sets
-		std::set_intersection(conversionPairs[0].begin(), conversionPairs[0].end(), conversionPairs[1].begin(), conversionPairs[1].end(), std::back_inserter(result));
-	}
-}
-
-inline void addBuiltInOperatorPermutations(Permutation2Array& result, ConversionPairs& conversionPairs)
-{
-	SEMANTIC_ASSERT(!conversionPairs.empty());
-	if(conversionPairs.size() == 1) // one argument was not a placeholder, or one argument is a null pointer constant expression
-	{
-		return;
-	}
-	else
-	{
-		SEMANTIC_ASSERT(conversionPairs.size() == 2);
-		for(UserTypeArray::const_iterator i = conversionPairs[0].begin(); i != conversionPairs[0].end(); ++i)
-		{
-			UserType left = *i;
-			for(UserTypeArray::const_iterator i = conversionPairs[0].begin(); i != conversionPairs[0].end(); ++i)
-			{
-				UserType right = *i;
-				result.push_back(Permutation2(left, right));
-			}
-		}
-	}
-}
-
-template<int N>
-inline void addBuiltInOperatorOverloads(OverloadResolver& resolver, ArrayRange<BuiltInGenericType<N> > overloads)
-{
-	for(const BuiltInGenericType<N>* i = overloads.first; i != overloads.last; ++i)
-	{
-		BuiltInGenericType<N> overload = *i;
-		const ParameterTypes& parameters = getParameterTypes(overload.value);
-		if(resolver.arguments.size() != parameters.size())
-		{
-			continue;
-		}
-
-		ConversionPairs conversionPairs;
-		conversionPairs.reserve(2);
-		Arguments::const_iterator a = resolver.arguments.begin();
-		ParameterTypes::const_iterator p = parameters.begin();
-		for(; a != resolver.arguments.end(); ++a, ++p)
-		{
-			UniqueTypeWrapper to = *p;
-			const Argument& from = *a;
-			ImplicitConversion conversion = resolver.makeConversion(TargetType(to), from);
-			if(!isValid(conversion)) // if the argument could not be converted
-			{
-				conversionPairs.clear();
-				break;
-			}
-			if(!isPlaceholder(to))
-			{
-				continue;
-			}
-			if(isGeneralPointer(TargetType(to))
-				&& isIntegral(from.type)) // if this argument is a null pointer constant expression
-			{
-				continue; // null pointer matches any pointer type, but does not give enough information to add built-in overloads
-			}
-			conversionPairs.push_back(UserTypeArray());
-			UserTypeArray& conversions = conversionPairs.back();
-			addBuiltInOperatorConversions(conversions, to, conversion.sequence.matched, resolver.context);
-		}
-
-		if(conversionPairs.empty()) // no built-in overloads can be matched by this argument list
-		{
-			continue;
-		}
-
-		typedef TypeTuple<false, N> Permutation;
-		typedef std::vector<Permutation> Permutations;
-		Permutations permutations;
-		addBuiltInOperatorPermutations(permutations, conversionPairs);
-
-		// TODO: limit qualification permutations for pointer / member-pointer to only those with equal or greater cv-qualification than type of argument expression
-		for(typename Permutations::const_iterator i = permutations.begin(); i != permutations.end(); ++i)
-		{
-			Permutation permutation = *i;
-			UserType substituted = overload.substitute(permutation);
-			addBuiltInOperatorOverload(resolver, substituted);
-		}
-	}
-}
-
-extern BuiltInTypeArrayRange gUnaryPostIncOperatorTypes;
-extern BuiltInTypeArrayRange gUnaryPreIncOperatorTypes;
-extern BuiltInTypeArrayRange gUnaryArithmeticOperatorTypes;
-extern BuiltInTypeArrayRange gUnaryIntegralOperatorTypes;
-extern BuiltInTypeArrayRange gBinaryArithmeticOperatorTypes;
-extern BuiltInTypeArrayRange gBinaryIntegralOperatorTypes;
-extern BuiltInTypeArrayRange gRelationalArithmeticOperatorTypes;
-extern BuiltInTypeArrayRange gShiftOperatorTypes;
-extern BuiltInTypeArrayRange gAssignArithmeticOperatorTypes;
-extern BuiltInTypeArrayRange gAssignIntegralOperatorTypes;
-extern BuiltInTypeArrayRange gBinaryLogicalOperatorTypes;
-extern BuiltInTypeArrayRange gUnaryLogicalOperatorTypes;
-
-extern BuiltInGenericType1ArrayRange gPointerAddOperatorTypes;
-extern BuiltInGenericType1ArrayRange gPointerSubtractOperatorTypes;
-extern BuiltInGenericType1ArrayRange gSubscriptOperatorTypes;
-extern BuiltInGenericType1ArrayRange gRelationalOperatorTypes;
-extern BuiltInGenericType1ArrayRange gEqualityOperatorTypes;
-extern BuiltInGenericType2ArrayRange gMemberPointerOperatorTypes;
-
-// TODO:
-// the built-in candidates include all of the candidate operator functions defined in 13.6
-// that, compared to the given operator,
-// - have the same operator name, and
-// - accept the same number of operands, and
-// - accept operand types to which the given operand or operands can be converted according to
-//   13.3.3.1, and
-// - do not have the same parameter type list as any non-template non-member candidate.
-inline void addBuiltInOperatorOverloads(OverloadResolver& resolver, const Identifier& id)
-{
-	if(id.value == gOperatorPlusPlusId
-		|| id.value == gOperatorMinusMinusId) // TODO: exclude 'bool' overloads for operator--
-	{
-		addBuiltInOperatorOverloads(resolver, gUnaryPreIncOperatorTypes);
-		addBuiltInOperatorOverloads(resolver, gUnaryPostIncOperatorTypes);
-	}
-	else if(id.value == gOperatorStarId
-		|| id.value == gOperatorDivideId)
-	{
-		addBuiltInOperatorOverloads(resolver, gBinaryArithmeticOperatorTypes);
-	}
-	else if(id.value == gOperatorPlusId
-		|| id.value == gOperatorMinusId)
-	{
-		addBuiltInOperatorOverloads(resolver, gBinaryArithmeticOperatorTypes);
-		addBuiltInOperatorOverloads(resolver, gUnaryArithmeticOperatorTypes); // +x, -x
-	}
-	else if(id.value == gOperatorComplId)
-	{
-		addBuiltInOperatorOverloads(resolver, gUnaryIntegralOperatorTypes); // ~x
-	}
-	else if(id.value == gOperatorLessId
-		|| id.value == gOperatorGreaterId
-		|| id.value == gOperatorLessEqualId
-		|| id.value == gOperatorGreaterEqualId
-		|| id.value == gOperatorEqualId
-		|| id.value == gOperatorNotEqualId)
-	{
-		addBuiltInOperatorOverloads(resolver, gRelationalArithmeticOperatorTypes);
-	}
-	else if(id.value == gOperatorPercentId
-		|| id.value == gOperatorAndId
-		|| id.value == gOperatorXorId
-		|| id.value == gOperatorOrId)
-	{
-		addBuiltInOperatorOverloads(resolver, gBinaryIntegralOperatorTypes);
-	}
-	else if(id.value == gOperatorShiftLeftId
-		|| id.value == gOperatorShiftRightId)
-	{
-		addBuiltInOperatorOverloads(resolver, gShiftOperatorTypes);
-	}
-	else if(id.value == gOperatorAssignId
-		|| id.value == gOperatorStarAssignId
-		|| id.value == gOperatorDivideAssignId
-		|| id.value == gOperatorPlusAssignId
-		|| id.value == gOperatorMinusAssignId)
-	{
-		addBuiltInOperatorOverloads(resolver, gAssignArithmeticOperatorTypes);
-	}
-	else if(id.value == gOperatorPercentAssignId
-		|| id.value == gOperatorShiftLeftAssignId
-		|| id.value == gOperatorShiftRightAssignId
-		|| id.value == gOperatorAndAssignId
-		|| id.value == gOperatorXorAssignId
-		|| id.value == gOperatorOrAssignId)
-	{
-		addBuiltInOperatorOverloads(resolver, gAssignIntegralOperatorTypes);
-	}
-	else if(id.value == gOperatorAndAndId
-		|| id.value == gOperatorOrOrId)
-	{
-		addBuiltInOperatorOverloads(resolver, gBinaryLogicalOperatorTypes);
-	}
-	else if(id.value == gOperatorNotId)
-	{
-		addBuiltInOperatorOverloads(resolver, gUnaryLogicalOperatorTypes);
-	}
-
-	if(id.value == gOperatorPlusId)
-	{
-		addBuiltInOperatorOverloads(resolver, gPointerAddOperatorTypes);
-	}
-	else if(id.value == gOperatorMinusId)
-	{
-		addBuiltInOperatorOverloads(resolver, gPointerSubtractOperatorTypes);
-	}
-	else if(id.value == gOperatorSubscriptId)
-	{
-		addBuiltInOperatorOverloads(resolver, gSubscriptOperatorTypes);
-	}
-	else if(id.value == gOperatorLessId
-		|| id.value == gOperatorGreaterId
-		|| id.value == gOperatorLessEqualId
-		|| id.value == gOperatorGreaterEqualId)
-	{
-		addBuiltInOperatorOverloads(resolver, gRelationalOperatorTypes);
-	}
-	else if(id.value == gOperatorEqualId
-		|| id.value == gOperatorNotEqualId)
-	{
-		addBuiltInOperatorOverloads(resolver, gEqualityOperatorTypes);
-	}
-	else if(id.value == gOperatorArrowStarId)
-	{
-		addBuiltInOperatorOverloads(resolver, gMemberPointerOperatorTypes);
-	}
-}
-
-inline FunctionOverload findBestOverloadedOperator(const Identifier& id, const Arguments& arguments, const InstantiationContext& context)
-{
-	Arguments::const_iterator i = arguments.begin();
-	UniqueTypeWrapper left = (*i++).type;
-	UniqueTypeWrapper right = i == arguments.end() ? gUniqueTypeNull : (*i).type;
-	if(!isClass(left) && !isEnumeration(left)
-		&& !isClass(right) && !isEnumeration(right)) // if the operand does not have class or enum type
-	{
-		return FunctionOverload(&gUnknown, gUniqueTypeNull);
-	}
-	// TODO: lookup for postfix operator++(int)
-
-	// [over.match.oper]
-	// If either operand has a type that is a class or an enumeration, a user-defined operator function might be
-	// declared that implements this operator or a user-defined conversion can be necessary to convert the operand
-	// to a type that is appropriate for a built-in operator. In this case, overload resolution is used to determine
-	// which operator function or built-in operator is to be invoked to implement the operator.
-	OverloadResolver resolver(arguments, 0, context);
-
-	// For a unary operator @ with an operand of a type whose cv-unqualified version is T1, and for a binary operator
-	// @ with a left operand of a type whose cv-unqualified version is T1 and a right operand of a type whose
-	// cv-unqualified version is T2, three sets of candidate functions, designated member candidates, non-member
-	// candidates and built-in candidates, are constructed as follows:	
-	// - If T1 is a class type, the set of member candidates is the result of the qualified lookup of
-	//   T1::operator@ (13.3.1.1.1); otherwise, the set of member candidates is empty.
-	if(isClass(left)
-		&& isComplete(left)) // can only find overloads if class is complete
-	{
-		const SimpleType& operand = getSimpleType(left.value);
-		instantiateClass(operand, context); // searching for overloads requires a complete type
-		LookupResultRef declaration = ::findDeclaration(operand, id, IsAny());
-		if(declaration != 0)
-		{
-			const SimpleType* memberEnclosing = findEnclosingType(&operand, declaration->scope); // find the base class which contains the member-declaration
-			SEMANTIC_ASSERT(memberEnclosing != 0);
-			addOverloads(resolver, declaration, setEnclosingTypeSafe(context, memberEnclosing));
-		}
-	}
-	// - The set of non-member candidates is the result of the unqualified lookup of operator@ in the context
-	//   of the expression according to the usual rules for name lookup in unqualified function calls (3.4.2)
-	//   except that all member functions are ignored. However, if no operand has a class type, only those nonmember
-	//   functions in the lookup set that have a first parameter of type T1 or "reference to (possibly cv-qualified)
-	//   T1", when T1 is an enumeration type, or (if there is a right operand) a second parameter of
-	//   type T2 or "reference to (possibly cv-qualified) T2", when T2 is an enumeration type, are candidate
-	//   functions.
-	OverloadSet overloads;
-	LookupResultRef declaration = findClassOrNamespaceMemberDeclaration(*context.enclosingScope, id, IsNonMemberName()); // look up non-member candidates in the enclosing scope (ignoring members)
-	if(declaration != 0)
-	{
-		// TODO: ignore non-member candidates if no operand has a class type, unless one or more params has enum type
-		addOverloaded(overloads, declaration);
-	}
-	argumentDependentLookup(overloads, id, arguments);
-	addOverloads(resolver, overloads, setEnclosingType(context, 0));
-
-	// TODO: 13.3.1.2: built-in operators for overload resolution
-	// These are relevant either when the operand has a user-defined conversion to a non-class type, or is an enum that can be converted to an arithmetic type
-	// TODO: ignore built-in overloads that have same signature as a non-member
-	addBuiltInOperatorOverloads(resolver, id);
-
-	return resolver.get();
-}
-
-inline UniqueTypeWrapper getBuiltInUnaryOperatorReturnType(Name operatorName, UniqueTypeWrapper type)
-{
-	if(operatorName == gOperatorAndId) // address-of
-	{
-		UniqueTypeId result = type;
-		result.push_front(PointerType()); // produces a non-const pointer
-		return result;
-	}
-	else if(operatorName == gOperatorStarId) // dereference
-	{
-		UniqueTypeId result = applyLvalueToRvalueConversion(type);
-		SEMANTIC_ASSERT(!result.empty());
-		// [expr.unary] The unary * operator performs indirection: the expression to which it is applied shall be a pointer to an
-		// object type, or a pointer to a function type and the result is an lvalue referring to the object or function to
-		// which the expression points.
-		SEMANTIC_ASSERT(result.isPointer());
-		result.pop_front();
-		return result;
-	}
-	else if(operatorName == gOperatorPlusId
-		|| operatorName == gOperatorMinusId)
-	{
-		if(!isFloating(type))
-		{
-			// TODO: check type is integral or enumeration
-			return promoteToIntegralType(type);
-		}
-		return type;
-	}
-	else if(operatorName == gOperatorNotId)
-	{
-		return gBool;
-	}
-	else if(operatorName == gOperatorComplId)
-	{
-		// TODO: check type is integral or enumeration
-		return promoteToIntegralType(type);
-	}
-	SEMANTIC_ASSERT(operatorName == gOperatorPlusPlusId || operatorName == gOperatorMinusMinusId);
-	return type;
-}
-
-inline UniqueTypeWrapper typeOfUnaryExpression(Name operatorName, Argument operand, const InstantiationContext& context)
-{
-	Identifier id;
-	id.value = operatorName;
-	id.source = context.source;
-
-	Arguments arguments(1, operand);
-	FunctionOverload overload = findBestOverloadedOperator(id, arguments, context);
-	if(overload.declaration == &gUnknown
-		|| (overload.declaration == 0
-			&& operatorName == gOperatorAndId)) // TODO: unary operator& has no built-in candidates  
-	{
-		if(operatorName == gOperatorAndId
-			&& operand.isQualifiedNonStaticMemberName)
-		{
-			// [expr.unary.op]
-			// The result of the unary & operator is a pointer to its operand. The operand shall be an lvalue or a qualified-id.
-			// In the first case, if the type of the expression is "T," the type of the result is "pointer to T." In particular,
-			// the address of an object of type "cv T" is "pointer to cv T," with the same cv-qualifiers.
-			// For a qualified-id, if the member is a static member of type "T", the type of the result is plain "pointer to T."
-			// If the member is a non-static member of class C of type T, the type of the result is "pointer to member of class C of type
-			// T."
-			UniqueTypeWrapper classType = makeUniqueSimpleType(*getIdExpression(operand).enclosing);
-			UniqueTypeWrapper type = operand.type;
-			type.push_front(MemberPointerType(classType)); // produces a non-const pointer
-			return type;
-		}
-		else
-		{
-			return getBuiltInUnaryOperatorReturnType(operatorName, operand.type);
-		}
-	}
-	else
-	{
-		SEMANTIC_ASSERT(overload.declaration != 0);
-		SEMANTIC_ASSERT(overload.type != gUniqueTypeNull);
-		return overload.type;
-	}
-}
-
-inline UniqueTypeWrapper typeOfPostfixOperatorExpression(Name operatorName, Argument operand, const InstantiationContext& context)
-{
-	Identifier id;
-	id.value = operatorName;
-	id.source = context.source;
-
-	ExpressionWrapper zero = ExpressionWrapper(makeUniqueExpression(IntegralConstantExpression(gSignedInt, IntegralConstant(0))), true);
-
-	Arguments arguments;
-	arguments.push_back(operand);
-	arguments.push_back(Argument(zero, gSignedInt));
-	FunctionOverload overload = findBestOverloadedOperator(id, arguments, context);
-	if(overload.declaration == &gUnknown)
-	{
-		// [expr.post.incr] The type of the operand shall be an arithmetic type or a pointer to a complete object type.
-		// The type of the result is the cv-unqualified version of the type of the operand.
-		UniqueTypeWrapper type = operand.type;
-		type.value.setQualifiers(CvQualifiers());
-		requireCompleteObjectType(type, context);
-		return operand.type;
-	}
-	else
-	{
-		SEMANTIC_ASSERT(overload.declaration != 0);
-		SEMANTIC_ASSERT(overload.type != gUniqueTypeNull);
-		return overload.type;
-	}
-}
-
-typedef UniqueTypeWrapper (*BuiltInBinaryTypeOp)(UniqueTypeWrapper, UniqueTypeWrapper);
-
-template<BuiltInBinaryTypeOp typeOp>
-inline UniqueTypeWrapper typeOfBinaryExpression(Name operatorName, Argument left, Argument right, const InstantiationContext& context)
-{
-	SYMBOLS_ASSERT(left.type != gUniqueTypeNull);
-	SYMBOLS_ASSERT(right.type != gUniqueTypeNull);
-	Identifier id;
-	id.value = operatorName;
-	id.source = context.source;
-	FunctionOverload overload(&gUnknown, gUniqueTypeNull);
-	if(!id.value.empty()) // if the operator can be overloaded
-	{
-		Arguments arguments;
-		arguments.push_back(left);
-		arguments.push_back(right);
-		overload = findBestOverloadedOperator(id, arguments, context);
-	}
-	if(overload.declaration == &gUnknown
-		|| (overload.declaration == 0 && id.value == gOperatorAssignId)) // TODO: declare implicit assignment operator
-	{
-		return  typeOp(left.type, right.type);
-	}
-
-	SEMANTIC_ASSERT(overload.declaration != 0);
-	return overload.type;
-}
-
-inline UniqueTypeWrapper binaryOperatorAssignment(UniqueTypeWrapper left, UniqueTypeWrapper right)
-{
-	return left;
-}
-
-inline UniqueTypeWrapper binaryOperatorComma(UniqueTypeWrapper left, UniqueTypeWrapper right)
-{
-	return right;
-}
-
-inline UniqueTypeWrapper binaryOperatorBoolean(UniqueTypeWrapper left, UniqueTypeWrapper right)
-{
-	return gBool;
-}
-
-inline UniqueTypeWrapper binaryOperatorMemberPointer(UniqueTypeWrapper left, UniqueTypeWrapper right)
-{
-	return popType(right);
-}
-
-
-inline bool isSpecialMember(const Declaration& declaration)
-{
-	return &declaration == gDestructorInstance.p
-		|| &declaration == gCopyAssignmentOperatorInstance.p;
-}
-
-inline const SimpleType* getIdExpressionClass(const SimpleType* qualifying, const DeclarationInstance& declaration, const SimpleType* enclosingType)
-{
-	SEMANTIC_ASSERT(!isSpecialMember(*declaration))
-
-	if(!isMember(*declaration)) // if the declaration is not a class member
-	{
-		return 0; // the declaration is at namespace-scope, therefore has no enclosing class
-	}
-
-	const SimpleType* idEnclosing = qualifying != 0 ? qualifying : enclosingType;
-
-	SYMBOLS_ASSERT(idEnclosing != 0);
-	// the identifier may name a type in a base-class of the qualifying type; findEnclosingType resolves this.
-	idEnclosing = findEnclosingType(idEnclosing, declaration->scope); // it must be a member of (a base of) the qualifying class: find which one.
-	SYMBOLS_ASSERT(idEnclosing != 0);
-
-	return idEnclosing;
-}
-
-inline UniqueTypeWrapper typeOfIdExpression(const SimpleType* qualifying, const DeclarationInstance& declaration, const InstantiationContext& context)
-{
-	if(declaration == gDestructorInstance.p)
-	{
-		return pushType(gUniqueTypeNull, FunctionType()); // type of destructor is 'function taking no parameter and returning no type'
-	}
-	else if(declaration == gCopyAssignmentOperatorInstance.p)
-	{
-		const SimpleType* idEnclosing = qualifying != 0 ? qualifying : context.enclosingType;
-		SYMBOLS_ASSERT(idEnclosing != 0);
-		return makeCopyAssignmentOperatorType(*idEnclosing);
-	}
-
-	const SimpleType* idEnclosing = getIdExpressionClass(qualifying, declaration, context.enclosingType);
-	// a member function template may have a type which depends on its template parameters
-	return getUniqueType(declaration->type, setEnclosingType(context, idEnclosing), declaration->isTemplate);
-}
-
-UniqueTypeWrapper getOverloadedMemberOperatorType(UniqueTypeWrapper operand, const InstantiationContext& context)
-{
-	const SimpleType& classType = getSimpleType(operand.value);
-	SEMANTIC_ASSERT(isClass(*classType.declaration)); // assert that this is a class type
-	// [expr.ref] [the type of the operand-expression shall be complete]
-	instantiateClass(classType, context); // searching for overloads requires a complete type
-
-	Identifier id;
-	id.value = gOperatorArrowId;
-	id.source = context.source;
-
-	ExpressionNodeGeneric<ExplicitTypeExpression> transientExpression = ExplicitTypeExpression(operand);
-	Arguments arguments(1, Argument(ExpressionWrapper(&transientExpression, false), operand));
-	OverloadResolver resolver(arguments, 0, context);
-
-	LookupResultRef declaration = ::findDeclaration(classType, id, IsAny());
-	if(declaration != 0)
-	{
-		const SimpleType* memberEnclosing = findEnclosingType(&classType, declaration->scope); // find the base class which contains the member-declaration
-		SEMANTIC_ASSERT(memberEnclosing != 0);
-		addOverloads(resolver, declaration, setEnclosingTypeSafe(context, memberEnclosing));
-	}
-
-	FunctionOverload result = resolver.get();
-	SEMANTIC_ASSERT(result.declaration != 0);
-	return result.type;
-}
-
-inline const SimpleType& getMemberOperatorType(Argument operand, bool isArrow, const InstantiationContext& context)
-{
-	UniqueTypeWrapper type = operand.type;
-	if(isArrow)
-	{
-		while(isClass(type))
-		{
-			type = getOverloadedMemberOperatorType(type, context);
-		}
-	}
-
-	bool isPointer = type.isPointer();
-	SEMANTIC_ASSERT(isPointer == isArrow);
-	if(isPointer)
-	{
-		type.pop_front();
-	}
-	// the left-hand side is (pointer-to) operand
-	SEMANTIC_ASSERT(type.isSimple());
-	const SimpleType& result = getSimpleType(type.value);
-	SEMANTIC_ASSERT(isClass(*result.declaration)); // assert that this is a class type
-	// [expr.ref] [the type of the operand-expression shall be complete]
-	instantiateClass(result, context);
-	return result;
-}
-
-// [class.copy] The implicitly-declared copy assignment operator for class X has the return type X&
-inline UniqueTypeWrapper makeCopyAssignmentOperatorType(const SimpleType& classType)
-{
-	UniqueTypeWrapper type = makeUniqueSimpleType(classType);
-	UniqueTypeWrapper parameter = type;
-	parameter.value.setQualifiers(CvQualifiers(true, false));
-	parameter.push_front(ReferenceType());
-	type.push_front(ReferenceType());
-	FunctionType function;
-	function.parameterTypes.push_back(parameter);
-	type.push_front(function);
-	return type;
-}
-
-inline UniqueTypeWrapper binaryOperatorArithmeticType(UniqueTypeWrapper left, UniqueTypeWrapper right)
-{
-	return usualArithmeticConversions(left, right);
-}
-
-inline UniqueTypeWrapper binaryOperatorAdditiveType(UniqueTypeWrapper left, UniqueTypeWrapper right)
-{
-	SEMANTIC_ASSERT(left != gUniqueTypeNull);
-	SEMANTIC_ASSERT(right != gUniqueTypeNull);
-	left = applyLvalueToRvalueConversion(left);
-	right = applyLvalueToRvalueConversion(right);
-
-	if(left.isPointer())
-	{
-		if(isIntegral(right)
-			|| isEnumeration(right))
-		{
-			return left;
-		}
-		if(right.isPointer())
-		{
-			return gSignedLongLongInt; // TODO: ptrdiff_t
-		}
-	}
-	return usualArithmeticConversions(left, right);
-}
-
-inline UniqueTypeWrapper makePointerCvUnion(UniqueTypeWrapper left, UniqueTypeWrapper right)
-{
-	CvQualifiers qualifiers = left.value.getQualifiers();
-	qualifiers.isConst |= right.value.getQualifiers().isConst;
-	qualifiers.isVolatile |= right.value.getQualifiers().isVolatile;
-
-	UniqueTypeWrapper result = left;
-	if((left.isPointer() && right.isPointer())
-		|| (left.isMemberPointer() && right.isMemberPointer()
-		&& getMemberPointerType(left.value).type == getMemberPointerType(right.value).type))
-	{
-		result = makePointerCvUnion(popType(left), popType(right));
-		if(left.isPointer())
-		{
-			result.push_front(PointerType());
-		}
-		else
-		{
-			result.push_front(getMemberPointerType(left.value));
-		}
-	}
-	else
-	{
-		SEMANTIC_ASSERT(left.value.getPointer() == right.value.getPointer()); // TODO: error: pointer types not similar
-	}
-	result.value.setQualifiers(qualifiers);
-	return result;
-}
-
-inline UniqueTypeWrapper binaryOperatorPointerType(UniqueTypeWrapper left, UniqueTypeWrapper right)
-{
-	SEMANTIC_ASSERT(left.isPointer() || left.isMemberPointer());
-	SEMANTIC_ASSERT(right.isPointer() || right.isMemberPointer());
-	UniqueTypeWrapper result = left;
-	// if one of the operands has type "pointer to cv1 void", then the other has type "pointer to cv2 T" and the composite
-	// pointer type is "pointer to cv12 void", where cv12 is the union of cv1 and cv2.
-	if(isVoidPointer(left)
-		|| isVoidPointer(right))
-	{
-		SEMANTIC_ASSERT(left.isPointer() && right.isPointer());
-		CvQualifiers qualifiers = left.value.getQualifiers();
-		qualifiers.isConst |= right.value.getQualifiers().isConst;
-		qualifiers.isVolatile |= right.value.getQualifiers().isVolatile;
-		left.value.setQualifiers(qualifiers);
-		left.push_front(PointerType());
-		return left;
-	}
-	// Otherwise, the composite pointer type is a pointer type similar (4.4) to the type of one of the operands, with a cv-qualification signature
-	// (4.4) that is the union of the cv-qualification signatures of the operand types.
-	return makePointerCvUnion(left, right);
-}
-
-inline UniqueTypeWrapper getConditionalOperatorType(UniqueTypeWrapper leftType, UniqueTypeWrapper rightType)
-{
-	SEMANTIC_ASSERT(leftType != gUniqueTypeNull);
-	SEMANTIC_ASSERT(rightType != gUniqueTypeNull);
-	// [expr.cond]
-	// If either the second or the third operand has type (possibly cv-qualified) void, then the lvalue-to-rvalue,
-	// array-to-pointer, and function-to-pointer standard conversions are performed on the second and third operands,
-	// and one of the following shall hold:
-	//  - The second or the third operand (but not both) is a throw-expression; the result is of the type of
-	//    the other and is an rvalue.
-	//  - Both the second and the third operands have type void; the result is of type void and is an rvalue.
-	//    [Note: this includes the case where both operands are throw-expressions.
-
-	// TODO: technically not correct to remove toplevel qualifiers here, as it will change the overload resolution result when later choosing a conversion-function
-	leftType.value.setQualifiers(CvQualifiers());
-	rightType.value.setQualifiers(CvQualifiers());
-	if(leftType == gVoid)
-	{
-		return rightType;
-	}
-	if(rightType == gVoid)
-	{
-		return leftType;
-	}
-	if(leftType == rightType)
-	{
-		// If the second and third operands are lvalues and have the same type, the result is of that type and is an lvalue.
-		return leftType; // TODO: lvalueness
-	}
-	// Otherwise, the result is an rvalue.
-	if(isClass(leftType) || isClass(rightType))
-	{
-		SEMANTIC_ASSERT(false); // TODO: user-defined conversions
-		return gUniqueTypeNull;
-	}
-	// Lvalue-to-rvalue (4.1), array-to-pointer (4.2), and function-to-pointer (4.3) standard conversions are performed
-	// on the second and third operands. After those conversions, one of the following shall hold:
-	UniqueTypeWrapper left = applyLvalueToRvalueConversion(leftType);
-	UniqueTypeWrapper right = applyLvalueToRvalueConversion(rightType);
-	// - The second and third operands have the same type; the result is of that type.
-	if(left == right)
-	{
-		return left;
-	}
-	// - The second and third operands have arithmetic or enumeration type; the usual arithmetic conversions
-	// 	 are performed to bring them to a common type, and the result is of that type.
-	if((isArithmetic(left) || isEnumeration(left))
-		&& (isArithmetic(right) || isEnumeration(right)))
-	{
-		return binaryOperatorArithmeticType(left, right);
-	}
-	// - The second and third operands have pointer type, or one has pointer type and the other is a null pointer
-	// 	 constant; pointer conversions (4.10) and qualification conversions (4.4) are performed to bring them to
-	// 	 their composite pointer type (5.9). The result is of the composite pointer type.
-	// - The second and third operands have pointer to member type, or one has pointer to member type and the
-	// 	 other is a null pointer constant; pointer to member conversions (4.11) and qualification conversions
-	// 	 (4.4) are performed to bring them to a common type, whose cv-qualification shall match the cvqualification
-	// 	 of either the second or the third operand. The result is of the common type.
-	bool leftPointer = left.isPointer() || left.isMemberPointer();
-	bool rightPointer = right.isPointer() || right.isMemberPointer();
-	SEMANTIC_ASSERT(leftPointer || rightPointer);
-	// TODO: assert that other pointer is null-pointer-constant: must be deferred if expression is value-dependent
-	if(leftPointer && !right.isPointer())
-	{
-		return left;
-	}
-	if(rightPointer && !left.isPointer())
-	{
-		return right;
-	}
-	SEMANTIC_ASSERT(leftPointer && rightPointer);
-	return binaryOperatorPointerType(left, right);
-}
-
-
-inline UniqueTypeWrapper typeOfSubscriptExpression(Argument left, Argument right, const InstantiationContext& context)
-{
-	SEMANTIC_ASSERT(left.type != gUniqueTypeNull);
-	if(isClass(left.type))
-	{
-		// [over.sub]
-		// operator[] shall be a non-static member function with exactly one parameter.
-		SEMANTIC_ASSERT(isComplete(left.type)); // TODO: non-fatal parse error
-		const SimpleType& object = getSimpleType(left.type.value);
-		instantiateClass(object, context); // searching for overloads requires a complete type
-		Identifier tmp;
-		tmp.value = gOperatorSubscriptId;
-		tmp.source = context.source;
-		LookupResultRef declaration = ::findDeclaration(object, tmp, IsAny());
-		SEMANTIC_ASSERT(declaration != 0); // TODO: non-fatal error: expected array
-
-		const SimpleType* memberEnclosing = findEnclosingType(&object, declaration->scope); // find the base class which contains the member-declaration
-		SEMANTIC_ASSERT(memberEnclosing != 0);
-
-		// The argument list submitted to overload resolution consists of the argument expressions present in the function
-		// call syntax preceded by the implied object argument (E).
-		Arguments arguments;
-		arguments.push_back(left);
-		arguments.push_back(right);
-
-		OverloadSet overloads;
-		addOverloaded(overloads, declaration, memberEnclosing);
-		FunctionOverload overload = findBestMatch(overloads, 0, arguments, setEnclosingTypeSafe(context, memberEnclosing));
-		SEMANTIC_ASSERT(overload.declaration != 0);
-		return overload.type;
-	}
-
-	UniqueTypeWrapper type = left.type;
-	SEMANTIC_ASSERT(type.isArray() || type.isPointer()); // TODO: non-fatal error: attempting to dereference non-array/pointer
-	type.pop_front(); // dereference left-hand side
-	// [expr.sub] The result is an lvalue of type T. The type "T" shall be a completely defined object type.
-	requireCompleteObjectType(type, context);
-	return type;
-}
-
-inline UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Arguments& arguments, const InstantiationContext& context)
-{
-	ExpressionWrapper expression = left;
-	UniqueTypeWrapper type = left.type;
-
-	SEMANTIC_ASSERT(expression.p != 0);
-
-	if(isDependentIdExpression(expression)) // if this is an expression of the form 'undeclared-id(args)', the name must be found via ADL 
-	{
-		SEMANTIC_ASSERT(!arguments.empty()); // check that the argument-list was not empty
-		SEMANTIC_ASSERT(getDependentIdExpression(expression).templateArguments.empty()); // cannot be a template-id
-		SEMANTIC_ASSERT(getDependentIdExpression(expression).qualifying == gUniqueTypeNull); // cannot be qualified
-
-		Identifier id;
-		id.value = getDependentIdExpression(expression).name;
-		OverloadSet overloads;
-		argumentDependentLookup(overloads, id, arguments);
-
-		SEMANTIC_ASSERT(!overloads.empty()); // check that the declaration was found via ADL
-
-		FunctionOverload overload = findBestMatch(overloads, 0, arguments, context);
-		SEMANTIC_ASSERT(overload.declaration != 0);
-#if 0 // TODO: find the corresponding declaration-instance for a name found via ADL
-		{
-			DeclarationInstanceRef instance = findLastDeclaration(getDeclaration(*id), overload.declaration);
-			setDecoration(id, instance);
-		}
-#endif
-		return overload.type;
-	}
-
-	type = removeReference(type);
-	if(isClass(type))
-	{
-		// [over.call.object]
-		// If the primary-expression E in the function call syntax evaluates to a class object of type "cv T", then the set
-		// of candidate functions includes at least the function call operators of T. The function call operators of T are
-		// obtained by ordinary lookup of the name operator() in the context of (E).operator().
-		SEMANTIC_ASSERT(isComplete(type)); // TODO: non-fatal parse error
-		const SimpleType& object = getSimpleType(type.value);
-		instantiateClass(object, context); // searching for overloads requires a complete type
-		Identifier tmp;
-		tmp.value = gOperatorFunctionId;
-		tmp.source = context.source;
-		LookupResultRef declaration = ::findDeclaration(object, tmp, IsAny());
-		SEMANTIC_ASSERT(declaration != 0); // TODO: non-fatal error: expected function
-
-		const SimpleType* memberEnclosing = findEnclosingType(&object, declaration->scope); // find the base class which contains the member-declaration
-		SEMANTIC_ASSERT(memberEnclosing != 0);
-
-		// The argument list submitted to overload resolution consists of the argument expressions present in the function
-		// call syntax preceded by the implied object argument (E).
-		Arguments augmentedArguments;
-		augmentedArguments.push_back(left);
-		augmentedArguments.insert(augmentedArguments.end(), arguments.begin(), arguments.end());
-
-		OverloadSet overloads;
-		addOverloaded(overloads, declaration, memberEnclosing);
-
-		SEMANTIC_ASSERT(!overloads.empty());
-
-		FunctionOverload overload = findBestMatch(overloads, 0, augmentedArguments, setEnclosingTypeSafe(context, memberEnclosing));
-		SEMANTIC_ASSERT(overload.declaration != 0);
-#if 0 // TODO: record which overload was chosen, for dependency-tracking
-		{
-			DeclarationInstanceRef instance = findLastDeclaration(declaration, overload.declaration);
-			setDecoration(&declaration->getName(), instance);
-		}
-#endif
-		return overload.type;
-	}
-
-	if(type.isPointer()) // if this is a pointer to function
-	{
-		type.pop_front();
-		SEMANTIC_ASSERT(type.isFunction());
-		return popType(type);
-	}
-
-	SEMANTIC_ASSERT(type.isFunction());
-
-	bool isClassMemberAccess = isClassMemberAccessExpression(expression);
-	bool isNamed = isClassMemberAccess
-		|| isIdExpression(expression);
-
-	if(!isNamed) // if the left-hand expression does not contain an (optionally parenthesised) id-expression (and is not a class which supports 'operator()')
-	{
-		// the call does not require overload resolution
-		SEMANTIC_ASSERT(type.isFunction());
-		return popType(type); // get the return type: T
-	}
-
-	const IdExpression& idExpression = getIdExpression(
-		isClassMemberAccess ? getClassMemberAccessExpression(expression).right : expression);
-	DeclarationInstanceRef declaration = idExpression.declaration;
-	const TemplateArgumentsInstance& templateArguments = idExpression.templateArguments;
-
-	// [over.call.func] Call to named function
-	SEMANTIC_ASSERT(declaration.p != 0);
-
-	// if this is a qualified member-function-call, the class type of the object-expression
-	const SimpleType* memberClass = isClassMemberAccess ? getObjectExpression(getClassMemberAccessExpression(expression).left).classType : 0;
-
-	if(declaration.p == &gDestructorInstance)
-	{
-		return gUniqueTypeNull;
-	}
-
-	if(declaration.p == &gCopyAssignmentOperatorInstance)
-	{
-		// [class.copy] If the class definition does not explicitly declare a copy assignment operator, one is declared implicitly.
-		// TODO: ignore using-declaration with same id.
-		// TODO: check correct lookup behaviour: base-class copy-assign should always be hidden by derived.
-		// TODO: correct argument type depending on base class copy-assign declarations.
-
-		// either the call is qualified or 'this' is valid
-		SEMANTIC_ASSERT(memberClass != 0 || context.enclosingType != 0);
-		SEMANTIC_ASSERT(memberClass == 0 || memberClass != &gDependentSimpleType);
-
-		return popType(type);
-	}
-
-	// the identifier names an overloadable function
-
-	SEMANTIC_ASSERT(declaration != &gDependentObject); // the id-expression should not be dependent
-
-	// if this is a member-function-call, the type of the class containing the member
-	const SimpleType* memberEnclosing = getIdExpressionClass(idExpression.enclosing, idExpression.declaration, memberClass != 0 ? memberClass : context.enclosingType);
-
-	ExpressionNodeGeneric<ObjectExpression> transientExpression = ObjectExpression(0);
-	Arguments augmentedArguments;
-	if(isMember(*declaration))
-	{
-		// either the call is qualified, 'this' is valid, or the member is static
-		SEMANTIC_ASSERT(memberClass != 0 || context.enclosingType != 0 || isStatic(*declaration));
-		SEMANTIC_ASSERT(memberClass == 0 || memberClass != &gDependentSimpleType);
-
-		const SimpleType& classType = memberClass != 0
-			? *memberClass // qualified-function-call (member access expression)
-			// unqualified function call
-			: context.enclosingType != 0
-			// If the keyword 'this' is in scope and refers to the class of that member function, or a derived class thereof,
-			// then the function call is transformed into a normalized qualified function call using (*this) as the postfix-expression
-			// to the left of the . operator.
-			? *context.enclosingType // implicit '(*this).'
-			// If the keyword 'this' is not in scope or refers to another class, then name resolution found a static member of some
-			// class T. In this case, all overloaded declarations of the function name in T become candidate functions and
-			// a contrived object of type T becomes the implied object argument
-			: *memberEnclosing;
-		transientExpression = ObjectExpression(&classType);
-		augmentedArguments.push_back(Argument(ExpressionWrapper(&transientExpression, false), makeUniqueSimpleType(classType)));
-	}
-
-	augmentedArguments.insert(augmentedArguments.end(), arguments.begin(), arguments.end());
-
-	OverloadSet overloads;
-	addOverloaded(overloads, declaration, memberEnclosing);
-	if(!isMember(*declaration))
-	{
-		// [basic.lookup.koenig]
-		// If the ordinary unqualified lookup of the name finds the declaration of a class member function, the associated
-		// namespaces and classes are not considered. Otherwise the set of declarations found by the lookup of
-		// the function name is the union of the set of declarations found using ordinary unqualified lookup and the set
-		// of declarations found in the namespaces and classes associated with the argument types.
-		argumentDependentLookup(overloads, declaration->getName(), augmentedArguments);
-	}
-
-	SEMANTIC_ASSERT(!overloads.empty());
-
-	// TODO: handle empty template-argument list '<>'. If specified, overload resolution should ignore non-templates
-	FunctionOverload overload = findBestMatch(overloads, templateArguments.empty() ? 0 : &templateArguments, augmentedArguments, context);
-	SEMANTIC_ASSERT(overload.declaration != 0);
-#if 0 // TODO: record which overload was chosen, for dependency-tracking
-	{
-		// TODO: this will give the wrong result if the declaration was found via ADL and is in a different namespace
-		DeclarationInstanceRef instance = findLastDeclaration(declaration, overload.declaration);
-		setDecoration(id, instance);
-	}
-#endif
-	SEMANTIC_ASSERT(!::isDependent(overload.type));
-	return overload.type;
-}
-
-
 
 inline bool isIntegralConstant(UniqueTypeWrapper type)
 {
@@ -1739,7 +749,7 @@ bool isUnqualified(cpp::elaborated_type_specifier_default* symbol)
 
 
 
-struct SemaContext : public TreeAllocator<int>
+struct SemaContext : public AstAllocator<int>
 {
 	ParserContext& parserContext;
 	Scope global;
@@ -1748,8 +758,8 @@ struct SemaContext : public TreeAllocator<int>
 	std::size_t declarationCount;
 	UniqueTypeWrapper typeInfoType;
 
-	SemaContext(ParserContext& parserContext, const TreeAllocator<int>& allocator) :
-		TreeAllocator<int>(allocator),
+	SemaContext(ParserContext& parserContext, const AstAllocator<int>& allocator) :
+		AstAllocator<int>(allocator),
 		parserContext(parserContext),
 		global(allocator, gGlobalId, SCOPETYPE_NAMESPACE),
 		globalDecl(allocator, 0, gGlobalId, TYPE_NULL, &global),
@@ -1970,7 +980,7 @@ struct SemaState
 	}
 
 	const DeclarationInstance& pointOfDeclaration(
-		const TreeAllocator<int>& allocator,
+		const AstAllocator<int>& allocator,
 		Scope* parent,
 		Identifier& name,
 		const TypeId& type,
@@ -2084,9 +1094,9 @@ struct SemaState
 		return result;
 	}
 
-	TreeAllocator<int> getAllocator()
+	AstAllocator<int> getAllocator()
 	{
-#ifdef TREEALLOCATOR_LINEAR
+#ifdef AST_ALLOCATOR_LINEAR
 		return context.parserContext.allocator;
 #else
 		return DebugAllocator<int>();
@@ -2805,7 +1815,7 @@ struct SemaDeclSpecifierSeqResult
 	CvQualifiers qualifiers;
 	DeclSpecifiers specifiers;
 	bool isUnion;
-	SemaDeclSpecifierSeqResult(Declaration* declaration, const TreeAllocator<int>& allocator)
+	SemaDeclSpecifierSeqResult(Declaration* declaration, const AstAllocator<int>& allocator)
 		: type(declaration, allocator), forward(0), isUnion(false)
 	{
 	}
@@ -2850,7 +1860,7 @@ struct SemaTypeIdResult
 {
 	TypeId type;
 	Once committed;
-	SemaTypeIdResult(const TreeAllocator<int>& allocator)
+	SemaTypeIdResult(const AstAllocator<int>& allocator)
 		: type(0, allocator)
 	{
 	}
@@ -2859,7 +1869,7 @@ struct SemaTypeIdResult
 struct SemaTemplateParameterClauseResult
 {
 	TemplateParameters params;
-	SemaTemplateParameterClauseResult(const TreeAllocator<int>& allocator)
+	SemaTemplateParameterClauseResult(const AstAllocator<int>& allocator)
 		: params(allocator)
 	{
 	}
@@ -2869,7 +1879,7 @@ struct SemaTypeSpecifierResult
 {
 	Type type;
 	unsigned fundamental;
-	SemaTypeSpecifierResult(const TreeAllocator<int>& allocator)
+	SemaTypeSpecifierResult(const AstAllocator<int>& allocator)
 		: type(0, allocator), fundamental(0)
 	{
 	}
@@ -2878,7 +1888,7 @@ struct SemaTypeSpecifierResult
 struct SemaTypenameSpecifierResult
 {
 	Type type;
-	SemaTypenameSpecifierResult(const TreeAllocator<int>& allocator)
+	SemaTypenameSpecifierResult(const AstAllocator<int>& allocator)
 		: type(0, allocator)
 	{
 	}
@@ -2888,7 +1898,7 @@ struct SemaNewTypeResult
 {
 	TypeId type;
 	Dependent valueDependent;
-	SemaNewTypeResult(const TreeAllocator<int>& allocator)
+	SemaNewTypeResult(const AstAllocator<int>& allocator)
 		: type(0, allocator)
 	{
 	}
@@ -3129,7 +2139,7 @@ struct SemaBase : public SemaState
 struct SemaQualifyingResult
 {
 	Qualifying qualifying;
-	SemaQualifyingResult(const TreeAllocator<int>& allocator)
+	SemaQualifyingResult(const AstAllocator<int>& allocator)
 		: qualifying(allocator)
 	{
 	}
@@ -3465,7 +2475,7 @@ struct SemaUnqualifiedId : public SemaBase
 	void action(cpp::conversion_function_id* symbol, const SemaTypeIdResult& walker)
 	{
 		walker.committed.test();
-		symbol->value = gConversionFunctionId;
+		symbol->value.value = gConversionFunctionId;
 		id = &symbol->value;
 		if(allowNameLookup())
 		{
@@ -5003,7 +4013,7 @@ struct SemaUnqualifiedDeclaratorId : public SemaBase
 	void action(cpp::conversion_function_id* symbol, const SemaTypeIdResult& walker) 
 	{
 		// note: no commit here, because type-id will be uniqued later on..
-		symbol->value = gConversionFunctionId;
+		symbol->value.value = gConversionFunctionId;
 		id = &symbol->value;
 		conversionType = walker.type;
 	}
@@ -7363,9 +6373,9 @@ struct SemaNamespace : public SemaBase, SemaNamespaceResult
 
 
 
-TreeAllocator<int> getAllocator(ParserContext& context)
+AstAllocator<int> getAllocator(ParserContext& context)
 {
-#ifdef TREEALLOCATOR_LINEAR
+#ifdef AST_ALLOCATOR_LINEAR
 	return context.allocator;
 #else
 	return DebugAllocator<int>();

@@ -1,4 +1,16 @@
 
+namespace N363
+{
+	struct Null {};
+
+	struct S
+	{
+		template<typename, typename = void> struct map { typedef Null type; };
+		template<typename T> struct S::map<int, T> { typedef char type; };
+		template<typename T> struct S::map<char, T> { typedef int type; };
+	};
+}
+
 namespace N144
 {
 	template<typename T>

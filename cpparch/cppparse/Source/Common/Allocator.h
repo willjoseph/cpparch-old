@@ -1,6 +1,6 @@
 
-#ifndef INCLUDED_CPPPARSE_ALLOCATOR_H
-#define INCLUDED_CPPPARSE_ALLOCATOR_H
+#ifndef INCLUDED_CPPPARSE_COMMON_ALLOCATOR_H
+#define INCLUDED_CPPPARSE_COMMON_ALLOCATOR_H
 
 #include "Common/Profile.h"
 #include <memory>
@@ -644,6 +644,11 @@ inline bool operator!=(const Reference<T>& l, const Reference<Other>& r)
 {
 	return !(l == r);
 }
+
+
+
+#define SYMBOLS_ASSERT ALLOCATOR_ASSERT
+typedef AllocatorError SymbolsError;
 
 #endif
 

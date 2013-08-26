@@ -191,7 +191,7 @@
 				- ideally could get pointer to location in input file buffer for each token
 				- performance not critical for error reporting
 			- source lines should only be within template definition?
-+ task: remove check for isMemberOfTemplate that guards overload resolution: findBestMatch
++ task: remove check for isMemberOfTemplate that guards overload resolution: findBestOverloadedFunction
 	- investigate: is it possible to do overload resolution and choose a function that has a dependent return type?
 		- example: calling an overloaded static member of a template, within sizeof(), to initialise a static-const member
 		- should defer overload resolution if any overload is declared with a dependent type
@@ -785,7 +785,7 @@ described for lookup in namespace member function definitions.
 	- should be evaluated immediately as is non-dependent?
 	- value is not required for correct parse 
 
-- investigate: function call: correct expression to pass into findBestMatch
+- investigate: function call: correct expression to pass into findBestOverloadedFunction
 	- either member-call: object-expression id-expression ( expression-list )
 		- either explicit class-member-access: a.m()
 		- or implicit: (*this).m()

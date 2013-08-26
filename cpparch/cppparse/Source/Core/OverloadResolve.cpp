@@ -1,0 +1,129 @@
+
+#include "OverloadResolve.h"
+#include "TypeUnique.h"
+
+ParameterTypes addOverload(OverloadResolver& resolver, const Declaration& declaration, const InstantiationContext& context)
+{
+	UniqueTypeWrapper type = getUniqueType(declaration.type, context, declaration.isTemplate);
+	SYMBOLS_ASSERT(type.isFunction());
+
+	ParameterTypes parameters;
+	if(isMember(declaration)
+		&& declaration.type.declaration != &gCtor)
+	{
+		// [over.match.funcs]
+		// a member function is considered to have an extra parameter, called the implicit object parameter, which
+		// represents the object for which the member function has been called. For the purposes of overload resolution,
+		// both static and non-static member functions have an implicit object parameter, but constructors do not.
+		SYMBOLS_ASSERT(isClass(*context.enclosingType->declaration));
+		// For static member functions, the implicit object parameter is considered to match any object
+		UniqueTypeWrapper implicitObjectParameter = gImplicitObjectParameter;
+		if(!isStatic(declaration))
+		{
+			// For non-static member functions, the type of the implicit object parameter is "reference to cv X" where X is
+			// the class of which the function is a member and cv is the cv-qualification on the member function declaration.
+			// TODO: conversion-functions, non-conversions introduced by using-declaration
+			implicitObjectParameter = makeUniqueSimpleType(*context.enclosingType);
+			implicitObjectParameter.value.setQualifiers(type.value.getQualifiers());
+			implicitObjectParameter.push_front(ReferenceType());
+		}
+		parameters.push_back(implicitObjectParameter);
+	}
+	bool isEllipsis = getFunctionType(type.value).isEllipsis;
+	parameters.insert(parameters.end(), getParameterTypes(type.value).begin(), getParameterTypes(type.value).end());
+	type.pop_front();
+
+	if(!declaration.isTemplate)
+	{
+		// [temp.arg.explicit] An empty template argument list can be used to indicate that a given use refers to a
+		// specialization of a function template even when a normal (i.e., non-template) function is visible that would
+		// otherwise be used.
+		if(resolver.templateArguments != 0)
+		{
+			return ParameterTypes();
+		}
+		resolver.add(FunctionOverload(const_cast<Declaration*>(&declaration), type), parameters, isEllipsis, context.enclosingType);
+		return parameters;
+	}
+
+	if(declaration.isSpecialization) // function template specializations don't take part in overload resolution?
+	{
+		return ParameterTypes();
+	}
+
+	FunctionTemplate functionTemplate;
+	functionTemplate.parameters.swap(parameters);
+	makeUniqueTemplateParameters(declaration.templateParams, functionTemplate.templateParameters, context, true);
+
+	if(resolver.arguments.size() > functionTemplate.parameters.size())
+	{
+		return ParameterTypes(); // more arguments than parameters. TODO: same for non-template?
+	}
+
+	try
+	{
+		// [temp.deduct] When an explicit template argument list is specified, the template arguments must be compatible with the template parameter list
+		if(resolver.templateArguments != 0
+			&& resolver.templateArguments->size() > functionTemplate.templateParameters.size())
+		{
+			throw TypeErrorBase(context.source); // too many explicitly specified template arguments
+		}
+		SimpleType specialization(const_cast<Declaration*>(&declaration), context.enclosingType);
+		specialization.instantiated = true;
+		{
+			UniqueTypeArray::const_iterator p = functionTemplate.templateParameters.begin();
+			if(resolver.templateArguments != 0)
+			{
+				for(TemplateArgumentsInstance::const_iterator a = resolver.templateArguments->begin(); a != resolver.templateArguments->end(); ++a, ++p)
+				{
+					SYMBOLS_ASSERT(p != functionTemplate.templateParameters.end());
+					if((*a).isNonType() != (*p).isDependentNonType())
+					{
+						throw TypeErrorBase(context.source); // incompatible explicitly specified arguments
+					}
+					specialization.templateArguments.push_back(*a);
+				}
+			}
+			for(; p != functionTemplate.templateParameters.end(); ++p)
+			{
+				specialization.templateArguments.push_back(*p);
+			}
+		}
+
+		// substitute the template-parameters in the function's parameter list with the explicitly specified template-arguments
+		ParameterTypes substituted1;
+		substitute(substituted1, functionTemplate.parameters, setEnclosingTypeSafe(context, &specialization));
+		// TODO: [temp.deduct]
+		// After this substitution is performed, the function parameter type adjustments described in 8.3.5 are performed.
+
+		UniqueTypeArray arguments;
+		arguments.reserve(resolver.arguments.size());
+		for(Arguments::const_iterator a = resolver.arguments.begin(); a != resolver.arguments.end(); ++a)
+		{
+			arguments.push_back((*a).type);
+		}
+
+		specialization.templateArguments.resize(resolver.templateArguments == 0 ? 0 : resolver.templateArguments->size()); // preserve the explicitly specified arguments
+		specialization.templateArguments.resize(functionTemplate.templateParameters.size(), gUniqueTypeNull);
+		// NOTE: in rare circumstances, deduction may cause implicit instantiations, which occur at the point of overload resolution 
+		if(!deduceFunctionCall(substituted1, arguments, specialization.templateArguments, resolver.context))
+		{
+			throw TypeErrorBase(context.source); // deduction failed
+		}
+
+
+		// substitute the template-parameters in the function's parameter list with the deduced template-arguments
+		ParameterTypes substituted2;
+		substitute(substituted2, substituted1, setEnclosingTypeSafe(context, &specialization));
+		type = substitute(type, setEnclosingTypeSafe(context, &specialization)); // substitute the return type. TODO: should wait until overload is chosen?
+
+		resolver.add(FunctionOverload(const_cast<Declaration*>(&declaration), type), substituted2, isEllipsis, context.enclosingType, functionTemplate);
+		return substituted2;
+	}
+	catch(TypeError&)
+	{
+		// deduction and checking failed
+	}
+
+	return ParameterTypes();
+}

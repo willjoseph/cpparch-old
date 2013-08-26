@@ -1,6 +1,6 @@
 
-#ifndef INCLUDED_CPPPARSE_TOKEN_H
-#define INCLUDED_CPPPARSE_TOKEN_H
+#ifndef INCLUDED_CPPPARSE_LEX_TOKEN_H
+#define INCLUDED_CPPPARSE_LEX_TOKEN_H
 
 #include <boost/wave/token_ids.hpp>
 

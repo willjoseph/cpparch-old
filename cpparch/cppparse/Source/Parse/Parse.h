@@ -1,6 +1,6 @@
 
-#ifndef INCLUDED_CPPPARSE_PARSER_H
-#define INCLUDED_CPPPARSE_PARSER_H
+#ifndef INCLUDED_CPPPARSE_PARSE_PARSE_H
+#define INCLUDED_CPPPARSE_PARSE_PARSE_H
 
 #include "Lex/Lex.h"
 #include "Grammar.h"

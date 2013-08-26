@@ -1,6 +1,6 @@
 
-#ifndef INCLUDED_CPPPARSE_PRINTER_H
-#define INCLUDED_CPPPARSE_PRINTER_H
+#ifndef INCLUDED_CPPPARSE_LEX_TOKENPRINTER_H
+#define INCLUDED_CPPPARSE_LEX_TOKENPRINTER_H
 
 #include <boost/wave/token_ids.hpp>
 typedef boost::wave::token_id LexTokenId;

@@ -1,6 +1,6 @@
 
-#ifndef INCLUDED_CPPPARSE_CPPTREE_H
-#define INCLUDED_CPPPARSE_CPPTREE_H
+#ifndef INCLUDED_CPPPARSE_PARSE_GRAMMAR_H
+#define INCLUDED_CPPPARSE_PARSE_GRAMMAR_H
 
 #include "Common/Visitor.h"
 #include "Common/Allocator.h"

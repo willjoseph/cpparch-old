@@ -67,9 +67,6 @@
     <ClInclude Include="Source\Lex\Token.h">
       <Filter>Source Files\Lex</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Lex\TokenPrinter.h">
-      <Filter>Source Files\Lex</Filter>
-    </ClInclude>
     <ClInclude Include="Source\Ast\Ast.h">
       <Filter>Source Files\Ast</Filter>
     </ClInclude>
@@ -90,6 +87,72 @@
     </ClInclude>
     <ClInclude Include="Source\Sema\Sema.h">
       <Filter>Source Files\Sema</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\ExpressionEvaluate.h">
+      <Filter>Source Files\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\NameLookup.h">
+      <Filter>Source Files\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\OverloadResolve.h">
+      <Filter>Source Files\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\TemplateDeduce.h">
+      <Filter>Source Files\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\TypeConvert.h">
+      <Filter>Source Files\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\TypeSubstitute.h">
+      <Filter>Source Files\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Ast\Declaration.h">
+      <Filter>Source Files\Ast</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Ast\Expression.h">
+      <Filter>Source Files\Ast</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Ast\Scope.h">
+      <Filter>Source Files\Ast</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Ast\Type.h">
+      <Filter>Source Files\Ast</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Ast\Print.h">
+      <Filter>Source Files\Ast</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Lex\TokenPrinter.h">
+      <Filter>Source Files\Lex</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Ast\ExpressionImpl.h">
+      <Filter>Source Files\Ast</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Ast\AstAllocator.h">
+      <Filter>Source Files\Ast</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\TypeInstantiate.h">
+      <Filter>Source Files\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\TypeUnique.h">
+      <Filter>Source Files\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\Fundamental.h">
+      <Filter>Source Files\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\OperatorId.h">
+      <Filter>Source Files\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\TypeTraits.h">
+      <Filter>Source Files\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\Literal.h">
+      <Filter>Source Files\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\KoenigLookup.h">
+      <Filter>Source Files\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Core\Special.h">
+      <Filter>Source Files\Core</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -152,6 +215,69 @@
     </ClCompile>
     <ClCompile Include="Source\Sema\Sema.cpp">
       <Filter>Source Files\Sema</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Core\ExpressionEvaluate.cpp">
+      <Filter>Source Files\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Core\NameLookup.cpp">
+      <Filter>Source Files\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Core\OverloadResolve.cpp">
+      <Filter>Source Files\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Core\TemplateDeduce.cpp">
+      <Filter>Source Files\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Core\TypeConvert.cpp">
+      <Filter>Source Files\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Core\TypeSubstitute.cpp">
+      <Filter>Source Files\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Ast\Declaration.cpp">
+      <Filter>Source Files\Ast</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Ast\Expression.cpp">
+      <Filter>Source Files\Ast</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Ast\Scope.cpp">
+      <Filter>Source Files\Ast</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Ast\Type.cpp">
+      <Filter>Source Files\Ast</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Ast\Print.cpp">
+      <Filter>Source Files\Ast</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Ast\ExpressionImpl.cpp">
+      <Filter>Source Files\Ast</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Ast\AstAllocator.cpp">
+      <Filter>Source Files\Ast</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Core\TypeInstantiate.cpp">
+      <Filter>Source Files\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Core\TypeUnique.cpp">
+      <Filter>Source Files\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Core\Fundamental.cpp">
+      <Filter>Source Files\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Core\OperatorId.cpp">
+      <Filter>Source Files\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Core\TypeTraits.cpp">
+      <Filter>Source Files\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Core\Literal.cpp">
+      <Filter>Source Files\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Core\KoenigLookup.cpp">
+      <Filter>Source Files\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Core\Special.cpp">
+      <Filter>Source Files\Core</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
