@@ -143,6 +143,28 @@
     <ClInclude Include="Source\Parse\ParseSpecial.h" />
     <ClInclude Include="Source\Report\Report.h" />
     <ClInclude Include="Source\Sema\Sema.h" />
+    <ClInclude Include="Source\Sema\SemaClass.h" />
+    <ClInclude Include="Source\Sema\SemaCommon.h" />
+    <ClInclude Include="Source\Sema\SemaDeclaration.h" />
+    <ClInclude Include="Source\Sema\SemaDeclarator.h" />
+    <ClInclude Include="Source\Sema\SemaDeclaratorFunction.h" />
+    <ClInclude Include="Source\Sema\SemaEnum.h" />
+    <ClInclude Include="Source\Sema\SemaException.h" />
+    <ClInclude Include="Source\Sema\SemaExpression.h" />
+    <ClInclude Include="Source\Sema\SemaIdExpression.h" />
+    <ClInclude Include="Source\Sema\SemaNamespace.h" />
+    <ClInclude Include="Source\Sema\SemaNamespaceName.h" />
+    <ClInclude Include="Source\Sema\SemaNestedNameSpecifier.h" />
+    <ClInclude Include="Source\Sema\SemaOperator.h" />
+    <ClInclude Include="Source\Sema\SemaPostfixExpression.h" />
+    <ClInclude Include="Source\Sema\SemaPrimaryExpression.h" />
+    <ClInclude Include="Source\Sema\SemaSpecifier.h" />
+    <ClInclude Include="Source\Sema\SemaStatement.h" />
+    <ClInclude Include="Source\Sema\SemaTemplateDeclaration.h" />
+    <ClInclude Include="Source\Sema\SemaTemplateName.h" />
+    <ClInclude Include="Source\Sema\SemaTypeId.h" />
+    <ClInclude Include="Source\Sema\SemaTypeName.h" />
+    <ClInclude Include="Source\Sema\SemaTypeSpecifier.h" />
     <ClInclude Include="Source\Test\Test.h" />
   </ItemGroup>
   <ItemGroup>
@@ -185,6 +207,28 @@
     <ClCompile Include="Source\Parse\ParseSpecial.cpp" />
     <ClCompile Include="Source\Report\Report.cpp" />
     <ClCompile Include="Source\Sema\Sema.cpp" />
+    <ClCompile Include="Source\Sema\SemaClass.cpp" />
+    <ClCompile Include="Source\Sema\SemaCommon.cpp" />
+    <ClCompile Include="Source\Sema\SemaDeclaration.cpp" />
+    <ClCompile Include="Source\Sema\SemaDeclarator.cpp" />
+    <ClCompile Include="Source\Sema\SemaDeclaratorFunction.cpp" />
+    <ClCompile Include="Source\Sema\SemaEnum.cpp" />
+    <ClCompile Include="Source\Sema\SemaException.cpp" />
+    <ClCompile Include="Source\Sema\SemaExpression.cpp" />
+    <ClCompile Include="Source\Sema\SemaIdExpression.cpp" />
+    <ClCompile Include="Source\Sema\SemaNamespace.cpp" />
+    <ClCompile Include="Source\Sema\SemaNamespaceName.cpp" />
+    <ClCompile Include="Source\Sema\SemaNestedNameSpecifier.cpp" />
+    <ClCompile Include="Source\Sema\SemaOperator.cpp" />
+    <ClCompile Include="Source\Sema\SemaPostfixExpression.cpp" />
+    <ClCompile Include="Source\Sema\SemaPrimaryExpression.cpp" />
+    <ClCompile Include="Source\Sema\SemaSpecifier.cpp" />
+    <ClCompile Include="Source\Sema\SemaStatement.cpp" />
+    <ClCompile Include="Source\Sema\SemaTemplateDeclaration.cpp" />
+    <ClCompile Include="Source\Sema\SemaTemplateName.cpp" />
+    <ClCompile Include="Source\Sema\SemaTypeId.cpp" />
+    <ClCompile Include="Source\Sema\SemaTypeName.cpp" />
+    <ClCompile Include="Source\Sema\SemaTypeSpecifier.cpp" />
     <ClCompile Include="Source\Test\Test.cpp" />
   </ItemGroup>
   <ItemGroup>

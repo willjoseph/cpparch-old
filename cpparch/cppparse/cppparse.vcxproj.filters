@@ -151,6 +151,72 @@
     <ClInclude Include="Source\Core\Special.h">
       <Filter>Source Files\Core</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Sema\SemaCommon.h">
+      <Filter>Source Files\Sema</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Sema\SemaClass.h">
+      <Filter>Source Files\Sema</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Sema\SemaDeclaration.h">
+      <Filter>Source Files\Sema</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Sema\SemaDeclarator.h">
+      <Filter>Source Files\Sema</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Sema\SemaDeclaratorFunction.h">
+      <Filter>Source Files\Sema</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Sema\SemaEnum.h">
+      <Filter>Source Files\Sema</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Sema\SemaException.h">
+      <Filter>Source Files\Sema</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Sema\SemaExpression.h">
+      <Filter>Source Files\Sema</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Sema\SemaNamespace.h">
+      <Filter>Source Files\Sema</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Sema\SemaNestedNameSpecifier.h">
+      <Filter>Source Files\Sema</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Sema\SemaOperator.h">
+      <Filter>Source Files\Sema</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Sema\SemaPostfixExpression.h">
+      <Filter>Source Files\Sema</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Sema\SemaPrimaryExpression.h">
+      <Filter>Source Files\Sema</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Sema\SemaStatement.h">
+      <Filter>Source Files\Sema</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Sema\SemaTemplateDeclaration.h">
+      <Filter>Source Files\Sema</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Sema\SemaTemplateName.h">
+      <Filter>Source Files\Sema</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Sema\SemaTypeId.h">
+      <Filter>Source Files\Sema</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Sema\SemaSpecifier.h">
+      <Filter>Source Files\Sema</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Sema\SemaTypeSpecifier.h">
+      <Filter>Source Files\Sema</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Sema\SemaTypeName.h">
+      <Filter>Source Files\Sema</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Sema\SemaNamespaceName.h">
+      <Filter>Source Files\Sema</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Sema\SemaIdExpression.h">
+      <Filter>Source Files\Sema</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="cppparse.cpp">
@@ -272,6 +338,72 @@
     </ClCompile>
     <ClCompile Include="Source\Core\Special.cpp">
       <Filter>Source Files\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Sema\SemaCommon.cpp">
+      <Filter>Source Files\Sema</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Sema\SemaClass.cpp">
+      <Filter>Source Files\Sema</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Sema\SemaDeclaration.cpp">
+      <Filter>Source Files\Sema</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Sema\SemaDeclarator.cpp">
+      <Filter>Source Files\Sema</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Sema\SemaDeclaratorFunction.cpp">
+      <Filter>Source Files\Sema</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Sema\SemaEnum.cpp">
+      <Filter>Source Files\Sema</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Sema\SemaException.cpp">
+      <Filter>Source Files\Sema</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Sema\SemaExpression.cpp">
+      <Filter>Source Files\Sema</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Sema\SemaNamespace.cpp">
+      <Filter>Source Files\Sema</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Sema\SemaNestedNameSpecifier.cpp">
+      <Filter>Source Files\Sema</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Sema\SemaOperator.cpp">
+      <Filter>Source Files\Sema</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Sema\SemaPostfixExpression.cpp">
+      <Filter>Source Files\Sema</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Sema\SemaPrimaryExpression.cpp">
+      <Filter>Source Files\Sema</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Sema\SemaStatement.cpp">
+      <Filter>Source Files\Sema</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Sema\SemaTemplateDeclaration.cpp">
+      <Filter>Source Files\Sema</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Sema\SemaTemplateName.cpp">
+      <Filter>Source Files\Sema</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Sema\SemaTypeId.cpp">
+      <Filter>Source Files\Sema</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Sema\SemaSpecifier.cpp">
+      <Filter>Source Files\Sema</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Sema\SemaTypeSpecifier.cpp">
+      <Filter>Source Files\Sema</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Sema\SemaTypeName.cpp">
+      <Filter>Source Files\Sema</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Sema\SemaNamespaceName.cpp">
+      <Filter>Source Files\Sema</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Sema\SemaIdExpression.cpp">
+      <Filter>Source Files\Sema</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

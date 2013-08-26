@@ -1007,6 +1007,23 @@ described for lookup in namespace member function definitions.
 			- [dcl.fct.def] function-definition
 			- [dcl.init] initializer
 
+			Operator: SemaOverloadableOperator, SemaOperatorFunctionId
+			PrimaryExpression: SemaUnqualifiedId, SemaQualifiedId, SemaIdExpression, SemaLiteral, SemaPrimaryExpression
+			PostfixExpression: SemaPostfixExpression, SemaArgumentList, SemaSubscript, SemaPostfixExpressionMember, SemaTypeTraitsIntrinsic
+			Expression: SemaExpression, SemaExplicitTypeExpression, SemaSizeofTypeExpression, SemaConditionalExpression
+			NestedNameSpecifier: SemaNestedNameSpecifierSuffix, SemaNestedNameSpecifierPrefix, SemaNestedNameSpecifier
+			TypeId: SemaTypeName, SemaTypeSpecifier, SemaElaboratedTypeSpecifier, SemaTypeId, SemaNewType
+			DeclaratorFunction: SemaParameterDeclarationList, SemaParameterDeclarationClause, SemaExceptionSpecification, SemaDeclaratorFunction, SemaCvQualifierSeq
+			Declarator: SemaUnqualifiedDeclaratorId, SemaQualifiedDeclaratorId, SemaDeclaratorId, SemaPtrOperator, SemaDeclaratorArray, SemaDeclarator, SemaInitializer
+			Class: SemaBaseSpecifier, SemaClassHead, SemaClassSpecifier, SemaQualifiedTypeName, SemaMemInitializer, SemaMemInitializerClause, SemaMemberDeclaratorBitfield, SemaMemberDeclaration
+			Namespace: SemaNamespaceName, SemaUsingDeclaration, SemaUsingDirective, SemaNamespace, SemaNamespaceAliasDefinition
+			Enum: SemaEnumeratorDefinition, SemaEnumSpecifier
+			Statement: SemaLabeledStatement, SemaStatement, SemaControlStatement, SemaCompoundStatement, SemaStatementSeq
+			Exception: SemaTryBlock, SemaHandler, SemaHandlerSeq
+			Declaration: SemaDeclSpecifierSeq, SemaDeclarationSuffix, SemaSimpleDeclaration, SemaDeclaration
+			TemplateDeclaration: SemaTypeParameter, SemaTemplateParameterList, SemaTemplateParameterClause, SemaTemplateDeclaration
+			TemplateName: SemaTemplateId, SemaTemplateArgumentList, SemaTypenameSpecifier, SemaExplicitInstantiation
+
 
 + task: replace .swap with assignment
 
