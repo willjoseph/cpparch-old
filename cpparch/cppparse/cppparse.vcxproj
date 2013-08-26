@@ -105,7 +105,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="$predefined_msvc.h" />
-    <ClInclude Include="Source\Ast\Ast.h" />
     <ClInclude Include="Source\Ast\AstAllocator.h" />
     <ClInclude Include="Source\Ast\Declaration.h" />
     <ClInclude Include="Source\Ast\Expression.h" />
@@ -148,7 +147,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="cppparse.cpp" />
-    <ClCompile Include="Source\Ast\Ast.cpp" />
     <ClCompile Include="Source\Ast\AstAllocator.cpp" />
     <ClCompile Include="Source\Ast\Declaration.cpp" />
     <ClCompile Include="Source\Ast\Expression.cpp" />

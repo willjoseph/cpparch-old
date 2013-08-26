@@ -71,20 +71,6 @@ namespace N362
 	}
 }
 
-namespace N362
-{
-	void f()
-	{
-		try
-		{
-		}
-		catch(struct S*)
-		{
-			S* x;
-		}
-	}
-}
-
 
 namespace N352
 {
@@ -258,6 +244,7 @@ namespace N355
 	A<int>::B<int> // ok, typename/template required
 		A<int>::B<int>::f()
 	{
+		return f();
 	}
 	template<>
 	template<>
@@ -316,6 +303,7 @@ namespace N354
 #endif
 }
 
+#ifdef _CPPP_TEST // illegal?
 namespace N353
 {
 	template<class>
@@ -332,6 +320,7 @@ namespace N353
 		int i = ambiguous<int>::value;
 	}
 }
+#endif
 
 namespace N347
 {

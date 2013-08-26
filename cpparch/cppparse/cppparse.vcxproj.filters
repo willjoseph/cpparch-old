@@ -67,9 +67,6 @@
     <ClInclude Include="Source\Lex\Token.h">
       <Filter>Source Files\Lex</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Ast\Ast.h">
-      <Filter>Source Files\Ast</Filter>
-    </ClInclude>
     <ClInclude Include="Source\Report\Report.h">
       <Filter>Source Files\Report</Filter>
     </ClInclude>
@@ -194,9 +191,6 @@
     </ClCompile>
     <ClCompile Include="Source\Lex\TokenPrinter.cpp">
       <Filter>Source Files\Lex</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Ast\Ast.cpp">
-      <Filter>Source Files\Ast</Filter>
     </ClCompile>
     <ClCompile Include="Source\Report\Report.cpp">
       <Filter>Source Files\Report</Filter>

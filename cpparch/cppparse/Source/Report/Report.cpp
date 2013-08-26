@@ -1,6 +1,5 @@
 
 #include "Report.h"
-#include "Ast/Ast.h"
 #include "Lex/TokenPrinter.h"
 #include "Lex/Lex.h"
 #include "Common/Util.h"
