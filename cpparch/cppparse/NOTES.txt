@@ -1055,3 +1055,7 @@ described for lookup in namespace member function definitions.
 		// symbols may be deferred during attempt to parse shared-prefix declarator: f(int i = j)
 		// first parsed as member_declaration_named, backtracks on reaching '{'
 	- no longer necessary because Declarator parse is successfully cached
+
+- task: implement overload resolution for implicitly-defined operator= in expression (x = y)
+
+- task: remove circular dependency: evaluateExpression in OverloadResolver::makeConversion

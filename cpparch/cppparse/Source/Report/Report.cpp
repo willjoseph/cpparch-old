@@ -1,8 +1,11 @@
 
 #include "Report.h"
+#include "Common/Visitor.h"
+#include "Common/Util.h"
 #include "Lex/TokenPrinter.h"
 #include "Lex/Lex.h"
-#include "Common/Util.h"
+#include "Parse/Grammar.h"
+#include "Ast/Print.h"
 #include <boost/filesystem.hpp>
 
 #include <fstream>
