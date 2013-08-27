@@ -1788,7 +1788,7 @@ struct AnnotateId
 	template<typename T>
 	static void annotate(T* symbol, const Source& source)
 	{
-		symbol->source = source;
+		symbol->value.source = source;
 	}
 };
 

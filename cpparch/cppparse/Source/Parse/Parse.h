@@ -1310,13 +1310,13 @@ public:
 			}
 			symbol = parseHit(*this, symbol); // if the parse succeeded, return a persistent version of the symbol.
 			semaCommit(innerWalker, inner); // if enabled, call the sema object's commit()
+			Annotate::annotate(symbol, data);
 			innerParser.cacheStore(cache, key, symbol, innerWalker); // if enabled, save the state of both symbol and innerWalker for later re-use
 		}
 		// Report success if the parse was successful and the current walker's associated semantic action also passed.
 		bool success = Action::invokeAction(walker, symbol, innerWalker);
 		if(success)
 		{
-			Annotate::annotate(symbol, data);
 			return symbol;
 		}
 		return 0;

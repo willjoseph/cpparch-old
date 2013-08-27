@@ -1,4 +1,26 @@
 
+#ifndef _CPPP_TEST // TODO
+namespace N365
+{
+	struct B
+	{
+		B& operator=(int*);
+	};
+
+	struct A : B
+	{
+		A& operator=(int* p)
+		{
+			B::operator=(p);
+		}
+		A& operator=(const B& b)
+		{
+			B::operator=(b);
+		}
+	};
+}
+#endif
+
 namespace N363
 {
 	struct Null {};

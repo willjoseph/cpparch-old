@@ -1,5 +1,6 @@
 
 C:\Program Files\Microsoft Visual Studio 8\VC\BIN\cl.exe
+/I Source
 /I ..\..\external\boost
 /D WIN32
 /D _DEBUG

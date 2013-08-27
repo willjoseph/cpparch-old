@@ -275,6 +275,11 @@ void parseResponseFile(const char* input)
 	}
 }
 
+#ifdef WIN32
+#ifndef _DEBUG
+//#define HANDLE_EXCEPTIONS 1
+#endif
+#endif
 
 int main(int argc, char *argv[])
 {
@@ -293,22 +298,18 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
-#ifdef WIN32
-#ifndef _DEBUG
+#if HANDLE_EXCEPTIONS
 	__try // catches access violation
 	{
 #endif
-#endif
 		parseResponseFile(argv[1]);
-#ifdef WIN32
-#ifndef _DEBUG
+#if HANDLE_EXCEPTIONS
 	}
 	__except(1)
 	{
 		std::cout << "unhandled exception" << std::endl;
 		return 1;
 	}
-#endif
 #endif
 
 	return 0;

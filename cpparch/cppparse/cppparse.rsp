@@ -1,5 +1,6 @@
 
 C:\Program Files\Microsoft Visual Studio 8\VC\BIN\cl.exe
+/I Source
 /I ..\..\external\boost
 /D WIN32
 /D _DEBUG
@@ -9,9 +10,66 @@ C:\Program Files\Microsoft Visual Studio 8\VC\BIN\cl.exe
 /D _SCL_SECURE_NO_WARNINGS
 /D _UNICODE
 /D UNICODE
-.\lexer.cpp
-.\semantic.cpp
-.\cppparse.cpp
-.\parser.cpp
+.\Source\Ast\AstAllocator.cpp
+.\Source\Ast\Declaration.cpp
+.\Source\Ast\Expression.cpp
+.\Source\Ast\ExpressionImpl.cpp
+.\Source\Ast\Print.cpp
+.\Source\Ast\Scope.cpp
+.\Source\Ast\Type.cpp
+.\Source\Common\Allocator.cpp
+.\Source\Common\Common.cpp
+.\Source\Common\Copied.cpp
+.\Source\Common\IndirectSet.cpp
+.\Source\Common\List.cpp
+.\Source\Common\Profile.cpp
+.\Source\Common\Sequence.cpp
+.\Source\Common\Util.cpp
+.\Source\Common\Visitor.cpp
+.\Source\Core\ExpressionEvaluate.cpp
+.\Source\Core\Fundamental.cpp
+.\Source\Core\KoenigLookup.cpp
+.\Source\Core\Literal.cpp
+.\Source\Core\NameLookup.cpp
+.\Source\Core\OperatorId.cpp
+.\Source\Core\OverloadResolve.cpp
+.\Source\Core\Special.cpp
+.\Source\Core\TemplateDeduce.cpp
+.\Source\Core\TypeConvert.cpp
+.\Source\Core\TypeInstantiate.cpp
+.\Source\Core\TypeSubstitute.cpp
+.\Source\Core\TypeTraits.cpp
+.\Source\Core\TypeUnique.cpp
+.\Source\Lex\Lex.cpp
+.\Source\Lex\Token.cpp
+.\Source\Lex\TokenPrinter.cpp
+.\Source\Parse\Grammar.cpp
+.\Source\Parse\Parse.cpp
+.\Source\Parse\ParseSpecial.cpp
+.\Source\Report\Report.cpp
+.\Source\Sema\Sema.cpp
+.\Source\Sema\SemaClass.cpp
+.\Source\Sema\SemaCommon.cpp
+.\Source\Sema\SemaDeclaration.cpp
+.\Source\Sema\SemaDeclarator.cpp
+.\Source\Sema\SemaDeclaratorFunction.cpp
+.\Source\Sema\SemaEnum.cpp
+.\Source\Sema\SemaException.cpp
+.\Source\Sema\SemaExpression.cpp
+.\Source\Sema\SemaIdExpression.cpp
+.\Source\Sema\SemaNamespace.cpp
+.\Source\Sema\SemaNamespaceName.cpp
+.\Source\Sema\SemaNestedNameSpecifier.cpp
+.\Source\Sema\SemaOperator.cpp
+.\Source\Sema\SemaPostfixExpression.cpp
+.\Source\Sema\SemaPrimaryExpression.cpp
+.\Source\Sema\SemaSpecifier.cpp
+.\Source\Sema\SemaStatement.cpp
+.\Source\Sema\SemaTemplateDeclaration.cpp
+.\Source\Sema\SemaTemplateName.cpp
+.\Source\Sema\SemaTypeId.cpp
+.\Source\Sema\SemaTypeName.cpp
+.\Source\Sema\SemaTypeSpecifier.cpp
+.\Source\Test\Test.cpp
 /I .\msvc-8.0\INCLUDE
 /I C:\Program Files\Microsoft SDKs\Windows\v7.1\Include
