@@ -1017,6 +1017,15 @@ inline UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Argum
 		// of declarations found in the namespaces and classes associated with the argument types.
 		addArgumentDependentOverloads(overloads, declaration->getName(), augmentedArguments);
 	}
+	else
+	{ // TODO: temporary hack: add special overload for implicitly declared copy-assignment operator
+		SYMBOLS_ASSERT(memberEnclosing != 0);
+		if(declaration->getName().value == gOperatorAssignId // if we found a user-defined operator=
+			&& !memberEnclosing->hasCopyAssignmentOperator) // and the class does not have a copy-assignment operator
+		{
+			overloads.push_back(Overload(gCopyAssignmentOperatorInstance.p, memberEnclosing));
+		}
+	}
 
 	SYMBOLS_ASSERT(!overloads.empty());
 

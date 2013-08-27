@@ -1,5 +1,5 @@
 
-#ifndef _CPPP_TEST // TODO
+#if 1//ndef _CPPP_TEST // TODO
 namespace N365
 {
 	struct B

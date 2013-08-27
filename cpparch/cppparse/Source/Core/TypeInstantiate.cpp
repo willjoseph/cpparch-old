@@ -274,6 +274,42 @@ inline bool isTemplate(const SimpleType& instance)
 		&& isTemplate(*instance.enclosing);
 }
 
+// If the class definition does not explicitly declare a copy assignment operator, one is declared implicitly.
+// The implicitly-declared copy assignment operator for a class X will have the form
+//   X& X::operator=(const X&)
+// TODO: correct constness of parameter
+inline bool hasCopyAssignmentOperator(const SimpleType& classType, const InstantiationContext& context)
+{
+	Identifier id;
+	id.value = gOperatorAssignId;
+	const DeclarationInstance* result = ::findDeclaration(classType.declaration->enclosed->declarations, id);
+	if(result == 0)
+	{
+		return false;
+	}
+	InstantiationContext memberContext = setEnclosingTypeSafe(context, &classType);
+	for(const Declaration* p = findOverloaded(*result); p != 0; p = p->overloaded)
+	{
+		if(p->isTemplate)
+		{
+			continue; // TODO: check compliance: copy-assignment-operator cannot be a template?
+		}
+
+		UniqueTypeWrapper type = getUniqueType(p->type, memberContext);
+		SYMBOLS_ASSERT(type.isFunction());
+		const ParameterTypes& parameters = getParameterTypes(type.value);
+		SYMBOLS_ASSERT(parameters.size() == 1);
+		UniqueTypeWrapper parameterType = removeReference(parameters[0]);
+		if(parameterType.isSimple()
+			&& &getSimpleType(parameterType.value) == &classType)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+
 std::size_t instantiateClass(const SimpleType& instanceConst, const InstantiationContext& context, bool allowDependent)
 {
 	SimpleType& instance = const_cast<SimpleType&>(instanceConst);
@@ -303,6 +339,7 @@ std::size_t instantiateClass(const SimpleType& instanceConst, const Instantiatio
 			&& instance.declaration->isTemplate)
 		{
 			// find the most recently declared specialization
+			// TODO: optimise
 			const DeclarationInstance* declaration = findDeclaration(instance.declaration->scope->declarations, instance.declaration->getName());
 			SYMBOLS_ASSERT(declaration != 0);
 			Declaration* specialization = findTemplateSpecialization(
@@ -362,6 +399,8 @@ std::size_t instantiateClass(const SimpleType& instanceConst, const Instantiatio
 					instance.children.push_back(substituted);
 				}
 			}
+
+			instance.hasCopyAssignmentOperator = hasCopyAssignmentOperator(instance, context);
 		}
 		instance.instantiating = false;
 	}

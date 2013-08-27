@@ -618,13 +618,16 @@ struct SimpleType
 	bool instantiated;
 	bool instantiating;
 	bool allowLookup;
+	bool hasCopyAssignmentOperator;
 	mutable bool visited; // used during findDeclaration to prevent infinite recursion
 	mutable bool dumped; // used during dumpTemplateInstantiations to prevent duplicates
 	Location instantiation;
 	ChildInstantiations childInstantiations;
 
 	SimpleType(Declaration* declaration, const SimpleType* enclosing)
-		: uniqueId(0), primary(declaration), declaration(declaration), enclosing(enclosing), size(0), instantiated(false), instantiating(false), allowLookup(false), visited(false), dumped(false)
+		: uniqueId(0), primary(declaration), declaration(declaration), enclosing(enclosing), size(0),
+		instantiated(false), instantiating(false), allowLookup(false), hasCopyAssignmentOperator(false),
+		visited(false), dumped(false)
 	{
 		SYMBOLS_ASSERT(enclosing == 0 || isClass(*enclosing->declaration));
 	}

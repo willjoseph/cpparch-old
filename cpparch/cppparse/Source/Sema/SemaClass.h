@@ -220,35 +220,9 @@ struct SemaClassSpecifier : public SemaBase, SemaClassSpecifierResult
 	void action(cpp::member_declaration* symbol, const SemaMemberDeclaration& walker)
 	{
 	}
-#if 0 // TODO!
-	inline bool hasCopyAssignmentOperator(const Declaration& declaration)
-	{
-		Identifier id;
-		id.value = gOperatorAssignId;
-		const DeclarationInstance* result = ::findDeclaration(declaration.enclosed->declarations, id);
-		if(result == 0)
-		{
-			return false;
-		}
-		for(const Declaration* p = findOverloaded(*result); p != 0; p = p->overloaded)
-		{
-			if(p->isTemplate)
-			{
-				continue; // TODO: check compliance: copy-assignment-operator cannot be a template?
-			}
-
-		}
-		return false;
-	}
-#endif
 	void action(cpp::terminal<boost::wave::T_RIGHTBRACE> symbol)
 	{
 		declaration->isComplete = true;
-		// If the class definition does not explicitly declare a copy assignment operator, one is declared implicitly.
-		// The implicitly-declared copy assignment operator for a class X will have the form
-		//   X& X::operator=(const X&)
-		// TODO: correct constness of parameter
-		// TODO: this must occur at point of instantiation
 
 		parseDeferred(deferred.first, context.parserContext);
 		parseDeferred(deferred.second, context.parserContext);

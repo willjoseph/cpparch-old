@@ -4,7 +4,12 @@
 
 ParameterTypes addOverload(OverloadResolver& resolver, const Declaration& declaration, const InstantiationContext& context)
 {
-	UniqueTypeWrapper type = getUniqueType(declaration.type, context, declaration.isTemplate);
+	SYMBOLS_ASSERT(!isMember(declaration)
+		|| &declaration == gCopyAssignmentOperatorInstance.p
+		|| context.enclosingType->declaration->enclosed == declaration.scope);
+	UniqueTypeWrapper type = &declaration == gCopyAssignmentOperatorInstance.p
+		? makeCopyAssignmentOperatorType(*context.enclosingType)
+		: getUniqueType(declaration.type, context, declaration.isTemplate);
 	SYMBOLS_ASSERT(type.isFunction());
 
 	ParameterTypes parameters;
