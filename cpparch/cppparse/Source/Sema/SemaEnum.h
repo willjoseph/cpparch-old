@@ -65,7 +65,7 @@ struct SemaEnumSpecifier : public SemaBase, SemaEnumSpecifierResult
 			declaration = instance;
 		}
 		// [dcl.enum] If the first enumerator has no initializer, the value of the corresponding constant is zero.
-		value = makeUniqueExpression(IntegralConstantExpression(gSignedInt, IntegralConstant(0))); // TODO: [dcl.enum] underlying type of enumerator
+		value = ExpressionWrapper(makeUniqueExpression(IntegralConstantExpression(gSignedInt, IntegralConstant(0)))); // TODO: [dcl.enum] underlying type of enumerator
 		if(declaration == 0)
 		{
 			// unnamed enum
@@ -95,7 +95,7 @@ struct SemaEnumSpecifier : public SemaBase, SemaEnumSpecifierResult
 			enumerator.initializer = value;
 		}
 		// [dcl.enum] An enumerator-definition without an initializer gives the enumerator the value obtained by increasing the value of the previous enumerator by one.
-		ExpressionWrapper one = makeUniqueExpression(IntegralConstantExpression(gSignedInt, IntegralConstant(1)));
+		ExpressionWrapper one = ExpressionWrapper(makeUniqueExpression(IntegralConstantExpression(gSignedInt, IntegralConstant(1))));
 		value = makeExpression(BinaryExpression(Name("+"), operator+, 0, value, one), // TODO: type of enumerator
 			true, value.isTypeDependent, value.isValueDependent
 		);

@@ -21,7 +21,7 @@ struct SemaArgumentList : public SemaBase
 	SEMA_POLICY(cpp::assignment_expression, SemaPolicyPush<struct SemaExpression>)
 	void action(cpp::assignment_expression* symbol, const SemaExpressionResult& walker)
 	{
-		arguments.push_back(Argument(walker.expression, walker.type));
+		arguments.push_back(makeArgument(walker.expression, walker.type));
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
 	}
@@ -80,7 +80,7 @@ struct SemaPostfixExpressionMember : public SemaQualified
 		{
 			// [expr] If an expression initially has the type "reference to T", the type is adjusted to "T" prior to any further analysis.
 			UniqueTypeWrapper operand = removeReference(memberType);
-			memberClass = &getMemberOperatorType(Argument(expression, operand), isArrow, getInstantiationContext());
+			memberClass = &getMemberOperatorType(makeArgument(expression, operand), isArrow, getInstantiationContext());
 
 			objectExpression = makeExpression(ObjectExpression(memberClass));
 		}
@@ -253,8 +253,8 @@ struct SemaPostfixExpression : public SemaBase
 			// [expr] If an expression initially has the type "reference to T", the type is adjusted to "T" prior to any further analysis.
 			type = removeReference(type);
 			type = typeOfSubscriptExpression(
-				Argument(expression, type),
-				Argument(walker.expression, walker.type),
+				makeArgument(expression, type),
+				makeArgument(walker.expression, walker.type),
 				getInstantiationContext());
 		}
 		expression = makeExpression(SubscriptExpression(expression, walker.expression), false, isDependent(typeDependent), isDependent(valueDependent));
@@ -336,7 +336,7 @@ struct SemaPostfixExpression : public SemaBase
 					}
 				}
 			}
-			type = typeOfFunctionCallExpression(Argument(expression, type), walker.arguments, getInstantiationContext());
+			type = typeOfFunctionCallExpression(makeArgument(expression, type), walker.arguments, getInstantiationContext());
 			expression = makeExpression(FunctionCallExpression(expression, walker.arguments), false, isDependent(typeDependent), isDependent(valueDependent));
 		}
 		// TODO: set of pointers-to-function
@@ -409,7 +409,7 @@ struct SemaPostfixExpression : public SemaBase
 			type = removeReference(type);
 			type = typeOfPostfixOperatorExpression(
 				getOverloadedOperatorId(symbol),
-				Argument(expression, type),
+				makeArgument(expression, type),
 				getInstantiationContext());
 
 			expression = makeExpression(PostfixOperatorExpression(getOverloadedOperatorId(symbol), expression));

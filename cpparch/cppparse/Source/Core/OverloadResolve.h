@@ -206,7 +206,7 @@ ImplicitConversion makeImplicitConversionSequence(To to, Argument from, const In
 inline IcsRank getIcsRank(UniqueTypeWrapper to, UniqueTypeWrapper from, const InstantiationContext& context, bool isNullPointerConstant = false, bool isLvalue = false)
 {
 	ExpressionNodeGeneric<ExplicitTypeExpression> transientExpression = ExplicitTypeExpression(from);
-	Argument argument(ExpressionWrapper(&transientExpression, false), from);
+	Argument argument = makeArgument(ExpressionWrapper(&transientExpression, false), from);
 	ImplicitConversion conversion = makeImplicitConversionSequence(to, argument, context, isNullPointerConstant, isLvalue);
 	return getIcsRank(conversion.sequence.rank);
 }

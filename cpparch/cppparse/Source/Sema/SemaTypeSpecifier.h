@@ -88,7 +88,7 @@ inline bool isUnqualified(cpp::elaborated_type_specifier_default* symbol)
 {
 	return symbol != 0
 		&& symbol->isGlobal.value.empty()
-		&& symbol->context.p == 0;
+		&& symbol->context.get() == 0;
 }
 
 

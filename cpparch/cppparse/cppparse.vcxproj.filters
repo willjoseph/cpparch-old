@@ -217,6 +217,9 @@
     <ClInclude Include="Source\Sema\SemaIdExpression.h">
       <Filter>Source Files\Sema</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Ast\UniqueType.h">
+      <Filter>Source Files\Ast</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="cppparse.cpp">
@@ -404,6 +407,9 @@
     </ClCompile>
     <ClCompile Include="Source\Sema\SemaIdExpression.cpp">
       <Filter>Source Files\Sema</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Ast\UniqueType.cpp">
+      <Filter>Source Files\Ast</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

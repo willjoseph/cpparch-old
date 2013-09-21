@@ -5,6 +5,9 @@
 #include "Common.h"
 
 
+template<typename T>
+struct Visitable;
+
 
 #define VISITABLE_ACCEPT template<typename VisitorType> void accept(VisitorType& visitor)
 #define PARSEABLE_ACCEPT typedef TypeListEnd Choices; template<typename SemaT> bool parse(ParserGeneric<SemaT>& parser)
@@ -38,8 +41,8 @@ struct VisitorThunk
 template<typename T>
 struct VisitorFunc
 {
-	typedef T Type;
-	typedef void (*Thunk)(void* context, T p);
+	typedef Visitable<T>* Type;
+	typedef void (*Thunk)(void* context, Type p);
 	Thunk thunk;
 	explicit VisitorFunc(Thunk thunk)
 		: thunk(thunk)
@@ -54,7 +57,7 @@ struct VisitorCallback
 	VisitorFuncTableType* table;
 
 	template<typename T>
-	void visit(T p) const
+	void visit(Visitable<T>* p) const
 	{
 		static_cast<const VisitorFunc<T>*>(table)->thunk(context, p);
 	}
@@ -68,9 +71,9 @@ struct VisitorTypeId
 
 
 template<typename Types>
-struct VisitorFuncGeneric : public VisitorFunc<typename Types::Item*>, public VisitorFuncGeneric<typename Types::Next>
+struct VisitorFuncGeneric : public VisitorFunc<typename Types::Item>, public VisitorFuncGeneric<typename Types::Next>
 {
-	typedef VisitorFunc<typename Types::Item*> FuncType;
+	typedef VisitorFunc<typename Types::Item> FuncType;
 	typedef VisitorFuncGeneric<typename Types::Next> NextType;
 	template<typename VisitorType>
 	explicit VisitorFuncGeneric(const VisitorTypeId<VisitorType>& visitorType) :
@@ -92,6 +95,84 @@ struct VisitorFuncGeneric<TypeListEnd>
 #define CPPTREE_VIRTUAL
 #ifdef CPPTREE_VIRTUAL
 
+#if 0
+template<typename T>
+struct VisitableBase
+{
+	typedef typename T::Types Types;
+	typedef VisitorFuncGeneric<Types> VisitorFuncTable;
+	typedef VisitorCallback<VisitorFuncTable> Visitor;
+	virtual void acceptAbstract(const Visitor& visitor) = 0;
+	template<typename VisitorType>
+	void accept(VisitorType& visitor)
+	{
+		static VisitorFuncTable table = VisitorFuncTable(VisitorTypeId<VisitorType>());
+		Visitor callback = { &visitor, &table };
+		acceptAbstract(callback);
+	}
+};
+#endif
+
+
+template<typename Op, typename Bases>
+struct Compose : Op::template Apply<typename Bases::Item>::Type, Compose<Op, typename Bases::Next>
+{
+};
+
+template<typename Op>
+struct Compose<Op, TypeListEnd>
+{
+};
+
+template<typename T, typename Base>
+struct VisitableBase : Visitable<Base>
+{
+	virtual void acceptAbstract(const typename Base::Visitor& visitor)
+	{
+		visitor.visit(static_cast<Visitable<T>*>(this));
+	}
+};
+
+template<typename T>
+struct MakeVisitableBase
+{
+	template<typename Base>
+	struct Apply
+	{
+		typedef VisitableBase<T, Base> Type;
+	};
+};
+
+template<typename T, typename U = void>
+struct GetBases
+{
+	typedef TypeListEnd Type;
+};
+
+template<typename T>
+struct GetBases<T, typename SfinaeHelper<typename T::Bases>::Type>
+{
+	typedef typename T::Bases Type;
+};
+
+
+template<typename T>
+struct Visitable : Compose<MakeVisitableBase<T>, typename GetBases<T>::Type>, T
+{
+	Visitable()
+	{
+	}
+	Visitable(const T& value) : T(value)
+	{
+	}
+	template<typename VisitorType>
+	void accept(VisitorType& visitor)
+	{
+		static_cast<T*>(this)->accept(visitor);
+	}
+};
+
+
 #define VISITABLE_BASE_IMPL \
 	typedef VisitorFuncGeneric<Types> VisitorFuncTable; \
 	typedef VisitorCallback<VisitorFuncTable> Visitor; \
@@ -111,13 +192,13 @@ struct VisitorFuncGeneric<TypeListEnd>
 #define VISITABLE_DERIVED(Base) \
 	virtual void acceptAbstract(const Base::Visitor& visitor) \
 	{ \
-		visitor.visit(this); \
+		visitor.visit(makeVisitable(this)); \
 	}
 
 #define VISITABLE_DERIVED_TMPL(Base) \
 	virtual void acceptAbstract(const typename Base::Visitor& visitor) \
 	{ \
-		visitor.visit(this); \
+		visitor.visit(makeVisitable(this)); \
 	}
 
 #else

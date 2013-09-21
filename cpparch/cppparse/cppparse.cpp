@@ -150,7 +150,7 @@ void runTest(const Test& test)
 #endif
 }
 
-int printFile(cpp::declaration_seq* result, const PrintSymbolArgs& args)
+int printFile(ParseTree* result, const PrintSymbolArgs& args)
 {
 	printSymbol(result, args);
 	return 0;

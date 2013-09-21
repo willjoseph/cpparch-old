@@ -256,7 +256,7 @@ UniqueTypeWrapper getOverloadedMemberOperatorType(UniqueTypeWrapper operand, con
 	id.source = context.source;
 
 	ExpressionNodeGeneric<ExplicitTypeExpression> transientExpression = ExplicitTypeExpression(operand);
-	Arguments arguments(1, Argument(ExpressionWrapper(&transientExpression, false), operand));
+	Arguments arguments(1, makeArgument(ExpressionWrapper(&transientExpression, false), operand));
 	OverloadResolver resolver(arguments, 0, context);
 
 	LookupResultRef declaration = ::findDeclaration(classType, id, IsAny());
@@ -859,23 +859,23 @@ struct TypeOfVisitor : ExpressionNodeVisitor
 	void visit(const UnaryExpression& node)
 	{
 		result = typeOfUnaryExpression(node.operatorName,
-			Argument(node.first, removeReference(typeOfExpression(node.first, context))),
+			makeArgument(node.first, removeReference(typeOfExpressionWrapper(node.first, context))),
 			context);
 		SYMBOLS_ASSERT(!isDependent(result));
 	}
 	void visit(const BinaryExpression& node)
 	{
 		result = node.type(node.operatorName,
-			Argument(node.first, removeReference(typeOfExpression(node.first, context))),
-			Argument(node.second, removeReference(typeOfExpression(node.second, context))),
+			makeArgument(node.first, removeReference(typeOfExpressionWrapper(node.first, context))),
+			makeArgument(node.second, removeReference(typeOfExpressionWrapper(node.second, context))),
 			context);
 		SYMBOLS_ASSERT(!isDependent(result));
 	}
 	void visit(const TernaryExpression& node)
 	{
 		result = getConditionalOperatorType(
-			removeReference(typeOfExpression(node.second, context)),
-			removeReference(typeOfExpression(node.third, context)));
+			removeReference(typeOfExpressionWrapper(node.second, context)),
+			removeReference(typeOfExpressionWrapper(node.third, context)));
 		SYMBOLS_ASSERT(!isDependent(result));
 	}
 	void visit(const TypeTraitsUnaryExpression& node)
@@ -898,14 +898,14 @@ struct TypeOfVisitor : ExpressionNodeVisitor
 	}
 	void visit(const struct DependentObjectExpression& node)
 	{
-		UniqueTypeWrapper type = typeOfExpression(node.left, context);
-		const SimpleType& classType = getMemberOperatorType(Argument(node.left, removeReference(type)), node.isArrow, context);
+		UniqueTypeWrapper type = typeOfExpressionWrapper(node.left, context);
+		const SimpleType& classType = getMemberOperatorType(makeArgument(node.left, removeReference(type)), node.isArrow, context);
 		result = makeUniqueSimpleType(classType);
 		SYMBOLS_ASSERT(!isDependent(result));
 	}
 	void visit(const struct ClassMemberAccessExpression& node)
 	{
-		UniqueTypeWrapper type = typeOfExpression(node.left, context);
+		UniqueTypeWrapper type = typeOfExpressionWrapper(node.left, context);
 		SYMBOLS_ASSERT(!isDependent(type)); // TODO: substitute dependent
 		const SimpleType& classType = getSimpleType(type.value);
 		result = typeOfExpression(node.right, setEnclosingTypeSafe(context, &classType));
@@ -914,24 +914,25 @@ struct TypeOfVisitor : ExpressionNodeVisitor
 	void visit(const struct FunctionCallExpression& node)
 	{
 		result = typeOfFunctionCallExpression(
-			Argument(node.left, removeReference(typeOfExpression(node.left, context))),
+			makeArgument(node.left, removeReference(typeOfExpressionWrapper(node.left, context))),
 			node.arguments,
 			context);
 	}
 	void visit(const struct SubscriptExpression& node)
 	{
 		result = typeOfSubscriptExpression(
-			Argument(node.left, removeReference(typeOfExpression(node.left, context))),
-			Argument(node.right, removeReference(typeOfExpression(node.right, context))),
+			makeArgument(node.left, removeReference(typeOfExpressionWrapper(node.left, context))),
+			makeArgument(node.right, removeReference(typeOfExpressionWrapper(node.right, context))),
 			context);
 	}
 	void visit(const struct PostfixOperatorExpression& node)
 	{
 		result = typeOfPostfixOperatorExpression(node.operatorName,
-			Argument(node.operand, removeReference(typeOfExpression(node.operand, context))),
+			makeArgument(node.operand, removeReference(typeOfExpressionWrapper(node.operand, context))),
 			context);
 	}
 };
+
 
 inline UniqueTypeWrapper typeOfExpression(ExpressionNode* node, const InstantiationContext& context)
 {

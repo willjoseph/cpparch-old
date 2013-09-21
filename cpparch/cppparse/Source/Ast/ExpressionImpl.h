@@ -8,14 +8,13 @@
 struct SimpleType;
 struct InstantiationContext;
 
-struct Argument : ExpressionWrapper
+inline ExpressionWrapper makeArgument(ExpressionWrapper expression, UniqueTypeWrapper type)
 {
-	UniqueTypeWrapper type;
-	Argument(ExpressionWrapper expression, UniqueTypeWrapper type)
-		: ExpressionWrapper(expression), type(type)
-	{
-	}
-};
+	ExpressionWrapper result(expression);
+	result.type = type;
+	return result;
+}
+typedef ExpressionWrapper Argument;
 typedef std::vector<Argument> Arguments;
 
 
@@ -484,8 +483,6 @@ inline bool operator<(const PostfixOperatorExpression& left, const PostfixOperat
 	return false;
 }
 
-
-inline UniqueTypeWrapper typeOfExpression(ExpressionNode* node, const InstantiationContext& context);
 
 inline bool isPointerToMemberExpression(ExpressionNode* expression)
 {

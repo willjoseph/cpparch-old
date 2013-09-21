@@ -1056,6 +1056,15 @@ described for lookup in namespace member function definitions.
 		// first parsed as member_declaration_named, backtracks on reaching '{'
 	- no longer necessary because Declarator parse is successfully cached
 
-- task: implement overload resolution for implicitly-defined operator= in expression (x = y)
++ task: implement overload resolution for implicitly-defined operator= in expression (x = y)
 
 - task: remove circular dependency: evaluateExpression in OverloadResolver::makeConversion
+
+- task: evaluate expression immediately if possible
+	- if only type-dependent, find value
+	- if only value-dependent, find type
+	- if neither, find both
+	- substitute evaluated nodes into expression tree?
+		- need to preserve tree if only value-dependent or only type-dependent?
+		- e.g. sizeof(T) is only value-dependent
+		- is only value-dependent even possible?

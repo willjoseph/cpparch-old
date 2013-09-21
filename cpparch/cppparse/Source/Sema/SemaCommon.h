@@ -1293,7 +1293,14 @@ struct SemaBase : public SemaState
 	ExpressionWrapper makeExpression(const T& value, bool isConstant = false, bool isTypeDependent = false, bool isValueDependent = false)
 	{
 		ExpressionNode* node = isConstant ? makeUniqueExpression(value) : allocatorNew(context, ExpressionNodeGeneric<T>(value));
-		return ExpressionWrapper(node, isConstant, isTypeDependent, isValueDependent);
+		ExpressionWrapper result(node, isConstant, isTypeDependent, isValueDependent);
+		if(!isTypeDependent)
+		{
+#if 0 // TODO:
+			result.type = typeOfExpression(node, getInstantiationContext());
+#endif
+		}
+		return result;
 	}
 
 	void addBacktrackCallback(const BacktrackCallback& callback)
@@ -1595,13 +1602,6 @@ Inner makeInnerWalker(SemaT& walker, const SemaPush<Inner, Commit, Args2<A1, A2>
 {
 	return Inner(walker.getState(), args.a1, args.a2);
 }
-
-template<typename T, T m>
-struct SfinaeNonType
-{
-	typedef void Type;
-};
-
 
 
 template<typename SemaT, LexTokenId ID, typename U = void>

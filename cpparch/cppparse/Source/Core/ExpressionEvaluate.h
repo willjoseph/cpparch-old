@@ -314,6 +314,22 @@ inline IntegralConstant evaluateExpression(const ExpressionWrapper& expression, 
 }
 
 
+inline UniqueTypeWrapper typeOfExpression(ExpressionNode* node, const InstantiationContext& context);
+
+inline UniqueTypeWrapper typeOfExpressionWrapper(const ExpressionWrapper& expression, const InstantiationContext& context)
+{
+#if 1
+	return typeOfExpression(expression.p, context);
+#else
+	if(expression.isTypeDependent)
+	{
+		return gUniqueTypeNull; // typeOfExpression(expression.p, context)
+	}
+
+	return expression.type;
+#endif
+}
+
 inline bool isSpecialMember(const Declaration& declaration)
 {
 	return &declaration == gDestructorInstance.p
@@ -529,7 +545,7 @@ inline UniqueTypeWrapper typeOfPostfixOperatorExpression(Name operatorName, Argu
 
 	Arguments arguments;
 	arguments.push_back(operand);
-	arguments.push_back(Argument(zero, gSignedInt));
+	arguments.push_back(makeArgument(zero, gSignedInt));
 	FunctionOverload overload = findBestOverloadedOperator(id, arguments, context);
 	if(overload.declaration == &gUnknown)
 	{
@@ -1001,7 +1017,7 @@ inline UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Argum
 			// a contrived object of type T becomes the implied object argument
 			: *memberEnclosing;
 		transientExpression = ObjectExpression(&classType);
-		augmentedArguments.push_back(Argument(ExpressionWrapper(&transientExpression, false), makeUniqueSimpleType(classType)));
+		augmentedArguments.push_back(makeArgument(ExpressionWrapper(&transientExpression, false), makeUniqueSimpleType(classType)));
 	}
 
 	augmentedArguments.insert(augmentedArguments.end(), arguments.begin(), arguments.end());

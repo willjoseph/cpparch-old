@@ -60,7 +60,6 @@ struct SemaExplicitTypeExpression : public SemaBase, SemaExplicitTypeExpressionR
 	}
 };
 
-
 struct SemaSizeofTypeExpression : public SemaBase
 {
 	SEMA_BOILERPLATE;
@@ -148,7 +147,7 @@ struct SemaExpression : public SemaBase, SemaExpressionResult
 			UniqueTypeWrapper left = removeReference(type);
 			UniqueTypeWrapper right = removeReference(walker.type);
 			type = typeOfBinaryExpression<typeOp>(getOverloadedOperatorId(symbol),
-				Argument(leftExpression, left), Argument(walker.expression, right),
+				makeArgument(leftExpression, left), makeArgument(walker.expression, right),
 				getInstantiationContext());
 			SYMBOLS_ASSERT(type != gUniqueTypeNull);
 		}
@@ -298,7 +297,7 @@ struct SemaExpression : public SemaBase, SemaExpressionResult
 			type = removeReference(type);
 			type = typeOfUnaryExpression(
 				getOverloadedOperatorId(symbol->op),
-				Argument(expression, type),
+				makeArgument(expression, type),
 				getInstantiationContext());
 			// TODO: decorate parse-tree with declaration
 		}

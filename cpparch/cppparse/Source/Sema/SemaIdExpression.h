@@ -230,7 +230,7 @@ struct SemaIdExpression : public SemaQualified
 			isUndeclared = true;
 			setDecoration(id, gDependentObjectInstance);
 
-			expression = makeExpression(DependentIdExpression(id->value, gUniqueTypeNull, TemplateArgumentsInstance()));
+			expression = makeExpression(DependentIdExpression(id->value, gUniqueTypeNull, TemplateArgumentsInstance()), false, true);
 		}
 		else
 		{

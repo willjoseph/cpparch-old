@@ -4,6 +4,7 @@
 
 #include "Common/Allocator.h"
 #include "Common/IndirectSet.h"
+#include "UniqueType.h"
 
 // [expr.const]
 // An integral constant-expression can involve only literals, enumerators, const variables or static
@@ -97,25 +98,6 @@ inline UniqueExpression makeUniqueExpression(const T& value)
 }
 
 
-struct ExpressionWrapper : ExpressionPtr
-{
-	bool isConstant;
-	bool isTypeDependent;
-	bool isValueDependent;
-	bool isTemplateArgumentAmbiguity; // [temp.arg] In a template argument, an ambiguity between a typeid and an expression is resolved to a typeid
-	bool isNonStaticMemberName;
-	bool isQualifiedNonStaticMemberName;
-	ExpressionWrapper()
-		: ExpressionPtr(0), isConstant(false), isTypeDependent(false), isValueDependent(false), isTemplateArgumentAmbiguity(false), isNonStaticMemberName(false), isQualifiedNonStaticMemberName(false)
-	{
-	}
-	ExpressionWrapper(ExpressionNode* node, bool isConstant = true, bool isTypeDependent = false, bool isValueDependent = false)
-		: ExpressionPtr(node), isConstant(isConstant), isTypeDependent(isTypeDependent), isValueDependent(isValueDependent), isTemplateArgumentAmbiguity(false), isNonStaticMemberName(false), isQualifiedNonStaticMemberName(false)
-	{
-	}
-};
-
-
 
 
 // ----------------------------------------------------------------------------
@@ -136,5 +118,27 @@ struct IntegralConstant
 	{
 	}
 };
+
+struct ExpressionWrapper : ExpressionPtr
+{
+	UniqueTypeWrapper type; // valid if this expression is not type-dependent
+	IntegralConstant value; // valid if this is expression is integral-constant and not value-dependent
+	bool isConstant;
+	bool isTypeDependent;
+	bool isValueDependent;
+	bool isNullPointerConstant;
+	bool isTemplateArgumentAmbiguity; // [temp.arg] In a template argument, an ambiguity between a typeid and an expression is resolved to a typeid
+	bool isNonStaticMemberName;
+	bool isQualifiedNonStaticMemberName;
+	ExpressionWrapper()
+		: ExpressionPtr(0), isConstant(false), isTypeDependent(false), isValueDependent(false), isNullPointerConstant(false), isTemplateArgumentAmbiguity(false), isNonStaticMemberName(false), isQualifiedNonStaticMemberName(false)
+	{
+	}
+	explicit ExpressionWrapper(ExpressionNode* node, bool isConstant = true, bool isTypeDependent = false, bool isValueDependent = false)
+		: ExpressionPtr(node), isConstant(isConstant), isTypeDependent(isTypeDependent), isValueDependent(isValueDependent), isNullPointerConstant(false), isTemplateArgumentAmbiguity(false), isNonStaticMemberName(false), isQualifiedNonStaticMemberName(false)
+	{
+	}
+};
+
 
 #endif

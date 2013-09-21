@@ -95,7 +95,7 @@ inline Name getOverloadableOperatorId(cpp::overloadable_operator_default* symbol
 
 inline Name getOverloadableOperatorId(cpp::new_operator* symbol)
 {
-	if(symbol->array.p != 0)
+	if(symbol->array.get() != 0)
 	{
 		return gOperatorNewArrayId;
 	}
@@ -104,7 +104,7 @@ inline Name getOverloadableOperatorId(cpp::new_operator* symbol)
 
 inline Name getOverloadableOperatorId(cpp::delete_operator* symbol)
 {
-	if(symbol->array.p != 0)
+	if(symbol->array.get() != 0)
 	{
 		return gOperatorDeleteArrayId;
 	}

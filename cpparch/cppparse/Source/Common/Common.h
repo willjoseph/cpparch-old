@@ -42,7 +42,8 @@ struct TypeList
 	typedef NextType Next;
 };
 
-#define TYPELIST1(T0) TypeList<T0, TypeListEnd>
+#define TYPELIST0() TypeListEnd
+#define TYPELIST1(T0) TypeList<T0, TYPELIST0()>
 #define TYPELIST2(T0, T1) TypeList<T0, TYPELIST1(T1) >
 #define TYPELIST3(T0, T1, T2) TypeList<T0, TYPELIST2(T1, T2) >
 #define TYPELIST4(T0, T1, T2, T3) TypeList<T0, TYPELIST3(T1, T2, T3) >
@@ -185,6 +186,20 @@ template<typename T>
 struct EnableIf<true, T>
 {
 	typedef T Type;
+};
+
+
+template<typename T>
+struct SfinaeHelper
+{
+	typedef void Type;
+};
+
+
+template<typename T, T m>
+struct SfinaeNonType
+{
+	typedef void Type;
 };
 
 

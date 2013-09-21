@@ -47,7 +47,7 @@ AstAllocator<int> getAllocator(ParserContext& context)
 }
 
 
-cpp::declaration_seq* parseFile(ParserContext& context)
+ParseTree* parseFile(ParserContext& context)
 {
 	gUniqueNames.clear();
 	gUniqueTypes.clear();
@@ -95,37 +95,7 @@ cpp::declaration_seq* parseFile(ParserContext& context)
 	dumpProfile(gProfileIdentifier);
 	dumpProfile(gProfileTemplateId);
 
-	return result;
-}
-
-cpp::statement_seq* parseFunction(ParserContext& context)
-{
-	gUniqueNames.clear();
-	gUniqueTypes.clear();
-	gUniqueExpressions.clear();
-
-	SemaContext& globals = *new SemaContext(context, getAllocator(context));
-	SemaCompoundStatement& walker = *new SemaCompoundStatement(globals);
-	ParserGeneric<SemaCompoundStatement> parser(context, walker);
-
-	cpp::symbol_sequence<cpp::statement_seq> result(NULL);
-	try
-	{
-		ProfileScope profile(gProfileParser);
-		PARSE_SEQUENCE(parser, result);
-	}
-	catch(ParseError&)
-	{
-	}
-	catch(TypeError& e)
-	{
-		e.report();
-	}
-	if(!context.finished())
-	{
-		printError(parser);
-	}
-	return result;
+	return result.get();
 }
 
 

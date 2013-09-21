@@ -1,4 +1,19 @@
 
+extern "C" int f();
+
+
+namespace N352
+{
+	template<bool b, int x = sizeof(b)>
+	struct A
+	{
+		static const int value = x;
+	};
+
+	int f(int);
+	int x = f(A<false>::value);
+}
+
 #if 1//ndef _CPPP_TEST // TODO
 namespace N365
 {
@@ -93,18 +108,6 @@ namespace N362
 	}
 }
 
-
-namespace N352
-{
-	template<bool b, int x = sizeof(b)>
-	struct A
-	{
-		static const int value = x;
-	};
-
-	int f(int);
-	int x = f(A<false>::value);
-}
 
 namespace N361
 {
@@ -513,7 +516,7 @@ namespace N346
 
 	void f(int)
 	{
-		A& a = A();
+		const A& a = A();
 		f((sizeof(a.m)));
 	}
 }

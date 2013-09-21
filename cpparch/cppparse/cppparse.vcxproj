@@ -112,6 +112,7 @@
     <ClInclude Include="Source\Ast\Print.h" />
     <ClInclude Include="Source\Ast\Scope.h" />
     <ClInclude Include="Source\Ast\Type.h" />
+    <ClInclude Include="Source\Ast\UniqueType.h" />
     <ClInclude Include="Source\Common\Allocator.h" />
     <ClInclude Include="Source\Common\Common.h" />
     <ClInclude Include="Source\Common\Copied.h" />
@@ -176,6 +177,7 @@
     <ClCompile Include="Source\Ast\Print.cpp" />
     <ClCompile Include="Source\Ast\Scope.cpp" />
     <ClCompile Include="Source\Ast\Type.cpp" />
+    <ClCompile Include="Source\Ast\UniqueType.cpp" />
     <ClCompile Include="Source\Common\Allocator.cpp" />
     <ClCompile Include="Source\Common\Common.cpp" />
     <ClCompile Include="Source\Common\Copied.cpp" />

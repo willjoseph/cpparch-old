@@ -2,11 +2,15 @@
 #ifndef INCLUDED_CPPPARSE_REPORT_REPORT_H
 #define INCLUDED_CPPPARSE_REPORT_REPORT_H
 
+template<typename T>
+struct Visitable;
+
 namespace cpp
 {
 	struct declaration_seq;
-	struct statement_seq;
 };
+
+typedef Visitable<cpp::declaration_seq> ParseTree;
 
 struct IncludeDependencyGraph;
 
@@ -21,8 +25,7 @@ struct PrintSymbolArgs
 	}
 };
 
-void printSymbol(cpp::declaration_seq* p, const PrintSymbolArgs& args);
-void printSymbol(cpp::statement_seq* p, const PrintSymbolArgs& args);
+void printSymbol(ParseTree* p, const PrintSymbolArgs& args);
 
 #endif
 

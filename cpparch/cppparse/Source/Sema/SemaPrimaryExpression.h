@@ -23,12 +23,12 @@ struct SemaLiteral : public SemaBase
 		{
 			symbol->id = isFloatingLiteral(symbol->value.value.c_str()) ? cpp::numeric_literal::FLOATING : cpp::numeric_literal::INTEGER;
 		}
-		expression = makeUniqueExpression(parseNumericLiteral(symbol));
+		expression = ExpressionWrapper(makeUniqueExpression(parseNumericLiteral(symbol)));
 	}
 	SEMA_POLICY(cpp::string_literal, SemaPolicyIdentity)
 	void action(cpp::string_literal* symbol)
 	{
-		expression = makeUniqueExpression(IntegralConstantExpression(getStringLiteralType(symbol), IntegralConstant()));
+		expression = ExpressionWrapper(makeUniqueExpression(IntegralConstantExpression(getStringLiteralType(symbol), IntegralConstant())));
 	}
 };
 

@@ -378,7 +378,7 @@ inline cpp::member_declaration_bitfield* parseSymbol(ParserGeneric<SemaT>& parse
 	return result;
 }
 
-
+#if 0
 inline cpp::expression* pruneSymbol(cpp::expression_list* symbol)
 {
 	if(symbol->right == 0)
@@ -387,7 +387,7 @@ inline cpp::expression* pruneSymbol(cpp::expression_list* symbol)
 	}
 	return symbol;
 }
-
+#endif
 
 template<typename SemaT>
 inline cpp::expression* parseSymbol(ParserGeneric<SemaT>& parser, cpp::expression* result)
@@ -406,6 +406,7 @@ inline cpp::primary_expression_parenthesis* parseSymbol(ParserGeneric<SemaT>& pa
 	return result;
 }
 
+#if 0
 inline cpp::postfix_expression* pruneSymbol(cpp::postfix_expression_default* symbol)
 {
 	if(symbol->right == 0)
@@ -414,6 +415,7 @@ inline cpp::postfix_expression* pruneSymbol(cpp::postfix_expression_default* sym
 	}
 	return symbol;
 }
+#endif
 
 template<typename SemaT>
 inline cpp::postfix_expression_default* parseSymbol(ParserGeneric<SemaT>& parser, cpp::postfix_expression_default* result)
@@ -430,6 +432,7 @@ inline cpp::postfix_expression* parseSymbol(ParserGeneric<SemaT>& parser, cpp::p
 	return result;
 }
 
+#if 0
 inline cpp::pm_expression* pruneSymbol(cpp::pm_expression_default* symbol)
 {
 	if(symbol->right == 0)
@@ -438,6 +441,7 @@ inline cpp::pm_expression* pruneSymbol(cpp::pm_expression_default* symbol)
 	}
 	return symbol;
 }
+#endif
 
 
 template<typename SemaT>
@@ -455,6 +459,7 @@ inline cpp::pm_expression* parseSymbol(ParserGeneric<SemaT>& parser, cpp::pm_exp
 	return result;
 }
 
+#if 0
 inline cpp::multiplicative_expression* pruneSymbol(cpp::multiplicative_expression_default* symbol)
 {
 	if(symbol->right == 0)
@@ -463,6 +468,7 @@ inline cpp::multiplicative_expression* pruneSymbol(cpp::multiplicative_expressio
 	}
 	return symbol;
 }
+#endif
 
 template<typename SemaT>
 inline cpp::multiplicative_expression_default* parseSymbol(ParserGeneric<SemaT>& parser, cpp::multiplicative_expression_default* result)
@@ -487,6 +493,7 @@ inline cpp::additive_operator* parseSymbol(ParserGeneric<SemaT>& parser, cpp::ad
 	return result;
 }
 
+#if 0
 inline cpp::additive_expression* pruneSymbol(cpp::additive_expression_default* symbol)
 {
 	if(symbol->right == 0)
@@ -495,6 +502,7 @@ inline cpp::additive_expression* pruneSymbol(cpp::additive_expression_default* s
 	}
 	return symbol;
 }
+#endif
 
 template<typename SemaT>
 inline cpp::additive_expression_default* parseSymbol(ParserGeneric<SemaT>& parser, cpp::additive_expression_default* result)
@@ -511,6 +519,7 @@ inline cpp::additive_expression* parseSymbol(ParserGeneric<SemaT>& parser, cpp::
 	return result;
 }
 
+#if 0
 inline cpp::shift_expression* pruneSymbol(cpp::shift_expression_default* symbol)
 {
 	if(symbol->right == 0)
@@ -519,6 +528,7 @@ inline cpp::shift_expression* pruneSymbol(cpp::shift_expression_default* symbol)
 	}
 	return symbol;
 }
+#endif
 
 template<typename SemaT>
 inline cpp::shift_expression_default* parseSymbol(ParserGeneric<SemaT>& parser, cpp::shift_expression_default* result)
@@ -535,6 +545,7 @@ inline cpp::shift_expression* parseSymbol(ParserGeneric<SemaT>& parser, cpp::shi
 	return result;
 }
 
+#if 0
 inline cpp::relational_expression* pruneSymbol(cpp::relational_expression_default* symbol)
 {
 	if(symbol->right == 0)
@@ -543,6 +554,7 @@ inline cpp::relational_expression* pruneSymbol(cpp::relational_expression_defaul
 	}
 	return symbol;
 }
+#endif
 
 template<typename SemaT>
 inline cpp::relational_expression_default* parseSymbol(ParserGeneric<SemaT>& parser, cpp::relational_expression_default* result)
@@ -565,6 +577,7 @@ inline cpp::relational_expression* parseSymbol(ParserGeneric<SemaT>& parser, cpp
 	return result;
 }
 
+#if 0
 inline cpp::equality_expression* pruneSymbol(cpp::equality_expression_default* symbol)
 {
 	if(symbol->right == 0)
@@ -573,6 +586,7 @@ inline cpp::equality_expression* pruneSymbol(cpp::equality_expression_default* s
 	}
 	return symbol;
 }
+#endif
 
 template<typename SemaT>
 inline cpp::equality_expression_default* parseSymbol(ParserGeneric<SemaT>& parser, cpp::equality_expression_default* result)
@@ -589,6 +603,7 @@ inline cpp::equality_expression* parseSymbol(ParserGeneric<SemaT>& parser, cpp::
 	return result;
 }
 
+#if 0
 inline cpp::and_expression* pruneSymbol(cpp::and_expression_default* symbol)
 {
 	if(symbol->right == 0)
@@ -597,6 +612,7 @@ inline cpp::and_expression* pruneSymbol(cpp::and_expression_default* symbol)
 	}
 	return symbol;
 }
+#endif
 
 template<typename SemaT>
 inline cpp::and_expression_default* parseSymbol(ParserGeneric<SemaT>& parser, cpp::and_expression_default* result)
@@ -613,6 +629,7 @@ inline cpp::and_expression* parseSymbol(ParserGeneric<SemaT>& parser, cpp::and_e
 	return result;
 }
 
+#if 0
 inline cpp::exclusive_or_expression* pruneSymbol(cpp::exclusive_or_expression_default* symbol)
 {
 	if(symbol->right == 0)
@@ -621,6 +638,7 @@ inline cpp::exclusive_or_expression* pruneSymbol(cpp::exclusive_or_expression_de
 	}
 	return symbol;
 }
+#endif
 
 template<typename SemaT>
 inline cpp::exclusive_or_expression_default* parseSymbol(ParserGeneric<SemaT>& parser, cpp::exclusive_or_expression_default* result)
@@ -637,6 +655,7 @@ inline cpp::exclusive_or_expression* parseSymbol(ParserGeneric<SemaT>& parser, c
 	return result;
 }
 
+#if 0
 inline cpp::inclusive_or_expression* pruneSymbol(cpp::inclusive_or_expression_default* symbol)
 {
 	if(symbol->right == 0)
@@ -645,6 +664,7 @@ inline cpp::inclusive_or_expression* pruneSymbol(cpp::inclusive_or_expression_de
 	}
 	return symbol;
 }
+#endif
 
 template<typename SemaT>
 inline cpp::inclusive_or_expression_default* parseSymbol(ParserGeneric<SemaT>& parser, cpp::inclusive_or_expression_default* result)
@@ -661,6 +681,7 @@ inline cpp::inclusive_or_expression* parseSymbol(ParserGeneric<SemaT>& parser, c
 	return result;
 }
 
+#if 0
 inline cpp::logical_and_expression* pruneSymbol(cpp::logical_and_expression_default* symbol)
 {
 	if(symbol->right == 0)
@@ -669,6 +690,7 @@ inline cpp::logical_and_expression* pruneSymbol(cpp::logical_and_expression_defa
 	}
 	return symbol;
 }
+#endif
 
 template<typename SemaT>
 inline cpp::logical_and_expression_default* parseSymbol(ParserGeneric<SemaT>& parser, cpp::logical_and_expression_default* result)
@@ -685,6 +707,7 @@ inline cpp::logical_and_expression* parseSymbol(ParserGeneric<SemaT>& parser, cp
 	return result;
 }
 
+#if 0
 inline cpp::logical_or_expression* pruneSymbol(cpp::logical_or_expression_default* symbol)
 {
 	if(symbol->right == 0)
@@ -693,6 +716,7 @@ inline cpp::logical_or_expression* pruneSymbol(cpp::logical_or_expression_defaul
 	}
 	return symbol;
 }
+#endif
 
 template<typename SemaT>
 inline cpp::logical_or_expression_default* parseSymbol(ParserGeneric<SemaT>& parser, cpp::logical_or_expression_default* result)
@@ -710,6 +734,7 @@ inline cpp::logical_or_expression* parseSymbol(ParserGeneric<SemaT>& parser, cpp
 }
 
 
+#if 0
 inline cpp::conditional_expression* pruneSymbol(cpp::conditional_expression_default* symbol)
 {
 	if(symbol->right == 0)
@@ -718,6 +743,7 @@ inline cpp::conditional_expression* pruneSymbol(cpp::conditional_expression_defa
 	}
 	return symbol;
 }
+#endif
 
 template<typename SemaT>
 inline cpp::conditional_expression_default* parseSymbol(ParserGeneric<SemaT>& parser, cpp::conditional_expression_default* result)
@@ -727,6 +753,7 @@ inline cpp::conditional_expression_default* parseSymbol(ParserGeneric<SemaT>& pa
 	return result;
 }
 
+#if 0
 inline cpp::assignment_expression* pruneSymbol(cpp::assignment_expression_default* symbol)
 {
 	if(symbol->right == 0)
@@ -735,6 +762,7 @@ inline cpp::assignment_expression* pruneSymbol(cpp::assignment_expression_defaul
 	}
 	return symbol;
 }
+#endif
 
 template<typename SemaT>
 inline cpp::conditional_expression* parseSymbol(ParserGeneric<SemaT>& parser, cpp::conditional_expression* result)

@@ -804,21 +804,9 @@ inline void printSequence(Parser& parser)
 
 
 template<typename T>
-inline cpp::symbol_required<T> makeSymbolRequired(T* p)
-{
-	return cpp::symbol_required<T>(p);
-}
-
-template<typename T>
 inline cpp::symbol_required<T>& checkSymbolRequired(cpp::symbol_required<T>& symbol)
 {
 	return symbol;
-}
-
-template<typename T>
-inline cpp::symbol_optional<T> makeSymbolOptional(T* p)
-{
-	return cpp::symbol_optional<T>(p);
 }
 
 template<typename T>
@@ -837,9 +825,43 @@ inline cpp::symbol_sequence<T>& checkSymbolSequence(cpp::symbol_sequence<T>& sym
 #define NULLPTR(T) static_cast<T*>(0)
 
 
+template<typename Base, typename T>
+Visitable<Base>* asBase(Visitable<T>* p)
+{
+	return p;
+}
+
+template<typename Derived, typename T>
+Visitable<Derived>* asDerived(Visitable<T>* p)
+{
+	return static_cast<Visitable<Derived>*>(p);
+}
+
+
+template<typename T, typename U = void>
+struct IsTerminalChoice
+{
+	static const bool RESULT = false;
+};
+
+template<typename>
+struct SfinaeTerminalChoice
+{
+	typedef void Type;
+};
+
+
+template<typename T>
+struct IsTerminalChoice<T, typename SfinaeNonType<cpp::terminal_choice2 T::*, &T::value>::Type>
+{
+	static const bool RESULT = true;
+};
+
+
 template<typename T>
 struct IsConcrete
 {
+	//COMPILETIMEASSERT((IsTerminalChoice<T>::RESULT == IsConvertible<T, cpp::terminal_choice>::RESULT));
 	static const bool RESULT = !IsConvertible<T, cpp::choice<T> >::RESULT
 		&& !IsConvertible<T, cpp::terminal_choice>::RESULT; // this is true within specialised parseSymbol containing PARSE_SELECT_TOKEN
 };
@@ -883,9 +905,9 @@ struct SymbolAllocator<T, false>
 #endif
 
 template<typename T>
-T* createSymbol(Parser& parser, T*)
+Visitable<T>* createSymbol(Parser& parser, T*)
 {
-	return allocatorNew(ParserAllocatorWrapper<int>(parser.context.allocator), T());
+	return allocatorNew(ParserAllocatorWrapper<int>(parser.context.allocator), Visitable<T>());
 }
 
 template<typename T, bool isConcrete = IsConcrete<T>::RESULT >
@@ -904,9 +926,9 @@ struct SymbolHolder<T, true>
 	{
 		return &value;
 	}
-	static T* hit(T* result, ParserContext& context)
+	static Visitable<T>* hit(T* result, ParserContext& context)
 	{
-		return allocatorNew(ParserAllocatorWrapper<int>(context.allocator), T(*result));
+		return allocatorNew(ParserAllocatorWrapper<int>(context.allocator), Visitable<T>(*result));
 	}
 };
 
@@ -920,17 +942,18 @@ struct SymbolHolder<T, false>
 	{
 		return 0;
 	}
-	static T* hit(T* result, ParserContext& context)
+	static Visitable<T>* hit(T* result, ParserContext& context)
 	{
-		return result;
+		return makeVisitable(result);
 	}
 };
 
 template<typename T>
-T* parseHit(Parser& parser, T* p)
+Visitable<T>* parseHit(Parser& parser, T* p)
 {
 	return SymbolHolder<T>::hit(p, parser.context);
 }
+
 
 
 inline bool checkBacktrack(Parser& parser)
@@ -955,6 +978,7 @@ inline void breakpoint()
 #define SYMBOLP_NAME(p) "cpp::$symbol"
 #endif
 
+#if 0
 template<typename T>
 T* pruneSymbol(T* symbol)
 {
@@ -966,7 +990,7 @@ inline T* pruneBinaryExpression(T* symbol)
 {
 	return symbol->right == 0 ? symbol->left : symbol;
 }
-
+#endif
 
 template<LexTokenId id>
 inline LexTokenId getTokenId(cpp::terminal<id>)
@@ -1190,13 +1214,13 @@ public:
 	}
 
 	template<typename T, typename Base>
-	inline cpp::symbol<Base> parseExpression(cpp::symbol_required<T> symbol, Base* result)
+	inline cpp::symbol<Base> parseExpression(cpp::symbol_required<T> symbol, Base*)
 	{
 		// HACK: create temporary copy of expression-symbol to get RHS-symbol
 		T tmp;
 		if(parse(checkSymbolRequired(tmp.right)))
 		{
-			result = tmp.right;
+			cpp::symbol_required<Base> result(asBase<Base>(tmp.right.get()));
 			for(;;)
 			{
 				// parse suffix of expression-symbol
@@ -1206,10 +1230,10 @@ public:
 				{
 					break;
 				}
-				symbol->left = makeSymbolRequired(result);
-				result = symbol;
+				symbol->left = result;
+				result = cpp::symbol_required<Base>(asBase<Base>(symbol.get()));
 			}
-			return makeSymbol(result);
+			return result;
 		}
 		return cpp::symbol<Base>(0);
 	}
@@ -1286,7 +1310,7 @@ public:
 	}
 
 	template<typename T, typename InnerWalker, typename Inner, typename Annotate, typename Action, typename Cache, typename Defer>
-	T* visit(SemaT& walker, T* symbol, const InnerWalker& innerConst, const Inner& inner, const Annotate&, const Action& action, const Cache& cache, const Defer& defer)
+	Visitable<T>* visit(SemaT& walker, T* symbol, const InnerWalker& innerConst, const Inner& inner, const Annotate&, const Action& action, const Cache& cache, const Defer& defer)
 	{
 		InnerWalker& innerWalker = *const_cast<InnerWalker*>(&innerConst); // 'innerConst' is a temporary with lifetime longer than this function.
 		ParserGeneric<InnerWalker>& innerParser = getParser(innerWalker, this);
@@ -1310,14 +1334,14 @@ public:
 			}
 			symbol = parseHit(*this, symbol); // if the parse succeeded, return a persistent version of the symbol.
 			semaCommit(innerWalker, inner); // if enabled, call the sema object's commit()
-			Annotate::annotate(symbol, data);
+			Annotate::annotate(makeVisitable(symbol), data);
 			innerParser.cacheStore(cache, key, symbol, innerWalker); // if enabled, save the state of both symbol and innerWalker for later re-use
 		}
 		// Report success if the parse was successful and the current walker's associated semantic action also passed.
 		bool success = Action::invokeAction(walker, symbol, innerWalker);
 		if(success)
 		{
-			return symbol;
+			return makeVisitable(symbol);
 		}
 		return 0;
 	}	
@@ -1326,7 +1350,7 @@ public:
 	bool parse(cpp::symbol_generic<T, required>& s)
 	{
 #ifdef _DEBUG
-		PARSE_ASSERT(s.p == 0);
+		PARSE_ASSERT(s.get() == 0);
 		PARSE_ASSERT(!checkBacktrack(*this));
 #endif
 		ParserGeneric<SemaT> tmp(*this);
@@ -1338,7 +1362,7 @@ public:
 
 		// Construct an inner walker from the current walker, based on the current walker's policy for this symbol.
 		// Try to parse the symbol using the inner walker.
-		T* result = tmp.visit(walker, holder.get(),
+		Visitable<T>* result = tmp.visit(walker, holder.get(),
 			makeInnerWalker(walker, walker.makePolicy(NULLPTR(T)).getInnerPolicy()),
 			walker.makePolicy(NULLPTR(T)).getInnerPolicy(),
 			walker.makePolicy(NULLPTR(T)).getAnnotatePolicy(),
@@ -1349,7 +1373,7 @@ public:
 		if(result != 0)
 		{
 #ifdef PARSER_DEBUG
-			context.visualiser.pop(result);
+			context.visualiser.pop(static_cast<T*>(result));
 #endif
 			position += tmp.position;
 			s = cpp::symbol_generic<T, required>(result);
@@ -1366,7 +1390,7 @@ public:
 	bool parse(cpp::symbol_sequence<T>& s)
 	{
 		T tmp;
-		cpp::symbol_next<T> p(&tmp);
+		T* p(&tmp);
 		for(;;)
 		{
 			cpp::symbol_required<T> next = NULLSYMBOL(T);
@@ -1468,7 +1492,7 @@ struct ChoiceParser
 		} \
 	}
 
-#define CHOICEPARSER_OP(N) { cpp::symbol_required<TYPELIST_NTH(typename T::Choices, N)> result; if(parser.parse(result)) return result; }
+#define CHOICEPARSER_OP(N) { cpp::symbol_required<TYPELIST_NTH(typename T::Choices, N)> result; if(parser.parse(result)) return asBase<T>(result.get()); }
 DEFINE_CHOICEPARSER(1);
 DEFINE_CHOICEPARSER(2);
 DEFINE_CHOICEPARSER(3);
