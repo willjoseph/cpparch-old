@@ -1102,8 +1102,17 @@ described for lookup in namespace member function definitions.
 		- in addOverload: makeUniqueSimpleType(*context.enclosingType)
 		- in typeOfFunctionCallExpression: makeUniqueSimpleType(classType)
 		- copying non-trivial SimpleType is expensive
+			- when copying childInstantiations!
+				- should not be copied during substitution: only relevant for dependent types
+			- muliple copies may occur during pushUniqueType
+			- only need to copy the immutable key info: primary, template-arguments, enclosing
+			- implement immutable vector
+				- with custom allocator, never need to delete
 		- faster way to get unique-type for enclosingType?
-		- avoid substitution for non-dependent type?
+		+ prevent substitution for non-dependent type
+		- substitution occurring unnecessarily?
+			- need to memoize substitution result?
+			- substitution occurs for type X<T> for each set of template-arguments
 	- isDependent
 		- type substitution for dependent-typename
 		- isDependent(*context.enclosingType)

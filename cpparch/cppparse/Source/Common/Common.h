@@ -244,7 +244,7 @@ inline const TypeInfo& getTypeInfo(const TypeInfo& object)
 };
 
 
-#if 1
+#if 0
 
 template<typename T>
 inline TypeInfo getTypeInfo()

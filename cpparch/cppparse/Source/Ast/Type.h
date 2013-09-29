@@ -309,7 +309,21 @@ struct ChildInstantiation
 	{
 	}
 };
-typedef std::vector<ChildInstantiation> ChildInstantiations;
+
+struct ChildInstantiations : std::vector<ChildInstantiation>
+{
+	ChildInstantiations()
+	{
+	}
+	ChildInstantiations(const ChildInstantiations&)
+	{
+		// do nothing
+	}
+	ChildInstantiations operator=(const ChildInstantiations&)
+	{
+		// do nothing
+	}
+};
 
 
 typedef std::vector<Location> InstanceLocations; // temporary scaffolding!
@@ -334,7 +348,7 @@ struct SimpleType
 	mutable bool visited; // used during findDeclaration to prevent infinite recursion
 	mutable bool dumped; // used during dumpTemplateInstantiations to prevent duplicates
 	Location instantiation;
-	ChildInstantiations childInstantiations;
+	ChildInstantiations childInstantiations; // not copied by copy-constructor
 
 	SimpleType(Declaration* declaration, const SimpleType* enclosing)
 		: uniqueId(0), primary(declaration), declaration(declaration), enclosing(enclosing), size(0),
