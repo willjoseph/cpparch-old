@@ -96,7 +96,7 @@ struct SemaPostfixExpressionMember : public SemaQualified
 		isTemplate = true;
 	}
 	SEMA_POLICY_ARGS(cpp::id_expression, SemaPolicyPushBool<struct SemaIdExpression>, isTemplate)
-	void action(cpp::id_expression* symbolm, SemaIdExpression& walker)
+	void action(cpp::id_expression* symbol, SemaIdExpression& walker)
 	{
 		bool isObjectName = walker.commit();
 		SEMANTIC_ASSERT(isObjectName); // TODO: non-fatal error: expected object name

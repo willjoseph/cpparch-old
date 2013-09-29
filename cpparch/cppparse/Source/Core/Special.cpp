@@ -15,10 +15,20 @@ Identifier gImplicitObjectParameterId = makeIdentifier("$implicit-object-paramet
 BuiltInTypeDeclaration gImplicitObjectParameterDeclaration(gImplicitObjectParameterId, TYPE_UNKNOWN);
 BuiltInTypeId gImplicitObjectParameter(&gImplicitObjectParameterDeclaration, AST_ALLOCATOR_NULL);
 
+
+struct BuiltInFunctionType : TypeId
+{
+	BuiltInFunctionType(Declaration* declaration, const AstAllocator<int>& allocator)
+		: TypeId(declaration, allocator)
+	{
+		unique = pushBuiltInType(UNIQUETYPE_NULL, FunctionType());
+	}
+};
+
 Identifier gSpecialMemberFunctionId = makeIdentifier("$special-member-function");
 Scope gSpecialMemberFunctionScope(AST_ALLOCATOR_NULL, gSpecialMemberFunctionId, SCOPETYPE_CLASS);
 BuiltInTypeDeclaration gSpecialMemberFunctionTypeDeclaration(gSpecialMemberFunctionId, TYPE_UNKNOWN);
-TypeId gSpecialMemberFunctionType(&gSpecialMemberFunctionTypeDeclaration, AST_ALLOCATOR_NULL);
+BuiltInFunctionType gSpecialMemberFunctionType(&gSpecialMemberFunctionTypeDeclaration, AST_ALLOCATOR_NULL);
 
 Identifier gCopyAssignmentOperatorId = makeIdentifier("$copy-assignment-operator");
 Declaration gCopyAssignmentOperatorDeclaration(AST_ALLOCATOR_NULL, &gSpecialMemberFunctionScope, gCopyAssignmentOperatorId, gSpecialMemberFunctionType, 0);

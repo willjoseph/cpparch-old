@@ -279,6 +279,18 @@ inline Scope* getEnclosingClass(Scope* scope)
 	return 0;
 }
 
+inline Scope* getEnclosingFunction(Scope* scope)
+{
+	for(; scope != 0; scope = scope->parent)
+	{
+		if(scope->type == SCOPETYPE_PROTOTYPE)
+		{
+			return scope;
+		}
+	}
+	return 0;
+}
+
 
 
 #endif

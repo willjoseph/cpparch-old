@@ -166,55 +166,55 @@ struct UniqueTypeWrapper
 	}
 	bool isSimple() const
 	{
-		return typeid(*value) == typeid(TypeElementGeneric<SimpleType>);
+		return isEqual(typeid(*value), typeid(TypeElementGeneric<SimpleType>));
 	}
 #if 0
 	bool isNamespace() const
 	{
-		return typeid(*value) == typeid(TypeElementGeneric<struct Namespace>);
+		return isEqual(typeid(*value), typeid(TypeElementGeneric<struct Namespace>));
 	}
 #endif
 	bool isPointer() const
 	{
-		return typeid(*value) == typeid(TypeElementGeneric<PointerType>);
+		return isEqual(typeid(*value), typeid(TypeElementGeneric<PointerType>));
 	}
 	bool isReference() const
 	{
-		return typeid(*value) == typeid(TypeElementGeneric<ReferenceType>);
+		return isEqual(typeid(*value), typeid(TypeElementGeneric<ReferenceType>));
 	}
 	bool isArray() const
 	{
-		return typeid(*value) == typeid(TypeElementGeneric<ArrayType>);
+		return isEqual(typeid(*value), typeid(TypeElementGeneric<ArrayType>));
 	}
 	bool isMemberPointer() const
 	{
-		return typeid(*value) == typeid(TypeElementGeneric<MemberPointerType>);
+		return isEqual(typeid(*value), typeid(TypeElementGeneric<MemberPointerType>));
 	}
 	bool isFunction() const
 	{
-		return typeid(*value) == typeid(TypeElementGeneric<FunctionType>);
+		return isEqual(typeid(*value), typeid(TypeElementGeneric<FunctionType>));
 	}
 	bool isDependentNonType() const
 	{
-		return typeid(*value) == typeid(TypeElementGeneric<DependentNonType>);
+		return isEqual(typeid(*value), typeid(TypeElementGeneric<DependentNonType>));
 	}
 	bool isDependentType() const
 	{
-		return typeid(*value) == typeid(TypeElementGeneric<DependentType>);
+		return isEqual(typeid(*value), typeid(TypeElementGeneric<DependentType>));
 	}
 	bool isDependent() const
 	{
 		return isDependentType()
-			|| typeid(*value) == typeid(TypeElementGeneric<DependentTypename>)
+			|| isEqual(typeid(*value), typeid(TypeElementGeneric<DependentTypename>))
 			|| isDependentNonType();
 	}
 	bool isNonType() const
 	{
-		return typeid(*value) == typeid(TypeElementGeneric<NonType>);
+		return isEqual(typeid(*value), typeid(TypeElementGeneric<NonType>));
 	}
 	bool isTemplateTemplateArgument() const
 	{
-		return typeid(*value) == typeid(TypeElementGeneric<TemplateTemplateArgument>);
+		return isEqual(typeid(*value), typeid(TypeElementGeneric<TemplateTemplateArgument>));
 	}
 	bool isSimplePointer() const
 	{

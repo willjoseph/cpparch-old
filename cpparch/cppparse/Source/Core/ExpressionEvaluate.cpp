@@ -62,8 +62,19 @@ inline UniqueTypeWrapper getNonTypeTemplateParameterType(const NonTypeTemplatePa
 	std::size_t index = node.declaration->templateParameter;
 	SYMBOLS_ASSERT(index != INDEX_INVALID);
 	const SimpleType* enclosingType = findEnclosingTemplate(context.enclosingType, node.declaration->scope);
+#if 1 // TEMP HACK
+	if(enclosingType == 0) // special case: evaluating the type of a non-type template parameter e.g. 
+	{
+		SYMBOLS_ASSERT(context.enclosingScope->templateDepth != 0 // template<bool b, int x = sizeof(b)>
+			|| (getEnclosingFunction(context.enclosingScope) != 0 // within the body of a function template
+				&& node.declaration->scope->templateDepth == getEnclosingFunction(context.enclosingScope)->parent->templateDepth));
+		return gSignedInt; // give incorrect result for now, but this is only a temporary workaround.
+	}
+#endif
 	SYMBOLS_ASSERT(enclosingType != 0);
+#if 0 // the enclosing type may be an enclosing template definition, in which the type of a non-type template parameter is not dependent
 	SYMBOLS_ASSERT(!isDependent(*enclosingType)); // assert that the enclosing type is not dependent
+#endif
 	SYMBOLS_ASSERT(!enclosingType->declaration->isSpecialization || enclosingType->instantiated); // a specialization must be instantiated (or in the process of instantiating)
 	const TemplateParameters& templateParams = enclosingType->declaration->templateParams;
 	const Type& parameter = getTemplateParameter(templateParams, index);
@@ -940,6 +951,12 @@ inline UniqueTypeWrapper typeOfExpression(ExpressionNode* node, const Instantiat
 		|| isDependentPointerToMemberExpression(node))
 	{
 		return gUniqueTypeNull; // TODO
+	}
+	if(isIdExpression(node) // if attempting to evaluate type of id-expression with no context
+		&& UniqueTypeWrapper(getIdExpression(node).declaration->type.unique).isFunction()) // if this id-expression names a function
+	{
+		// can't evaluate id-expression within function-call-expression
+		return gUniqueTypeNull; // do not evaluate the type!
 	}
 
 	TypeOfVisitor visitor(context);

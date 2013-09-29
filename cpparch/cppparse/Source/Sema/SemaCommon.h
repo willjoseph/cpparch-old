@@ -1289,6 +1289,18 @@ struct SemaBase : public SemaState
 		return allocatorNew(context, Scope(context, name, type));
 	}
 
+	inline UniqueTypeWrapper typeOfExpressionSafe(ExpressionNode* node, const InstantiationContext& context)
+	{
+		if(isIdExpression(node) // if attempting to evaluate type of id-expression with no context
+			&& isMember(*getIdExpression(node).declaration)) // if this id-expression names a member
+		{
+			// can't evaluate id-expression within member-access-expression
+			return gUniqueTypeNull; // do not evaluate the type!
+		}
+
+		return typeOfExpression(node, getInstantiationContext());
+	}
+
 	template<typename T>
 	ExpressionWrapper makeExpression(const T& value, bool isConstant = false, bool isTypeDependent = false, bool isValueDependent = false)
 	{
@@ -1297,7 +1309,7 @@ struct SemaBase : public SemaState
 		if(!isTypeDependent)
 		{
 #if 0 // TODO:
-			result.type = typeOfExpression(node, getInstantiationContext());
+			result.type = typeOfExpressionSafe(node, getInstantiationContext());
 #endif
 		}
 		return result;

@@ -1068,3 +1068,45 @@ described for lookup in namespace member function definitions.
 		- need to preserve tree if only value-dependent or only type-dependent?
 		- e.g. sizeof(T) is only value-dependent
 		- is only value-dependent even possible?
+
+- issue: when evaluating type of [non-dependent expression involving a] non-type template parameter, we only have the template-parameter index
+	- must look up the template parameter in the enclosingType, just to get the type (not to perform substitution)
+	- enclosingType not [currently] available within a function template
+	- this is not a problem unless evaluation is deferred.
+	- does this ever need to be deferred?
+		- yes: template<class T, T x>
+		- when evaluating 'sizeof(x)'
+
+- issue: when evaluating type of id-expression within a function-call expression, cannot resolve type
+	- need to know arguments before overload resolution can be performed
+	- should type resolve to 'function overload set' ?
+
+- issue: when evaluating type of id-expression within a member-access expression, cannot resolve type
+	- need to know object-expression before type can be resolved
+
+- issue: what should type of enumerator be during deferred evaluation?
+	- e.g. enum { A = TEMPLATE_NONTYPE_PARAM, B = sizeof(A) };
+
+- task: profile with vtune to check for low hanging fruit
+	- instrument code to profile only parser
+	- rtti in comparison of UniqueType
+		- abstractLess: std::type_info::before() is very slow.
+			- comparing type_info ptr is faster, but not standard compliant
+			- 300ms -> 120ms
+			- many comparisons occurring
+		- isClass: std::type_info::operator==() is slow.
+		- measure cost of typeid()
+			- halving number of calls : 120ms -> 70ms
+			- typeid() cost is 100ms out of 120ms
+	- findDeclaration (7% of total)
+		- upper_bound is expensive
+	- allocations during overload resolution
+		- CandidateFunction members
+		- when replacing an existing best candidate
+		- when destroying an OverloadResolver
+		- allocate enough mem for N arguments on stack?
+	- pushUniqueType<SimpleType>()
+		- in addOverload: makeUniqueSimpleType(*context.enclosingType)
+		- in typeOfFunctionCallExpression: makeUniqueSimpleType(classType)
+		- copying non-trivial SimpleType is expensive
+		- faster way to get unique-type for enclosingType?

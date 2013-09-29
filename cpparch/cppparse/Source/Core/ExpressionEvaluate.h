@@ -341,19 +341,19 @@ inline const SimpleType* getIdExpressionClass(const SimpleType* qualifying, cons
 {
 	SYMBOLS_ASSERT(!isSpecialMember(*declaration))
 
-		if(!isMember(*declaration)) // if the declaration is not a class member
-		{
-			return 0; // the declaration is at namespace-scope, therefore has no enclosing class
-		}
+	if(!isMember(*declaration)) // if the declaration is not a class member
+	{
+		return 0; // the declaration is at namespace-scope, therefore has no enclosing class
+	}
 
-		const SimpleType* idEnclosing = qualifying != 0 ? qualifying : enclosingType;
+	const SimpleType* idEnclosing = qualifying != 0 ? qualifying : enclosingType;
 
-		SYMBOLS_ASSERT(idEnclosing != 0);
-		// the identifier may name a type in a base-class of the qualifying type; findEnclosingType resolves this.
-		idEnclosing = findEnclosingType(idEnclosing, declaration->scope); // it must be a member of (a base of) the qualifying class: find which one.
-		SYMBOLS_ASSERT(idEnclosing != 0);
+	SYMBOLS_ASSERT(idEnclosing != 0);
+	// the identifier may name a type in a base-class of the qualifying type; findEnclosingType resolves this.
+	idEnclosing = findEnclosingType(idEnclosing, declaration->scope); // it must be a member of (a base of) the qualifying class: find which one.
+	SYMBOLS_ASSERT(idEnclosing != 0);
 
-		return idEnclosing;
+	return idEnclosing;
 }
 
 
@@ -946,8 +946,6 @@ inline UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Argum
 		return popType(type);
 	}
 
-	SYMBOLS_ASSERT(type.isFunction());
-
 	bool isClassMemberAccess = isClassMemberAccessExpression(expression);
 	bool isNamed = isClassMemberAccess
 		|| isIdExpression(expression);
@@ -992,6 +990,7 @@ inline UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Argum
 	// the identifier names an overloadable function
 
 	SYMBOLS_ASSERT(declaration != &gDependentObject); // the id-expression should not be dependent
+	SYMBOLS_ASSERT(UniqueTypeWrapper(declaration->type.unique).isFunction());
 
 	// if this is a member-function-call, the type of the class containing the member
 	const SimpleType* memberEnclosing = getIdExpressionClass(idExpression.enclosing, idExpression.declaration, memberClass != 0 ? memberClass : context.enclosingType);

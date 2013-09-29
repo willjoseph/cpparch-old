@@ -3,6 +3,7 @@
 #define INCLUDED_CPPPARSE_COMMON_COMMON_H
 
 #include <cstddef> // size_t 
+#include <typeinfo>
 
 // ----------------------------------------------------------------------------
 
@@ -200,6 +201,26 @@ template<typename T, T m>
 struct SfinaeNonType
 {
 	typedef void Type;
+};
+
+
+
+inline bool lessThan(const std::type_info& l, const std::type_info& r)
+{
+#if 1
+	return l.before(r) != 0;
+#else
+	return &l < &r; // much faster than std::type_info::before
+#endif
+};
+
+inline bool isEqual(const std::type_info& l, const std::type_info& r)
+{
+#if 1
+	return l.operator==(r);
+#else
+	return &l == &r; // much faster than std::type_info::operator==
+#endif
 };
 
 

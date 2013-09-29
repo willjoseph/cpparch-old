@@ -3,18 +3,18 @@
 #define INCLUDED_CPPPARSE_COMMON_INDIRECT_SET_H
 
 #include <set>
-
-
+#include "Common.h"
 
 // ----------------------------------------------------------------------------
-
 // returns d < b
 // requires that D be derived from B, and that B has a virtual function
 template<typename D, typename B>
 inline bool abstractLess(const D& d, const B& b)
 {
-	return (typeid(d).before(typeid(b)) ||
-		!(typeid(b).before(typeid(d))) && d < *static_cast<const D*>(&b));
+	const std::type_info& dType = typeid(d);
+	const std::type_info& bType = typeid(b);
+	return lessThan(dType, bType) ||
+		!lessThan(bType, dType) && d < *static_cast<const D*>(&b);
 }
 
 struct IndirectLess

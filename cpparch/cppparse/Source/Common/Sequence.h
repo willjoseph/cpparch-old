@@ -60,7 +60,7 @@ struct SequenceNodeGeneric : Reference< SequenceNode<Visitor> >::Value
 #if 0
 	bool operator==(const SequenceNode<Visitor>& other) const
 	{
-		return typeid(*this) == typeid(other)
+		return isEqual(typeid(*this), typeid(other))
 			&& value == static_cast<const SequenceNodeGeneric*>(&other)->value;
 	}
 #endif

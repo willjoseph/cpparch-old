@@ -1,7 +1,4 @@
 
-extern "C" int f();
-
-
 namespace N352
 {
 	template<bool b, int x = sizeof(b)>
