@@ -320,6 +320,10 @@ struct SubstituteVisitor : TypeElementVisitor
 
 UniqueTypeWrapper substitute(UniqueTypeWrapper dependent, const InstantiationContext& context)
 {
+	if(!isDependent(dependent)) // if the type to be substituted is not dependent
+	{
+		return dependent; // no substitution required
+	}
 	UniqueTypeWrapper inner = dependent;
 	inner.pop_front();
 	UniqueTypeWrapper type = inner.empty() ? gUniqueTypeNull : substitute(inner, context);

@@ -715,7 +715,11 @@ struct BuiltInTypeId : BuiltInType
 
 
 
-inline bool isDependent(UniqueTypeWrapper type);
+
+inline bool isDependent(UniqueTypeWrapper type)
+{
+	return type.value->isDependent;
+}
 
 
 inline bool isDependent(const UniqueTypeArray& types)
@@ -745,81 +749,32 @@ inline bool isDependent(const SimpleType& type)
 	return false;
 }
 
-
-struct IsDependentVisitor : TypeElementVisitor
+inline bool isDependent(const MemberPointerType& element)
 {
-	bool result;
-	IsDependentVisitor()
-		: result(false)
-	{
-	}
-#if 0
-	virtual void visit(const Namespace& element)
-	{
-	}
-#endif
-	virtual void visit(const DependentType&)
-	{
-		result = true;
-	}
-	virtual void visit(const DependentTypename&)
-	{
-		result = true;
-	}
-	virtual void visit(const DependentNonType&)
-	{
-		result = true;
-	}
-	virtual void visit(const TemplateTemplateArgument&)
-	{
-	}
-	virtual void visit(const NonType&)
-	{
-	}
-	virtual void visit(const SimpleType& element)
-	{
-		if(isDependent(element))
-		{
-			result = true;
-		}
-	}
-	virtual void visit(const PointerType&)
-	{
-	}
-	virtual void visit(const ReferenceType&)
-	{
-	}
-	virtual void visit(const ArrayType&)
-	{
-	}
-	virtual void visit(const MemberPointerType& element)
-	{
-		if(isDependent(element.type))
-		{
-			result = true;
-		}
-	}
-	virtual void visit(const FunctionType& element)
-	{
-		if(isDependent(element.parameterTypes))
-		{
-			result = true;
-		}
-	}
-};
+	return isDependent(element.type);
+}
 
-
-inline bool isDependent(UniqueTypeWrapper type)
+inline bool isDependent(const FunctionType& element)
 {
-	for(UniqueTypeWrapper i = type; !i.empty(); i.pop_front())
-	{
-		IsDependentVisitor visitor;
-		i.value->accept(visitor);
-		if(visitor.result)
-		{
-			return true;
-		}
-	}
+	return isDependent(element.parameterTypes);
+}
+
+inline bool isDependent(const DependentType&)
+{
+	return true;
+}
+inline bool isDependent(const DependentTypename&)
+{
+	return true;
+}
+inline bool isDependent(const DependentNonType&)
+{
+	return true;
+}
+
+template<typename T>
+inline bool isDependent(const T&)
+{
 	return false;
 }
 

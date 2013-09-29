@@ -1103,6 +1103,7 @@ described for lookup in namespace member function definitions.
 		- in typeOfFunctionCallExpression: makeUniqueSimpleType(classType)
 		- copying non-trivial SimpleType is expensive
 		- faster way to get unique-type for enclosingType?
+		- avoid substitution for non-dependent type?
 	- isDependent
 		- type substitution for dependent-typename
 		- isDependent(*context.enclosingType)

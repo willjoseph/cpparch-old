@@ -58,11 +58,11 @@ inline bool operator<(const CvQualifiers& l, const CvQualifiers& r)
 		: false;
 }
 
-#if 1
-struct UniqueType : CvQualifiers
+struct UniqueType
 {
 #if 1
 	const TypeElement* p;
+	CvQualifiers qualifiers;
 	UniqueType()
 	{
 	}
@@ -76,22 +76,22 @@ struct UniqueType : CvQualifiers
 	}
 	void setQualifiers(CvQualifiers qualifiers)
 	{
-		*static_cast<CvQualifiers*>(this) = qualifiers;
+		this->qualifiers = qualifiers;
 	}
 	void addQualifiers(CvQualifiers qualifiers)
 	{
-		isConst |= qualifiers.isConst;
-		isVolatile |= qualifiers.isVolatile;
+		this->qualifiers.isConst |= qualifiers.isConst;
+		this->qualifiers.isVolatile |= qualifiers.isVolatile;
 	}
 	CvQualifiers getQualifiers() const
 	{
-		return *this;
+		return qualifiers;
 	}
 	uintptr_t getBits() const
 	{
 		return uintptr_t(p)
-			| (uintptr_t(isConst) << 0)
-			| (uintptr_t(isVolatile) << 1);
+			| (uintptr_t(qualifiers.isConst) << 0)
+			| (uintptr_t(qualifiers.isVolatile) << 1);
 	}
 	bool operator<(const UniqueType& other) const
 	{
@@ -138,9 +138,6 @@ struct UniqueType : CvQualifiers
 	}
 #endif
 };
-#else
-typedef const TypeElement* UniqueType;
-#endif
 
 inline bool operator!=(const UniqueType& left, const UniqueType& right)
 {

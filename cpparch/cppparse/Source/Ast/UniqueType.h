@@ -35,6 +35,7 @@ struct TypeElementVisitor
 struct TypeElement : TypeInfo
 {
 	UniqueType next;
+	bool isDependent;
 
 	TypeElement(TypeInfo type) : TypeInfo(type)
 	{
@@ -51,6 +52,7 @@ struct TypeElementEmpty : TypeElement
 	TypeElementEmpty() : TypeElement(getTypeInfo<TypeElementEmpty>())
 	{
 		next = 0;
+		isDependent = false;
 	}
 	virtual void accept(TypeElementVisitor& visitor) const
 	{
@@ -101,6 +103,7 @@ inline UniqueType pushBuiltInType(UniqueType type, const T& value)
 {
 	TypeElementGeneric<T> node(value);
 	node.next = type;
+	node.isDependent = type->isDependent || isDependent(value);
 	return *gBuiltInTypes.insert(node);
 }
 
@@ -109,6 +112,7 @@ inline UniqueType pushUniqueType(UniqueTypes& types, UniqueType type, const T& v
 {
 	TypeElementGeneric<T> node(value);
 	node.next = type;
+	node.isDependent = type->isDependent || isDependent(value);
 	{
 		UniqueTypes::iterator i = gBuiltInTypes.find(node);
 		if(i != gBuiltInTypes.end())

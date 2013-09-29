@@ -328,7 +328,7 @@ struct SymbolPrinter : TypeElementVisitor, ExpressionNodeVisitor
 		{
 			UniqueType element = typeElements.front();
 			typeElements.pop_front();
-			qualifierStack.push_back(element);
+			qualifierStack.push_back(element.getQualifiers());
 			element->accept(*this);
 			qualifierStack.pop_back();
 		}
