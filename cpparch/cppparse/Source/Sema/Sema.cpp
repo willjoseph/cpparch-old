@@ -61,7 +61,7 @@ ParseTree* parseFile(ParserContext& context)
 	try
 	{
 		ProfileScope profile(gProfileParser);
-		ProfileScopeEnableCollection profile2;
+		PROFILESCOPE_ENABLECOLLECTION(profile2);
 		PARSE_SEQUENCE(parser, result);
 	}
 	catch(ParseError&)

@@ -35,15 +35,13 @@ struct ProfileScopeDisableCollection
 	}
 };
 
+#define PROFILESCOPE_ENABLECOLLECTION(name) ProfileScopeEnableCollection name
+#define PROFILESCOPE_DISABLECOLLECTION(name) ProfileScopeDisableCollection name
+
 #else
 
-struct ProfileScopeEnableCollection
-{
-};
-
-struct ProfileScopeDisableCollection
-{
-};
+#define PROFILESCOPE_ENABLECOLLECTION(name)
+#define PROFILESCOPE_DISABLECOLLECTION(name)
 
 #endif
 
