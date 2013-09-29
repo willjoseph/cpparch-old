@@ -252,7 +252,7 @@ inline bool isEqual(const UniqueTypeId& l, const UniqueTypeId& r)
 
 inline UniqueType getInner(UniqueType type)
 {
-	SYMBOLS_ASSERT(!isEqual(typeid(*type), typeid(TypeElementGeneric<struct SimpleType>)));
+	SYMBOLS_ASSERT(!isEqual(getTypeInfo(*type), getTypeInfo<TypeElementGeneric<struct SimpleType> >()));
 	return type->next;
 }
 
@@ -263,7 +263,7 @@ inline bool isEqualInner(const UniqueTypeId& l, const UniqueTypeId& r)
 
 inline bool isSameType(const UniqueTypeId& l, const UniqueTypeId& r)
 {
-	return isEqual(typeid(*l.value), typeid(*r.value));
+	return isEqual(getTypeInfo(*l.value), getTypeInfo(*r.value));
 }
 
 
@@ -283,7 +283,7 @@ inline bool operator<(const NonType& left, const NonType& right)
 
 inline const NonType& getNonTypeValue(UniqueType type)
 {
-	SYMBOLS_ASSERT(isEqual(typeid(*type), typeid(TypeElementGeneric<NonType>)));
+	SYMBOLS_ASSERT(isEqual(getTypeInfo(*type), getTypeInfo<TypeElementGeneric<NonType> >()));
 	return static_cast<const TypeElementGeneric<NonType>*>(type.getPointer())->value;
 }
 
@@ -362,7 +362,7 @@ inline bool operator<(const SimpleType& left, const SimpleType& right)
 
 inline const SimpleType& getSimpleType(UniqueType type)
 {
-	SYMBOLS_ASSERT(isEqual(typeid(*type), typeid(TypeElementGeneric<SimpleType>)));
+	SYMBOLS_ASSERT(isEqual(getTypeInfo(*type), getTypeInfo<TypeElementGeneric<SimpleType> >()));
 	return static_cast<const TypeElementGeneric<SimpleType>*>(type.getPointer())->value;
 }
 
@@ -378,7 +378,7 @@ struct Namespace
 
 inline const Namespace& getNamespace(UniqueType type)
 {
-	SYMBOLS_ASSERT(isEqual(typeid(*type), typeid(TypeElementGeneric<Namespace>)));
+	SYMBOLS_ASSERT(isEqual(getTypeInfo(*type), getTypeInfo<TypeElementGeneric<Namespace> >()));
 	return static_cast<const TypeElementGeneric<Namespace>*>(type.getPointer())->value;
 }
 
@@ -406,7 +406,7 @@ inline bool operator<(const TemplateTemplateArgument& left, const TemplateTempla
 
 inline const TemplateTemplateArgument& getTemplateTemplateArgument(UniqueType type)
 {
-	SYMBOLS_ASSERT(isEqual(typeid(*type), typeid(TypeElementGeneric<TemplateTemplateArgument>)));
+	SYMBOLS_ASSERT(isEqual(getTypeInfo(*type), getTypeInfo<TypeElementGeneric<TemplateTemplateArgument> >()));
 	return static_cast<const TypeElementGeneric<TemplateTemplateArgument>*>(type.getPointer())->value;
 }
 
@@ -441,7 +441,7 @@ inline bool operator<(const DependentType& left, const DependentType& right)
 
 inline const DependentType& getDependentType(UniqueType type)
 {
-	SYMBOLS_ASSERT(isEqual(typeid(*type), typeid(TypeElementGeneric<DependentType>)));
+	SYMBOLS_ASSERT(isEqual(getTypeInfo(*type), getTypeInfo<TypeElementGeneric<DependentType> >()));
 	return static_cast<const TypeElementGeneric<DependentType>*>(type.getPointer())->value;
 }
 
@@ -546,7 +546,7 @@ struct MemberPointerType
 
 inline const MemberPointerType& getMemberPointerType(UniqueType type)
 {
-	SYMBOLS_ASSERT(isEqual(typeid(*type), typeid(TypeElementGeneric<MemberPointerType>)));
+	SYMBOLS_ASSERT(isEqual(getTypeInfo(*type), getTypeInfo<TypeElementGeneric<MemberPointerType> >()));
 	return static_cast<const TypeElementGeneric<MemberPointerType>*>(type.getPointer())->value;
 }
 
@@ -587,7 +587,7 @@ inline bool operator<(const ArrayType& left, const ArrayType& right)
 
 inline const ArrayType& getArrayType(UniqueType type)
 {
-	SYMBOLS_ASSERT(isEqual(typeid(*type), typeid(TypeElementGeneric<ArrayType>)));
+	SYMBOLS_ASSERT(isEqual(getTypeInfo(*type), getTypeInfo<TypeElementGeneric<ArrayType> >()));
 	return static_cast<const TypeElementGeneric<ArrayType>*>(type.getPointer())->value;
 }
 
@@ -634,7 +634,7 @@ inline const TypeSequence::Node* getLastNode(const TypeSequence& typeSequence)
 inline const DeclaratorFunctionType& getDeclaratorFunctionType(const TypeSequence::Node* node)
 {
 	SYMBOLS_ASSERT(node != 0);
-	SYMBOLS_ASSERT(isEqual(typeid(*node), typeid(SequenceNodeGeneric<DeclaratorFunctionType, TypeSequenceVisitor>)));
+	SYMBOLS_ASSERT(isEqual(getTypeInfo(*node), getTypeInfo<SequenceNodeGeneric<DeclaratorFunctionType, TypeSequenceVisitor> >()));
 	return static_cast<const SequenceNodeGeneric<DeclaratorFunctionType, TypeSequenceVisitor>*>(node)->value;
 }
 inline const Parameters& getParameters(const TypeId& type)
@@ -645,7 +645,7 @@ inline const Parameters& getParameters(const TypeId& type)
 
 inline const FunctionType& getFunctionType(UniqueType type)
 {
-	SYMBOLS_ASSERT(isEqual(typeid(*type), typeid(TypeElementGeneric<FunctionType>)));
+	SYMBOLS_ASSERT(isEqual(getTypeInfo(*type), getTypeInfo<TypeElementGeneric<FunctionType> >()));
 	return static_cast<const TypeElementGeneric<FunctionType>*>(type.getPointer())->value;
 }
 inline const ParameterTypes& getParameterTypes(UniqueType type)

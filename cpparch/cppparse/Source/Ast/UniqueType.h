@@ -32,11 +32,11 @@ struct TypeElementVisitor
 	virtual void visit(const struct FunctionType&) = 0;
 };
 
-struct TypeElement
+struct TypeElement : TypeInfo
 {
 	UniqueType next;
 
-	TypeElement()
+	TypeElement(TypeInfo type) : TypeInfo(type)
 	{
 	}
 	virtual ~TypeElement()
@@ -48,7 +48,7 @@ struct TypeElement
 
 struct TypeElementEmpty : TypeElement
 {
-	TypeElementEmpty()
+	TypeElementEmpty() : TypeElement(getTypeInfo<TypeElementEmpty>())
 	{
 		next = 0;
 	}
@@ -70,7 +70,7 @@ struct TypeElementGeneric : TypeElement
 {
 	T value;
 	TypeElementGeneric(const T& value)
-		: value(value)
+		 : TypeElement(getTypeInfo<TypeElementGeneric>()), value(value)
 	{
 	}
 	void accept(TypeElementVisitor& visitor) const
@@ -166,55 +166,55 @@ struct UniqueTypeWrapper
 	}
 	bool isSimple() const
 	{
-		return isEqual(typeid(*value), typeid(TypeElementGeneric<SimpleType>));
+		return isEqual(getTypeInfo(*value), getTypeInfo<TypeElementGeneric<SimpleType> >());
 	}
 #if 0
 	bool isNamespace() const
 	{
-		return isEqual(typeid(*value), typeid(TypeElementGeneric<struct Namespace>));
+		return isEqual(getTypeInfo(*value), getTypeInfo<TypeElementGeneric<struct Namespace> >());
 	}
 #endif
 	bool isPointer() const
 	{
-		return isEqual(typeid(*value), typeid(TypeElementGeneric<PointerType>));
+		return isEqual(getTypeInfo(*value), getTypeInfo<TypeElementGeneric<PointerType> >());
 	}
 	bool isReference() const
 	{
-		return isEqual(typeid(*value), typeid(TypeElementGeneric<ReferenceType>));
+		return isEqual(getTypeInfo(*value), getTypeInfo<TypeElementGeneric<ReferenceType> >());
 	}
 	bool isArray() const
 	{
-		return isEqual(typeid(*value), typeid(TypeElementGeneric<ArrayType>));
+		return isEqual(getTypeInfo(*value), getTypeInfo<TypeElementGeneric<ArrayType> >());
 	}
 	bool isMemberPointer() const
 	{
-		return isEqual(typeid(*value), typeid(TypeElementGeneric<MemberPointerType>));
+		return isEqual(getTypeInfo(*value), getTypeInfo<TypeElementGeneric<MemberPointerType> >());
 	}
 	bool isFunction() const
 	{
-		return isEqual(typeid(*value), typeid(TypeElementGeneric<FunctionType>));
+		return isEqual(getTypeInfo(*value), getTypeInfo<TypeElementGeneric<FunctionType> >());
 	}
 	bool isDependentNonType() const
 	{
-		return isEqual(typeid(*value), typeid(TypeElementGeneric<DependentNonType>));
+		return isEqual(getTypeInfo(*value), getTypeInfo<TypeElementGeneric<DependentNonType> >());
 	}
 	bool isDependentType() const
 	{
-		return isEqual(typeid(*value), typeid(TypeElementGeneric<DependentType>));
+		return isEqual(getTypeInfo(*value), getTypeInfo<TypeElementGeneric<DependentType> >());
 	}
 	bool isDependent() const
 	{
 		return isDependentType()
-			|| isEqual(typeid(*value), typeid(TypeElementGeneric<DependentTypename>))
+			|| isEqual(getTypeInfo(*value), getTypeInfo<TypeElementGeneric<DependentTypename> >())
 			|| isDependentNonType();
 	}
 	bool isNonType() const
 	{
-		return isEqual(typeid(*value), typeid(TypeElementGeneric<NonType>));
+		return isEqual(getTypeInfo(*value), getTypeInfo<TypeElementGeneric<NonType> >());
 	}
 	bool isTemplateTemplateArgument() const
 	{
-		return isEqual(typeid(*value), typeid(TypeElementGeneric<TemplateTemplateArgument>));
+		return isEqual(getTypeInfo(*value), getTypeInfo<TypeElementGeneric<TemplateTemplateArgument> >());
 	}
 	bool isSimplePointer() const
 	{

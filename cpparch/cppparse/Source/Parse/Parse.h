@@ -4,7 +4,7 @@
 
 #include "Lex/Lex.h"
 #include "Grammar.h"
-#include <typeinfo>
+#include "Common/Common.h"
 
 #include "Common/List.h"
 #include <list>
@@ -274,14 +274,6 @@ struct Cached
 };
 
 template<typename T>
-struct TypeInfo
-{
-	static const std::type_info* id;
-};
-template<typename T>
-const std::type_info* TypeInfo<T>::id = &typeid(T);
-
-template<typename T>
 struct Opaque
 {
 	char data[sizeof(T)];
@@ -315,12 +307,11 @@ struct CachedSymbols
 	typedef Entries::iterator Position;
 #endif
 
-	struct Value
+	struct Value : TypeInfo
 	{
-		const std::type_info* type;
 		Position end;
 		OpaqueCopied copied;
-		Value() : copied(NullParserAllocator())
+		Value(const TypeInfo& typeInfo) : TypeInfo(typeInfo), copied(NullParserAllocator())
 		{
 		}
 	};
@@ -355,7 +346,7 @@ struct CachedSymbols
 			{
 				break;
 			}
-			if((*i).second.type == TypeInfo<T>::id) // if this entry is the right type
+			if(isEqual((*i).second, getTypeInfo<T>())) // if this entry is the right type
 			{
 				++hits;
 				Value& value = (*i).second;
@@ -371,9 +362,8 @@ struct CachedSymbols
 	T& insert(Entries::iterator at, Key key, const T& t)
 	{
 		flush();
-		Value& value = (*entries.insert(at, Entries::value_type(key, Value()))).second;
+		Value& value = (*entries.insert(at, Entries::value_type(key, Value(getTypeInfo<T>())))).second;
 		position = entries.begin();
-		value.type = TypeInfo<T>::id;
 		value.end = position;
 		value.copied.~OpaqueCopied();
 		new (&value.copied) OpaqueCopied(t, entries.get_allocator());

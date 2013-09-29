@@ -423,6 +423,7 @@ struct Lexer
 	{
 		if(position == history.end())
 		{
+			ProfileScopeDisableCollection profile;
 			const size_t COUNT = 1024;//BACKTRACK_MAX >> 1;
 			Token* end = history.TokenBuffer::end();
 			history.position = read(history.position, std::min(end, history.position + COUNT));

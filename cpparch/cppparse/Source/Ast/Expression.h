@@ -33,9 +33,9 @@ struct ExpressionNodeVisitor
 	virtual void visit(const struct PostfixOperatorExpression&) = 0;
 };
 
-struct ExpressionNode
+struct ExpressionNode : TypeInfo
 {
-	ExpressionNode()
+	ExpressionNode(TypeInfo type) : TypeInfo(type)
 	{
 	}
 	virtual ~ExpressionNode()
@@ -52,7 +52,7 @@ struct ExpressionNodeGeneric : ExpressionNode
 {
 	T value;
 	ExpressionNodeGeneric(const T& value)
-		: value(value)
+		: ExpressionNode(getTypeInfo<ExpressionNodeGeneric>()), value(value)
 	{
 	}
 	void accept(ExpressionNodeVisitor& visitor) const

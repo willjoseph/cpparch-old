@@ -60,15 +60,15 @@ struct SequenceNodeGeneric : Reference< SequenceNode<Visitor> >::Value
 #if 0
 	bool operator==(const SequenceNode<Visitor>& other) const
 	{
-		return isEqual(typeid(*this), typeid(other))
+		return isEqual(getTypeInfo(*this), getTypeInfo(other))
 			&& value == static_cast<const SequenceNodeGeneric*>(&other)->value;
 	}
 #endif
 #if 0
 	bool operator<(const SequenceNode<Visitor>& other) const
 	{
-		return (typeid(*this).before(typeid(other)) ||
-			!(typeid(other).before(typeid(*this))) && value < static_cast<const SequenceNodeGeneric*>(&other)->value);
+		return (getTypeInfo(*this).before(getTypeInfo(other)) ||
+			!(getTypeInfo(other).before(getTypeInfo(*this))) && value < static_cast<const SequenceNodeGeneric*>(&other)->value);
 	}
 #endif
 };

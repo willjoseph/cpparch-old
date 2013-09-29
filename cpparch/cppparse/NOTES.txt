@@ -1088,16 +1088,29 @@ described for lookup in namespace member function definitions.
 	- e.g. enum { A = TEMPLATE_NONTYPE_PARAM, B = sizeof(A) };
 
 - task: profile with vtune to check for low hanging fruit
-	- instrument code to profile only parser
-	- rtti in comparison of UniqueType
+	+ instrument code to profile only parser
+	+ rtti in comparison of UniqueType
 		- abstractLess: std::type_info::before() is very slow.
 			- comparing type_info ptr is faster, but not standard compliant
 			- 300ms -> 120ms
 			- many comparisons occurring
-		- isClass: std::type_info::operator==() is slow.
+		- isClass/isEnum: std::type_info::operator==() is slow.
 		- measure cost of typeid()
 			- halving number of calls : 120ms -> 70ms
 			- typeid() cost is 100ms out of 120ms
+	- pushUniqueType<SimpleType>()
+		- in addOverload: makeUniqueSimpleType(*context.enclosingType)
+		- in typeOfFunctionCallExpression: makeUniqueSimpleType(classType)
+		- copying non-trivial SimpleType is expensive
+		- faster way to get unique-type for enclosingType?
+	- isDependent
+		- type substitution for dependent-typename
+		- isDependent(*context.enclosingType)
+		- this is a temporary workaround?
+		- required in asserts generally
+		- could cache in unique-type
+	- deduceFunctionCall
+		- throwing exception for deduction failure is slow
 	- findDeclaration (7% of total)
 		- upper_bound is expensive
 	- allocations during overload resolution
@@ -1105,8 +1118,7 @@ described for lookup in namespace member function definitions.
 		- when replacing an existing best candidate
 		- when destroying an OverloadResolver
 		- allocate enough mem for N arguments on stack?
-	- pushUniqueType<SimpleType>()
-		- in addOverload: makeUniqueSimpleType(*context.enclosingType)
-		- in typeOfFunctionCallExpression: makeUniqueSimpleType(classType)
-		- copying non-trivial SimpleType is expensive
-		- faster way to get unique-type for enclosingType?
+	- SemaState constructor
+	- general pushUniqueType stuff during type-substitution
+		- in key-compare
+		- problem because of rtti during find?

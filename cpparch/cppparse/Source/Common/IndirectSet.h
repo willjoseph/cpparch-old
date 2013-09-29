@@ -11,8 +11,8 @@
 template<typename D, typename B>
 inline bool abstractLess(const D& d, const B& b)
 {
-	const std::type_info& dType = typeid(d);
-	const std::type_info& bType = typeid(b);
+	const TypeInfo& dType = getTypeInfo<D>();
+	const TypeInfo& bType = getTypeInfo(b);
 	return lessThan(dType, bType) ||
 		!lessThan(bType, dType) && d < *static_cast<const D*>(&b);
 }

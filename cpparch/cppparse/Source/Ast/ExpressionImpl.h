@@ -55,7 +55,7 @@ inline bool operator<(const CastExpression& left, const CastExpression& right)
 
 inline bool isCastExpression(ExpressionNode* node)
 {
-	return isEqual(typeid(*node), typeid(ExpressionNodeGeneric<CastExpression>));
+	return isEqual(getTypeInfo(*node), getTypeInfo<ExpressionNodeGeneric<CastExpression> >());
 }
 
 inline const CastExpression& getCastExpression(ExpressionNode* node)
@@ -88,7 +88,7 @@ inline bool operator<(const DependentIdExpression& left, const DependentIdExpres
 
 inline bool isDependentIdExpression(ExpressionNode* node)
 {
-	return isEqual(typeid(*node), typeid(ExpressionNodeGeneric<DependentIdExpression>));
+	return isEqual(getTypeInfo(*node), getTypeInfo<ExpressionNodeGeneric<DependentIdExpression> >());
 }
 
 inline const DependentIdExpression& getDependentIdExpression(ExpressionNode* node)
@@ -123,7 +123,7 @@ inline bool operator<(const IdExpression& left, const IdExpression& right)
 
 inline bool isIdExpression(ExpressionNode* node)
 {
-	return isEqual(typeid(*node), typeid(ExpressionNodeGeneric<IdExpression>));
+	return isEqual(getTypeInfo(*node), getTypeInfo<ExpressionNodeGeneric<IdExpression> >());
 }
 
 inline const IdExpression& getIdExpression(ExpressionNode* node)
@@ -151,7 +151,7 @@ inline bool operator<(const NonTypeTemplateParameter& left, const NonTypeTemplat
 
 inline bool isNonTypeTemplateParameter(ExpressionNode* node)
 {
-	return isEqual(typeid(*node), typeid(ExpressionNodeGeneric<NonTypeTemplateParameter>));
+	return isEqual(getTypeInfo(*node), getTypeInfo<ExpressionNodeGeneric<NonTypeTemplateParameter> >());
 }
 
 inline const NonTypeTemplateParameter& getNonTypeTemplateParameter(ExpressionNode* node)
@@ -213,7 +213,7 @@ inline bool operator<(const UnaryExpression& left, const UnaryExpression& right)
 
 inline bool isUnaryExpression(ExpressionNode* node)
 {
-	return isEqual(typeid(*node), typeid(ExpressionNodeGeneric<UnaryExpression>));
+	return isEqual(getTypeInfo(*node), getTypeInfo<ExpressionNodeGeneric<UnaryExpression> >());
 }
 
 inline const UnaryExpression& getUnaryExpression(ExpressionNode* node)
@@ -336,7 +336,7 @@ inline bool operator<(const ExplicitTypeExpression& left, const ExplicitTypeExpr
 
 inline bool isExplicitTypeExpression(ExpressionNode* node)
 {
-	return isEqual(typeid(*node), typeid(ExpressionNodeGeneric<ExplicitTypeExpression>));
+	return isEqual(getTypeInfo(*node), getTypeInfo<ExpressionNodeGeneric<ExplicitTypeExpression> >());
 }
 
 inline const ExplicitTypeExpression& getExplicitTypeExpression(ExpressionNode* node)
@@ -364,7 +364,7 @@ inline bool operator<(const DependentObjectExpression& left, const DependentObje
 
 inline bool isDependentObjectExpression(ExpressionNode* node)
 {
-	return isEqual(typeid(*node), typeid(ExpressionNodeGeneric<DependentObjectExpression>));
+	return isEqual(getTypeInfo(*node), getTypeInfo<ExpressionNodeGeneric<DependentObjectExpression> >());
 }
 
 inline const DependentObjectExpression& getDependentObjectExpression(ExpressionNode* node)
@@ -391,7 +391,7 @@ inline bool operator<(const ObjectExpression& left, const ObjectExpression& righ
 
 inline bool isObjectExpression(ExpressionNode* node)
 {
-	return isEqual(typeid(*node), typeid(ExpressionNodeGeneric<ObjectExpression>));
+	return isEqual(getTypeInfo(*node), getTypeInfo<ExpressionNodeGeneric<ObjectExpression> >());
 }
 
 inline const ObjectExpression& getObjectExpression(ExpressionNode* node)
@@ -419,7 +419,7 @@ inline bool operator<(const ClassMemberAccessExpression& left, const ClassMember
 
 inline bool isClassMemberAccessExpression(ExpressionNode* node)
 {
-	return isEqual(typeid(*node), typeid(ExpressionNodeGeneric<ClassMemberAccessExpression>));
+	return isEqual(getTypeInfo(*node), getTypeInfo<ExpressionNodeGeneric<ClassMemberAccessExpression> >());
 }
 
 inline const ClassMemberAccessExpression& getClassMemberAccessExpression(ExpressionNode* node)

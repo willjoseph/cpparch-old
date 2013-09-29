@@ -5,6 +5,51 @@
 #include <iostream>
 #include <iomanip>
 
+#ifdef WIN32
+#if 1 // enable vtune pause/resume
+#include "ittnotify.h"
+
+#pragma comment(lib, "libittnotify.lib")
+
+struct ProfileScopeEnableCollection
+{
+	ProfileScopeEnableCollection()
+	{
+		__itt_resume();
+	}
+	~ProfileScopeEnableCollection()
+	{
+		__itt_pause();
+	}
+};
+
+struct ProfileScopeDisableCollection
+{
+	ProfileScopeDisableCollection()
+	{
+		__itt_pause();
+	}
+	~ProfileScopeDisableCollection()
+	{
+		__itt_resume();
+	}
+};
+
+#else
+
+struct ProfileScopeEnableCollection
+{
+};
+
+struct ProfileScopeDisableCollection
+{
+};
+
+#endif
+
+#endif // WIN32
+
+
 //#define PROFILE_ENABLED
 #ifdef WIN32
 
