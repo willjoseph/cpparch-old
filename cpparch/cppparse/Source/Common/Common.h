@@ -204,38 +204,46 @@ struct SfinaeNonType
 };
 
 
+struct TypeInfoDummy
+{
+	TypeInfoDummy()
+	{
+	}
+};
+
+template<typename>
+struct TypeTag
+{
+	static const TypeInfoDummy c;
+};
+
+template<typename T>
+const TypeInfoDummy TypeTag<T>::c;
 
 struct TypeInfo
 {
-	const std::type_info* p;
-	TypeInfo(const std::type_info& typeInfo)
+	const TypeInfoDummy* p;
+	TypeInfo(const TypeInfoDummy& typeInfo)
 		: p(&typeInfo)
 	{
 	}
 };
 
+template<typename T>
+inline TypeInfo getTypeInfo()
+{
+	return TypeInfo(TypeTag<T>::c);
+};
+
+
 inline bool lessThan(const TypeInfo& l, const TypeInfo& r)
 {
-#if 0
-	return l.before(r) != 0;
-#else
-	return l.p < r.p; // much faster than std::type_info::before
-#endif
+	return l.p < r.p;
 };
 
 inline bool isEqual(const TypeInfo& l, const TypeInfo& r)
 {
-#if 0
-	return l.operator==(r);
-#else
-	return l.p == r.p; // much faster than std::type_info::operator==
-#endif
-};
-
-template<typename T>
-inline TypeInfo getTypeInfo(const T& object)
-{
-	return TypeInfo(typeid(object));
+	return l.p == r.p;
 };
 
 inline const TypeInfo& getTypeInfo(const TypeInfo& object)
@@ -243,34 +251,6 @@ inline const TypeInfo& getTypeInfo(const TypeInfo& object)
 	return object;
 };
 
-
-#if 0
-
-template<typename T>
-inline TypeInfo getTypeInfo()
-{
-	return TypeInfo(typeid(T));
-};
-
-#else
-
-// this performs no faster than typeid(T), when compiled with msvc 10
-template<typename T>
-struct StaticTypeInfo
-{
-	static const TypeInfo value;
-};
-
-template<typename T>
-const TypeInfo StaticTypeInfo<T>::value(typeid(T));
-
-template<typename T>
-inline const TypeInfo& getTypeInfo()
-{
-	return StaticTypeInfo<T>::value;
-};
-
-#endif
 
 
 #endif

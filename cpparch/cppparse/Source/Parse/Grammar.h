@@ -195,7 +195,7 @@ namespace cpp
 		template<typename Other>
 		bool isA()
 		{
-			return isEqual(getTypeInfo(*p), getTypeInfo<Visitable<Other> >());
+			return typeid(*p) == typeid(Visitable<Other>);
 		}
 	};
 

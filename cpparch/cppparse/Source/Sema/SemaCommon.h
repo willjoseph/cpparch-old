@@ -1581,6 +1581,12 @@ struct CommitEnable
 };
 
 
+template<typename SemaT, typename Inner>
+struct SemaInner
+{
+};
+
+
 template<typename Inner, typename Commit = CommitNull, typename Args = Args0>
 struct SemaPush : Args
 {
@@ -1597,23 +1603,51 @@ struct SemaPush<Inner, Commit, Args0>
 	typedef SemaPush ArgsType;
 };
 
+
 template<typename SemaT, typename Inner, typename Commit>
-Inner makeInnerWalker(SemaT& walker, const SemaPush<Inner, Commit, Args0>& args)
+struct SemaInner<SemaT, SemaPush<Inner, Commit, Args0> >
 {
-	return Inner(walker.getState());
-}
+	typedef Inner Type;
+	Inner sema;
+	SemaInner(SemaT& walker, const SemaPush<Inner, Commit, Args0>& args)
+		: sema(walker.getState())
+	{
+	}
+	Inner& get()
+	{
+		return sema;
+	}
+};
 
 template<typename SemaT, typename Inner, typename Commit, typename A1>
-Inner makeInnerWalker(SemaT& walker, const SemaPush<Inner, Commit, Args1<A1> >& args)
+struct SemaInner<SemaT, SemaPush<Inner, Commit, Args1<A1> > >
 {
-	return Inner(walker.getState(), args.a1);
-}
+	typedef Inner Type;
+	Inner sema;
+	SemaInner(SemaT& walker, const SemaPush<Inner, Commit, Args1<A1> >& args)
+		: sema(walker.getState(), args.a1)
+	{
+	}
+	Inner& get()
+	{
+		return sema;
+	}
+};
 
 template<typename SemaT, typename Inner, typename Commit, typename A1, typename A2>
-Inner makeInnerWalker(SemaT& walker, const SemaPush<Inner, Commit, Args2<A1, A2> >& args)
+struct SemaInner<SemaT, SemaPush<Inner, Commit, Args2<A1, A2> > >
 {
-	return Inner(walker.getState(), args.a1, args.a2);
-}
+	typedef Inner Type;
+	Inner sema;
+	SemaInner(SemaT& walker, const SemaPush<Inner, Commit, Args2<A1, A2> >& args)
+		: sema(walker.getState(), args.a1, args.a2)
+	{
+	}
+	Inner& get()
+	{
+		return sema;
+	}
+};
 
 
 template<typename SemaT, LexTokenId ID, typename U = void>
@@ -1680,10 +1714,19 @@ struct SemaIdentity
 };
 
 template<typename SemaT>
-SemaT& makeInnerWalker(SemaT& walker, const SemaIdentity&)
+struct SemaInner<SemaT, SemaIdentity>
 {
-	return walker;
-}
+	typedef SemaT Type;
+	SemaT& sema;
+	SemaInner(SemaT& walker, const SemaIdentity&) : sema(walker)
+	{
+	}
+	SemaT& get()
+	{
+		 return sema;
+	}
+};
+
 
 template<typename SemaT>
 void semaCommit(SemaT& walker, const SemaIdentity& inner)

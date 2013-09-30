@@ -370,12 +370,12 @@ inline bool deduceFunctionCall(const ParameterTypes& parameters, const UniqueTyp
 			adjustFunctionCallDeductionPair(parameter, argument, context);
 			if(!deduceTemplateArguments(parameter, argument, result, true))
 			{
-				throw DeductionFailure();
+				return false;
 			}
 		}
 		if(std::find(result.begin(), result.end(), gUniqueTypeNull) != result.end())
 		{
-			throw DeductionFailure();
+			return false;
 		}
 	}
 	catch(DeductionFailure)

@@ -1299,10 +1299,13 @@ public:
 		return ::addDeferredParse(*this, Defer::getDeferredSymbolsList(walker), walker, Defer::getSkipFunc(walker), symbol);
 	}
 
-	template<typename T, typename InnerWalker, typename Inner, typename Annotate, typename Action, typename Cache, typename Defer>
-	Visitable<T>* visit(SemaT& walker, T* symbol, const InnerWalker& innerConst, const Inner& inner, const Annotate&, const Action& action, const Cache& cache, const Defer& defer)
+	template<typename T, typename Inner, typename Annotate, typename Action, typename Cache, typename Defer>
+	Visitable<T>* visit(SemaT& walker, T* symbol, const Inner& inner, const Annotate&, const Action& action, const Cache& cache, const Defer& defer)
 	{
-		InnerWalker& innerWalker = *const_cast<InnerWalker*>(&innerConst); // 'innerConst' is a temporary with lifetime longer than this function.
+		typedef SemaInner<SemaT, Inner> SemaHolder;
+		typedef typename SemaHolder::Type InnerWalker;
+		SemaHolder holder(walker, inner);
+		InnerWalker& innerWalker = holder.get();
 		ParserGeneric<InnerWalker>& innerParser = getParser(innerWalker, this);
 		typename Annotate::Data data = Annotate::makeData(*context.position);
 		if(innerParser.isDeferredParse(defer, innerWalker)) // if the parse of this symbol is to be deferred (e.g. body of an inline member function)
@@ -1353,7 +1356,6 @@ public:
 		// Construct an inner walker from the current walker, based on the current walker's policy for this symbol.
 		// Try to parse the symbol using the inner walker.
 		Visitable<T>* result = tmp.visit(walker, holder.get(),
-			makeInnerWalker(walker, walker.makePolicy(NULLPTR(T)).getInnerPolicy()),
 			walker.makePolicy(NULLPTR(T)).getInnerPolicy(),
 			walker.makePolicy(NULLPTR(T)).getAnnotatePolicy(),
 			walker.makePolicy(NULLPTR(T)).getActionPolicy(),

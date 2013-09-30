@@ -3,15 +3,19 @@
 #define INCLUDED_CPPPARSE_COMMON_SEQUENCE_H
 
 #include "Allocator.h"
+#include "Common.h"
 
 // ----------------------------------------------------------------------------
 // sequence
 
 template<typename Visitor>
-struct SequenceNode
+struct SequenceNode : TypeInfo
 {
 	Reference<SequenceNode> next;
 
+	SequenceNode() : TypeInfo(*static_cast<TypeInfoDummy*>(0))
+	{
+	}
 	virtual ~SequenceNode()
 	{
 	}
@@ -29,6 +33,10 @@ struct SequenceNode
 template<typename Visitor>
 struct SequenceNodeEmpty : SequenceNode<Visitor>
 {
+	SequenceNodeEmpty()
+	{
+		*static_cast<TypeInfo*>(this) = getTypeInfo<SequenceNodeEmpty>();
+	}
 	virtual void accept(Visitor& visitor) const
 	{
 		throw AllocatorError();
@@ -52,6 +60,7 @@ struct SequenceNodeGeneric : Reference< SequenceNode<Visitor> >::Value
 	SequenceNodeGeneric(const T& value)
 		: value(value)
 	{
+		*static_cast<TypeInfo*>(this) = getTypeInfo<SequenceNodeGeneric>();
 	}
 	void accept(Visitor& visitor) const
 	{

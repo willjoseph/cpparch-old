@@ -1113,12 +1113,23 @@ described for lookup in namespace member function definitions.
 		- substitution occurring unnecessarily?
 			- need to memoize substitution result?
 			- substitution occurs for type X<T> for each set of template-arguments
-	- isDependent
+	+ isDependent
 		- type substitution for dependent-typename
 		- isDependent(*context.enclosingType)
 		- this is a temporary workaround?
 		- required in asserts generally
 		- could cache in unique-type
+	- makeInnerWalker is not inlined?
+		- 
+	- isReference/isClass etc still showing in profile (though inlined)
+		- value of typeid(T) is not compile-time-constant
+		- use new technique instead
+	- parseSymbol(simple_type_specifier_builtin)
+		- common types (char, long, double, short) showing up in profile
+		- PARSE_SELECT_TOKEN: duplication of large chunk of code for 'hit' branch?
+		- could be noise: e.g. refill(), overhead of disabling profiling
+		- overhead for createSymbol?
+			- simple_type_specifier_builtin has less than 10 bases
 	- deduceFunctionCall
 		- throwing exception for deduction failure is slow
 	- findDeclaration (7% of total)
