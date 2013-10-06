@@ -1089,6 +1089,9 @@ described for lookup in namespace member function definitions.
 
 - task: profile with vtune to check for low hanging fruit
 	+ instrument code to profile only parser
+	+ profile with /Oy (omit frame pointer)
+		- seems to reduce overhead of function calls
+		- tests not conclusive, need to measure more accurately
 	+ rtti in comparison of UniqueType
 		- abstractLess: std::type_info::before() is very slow.
 			- comparing type_info ptr is faster, but not standard compliant
@@ -1098,6 +1101,32 @@ described for lookup in namespace member function definitions.
 		- measure cost of typeid()
 			- halving number of calls : 120ms -> 70ms
 			- typeid() cost is 100ms out of 120ms
+	+ deferredBacktrack (~7th in profile)
+		- large overhead to call, only to find that no backtrack is required
+		- move rarely-taken branch into separate function
+	+ isDependent
+		- type substitution for dependent-typename
+		- isDependent(*context.enclosingType)
+		- this is a temporary workaround?
+		- required in asserts generally
+		- could cache in unique-type
+	+ makeInnerWalker is not inlined?
+		- refactor to SemaInner
+	- compare performance with/without exception handling
+		- remove try/catch
+		- remove throw
+	- deduceFunctionCall
+		- throwing exception for deduction failure is slow
+	- frequent exception throwing
+		- TypeError
+		- occurs during substitution
+	- rb-tree search in pushUniqueType
+		- replace with hashtable
+	- findDeclaration (7% of total)
+		- upper_bound is expensive
+		- replace with hashtable
+		- needs to be ordered?
+			- no, but needs to allow duplicate keys and be stable
 	- pushUniqueType<SimpleType>()
 		- in addOverload: makeUniqueSimpleType(*context.enclosingType)
 		- in typeOfFunctionCallExpression: makeUniqueSimpleType(classType)
@@ -1113,14 +1142,8 @@ described for lookup in namespace member function definitions.
 		- substitution occurring unnecessarily?
 			- need to memoize substitution result?
 			- substitution occurs for type X<T> for each set of template-arguments
-	+ isDependent
-		- type substitution for dependent-typename
-		- isDependent(*context.enclosingType)
-		- this is a temporary workaround?
-		- required in asserts generally
-		- could cache in unique-type
-	- makeInnerWalker is not inlined?
-		- 
+	- in SemaTemplateArgumentList::commit(): ListReference::push_front is slow
+		- copying of TemplateArgument
 	- isReference/isClass etc still showing in profile (though inlined)
 		- value of typeid(T) is not compile-time-constant
 		- use new technique instead
@@ -1130,10 +1153,6 @@ described for lookup in namespace member function definitions.
 		- could be noise: e.g. refill(), overhead of disabling profiling
 		- overhead for createSymbol?
 			- simple_type_specifier_builtin has less than 10 bases
-	- deduceFunctionCall
-		- throwing exception for deduction failure is slow
-	- findDeclaration (7% of total)
-		- upper_bound is expensive
 	- allocations during overload resolution
 		- CandidateFunction members
 		- when replacing an existing best candidate

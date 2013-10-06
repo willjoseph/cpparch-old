@@ -479,6 +479,10 @@ struct ParserAllocator : public LexerAllocator
 		{
 			return;
 		}
+		deferredBacktrackImpl();
+	}	
+	void deferredBacktrackImpl()
+	{
 #ifdef _DEBUG
 		onBacktrack(LexerAllocator::position - position);
 #endif
