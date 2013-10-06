@@ -346,6 +346,10 @@ struct Lexer
 		{
 			return;
 		}
+		backtrackImpl(count, symbol);
+	}
+	void backtrackImpl(size_t count, const char* symbol = 0)
+	{
 		if(!canBacktrack(count))
 		{
 			maxBacktrack = true;

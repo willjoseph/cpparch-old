@@ -145,6 +145,8 @@ inline _STLP_VENDOR_CSTD::ldiv_t div(long __x, long __y) { return _STLP_VENDOR_C
 #  undef _STLP_RESTORE_FUNCTION_INTRINSIC
 #endif
 
+#if !defined(_STLP_MSVC) || (_STLP_MSVC < 1600)
+
 #if defined (_STLP_LONG_LONG)
 #  if !defined (_STLP_NO_VENDOR_STDLIB_L)
 #    if !defined (__sun)
@@ -154,9 +156,11 @@ inline lldiv_t div(_STLP_LONG_LONG __x, _STLP_LONG_LONG __y) { return _STLP_VEND
 inline _STLP_LONG_LONG  abs(_STLP_LONG_LONG __x) { return ::llabs(__x); }
 inline lldiv_t div(_STLP_LONG_LONG __x, _STLP_LONG_LONG __y) { return ::lldiv(__x, __y); }
 #    endif
-#  elif (_STLP_MSVC_LIB < 1400)
+#  else
 inline _STLP_LONG_LONG  abs(_STLP_LONG_LONG __x) { return __x < 0 ? -__x : __x; }
 #  endif
+#endif
+
 #endif
 
 /* C++ Standard is unclear about several call to 'using ::func' if new overloads
