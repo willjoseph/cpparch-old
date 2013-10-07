@@ -1087,6 +1087,9 @@ described for lookup in namespace member function definitions.
 - issue: what should type of enumerator be during deferred evaluation?
 	- e.g. enum { A = TEMPLATE_NONTYPE_PARAM, B = sizeof(A) };
 
+- investigate: can we cache the fact that a parse failed?
+	- probably..
+
 - task: profile with vtune to check for low hanging fruit
 	+ instrument code to profile only parser
 	+ profile with /Oy (omit frame pointer)
@@ -1127,6 +1130,11 @@ described for lookup in namespace member function definitions.
 		- replace with hashtable
 		- needs to be ordered?
 			- no, but needs to allow duplicate keys and be stable
+	- allocations for vector are expensive
+		- ensure all vectors are reserved up front
+		- implement immutable vector
+			- with custom allocator, never need to delete
+			- except when used as a temporary array?
 	- pushUniqueType<SimpleType>()
 		- in addOverload: makeUniqueSimpleType(*context.enclosingType)
 		- in typeOfFunctionCallExpression: makeUniqueSimpleType(classType)
@@ -1135,8 +1143,6 @@ described for lookup in namespace member function definitions.
 				- should not be copied during substitution: only relevant for dependent types
 			- muliple copies may occur during pushUniqueType
 			- only need to copy the immutable key info: primary, template-arguments, enclosing
-			- implement immutable vector
-				- with custom allocator, never need to delete
 		- faster way to get unique-type for enclosingType?
 		+ prevent substitution for non-dependent type
 		- substitution occurring unnecessarily?

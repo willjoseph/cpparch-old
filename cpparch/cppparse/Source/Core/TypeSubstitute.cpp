@@ -6,6 +6,7 @@
 
 void substitute(UniqueTypeArray& substituted, const UniqueTypeArray& dependent, const InstantiationContext& context)
 {
+	substituted.reserve(dependent.size());
 	for(UniqueTypeArray::const_iterator i = dependent.begin(); i != dependent.end(); ++i)
 	{
 		UniqueTypeWrapper type = substitute(*i, context);
@@ -21,11 +22,16 @@ inline UniqueTypeWrapper substitute(Declaration* declaration, const SimpleType* 
 	{
 		result.declaration = result.primary = findPrimaryTemplate(declaration); // TODO: name lookup should always find primary template
 
+		const TemplateParameters& templateParams = result.declaration->templateParams;
+		std::size_t count = std::distance(templateParams.begin(), templateParams.end());
+		SYMBOLS_ASSERT(count == std::distance(templateParams.defaults.begin(), templateParams.defaults.end()));
+		result.templateArguments.reserve(count);
+
 		substitute(result.templateArguments, templateArguments, context);
 
-		TemplateArguments::const_iterator i = result.declaration->templateParams.defaults.begin();
-		std::advance(i, templateArguments.size());
-		for(; i != result.declaration->templateParams.defaults.end(); ++i)
+		TemplateArguments::const_iterator i = templateParams.defaults.begin();
+		std::advance(i, result.templateArguments.size());
+		for(; i != templateParams.defaults.end(); ++i)
 		{
 			if((*i).type.declaration == 0)
 			{
@@ -36,7 +42,7 @@ inline UniqueTypeWrapper substitute(Declaration* declaration, const SimpleType* 
 			result.templateArguments.push_back(substituted); // handles when template-param-default depends on a template param that was also defaulted
 		}
 
-		SYMBOLS_ASSERT(std::distance(result.declaration->templateParams.begin(), result.declaration->templateParams.end()) == result.templateArguments.size());
+		SYMBOLS_ASSERT(count == result.templateArguments.size());
 	}
 
 	static size_t uniqueId = 0;
@@ -318,12 +324,8 @@ struct SubstituteVisitor : TypeElementVisitor
 	}
 };
 
-UniqueTypeWrapper substitute(UniqueTypeWrapper dependent, const InstantiationContext& context)
+UniqueTypeWrapper substituteImpl(UniqueTypeWrapper dependent, const InstantiationContext& context)
 {
-	if(!isDependent(dependent)) // if the type to be substituted is not dependent
-	{
-		return dependent; // no substitution required
-	}
 	UniqueTypeWrapper inner = dependent;
 	inner.pop_front();
 	UniqueTypeWrapper type = inner.empty() ? gUniqueTypeNull : substitute(inner, context);

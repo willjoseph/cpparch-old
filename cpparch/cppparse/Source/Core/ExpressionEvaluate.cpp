@@ -292,7 +292,7 @@ inline void printOverloads(OverloadResolver& resolver, const OverloadSet& overlo
 		addOverload(resolver, *overload.declaration, setEnclosingType(context, overload.memberEnclosing));
 
 		const Declaration* p = overload.declaration;
-		ParameterTypes parameters = addOverload(resolver, *p, context);
+		const ParameterTypes parameters = addOverload(resolver, *p, context);
 		printPosition(p->getName().source);
 		std::cout << "(";
 		bool separator = false;

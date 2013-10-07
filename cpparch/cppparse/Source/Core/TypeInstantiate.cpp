@@ -10,7 +10,7 @@ inline bool deduceAndSubstitute(const UniqueTypeArray& parameters, const UniqueT
 	// deduce the partial-specialization's template arguments from the original argument list
 	TemplateArgumentsInstance& deduced = enclosing.deducedArguments;
 	if(!deducePairs(parameters, arguments, deduced)
-		|| std::find(deduced.begin(), deduced.end(), gUniqueTypeNull) != deduced.end())
+		|| !isValid(deduced))
 	{
 		return false; // cannot deduce
 	}
@@ -21,7 +21,7 @@ inline bool deduceAndSubstitute(const UniqueTypeArray& parameters, const UniqueT
 	}
 	catch(TypeError&)
 	{
-		SYMBOLS_ASSERT(std::find(substituted.begin(), substituted.end(), gUniqueTypeNull) == substituted.end());
+		SYMBOLS_ASSERT(isValid(substituted));
 		return false; // cannot substitute: SFINAE
 	}
 

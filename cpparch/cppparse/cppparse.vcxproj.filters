@@ -220,6 +220,9 @@
     <ClInclude Include="Source\Ast\UniqueType.h">
       <Filter>Source Files\Ast</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Common\Vector.h">
+      <Filter>Source Files\Common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="cppparse.cpp">
@@ -410,6 +413,9 @@
     </ClCompile>
     <ClCompile Include="Source\Ast\UniqueType.cpp">
       <Filter>Source Files\Ast</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Common\Vector.cpp">
+      <Filter>Source Files\Common</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

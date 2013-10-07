@@ -5,6 +5,7 @@
 #include "Declaration.h"
 #include "Scope.h"
 #include "Expression.h" // IntegralConstant
+#include "Common/Vector.h"
 
 
 
@@ -288,16 +289,36 @@ inline const NonType& getNonTypeValue(UniqueType type)
 }
 
 
-// 14.4 Type equivalence [temp.type]
-// Two template-ids refer to the same class or function if their template names are identical, they refer to the
-// same template, their type template-arguments are the same type, their non-type template-arguments of integral
-// or enumeration type have identical values, their non-type template-arguments of pointer or reference
-// type refer to the same external object or function, and their template template-arguments refer to the same
-// template.
-
-typedef std::vector<UniqueTypeWrapper> UniqueTypeArray;
+#if 1
+typedef SharedVector<UniqueTypeWrapper, DebugAllocator<UniqueTypeWrapper> > UniqueTypeArray;
+#else
+struct UniqueTypeArray : std::vector<UniqueTypeWrapper>
+{
+	typedef std::vector<UniqueTypeWrapper> Base;
+	UniqueTypeArray()
+	{
+	}
+	UniqueTypeArray(std::size_t count, UniqueTypeWrapper value)
+		: Base(count, value)
+	{
+	}
+	void push_back(const UniqueTypeWrapper& value)
+	{
+		SYMBOLS_ASSERT(size() != capacity());
+		Base::push_back(value);
+	}
+	const_iterator begin() const
+	{
+		return Base::begin();
+	}
+	const_iterator end() const
+	{
+		return Base::end();
+	}
+};
+#endif
 typedef UniqueTypeArray TemplateArgumentsInstance;
-typedef UniqueTypeArray InstantiatedTypes;
+typedef std::vector<UniqueTypeWrapper> InstantiatedTypes;
 typedef std::vector<const struct SimpleType*> UniqueBases;
 
 struct ChildInstantiation
@@ -328,6 +349,12 @@ struct ChildInstantiations : std::vector<ChildInstantiation>
 
 typedef std::vector<Location> InstanceLocations; // temporary scaffolding!
 
+// 14.4 Type equivalence [temp.type]
+// Two template-ids refer to the same class or function if their template names are identical, they refer to the
+// same template, their type template-arguments are the same type, their non-type template-arguments of integral
+// or enumeration type have identical values, their non-type template-arguments of pointer or reference
+// type refer to the same external object or function, and their template template-arguments refer to the same
+// template.
 
 struct SimpleType
 {

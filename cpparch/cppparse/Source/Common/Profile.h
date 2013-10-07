@@ -6,7 +6,7 @@
 #include <iomanip>
 
 #ifdef WIN32
-#if 1 // enable vtune pause/resume
+#if 0 // enable vtune pause/resume
 #include "ittnotify.h"
 
 #pragma comment(lib, "libittnotify.lib")

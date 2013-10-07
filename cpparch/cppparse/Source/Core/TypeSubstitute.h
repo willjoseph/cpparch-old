@@ -7,9 +7,16 @@
 #include "TypeInstantiate.h"
 
 
-UniqueTypeWrapper substitute(UniqueTypeWrapper dependent, const InstantiationContext& context);
+UniqueTypeWrapper substituteImpl(UniqueTypeWrapper dependent, const InstantiationContext& context);
+inline UniqueTypeWrapper substitute(UniqueTypeWrapper dependent, const InstantiationContext& context)
+{
+	if(!isDependent(dependent)) // if the type to be substituted is not dependent
+	{
+		return dependent; // no substitution required
+	}
+	return substituteImpl(dependent, context);
+}
 void substitute(UniqueTypeArray& substituted, const UniqueTypeArray& dependent, const InstantiationContext& context);
-
 // ----------------------------------------------------------------------------
 
 struct TypeError

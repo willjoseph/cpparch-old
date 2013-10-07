@@ -179,6 +179,7 @@ template<bool builtIn>
 static UniqueTypeGeneric<builtIn> makeFunctionType(UniqueTypeGeneric<builtIn> inner, UniqueTypeGeneric<builtIn> a1)
 {
 	FunctionType function;
+	function.parameterTypes.reserve(1);
 	function.parameterTypes.push_back(a1);
 	return pushType(inner, function);
 }
@@ -187,6 +188,7 @@ template<bool builtIn>
 static UniqueTypeGeneric<builtIn> makeFunctionType(UniqueTypeGeneric<builtIn> inner, UniqueTypeGeneric<builtIn> a1, UniqueTypeGeneric<builtIn> a2)
 {
 	FunctionType function;
+	function.parameterTypes.reserve(2);
 	function.parameterTypes.push_back(a1);
 	function.parameterTypes.push_back(a2);
 	return pushType(inner, function);
@@ -745,6 +747,7 @@ struct MakeTemplate
 	static BuiltInType apply(Declaration* declaration, BuiltInType a1, BuiltInType a2)
 	{
 		SimpleType result(declaration, 0);
+		result.templateArguments.reserve(2);
 		result.templateArguments.push_back(a1);
 		result.templateArguments.push_back(a2);
 		return BuiltInType(pushBuiltInType(gUniqueTypeNull, result));
@@ -784,6 +787,7 @@ struct MakeTemplateTemplateParameter
 	static BuiltInType apply(Declaration* declaration, BuiltInType a1, BuiltInType a2)
 	{
 		TemplateArgumentsInstance templateArguments;
+		templateArguments.reserve(2);
 		templateArguments.push_back(a1);
 		templateArguments.push_back(a2);
 		DependentType result(declaration, templateArguments, 2);
@@ -1474,8 +1478,7 @@ struct TestDeduction
 
 	static void apply(UniqueTypeWrapper expected, DeduceFunction deduce = deducePairs)
 	{
-		TemplateArgumentsInstance tmp;
-		tmp.push_back(expected);
+		TemplateArgumentsInstance tmp(1, expected);
 		apply(tmp, deduce);
 	}
 	static void applyFunction(UniqueTypeWrapper expected)
@@ -1493,6 +1496,7 @@ struct TestDeduction
 	static void apply(UniqueTypeWrapper expected, UniqueTypeWrapper expected2, DeduceFunction deduce = deducePairs)
 	{
 		TemplateArgumentsInstance tmp;
+		tmp.reserve(2);
 		tmp.push_back(expected);
 		tmp.push_back(expected2);
 		apply(tmp, deduce);

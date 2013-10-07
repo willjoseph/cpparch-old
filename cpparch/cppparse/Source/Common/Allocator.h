@@ -221,7 +221,7 @@ inline bool operator==(const SafePtr<T>& left, const SafePtr<T>& right)
 
 struct Page
 {
-	enum { SHIFT = 17 };
+	enum { SHIFT = 18 };
 	enum { SIZE = 1 << SHIFT };
 	enum { MASK = SIZE - 1 };
 	char buffer[SIZE]; // debug padding
@@ -250,6 +250,7 @@ struct LinearAllocator
 	LinearAllocator()
 		: position(0)
 	{
+		pages.reserve(128);
 	}
 	~LinearAllocator()
 	{
@@ -260,12 +261,16 @@ struct LinearAllocator
 			delete p; // TODO: fix heap-corruption assert
 		}
 	}
+	void pushPage()
+	{
+		ProfileScope profile(gProfileAllocator);
+		pages.push_back(new Page);
+	}
 	Page* getPage(size_t index)
 	{
 		if(index == pages.size())
 		{
-			ProfileScope profile(gProfileAllocator);
-			pages.push_back(new Page);
+			pushPage();
 		}
 		return pages[index];
 	}

@@ -622,6 +622,7 @@ inline UniqueTypeWrapper makeCopyAssignmentOperatorType(const SimpleType& classT
 	parameter.push_front(ReferenceType());
 	type.push_front(ReferenceType());
 	FunctionType function;
+	function.parameterTypes.reserve(1);
 	function.parameterTypes.push_back(parameter);
 	type.push_front(function);
 	return type;

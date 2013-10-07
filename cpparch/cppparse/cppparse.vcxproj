@@ -63,13 +63,13 @@
     <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(SolutionDir)</OutDir>
     <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">build\$(ProjectName)\$(Configuration)\</IntDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">build\$(TargetName)</IntDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">build\$(TargetName)\</IntDir>
     <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</LinkIncremental>
     <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</LinkIncremental>
     <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(SolutionDir)</OutDir>
     <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">build\$(ProjectName)\$(Configuration)\</IntDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">build\$(TargetName)</IntDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">build\$(TargetName)\</IntDir>
     <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</LinkIncremental>
     <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkIncremental>
     <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(ProjectName)d</TargetName>
@@ -209,6 +209,7 @@
     <ClInclude Include="Source\Common\Profile.h" />
     <ClInclude Include="Source\Common\Sequence.h" />
     <ClInclude Include="Source\Common\Util.h" />
+    <ClInclude Include="Source\Common\Vector.h" />
     <ClInclude Include="Source\Common\Visitor.h" />
     <ClInclude Include="Source\Core\ExpressionEvaluate.h" />
     <ClInclude Include="Source\Core\Fundamental.h" />
@@ -274,6 +275,7 @@
     <ClCompile Include="Source\Common\Profile.cpp" />
     <ClCompile Include="Source\Common\Sequence.cpp" />
     <ClCompile Include="Source\Common\Util.cpp" />
+    <ClCompile Include="Source\Common\Vector.cpp" />
     <ClCompile Include="Source\Common\Visitor.cpp" />
     <ClCompile Include="Source\Core\ExpressionEvaluate.cpp" />
     <ClCompile Include="Source\Core\Fundamental.cpp" />

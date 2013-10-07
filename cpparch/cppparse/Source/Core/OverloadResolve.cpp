@@ -12,9 +12,12 @@ ParameterTypes addOverload(OverloadResolver& resolver, const Declaration& declar
 		: getUniqueType(declaration.type, context, declaration.isTemplate);
 	SYMBOLS_ASSERT(type.isFunction());
 
+	const FunctionType& function = getFunctionType(type.value);
 	ParameterTypes parameters;
-	if(isMember(declaration)
-		&& declaration.type.declaration != &gCtor)
+	bool hasImplicitObjectParameter = isMember(declaration)
+		&& declaration.type.declaration != &gCtor;
+	parameters.reserve(function.parameterTypes.size() + hasImplicitObjectParameter);
+	if(hasImplicitObjectParameter)
 	{
 		// [over.match.funcs]
 		// a member function is considered to have an extra parameter, called the implicit object parameter, which
@@ -34,8 +37,11 @@ ParameterTypes addOverload(OverloadResolver& resolver, const Declaration& declar
 		}
 		parameters.push_back(implicitObjectParameter);
 	}
-	bool isEllipsis = getFunctionType(type.value).isEllipsis;
-	parameters.insert(parameters.end(), getParameterTypes(type.value).begin(), getParameterTypes(type.value).end());
+	bool isEllipsis = function.isEllipsis;
+	for(ParameterTypes::const_iterator p = function.parameterTypes.begin(); p != function.parameterTypes.end(); ++p)
+	{
+		parameters.push_back(*p);
+	}
 	type.pop_front();
 
 	if(!declaration.isTemplate)
@@ -65,36 +71,38 @@ ParameterTypes addOverload(OverloadResolver& resolver, const Declaration& declar
 		return ParameterTypes(); // more arguments than parameters. TODO: same for non-template?
 	}
 
+	// [temp.deduct] When an explicit template argument list is specified, the template arguments must be compatible with the template parameter list
+	if(resolver.templateArguments != 0
+		&& resolver.templateArguments->size() > functionTemplate.templateParameters.size())
+	{
+		return ParameterTypes(); // too many explicitly specified template arguments
+	}
+	SimpleType specialization(const_cast<Declaration*>(&declaration), context.enclosingType);
+	specialization.instantiated = true;
+	{
+		std::size_t count = std::max(resolver.templateArguments != 0 ? resolver.templateArguments->size() : 0, functionTemplate.templateParameters.size());
+		specialization.templateArguments.reserve(count);
+		UniqueTypeArray::const_iterator p = functionTemplate.templateParameters.begin();
+		if(resolver.templateArguments != 0)
+		{
+			for(TemplateArgumentsInstance::const_iterator a = resolver.templateArguments->begin(); a != resolver.templateArguments->end(); ++a, ++p)
+			{
+				SYMBOLS_ASSERT(p != functionTemplate.templateParameters.end());
+				if((*a).isNonType() != (*p).isDependentNonType())
+				{
+					return ParameterTypes(); // incompatible explicitly specified arguments
+				}
+				specialization.templateArguments.push_back(*a);
+			}
+		}
+		for(; p != functionTemplate.templateParameters.end(); ++p)
+		{
+			specialization.templateArguments.push_back(*p);
+		}
+	}
+
 	try
 	{
-		// [temp.deduct] When an explicit template argument list is specified, the template arguments must be compatible with the template parameter list
-		if(resolver.templateArguments != 0
-			&& resolver.templateArguments->size() > functionTemplate.templateParameters.size())
-		{
-			throw TypeErrorBase(context.source); // too many explicitly specified template arguments
-		}
-		SimpleType specialization(const_cast<Declaration*>(&declaration), context.enclosingType);
-		specialization.instantiated = true;
-		{
-			UniqueTypeArray::const_iterator p = functionTemplate.templateParameters.begin();
-			if(resolver.templateArguments != 0)
-			{
-				for(TemplateArgumentsInstance::const_iterator a = resolver.templateArguments->begin(); a != resolver.templateArguments->end(); ++a, ++p)
-				{
-					SYMBOLS_ASSERT(p != functionTemplate.templateParameters.end());
-					if((*a).isNonType() != (*p).isDependentNonType())
-					{
-						throw TypeErrorBase(context.source); // incompatible explicitly specified arguments
-					}
-					specialization.templateArguments.push_back(*a);
-				}
-			}
-			for(; p != functionTemplate.templateParameters.end(); ++p)
-			{
-				specialization.templateArguments.push_back(*p);
-			}
-		}
-
 		// substitute the template-parameters in the function's parameter list with the explicitly specified template-arguments
 		ParameterTypes substituted1;
 		substitute(substituted1, functionTemplate.parameters, setEnclosingTypeSafe(context, &specialization));
@@ -113,9 +121,8 @@ ParameterTypes addOverload(OverloadResolver& resolver, const Declaration& declar
 		// NOTE: in rare circumstances, deduction may cause implicit instantiations, which occur at the point of overload resolution 
 		if(!deduceFunctionCall(substituted1, arguments, specialization.templateArguments, resolver.context))
 		{
-			throw TypeErrorBase(context.source); // deduction failed
+			return ParameterTypes(); // deduction failed
 		}
-
 
 		// substitute the template-parameters in the function's parameter list with the deduced template-arguments
 		ParameterTypes substituted2;

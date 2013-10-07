@@ -353,6 +353,11 @@ inline bool deduceTemplateArguments(UniqueTypeWrapper parameter, UniqueTypeWrapp
 	return true;
 }
 
+inline bool isValid(const UniqueTypeArray& result)
+{
+	return std::find(result.begin(), result.end(), gUniqueTypeNull) == result.end();
+}
+
 // deduce the function's template arguments by comparing the original argument list with the substituted parameters
 inline bool deduceFunctionCall(const ParameterTypes& parameters, const UniqueTypeArray& arguments, TemplateArgumentsInstance& result, const InstantiationContext& context)
 {
@@ -373,7 +378,7 @@ inline bool deduceFunctionCall(const ParameterTypes& parameters, const UniqueTyp
 				return false;
 			}
 		}
-		if(std::find(result.begin(), result.end(), gUniqueTypeNull) != result.end())
+		if(!isValid(result))
 		{
 			return false;
 		}

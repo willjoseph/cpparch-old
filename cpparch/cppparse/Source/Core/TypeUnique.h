@@ -62,6 +62,7 @@ inline UniqueTypeWrapper makeUniqueTemplateArgument(const TemplateArgument& argu
 
 inline void makeUniqueTemplateArguments(TemplateArguments& templateArguments, TemplateArgumentsInstance& result, const InstantiationContext& context, bool allowDependent = false)
 {
+	result.reserve(std::distance(templateArguments.begin(), templateArguments.end()));
 	for(TemplateArguments::const_iterator i = templateArguments.begin(); i != templateArguments.end(); ++i)
 	{
 		UniqueTypeWrapper type = makeUniqueTemplateArgument(*i, context, allowDependent);
@@ -71,6 +72,7 @@ inline void makeUniqueTemplateArguments(TemplateArguments& templateArguments, Te
 
 inline void makeUniqueTemplateParameters(const TemplateParameters& templateParams, TemplateArgumentsInstance& arguments, const InstantiationContext& context, bool allowDependent)
 {
+	arguments.reserve(std::distance(templateParams.begin(), templateParams.end()));
 	for(Types::const_iterator i = templateParams.begin(); i != templateParams.end(); ++i)
 	{
 		const Type& argument = (*i);
@@ -101,6 +103,7 @@ inline void makeUniqueTemplateParameters(const TemplateParameters& templateParam
 
 inline void makeUniqueTemplateArguments(const TemplateArguments& arguments, TemplateArgumentsInstance& templateArguments, const InstantiationContext& context, bool allowDependent)
 {
+	templateArguments.reserve(std::distance(arguments.begin(), arguments.end()));
 	for(TemplateArguments::const_iterator i = arguments.begin(); i != arguments.end(); ++i)
 	{
 		const TemplateArgument& argument = *i;
@@ -215,6 +218,7 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, const InstantiationCon
 		}
 		else
 		{
+			tmp.templateArguments.reserve(std::distance(defaults.begin(), defaults.end()));
 			const TemplateArguments& arguments = isEnclosingSpecialization
 				? type.declaration->templateArguments
 				: type.templateArguments;
