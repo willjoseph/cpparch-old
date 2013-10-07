@@ -397,8 +397,7 @@ inline bool operator<(const SimpleType& left, const SimpleType& right)
 {
 	return left.primary.p != right.primary.p ? left.primary.p < right.primary.p
 		: left.enclosing != right.enclosing ? left.enclosing < right.enclosing
-		: left.templateArguments != right.templateArguments ? left.templateArguments < right.templateArguments
-		: false;
+		: left.templateArguments < right.templateArguments;
 }
 
 inline const SimpleType& getSimpleType(UniqueType type)

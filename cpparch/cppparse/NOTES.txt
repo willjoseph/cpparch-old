@@ -1088,7 +1088,9 @@ described for lookup in namespace member function definitions.
 	- e.g. enum { A = TEMPLATE_NONTYPE_PARAM, B = sizeof(A) };
 
 - investigate: can we cache the fact that a parse failed?
-	- probably..
+	- basic test: pathologically slow for typelists?
+	- means cache will have many more entries?
+	- alternative data structure for caching failures?
 
 - task: profile with vtune to check for low hanging fruit
 	+ instrument code to profile only parser
@@ -1132,9 +1134,13 @@ described for lookup in namespace member function definitions.
 			- no, but needs to allow duplicate keys and be stable
 	- allocations for vector are expensive
 		- ensure all vectors are reserved up front
-		- implement immutable vector
-			- with custom allocator, never need to delete
+		- implement immutable shared vector
+			- with custom allocator, never need to delete?
 			- except when used as a temporary array?
+		- alternative: unique vector
+			- create with scratchpad allocator
+			- never need to delete
+			- fast comparisons
 	- pushUniqueType<SimpleType>()
 		- in addOverload: makeUniqueSimpleType(*context.enclosingType)
 		- in typeOfFunctionCallExpression: makeUniqueSimpleType(classType)
