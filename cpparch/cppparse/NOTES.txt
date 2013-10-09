@@ -1138,9 +1138,24 @@ described for lookup in namespace member function definitions.
 			- with custom allocator, never need to delete?
 			- except when used as a temporary array?
 		- alternative: unique vector
-			- create with scratchpad allocator
 			- never need to delete
 			- fast comparisons
+			- hackable with std containers?
+		- temporary vectors before uniquing:
+			- use custom allocator?
+				- requires keeping ptr to custom allocator
+					- not a dealbreaker, but touches a lot of code
+				- single global instance?
+					- works for stack allocator
+					- not multithread-friendly, but that's ok
+				- inline allocator: optimise for <= 8 elements?
+					- can't swap?
+				- how to enforce safe usage of stack allocator? 
+			- vector with different allocator cannot be trivially added to std::set
+				- breaks insert/find/upper_bound/key_comp
+		- will be using custom hashtable, but still want to preserve std interface
+			- values are ranges without ownership
+			- custom always-growing allocator: no need to delete
 	- pushUniqueType<SimpleType>()
 		- in addOverload: makeUniqueSimpleType(*context.enclosingType)
 		- in typeOfFunctionCallExpression: makeUniqueSimpleType(classType)
