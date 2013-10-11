@@ -1078,8 +1078,12 @@ described for lookup in namespace member function definitions.
 		- when evaluating 'sizeof(x)'
 
 - issue: when evaluating type of id-expression within a function-call expression, cannot resolve type
-	- need to know arguments before overload resolution can be performed
+	- need to know arguments (or target function type) before overload resolution can be performed
 	- should type resolve to 'function overload set' ?
+	-  if id-expression names a function outside a function-call expression
+		- e.g. cout << std::left; // ptr-to-function
+		- type is 'function overload set'
+		- return special type to indicate this?
 
 - issue: when evaluating type of id-expression within a member-access expression, cannot resolve type
 	- need to know object-expression before type can be resolved
@@ -1087,10 +1091,18 @@ described for lookup in namespace member function definitions.
 - issue: what should type of enumerator be during deferred evaluation?
 	- e.g. enum { A = TEMPLATE_NONTYPE_PARAM, B = sizeof(A) };
 
+- issue: prevent searching for overloaded operator + during deferred evaluation of enum value
+	- e.g. enum { A, B }; 
+
 - investigate: can we cache the fact that a parse failed?
 	- basic test: pathologically slow for typelists?
 	- means cache will have many more entries?
 	- alternative data structure for caching failures?
+
+- issue: long codegen time for debug build
+	- since switching from std::vector to SharedVector?
+
+- task: FORCELINE trivial get/operator->/operator*/asBase
 
 - task: profile with vtune to check for low hanging fruit
 	+ instrument code to profile only parser

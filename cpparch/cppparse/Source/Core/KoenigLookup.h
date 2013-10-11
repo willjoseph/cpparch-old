@@ -189,6 +189,17 @@ inline void addKoenigAssociated(KoenigAssociated& associated, UniqueTypeWrapper 
 {
 	for(; type != gUniqueTypeNull; type.pop_front())
 	{
+		if(type == gUniqueTypeOverloaded)
+		{
+			// [basic.lookup.argdep]
+			// TODO In addition, if the argument is the name or address of a set of overloaded functions
+			// and/or function templates, its associated classes and namespaces are the union of those associated with
+			// each of the members of the set, i.e., the classes and namespaces associated with its parameter types and
+			// return type. Additionally, if the aforementioned set of overloaded functions is named with a template-id,
+			// its associated classes and namespaces also include those of its type template-arguments and its template
+			// template-arguments.
+			return; // TODO
+		}
 		KoenigVisitor visitor(associated);
 		type.value->accept(visitor);
 	}

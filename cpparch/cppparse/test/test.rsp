@@ -6,8 +6,8 @@ C:\Program Files\Microsoft Visual Studio 8\VC\BIN\cl.exe
 /D _DEBUG
 .\test\test_prepro.cpp
 .\test\test_quick.cpp
-.\test\test_semantic_prepro.cpp
 .\test\test_lexer_prepro.cpp
+.\test\test_semantic_prepro.cpp
 .\test\test_incomplete.cpp
 .\test\test_redeclared.cpp
 .\test\test_includepath.cpp

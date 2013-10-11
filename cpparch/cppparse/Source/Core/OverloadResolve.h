@@ -4,6 +4,8 @@
 
 #include "TypeConvert.h"
 #include "TemplateDeduce.h"
+#include "TypeSubstitute.h"
+#include "OperatorId.h"
 
 
 
@@ -30,6 +32,64 @@ struct FunctionOverload
 	{
 	}
 };
+
+inline UniqueTypeWrapper selectOverloadedFunction(UniqueTypeWrapper to, Argument from, const InstantiationContext& context)
+{
+	// [over.over]
+	// A use of an overloaded function name without arguments is resolved in certain contexts to a function, a
+	// pointer to function or a pointer to member function for a specific function from the overload set.
+	if(!to.isPointer()
+		&& !to.isReference()
+		&& !to.isMemberPointer())
+	{
+		return from.type;
+	}
+	UniqueTypeWrapper target = popType(to);
+	if(!target.isFunction())
+	{
+		return from.type;
+	}
+	// the target is a function type
+	UniqueTypeWrapper overloaded = from.type;
+	if(overloaded.isPointer()
+		|| overloaded.isMemberPointer())
+	{
+		overloaded = popType(overloaded);
+	}
+	if(overloaded != gUniqueTypeOverloaded)
+	{
+		return from.type;
+	}
+	ExpressionNode* node = from.p;
+	if(isUnaryExpression(node))
+	{
+		SYMBOLS_ASSERT(getUnaryExpression(node).operatorName == gOperatorAndId);
+		node = getUnaryExpression(node).first;
+	}
+	SYMBOLS_ASSERT(isIdExpression(node));
+	// the source type is an overloaded function, or is a pointer to an overloaded function
+	// select matching function from overload set;
+	const IdExpression& idExpression = getIdExpression(node);
+	DeclarationInstanceRef declaration = idExpression.declaration;
+	for(Declaration* p = findOverloaded(declaration); p != 0; p = p->overloaded)
+	{
+		if(p->specifiers.isFriend)
+		{
+			continue; // ignore (namespace-scope) friend functions
+		}
+		if(p->isTemplate)
+		{
+			continue; // TODO: template argument deduction
+		}
+		UniqueTypeWrapper type = getUniqueType(p->type, context, p->isTemplate);
+		SYMBOLS_ASSERT(type.isFunction());
+		if(type == target)
+		{
+			return type;
+		}
+	}
+	return gUniqueTypeOverloaded; // no matching function in overload set
+}
 
 template<typename To>
 FunctionOverload findBestConversionFunction(To to, Argument from, const InstantiationContext& context, bool isNullPointerConstant = false, bool isLvalue = false);
@@ -196,6 +256,8 @@ ImplicitConversion makeImplicitConversionSequence(To to, Argument from, const In
 		second.isReference = isReference;
 		return ImplicitConversion(second, ICSTYPE_USERDEFINED, overload.declaration);
 	}
+
+	from.type = selectOverloadedFunction(to, from, context);
 
 	// standard conversion
 	StandardConversionSequence sequence = makeStandardConversionSequence(to, from.type, context, isNullPointerConstant, isLvalue);

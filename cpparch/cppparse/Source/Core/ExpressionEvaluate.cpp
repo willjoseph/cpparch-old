@@ -66,6 +66,7 @@ inline UniqueTypeWrapper getNonTypeTemplateParameterType(const NonTypeTemplatePa
 	if(enclosingType == 0) // special case: evaluating the type of a non-type template parameter e.g. 
 	{
 		SYMBOLS_ASSERT(context.enclosingScope->templateDepth != 0 // template<bool b, int x = sizeof(b)>
+			|| context.enclosingScope->type == SCOPETYPE_NAMESPACE // template<int N> class C<A<N>>
 			|| (getEnclosingFunction(context.enclosingScope) != 0 // within the body of a function template
 				&& node.declaration->scope->templateDepth == getEnclosingFunction(context.enclosingScope)->parent->templateDepth));
 		return gSignedInt; // give incorrect result for now, but this is only a temporary workaround.
@@ -952,11 +953,21 @@ inline UniqueTypeWrapper typeOfExpression(ExpressionNode* node, const Instantiat
 	{
 		return gUniqueTypeNull; // TODO
 	}
-	if(isIdExpression(node) // if attempting to evaluate type of id-expression with no context
-		&& UniqueTypeWrapper(getIdExpression(node).declaration->type.unique).isFunction()) // if this id-expression names a function
+	if(isIdExpression(node)) // if attempting to evaluate type of id-expression with no context
 	{
-		// can't evaluate id-expression within function-call-expression
-		return gUniqueTypeNull; // do not evaluate the type!
+		const IdExpression& idExpression = getIdExpression(node);
+		if(UniqueTypeWrapper(idExpression.declaration->type.unique).isFunction() // if this id-expression names a function
+			&& isOverloaded(idExpression.declaration)) // which is overloaded
+		{
+			// can't evaluate id-expression within function-call-expression
+			return gUniqueTypeOverloaded; // do not evaluate the type!
+		}
+	}
+	if(isDependentIdExpression(node) // if attempting to evaluate type of id-expression with no context
+		&& getDependentIdExpression(node).qualifying == gUniqueTypeNull) // if this name is unqualified: e.g. call to named function, find via ADL
+	{
+		// must defer evaluation until function call expression is evaluated
+		return gUniqueTypeOverloaded; // do not evaluate the type!
 	}
 
 	TypeOfVisitor visitor(context);

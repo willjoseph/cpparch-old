@@ -290,7 +290,7 @@ inline const NonType& getNonTypeValue(UniqueType type)
 
 
 #if 1
-typedef SharedVector<UniqueTypeWrapper, DebugAllocator<UniqueTypeWrapper> > UniqueTypeArray;
+typedef SharedVector<UniqueTypeWrapper> UniqueTypeArray;
 #else
 struct UniqueTypeArray : std::vector<UniqueTypeWrapper>
 {
@@ -693,6 +693,9 @@ inline const ParameterTypes& getParameterTypes(UniqueType type)
 	return getFunctionType(type).parameterTypes;
 }
 
+extern const TypeElementEmpty gTypeElementOverloaded;
+const UniqueType UNIQUETYPE_OVERLOADED = &gTypeElementOverloaded;
+const UniqueTypeWrapper gUniqueTypeOverloaded = UniqueTypeWrapper(UNIQUETYPE_OVERLOADED);
 
 
 // ----------------------------------------------------------------------------
@@ -913,7 +916,7 @@ inline UniqueTypeWrapper adjustFunctionParameter(UniqueTypeWrapper type)
 // ----------------------------------------------------------------------------
 // expression helper
 
-template<typename T, bool isExpression = IsConvertible<T, cpp::expression>::RESULT>
+template<typename T, bool isExpression = IsConvertible<Visitable<T>, cpp::expression>::RESULT>
 struct ExpressionType;
 
 template<typename T>

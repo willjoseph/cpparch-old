@@ -1308,7 +1308,7 @@ struct SemaBase : public SemaState
 		ExpressionWrapper result(node, isConstant, isTypeDependent, isValueDependent);
 		if(!isTypeDependent)
 		{
-#if 0 // TODO:
+#if 1 // TODO:
 			result.type = typeOfExpressionSafe(node, getInstantiationContext());
 #endif
 		}

@@ -41,7 +41,7 @@ struct VisitorThunk
 template<typename T>
 struct VisitorFunc
 {
-	typedef Visitable<T>* Type;
+	typedef T* Type;
 	typedef void (*Thunk)(void* context, Type p);
 	Thunk thunk;
 	explicit VisitorFunc(Thunk thunk)

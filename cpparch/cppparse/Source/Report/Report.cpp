@@ -53,7 +53,7 @@ struct TreePrinter // TODO: better name
 	template<typename T>
 	void visit(T* symbol)
 	{
-		if(typeid(T) != typeid(*symbol)) // if abstract
+		if(typeid(Visitable<T>) != typeid(*symbol)) // if abstract
 		{
 			symbol->accept(*this);
 		}
@@ -219,7 +219,7 @@ struct DependencyBuilder
 	}
 
 	template<typename T>
-	void visit(Visitable<T>* symbol)
+	void visit(T* symbol)
 	{
 		symbol->accept(*this);
 	}
@@ -229,7 +229,7 @@ struct DependencyBuilder
 	{
 		if(symbol.get() != 0)
 		{
-			visit(symbol.get());
+			visit(static_cast<T*>(symbol.get()));
 		}
 	}
 
@@ -679,7 +679,12 @@ struct SourcePrinter : SymbolPrinter
 	}
 
 	template<typename T>
-	void visit(Visitable<T>* symbol)
+	void visit(T* symbol)
+	{
+		symbol->accept(*this);
+	}
+
+	void visit(cpp::declarator* symbol)
 	{
 		symbol->accept(*this);
 	}
@@ -689,7 +694,7 @@ struct SourcePrinter : SymbolPrinter
 	{
 		if(symbol.get() != 0)
 		{
-			visit(symbol.get());
+			visit(static_cast<T*>(symbol.get()));
 		}
 	}
 
@@ -1144,9 +1149,9 @@ struct ParseTreePrinter : SymbolPrinter
 	}
 
 	template<typename T>
-	void visit(Visitable<T>* symbol)
+	void visit(T* symbol)
 	{
-		if(typeid(T) != typeid(*symbol) // if abstract
+		if(typeid(Visitable<T>) != typeid(*symbol) // if abstract
 			|| typeid(T) == typeid(cpp::declaration_seq)) // or nested sequence
 		{
 			// don't print name
@@ -1173,7 +1178,7 @@ struct ParseTreePrinter : SymbolPrinter
 	{
 		if(symbol.get() != 0)
 		{
-			visit(symbol.get());
+			visit(static_cast<T*>(symbol.get()));
 		}
 	}
 };

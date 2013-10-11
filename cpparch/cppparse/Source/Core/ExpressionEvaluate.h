@@ -339,8 +339,6 @@ inline bool isSpecialMember(const Declaration& declaration)
 
 inline const SimpleType* getIdExpressionClass(const SimpleType* qualifying, const DeclarationInstance& declaration, const SimpleType* enclosingType)
 {
-	SYMBOLS_ASSERT(!isSpecialMember(*declaration))
-
 	if(!isMember(*declaration)) // if the declaration is not a class member
 	{
 		return 0; // the declaration is at namespace-scope, therefore has no enclosing class
@@ -349,7 +347,13 @@ inline const SimpleType* getIdExpressionClass(const SimpleType* qualifying, cons
 	const SimpleType* idEnclosing = qualifying != 0 ? qualifying : enclosingType;
 
 	SYMBOLS_ASSERT(idEnclosing != 0);
-	// the identifier may name a type in a base-class of the qualifying type; findEnclosingType resolves this.
+
+	if(isSpecialMember(*declaration)) // temporary hack to handle explicit call of operator=()
+	{
+		return idEnclosing; // assume this is a member of the qualifying class
+	}
+
+	// the identifier may name a member in a base-class of the qualifying type; findEnclosingType resolves this.
 	idEnclosing = findEnclosingType(idEnclosing, declaration->scope); // it must be a member of (a base of) the qualifying class: find which one.
 	SYMBOLS_ASSERT(idEnclosing != 0);
 
@@ -385,6 +389,31 @@ inline void addUniqueOverload(OverloadSet& result, const Overload& overload)
 	}
 }
 
+
+inline bool isOverloaded(const DeclarationInstance& declaration)
+{
+	bool found = false;
+	for(Declaration* p = findOverloaded(declaration); p != 0; p = p->overloaded)
+	{
+		if(p->specifiers.isFriend)
+		{
+			continue; // ignore (namespace-scope) friend functions
+		}
+		if(p->isTemplate)
+		{
+			// A use of an overloaded function name without arguments is resolved in certain contexts to a function, a
+			// pointer to function or a pointer to member function for a specific function from the overload set. A function
+			// template name is considered to name a set of overloaded functions in such contexts.
+			return true;
+		}
+		if(found) // if a previous iteration found a non-friend function
+		{
+			return true;
+		}
+		found = true; // this iteration found a non-friend function
+	}
+	return false;
+}
 
 inline void addOverloaded(OverloadSet& result, const DeclarationInstance& declaration, const SimpleType* memberEnclosing)
 {
@@ -974,6 +1003,7 @@ inline UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Argum
 		return gUniqueTypeNull;
 	}
 
+#if 0
 	if(declaration.p == &gCopyAssignmentOperatorInstance)
 	{
 		// [class.copy] If the class definition does not explicitly declare a copy assignment operator, one is declared implicitly.
@@ -987,6 +1017,7 @@ inline UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Argum
 
 		return popType(type);
 	}
+#endif
 
 	// the identifier names an overloadable function
 

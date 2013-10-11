@@ -3,6 +3,7 @@
 #include "Ast/AstAllocator.h"
 
 const TypeElementEmpty gTypeElementEmpty;
+const TypeElementEmpty gTypeElementOverloaded;
 UniqueTypes gUniqueTypes;
 UniqueTypes gBuiltInTypes;
 

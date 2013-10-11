@@ -95,7 +95,7 @@ void deallocateSharedArray(A& a, T* p, std::size_t count)
 }
 
 
-template<typename T, typename A>
+template<typename T, typename A = std::allocator<UniqueTypeWrapper> >
 struct SharedVector : private A
 {
 	T* first;

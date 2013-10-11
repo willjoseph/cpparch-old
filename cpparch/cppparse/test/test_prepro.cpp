@@ -1,7 +1,102 @@
 
+int i;
+
+#if 0 // temporarily disabled, workaround for failure to resolve type of 'func' during deferred evaluation of expression
+namespace N344
+{
+	template<bool func(int)>
+	bool f()
+	{
+		return func(0);
+	}
+}
+#endif
+
+
+namespace N368
+{
+	typedef void(*F)();
+	static void f()
+	{
+	}
+	F g()
+	{
+		return false ? 0 : f; // 'f' is not overloaded, its type can be resolved to 'void()'
+	}
+}
+
+namespace N367
+{
+	struct A
+	{
+	};
+
+	int operator+(A, void(*)(int));
+	int operator+(A, void(*)(float));
+
+	void f();
+	void f(int);
+
+	void g()
+	{
+		A a;
+		a + f; // 'f' is overloaded, the correct overload 'f(int)' should be chosen
+		a + &f; // 'f' is overloaded, the correct overload 'f(int)' should be chosen
+	}
+}
+
+namespace N366
+{
+	void f();
+	void f(int);
+
+	int g(void(*)(int));
+
+	int i = g(f); // 'f' is overloaded, the correct overload 'f(int)' should be chosen
+}
+
+namespace N321
+{
+	namespace N
+	{
+		struct A
+		{
+		};
+		int f(A);
+	}
+
+	N::A a;
+	int x = f(a); // lookup of unqualified id 'f' should be deferred until arguments are known, then looked up via ADL
+}
+
+namespace N83
+{
+	class C
+	{
+		void f()
+		{
+			// [special] Programs may explicitly refer to implicitly declared special member functions.
+			operator=(*this); // explicit call of operator not supported
+		}
+	};
+}
+
+namespace N343
+{
+	class C
+	{
+		void f()
+		{
+			// [special] Programs may explicitly refer to implicitly declared special member functions.
+			this->operator=(*this); // explicit call of operator not supported
+		}
+	};
+}
+
+
 namespace N352
 {
-	template<bool b, int x = sizeof(b)>
+	template<bool b, int x = sizeof(b)> // type of 'b' is not dependent and evaluation of 'sizeof(b)' is not deferred
 	struct A
 	{
 		static const int value = x;
@@ -518,30 +613,6 @@ namespace N346
 	}
 }
 
-namespace N83
-{
-	class C
-	{
-		void f()
-		{
-			// [special] Programs may explicitly refer to implicitly declared special member functions.
-			operator=(*this); // explicit call of operator not supported
-		}
-	};
-}
-
-namespace N343
-{
-	class C
-	{
-		void f()
-		{
-			// [special] Programs may explicitly refer to implicitly declared special member functions.
-			this->operator=(*this); // explicit call of operator not supported
-		}
-	};
-}
-
 namespace N345
 {
 	struct A
@@ -574,15 +645,6 @@ namespace N45
 		s()()();
 	}
 
-}
-
-namespace N344
-{
-	template<bool func(int)>
-	bool f()
-	{
-		return func(0);
-	}
 }
 
 namespace N121
@@ -621,23 +683,6 @@ namespace N337
 	B b;
 	int i = (a.*b.m)();
 }
-
-
-#if 1 // TODO: defer lookup of 'f' until arguments are known 
-namespace N321
-{
-	namespace N
-	{
-		struct A
-		{
-		};
-		int f(A);
-	}
-
-	N::A a;
-	int x = f(a);
-}
-#endif
 
 
 namespace N341
