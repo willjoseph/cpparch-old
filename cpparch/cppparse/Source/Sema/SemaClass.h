@@ -205,7 +205,7 @@ struct SemaClassSpecifier : public SemaBase, SemaClassSpecifierResult
 		declaration->type.unique = makeUniqueType(type, getInstantiationContext(), allowDependent).value;
 		enclosingType = &getSimpleType(declaration->type.unique);
 		const_cast<SimpleType*>(enclosingType)->declaration = declaration; // if this is a specialization, use the specialization instead of the primary template
-		instantiateClass(*enclosingType, InstantiationContext(getLocation(), 0, 0), allowDependent); // instantiate non-dependent base classes
+		instantiateClass(*enclosingType, InstantiationContext(getLocation(), 0, 0, 0), allowDependent); // instantiate non-dependent base classes
 
 		addDependent(enclosingDependent, type);
 

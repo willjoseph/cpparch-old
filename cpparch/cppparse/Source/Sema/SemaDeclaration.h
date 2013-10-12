@@ -200,6 +200,14 @@ struct SemaDeclarationSuffix : public SemaBase
 		SEMANTIC_ASSERT(declaration != 0);
 		declaration->isFunctionDefinition = true;
 
+		if(declaration->isTemplate // if this is a function template definition
+			&& !declaration->templateParams.empty()) // and is not an explicit specialization
+		{
+			SimpleType specialization(declaration, enclosingType);
+			makeUniqueTemplateParameters(declaration->templateParams, specialization.templateArguments, getInstantiationContext(), true);
+			enclosingFunction = &getSimpleType(makeUniqueSimpleType(specialization).value);
+		}
+
 		// NOTE: we must ensure that symbol-table modifications within the scope of this function are undone on parse fail
 		pushScope(newScope(enclosing->getUniqueName(), SCOPETYPE_LOCAL));
 	}

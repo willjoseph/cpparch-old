@@ -344,7 +344,7 @@ std::size_t instantiateClass(const SimpleType& instanceConst, const Instantiatio
 			SYMBOLS_ASSERT(declaration != 0);
 			Declaration* specialization = findTemplateSpecialization(
 				findOverloaded(*declaration), instance.deducedArguments, instance.templateArguments,
-				InstantiationContext(context.source, instance.enclosing, context.enclosingScope), false);
+				InstantiationContext(context.source, instance.enclosing, 0, context.enclosingScope), false);
 			if(specialization != 0)
 			{
 				instance.declaration = specialization;
@@ -371,7 +371,7 @@ std::size_t instantiateClass(const SimpleType& instanceConst, const Instantiatio
 		{
 			// TODO: check compliance: the point of instantiation of a base is the point of declaration of the enclosing (template) class
 			// .. along with the point of instantiation of types required when naming the base type. e.g. struct C : A<T>::B {}; struct C : B<A<T>::value> {};
-			InstantiationContext baseContext = InstantiationContext(original.instantiation, &instance, context.enclosingScope);
+			InstantiationContext baseContext = InstantiationContext(original.instantiation, &instance, 0, context.enclosingScope);
 			UniqueTypeId base = getUniqueType(*i, baseContext, allowDependent);
 			SYMBOLS_ASSERT((*i).unique != 0);
 			SYMBOLS_ASSERT((*i).isDependent || base.value == (*i).unique);
@@ -393,7 +393,7 @@ std::size_t instantiateClass(const SimpleType& instanceConst, const Instantiatio
 				InstanceLocations::const_iterator l = original.childLocations.begin();
 				for(InstantiatedTypes::const_iterator i = original.children.begin(); i != original.children.end(); ++i, ++l)
 				{
-					InstantiationContext childContext(*l, &instance, context.enclosingScope);
+					InstantiationContext childContext(*l, &instance, 0, context.enclosingScope);
 					UniqueTypeWrapper substituted = substitute(*i, childContext);
 					SYMBOLS_ASSERT(!isDependent(substituted));
 					instance.children.push_back(substituted);

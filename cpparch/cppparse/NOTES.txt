@@ -1077,6 +1077,10 @@ described for lookup in namespace member function definitions.
 		- yes: template<class T, T x>
 		- when evaluating 'sizeof(x)'
 
+- task: make enclosingFunction available within body of function-template, to enable resolution of Nth template parameter
+	- hack: make SimpleType from function declaration and template params
+	- investigate: requirements for explicit specialization of function template
+
 - issue: when evaluating type of id-expression within a function-call expression, cannot resolve type
 	- need to know arguments (or target function type) before overload resolution can be performed
 	- should type resolve to 'function overload set' ?

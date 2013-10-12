@@ -1,7 +1,6 @@
 
-int i;
 
-#if 0 // temporarily disabled, workaround for failure to resolve type of 'func' during deferred evaluation of expression
+#if 1 // temporarily disabled, workaround for failure to resolve type of 'func' during deferred evaluation of expression
 namespace N344
 {
 	template<bool func(int)>

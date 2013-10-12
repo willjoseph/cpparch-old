@@ -705,16 +705,17 @@ struct InstantiationContext
 {
 	Location source;
 	const SimpleType* enclosingType;
+	const SimpleType* enclosingFunction;
 	ScopePtr enclosingScope;
-	InstantiationContext(Location source, const SimpleType* enclosingType, ScopePtr enclosingScope)
-		: source(source), enclosingType(enclosingType), enclosingScope(enclosingScope)
+	InstantiationContext(Location source, const SimpleType* enclosingType, const SimpleType* enclosingFunction, ScopePtr enclosingScope)
+		: source(source), enclosingType(enclosingType), enclosingFunction(enclosingFunction), enclosingScope(enclosingScope)
 	{
 	}
 };
 
 inline InstantiationContext setEnclosingType(const InstantiationContext& context, const SimpleType* enclosingType)
 {
-	return InstantiationContext(context.source, enclosingType, context.enclosingScope);
+	return InstantiationContext(context.source, enclosingType, context.enclosingFunction, context.enclosingScope);
 }
 
 inline InstantiationContext setEnclosingTypeSafe(const InstantiationContext& context, const SimpleType* enclosingType)
@@ -882,6 +883,11 @@ inline const SimpleType* findEnclosingTemplate(const SimpleType* enclosing, Scop
 		}
 	}
 	return 0;
+}
+
+inline const SimpleType* findEnclosingTemplate(const InstantiationContext& context, Scope* scope)
+{
+	return findEnclosingTemplate(context.enclosingFunction != 0 ? context.enclosingFunction : context.enclosingType, scope);
 }
 
 // [expr] If an expression initially has the type "reference to T", the type is adjusted to "T" prior to any further analysis.

@@ -659,6 +659,7 @@ struct SemaState
 	SemaContext& context;
 	ScopePtr enclosing;
 	const SimpleType* enclosingType;
+	const SimpleType* enclosingFunction;
 	Dependent enclosingDependent;
 	TypePtr qualifying_p;
 	DeclarationPtr qualifyingScope;
@@ -676,6 +677,7 @@ struct SemaState
 		: context(context)
 		, enclosing(0)
 		, enclosingType(0)
+		, enclosingFunction(0)
 		, qualifying_p(0)
 		, qualifyingScope(0)
 		, qualifyingClass(0)
@@ -697,7 +699,7 @@ struct SemaState
 	}
 	InstantiationContext getInstantiationContext() const
 	{
-		return InstantiationContext(getLocation(), enclosingType, enclosing);
+		return InstantiationContext(getLocation(), enclosingType, enclosingFunction, enclosing);
 	}
 
 	UniqueTypeWrapper getTypeInfoType()
@@ -714,7 +716,7 @@ struct SemaState
 			SEMANTIC_ASSERT(declaration != 0);
 			SEMANTIC_ASSERT(isClass(*declaration));
 			Type type(declaration, context);
-			context.typeInfoType = makeUniqueType(type, InstantiationContext(Location(), 0, 0), false);
+			context.typeInfoType = makeUniqueType(type, InstantiationContext(Location(), 0, 0, 0), false);
 			context.typeInfoType.value.setQualifiers(CvQualifiers(true, false));
 		}
 		return context.typeInfoType;

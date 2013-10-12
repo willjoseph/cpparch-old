@@ -1243,7 +1243,7 @@ IcsRank getArithmeticIcsRank(BuiltInType to, BuiltInType from)
 	return ICSRANK_STANDARDCONVERSION;
 }
 
-const InstantiationContext gDefaultInstantiationContext = InstantiationContext(Location(), 0, 0);
+const InstantiationContext gDefaultInstantiationContext = InstantiationContext(Location(), 0, 0, 0);
 
 template<typename To, typename From, typename Matched = void>
 struct TestIcsRank

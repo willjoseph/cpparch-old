@@ -61,14 +61,14 @@ inline UniqueTypeWrapper getNonTypeTemplateParameterType(const NonTypeTemplatePa
 {
 	std::size_t index = node.declaration->templateParameter;
 	SYMBOLS_ASSERT(index != INDEX_INVALID);
-	const SimpleType* enclosingType = findEnclosingTemplate(context.enclosingType, node.declaration->scope);
+	const SimpleType* enclosingType = findEnclosingTemplate(context, node.declaration->scope);
 #if 1 // TEMP HACK
 	if(enclosingType == 0) // special case: evaluating the type of a non-type template parameter e.g. 
 	{
 		SYMBOLS_ASSERT(context.enclosingScope->templateDepth != 0 // template<bool b, int x = sizeof(b)>
 			|| context.enclosingScope->type == SCOPETYPE_NAMESPACE // template<int N> class C<A<N>>
-			|| (getEnclosingFunction(context.enclosingScope) != 0 // within the body of a function template
-				&& node.declaration->scope->templateDepth == getEnclosingFunction(context.enclosingScope)->parent->templateDepth));
+			/*|| (getEnclosingFunction(context.enclosingScope) != 0 // within the body of a function template
+				&& node.declaration->scope->templateDepth == getEnclosingFunction(context.enclosingScope)->parent->templateDepth)*/);
 		return gSignedInt; // give incorrect result for now, but this is only a temporary workaround.
 	}
 #endif
