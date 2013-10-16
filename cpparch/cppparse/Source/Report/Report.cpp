@@ -53,7 +53,7 @@ struct TreePrinter // TODO: better name
 	template<typename T>
 	void visit(T* symbol)
 	{
-		if(typeid(Visitable<T>) != typeid(*symbol)) // if abstract
+		if(typeid(Visitable<T>) != typeid(*makeVisitable(symbol))) // if abstract
 		{
 			symbol->accept(*this);
 		}
@@ -1151,7 +1151,7 @@ struct ParseTreePrinter : SymbolPrinter
 	template<typename T>
 	void visit(T* symbol)
 	{
-		if(typeid(Visitable<T>) != typeid(*symbol) // if abstract
+		if(typeid(Visitable<T>) != typeid(*makeVisitable(symbol)) // if abstract
 			|| typeid(T) == typeid(cpp::declaration_seq)) // or nested sequence
 		{
 			// don't print name

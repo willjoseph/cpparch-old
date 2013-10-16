@@ -267,7 +267,7 @@ struct SemaIdExpression : public SemaQualified
 			expression = declaration->templateParameter == INDEX_INVALID
 				// TODO: check compliance: id-expression cannot be compared for equivalence unless it names a non-type template-parameter
 				? makeExpression(IdExpression(declaration, qualifyingClass, templateArguments), false, isDependent(typeDependent), isDependent(valueDependent))
-				: makeExpression(NonTypeTemplateParameter(declaration), true, isDependent(typeDependent), isDependent(valueDependent));
+				: makeExpression(NonTypeTemplateParameter(declaration, getUniqueType(declaration->type)), true, isDependent(typeDependent), isDependent(valueDependent));
 
 			expression.isNonStaticMemberName = isMember(*declaration) && !isStatic(*declaration);
 			expression.isQualifiedNonStaticMemberName = expression.isNonStaticMemberName && qualifyingType != gUniqueTypeNull;

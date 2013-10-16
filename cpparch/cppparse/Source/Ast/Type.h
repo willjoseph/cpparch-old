@@ -693,10 +693,6 @@ inline const ParameterTypes& getParameterTypes(UniqueType type)
 	return getFunctionType(type).parameterTypes;
 }
 
-extern const TypeElementEmpty gTypeElementOverloaded;
-const UniqueType UNIQUETYPE_OVERLOADED = &gTypeElementOverloaded;
-const UniqueTypeWrapper gUniqueTypeOverloaded = UniqueTypeWrapper(UNIQUETYPE_OVERLOADED);
-
 
 // ----------------------------------------------------------------------------
 
@@ -1010,5 +1006,9 @@ struct ExpressionType<T, true>
 		setExpressionType(symbol, declaration);
 	}
 };
+
+
+
+extern BuiltInTypeId gOverloaded;
 
 #endif

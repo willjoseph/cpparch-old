@@ -56,7 +56,7 @@ inline UniqueTypeWrapper selectOverloadedFunction(UniqueTypeWrapper to, Argument
 	{
 		overloaded = popType(overloaded);
 	}
-	if(overloaded != gUniqueTypeOverloaded)
+	if(overloaded != gOverloaded)
 	{
 		return from.type;
 	}
@@ -88,7 +88,7 @@ inline UniqueTypeWrapper selectOverloadedFunction(UniqueTypeWrapper to, Argument
 			return type;
 		}
 	}
-	return gUniqueTypeOverloaded; // no matching function in overload set
+	return gOverloaded; // no matching function in overload set
 }
 
 template<typename To>

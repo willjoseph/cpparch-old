@@ -128,13 +128,13 @@ BuiltInNonType gOne(IntegralConstant(1));
 
 struct BuiltInDependentNonType : BuiltInType
 {
-	BuiltInDependentNonType(DeclarationPtr declaration)
+	BuiltInDependentNonType(DeclarationPtr declaration, UniqueTypeWrapper type)
 	{
-		value = pushBuiltInType(value, DependentNonType(makeBuiltInExpression(NonTypeTemplateParameter(declaration))));
+		value = pushBuiltInType(value, DependentNonType(makeBuiltInExpression(NonTypeTemplateParameter(declaration, type))));
 	}
 };
 
-BuiltInDependentNonType gDependentNonType(&gNonTypeTemplateParameterDeclaration);
+BuiltInDependentNonType gDependentNonType(&gNonTypeTemplateParameterDeclaration, gSignedInt);
 
 
 

@@ -1,15 +1,69 @@
 
+namespace N370
+{
+	struct Page;
 
-#if 1 // temporarily disabled, workaround for failure to resolve type of 'func' during deferred evaluation of expression
+	inline bool isAllocated(const char* first, const char* last);
+
+	template<bool checked>
+	struct LinearAllocator
+	{
+
+		int position;
+		static void*debugAddress;
+		static char debugValue[4];
+		static int debugAllocationId;
+		void*allocate(int size)
+		{
+			if(position==debugAllocationId)
+			{
+
+			}
+			int available=0;//sizeof(Page)-(position&Page::MASK);
+			if(size>available)
+			{
+				position+=available;
+			}
+			Page*page=0;//getPage(position>>Page::SHIFT);
+			void*p=0;//page->buffer+(position&Page::MASK);
+			if(!(!checked||!isAllocated(reinterpret_cast<char*>(p), reinterpret_cast<char*>(p)+size)))
+			{
+
+			};
+
+			position+=size;
+			return p;
+		}
+	};
+}
+
+namespace N369
+{
+	template<int i>
+	struct A
+	{
+		typedef A<i + 1> First;
+	};
+
+	template<>
+	struct A<1>
+	{
+		typedef int Last;
+	};
+
+	typedef A<0>::First First;
+	typedef First::Last Last;
+}
+
+
 namespace N344
 {
 	template<bool func(int)>
 	bool f()
 	{
-		return func(0);
+		return func(0); // type of 'func' is not dependent and can be resolved during initial parse
 	}
 }
-#endif
 
 
 namespace N368

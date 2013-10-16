@@ -35,6 +35,14 @@ inline bool operator<(const IntegralConstantExpression& left, const IntegralCons
 		: left.value.value < right.value.value;
 }
 
+inline ExpressionWrapper makeConstantExpression(const IntegralConstantExpression& node)
+{
+	ExpressionWrapper result(makeUniqueExpression(node));
+	result.type = node.type;
+	result.value = node.value;
+	return result;
+}
+
 
 struct CastExpression
 {
@@ -136,8 +144,9 @@ inline const IdExpression& getIdExpression(ExpressionNode* node)
 struct NonTypeTemplateParameter
 {
 	DeclarationPtr declaration;
-	NonTypeTemplateParameter(DeclarationPtr declaration)
-		: declaration(declaration)
+	UniqueTypeWrapper type; // template<int x> vs template<bool y>: distinguishes expression 'x' from 'y' (note: type may be dependent)
+	NonTypeTemplateParameter(DeclarationPtr declaration, UniqueTypeWrapper type)
+		: declaration(declaration), type(type)
 	{
 	}
 };
@@ -146,7 +155,9 @@ inline bool operator<(const NonTypeTemplateParameter& left, const NonTypeTemplat
 {
 	return left.declaration->scope->templateDepth != right.declaration->scope->templateDepth
 		? left.declaration->scope->templateDepth < right.declaration->scope->templateDepth
-		: left.declaration->templateParameter < right.declaration->templateParameter;
+		: left.declaration->templateParameter != right.declaration->templateParameter
+		? left.declaration->templateParameter < right.declaration->templateParameter
+		: left.type.value.getPointer() < right.type.value.getPointer(); // ignore cv-qualifiers
 }
 
 inline bool isNonTypeTemplateParameter(ExpressionNode* node)

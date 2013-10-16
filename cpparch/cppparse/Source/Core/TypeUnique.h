@@ -85,7 +85,7 @@ inline void makeUniqueTemplateParameters(const TemplateParameters& templateParam
 		}
 		else
 		{
-			UniqueExpression expression = makeUniqueExpression(NonTypeTemplateParameter(argument.declaration));
+			UniqueExpression expression = makeUniqueExpression(NonTypeTemplateParameter(argument.declaration, getUniqueType(argument.declaration->type)));
 			if(allowDependent)
 			{
 				result = pushType(gUniqueTypeNull, DependentNonType(expression));

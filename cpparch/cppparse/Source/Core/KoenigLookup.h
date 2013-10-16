@@ -189,7 +189,7 @@ inline void addKoenigAssociated(KoenigAssociated& associated, UniqueTypeWrapper 
 {
 	for(; type != gUniqueTypeNull; type.pop_front())
 	{
-		if(type == gUniqueTypeOverloaded)
+		if(type == gOverloaded)
 		{
 			// [basic.lookup.argdep]
 			// TODO In addition, if the argument is the name or address of a set of overloaded functions

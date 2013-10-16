@@ -315,17 +315,64 @@ inline IntegralConstant evaluateExpression(const ExpressionWrapper& expression, 
 
 
 inline UniqueTypeWrapper typeOfExpression(ExpressionNode* node, const InstantiationContext& context);
+inline bool isOverloaded(const DeclarationInstance& declaration);
+
+inline bool isOverloadedFunction(const DeclarationInstance& declaration)
+{
+	return UniqueTypeWrapper(declaration->type.unique).isFunction()
+		&& isOverloaded(declaration);
+}
+
+inline bool isOverloadedFunctionIdExpression(ExpressionNode* node)
+{
+	if(!isIdExpression(node))
+	{
+		return false;
+	}
+
+	const IdExpression& idExpression = getIdExpression(node);
+	if(isOverloadedFunction(idExpression.declaration)) // if this id-expression names an overloaded function
+	{
+		return true;
+	}
+	return false;
+}
+
+inline bool isMemberIdExpression(ExpressionNode* node)
+{
+	if(!isIdExpression(node))
+	{
+		return false;
+	}
+	const IdExpression& idExpression = getIdExpression(node);
+	return isMember(*idExpression.declaration); // this id-expression names a member
+}
+
+inline UniqueTypeWrapper typeOfExpressionSafe(ExpressionNode* node, const InstantiationContext& context)
+{
+	if(isMemberIdExpression(node)) // if attempting to evaluate type of non-static member with no context
+	{
+		// can't evaluate id-expression within member-access-expression
+		return gUniqueTypeNull; // do not evaluate the type!
+	}
+	return typeOfExpression(node, context);
+}
 
 inline UniqueTypeWrapper typeOfExpressionWrapper(const ExpressionWrapper& expression, const InstantiationContext& context)
 {
-#if 1
+#if 0
 	return typeOfExpression(expression.p, context);
 #else
+	UniqueTypeWrapper type = typeOfExpression(expression.p, context);
 	if(expression.isTypeDependent)
 	{
-		return gUniqueTypeNull; // typeOfExpression(expression.p, context)
+		return type;
 	}
-
+	if(isMemberIdExpression(expression.p))
+	{
+		return type;
+	}
+	SYMBOLS_ASSERT(type == expression.type);
 	return expression.type;
 #endif
 }
@@ -392,6 +439,7 @@ inline void addUniqueOverload(OverloadSet& result, const Overload& overload)
 
 inline bool isOverloaded(const DeclarationInstance& declaration)
 {
+	SYMBOLS_ASSERT(UniqueTypeWrapper(declaration->type.unique).isFunction());
 	bool found = false;
 	for(Declaration* p = findOverloaded(declaration); p != 0; p = p->overloaded)
 	{
@@ -417,6 +465,7 @@ inline bool isOverloaded(const DeclarationInstance& declaration)
 
 inline void addOverloaded(OverloadSet& result, const DeclarationInstance& declaration, const SimpleType* memberEnclosing)
 {
+	SYMBOLS_ASSERT(UniqueTypeWrapper(declaration->type.unique).isFunction());
 	for(Declaration* p = findOverloaded(declaration); p != 0; p = p->overloaded)
 	{
 		if(p->specifiers.isFriend)
@@ -430,6 +479,7 @@ inline void addOverloaded(OverloadSet& result, const DeclarationInstance& declar
 
 inline void addOverloaded(OverloadSet& result, const DeclarationInstance& declaration, const KoenigAssociated& associated = KoenigAssociated())
 {
+	SYMBOLS_ASSERT(UniqueTypeWrapper(declaration->type.unique).isFunction());
 	for(Declaration* p = findOverloaded(declaration); p != 0; p = p->overloaded)
 	{
 		const SimpleType* memberEnclosing = 0;
@@ -570,7 +620,7 @@ inline UniqueTypeWrapper typeOfPostfixOperatorExpression(Name operatorName, Argu
 	id.value = operatorName;
 	id.source = context.source;
 
-	ExpressionWrapper zero = ExpressionWrapper(makeUniqueExpression(IntegralConstantExpression(gSignedInt, IntegralConstant(0))), true);
+	ExpressionWrapper zero = makeConstantExpression(IntegralConstantExpression(gSignedInt, IntegralConstant(0)));
 
 	Arguments arguments;
 	arguments.push_back(operand);

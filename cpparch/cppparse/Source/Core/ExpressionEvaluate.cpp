@@ -59,6 +59,12 @@ inline const Type& getTemplateParameter(const TemplateParameters& templateParame
 
 inline UniqueTypeWrapper getNonTypeTemplateParameterType(const NonTypeTemplateParameter& node, const InstantiationContext& context)
 {
+#if 1
+	UniqueTypeWrapper result = substitute(node.type, context); // perform substitution if type is dependent
+	SYMBOLS_ASSERT(!isDependent(result));
+	return result;
+#endif
+
 	std::size_t index = node.declaration->templateParameter;
 	SYMBOLS_ASSERT(index != INDEX_INVALID);
 	const SimpleType* enclosingType = findEnclosingTemplate(context, node.declaration->scope);
@@ -945,29 +951,25 @@ struct TypeOfVisitor : ExpressionNodeVisitor
 	}
 };
 
-
 inline UniqueTypeWrapper typeOfExpression(ExpressionNode* node, const InstantiationContext& context)
 {
+#if 0
 	if(isPointerToMemberExpression(node)
 		|| isDependentPointerToMemberExpression(node))
 	{
 		return gUniqueTypeNull; // TODO
 	}
-	if(isIdExpression(node)) // if attempting to evaluate type of id-expression with no context
+#endif
+	if(isOverloadedFunctionIdExpression(node))
 	{
-		const IdExpression& idExpression = getIdExpression(node);
-		if(UniqueTypeWrapper(idExpression.declaration->type.unique).isFunction() // if this id-expression names a function
-			&& isOverloaded(idExpression.declaration)) // which is overloaded
-		{
-			// can't evaluate id-expression within function-call-expression
-			return gUniqueTypeOverloaded; // do not evaluate the type!
-		}
+		// can't evaluate id-expression within function-call-expression
+		return gOverloaded; // do not evaluate the type!
 	}
 	if(isDependentIdExpression(node) // if attempting to evaluate type of id-expression with no context
 		&& getDependentIdExpression(node).qualifying == gUniqueTypeNull) // if this name is unqualified: e.g. call to named function, find via ADL
 	{
 		// must defer evaluation until function call expression is evaluated
-		return gUniqueTypeOverloaded; // do not evaluate the type!
+		return gOverloaded; // do not evaluate the type!
 	}
 
 	TypeOfVisitor visitor(context);

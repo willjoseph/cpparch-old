@@ -3,7 +3,6 @@
 #include "Ast/AstAllocator.h"
 
 const TypeElementEmpty gTypeElementEmpty;
-const TypeElementEmpty gTypeElementOverloaded;
 UniqueTypes gUniqueTypes;
 UniqueTypes gBuiltInTypes;
 
@@ -51,3 +50,7 @@ Identifier gParamId = makeIdentifier("$param");
 Declaration gParam(AST_ALLOCATOR_NULL, 0, gParamId, TYPE_CLASS, 0);
 Identifier gNonTypeId = makeIdentifier("$non-type");
 Declaration gNonType(AST_ALLOCATOR_NULL, 0, gNonTypeId, TYPE_UNKNOWN, 0);
+
+Identifier gOverloadedId = makeIdentifier("$overloaded");
+BuiltInTypeDeclaration gOverloadedDeclaration(gOverloadedId, TYPE_SPECIAL);
+BuiltInTypeId gOverloaded(&gOverloadedDeclaration, AST_ALLOCATOR_NULL);

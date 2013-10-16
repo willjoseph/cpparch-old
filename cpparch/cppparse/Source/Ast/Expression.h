@@ -140,5 +140,4 @@ struct ExpressionWrapper : ExpressionPtr
 	}
 };
 
-
 #endif

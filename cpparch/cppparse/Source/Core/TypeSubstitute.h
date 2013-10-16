@@ -220,5 +220,11 @@ inline UniqueTypeWrapper getUniqueType(const Type& type, const InstantiationCont
 	return getUniqueTypeImpl(type, context, allowDependent);
 }
 
+inline UniqueTypeWrapper getUniqueType(const Type& type)
+{
+	SYMBOLS_ASSERT(type.unique != 0);
+	return UniqueTypeWrapper(type.unique);
+}
+
 
 #endif

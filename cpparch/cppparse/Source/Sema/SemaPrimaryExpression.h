@@ -23,12 +23,12 @@ struct SemaLiteral : public SemaBase
 		{
 			symbol->id = isFloatingLiteral(symbol->value.value.c_str()) ? cpp::numeric_literal::FLOATING : cpp::numeric_literal::INTEGER;
 		}
-		expression = ExpressionWrapper(makeUniqueExpression(parseNumericLiteral(symbol)));
+		expression = makeConstantExpression(parseNumericLiteral(symbol));
 	}
 	SEMA_POLICY(cpp::string_literal, SemaPolicyIdentity)
 	void action(cpp::string_literal* symbol)
 	{
-		expression = ExpressionWrapper(makeUniqueExpression(IntegralConstantExpression(getStringLiteralType(symbol), IntegralConstant())));
+		expression = makeConstantExpression(IntegralConstantExpression(getStringLiteralType(symbol), IntegralConstant()));
 	}
 };
 
@@ -104,6 +104,16 @@ struct SemaPrimaryExpression : public SemaBase
 				// parameters of integral or enumeration types
 				expression.isConstant |= (isIntegralConstant(type) && declaration->initializer.isConstant); // TODO: determining whether the expression is constant depends on the type of the expression!
 			}
+			else if(isOverloadedFunction(declaration))
+			{
+				type = gOverloaded;
+			}
+
+			if(isMemberIdExpression(expression.p))
+			{
+				expression.type = typeOfExpression(expression.p, getInstantiationContext());
+			}
+			SEMANTIC_ASSERT(expression.type == type);
 		}
 		return true;
 	}
@@ -127,6 +137,10 @@ struct SemaPrimaryExpression : public SemaBase
 		*/
 		addDependent(typeDependent, enclosingDependent);
 		expression = makeExpression(ExplicitTypeExpression(type), false, isDependent(typeDependent));
+		if(!expression.isTypeDependent)
+		{
+			SYMBOLS_ASSERT(expression.type == type);
+		}
 		setExpressionType(symbol, type);
 	}
 };

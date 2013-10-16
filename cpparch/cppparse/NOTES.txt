@@ -1068,6 +1068,25 @@ described for lookup in namespace member function definitions.
 		- need to preserve tree if only value-dependent or only type-dependent?
 		- e.g. sizeof(T) is only value-dependent
 		- is only value-dependent even possible?
+	- for now, store evaluated type/value in ExpressionWrapper
+
+- issue: uniqued expressions required?
+	- used to identify redeclarations of same function 
+		Two expressions involving template parameters are considered equivalent if two function definitions containing
+		the expressions would satisfy the one definition rule (3.2),
+		- e.g. both expressions must contain the same stream of tokens, names must be resolved to same entities via name lookup
+			- except template params may be differently named
+		- however, if both expressions would evaluate to same value but differ by ODR, program is ill formed
+		- in this case it should be ok to make unique expressions preserving type of template parameter
+	- used in non-type template arguments to distinguish between template specializations?
+		- A<bool(0)> names same specialization as A<short(0)>
+		- A<x> may be same as A<y> but cannot be determined until instantiation
+			- will disregard type when evaluating dependent expression as template-argument
+		- so never actually comparing uniqued expressions
+	- alternative way to compare expressions in template function signature?
+		- compare actual token stream?
+		- hash tokens? risks collisions
+		- compare AST? requires AST walk
 
 - issue: when evaluating type of [non-dependent expression involving a] non-type template parameter, we only have the template-parameter index
 	- must look up the template parameter in the enclosingType, just to get the type (not to perform substitution)
