@@ -48,46 +48,11 @@ inline IntegralConstant evaluateIdExpression(const DependentIdExpression& node, 
 	return evaluateIdExpression(expression, context);
 }
 
-inline const Type& getTemplateParameter(const TemplateParameters& templateParameters, std::size_t index)
-{
-	SYMBOLS_ASSERT(index < std::size_t(std::distance(templateParameters.begin(), templateParameters.end())));
-	TemplateParameters::const_iterator i = templateParameters.begin();
-	std::advance(i, index);
-	return *i;
-}
-
-
 inline UniqueTypeWrapper getNonTypeTemplateParameterType(const NonTypeTemplateParameter& node, const InstantiationContext& context)
 {
-#if 1
 	UniqueTypeWrapper result = substitute(node.type, context); // perform substitution if type is dependent
 	SYMBOLS_ASSERT(!isDependent(result));
 	return result;
-#endif
-
-	std::size_t index = node.declaration->templateParameter;
-	SYMBOLS_ASSERT(index != INDEX_INVALID);
-	const SimpleType* enclosingType = findEnclosingTemplate(context, node.declaration->scope);
-#if 1 // TEMP HACK
-	if(enclosingType == 0) // special case: evaluating the type of a non-type template parameter e.g. 
-	{
-		SYMBOLS_ASSERT(context.enclosingScope->templateDepth != 0 // template<bool b, int x = sizeof(b)>
-			|| context.enclosingScope->type == SCOPETYPE_NAMESPACE // template<int N> class C<A<N>>
-			/*|| (getEnclosingFunction(context.enclosingScope) != 0 // within the body of a function template
-				&& node.declaration->scope->templateDepth == getEnclosingFunction(context.enclosingScope)->parent->templateDepth)*/);
-		return gSignedInt; // give incorrect result for now, but this is only a temporary workaround.
-	}
-#endif
-	SYMBOLS_ASSERT(enclosingType != 0);
-#if 0 // the enclosing type may be an enclosing template definition, in which the type of a non-type template parameter is not dependent
-	SYMBOLS_ASSERT(!isDependent(*enclosingType)); // assert that the enclosing type is not dependent
-#endif
-	SYMBOLS_ASSERT(!enclosingType->declaration->isSpecialization || enclosingType->instantiated); // a specialization must be instantiated (or in the process of instantiating)
-	const TemplateParameters& templateParams = enclosingType->declaration->templateParams;
-	const Type& parameter = getTemplateParameter(templateParams, index);
-	UniqueTypeWrapper type = getUniqueType(parameter.declaration->type, context); // perform substitution if type is dependent
-	SYMBOLS_ASSERT(!isDependent(type));
-	return type;
 }
 
 inline const NonType& substituteNonTypeTemplateParameter(const NonTypeTemplateParameter& node, const InstantiationContext& context)
