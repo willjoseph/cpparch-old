@@ -338,7 +338,8 @@ struct SemaPostfixExpression : public SemaBase
 						bool isCallToNamedMemberFunction = isClassMemberAccessExpression(expression);
 						const IdExpression& idExpression = getIdExpression(
 							isCallToNamedMemberFunction ? getClassMemberAccessExpression(expression).right : expression);
-						SEMANTIC_ASSERT(idExpression.declaration.p == &getDeclaration(*id));
+						SEMANTIC_ASSERT(id == &gAnonymousId // e.g. ~decltype(x)
+							|| idExpression.declaration.p == &getDeclaration(*id));
 						SEMANTIC_ASSERT(idExpression.templateArguments == templateArguments);
 
 						if(type.isFunction())

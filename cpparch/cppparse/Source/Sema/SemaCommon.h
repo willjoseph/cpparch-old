@@ -1997,6 +1997,15 @@ struct SemaTypeSpecifierResult
 	}
 };
 
+struct SemaDecltypeSpecifierResult
+{
+	Type type;
+	SemaDecltypeSpecifierResult(const AstAllocator<int>& allocator)
+		: type(0, allocator)
+	{
+	}
+};
+
 struct SemaTypenameSpecifierResult
 {
 	Type type;

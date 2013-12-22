@@ -918,6 +918,10 @@ Token* Lexer::read(Token* first, Token* last)
 					{
 						id = boost::wave::T_STATIC_ASSERT;
 					}
+					else if(string_equal(name, "decltype")) // temporary hack, avoids regenerating lexer
+					{
+						id = boost::wave::T_DECLTYPE;
+					}
 				}
 
 				*first++ = Token(id, TokenValue(name), position, Source(context.get_hooks().getSourcePath(), position.line, position.column), context.get_hooks().events);

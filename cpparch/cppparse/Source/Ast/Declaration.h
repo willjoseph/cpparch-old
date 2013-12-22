@@ -141,6 +141,7 @@ struct Type
 	DeclarationPtr declaration;
 	TemplateArguments templateArguments; // may be non-empty if this is a template
 	Qualifying qualifying;
+	ExpressionWrapper expression; // for decltype(expression)
 	DeclarationPtr dependent;
 	ScopePtr enclosingTemplate;
 	UniqueType unique;
@@ -157,6 +158,7 @@ struct Type
 		std::swap(declaration, other.declaration);
 		templateArguments.swap(other.templateArguments);
 		qualifying.swap(other.qualifying);
+		std::swap(expression, other.expression);
 		std::swap(dependent, other.dependent);
 		std::swap(enclosingTemplate, other.enclosingTemplate);
 		std::swap(unique, other.unique);

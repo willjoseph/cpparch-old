@@ -1,20 +1,100 @@
 
+namespace N374
+{
+	struct A
+	{
+	};
+
+	struct B : A
+	{
+		int A; // hides base 'A'
+		B() : A(0) // initialises member, not base
+		{
+		}
+	};
+}
+
+namespace N260
+{
+	template <typename T>
+	struct A
+	{
+	};
+
+
+	template <typename T>
+	struct B
+		: A<T>::template Dependent<T>
+	{
+		B() : A<T>::template Dependent<T>()
+		{
+		}
+	};
+}
+
+namespace N373
+{
+	struct A
+	{
+		void f()
+		{
+			A::~A(); // qualified-id syntax for calling destructor
+		}
+	};
+}
+
+
+#ifdef _CPPP_TEST
+namespace N372
+{
+	// using decltype-specifier in simple-type-specifier
+	decltype(0) a;
+
+	struct A
+	{
+		void f()
+		{
+			// using decltype-specifier in nested-name-specifier and unqualified-id
+			decltype(A())::~decltype(A())();
+		}
+	};
+
+	void f()
+	{
+		// using decltype-specifier in psuedo-destructor-name
+		(0).~decltype(0)();
+		// using decltype-specifier in simple-type-specifier
+		decltype(A()) a;
+		// using decltype-specifier in psuedo-destructor-name
+		a.~decltype(A())();
+	};
+
+	struct B : decltype(A()) // using decltype-specifier in base-specifier
+	{
+		B() : decltype(A())(A()) // using decltype-specifier in mem-initializer
+		{
+		}
+	};
+}
+#endif
+
+
 #ifdef _CPPP_TEST
 namespace N371
 {
 	static_assert(true, "");
-	static_assert(false, "namespace");
+	static_assert(false, "?false");
 
 	class A
 	{
 		static_assert(true, "");
-		static_assert(false, "member");
+		static_assert(false, "?false");
 	};
 
 	void f()
 	{
 		static_assert(true, "");
-		static_assert(false, "function");
+		static_assert(false, "?false");
 	}
 }
 #endif
@@ -81,6 +161,7 @@ namespace N344
 	template<bool func(int)>
 	bool f()
 	{
+		//static_assert(sizeof(func(0)) == 1, "?evaluated");
 		return func(0); // type of 'func' is not dependent and can be resolved during initial parse
 	}
 }
@@ -2048,14 +2129,6 @@ namespace N262
 	}
 }
 
-namespace N260
-{
-	template <typename T>
-	struct Tmpl3
-		: Tmpl3< T >::template Dependent<T>
-	{
-	};
-}
 namespace N256
 {
 	template<typename X>

@@ -747,9 +747,11 @@ inline const SimpleType& getMemberOperatorType(Argument operand, bool isArrow, c
 	// the left-hand side is (pointer-to) operand
 	SYMBOLS_ASSERT(type.isSimple());
 	const SimpleType& result = getSimpleType(type.value);
-	SYMBOLS_ASSERT(isClass(*result.declaration)); // assert that this is a class type
-	// [expr.ref] [the type of the operand-expression shall be complete]
-	instantiateClass(result, context);
+	if(isClass(*result.declaration)) // if this is a class type. Note: special case where it might not be a class: (0).~decltype(0)();
+	{
+		// [expr.ref] [the type of the operand-expression shall be complete]
+		instantiateClass(result, context);
+	}
 	return result;
 }
 

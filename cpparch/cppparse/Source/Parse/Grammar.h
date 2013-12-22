@@ -579,12 +579,13 @@ namespace cpp
 	struct unqualified_id : choice<unqualified_id>
 	{
 		typedef TYPELIST1(id_expression) Bases;
-		VISITABLE_BASE(TYPELIST5(
+		VISITABLE_BASE(TYPELIST6(
 			SYMBOLFWD(template_id),
 			SYMBOLFWD(identifier),
 			SYMBOLFWD(operator_function_id),
 			SYMBOLFWD(conversion_function_id),
-			SYMBOLFWD(destructor_id)
+			SYMBOLFWD(destructor_id),
+			SYMBOLFWD(destructor_id_decltype) // C++11
 		));
 	};
 
@@ -617,9 +618,10 @@ namespace cpp
 
 	struct nested_name : choice<nested_name>
 	{
-		VISITABLE_BASE(TYPELIST2(
+		VISITABLE_BASE(TYPELIST3(
 			SYMBOLFWD(type_name),
-			SYMBOLFWD(namespace_name)
+			SYMBOLFWD(namespace_name),
+			SYMBOLFWD(decltype_specifier) // C++11
 		));
 	};
 
@@ -650,9 +652,10 @@ namespace cpp
 
 	struct mem_initializer_id : choice<mem_initializer_id>
 	{
-		VISITABLE_BASE(TYPELIST2(
-			SYMBOLFWD(mem_initializer_id_base),
-			SYMBOLFWD(identifier)
+		VISITABLE_BASE(TYPELIST3(
+			SYMBOLFWD(qualified_class_name),
+			SYMBOLFWD(identifier),
+			SYMBOLFWD(decltype_specifier) // C++11
 		));
 	};
 
@@ -805,10 +808,11 @@ namespace cpp
 	struct simple_type_specifier : choice<simple_type_specifier>
 	{
 		typedef TYPELIST2(postfix_expression_type_specifier, type_specifier_noncv) Bases;
-		VISITABLE_BASE(TYPELIST3(
+		VISITABLE_BASE(TYPELIST4(
 			SYMBOLFWD(simple_type_specifier_builtin),
 			SYMBOLFWD(simple_type_specifier_template),
-			SYMBOLFWD(simple_type_specifier_name)
+			SYMBOLFWD(simple_type_specifier_name),
+			SYMBOLFWD(decltype_specifier) // C++11
 		));
 	};
 
@@ -971,14 +975,29 @@ namespace cpp
 		FOREACH2(isVirtual, access);
 	};
 
+	struct base_type_specifier : choice<base_type_specifier>
+	{
+		VISITABLE_BASE(TYPELIST2(
+			SYMBOLFWD(qualified_class_name),
+			SYMBOLFWD(decltype_specifier) // C++11
+		));
+	};
+
+	struct qualified_class_name
+	{
+		typedef TYPELIST2(base_type_specifier, mem_initializer_id) Bases;
+		terminal_optional<boost::wave::T_COLON_COLON> isGlobal;
+		symbol_optional<nested_name_specifier> context;
+		terminal_optional<boost::wave::T_TEMPLATE> isTemplate;
+		symbol_required<class_name> id;
+		FOREACH4(isGlobal, context, isTemplate, id);
+	};
+
 	struct base_specifier
 	{
 		symbol_optional<base_specifier_prefix> prefix;
-		terminal_optional<boost::wave::T_COLON_COLON> isGlobal;
-		symbol_optional<nested_name_specifier> context;
-		terminal_optional<boost::wave::T_TEMPLATE> isTemplate; // TODO: disallow 'template' followed by non-template-id
-		symbol_required<class_name> id;
-		FOREACH5(prefix, isGlobal, context, isTemplate, id);
+		symbol_required<base_type_specifier> name;
+		FOREACH2(prefix, name);
 
 		type_decoration type;
 		Source source;
@@ -1313,15 +1332,38 @@ namespace cpp
 		FOREACH3(op, isTemplate, id);
 	};
 
-	struct postfix_expression_destructor
+	struct psuedo_destructor_name : choice<psuedo_destructor_name>
 	{
-		typedef TYPELIST1(postfix_expression_suffix) Bases;
-		symbol_required<member_operator> op;
+		VISITABLE_BASE(TYPELIST2(
+			SYMBOLFWD(psuedo_destructor_name_default),
+			SYMBOLFWD(destructor_id_decltype) // C++11
+		));
+	};
+
+	struct destructor_id_decltype
+	{
+		typedef TYPELIST2(unqualified_id, psuedo_destructor_name) Bases;
+		terminal<boost::wave::T_COMPL> compl_;
+		symbol_required<decltype_specifier> type;
+		FOREACH2(compl_, type);
+	};
+
+	struct psuedo_destructor_name_default
+	{
+		typedef TYPELIST1(psuedo_destructor_name) Bases;
 		terminal_optional<boost::wave::T_COLON_COLON> isGlobal;
 		symbol_optional<nested_name_specifier> context;
 		terminal<boost::wave::T_COMPL> compl_;
 		symbol_required<type_name> type;
-		FOREACH5(op, isGlobal, context, compl_, type);
+		FOREACH4(isGlobal, context, compl_, type);
+	};
+
+	struct postfix_expression_destructor
+	{
+		typedef TYPELIST1(postfix_expression_suffix) Bases;
+		symbol_required<member_operator> op;
+		symbol_required<psuedo_destructor_name> name;
+		FOREACH2(op, name);
 	};
 
 	struct postfix_operator : terminal_choice
@@ -2033,15 +2075,6 @@ namespace cpp
 		));
 	};
 
-	struct mem_initializer_id_base
-	{
-		typedef TYPELIST1(mem_initializer_id) Bases;
-		terminal_optional<boost::wave::T_COLON_COLON> isGlobal;
-		symbol_optional<nested_name_specifier> context;
-		symbol_required<class_name> type;
-		FOREACH3(isGlobal, context, type);
-	};
-
 	struct mem_initializer
 	{
 		symbol_required<mem_initializer_id> id;
@@ -2538,6 +2571,16 @@ namespace cpp
 		enum { CHAR, WCHAR_T, BOOL, SHORT, INT, LONG, SIGNED, UNSIGNED, FLOAT, DOUBLE, VOID, AUTO, INT64 } id;
 		terminal_choice2 value;
 		FOREACH1(value);
+	};
+
+	struct decltype_specifier
+	{
+		typedef TYPELIST4(simple_type_specifier, nested_name, mem_initializer_id, base_type_specifier) Bases;
+		terminal<boost::wave::T_DECLTYPE> key;
+		terminal<boost::wave::T_LEFTPAREN> lp;
+		symbol_required<expression> expr;
+		terminal<boost::wave::T_RIGHTPAREN> rp;
+		FOREACH4(key, lp, expr, rp);
 	};
 
 	struct declaration_statement : choice<declaration_statement>

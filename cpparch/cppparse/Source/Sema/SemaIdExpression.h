@@ -94,10 +94,24 @@ struct SemaUnqualifiedId : public SemaBase
 	{
 		// TODO: can destructor-id be dependent?
 		id = &symbol->name->value;
-		if(objectExpression.p == 0)
+		if(objectExpression.p == 0
+			&& qualifying_p == TypePtr(0))
 		{
-			// destructor id can only appear in class member access expression
-			return reportIdentifierMismatch(symbol, *id, declaration, "class member access expression");
+			// destructor id can only appear in qualified-id or class member access expression
+			return reportIdentifierMismatch(symbol, *id, declaration, "qualified-id or class member access");
+		}
+		declaration = gDestructorInstance;
+		return true;
+	}
+	SEMA_POLICY(cpp::destructor_id_decltype, SemaPolicyIdentityChecked)
+	bool action(cpp::destructor_id_decltype* symbol)
+	{
+		id = &gAnonymousId;
+		if(objectExpression.p == 0
+			&& qualifying_p == TypePtr(0))
+		{
+			// destructor id can only appear in qualified-id or class member access expression
+			return reportIdentifierMismatch(symbol, *id, declaration, "qualified-id or class member access");
 		}
 		declaration = gDestructorInstance;
 		return true;
@@ -255,8 +269,10 @@ struct SemaIdExpression : public SemaQualified
 			// - a constant with integral or enumeration type and is initialized with an expression that is value-dependent.
 			addDependentName(valueDependent, declaration); // adds 'declaration' if it names a non-type template-parameter; adds a dependent initializer
 
-
-			setDecoration(id, declaration);
+			if(id != &gAnonymousId) // e.g. ~decltype(x)
+			{
+				setDecoration(id, declaration);
+			}
 
 			SEMANTIC_ASSERT(!isDependent(qualifying.get_ref()));
 

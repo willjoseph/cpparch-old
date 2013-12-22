@@ -123,6 +123,11 @@ inline void makeUniqueTemplateArguments(const TemplateArguments& arguments, Temp
 //			Note: if 'type' is a class-template template default argument, 'enclosingType' will be the class-template, which does not require instantiation!
 inline UniqueTypeWrapper makeUniqueType(const Type& type, const InstantiationContext& context, bool allowDependent)
 {
+	if(type.expression) // decltype(expression)
+	{
+		SYMBOLS_ASSERT(!type.expression.isTypeDependent); // TODO
+		return typeOfExpression(type.expression, context);
+	}
 	// the type in which template-arguments are looked up: returns qualifying type if specified, else returns enclosingType
 	UniqueTypeWrapper qualifying;
 	const SimpleType* enclosing = makeUniqueEnclosing(type.qualifying, context, allowDependent, qualifying);

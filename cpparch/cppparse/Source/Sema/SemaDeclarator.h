@@ -45,6 +45,13 @@ struct SemaUnqualifiedDeclaratorId : public SemaBase
 	{
 		id = &symbol->name->value;
 	}
+	SEMA_POLICY(cpp::destructor_id_decltype, SemaPolicyIdentity)
+	void action(cpp::destructor_id_decltype* symbol) 
+	{
+		// [class.dtor] A special declarator syntax using an optional function-specifier (7.1.2) followed by ˜ followed by the destructor’s
+		// class name followed by an empty parameter list is used to declare the destructor in a class definition.
+		SEMANTIC_ASSERT(false); // decltype not allowed!
+	}
 };
 
 struct SemaQualifiedDeclaratorId : public SemaQualified

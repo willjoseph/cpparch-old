@@ -114,6 +114,11 @@ struct SemaNestedNameSpecifierPrefix : public SemaBase
 		type = walker.type;
 		return true;
 	}
+	SEMA_POLICY(cpp::decltype_specifier, SemaPolicyPush<struct SemaDecltypeSpecifier>)
+	void action(cpp::decltype_specifier* symbol, const SemaDecltypeSpecifierResult& walker)
+	{
+		type = walker.type;
+	}
 };
 
 struct SemaNestedNameSpecifier : public SemaQualified

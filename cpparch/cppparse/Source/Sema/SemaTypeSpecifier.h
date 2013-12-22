@@ -80,6 +80,28 @@ struct SemaTypeSpecifier : public SemaQualified, SemaTypeSpecifierResult
 	{
 		fundamental = combineFundamental(0, symbol->id);
 	}
+	SEMA_POLICY(cpp::decltype_specifier, SemaPolicyPush<struct SemaDecltypeSpecifier>)
+	void action(cpp::decltype_specifier* symbol, const SemaDecltypeSpecifierResult& walker)
+	{
+		type = walker.type;
+	}
+};
+
+struct SemaDecltypeSpecifier : public SemaBase, SemaDecltypeSpecifierResult
+{
+	SEMA_BOILERPLATE;
+
+	SemaDecltypeSpecifier(const SemaState& state)
+		: SemaBase(state), SemaDecltypeSpecifierResult(context)
+	{
+	}
+	SEMA_POLICY(cpp::expression, SemaPolicyPush<struct SemaExpression>)
+		void action(cpp::expression* symbol, const SemaExpressionResult& walker)
+	{
+		type.declaration = &gUnknown;
+		type.expression = walker.expression;
+		type.dependent = walker.typeDependent;
+	}
 };
 
 

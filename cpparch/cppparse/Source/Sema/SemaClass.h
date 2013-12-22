@@ -21,6 +21,10 @@ struct SemaBaseSpecifier : public SemaQualified
 	{
 		swapQualifying(walker.qualifying);
 	}
+	void action(cpp::terminal<boost::wave::T_TEMPLATE> symbol)
+	{
+		// the template keyword is redundant, and was removed in C++11. It remains for backwards compatibility
+	}
 	SEMA_POLICY_ARGS(cpp::class_name, SemaPolicyPushBool<struct SemaTypeName>, true)
 	void action(cpp::class_name* symbol, const SemaTypeName& walker)
 	{
@@ -32,6 +36,12 @@ struct SemaBaseSpecifier : public SemaQualified
 		type = walker.type;
 		type.qualifying.swap(qualifying);
 		setDependent(type.dependent, type.qualifying);
+		makeUniqueTypeSafe(type);
+	}
+	SEMA_POLICY(cpp::decltype_specifier, SemaPolicyPush<struct SemaDecltypeSpecifier>)
+	void action(cpp::decltype_specifier* symbol, const SemaDecltypeSpecifierResult& walker)
+	{
+		type = walker.type;
 		makeUniqueTypeSafe(type);
 	}
 };
@@ -233,13 +243,22 @@ struct SemaClassSpecifier : public SemaBase, SemaClassSpecifierResult
 	}
 };
 
-
-struct SemaQualifiedTypeName : public SemaQualified
+// [class.base.init]
+// In a mem-initializer-id an initial unqualified identifier is looked up in the scope of the constructor’s class
+// and, if not found in that scope, it is looked up in the scope containing the constructor’s definition. [ Note:
+// If the constructor’s class contains a member with the same name as a direct or virtual base class of the
+// class, a mem-initializer-id naming the member or base class and composed of a single identifier refers to
+// the class member. A mem-initializer-id for the hidden base class may be specified using a qualified name.
+// —end note ] Unless the mem-initializer-id names the constructor’s class, a non-static data member of the
+// constructor’s class, or a direct or virtual base of that class, the mem-initializer is ill-formed.
+struct SemaMemInitializerId : public SemaQualified
 {
 	SEMA_BOILERPLATE;
 
-	SemaQualifiedTypeName(const SemaState& state)
-		: SemaQualified(state)
+	bool isTypename;
+
+	SemaMemInitializerId(const SemaState& state)
+		: SemaQualified(state), isTypename(false)
 	{
 	}
 	void action(cpp::terminal<boost::wave::T_COLON_COLON> symbol)
@@ -250,8 +269,13 @@ struct SemaQualifiedTypeName : public SemaQualified
 	void action(cpp::nested_name_specifier* symbol, const SemaQualifyingResult& walker)
 	{
 		swapQualifying(walker.qualifying);
+		isTypename = true; // name is qualified, therefore the following class-name names a type.
 	}
-	SEMA_POLICY(cpp::class_name, SemaPolicyPushChecked<struct SemaTypeName>)
+	void action(cpp::terminal<boost::wave::T_TEMPLATE> symbol)
+	{
+		SEMANTIC_ASSERT(isTypename); // the template keyword is redundant, and was removed in C++11. It remains for backwards compatibility
+	}
+	SEMA_POLICY_ARGS(cpp::class_name, SemaPolicyPushCheckedBool<struct SemaTypeName>, isTypename)
 	bool action(cpp::class_name* symbol, const SemaTypeName& walker)
 	{
 		if(walker.filter.nonType != 0)
@@ -270,12 +294,13 @@ struct SemaMemInitializer : public SemaBase
 		: SemaBase(state)
 	{
 	}
-	SEMA_POLICY(cpp::mem_initializer_id_base, SemaPolicyPush<struct SemaQualifiedTypeName>)
-	void action(cpp::mem_initializer_id_base* symbol, const SemaQualifiedTypeName& walker)
+	SEMA_POLICY(cpp::qualified_class_name, SemaPolicyPush<struct SemaMemInitializerId>)
+	void action(cpp::qualified_class_name* symbol, const SemaMemInitializerId& walker)
 	{
+		// base class initializer
 	}
 	SEMA_POLICY(cpp::identifier, SemaPolicyIdentityChecked)
-	bool action(cpp::identifier* symbol)
+	bool action(cpp::identifier* symbol) // member initializer
 	{
 		SEMANTIC_ASSERT(getQualifyingScope() == 0);
 		LookupResultRef declaration = findDeclaration(symbol->value);
@@ -289,6 +314,10 @@ struct SemaMemInitializer : public SemaBase
 	}
 	SEMA_POLICY(cpp::expression_list, SemaPolicyPush<struct SemaExpression>)
 	void action(cpp::expression_list* symbol, const SemaExpressionResult& walker)
+	{
+	}
+	SEMA_POLICY(cpp::decltype_specifier, SemaPolicyPush<struct SemaDecltypeSpecifier>)
+	void action(cpp::decltype_specifier* symbol, const SemaDecltypeSpecifierResult& walker)
 	{
 	}
 };
