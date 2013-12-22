@@ -1,4 +1,17 @@
 
+
+#if 0 // TODO: offsetof as constant expression: &(((A*)0)->m)
+namespace N375
+{
+	struct A
+	{
+		int m;
+	};
+
+	typedef char __C_ASSERT__[((((long)(long*)&(((A*)0)->m))&(64-1))==0)?1: -1];
+}
+#endif
+
 namespace N374
 {
 	struct A

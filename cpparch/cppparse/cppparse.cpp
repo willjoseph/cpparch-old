@@ -204,7 +204,11 @@ void parseResponseFile(const char* input)
 			char line[1024];
 			while(in.getline(line, ARRAY_COUNT(line)), in.good())
 			{
-				if(compiler.empty())
+				if(*line == '#')
+				{
+					// skip comment
+				}
+				else if(compiler.empty())
 				{
 					compiler = line;
 				}

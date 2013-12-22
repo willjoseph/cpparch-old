@@ -311,6 +311,18 @@ enum token_id {
 	T_IS_LITERAL_TYPE = TOKEN_FROM_ID(443, KeywordTokenType),
 	T_UNDERLYING_TYPE = TOKEN_FROM_ID(444, KeywordTokenType),
 
+	// C++11
+	T_ALIGNAS = TOKEN_FROM_ID(445, KeywordTokenType),
+	T_ALIGNOF = TOKEN_FROM_ID(446, KeywordTokenType),
+	T_CHAR16_T = TOKEN_FROM_ID(447, KeywordTokenType),
+	T_CHAR32_T = TOKEN_FROM_ID(448, KeywordTokenType),
+	T_CONSTEPXR = TOKEN_FROM_ID(449, KeywordTokenType),
+	T_DECLTYPE = TOKEN_FROM_ID(450, KeywordTokenType),
+	T_NOEXCEPT = TOKEN_FROM_ID(451, KeywordTokenType),
+	T_NULLPTR = TOKEN_FROM_ID(452, KeywordTokenType),
+	T_STATIC_ASSERT = TOKEN_FROM_ID(453, KeywordTokenType),
+	T_THREAD_LOCAL = TOKEN_FROM_ID(454, KeywordTokenType),
+
     T_LAST_TOKEN_ID,
     T_LAST_TOKEN = ID_FROM_TOKEN(T_LAST_TOKEN_ID),
 

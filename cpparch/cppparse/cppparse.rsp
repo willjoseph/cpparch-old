@@ -10,6 +10,18 @@ C:\Program Files\Microsoft Visual Studio 8\VC\BIN\cl.exe
 /D _SCL_SECURE_NO_WARNINGS
 /D _UNICODE
 /D UNICODE
+.\test\test_prepro.cpp
+.\test\test_quick.cpp
+.\test\test_lexer_prepro.cpp
+.\test\test_semantic_prepro.cpp
+.\test\test_incomplete.cpp
+.\test\test_redeclared.cpp
+.\test\test_includepath.cpp
+.\test\test_include.cpp
+.\test\test_typelist.cpp
+.\test\test_iostream.cpp
+.\test\test_vector.cpp
+.\test\test_map.cpp
 .\Source\Ast\AstAllocator.cpp
 .\Source\Ast\Declaration.cpp
 .\Source\Ast\Expression.cpp

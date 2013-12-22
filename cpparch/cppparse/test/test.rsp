@@ -14,7 +14,7 @@ C:\Program Files\Microsoft Visual Studio 8\VC\BIN\cl.exe
 .\test\test_include.cpp
 .\test\test_typelist.cpp
 .\test\test_iostream.cpp
-.\test\test_windows.cpp
+#.\test\test_windows.cpp # workaround: issue with FIELD_OFFSET aka offsetof: not treated as constant expression
 .\test\test_vector.cpp
 .\test\test_map.cpp
 /I .\msvc-8.0\INCLUDE

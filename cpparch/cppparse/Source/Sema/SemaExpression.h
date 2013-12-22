@@ -4,6 +4,7 @@
 
 #include "SemaCommon.h"
 #include "SemaPostfixExpression.h"
+#include "Common/Util.h"
 
 struct SemaExplicitTypeExpression : public SemaBase, SemaExplicitTypeExpressionResult
 {
