@@ -95,6 +95,21 @@ typedef boost::wave::cpplexer::lex_iterator<token_type> lex_iterator_type;
 
 typedef std::basic_string<char, std::char_traits<char>, DebugAllocator<char> > LexString;
 
+struct StringEqualPredicate
+{
+	const char* s;
+	StringEqualPredicate(const char* s)
+		: s(s)
+	{
+	}
+	bool operator()(const char* other) const
+	{
+		return string_equal(s, other);
+	}
+};
+
+typedef const char* LexTokenValue;
+
 LexTokenId LEXER_INTRINSIC_IDS[] = {
 	boost::wave::T_HAS_NOTHROW_CONSTRUCTOR,
 	boost::wave::T_HAS_NOTHROW_COPY,
@@ -121,9 +136,6 @@ LexTokenId LEXER_INTRINSIC_IDS[] = {
 	boost::wave::T_UNDERLYING_TYPE,
 };
 
-
-typedef const char* LexTokenValue;
-
 LexTokenValue LEXER_INTRINSIC_VALUES[] = {
 	"__has_nothrow_constructor",
 	"__has_nothrow_copy",
@@ -148,19 +160,6 @@ LexTokenValue LEXER_INTRINSIC_VALUES[] = {
 	"__is_standard_layout",
 	"__is_literal_type",
 	"__underlying_type",
-};
-
-struct StringEqualPredicate
-{
-	const char* s;
-	StringEqualPredicate(const char* s)
-		: s(s)
-	{
-	}
-	bool operator()(const char* other) const
-	{
-		return string_equal(s, other);
-	}
 };
 
 LexTokenId getLexerIntrinsicId(const char* value)
@@ -907,12 +906,18 @@ Token* Lexer::read(Token* first, Token* last)
 					: context.get_hooks().macroPosition;
 				LexTokenId id = token;
 				const char* name = context.makeIdentifier(token.get_value().c_str());
-				if(id == boost::wave::T_IDENTIFIER
-					&& name[0] == '_'
-					&& name[1] == '_')
+				if(id == boost::wave::T_IDENTIFIER)
 				{
-					// compiler intrinsic?
-					id = getLexerIntrinsicId(name);
+					if(name[0] == '_'
+						&& name[1] == '_')
+					{
+						// compiler intrinsic?
+						id = getLexerIntrinsicId(name);
+					}
+					else if(string_equal(name, "static_assert")) // temporary hack, avoids regenerating lexer
+					{
+						id = boost::wave::T_STATIC_ASSERT;
+					}
 				}
 
 				*first++ = Token(id, TokenValue(name), position, Source(context.get_hooks().getSourcePath(), position.line, position.column), context.get_hooks().events);

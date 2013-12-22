@@ -194,14 +194,6 @@
 
 - investigate: special handling for declarator name lookup still required?
 
-- investigate: refactoring makes avoidance of double-parsing of default-argument unnecessary in the following scenario
-	- as described
-		// while parsing simple-declaration-named declarator which contains deferred default-argument expression,
-		// on finding '{', we backtrack and try parsing function-definition.
-		// symbols may be deferred during attempt to parse shared-prefix declarator: f(int i = j)
-		// first parsed as member_declaration_named, backtracks on reaching '{'
-	- no longer necessary because Declarator parse is successfully cached
-
 
 - task: remove circular dependency: evaluateExpression in OverloadResolver::makeConversion
 

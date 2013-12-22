@@ -1,4 +1,24 @@
 
+#ifdef _CPPP_TEST
+namespace N371
+{
+	static_assert(true, "");
+	static_assert(false, "namespace");
+
+	class A
+	{
+		static_assert(true, "");
+		static_assert(false, "member");
+	};
+
+	void f()
+	{
+		static_assert(true, "");
+		static_assert(false, "function");
+	}
+}
+#endif
+
 namespace N370
 {
 	struct Page;

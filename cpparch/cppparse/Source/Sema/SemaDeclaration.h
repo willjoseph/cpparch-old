@@ -566,6 +566,10 @@ struct SemaDeclaration : public SemaBase, SemaDeclarationResult
 	void action(cpp::using_directive* symbol, const SemaUsingDirective& walker)
 	{
 	}
+	SEMA_POLICY(cpp::static_assert_declaration, SemaPolicyPush<struct SemaStaticAssertDeclaration>)
+	void action(cpp::static_assert_declaration* symbol, const SemaStaticAssertDeclaration& walker)
+	{
+	}
 };
 
 #endif

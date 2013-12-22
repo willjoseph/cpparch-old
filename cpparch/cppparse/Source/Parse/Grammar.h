@@ -2191,12 +2191,13 @@ namespace cpp
 
 	struct member_declaration : choice<member_declaration>
 	{
-		VISITABLE_BASE(TYPELIST5(
+		VISITABLE_BASE(TYPELIST6(
 			SYMBOLFWD(using_declaration),
 			SYMBOLFWD(member_template_declaration),
 			SYMBOLFWD(member_declaration_implicit), // shared-prefix ambiguity:  this matches a constructor: Class(Type);
 			SYMBOLFWD(member_declaration_default), // this matches a member: Type(member);
-			SYMBOLFWD(member_declaration_nested)
+			SYMBOLFWD(member_declaration_nested),
+			SYMBOLFWD(static_assert_declaration) // C++11
 		));
 	};
 
@@ -2551,12 +2552,25 @@ namespace cpp
 	struct block_declaration : choice<block_declaration>
 	{
 		typedef TYPELIST2(declaration_statement, declaration) Bases;
-		VISITABLE_BASE(TYPELIST4(
+		VISITABLE_BASE(TYPELIST5(
 			SYMBOLFWD(asm_definition),
 			SYMBOLFWD(namespace_alias_definition),
 			SYMBOLFWD(using_declaration),
-			SYMBOLFWD(using_directive)
+			SYMBOLFWD(using_directive),
+			SYMBOLFWD(static_assert_declaration) // C++11
 		));
+	};
+
+	struct static_assert_declaration
+	{
+		typedef TYPELIST2(block_declaration, member_declaration) Bases;
+		terminal<boost::wave::T_STATIC_ASSERT> key;
+		terminal<boost::wave::T_LEFTPAREN> lp;
+		symbol_required<constant_expression> expr;
+		terminal<boost::wave::T_COMMA> comma;
+		symbol_required<string_literal> str;
+		terminal<boost::wave::T_RIGHTPAREN> rp;
+		FOREACH6(key, lp, expr, comma, str, rp);
 	};
 
 	struct asm_definition

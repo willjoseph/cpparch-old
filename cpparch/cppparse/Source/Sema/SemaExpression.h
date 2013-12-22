@@ -446,4 +446,47 @@ struct SemaExpression : public SemaBase, SemaExpressionResult
 	}
 };
 
+
+struct SemaStaticAssertDeclaration : public SemaBase
+{
+	SEMA_BOILERPLATE;
+
+	bool failed; 
+
+	SemaStaticAssertDeclaration(const SemaState& state)
+		: SemaBase(state), failed(false)
+	{
+	}
+
+	SEMA_POLICY(cpp::constant_expression, SemaPolicyPush<struct SemaExpression>)
+	void action(cpp::constant_expression* symbol, const SemaExpressionResult& walker)
+	{
+		// [dcl.dcl] In a static_assert-declaration the constant-expression shall be a constant expression (5.19) that can be
+		// contextually converted to bool
+		SEMANTIC_ASSERT(walker.expression.isConstant); // TODO: report non-fatal error: "expected constant expression"
+		SEMANTIC_ASSERT(!walker.expression.isNonStaticMemberName); // TODO: report non-fatal error: "expected expression convertible to bool"
+		if(walker.expression.isValueDependent)
+		{
+			// TODO: add expression to list in enclosing template class/function for evaluation during instantiation
+		}
+		else
+		{
+			// evaluate expression
+			failed = evaluateExpression(walker.expression, getInstantiationContext()).value == 0;
+		}
+	}
+	SEMA_POLICY(cpp::string_literal, SemaPolicyIdentity)
+	void action(cpp::string_literal* symbol)
+	{
+		// [dcl.dcl] If the value of the expression when so converted is true, the
+		// declaration has no effect. Otherwise, the program is ill-formed, and the resulting diagnostic message (1.4)
+		// shall include the text of the string-literal
+		if(failed)
+		{
+			std::cout << "error: " << symbol->value.value.c_str() << std::endl;
+		}
+	}
+};
+
+
 #endif

@@ -135,6 +135,10 @@ struct SemaMemberDeclaration : public SemaBase, SemaMemberDeclarationResult
 	void action(cpp::using_declaration* symbol, const SemaUsingDeclaration& walker)
 	{
 	}
+	SEMA_POLICY(cpp::static_assert_declaration, SemaPolicyPush<struct SemaStaticAssertDeclaration>)
+	void action(cpp::static_assert_declaration* symbol, const SemaStaticAssertDeclaration& walker)
+	{
+	}
 };
 
 
