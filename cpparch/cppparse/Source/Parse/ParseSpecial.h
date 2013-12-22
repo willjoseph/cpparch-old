@@ -349,23 +349,6 @@ inline cpp::template_argument_list* parseSymbol(ParserGeneric<SemaT>& parser, cp
 }
 
 template<typename SemaT>
-inline cpp::template_argument_clause_disambiguate* parseSymbol(ParserGeneric<SemaT>& parser, cpp::template_argument_clause_disambiguate* result)
-{
-	PARSE_SELECT(parser, cpp::template_argument_clause);
-	return result;
-}
-
-#if 0
-template<typename SemaT>
-inline cpp::simple_template_id* parseSymbol(ParserGeneric<SemaT>& parser, cpp::simple_template_id* result)
-{
-	PARSE_REQUIRED(parser, result->id);
-	PARSE_REQUIRED(parser, result->args);
-	return result;
-}
-#endif
-
-template<typename SemaT>
 inline cpp::member_declaration_bitfield* parseSymbol(ParserGeneric<SemaT>& parser, cpp::member_declaration_bitfield* result)
 {
 	PARSE_REQUIRED(parser, result->item);

@@ -671,16 +671,8 @@ namespace cpp
 		FOREACH3(item, comma, next);
 	};
 
-	struct template_argument_clause_disambiguate : choice<template_argument_clause_disambiguate>
-	{
-		VISITABLE_BASE_DEFAULT(TYPELIST1(
-			SYMBOLFWD(template_argument_clause) // disambiguates: < CONSTANT_EXPRESSION < 0 >
-		));
-	};
-
 	struct template_argument_clause
 	{
-		//typedef TYPELIST1(template_argument_clause_disambiguate) Bases;
 		terminal<boost::wave::T_LESS> lb;
 		symbol_optional<template_argument_list> args;
 		terminal<boost::wave::T_GREATER> rb;
@@ -691,7 +683,7 @@ namespace cpp
 	{
 		typedef TYPELIST2(class_name, template_id) Bases;
 		symbol_required<identifier> id;
-		symbol_required<template_argument_clause/*_disambiguate*/> args;
+		symbol_required<template_argument_clause> args;
 		FOREACH2(id, args);
 	};
 
