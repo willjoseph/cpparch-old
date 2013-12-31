@@ -1,4 +1,61 @@
 
+namespace N376
+{
+	struct A
+	{
+		friend int f();
+	};
+
+	int f(); // redeclares 'f'
+
+	int c = f(); // unqualified name lookup finds 'f'
+}
+
+namespace N380
+{
+	struct A
+	{
+		friend int f(A); // redeclares 'f'
+	};
+
+	int c = f(A()); // argument dependent name lookup finds 'f'
+}
+
+namespace N377
+{
+	int f();
+
+	struct A
+	{
+		friend int f(); // redeclares 'f'
+	};
+
+	int c = f(); // unqualified name lookup finds 'f'
+}
+
+namespace N379
+{
+	struct B;
+
+	struct A
+	{
+		friend struct B; // redeclares 'B'
+	};
+
+	B* b; // unqualified name lookup finds 'B'
+}
+
+namespace N378
+{
+	struct A
+	{
+		friend struct B;
+	};
+
+	struct B; // redeclares 'B'
+
+	B* b; // unqualified name lookup finds 'B'
+}
 
 #if 0 // TODO: offsetof as constant expression: &(((A*)0)->m)
 namespace N375
@@ -34,12 +91,11 @@ namespace N260
 	{
 	};
 
-
 	template <typename T>
 	struct B
-		: A<T>::template Dependent<T>
+		: A<T>::template Dependent<T> // 'template' is unnecessary according to C++11, but we allow it for compatibility
 	{
-		B() : A<T>::template Dependent<T>()
+		B() : A<T>::template Dependent<T>() // 'template' is unnecessary according to C++11, but we allow it for compatibility
 		{
 		}
 	};
@@ -57,60 +113,6 @@ namespace N373
 }
 
 
-#ifdef _CPPP_TEST
-namespace N372
-{
-	// using decltype-specifier in simple-type-specifier
-	decltype(0) a;
-
-	struct A
-	{
-		void f()
-		{
-			// using decltype-specifier in nested-name-specifier and unqualified-id
-			decltype(A())::~decltype(A())();
-		}
-	};
-
-	void f()
-	{
-		// using decltype-specifier in psuedo-destructor-name
-		(0).~decltype(0)();
-		// using decltype-specifier in simple-type-specifier
-		decltype(A()) a;
-		// using decltype-specifier in psuedo-destructor-name
-		a.~decltype(A())();
-	};
-
-	struct B : decltype(A()) // using decltype-specifier in base-specifier
-	{
-		B() : decltype(A())(A()) // using decltype-specifier in mem-initializer
-		{
-		}
-	};
-}
-#endif
-
-
-#ifdef _CPPP_TEST
-namespace N371
-{
-	static_assert(true, "");
-	static_assert(false, "?false");
-
-	class A
-	{
-		static_assert(true, "");
-		static_assert(false, "?false");
-	};
-
-	void f()
-	{
-		static_assert(true, "");
-		static_assert(false, "?false");
-	}
-}
-#endif
 
 namespace N370
 {
@@ -169,59 +171,6 @@ namespace N369
 }
 
 
-namespace N344
-{
-	template<bool func(int)>
-	bool f()
-	{
-		//static_assert(sizeof(func(0)) == 1, "?evaluated");
-		return func(0); // type of 'func' is not dependent and can be resolved during initial parse
-	}
-}
-
-
-namespace N368
-{
-	typedef void(*F)();
-	static void f()
-	{
-	}
-	F g()
-	{
-		return false ? 0 : f; // 'f' is not overloaded, its type can be resolved to 'void()'
-	}
-}
-
-namespace N367
-{
-	struct A
-	{
-	};
-
-	int operator+(A, void(*)(int));
-	int operator+(A, void(*)(float));
-
-	void f();
-	void f(int);
-
-	void g()
-	{
-		A a;
-		a + f; // 'f' is overloaded, the correct overload 'f(int)' should be chosen
-		a + &f; // 'f' is overloaded, the correct overload 'f(int)' should be chosen
-	}
-}
-
-namespace N366
-{
-	void f();
-	void f(int);
-
-	int g(void(*)(int));
-
-	int i = g(f); // 'f' is overloaded, the correct overload 'f(int)' should be chosen
-}
-
 namespace N321
 {
 	namespace N
@@ -260,18 +209,6 @@ namespace N343
 	};
 }
 
-
-namespace N352
-{
-	template<bool b, int x = sizeof(b)> // type of 'b' is not dependent and evaluation of 'sizeof(b)' is not deferred
-	struct A
-	{
-		static const int value = x;
-	};
-
-	int f(int);
-	int x = f(A<false>::value);
-}
 
 #if 1//ndef _CPPP_TEST // TODO
 namespace N365
@@ -443,7 +380,6 @@ namespace N163
 	A<struct Blah> b;
 }
 
-#if 0 // TODO: fails because cannot obtain type of 'b' outside context of 'A'
 namespace N360
 {
 	template<int i>
@@ -452,12 +388,11 @@ namespace N360
 		typedef int Type;
 	};
 
-	template<bool b, int x = sizeof(B<sizeof(b)>::Type)>
+	template<bool b, int x = sizeof(B<sizeof(b)>::Type)> // type of 'b' is not dependent and evaluation of 'sizeof(b)' is not deferred
 	struct A
 	{
 	};
 }
-#endif
 
 #if 0 // TODO: tests that expect syntax error
 namespace N359
@@ -485,7 +420,7 @@ namespace N358
 	{
 	};
 
-	typedef B<A>::Type Type;
+	typedef B<A>::Type Type; // B<A>::Type is not dependent
 }
 
 
@@ -505,7 +440,7 @@ namespace N356
 		B();
 	};
 
-	// explicit specialization syntax not used for a member of
+	// optional explicit specialization syntax not used for a member of
 	// explicitly specialized class template specialization
 	A::B<int>::B() { }
 }
@@ -652,32 +587,12 @@ namespace N283
 	{
 		void f()
 		{
-			this->~S();
+			this->~S(); // destructor call using class member access syntax (psuedo-destructor-name)
 		}
 	};
 }
 
-namespace N298
-{
-	template<typename T>
-	T f(const T*);
 
-	int a;
-	int i = f(&a); // calls f(const int*)
-}
-
-
-namespace N351
-{
-	template<bool b>
-	struct A
-	{
-		static const int value = sizeof(b);
-	};
-
-	int f(int);
-	int x = f(A<false>::value);
-}
 
 namespace N257
 {
@@ -697,37 +612,6 @@ namespace N257
 	}
 }
 
-namespace N326
-{
-	template<int i>
-	struct A
-	{
-	};
-
-	template<int i>
-	bool f(A<i>& a);
-
-	A<0> a;
-	bool x = f(a);
-}
-
-namespace N350
-{
-	template<typename T, typename U = T>
-	struct A
-	{
-	};
-
-	template<typename T>
-	bool g(A<T>);
-
-	void f()
-	{
-		A<int> a;
-		g(a); // calls 'g(A<int, int>)'
-	}
-}
-
 namespace N349
 {
 	template<typename T1, typename T2>
@@ -742,17 +626,6 @@ namespace N349
 	{
 		return (_Left.first<_Right.first||!(_Right.first<_Left.first)&&_Left.second<_Right.second);
 	}
-}
-
-namespace N348
-{
-	struct A
-	{
-		A& operator++(int);
-	};
-
-	A a;
-	A& b = a++; // calls 'A::operator++(int)'
 }
 
 
@@ -1089,26 +962,6 @@ namespace N335
 	int j = (&a)->*m;
 }
 
-namespace N334
-{
-	template<class T>
-	struct A
-	{
-		template<typename U>
-		friend bool operator==(const T&x, const U&y)
-		{
-			return false;
-		}
-	};
-
-	struct B : A<B>
-	{
-	};
-
-	B b;
-	bool x = b == b; // name lookup should find 'A<B>::operator==<B>'
-}
-
 namespace N333
 {
 	struct A
@@ -1126,44 +979,6 @@ namespace N333
 	bool x = f(i, a); // calls 'f(const int&, const A&)' - because it is a better candidate than 'f(int, int)'
 }
 
-namespace N332
-{
-	template<class T, class U>
-	struct B
-	{
-	private:
-		friend bool operator<(const U&x, const T&y);
-	};
-	struct A : B<A, int>
-	{
-		operator const int&()const;
-		operator int&();
-	};
-
-	int i;
-	A a;
-	bool x = i < a; // calls 'B<A>::operator<(const int&, const A&)' via koenig lookup - because it is a better candidate than built-in 'operator<(int, int)'
-}
-
-
-namespace N331
-{
-	template<class T>
-	struct A
-	{
-		friend bool operator==(const T&x, const T&y)
-		{
-			return false;
-		}
-	};
-
-	struct B : A<B>
-	{
-	};
-
-	B b;
-	bool x = b == b; // name lookup should find 'A<B>::operator=='
-}
 
 namespace N330
 {

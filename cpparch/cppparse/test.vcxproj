@@ -147,6 +147,7 @@
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="test\test_expression.cpp" />
     <ClCompile Include="test\test_include.cpp" />
     <ClCompile Include="test\test_includepath.cpp" />
     <ClCompile Include="test\test_incomplete.cpp" />

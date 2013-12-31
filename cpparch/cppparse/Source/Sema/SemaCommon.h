@@ -873,7 +873,7 @@ struct SemaState
 		const DeclarationInstance* existing = 0;
 		if(!isAnonymous(declaration)) // unnamed class/struct/union/enum
 		{
-			LookupFilter filter = IsAny();
+			LookupFilter filter = IsAnyIncludingFriend(); // enable redeclaration of friend
 			if(type.declaration == &gCtor)
 			{
 				filter = IsConstructor(); // find existing constructor declaration
@@ -939,6 +939,11 @@ struct SemaState
 				{
 					instance->enclosed = declaration.enclosed; // complete it
 					instance->setName(declaration.getName()); // make this the definition
+				}
+				if(isFunction(declaration) // if we are redeclaring a function
+					&& !declaration.specifiers.isFriend) // as a non-friend
+				{
+					instance->specifiers.isFriend = false; // make the declaration visible to qualified/unqualified name lookup.
 				}
 			}
 		}
@@ -1339,11 +1344,12 @@ struct SemaBase : public SemaState
 
 	Declaration* declareObject(Scope* parent, Identifier* id, const TypeId& type, Scope* enclosed, DeclSpecifiers specifiers, size_t templateParameter, const Dependent& valueDependent)
 	{
-		// 7.3.1.2 Namespace member definitions
-		// Paragraph 3
+		// [namespace.memdef]
 		// Every name first declared in a namespace is a member of that namespace. If a friend declaration in a non-local class
 		// first declares a class or function (this implies that the name of the class or function is unqualified) the friend
-		// class or function is a member of the innermost enclosing namespace.
+		// class or function is a member of the innermost enclosing namespace. The name of the friend is not found by unqualified lookup (3.4.1) or by qualified lookup (3.4.3)
+		// until a matching declaration is provided in that namespace scope (either before or after the class definition
+		// granting friendship).
 		if(specifiers.isFriend // is friend
 			&& parent == enclosing) // is unqualified
 		{

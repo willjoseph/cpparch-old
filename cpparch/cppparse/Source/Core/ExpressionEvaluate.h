@@ -519,7 +519,7 @@ inline void addArgumentDependentOverloads(OverloadSet& result, const Identifier&
 		// TODO: Any namespace-scope friend functions declared in associated classes are visible within their respective
 		// namespaces even if they are not visible during an ordinary lookup.
 		// All names except those of (possibly overloaded) functions and function templates are ignored.
-		if(const DeclarationInstance* p = findDeclaration((*i)->declarations, id, IsFunctionName()))
+		if(const DeclarationInstance* p = findDeclaration((*i)->declarations, id, IsAdlFunctionName()))
 		{
 			const DeclarationInstance& declaration = *p;
 			addOverloaded(result, *p, associated);

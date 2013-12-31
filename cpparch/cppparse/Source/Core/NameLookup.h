@@ -40,7 +40,7 @@ LookupFilter makeLookupFilter(T& filter)
 	return result;
 }
 
-template<bool filter(const Declaration& declaration)>
+template<bool filter(const Declaration& declaration), bool allowFriend = false>
 struct LookupFilterDefault : LookupFilter
 {
 	explicit LookupFilterDefault(std::size_t visibility = VISIBILITY_ALL)
@@ -52,11 +52,13 @@ struct LookupFilterDefault : LookupFilter
 	{
 		std::size_t visibility = reinterpret_cast<std::size_t>(context);
 		return declaration.visibility < visibility
+			&& (allowFriend || !declaration->specifiers.isFriend) // ignore friend declaration unless allowFriend is true
 			&& filter(*declaration);
 	}
 };
 
 typedef LookupFilterDefault<isAny> IsAny;
+typedef LookupFilterDefault<isAny, true> IsAnyIncludingFriend;
 
 inline bool isConstructor(const Declaration& declaration)
 {
@@ -107,7 +109,7 @@ inline bool isFunctionName(const Declaration& declaration)
 	return isFunction(declaration);
 }
 
-typedef LookupFilterDefault<isFunctionName> IsFunctionName;
+typedef LookupFilterDefault<isFunctionName, true> IsAdlFunctionName;
 
 
 
