@@ -1,4 +1,4 @@
 
-#if BUILD_HEADER_ONLY
+#if BUILD_STANDALONE
 #include "SemaClass.h"
 #endif

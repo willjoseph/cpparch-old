@@ -1,4 +1,4 @@
 
-#if BUILD_HEADER_ONLY
+#if BUILD_STANDALONE
 #include "SemaEnum.h"
 #endif
