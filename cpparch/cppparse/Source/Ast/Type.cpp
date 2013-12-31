@@ -1,4 +1,6 @@
 
+#if BUILD_STANDALONE
+
 #include "Type.h"
 #include "Ast/AstAllocator.h"
 
@@ -54,3 +56,5 @@ Declaration gNonType(AST_ALLOCATOR_NULL, 0, gNonTypeId, TYPE_UNKNOWN, 0);
 Identifier gOverloadedId = makeIdentifier("$overloaded");
 BuiltInTypeDeclaration gOverloadedDeclaration(gOverloadedId, TYPE_SPECIAL);
 BuiltInTypeId gOverloaded(&gOverloadedDeclaration, AST_ALLOCATOR_NULL);
+
+#endif

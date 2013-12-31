@@ -259,6 +259,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="cppparse.cpp" />
+    <ClCompile Include="Source\Ast\Ast.cpp" />
     <ClCompile Include="Source\Ast\AstAllocator.cpp" />
     <ClCompile Include="Source\Ast\Declaration.cpp" />
     <ClCompile Include="Source\Ast\Expression.cpp" />
@@ -277,6 +278,7 @@
     <ClCompile Include="Source\Common\Util.cpp" />
     <ClCompile Include="Source\Common\Vector.cpp" />
     <ClCompile Include="Source\Common\Visitor.cpp" />
+    <ClCompile Include="Source\Core\Core.cpp" />
     <ClCompile Include="Source\Core\ExpressionEvaluate.cpp" />
     <ClCompile Include="Source\Core\Fundamental.cpp" />
     <ClCompile Include="Source\Core\KoenigLookup.cpp" />

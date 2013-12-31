@@ -1,4 +1,6 @@
 
+#if BUILD_STANDALONE
+
 #include "TypeInstantiate.h"
 #include "Common/Util.h"
 #include "TemplateDeduce.h"
@@ -432,3 +434,5 @@ std::size_t instantiateClass(const SimpleType& instanceConst, const Instantiatio
 	}
 	return instance.size;
 }
+
+#endif

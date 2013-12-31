@@ -1,4 +1,6 @@
 
+#if BUILD_STANDALONE
+
 #include "OverloadResolve.h"
 #include "TypeUnique.h"
 
@@ -139,3 +141,5 @@ ParameterTypes addOverload(OverloadResolver& resolver, const Declaration& declar
 
 	return ParameterTypes();
 }
+
+#endif

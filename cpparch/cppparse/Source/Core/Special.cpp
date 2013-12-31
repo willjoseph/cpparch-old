@@ -1,4 +1,6 @@
 
+#if BUILD_STANDALONE
+
 #include "Special.h"
 
 
@@ -73,3 +75,5 @@ BuiltInTypeId gPointerToMemberPlaceholder(&gPointerToMemberPlaceholderDeclaratio
 
 
 const SimpleType gDependentSimpleType(&gDependentType, 0);
+
+#endif

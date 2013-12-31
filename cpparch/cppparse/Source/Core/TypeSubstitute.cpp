@@ -1,4 +1,6 @@
 
+#if BUILD_STANDALONE
+
 #include "TypeSubstitute.h"
 #include "ExpressionEvaluate.h"
 #include "TypeUnique.h" // TODO: for makeUniqueTemplateArgument, could be removed
@@ -335,3 +337,4 @@ UniqueTypeWrapper substituteImpl(UniqueTypeWrapper dependent, const Instantiatio
 	return visitor.type;
 }
 
+#endif

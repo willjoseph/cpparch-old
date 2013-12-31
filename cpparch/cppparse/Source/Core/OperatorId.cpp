@@ -1,4 +1,6 @@
 
+#if BUILD_STANDALONE
+
 #include "OperatorId.h"
 
 
@@ -46,3 +48,5 @@ Name gOperatorArrowId = Name("operator->");
 Name gOperatorFunctionId = Name("operator()");
 Name gOperatorSubscriptId = Name("operator[]");
 Name gConversionFunctionId = Name("operator T");
+
+#endif
