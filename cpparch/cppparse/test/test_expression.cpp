@@ -1,6 +1,5 @@
 
 
-#ifdef _CPPP_TEST
 namespace N372
 {
 	// using decltype-specifier in simple-type-specifier
@@ -10,32 +9,39 @@ namespace N372
 	{
 		void f()
 		{
+#ifdef _CPPP_TEST // msvc 2010 fails this test
 			// using decltype-specifier in nested-name-specifier and unqualified-id
 			decltype(A())::~decltype(A())();
+#endif
 		}
 	};
 
 	void f()
 	{
+#ifdef _CPPP_TEST // msvc 2010 fails this test
 		// using decltype-specifier in psuedo-destructor-name
 		(0).~decltype(0)();
+#endif
 		// using decltype-specifier in simple-type-specifier
 		decltype(A()) a;
+#ifdef _CPPP_TEST // msvc 2010 fails this test
 		// using decltype-specifier in psuedo-destructor-name
 		a.~decltype(A())();
+#endif
 	};
 
+#ifdef _CPPP_TEST // msvc 2010 fails this test
 	struct B : decltype(A()) // using decltype-specifier in base-specifier
 	{
 		B() : decltype(A())(A()) // using decltype-specifier in mem-initializer
 		{
 		}
 	};
-}
 #endif
+}
 
 
-#ifdef _CPPP_TEST
+#ifdef _CPPP_TEST // causes static_assert to fire
 namespace N371
 {
 	static_assert(true, "");
@@ -109,18 +115,20 @@ namespace TestDecltype
 namespace N344 // non-dependent non-type-template-parameter
 {
 	template<bool b, bool func()>
-	struct A
-	{
-		ASSERT_EXPRESSION_TYPE(b, bool); // type of 'b' is not dependent and can be resolved during initial parse
-		ASSERT_EXPRESSION_TYPE(func(), bool); // type of 'func' is not dependent and can be resolved during initial parse
-	};
-
-	template<bool b, bool func()>
 	void f()
 	{
 		ASSERT_EXPRESSION_TYPE(b, bool); // type of 'b' is not dependent and can be resolved during initial parse
 		ASSERT_EXPRESSION_TYPE(func(), bool); // type of 'func' is not dependent and can be resolved during initial parse
 	}
+
+	template<bool b, bool func()>
+	struct A
+	{
+#ifdef _CPPP_TEST // msvc 2010 fails this test
+		ASSERT_EXPRESSION_TYPE(b, bool); // type of 'b' is not dependent and can be resolved during initial parse
+		ASSERT_EXPRESSION_TYPE(func(), bool); // type of 'func' is not dependent and can be resolved during initial parse
+#endif
+	};
 }
 
 namespace N352 // test nondependent non-type template parameter in non-type template parameter default argument
@@ -171,7 +179,9 @@ namespace N367 // test overload resolution of overloaded operator+ with pointer-
 	{
 		A a;
 		ASSERT_EXPRESSION_TYPE(a + f, int); // 'f' is overloaded, the correct overload 'f(int)' should be chosen
+#ifdef _CPPP_TEST // msvc 2010 crashes with this test
 		ASSERT_EXPRESSION_TYPE(a + &f, int); // 'f' is overloaded, the correct overload 'f(int)' should be chosen
+#endif
 	}
 }
 
