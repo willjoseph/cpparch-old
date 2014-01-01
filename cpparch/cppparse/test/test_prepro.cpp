@@ -1,9 +1,18 @@
 
 namespace Temptest
 {
-	enum E { VALUE };
+	struct A
+	{
+	};
 
-	decltype(VALUE) x;
+	struct B
+	{
+		int A::* m;
+	};
+
+	A a;
+	B b;
+	int i = a.*b.m; // lvalue
 }
 
 #if 0 // TODO: offsetof as constant expression: &(((A*)0)->m)
@@ -505,20 +514,8 @@ namespace N346
 	}
 }
 
-namespace N345
-{
-	struct A
-	{
-		A* f()
-		{
-			f()->m();
-		}
-		void(*m)();
-	};
-}
 
-
-namespace N45
+namespace N45 // test parsing of chained calls to 'operator()'
 {
 	struct S
 	{
@@ -559,25 +556,8 @@ namespace N121
 	};
 }
 
-namespace N337
-{
-	struct A
-	{
-		int m();
-	};
 
-	struct B
-	{
-		int (A::* m)();
-	};
-
-	A a;
-	B b;
-	int i = (a.*b.m)();
-}
-
-
-namespace N341
+namespace N341 // test parsing of call to conversion function for dependent type
 {
 	template<typename T>
 	void f(T t)
@@ -702,7 +682,7 @@ namespace N232
 }
 
 
-namespace N339
+namespace N339 // test handling of ambiguity between psuedo-destructor-name and valid unary-expression: ~ id-expression
 {
 	enum
 	{
@@ -781,37 +761,6 @@ namespace N338
 	int i = ~E();
 	int j = -E();
 	int k = +E();
-}
-
-namespace N336
-{
-	struct A
-	{
-		int m;
-	};
-
-	struct B
-	{
-		int A::* m;
-	};
-
-	A a;
-	B b;
-	int i = a.*b.m;
-}
-
-namespace N335
-{
-	struct A
-	{
-		int m;
-	};
-
-	int A::* m = &A::m;
-
-	A a;
-	int i = a.*m;
-	int j = (&a)->*m;
 }
 
 namespace N333

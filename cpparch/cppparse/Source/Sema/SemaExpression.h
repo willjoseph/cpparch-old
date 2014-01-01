@@ -252,8 +252,18 @@ struct SemaExpression : public SemaBase, SemaExpressionResult
 	SEMA_POLICY(cpp::pm_expression_default, SemaPolicyPushSrc<struct SemaExpression>)
 	void action(cpp::pm_expression_default* symbol, const SemaExpressionResult& walker)
 	{
+		bool isLvalue =
+			// [expr.mptr.oper]
+			// The expression E1->*E2 is converted into the equivalent form (*(E1)).*E2.
+			symbol->op->id == cpp::pm_operator::ARROWSTAR // the result of unary operator* is an lvalue
+			// [expr.mptr.oper]
+			// The result of a .* expression whose second operand is a pointer to a data member is of the same value
+			// category (3.10) as its first operand. The result of a .* expression whose second operand is a pointer to a
+			// member function is a prvalue.
+			|| expression.isLvalue;
 		walkBinaryExpression<binaryOperatorMemberPointer>(symbol, walker);
 		id = 0; // not a parenthesised id-expression, expression is not 'call to named function' [over.call.func]
+		expression.isLvalue = isLvalue;
 	}
 	SEMA_POLICY(cpp::assignment_expression, SemaPolicyPushSrc<struct SemaExpression>)
 	void action(cpp::assignment_expression* symbol, const SemaExpressionResult& walker) // expression_list, assignment_expression_suffix, conditional_expression_suffix

@@ -516,3 +516,70 @@ namespace N381 // test selection of correct specialization when both template ar
 	STATIC_ASSERT_IS_SAME(Different::type, int);
 	STATIC_ASSERT_IS_SAME(Same::type, const int&);
 }
+
+
+//-----------------------------------------------------------------------------
+// type of class-member-access
+
+namespace N345 // test call of pointer to function named by class-member-access
+{
+	struct A
+	{
+		A* f()
+		{
+			ASSERT_EXPRESSION_TYPE(f()->m(), void);
+		}
+		void(*m)();
+	};
+}
+
+//-----------------------------------------------------------------------------
+// type of expression involving pointer-to-member
+
+namespace N337 // check type of function-call expression with class-member-access expression with pointer-to-member as object expression
+{
+	struct A
+	{
+	};
+
+	struct B
+	{
+		int (A::* m)();
+	};
+
+	A a;
+	B b;
+	ASSERT_EXPRESSION_TYPE((a.*b.m)(), int); // not lvalue
+}
+
+namespace N336 // check type of class-member-access expression with pointer-to-member as object expression
+{
+	struct A
+	{
+	};
+
+	struct B
+	{
+		int A::* m;
+	};
+
+	A a;
+	B b;
+	ASSERT_EXPRESSION_TYPE(a.*b.m, int&); // lvalue
+	ASSERT_EXPRESSION_TYPE(A().*b.m, int); // not lvalue
+}
+
+namespace N335 // check type of pointer-to-member id-expression
+{
+	struct A
+	{
+		int m;
+	};
+
+	int A::* m = &A::m;
+
+	A a;
+	ASSERT_EXPRESSION_TYPE(a.*m, int&); // lvalue
+	ASSERT_EXPRESSION_TYPE((&a)->*m, int&); // lvalue
+	ASSERT_EXPRESSION_TYPE(A().*m, int); // not lvalue
+}
