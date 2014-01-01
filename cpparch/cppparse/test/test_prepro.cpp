@@ -1,60 +1,9 @@
 
-namespace N376
+namespace Temptest
 {
-	struct A
-	{
-		friend int f();
-	};
+	enum E { VALUE };
 
-	int f(); // redeclares 'f'
-
-	int c = f(); // unqualified name lookup finds 'f'
-}
-
-namespace N380
-{
-	struct A
-	{
-		friend int f(A); // redeclares 'f'
-	};
-
-	int c = f(A()); // argument dependent name lookup finds 'f'
-}
-
-namespace N377
-{
-	int f();
-
-	struct A
-	{
-		friend int f(); // redeclares 'f'
-	};
-
-	int c = f(); // unqualified name lookup finds 'f'
-}
-
-namespace N379
-{
-	struct B;
-
-	struct A
-	{
-		friend struct B; // redeclares 'B'
-	};
-
-	B* b; // unqualified name lookup finds 'B'
-}
-
-namespace N378
-{
-	struct A
-	{
-		friend struct B;
-	};
-
-	struct B; // redeclares 'B'
-
-	B* b; // unqualified name lookup finds 'B'
+	decltype(VALUE) x;
 }
 
 #if 0 // TODO: offsetof as constant expression: &(((A*)0)->m)
@@ -69,7 +18,7 @@ namespace N375
 }
 #endif
 
-namespace N374
+namespace N374 // test name hiding for class member declared with same name as type of a base class
 {
 	struct A
 	{
@@ -78,13 +27,13 @@ namespace N374
 	struct B : A
 	{
 		int A; // hides base 'A'
-		B() : A(0) // initialises member, not base
+		B() : A(0) // name lookup finds name of member 'A', which hides base 'A'
 		{
 		}
 	};
 }
 
-namespace N260
+namespace N260 // test pre-C++11 behaviour allowing/requiring 'template' in base-specifier and mem-initializer
 {
 	template <typename T>
 	struct A
@@ -101,13 +50,24 @@ namespace N260
 	};
 }
 
-namespace N373
+namespace N373 // test parse of explicit destructor call using qualified-id syntax
 {
 	struct A
 	{
 		void f()
 		{
 			A::~A(); // qualified-id syntax for calling destructor
+		}
+	};
+}
+
+namespace N283 // test parse of explicit destructor call using psuedo-destructor-name syntax
+{
+	struct S
+	{
+		void f()
+		{
+			this->~S(); // destructor call using class member access syntax
 		}
 	};
 }
@@ -152,7 +112,7 @@ namespace N370
 	};
 }
 
-namespace N369
+namespace N369 // test evaluation of constant expression used as template parameter
 {
 	template<int i>
 	struct A
@@ -166,26 +126,12 @@ namespace N369
 		typedef int Last;
 	};
 
-	typedef A<0>::First First;
-	typedef First::Last Last;
+	typedef A<0>::First First; // type is 'A<1>'
+	typedef First::Last Last; // explicit specialization of 'A<1>' has member 'Last'
 }
 
 
-namespace N321
-{
-	namespace N
-	{
-		struct A
-		{
-		};
-		int f(A);
-	}
-
-	N::A a;
-	int x = f(a); // lookup of unqualified id 'f' should be deferred until arguments are known, then looked up via ADL
-}
-
-namespace N83
+namespace N83 // test parse of explicit call of implicitly declared assignment operator
 {
 	class C
 	{
@@ -197,7 +143,7 @@ namespace N83
 	};
 }
 
-namespace N343
+namespace N343 // test parse of explicit call of implicitly declared assignment operator
 {
 	class C
 	{
@@ -232,7 +178,7 @@ namespace N365
 }
 #endif
 
-namespace N363
+namespace N363 // test parse of nested class template partial specialization defined within class
 {
 	struct Null {};
 
@@ -244,14 +190,15 @@ namespace N363
 	};
 }
 
-namespace N144
+namespace N144 // test that bitfield member declarations are correctly determined to be dependent 
 {
 	template<typename T>
 	struct S
 	{
-		const T i : 1,
-j : 1,
-	: 1; // all three declarations have a dependent type
+		// all three declarations have a dependent type
+		const T i : 1, // first in list, named
+j : 1, // second in list, named
+	: 1; // third in list, anonymous
 		void f()
 		{
 			dependent(i);
@@ -261,25 +208,7 @@ j : 1,
 }
 
 
-namespace N157
-{
-	template<class R>
-	struct S
-	{
-	};
-	template<>
-	struct S<void()>
-	{
-	};
-	template<>
-	struct S<void(...)>
-	{
-	};
-
-	S<void()> s;
-}
-
-namespace N116
+namespace N116 // test that default-arguments are parsed before member function bodies
 {
 	struct S
 	{
@@ -293,32 +222,50 @@ namespace N116
 	};
 }
 
-namespace N362
+namespace N362 // test name lookup for declaration of class first declared as elaborated-type-specifier in conditional statement
 {
 	void f()
 	{
-		if(struct S* p = 0)
+		if(struct S* p = 0) // declares 'S' in the current scope
 		{
-			S* x;
+			S* x; // name lookup finds 'S'
 		}
 	}
 }
 
 
-namespace N361
+namespace N361 // test disambiguation between 'id-expression < expression' and simple-template-id
 {
 	class A
 	{
 	public:
 		void f(const A&lhs, const A&rhs)
 		{
-			lhs.m_cat<rhs.m_cat||(lhs.m_cat==rhs.m_cat&&lhs.m_val<rhs.m_val);
+			lhs.m_cat<rhs.m_cat||(lhs.m_cat==rhs.m_cat&&lhs.m_val<rhs.m_val); // 'lhs.m_cat' does not name a template
 		}
 	private:
 		int m_val;
 		int* m_cat;
 	};
 }
+
+
+namespace N349 // test disambiguation between 'id-expression < expression' and simple-template-id
+{
+	template<typename T1, typename T2>
+	struct pair
+	{
+		T1 first;
+		T2 second;
+	};
+
+	template<class _Ty1, class _Ty2>
+	inline bool operator<(const pair<_Ty1, _Ty2>&_Left, const pair<_Ty1, _Ty2>&_Right)
+	{
+		return (_Left.first<_Right.first||!(_Right.first<_Left.first)&&_Left.second<_Right.second); // '_Left.first' does not name a template
+	}
+}
+
 
 namespace N357
 {
@@ -408,7 +355,7 @@ namespace N359
 }
 #endif
 
-namespace N358
+namespace N358 // test instantiation of class template with dependent base class of the form `T::Type`
 {
 	struct A
 	{
@@ -424,7 +371,7 @@ namespace N358
 }
 
 
-namespace N356
+namespace N356 // test parse of explicit specialization member function definition which omits 'template<>'
 {
 	struct A
 	{
@@ -541,102 +488,7 @@ namespace N353
 }
 #endif
 
-namespace N347
-{
-	template<typename Target, typename Src>
-	struct to_string_helper
-	{
-		typedef Target type;
-	};
-	template<typename Src>
-	struct to_string_helper<Src, Src>
-	{
-		typedef Src const&type;
-	};
-	template<typename Target>
-	struct to_string_helper<Target, char const*>
-	{
-		typedef Target type;
-	};
 
-	template<typename Target, typename Src>
-	inline typename to_string_helper<Target, Src>::type to_string(Src const&src);
-
-	struct String1
-	{
-	};
-
-	struct String2
-	{
-	};
-
-	template<typename T>
-	struct A
-	{
-		static String2 get_version(String1 t)
-		{
-			return to_string<String2>(t);
-		}
-	};
-}
-
-
-namespace N283
-{
-	struct S
-	{
-		void f()
-		{
-			this->~S(); // destructor call using class member access syntax (psuedo-destructor-name)
-		}
-	};
-}
-
-
-
-namespace N257
-{
-	struct S
-	{
-		template<bool>
-		void operator()()
-		{
-		}
-	};
-	void f()
-	{
-		enum { CONSTANT = 0 };
-		S s;
-		s.operator()<true>();
-		s.operator()<CONSTANT < 0>(); // older versions of Comeau fail to compile this
-	}
-}
-
-namespace N349
-{
-	template<typename T1, typename T2>
-	struct pair
-	{
-		T1 first;
-		T2 second;
-	};
-
-	template<class _Ty1, class _Ty2>
-	inline bool operator<(const pair<_Ty1, _Ty2>&_Left, const pair<_Ty1, _Ty2>&_Right)
-	{
-		return (_Left.first<_Right.first||!(_Right.first<_Left.first)&&_Left.second<_Right.second);
-	}
-}
-
-
-namespace N271
-{
-	void f()
-	{
-		char *_Ptr = 0;
-		*_Ptr++;
-	}
-}
 
 
 namespace N346

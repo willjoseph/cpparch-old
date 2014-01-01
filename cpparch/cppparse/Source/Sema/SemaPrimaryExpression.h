@@ -29,6 +29,7 @@ struct SemaLiteral : public SemaBase
 	void action(cpp::string_literal* symbol)
 	{
 		expression = makeConstantExpression(IntegralConstantExpression(getStringLiteralType(symbol), IntegralConstant()));
+		expression.isLvalue = true; // [expr.prim.general] A string literal is an lvalue
 	}
 };
 
@@ -72,6 +73,11 @@ struct SemaPrimaryExpression : public SemaBase
 		{
 			return reportIdentifierMismatch(symbol, *walker.id, walker.declaration, "object-name");
 		}
+		// [expr.prim.general]
+		// An identifier is an id-expression provided it has been suitably declared (Clause 7). [....]
+		// The type of the expression is the type of the identifier.
+		// The result is the entity denoted by the identifier. The result is an lvalue if the entity is a function, variable,
+		// or data member and a prvalue otherwise.
 		id = walker.id;
 		arguments = walker.arguments;
 		type = gUniqueTypeNull;
@@ -114,6 +120,7 @@ struct SemaPrimaryExpression : public SemaBase
 				expression.type = typeOfExpression(expression.p, getInstantiationContext());
 			}
 			SEMANTIC_ASSERT(expression.type == type);
+			expression.isLvalue = isLvalue(*declaration);
 		}
 		return true;
 	}
@@ -122,6 +129,7 @@ struct SemaPrimaryExpression : public SemaBase
 	{
 		type = walker.type;
 		expression = walker.expression;
+		expression.isParenthesised = true;
 		id = walker.id;
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);

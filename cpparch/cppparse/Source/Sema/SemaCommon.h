@@ -17,7 +17,7 @@ struct SemanticError
 	}
 };
 
-#define SEMANTIC_ASSERT(condition) if(!(condition)) { throw SemanticError(); }
+#define SEMANTIC_ASSERT(condition) if(!(condition)) { /* printPosition(context.parserContext.get_position()); std::cout << "semantic error" << std::endl;*/ throw SemanticError(); }
 
 inline void semanticBreak()
 {

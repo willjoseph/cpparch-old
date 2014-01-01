@@ -348,6 +348,14 @@ inline bool isMemberIdExpression(ExpressionNode* node)
 	return isMember(*idExpression.declaration); // this id-expression names a member
 }
 
+inline bool isLvalue(const Declaration& declaration)
+{
+	return isObject(declaration) // functions, variables and data members are lvalues
+		&& declaration.templateParameter == INDEX_INVALID // template parameters are not lvalues
+		&& !(isMemberFunction(declaration) && !isStatic(declaration)) // non-static member functions are not lvalues
+		&& !isEnum(UniqueTypeWrapper(declaration.type.unique)); // enumerators are not lvalues
+}
+
 inline UniqueTypeWrapper typeOfExpressionSafe(ExpressionNode* node, const InstantiationContext& context)
 {
 	if(isMemberIdExpression(node)) // if attempting to evaluate type of non-static member with no context
@@ -373,7 +381,14 @@ inline UniqueTypeWrapper typeOfExpressionWrapper(const ExpressionWrapper& expres
 		return type;
 	}
 	SYMBOLS_ASSERT(type == expression.type);
-	return expression.type;
+
+	// [basic.lval] Class prvalues can have cv-qualified types; non-class prvalues always have cv-unqualified types
+	if(!expression.isLvalue // if this is a prvalue
+		&& !isClass(type)) // and is not a class
+	{
+		type.value.setQualifiers(CvQualifiers()); // remove cv-qualifiers
+	}
+	return type;
 #endif
 }
 
@@ -546,7 +561,7 @@ inline UniqueTypeWrapper getBuiltInUnaryOperatorReturnType(Name operatorName, Un
 		SYMBOLS_ASSERT(!result.empty());
 		// [expr.unary] The unary * operator performs indirection: the expression to which it is applied shall be a pointer to an
 		// object type, or a pointer to a function type and the result is an lvalue referring to the object or function to
-		// which the expression points.
+		// which the expression points. If the type of the expression is "pointer to T," the type of the result is "T."
 		SYMBOLS_ASSERT(result.isPointer());
 		result.pop_front();
 		return result;

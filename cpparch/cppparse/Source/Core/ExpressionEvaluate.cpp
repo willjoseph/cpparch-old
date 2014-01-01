@@ -1,6 +1,4 @@
 
-#if BUILD_STANDALONE
-
 #include "ExpressionEvaluate.h"
 
 inline IntegralConstant evaluateIdExpression(const IdExpression& node, const InstantiationContext& context)
@@ -943,5 +941,3 @@ inline UniqueTypeWrapper typeOfExpression(ExpressionNode* node, const Instantiat
 	node->accept(visitor);
 	return visitor.result;
 }
-
-#endif

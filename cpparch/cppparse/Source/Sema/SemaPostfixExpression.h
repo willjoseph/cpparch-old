@@ -274,6 +274,7 @@ struct SemaPostfixExpression : public SemaBase
 				getInstantiationContext());
 		}
 		expression = makeExpression(SubscriptExpression(expression, walker.expression), false, isDependent(typeDependent), isDependent(valueDependent));
+		expression.isLvalue = true;
 		if(!expression.isTypeDependent)
 		{
 			SYMBOLS_ASSERT(expression.type == type);
@@ -402,6 +403,7 @@ struct SemaPostfixExpression : public SemaBase
 				type = gOverloaded;
 			}
 			SYMBOLS_ASSERT(expression.type == type);
+			expression.isLvalue = isLvalue(*declaration);
 		}
 
 		setExpressionType(symbol, type);

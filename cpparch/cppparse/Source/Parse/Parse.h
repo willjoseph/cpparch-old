@@ -1510,7 +1510,7 @@ DEFINE_CHOICEPARSER(17);
 
 
 template<typename T, typename Choices>
-struct MakeParser
+struct MakeParserImpl
 {
 	typedef ChoiceParser<T, TYPELIST_COUNT(typename T::Choices)> Type;
 };
@@ -1518,15 +1518,20 @@ struct MakeParser
 struct DefaultParser;
 
 template<typename T>
-struct MakeParser<T, TypeListEnd>
+struct MakeParserImpl<T, TypeListEnd>
 {
 	typedef DefaultParser Type;
 };
 
 template<typename T>
-typename MakeParser<T, typename T::Choices>::Type makeParser(T*)
+struct MakeParser : MakeParserImpl<T, typename T::Choices>
 {
-	return typename MakeParser<T, typename T::Choices>::Type();
+};
+
+template<typename T>
+typename MakeParser<T>::Type makeParser(T*)
+{
+	return typename MakeParser<T>::Type();
 }
 
 
@@ -1704,6 +1709,39 @@ inline void skipMemInitializerClause(Parser& parser)
 	}
 }
 
+
+#if 0 // recover from failure to parse a declaration
+
+struct RecoverableError
+{
+	RecoverableError()
+	{
+	}
+};
+
+typedef MakeParser<cpp::declaration>::Type DeclarationParserBase;
+
+struct DeclarationParser : DeclarationParserBase
+{
+	template<typename SemaT>
+	static cpp::declaration* parseSymbol(ParserGeneric<SemaT>& parser, cpp::declaration* result)
+	{
+		try
+		{
+			return DeclarationParserBase::parseSymbol(parser, result);
+		}
+		catch(RecoverableError)
+		{
+			return 0;
+		}
+	}
+};
+
+inline DeclarationParser makeParser(cpp::declaration*)
+{
+	return DeclarationParser();
+}
+#endif
 
 #endif
 

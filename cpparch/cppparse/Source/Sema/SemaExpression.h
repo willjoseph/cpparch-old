@@ -317,6 +317,7 @@ struct SemaExpression : public SemaBase, SemaExpressionResult
 			isDependent(typeDependent),
 			isDependent(valueDependent)
 		);
+		expression.isLvalue = symbol->op->id == cpp::unary_operator::STAR;
 		if(!expression.isTypeDependent)
 		{
 			SYMBOLS_ASSERT(expression.type == type);

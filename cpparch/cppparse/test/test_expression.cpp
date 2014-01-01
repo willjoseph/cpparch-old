@@ -40,7 +40,6 @@ namespace N372
 #endif
 }
 
-
 #ifdef _CPPP_TEST // causes static_assert to fire
 namespace N371
 {
@@ -84,7 +83,7 @@ namespace cppp
 #define STATIC_ASSERT_IS_DIFFERENT(T, U) STATIC_ASSERT(!IS_SAME(T, U))
 #define ASSERT_EXPRESSION_TYPE(e, T) STATIC_ASSERT_IS_SAME(decltype(e), T)
 
-namespace TestTypes
+namespace N382
 {
 	STATIC_ASSERT_IS_SAME(int, int);
 	STATIC_ASSERT_IS_DIFFERENT(int, bool);
@@ -100,7 +99,7 @@ namespace TestTypes
 	STATIC_ASSERT_IS_DIFFERENT(int, unsigned int);
 }
 
-namespace TestDecltype
+namespace N383
 {
 	STATIC_ASSERT_IS_SAME(decltype(true), bool);
 	STATIC_ASSERT_IS_SAME(decltype(false), bool);
@@ -109,6 +108,44 @@ namespace TestDecltype
 	STATIC_ASSERT_IS_SAME(decltype(0.0), double);
 	STATIC_ASSERT_IS_SAME(decltype(0l), long);
 	// STATIC_ASSERT_IS_SAME(decltype(0ll), long long); // TODO: long long
+
+	STATIC_ASSERT_IS_SAME(decltype(int()), int);
+
+	// The type denoted by decltype(e) is defined as follows:
+	//  - if e is an unparenthesized id-expression or an unparenthesized class member access (5.2.5), decltype(e)
+	//  	is the type of the entity named by e. If there is no such entity, or if e names a set of overloaded functions,
+	//  	the program is ill-formed;
+	//  - otherwise, if e is an xvalue, decltype(e) is T&&, where T is the type of e;
+	//  - otherwise, if e is an lvalue, decltype(e) is T&, where T is the type of e;
+	//  - otherwise, decltype(e) is the type of e.
+
+	struct A
+	{
+		int m;
+	};
+
+	int f();
+	int i;
+	const int ci = 0;
+	A a;
+
+	enum E { VALUE };
+
+	STATIC_ASSERT_IS_SAME(decltype(i), int); // unparenthesized id-expression
+	STATIC_ASSERT_IS_SAME(decltype(ci), const int); // unparenthesized id-expression
+	STATIC_ASSERT_IS_SAME(decltype(f), int()); // unparenthesized id-expression (not overloaded)
+	STATIC_ASSERT_IS_SAME(decltype(a.m), int); // unparenthesized class-member-access
+	STATIC_ASSERT_IS_SAME(decltype(VALUE), E); // unparenthesized id-expression
+
+	STATIC_ASSERT_IS_SAME(decltype((i)), int&); // yields a reference because 'i' is an lvalue
+	STATIC_ASSERT_IS_SAME(decltype((ci)), const int&); // yields a reference because 'ci' is an lvalue
+	STATIC_ASSERT_IS_SAME(decltype((f)), int(&)()); // yields a reference because 'f' is an lvalue
+	STATIC_ASSERT_IS_SAME(decltype((a.m)), int&); // yields a reference because 'a.m' is an lvalue
+	STATIC_ASSERT_IS_SAME(decltype((VALUE)), E); // does not yield a reference because 'VALUE' is not an lvalue
+
+	STATIC_ASSERT_IS_SAME(decltype(f()), int); // not an lvalue
+	STATIC_ASSERT_IS_SAME(decltype(A()), A);
+	STATIC_ASSERT_IS_SAME(decltype(E()), E);
 }
 
 
@@ -196,6 +233,14 @@ namespace N348 // test call to overloaded operator++
 	ASSERT_EXPRESSION_TYPE(a++, A&); // calls 'A::operator++(int)'
 }
 
+namespace N271 // test call to built-in operator++(char*) followed by built-in operator*(char*)
+{
+	void f()
+	{
+		char* _Ptr = 0;
+		ASSERT_EXPRESSION_TYPE(*_Ptr++, char&);
+	}
+}
 
 namespace N366 // test function call with pointer-to-overloaded-function argument
 {
@@ -296,3 +341,178 @@ namespace N332 // test overload resolution of friend function overloaded operato
 	ASSERT_EXPRESSION_TYPE(i < a, int); // calls 'B<A>::operator<(const int&, const A&)' via argument dependent lookup - because it is a better candidate than built-in 'operator<(int, int)'
 }
 
+//-----------------------------------------------------------------------------
+// name lookup for friend declaration
+
+namespace N157 // test choice of correct explicit specialization by function type
+{
+	template<class R>
+	struct S
+	{
+		typedef int Primary;
+	};
+	template<>
+	struct S<void()>
+	{
+		typedef int Spec1;
+	};
+	template<>
+	struct S<void(...)>
+	{
+		typedef int Spec2;
+	};
+
+	S<int>::Primary p;
+	S<void()>::Spec1 s1;
+	S<void(...)>::Spec2 s2;
+}
+
+
+//-----------------------------------------------------------------------------
+// name lookup for friend declaration
+
+namespace N376 // test name lookup for namespace-scope redeclaration of function first declared as friend
+{
+	struct A
+	{
+		friend int f();
+	};
+
+	int f(); // redeclares 'f'
+
+	int c = f(); // unqualified name lookup finds 'f'
+}
+
+namespace N377 // test name lookup for namespace-scope declaration of function redeclared as friend
+{
+	int f();
+
+	struct A
+	{
+		friend int f(); // redeclares 'f'
+	};
+
+	int c = f(); // unqualified name lookup finds 'f'
+}
+
+namespace N379 // test name lookup for namespace-scope declaration of class redeclared as friend
+{
+	struct B;
+
+	struct A
+	{
+		friend struct B; // redeclares 'B'
+	};
+
+	B* b; // unqualified name lookup finds 'B'
+}
+
+namespace N378 // test name lookup for namespace-scope redeclaration of class first declared as friend
+{
+	struct A
+	{
+		friend struct B;
+	};
+
+	struct B; // redeclares 'B'
+
+	B* b; // unqualified name lookup finds 'B'
+}
+
+//-----------------------------------------------------------------------------
+// argument dependent name lookup
+
+namespace N380 // test argument dependent name lookup for function declared only as friend
+{
+	struct A
+	{
+		friend int f(A); // redeclares 'f'
+	};
+
+	int c = f(A()); // argument dependent name lookup finds 'f'
+}
+
+namespace N321 // test argument dependent name lookup for function declared in nested namespace
+{
+	namespace N
+	{
+		struct A
+		{
+		};
+		int f(A);
+	}
+
+	N::A a;
+	int x = f(a); // lookup of unqualified id 'f' should be deferred until arguments are known, then looked up via ADL
+}
+
+//-----------------------------------------------------------------------------
+// explicit template argument specification
+
+namespace N257 // test parse of explicit template argument specification in call to 'operator()'
+{
+	struct S
+	{
+		template<bool>
+		void operator()()
+		{
+		}
+	};
+	void f()
+	{
+		enum { CONSTANT = 0 };
+		S s;
+		s.operator()<true>();
+		s.operator()<CONSTANT < 0>(); // older versions of Comeau fail to compile this
+	}
+}
+
+namespace N347 // test interaction of explicit template argument specification and template argument deduction
+{
+	template<typename First, typename Second>
+	struct C
+	{
+	};
+
+	template<typename First, typename Second>
+	C<First, Second> f(const Second& src);
+
+	struct A
+	{
+	};
+
+	struct B
+	{
+	};
+
+	A a;
+	B b;
+
+	typedef C<B, A> Expected;
+
+	// first template argument is explicitly specified as 'B'
+	ASSERT_EXPRESSION_TYPE(f<B>(a), Expected); // second template argument is deduced as 'A'
+}
+
+//-----------------------------------------------------------------------------
+// class template partial specialization
+
+namespace N381 // test selection of correct specialization when both template arguments are the same type
+{
+	template<typename Target, typename Src>
+	struct C
+	{
+		typedef Target type;
+	};
+	template<typename Src>
+	struct C<Src, Src>
+	{
+		typedef const Src& type;
+	};
+
+	typedef C<int, float> Different;
+	typedef C<int, int> Same;
+
+	STATIC_ASSERT_IS_SAME(Different::type, int);
+	STATIC_ASSERT_IS_SAME(Same::type, const int&);
+}

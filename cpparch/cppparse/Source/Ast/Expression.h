@@ -124,18 +124,20 @@ struct ExpressionWrapper : ExpressionPtr
 	UniqueTypeWrapper type; // valid if this expression is not type-dependent
 	IntegralConstant value; // valid if this is expression is integral-constant and not value-dependent
 	bool isConstant;
+	bool isLvalue; // true if the expression is an lvalue
 	bool isTypeDependent;
 	bool isValueDependent;
 	bool isNullPointerConstant;
 	bool isTemplateArgumentAmbiguity; // [temp.arg] In a template argument, an ambiguity between a typeid and an expression is resolved to a typeid
 	bool isNonStaticMemberName;
 	bool isQualifiedNonStaticMemberName;
+	bool isParenthesised; // true if the expression is surrounded by one or more sets of parentheses
 	ExpressionWrapper()
-		: ExpressionPtr(0), isConstant(false), isTypeDependent(false), isValueDependent(false), isNullPointerConstant(false), isTemplateArgumentAmbiguity(false), isNonStaticMemberName(false), isQualifiedNonStaticMemberName(false)
+		: ExpressionPtr(0), isConstant(false), isLvalue(false), isTypeDependent(false), isValueDependent(false), isNullPointerConstant(false), isTemplateArgumentAmbiguity(false), isNonStaticMemberName(false), isQualifiedNonStaticMemberName(false), isParenthesised(false)
 	{
 	}
 	explicit ExpressionWrapper(ExpressionNode* node, bool isConstant = true, bool isTypeDependent = false, bool isValueDependent = false)
-		: ExpressionPtr(node), isConstant(isConstant), isTypeDependent(isTypeDependent), isValueDependent(isValueDependent), isNullPointerConstant(false), isTemplateArgumentAmbiguity(false), isNonStaticMemberName(false), isQualifiedNonStaticMemberName(false)
+		: ExpressionPtr(node), isConstant(isConstant), isLvalue(false), isTypeDependent(isTypeDependent), isValueDependent(isValueDependent), isNullPointerConstant(false), isTemplateArgumentAmbiguity(false), isNonStaticMemberName(false), isQualifiedNonStaticMemberName(false), isParenthesised(false)
 	{
 	}
 };
