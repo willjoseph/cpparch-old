@@ -1145,7 +1145,7 @@ struct ParseTreePrinter : SymbolPrinter
 	template<typename T>
 	static UniqueTypeId getSymbolType(T* symbol)
 	{
-		return ExpressionType<T>::get(symbol);
+		return ExpressionTypeHelper<T>::get(symbol);
 	}
 
 	template<typename T>

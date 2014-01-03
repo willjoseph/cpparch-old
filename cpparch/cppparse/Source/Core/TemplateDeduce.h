@@ -363,7 +363,7 @@ inline bool deduceFunctionCall(const ParameterTypes& parameters, const UniqueTyp
 {
 	try
 	{
-		UniqueTypeArray::const_iterator p = parameters.begin();
+		ParameterTypes::const_iterator p = parameters.begin();
 		for(UniqueTypeArray::const_iterator a = arguments.begin();
 			a != arguments.end() && p != parameters.end(); // for each pair P, A
 			// fewer arguments than parameters: occurs when some parameters are defaulted

@@ -119,12 +119,24 @@ struct IntegralConstant
 	}
 };
 
+
+struct ExpressionType : UniqueTypeWrapper
+{
+	bool isLvalue; // true if the expression is an lvalue
+	ExpressionType() : isLvalue(false)
+	{
+	}
+	ExpressionType(UniqueTypeWrapper type, bool isLvalue)
+		: UniqueTypeWrapper(type), isLvalue(isLvalue)
+	{
+	}
+};
+
 struct ExpressionWrapper : ExpressionPtr
 {
-	UniqueTypeWrapper type; // valid if this expression is not type-dependent
+	ExpressionType type; // valid if this expression is not type-dependent
 	IntegralConstant value; // valid if this is expression is integral-constant and not value-dependent
 	bool isConstant;
-	bool isLvalue; // true if the expression is an lvalue
 	bool isTypeDependent;
 	bool isValueDependent;
 	bool isNullPointerConstant;
@@ -133,11 +145,11 @@ struct ExpressionWrapper : ExpressionPtr
 	bool isQualifiedNonStaticMemberName;
 	bool isParenthesised; // true if the expression is surrounded by one or more sets of parentheses
 	ExpressionWrapper()
-		: ExpressionPtr(0), isConstant(false), isLvalue(false), isTypeDependent(false), isValueDependent(false), isNullPointerConstant(false), isTemplateArgumentAmbiguity(false), isNonStaticMemberName(false), isQualifiedNonStaticMemberName(false), isParenthesised(false)
+		: ExpressionPtr(0), isConstant(false), isTypeDependent(false), isValueDependent(false), isNullPointerConstant(false), isTemplateArgumentAmbiguity(false), isNonStaticMemberName(false), isQualifiedNonStaticMemberName(false), isParenthesised(false)
 	{
 	}
 	explicit ExpressionWrapper(ExpressionNode* node, bool isConstant = true, bool isTypeDependent = false, bool isValueDependent = false)
-		: ExpressionPtr(node), isConstant(isConstant), isLvalue(false), isTypeDependent(isTypeDependent), isValueDependent(isValueDependent), isNullPointerConstant(false), isTemplateArgumentAmbiguity(false), isNonStaticMemberName(false), isQualifiedNonStaticMemberName(false), isParenthesised(false)
+		: ExpressionPtr(node), isConstant(isConstant), isTypeDependent(isTypeDependent), isValueDependent(isValueDependent), isNullPointerConstant(false), isTemplateArgumentAmbiguity(false), isNonStaticMemberName(false), isQualifiedNonStaticMemberName(false), isParenthesised(false)
 	{
 	}
 };

@@ -1,6 +1,4 @@
 
-#if BUILD_STANDALONE
-
 #include "Fundamental.h"
 
 #include "Ast/AstAllocator.h"
@@ -61,4 +59,3 @@ BuiltInTypeId gVoid(&gVoidDeclaration, AST_ALLOCATOR_NULL);
 StringLiteralTypeId gStringLiteral(&gCharDeclaration, AST_ALLOCATOR_NULL);
 StringLiteralTypeId gWideStringLiteral(&gWCharTDeclaration, AST_ALLOCATOR_NULL);
 
-#endif

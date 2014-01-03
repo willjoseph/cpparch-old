@@ -3,17 +3,38 @@ namespace Temptest
 {
 	struct A
 	{
-	};
-
-	struct B
-	{
-		int A::* m;
+		A& operator++(int);
 	};
 
 	A a;
-	B b;
-	int i = a.*b.m; // lvalue
+	decltype(a++) x = a; // calls 'A::operator++(int)'
 }
+
+
+namespace N83 // test parse of explicit call of implicitly declared assignment operator
+{
+	class C
+	{
+		void f()
+		{
+			// [special] Programs may explicitly refer to implicitly declared special member functions.
+			operator=(*this); // explicit call of operator not supported
+		}
+	};
+}
+
+namespace N343 // test parse of explicit call of implicitly declared assignment operator
+{
+	class C
+	{
+		void f()
+		{
+			// [special] Programs may explicitly refer to implicitly declared special member functions.
+			this->operator=(*this); // explicit call of operator not supported
+		}
+	};
+}
+
 
 #if 0 // TODO: offsetof as constant expression: &(((A*)0)->m)
 namespace N375
@@ -137,31 +158,6 @@ namespace N369 // test evaluation of constant expression used as template parame
 
 	typedef A<0>::First First; // type is 'A<1>'
 	typedef First::Last Last; // explicit specialization of 'A<1>' has member 'Last'
-}
-
-
-namespace N83 // test parse of explicit call of implicitly declared assignment operator
-{
-	class C
-	{
-		void f()
-		{
-			// [special] Programs may explicitly refer to implicitly declared special member functions.
-			operator=(*this); // explicit call of operator not supported
-		}
-	};
-}
-
-namespace N343 // test parse of explicit call of implicitly declared assignment operator
-{
-	class C
-	{
-		void f()
-		{
-			// [special] Programs may explicitly refer to implicitly declared special member functions.
-			this->operator=(*this); // explicit call of operator not supported
-		}
-	};
 }
 
 
@@ -695,7 +691,7 @@ namespace N339 // test handling of ambiguity between psuedo-destructor-name and 
 	};
 }
 
-namespace N255
+namespace N255 // test determination of type-dependent-ness for enumerator initializer consisting of sizeof expression
 {
 	template<bool b>
 	struct Tmpl
@@ -718,7 +714,7 @@ namespace N255
 	};
 }
 
-namespace N278
+namespace N278 // test determination of type-dependent-ness for qualified-id referring to class that may or may not be a base-class
 {
 	struct C
 	{
@@ -751,7 +747,7 @@ namespace N278
 	};
 }
 
-namespace N338
+namespace N338 // test parse of unary operator applied to operand with enum type
 {
 	enum E
 	{
@@ -761,56 +757,6 @@ namespace N338
 	int i = ~E();
 	int j = -E();
 	int k = +E();
-}
-
-namespace N333
-{
-	struct A
-	{
-		operator const int&()const;
-		operator int&();
-	};
-
-	bool f(const int& x, const A& y);
-	bool f(int, int);
-
-
-	int i;
-	A a;
-	bool x = f(i, a); // calls 'f(const int&, const A&)' - because it is a better candidate than 'f(int, int)'
-}
-
-
-namespace N330
-{
-	struct A
-	{
-		operator const int&()const;
-		operator int&(); // implicit-object parameter is better conversion from 'A&' because no 'added qualification'
-	};
-
-	int i;
-	A a;
-	bool x = i < a; // calls built-in operator<(int, int), via conversion function 'A::operator int&()'
-}
-
-namespace N329
-{
-	template<class T>
-	struct A
-	{
-		friend bool operator==(const T&x, const T&y)
-		{
-			return false;
-		}
-	};
-
-	enum E
-	{
-	};
-
-	E e;
-	bool x = e == e; // name lookup should not find 'A<T>::operator=='
 }
 
 namespace N328
@@ -886,58 +832,6 @@ namespace N222
 	}
 }
 
-namespace N325
-{
-	struct A
-	{
-		bool operator()();
-	};
-
-	A a;
-
-	bool b = true && a();
-}
-
-namespace N324
-{
-	struct A
-	{
-		operator int*();
-	};
-
-	A a;
-
-	bool b = a != 0;
-}
-
-namespace N323
-{
-	enum E
-	{
-		VALUE
-	};
-
-	const char p[1] = "";
-	const char* i = p + VALUE;
-}
-
-namespace N322
-{
-	int f(const char*);
-	void f(bool);
-
-	int x = f("");
-}
-
-namespace N319
-{
-	enum E
-	{
-	};
-
-	int i = E() + 1;
-}
-
 namespace N318
 {
 	int f(int*);
@@ -952,150 +846,6 @@ namespace N318
 	int i = g<0>(0);
 }
 
-
-namespace N317
-{
-	int f(int*);
-
-	int* p;
-	int i = f(true ? 0 : p);
-}
-
-
-namespace N316
-{
-	template<typename>
-	struct C
-	{
-	};
-
-	struct I
-	{
-	};
-
-	struct B : I
-	{
-	};
-
-	struct D : B
-	{
-	};
-
-
-	struct A
-	{
-		template<typename X, typename T>
-		static T* f(C<X>&, T*);
-		template<typename X>
-		B* f(C<X>&, B*);
-		template<typename X>
-		I* f(C<X>&, I*);
-	};
-
-	C<int> c;
-	A a;
-	D* p = a.f(c, p); // overload resolution chooses 'A::f<int, D>(C<int>&, D*)'
-}
-
-namespace N315
-{
-	struct A
-	{
-		template<typename X>
-		static int* f(X&, int*);
-		template<typename X, typename T>
-		int* f(X&, T*);
-	};
-
-	int x;
-	A a;
-	int* p = a.f(x, p); // overload resolution chooses 'A::f<int>(int&, int*)'
-	// TODO: clang thinks this is ambiguous?
-}
-
-
-namespace N314
-{
-	template<typename X>
-	int* f(X&, int*);
-	template<typename X, typename T>
-	int* f(X&, T*);
-
-	int x;
-	int* p = f(x, p); // overload resolution chooses 'f<int>(int&, int*)'
-}
-
-namespace N313
-{
-	struct S
-	{
-		operator const int&();
-	};
-
-	int f(const int&);
-
-	int i = f(S()); // overload resolution chooses conversion 'S::operator const int&()'
-}
-
-namespace N308
-{
-	struct S
-	{
-		operator int*();
-		operator int();
-	};
-
-	int f(int);
-
-	int i = f(S()); // overload resolution chooses conversion 'S::operator int()'
-}
-
-namespace N312
-{
-	struct B
-	{
-		operator int*();
-	};
-
-
-	int f(int*);
-
-	int i = f(B()); // overload resolution chooses conversion 'B::operator int*()'
-}
-
-namespace N311
-{
-	template<typename T>
-	struct B
-	{
-		operator T*() const;
-	};
-
-	struct D : B<int>
-	{
-	};
-
-	int f(int*);
-
-	const D& d = D();
-	int i = f(d); // overload resolution chooses conversion 'B<int>::operator int*()'
-}
-
-namespace N310
-{
-	struct B
-	{
-		int m;
-	};
-
-	struct A
-	{
-		B* operator->();
-	};
-
-	A a;
-	int i = a->m;
-};
 
 namespace N307
 {
@@ -1139,60 +889,6 @@ namespace N306
 	typename A<T>::M const A<T>::m;
 
 	typedef B<A<int> >::Type Type; // implicit instantiation of 'A<int>' via 'B' should not cause instantiation of static member 'A<int>::m'
-}
-
-namespace N305
-{
-	template<class _Elem>
-	class basic_string
-	{
-	public:
-		basic_string();
-		basic_string(const _Elem*_Ptr);
-		~basic_string();
-	};
-
-	int f(basic_string<char>);
-
-	const char* s = "";
-	int i = f(s); // conversion to basic_string<char>(int)
-}
-
-namespace N304
-{
-	template<class _Elem>
-	class basic_string
-	{
-	public:
-		typedef basic_string<_Elem> _Myt;
-		typedef const _Elem* const_pointer;
-		basic_string();
-		basic_string(const _Myt&_Right);
-		basic_string(const _Elem*_Ptr);
-		template<class _It>
-		basic_string(_It _First, _It _Last);
-		template<class _It>
-		basic_string(const_pointer _First, const_pointer _Last);
-	};
-
-	int f(basic_string<char>);
-
-	const char* s = "";
-	int i = f(s); // conversion to basic_string<char>(int)
-}
-
-namespace N282
-{
-	struct S
-	{
-		S(int);
-		S(float);
-		~S();
-	};
-
-	int f(S);
-
-	int i = f(0); // conversion to S(int)
 }
 
 namespace N302
@@ -1266,33 +962,6 @@ namespace N203
 }
 #endif
 
-namespace N300
-{
-	template<typename T>
-	T f(const T*const*);
-
-	int** a;
-	int i = f(a); // calls f(const int*const*)
-}
-
-namespace N296
-{
-	template<typename T>
-	struct S
-	{
-	};
-
-	template<typename T>
-	T f(const S<T>*);
-
-	struct A : S<int>
-	{
-	};
-
-	A a;
-	int i = f(&a); // calls f(const S<int>*)
-}
-
 namespace N297
 {
 	template<typename DerivedT>
@@ -1315,51 +984,6 @@ namespace N297
 	{
 		*anychar_p;
 	}
-}
-
-namespace N295
-{
-	struct S
-	{
-	};
-
-	template<typename T>
-	int operator*(const T&);
-
-	S s;
-	int i = *s; // calls operator*(const S&);
-}
-
-namespace N294
-{
-	template<typename T>
-	struct S
-	{
-	};
-
-	template<typename T>
-	T f(const S<T>&);
-
-	struct A : S<int>
-	{
-	};
-
-	A a;
-	int i = f(a); // calls f(const S<int>&)
-}
-
-namespace N293
-{
-	template<typename T>
-	struct S
-	{
-	};
-
-	template<typename T>
-	T f(const S<T>&);
-
-	S<int> s;
-	int i = f(s); // calls f(const S<int>&)
 }
 
 namespace N292
@@ -1498,25 +1122,6 @@ namespace N286
 	}
 }
 
-namespace N284
-{
-	template<class T>
-	void f(const T&)
-	{
-	}
-	void g(const int& i)
-	{
-		f(i);
-	}
-}
-
-namespace N281
-{
-	template<class U>
-	inline int f(const U&_Val);
-
-	int i = f(char(0xba));
-}
 
 namespace N279
 {

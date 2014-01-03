@@ -8,7 +8,7 @@
 struct SimpleType;
 struct InstantiationContext;
 
-inline ExpressionWrapper makeArgument(ExpressionWrapper expression, UniqueTypeWrapper type)
+inline ExpressionWrapper makeArgument(ExpressionWrapper expression, ExpressionType type)
 {
 	ExpressionWrapper result(expression);
 	result.type = type;
@@ -20,9 +20,9 @@ typedef std::vector<Argument> Arguments;
 
 struct IntegralConstantExpression
 {
-	UniqueTypeWrapper type;
+	ExpressionType type;
 	IntegralConstant value;
-	IntegralConstantExpression(UniqueTypeWrapper type, IntegralConstant value)
+	IntegralConstantExpression(ExpressionType type, IntegralConstant value)
 		: type(type), value(value)
 	{
 	}
@@ -234,7 +234,7 @@ inline const UnaryExpression& getUnaryExpression(ExpressionNode* node)
 }
 
 typedef IntegralConstant (*BinaryIceOp)(IntegralConstant, IntegralConstant);
-typedef UniqueTypeWrapper (*BinaryTypeOp)(Name operatorName, Argument first, Argument second, const InstantiationContext& context);
+typedef ExpressionType (*BinaryTypeOp)(Name operatorName, Argument first, Argument second, const InstantiationContext& context);
 
 struct BinaryExpression
 {

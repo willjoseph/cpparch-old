@@ -14,6 +14,16 @@
 #include "TypeSubstitute.h"
 #include "OverloadResolve.h"
 
+inline ExpressionWrapper makeConstantExpressionZero()
+{
+	return makeConstantExpression(IntegralConstantExpression(ExpressionType(gSignedInt, false), IntegralConstant(0)));
+}
+
+inline ExpressionWrapper makeConstantExpressionOne()
+{
+	return makeConstantExpression(IntegralConstantExpression(ExpressionType(gSignedInt, false), IntegralConstant(1)));
+}
+
 inline IntegralConstant identity(IntegralConstant left)
 {
 	return left;
@@ -313,8 +323,7 @@ inline IntegralConstant evaluateExpression(const ExpressionWrapper& expression, 
 	return evaluateExpression(expression.p, context);
 }
 
-
-inline UniqueTypeWrapper typeOfExpression(ExpressionNode* node, const InstantiationContext& context);
+inline ExpressionType typeOfExpression(ExpressionNode* node, const InstantiationContext& context);
 inline bool isOverloaded(const DeclarationInstance& declaration);
 
 inline bool isOverloadedFunction(const DeclarationInstance& declaration)
@@ -356,22 +365,22 @@ inline bool isLvalue(const Declaration& declaration)
 		&& !isEnum(UniqueTypeWrapper(declaration.type.unique)); // enumerators are not lvalues
 }
 
-inline UniqueTypeWrapper typeOfExpressionSafe(ExpressionNode* node, const InstantiationContext& context)
+inline ExpressionType typeOfExpressionSafe(ExpressionNode* node, const InstantiationContext& context)
 {
 	if(isMemberIdExpression(node)) // if attempting to evaluate type of non-static member with no context
 	{
 		// can't evaluate id-expression within member-access-expression
-		return gUniqueTypeNull; // do not evaluate the type!
+		return gNullExpressionType; // do not evaluate the type!
 	}
 	return typeOfExpression(node, context);
 }
 
-inline UniqueTypeWrapper typeOfExpressionWrapper(const ExpressionWrapper& expression, const InstantiationContext& context)
+inline ExpressionType typeOfExpressionWrapper(const ExpressionWrapper& expression, const InstantiationContext& context)
 {
 #if 0
 	return typeOfExpression(expression.p, context);
 #else
-	UniqueTypeWrapper type = typeOfExpression(expression.p, context);
+	ExpressionType type = typeOfExpression(expression.p, context);
 	if(expression.isTypeDependent)
 	{
 		return type;
@@ -383,7 +392,7 @@ inline UniqueTypeWrapper typeOfExpressionWrapper(const ExpressionWrapper& expres
 	SYMBOLS_ASSERT(type == expression.type);
 
 	// [basic.lval] Class prvalues can have cv-qualified types; non-class prvalues always have cv-unqualified types
-	if(!expression.isLvalue // if this is a prvalue
+	if(!expression.type.isLvalue // if this is a prvalue
 		&& !isClass(type)) // and is not a class
 	{
 		type.value.setQualifiers(CvQualifiers()); // remove cv-qualifiers
@@ -547,13 +556,13 @@ FunctionOverload findBestOverloadedFunction(const OverloadSet& overloads, const 
 
 //-----------------------------------------------------------------------------
 
-inline UniqueTypeWrapper getBuiltInUnaryOperatorReturnType(Name operatorName, UniqueTypeWrapper type)
+inline ExpressionType getBuiltInUnaryOperatorReturnType(Name operatorName, ExpressionType type)
 {
 	if(operatorName == gOperatorAndId) // address-of
 	{
-		UniqueTypeId result = type;
+		UniqueTypeWrapper result = type;
 		result.push_front(PointerType()); // produces a non-const pointer
-		return result;
+		return ExpressionType(result, false); // non lvalue
 	}
 	else if(operatorName == gOperatorStarId) // dereference
 	{
@@ -564,7 +573,7 @@ inline UniqueTypeWrapper getBuiltInUnaryOperatorReturnType(Name operatorName, Un
 		// which the expression points. If the type of the expression is "pointer to T," the type of the result is "T."
 		SYMBOLS_ASSERT(result.isPointer());
 		result.pop_front();
-		return result;
+		return ExpressionType(result, true);
 	}
 	else if(operatorName == gOperatorPlusId
 		|| operatorName == gOperatorMinusId)
@@ -572,24 +581,24 @@ inline UniqueTypeWrapper getBuiltInUnaryOperatorReturnType(Name operatorName, Un
 		if(!isFloating(type))
 		{
 			// TODO: check type is integral or enumeration
-			return promoteToIntegralType(type);
+			return ExpressionType(promoteToIntegralType(type), false); // non lvalue
 		}
-		return type;
+		return ExpressionType(type, false); // non lvalue
 	}
 	else if(operatorName == gOperatorNotId)
 	{
-		return gBool;
+		return ExpressionType(gBool, false); // non lvalue
 	}
 	else if(operatorName == gOperatorComplId)
 	{
 		// TODO: check type is integral or enumeration
-		return promoteToIntegralType(type);
+		return ExpressionType(promoteToIntegralType(type), false); // non lvalue
 	}
 	SYMBOLS_ASSERT(operatorName == gOperatorPlusPlusId || operatorName == gOperatorMinusMinusId);
-	return type;
+	return ExpressionType(type, false); // non lvalue
 }
 
-inline UniqueTypeWrapper typeOfUnaryExpression(Name operatorName, Argument operand, const InstantiationContext& context)
+inline ExpressionType typeOfUnaryExpression(Name operatorName, Argument operand, const InstantiationContext& context)
 {
 	Identifier id;
 	id.value = operatorName;
@@ -614,7 +623,7 @@ inline UniqueTypeWrapper typeOfUnaryExpression(Name operatorName, Argument opera
 			UniqueTypeWrapper classType = makeUniqueSimpleType(*getIdExpression(operand).enclosing);
 			UniqueTypeWrapper type = operand.type;
 			type.push_front(MemberPointerType(classType)); // produces a non-const pointer
-			return type;
+			return ExpressionType(type, false); // non lvalue
 		}
 		else
 		{
@@ -629,17 +638,17 @@ inline UniqueTypeWrapper typeOfUnaryExpression(Name operatorName, Argument opera
 	}
 }
 
-inline UniqueTypeWrapper typeOfPostfixOperatorExpression(Name operatorName, Argument operand, const InstantiationContext& context)
+inline ExpressionType typeOfPostfixOperatorExpression(Name operatorName, Argument operand, const InstantiationContext& context)
 {
 	Identifier id;
 	id.value = operatorName;
 	id.source = context.source;
 
-	ExpressionWrapper zero = makeConstantExpression(IntegralConstantExpression(gSignedInt, IntegralConstant(0)));
+	ExpressionWrapper zero = makeConstantExpressionZero();
 
 	Arguments arguments;
 	arguments.push_back(operand);
-	arguments.push_back(makeArgument(zero, gSignedInt));
+	arguments.push_back(makeArgument(zero, zero.type));
 	FunctionOverload overload = findBestOverloadedOperator(id, arguments, context);
 	if(overload.declaration == &gUnknown)
 	{
@@ -658,17 +667,17 @@ inline UniqueTypeWrapper typeOfPostfixOperatorExpression(Name operatorName, Argu
 	}
 }
 
-typedef UniqueTypeWrapper (*BuiltInBinaryTypeOp)(UniqueTypeWrapper, UniqueTypeWrapper);
+typedef ExpressionType (*BuiltInBinaryTypeOp)(Name operatorName, ExpressionType, ExpressionType);
 
 template<BuiltInBinaryTypeOp typeOp>
-inline UniqueTypeWrapper typeOfBinaryExpression(Name operatorName, Argument left, Argument right, const InstantiationContext& context)
+inline ExpressionType typeOfBinaryExpression(Name operatorName, Argument left, Argument right, const InstantiationContext& context)
 {
 	SYMBOLS_ASSERT(left.type != gUniqueTypeNull);
 	SYMBOLS_ASSERT(right.type != gUniqueTypeNull);
 	Identifier id;
 	id.value = operatorName;
 	id.source = context.source;
-	FunctionOverload overload(&gUnknown, gUniqueTypeNull);
+	FunctionOverload overload(&gUnknown, gNullExpressionType);
 	if(!id.value.empty()) // if the operator can be overloaded
 	{
 		Arguments arguments;
@@ -679,36 +688,49 @@ inline UniqueTypeWrapper typeOfBinaryExpression(Name operatorName, Argument left
 	if(overload.declaration == &gUnknown
 		|| (overload.declaration == 0 && id.value == gOperatorAssignId)) // TODO: declare implicit assignment operator
 	{
-		return  typeOp(left.type, right.type);
+		return  typeOp(operatorName, left.type, right.type);
 	}
 
 	SYMBOLS_ASSERT(overload.declaration != 0);
 	return overload.type;
 }
 
-inline UniqueTypeWrapper binaryOperatorAssignment(UniqueTypeWrapper left, UniqueTypeWrapper right)
+inline ExpressionType binaryOperatorAssignment(Name operatorName, ExpressionType left, ExpressionType right)
 {
 	return left;
 }
 
-inline UniqueTypeWrapper binaryOperatorComma(UniqueTypeWrapper left, UniqueTypeWrapper right)
+inline ExpressionType binaryOperatorComma(Name operatorName, ExpressionType left, ExpressionType right)
 {
 	return right;
 }
 
-inline UniqueTypeWrapper binaryOperatorBoolean(UniqueTypeWrapper left, UniqueTypeWrapper right)
+inline ExpressionType binaryOperatorBoolean(Name operatorName, ExpressionType left, ExpressionType right)
 {
-	return gBool;
+	return ExpressionType(gBool, false); // non lvalue
 }
 
-inline UniqueTypeWrapper binaryOperatorMemberPointer(UniqueTypeWrapper left, UniqueTypeWrapper right)
+inline ExpressionType binaryOperatorMemberPointer(Name operatorName, ExpressionType left, ExpressionType right)
 {
-	return popType(right);
+	// [expr.mptr.oper] C++11
+	// The expression E1->*E2 is converted into the equivalent form (*(E1)).*E2.
+	// [expr.mptr.oper] C++11
+	// The result of a .* expression whose second operand is a pointer to a data member is of the same value
+	// category (3.10) as its first operand. The result of a .* expression whose second operand is a pointer to a
+	// member function is a prvalue.
+	// [expr.mptr.oper] C++03
+	// The result of a .* expression is an lvalue only if its first operand is an lvalue and its second operand is a
+	// pointer to data member. The result of an ->* expression is an lvalue only if its second operand is a pointer
+	// to data member.
+	bool isLvalue = right.isMemberPointer() // the result is an lvalue if the second operand is a pointer to member
+		&& !popType(right).isFunction() // and is not a function, therefore is a data member
+		&& (operatorName == gOperatorArrowStarId || left.isLvalue); // and the expression is ->* or the first operand is an lvalue
+	return ExpressionType(popType(right), isLvalue);
 }
 
 
 // [class.copy] The implicitly-declared copy assignment operator for class X has the return type X&
-inline UniqueTypeWrapper makeCopyAssignmentOperatorType(const SimpleType& classType)
+inline ExpressionType makeCopyAssignmentOperatorType(const SimpleType& classType)
 {
 	UniqueTypeWrapper type = makeUniqueSimpleType(classType);
 	UniqueTypeWrapper parameter = type;
@@ -719,14 +741,14 @@ inline UniqueTypeWrapper makeCopyAssignmentOperatorType(const SimpleType& classT
 	function.parameterTypes.reserve(1);
 	function.parameterTypes.push_back(parameter);
 	type.push_front(function);
-	return type;
+	return ExpressionType(type, true);
 }
 
-inline UniqueTypeWrapper typeOfIdExpression(const SimpleType* qualifying, const DeclarationInstance& declaration, const InstantiationContext& context)
+inline ExpressionType typeOfIdExpression(const SimpleType* qualifying, const DeclarationInstance& declaration, const InstantiationContext& context)
 {
 	if(declaration == gDestructorInstance.p)
 	{
-		return pushType(gUniqueTypeNull, FunctionType()); // type of destructor is 'function taking no parameter and returning no type'
+		return ExpressionType(pushType(gUniqueTypeNull, FunctionType()), false); // type of destructor is 'function taking no parameter and returning no type'
 	}
 	else if(declaration == gCopyAssignmentOperatorInstance.p)
 	{
@@ -737,14 +759,15 @@ inline UniqueTypeWrapper typeOfIdExpression(const SimpleType* qualifying, const 
 
 	const SimpleType* idEnclosing = getIdExpressionClass(qualifying, declaration, context.enclosingType);
 	// a member function template may have a type which depends on its template parameters
-	return getUniqueType(declaration->type, setEnclosingType(context, idEnclosing), declaration->isTemplate);
+	UniqueTypeWrapper type = getUniqueType(declaration->type, setEnclosingType(context, idEnclosing), declaration->isTemplate);
+	return ExpressionType(type, isLvalue(*declaration));
 }
 
-UniqueTypeWrapper getOverloadedMemberOperatorType(UniqueTypeWrapper operand, const InstantiationContext& context);
+ExpressionType getOverloadedMemberOperatorType(ExpressionType operand, const InstantiationContext& context);
 
 inline const SimpleType& getMemberOperatorType(Argument operand, bool isArrow, const InstantiationContext& context)
 {
-	UniqueTypeWrapper type = operand.type;
+	ExpressionType type = operand.type;
 	if(isArrow)
 	{
 		while(isClass(type))
@@ -770,12 +793,12 @@ inline const SimpleType& getMemberOperatorType(Argument operand, bool isArrow, c
 	return result;
 }
 
-inline UniqueTypeWrapper binaryOperatorArithmeticType(UniqueTypeWrapper left, UniqueTypeWrapper right)
+inline ExpressionType binaryOperatorArithmeticType(Name operatorName, ExpressionType left, ExpressionType right)
 {
-	return usualArithmeticConversions(left, right);
+	return ExpressionType(usualArithmeticConversions(left, right), false); // non lvalue
 }
 
-inline UniqueTypeWrapper binaryOperatorAdditiveType(UniqueTypeWrapper left, UniqueTypeWrapper right)
+inline ExpressionType binaryOperatorAdditiveType(Name operatorName, ExpressionType left, ExpressionType right)
 {
 	SYMBOLS_ASSERT(left != gUniqueTypeNull);
 	SYMBOLS_ASSERT(right != gUniqueTypeNull);
@@ -791,10 +814,10 @@ inline UniqueTypeWrapper binaryOperatorAdditiveType(UniqueTypeWrapper left, Uniq
 		}
 		if(right.isPointer())
 		{
-			return gSignedLongLongInt; // TODO: ptrdiff_t
+			return ExpressionType(gSignedLongLongInt, false); // TODO: ptrdiff_t
 		}
 	}
-	return usualArithmeticConversions(left, right);
+	return ExpressionType(usualArithmeticConversions(left, right), false);
 }
 
 inline UniqueTypeWrapper makePointerCvUnion(UniqueTypeWrapper left, UniqueTypeWrapper right)
@@ -826,7 +849,7 @@ inline UniqueTypeWrapper makePointerCvUnion(UniqueTypeWrapper left, UniqueTypeWr
 	return result;
 }
 
-inline UniqueTypeWrapper binaryOperatorPointerType(UniqueTypeWrapper left, UniqueTypeWrapper right)
+inline ExpressionType binaryOperatorPointerType(Name operatorName, ExpressionType left, ExpressionType right)
 {
 	SYMBOLS_ASSERT(left.isPointer() || left.isMemberPointer());
 	SYMBOLS_ASSERT(right.isPointer() || right.isMemberPointer());
@@ -846,10 +869,10 @@ inline UniqueTypeWrapper binaryOperatorPointerType(UniqueTypeWrapper left, Uniqu
 	}
 	// Otherwise, the composite pointer type is a pointer type similar (4.4) to the type of one of the operands, with a cv-qualification signature
 	// (4.4) that is the union of the cv-qualification signatures of the operand types.
-	return makePointerCvUnion(left, right);
+	return ExpressionType(makePointerCvUnion(left, right), false); // non lvalue
 }
 
-inline UniqueTypeWrapper getConditionalOperatorType(UniqueTypeWrapper leftType, UniqueTypeWrapper rightType)
+inline ExpressionType getConditionalOperatorType(ExpressionType leftType, ExpressionType rightType)
 {
 	SYMBOLS_ASSERT(leftType != gUniqueTypeNull);
 	SYMBOLS_ASSERT(rightType != gUniqueTypeNull);
@@ -873,21 +896,24 @@ inline UniqueTypeWrapper getConditionalOperatorType(UniqueTypeWrapper leftType, 
 	{
 		return leftType;
 	}
-	if(leftType == rightType)
+	if(leftType.isLvalue
+		&& rightType.isLvalue
+		&& leftType == rightType)
 	{
 		// If the second and third operands are lvalues and have the same type, the result is of that type and is an lvalue.
-		return leftType; // TODO: lvalueness
+		return leftType;
 	}
 	// Otherwise, the result is an rvalue.
-	if(isClass(leftType) || isClass(rightType))
+	if(leftType != rightType
+		&& (isClass(leftType) || isClass(rightType)))
 	{
 		SYMBOLS_ASSERT(false); // TODO: user-defined conversions
-		return gUniqueTypeNull;
+		return gNullExpressionType;
 	}
 	// Lvalue-to-rvalue (4.1), array-to-pointer (4.2), and function-to-pointer (4.3) standard conversions are performed
 	// on the second and third operands. After those conversions, one of the following shall hold:
-	UniqueTypeWrapper left = applyLvalueToRvalueConversion(leftType);
-	UniqueTypeWrapper right = applyLvalueToRvalueConversion(rightType);
+	ExpressionType left = applyLvalueToRvalueConversion(leftType);
+	ExpressionType right = applyLvalueToRvalueConversion(rightType);
 	// - The second and third operands have the same type; the result is of that type.
 	if(left == right)
 	{
@@ -898,7 +924,7 @@ inline UniqueTypeWrapper getConditionalOperatorType(UniqueTypeWrapper leftType, 
 	if((isArithmetic(left) || isEnumeration(left))
 		&& (isArithmetic(right) || isEnumeration(right)))
 	{
-		return binaryOperatorArithmeticType(left, right);
+		return binaryOperatorArithmeticType(Name(), left, right);
 	}
 	// - The second and third operands have pointer type, or one has pointer type and the other is a null pointer
 	// 	 constant; pointer conversions (4.10) and qualification conversions (4.4) are performed to bring them to
@@ -920,11 +946,11 @@ inline UniqueTypeWrapper getConditionalOperatorType(UniqueTypeWrapper leftType, 
 		return right;
 	}
 	SYMBOLS_ASSERT(leftPointer && rightPointer);
-	return binaryOperatorPointerType(left, right);
+	return binaryOperatorPointerType(Name(), left, right);
 }
 
 
-inline UniqueTypeWrapper typeOfSubscriptExpression(Argument left, Argument right, const InstantiationContext& context)
+inline ExpressionType typeOfSubscriptExpression(Argument left, Argument right, const InstantiationContext& context)
 {
 	SYMBOLS_ASSERT(left.type != gUniqueTypeNull);
 	if(isClass(left.type))
@@ -961,10 +987,10 @@ inline UniqueTypeWrapper typeOfSubscriptExpression(Argument left, Argument right
 	type.pop_front(); // dereference left-hand side
 	// [expr.sub] The result is an lvalue of type T. The type "T" shall be a completely defined object type.
 	requireCompleteObjectType(type, context);
-	return type;
+	return ExpressionType(type, true);
 }
 
-inline UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Arguments& arguments, const InstantiationContext& context)
+inline ExpressionType typeOfFunctionCallExpression(Argument left, const Arguments& arguments, const InstantiationContext& context)
 {
 	ExpressionWrapper expression = left;
 	UniqueTypeWrapper type = left.type;
@@ -1040,7 +1066,7 @@ inline UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Argum
 	{
 		type.pop_front();
 		SYMBOLS_ASSERT(type.isFunction());
-		return popType(type);
+		return getFunctionCallExpressionType(popType(type));
 	}
 
 	bool isClassMemberAccess = isClassMemberAccessExpression(expression);
@@ -1051,7 +1077,7 @@ inline UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Argum
 	{
 		// the call does not require overload resolution
 		SYMBOLS_ASSERT(type.isFunction());
-		return popType(type); // get the return type: T
+		return getFunctionCallExpressionType(popType(type)); // get the return type: T
 	}
 
 	const IdExpression& idExpression = getIdExpression(
@@ -1067,7 +1093,7 @@ inline UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Argum
 
 	if(declaration.p == &gDestructorInstance)
 	{
-		return gUniqueTypeNull;
+		return gNullExpressionType;
 	}
 
 #if 0
@@ -1115,7 +1141,7 @@ inline UniqueTypeWrapper typeOfFunctionCallExpression(Argument left, const Argum
 			// a contrived object of type T becomes the implied object argument
 			: *memberEnclosing;
 		transientExpression = ObjectExpression(&classType);
-		augmentedArguments.push_back(makeArgument(ExpressionWrapper(&transientExpression, false), makeUniqueSimpleType(classType)));
+		augmentedArguments.push_back(makeArgument(ExpressionWrapper(&transientExpression, false), ExpressionType(makeUniqueSimpleType(classType), true))); // TODO: lvalueness of expression on left of '.'
 	}
 
 	augmentedArguments.insert(augmentedArguments.end(), arguments.begin(), arguments.end());

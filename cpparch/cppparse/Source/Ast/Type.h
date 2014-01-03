@@ -886,7 +886,19 @@ inline const SimpleType* findEnclosingTemplate(const InstantiationContext& conte
 	return findEnclosingTemplate(context.enclosingFunction != 0 ? context.enclosingFunction : context.enclosingType, scope);
 }
 
+
+const ExpressionType gNullExpressionType = ExpressionType(gUniqueTypeNull, false);
+
 // [expr] If an expression initially has the type "reference to T", the type is adjusted to "T" prior to any further analysis.
+inline ExpressionType removeReference(ExpressionType type)
+{
+	if(type.isReference())
+	{
+		type.pop_front();
+	}
+	return type;
+}
+
 inline UniqueTypeWrapper removeReference(UniqueTypeWrapper type)
 {
 	if(type.isReference())
@@ -919,10 +931,10 @@ inline UniqueTypeWrapper adjustFunctionParameter(UniqueTypeWrapper type)
 // expression helper
 
 template<typename T, bool isExpression = IsConvertible<Visitable<T>, cpp::expression>::RESULT>
-struct ExpressionType;
+struct ExpressionTypeHelper;
 
 template<typename T>
-struct ExpressionType<T, false>
+struct ExpressionTypeHelper<T, false>
 {
 	static UniqueTypeId get(T* symbol)
 	{
@@ -995,7 +1007,7 @@ inline void setExpressionType(Visitable<T>* symbol, UniqueTypeId value)
 }
 
 template<typename T>
-struct ExpressionType<T, true>
+struct ExpressionTypeHelper<T, true>
 {
 	static UniqueTypeId get(T* symbol)
 	{
@@ -1010,5 +1022,6 @@ struct ExpressionType<T, true>
 
 
 extern BuiltInTypeId gOverloaded;
+const ExpressionType gOverloadedExpressionType = ExpressionType(gOverloaded, false);
 
 #endif

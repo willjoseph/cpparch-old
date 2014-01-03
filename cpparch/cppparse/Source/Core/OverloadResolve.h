@@ -22,18 +22,23 @@ struct ImplicitConversion
 
 const ImplicitConversion IMPLICITCONVERSION_ELLIPSIS = ImplicitConversion(StandardConversionSequence(SCSRANK_IDENTITY, CvQualifiers()), ICSTYPE_ELLIPSIS);
 
+inline ExpressionType getFunctionCallExpressionType(UniqueTypeWrapper type)
+{
+	// [expr.call] A function call is an lvalue if and only if the result type is a reference.
+	return ExpressionType(type, type.isReference());
+}
 
 struct FunctionOverload
 {
 	Declaration* declaration;
-	UniqueTypeWrapper type;
-	FunctionOverload(Declaration* declaration, UniqueTypeWrapper type)
+	ExpressionType type;
+	FunctionOverload(Declaration* declaration, ExpressionType type)
 		: declaration(declaration), type(type)
 	{
 	}
 };
 
-inline UniqueTypeWrapper selectOverloadedFunction(UniqueTypeWrapper to, Argument from, const InstantiationContext& context)
+inline ExpressionType selectOverloadedFunction(UniqueTypeWrapper to, Argument from, const InstantiationContext& context)
 {
 	// [over.over]
 	// A use of an overloaded function name without arguments is resolved in certain contexts to a function, a
@@ -85,17 +90,17 @@ inline UniqueTypeWrapper selectOverloadedFunction(UniqueTypeWrapper to, Argument
 		SYMBOLS_ASSERT(type.isFunction());
 		if(type == target)
 		{
-			return type;
+			return getFunctionCallExpressionType(type);
 		}
 	}
-	return gOverloaded; // no matching function in overload set
+	return gOverloadedExpressionType; // no matching function in overload set
 }
 
 template<typename To>
-FunctionOverload findBestConversionFunction(To to, Argument from, const InstantiationContext& context, bool isNullPointerConstant = false, bool isLvalue = false);
+FunctionOverload findBestConversionFunction(To to, Argument from, const InstantiationContext& context, bool isNullPointerConstant = false);
 
 template<typename To>
-ImplicitConversion makeImplicitConversionSequence(To to, Argument from, const InstantiationContext& context, bool isNullPointerConstant = false, bool isLvalue = false, bool isUserDefinedConversion = false)
+ImplicitConversion makeImplicitConversionSequence(To to, Argument from, const InstantiationContext& context, bool isNullPointerConstant = false, bool isUserDefinedConversion = false)
 {
 	SYMBOLS_ASSERT(to != gUniqueTypeNull);
 	SYMBOLS_ASSERT(from.p != 0);
@@ -104,7 +109,7 @@ ImplicitConversion makeImplicitConversionSequence(To to, Argument from, const In
 	bool isReference = false;
 	if(from.type.isReference())
 	{
-		isLvalue = true;
+		SYMBOLS_ASSERT(from.type.isLvalue); // TODO: is this always true?
 		isReference = true;
 		from.type.pop_front(); // TODO: removal of reference won't be detected later
 	}
@@ -128,7 +133,7 @@ ImplicitConversion makeImplicitConversionSequence(To to, Argument from, const In
 		// then the reference is bound directly to the initializer expression lvalue in the first case, and the reference
 		// is bound to the lvalue result of the conversion in the second case. In these cases the reference is said to
 		// bind directly to the initializer expression.
-		if(isLvalue
+		if(from.type.isLvalue
 			&& (isEqualCvQualification(to, from.type)
 			|| isGreaterCvQualification(to, from.type)))
 		{
@@ -242,7 +247,7 @@ ImplicitConversion makeImplicitConversionSequence(To to, Argument from, const In
 		// overload resolution (13.3). If the conversion cannot be done or is ambiguous, the initialization is
 		// ill-formed.
 
-		FunctionOverload overload = findBestConversionFunction(to, from, context, isNullPointerConstant, isLvalue);
+		FunctionOverload overload = findBestConversionFunction(to, from, context, isNullPointerConstant);
 
 		if(overload.declaration == 0)
 		{
@@ -251,8 +256,7 @@ ImplicitConversion makeImplicitConversionSequence(To to, Argument from, const In
 
 		// The second standard conversion sequence converts the result of the user-defined conversion to the target
 		// type for the sequence.
-		bool isLvalue = overload.type.isReference(); // TODO: proper lvalueness
-		StandardConversionSequence second = makeStandardConversionSequence(to, removeReference(overload.type), context, false, isLvalue);
+		StandardConversionSequence second = makeStandardConversionSequence(to, removeReference(overload.type), context, false);
 		second.isReference = isReference;
 		return ImplicitConversion(second, ICSTYPE_USERDEFINED, overload.declaration);
 	}
@@ -260,7 +264,7 @@ ImplicitConversion makeImplicitConversionSequence(To to, Argument from, const In
 	from.type = selectOverloadedFunction(to, from, context);
 
 	// standard conversion
-	StandardConversionSequence sequence = makeStandardConversionSequence(to, from.type, context, isNullPointerConstant, isLvalue);
+	StandardConversionSequence sequence = makeStandardConversionSequence(to, from.type, context, isNullPointerConstant);
 	sequence.isReference = isReference;
 	return ImplicitConversion(sequence);
 }
@@ -268,8 +272,8 @@ ImplicitConversion makeImplicitConversionSequence(To to, Argument from, const In
 inline IcsRank getIcsRank(UniqueTypeWrapper to, UniqueTypeWrapper from, const InstantiationContext& context, bool isNullPointerConstant = false, bool isLvalue = false)
 {
 	ExpressionNodeGeneric<ExplicitTypeExpression> transientExpression = ExplicitTypeExpression(from);
-	Argument argument = makeArgument(ExpressionWrapper(&transientExpression, false), from);
-	ImplicitConversion conversion = makeImplicitConversionSequence(to, argument, context, isNullPointerConstant, isLvalue);
+	Argument argument = makeArgument(ExpressionWrapper(&transientExpression, false), ExpressionType(from, isLvalue));
+	ImplicitConversion conversion = makeImplicitConversionSequence(to, argument, context, isNullPointerConstant);
 	return getIcsRank(conversion.sequence.rank);
 }
 
@@ -314,7 +318,7 @@ struct CandidateFunction : FunctionOverload, FunctionTemplate
 	ArgumentConversions conversions;
 	bool isTemplate;
 	CandidateFunction()
-		: FunctionOverload(0, gUniqueTypeNull)
+		: FunctionOverload(0, gNullExpressionType)
 	{
 	}
 	CandidateFunction(FunctionOverload overload, const FunctionTemplate& functionTemplate = FunctionTemplate())
@@ -503,7 +507,7 @@ struct OverloadResolver
 		// DR 903: a value-dependent expression may or may not be a null pointer constant, but the behaviour is unspecified.
 		// simple fix: don't allow a value-dependent expression to be a null pointer constant.
 		bool isNullPointerConstant = !from.isValueDependent && from.isConstant && evaluateExpression(from, context).value == 0;
-		return makeImplicitConversionSequence(to, from, context, isNullPointerConstant, true, isUserDefinedConversion); // TODO: l-value
+		return makeImplicitConversionSequence(to, from, context, isNullPointerConstant, isUserDefinedConversion);
 	}
 	void add(const FunctionOverload& overload, const ParameterTypes& parameters, bool isEllipsis, const SimpleType* memberEnclosing, FunctionTemplate& functionTemplate = FunctionTemplate())
 	{
@@ -527,7 +531,13 @@ struct OverloadResolver
 			SYMBOLS_ASSERT(isClass(*memberEnclosing->declaration));
 			if(!isStatic(*overload.declaration))
 			{
-				candidate.conversions.push_back(makeImplicitConversionSequence(implicitObjectParameter, impliedObjectArgument, context, false, true)); // TODO: l-value
+				// [over.match.funcs]
+				// even if the implicit object parameter is not const-qualified, an rvalue temporary can be bound to the
+				// parameter as long as in all other respects the temporary can be converted to the type of the implicit
+				// object parameter.
+				Argument tmpObjectArgument = impliedObjectArgument;
+				tmpObjectArgument.type = ExpressionType(tmpObjectArgument.type, true); // treat as lvalue to allow binding reference to temporary
+				candidate.conversions.push_back(makeImplicitConversionSequence(implicitObjectParameter, tmpObjectArgument, context));
 			}
 			else
 			{
@@ -617,8 +627,9 @@ inline void addConversionFunctionOverloads(OverloadResolver& resolver, const Sim
 			// [temp.deduct.conv] Template argument deduction is done by comparing the return type of the template conversion function
 			// (call it P) with the type that is required as the result of the conversion (call it A)
 
-			UniqueTypeWrapper yielded = getUniqueType(p->type, setEnclosingTypeSafe(context, memberEnclosing));
-			yielded.pop_front();
+			UniqueTypeWrapper result = getUniqueType(p->type, setEnclosingTypeSafe(context, memberEnclosing));
+			result.pop_front(); // T() -> T
+			ExpressionType yielded = getFunctionCallExpressionType(result);
 
 			if(isClass(to)) // [over.match.copy]
 			{
@@ -667,7 +678,7 @@ inline void addConversionFunctionOverloads(OverloadResolver& resolver, const Sim
 				bool isLvalue = yielded.isReference(); // TODO: lvalueness!
 				yielded = removeReference(yielded);
 				yielded.value.setQualifiers(CvQualifiers());
-				if(makeStandardConversionSequence(to, yielded, context, false, isLvalue).rank == SCSRANK_INVALID)
+				if(makeStandardConversionSequence(to, yielded, context, false).rank == SCSRANK_INVALID)
 				{
 					continue;
 				}
@@ -679,7 +690,7 @@ inline void addConversionFunctionOverloads(OverloadResolver& resolver, const Sim
 }
 
 template<typename To>
-FunctionOverload findBestConversionFunction(To to, Argument from, const InstantiationContext& context, bool isNullPointerConstant, bool isLvalue)
+FunctionOverload findBestConversionFunction(To to, Argument from, const InstantiationContext& context, bool isNullPointerConstant)
 {
 	Arguments arguments;
 	arguments.push_back(from);
@@ -738,7 +749,7 @@ FunctionOverload findBestConversionFunction(To to, Argument from, const Instanti
 		&& result.type.isSimple()
 		&& getSimpleType(result.type.value).declaration == &gCtor)
 	{
-		result.type = to;
+		result.type = getFunctionCallExpressionType(to);
 		result.type.value.setQualifiers(CvQualifiers());
 	}
 	return result;

@@ -116,7 +116,7 @@ struct EvaluateVisitor : ExpressionNodeVisitor
 			return; // TODO
 		}
 
-		UniqueTypeWrapper type = typeOfExpression(node.operand, context);
+		ExpressionType type = typeOfExpression(node.operand, context);
 		// [expr] If an expression initially has the type "reference to T", the type is adjusted to "T" prior to any further analysis.
 		// [expr.sizeof] The sizeof operator shall not be applied to an expression that has function or incomplete type.
 		result = IntegralConstant(requireCompleteObjectType(removeReference(type), context));
@@ -227,7 +227,7 @@ inline void addOverloads(OverloadResolver& resolver, const OverloadSet& overload
 	}
 }
 
-UniqueTypeWrapper getOverloadedMemberOperatorType(UniqueTypeWrapper operand, const InstantiationContext& context)
+ExpressionType getOverloadedMemberOperatorType(ExpressionType operand, const InstantiationContext& context)
 {
 	const SimpleType& classType = getSimpleType(operand.value);
 	SYMBOLS_ASSERT(isClass(*classType.declaration)); // assert that this is a class type
@@ -338,7 +338,7 @@ inline FunctionOverload findBestOverloadedFunction(const OverloadSet& overloads,
 inline void addBuiltInOperatorOverload(OverloadResolver& resolver, UniqueTypeWrapper type)
 {
 	const ParameterTypes& parameters = getParameterTypes(type.value);
-	resolver.add(FunctionOverload(&gUnknown, popType(type)), parameters, false, 0);
+	resolver.add(FunctionOverload(&gUnknown, getFunctionCallExpressionType(popType(type))), parameters, false, 0);
 }
 
 inline void addBuiltInOperatorOverloads(OverloadResolver& resolver, BuiltInTypeArrayRange overloads)
@@ -742,7 +742,7 @@ inline FunctionOverload findBestOverloadedOperator(const Identifier& id, const A
 	if(!isClass(left) && !isEnumeration(left)
 		&& !isClass(right) && !isEnumeration(right)) // if the operand does not have class or enum type
 	{
-		return FunctionOverload(&gUnknown, gUniqueTypeNull);
+		return FunctionOverload(&gUnknown, gNullExpressionType);
 	}
 	// TODO: lookup for postfix operator++(int)
 
@@ -801,7 +801,7 @@ inline FunctionOverload findBestOverloadedOperator(const Identifier& id, const A
 
 struct TypeOfVisitor : ExpressionNodeVisitor
 {
-	UniqueTypeWrapper result;
+	ExpressionType result;
 	InstantiationContext context;
 	explicit TypeOfVisitor(const InstantiationContext& context)
 		: context(context)
@@ -813,12 +813,15 @@ struct TypeOfVisitor : ExpressionNodeVisitor
 	}
 	void visit(const CastExpression& node)
 	{
-		result = node.type;
+		// [expr.cast]
+		// The result of the expression (T) cast-expression is of type T. The result is an lvalue if T is a reference
+		// type, otherwise the result is an rvalue.
+		result = ExpressionType(node.type, node.type.isReference());
 		SYMBOLS_ASSERT(!isDependent(result));
 	}
 	void visit(const NonTypeTemplateParameter& node)
 	{
-		result = getNonTypeTemplateParameterType(node, context);
+		result = ExpressionType(getNonTypeTemplateParameterType(node, context), false); // non lvalue
 	}
 	void visit(const DependentIdExpression& node)
 	{
@@ -833,11 +836,11 @@ struct TypeOfVisitor : ExpressionNodeVisitor
 	}
 	void visit(const SizeofExpression& node)
 	{
-		result = gUnsignedInt;
+		result = ExpressionType(gUnsignedInt, false); // non lvalue
 	}
 	void visit(const SizeofTypeExpression& node)
 	{
-		result = gUnsignedInt;
+		result = ExpressionType(gUnsignedInt, false); // non lvalue
 	}
 	void visit(const UnaryExpression& node)
 	{
@@ -863,27 +866,30 @@ struct TypeOfVisitor : ExpressionNodeVisitor
 	}
 	void visit(const TypeTraitsUnaryExpression& node)
 	{
-		result = gBool;
+		result = ExpressionType(gBool, false); // non lvalue;
 	}
 	void visit(const TypeTraitsBinaryExpression& node)
 	{
-		result = gBool;
+		result = ExpressionType(gBool, false); // non lvalue;
 	}
 	void visit(const struct ExplicitTypeExpression& node)
 	{
-		result = node.type;
+		// [expr.cast]
+		// The result of the expression (T) cast-expression is of type T. The result is an lvalue if T is a reference
+		// type, otherwise the result is an rvalue.
+		result = ExpressionType(node.type, node.type.isReference());
 		SYMBOLS_ASSERT(!isDependent(result));
 	}
 	void visit(const struct ObjectExpression& node)
 	{
-		result = makeUniqueSimpleType(*node.classType);
+		result = ExpressionType(makeUniqueSimpleType(*node.classType), false); // TODO: correct lvalueness
 		SYMBOLS_ASSERT(!isDependent(result));
 	}
 	void visit(const struct DependentObjectExpression& node)
 	{
-		UniqueTypeWrapper type = typeOfExpressionWrapper(node.left, context);
+		ExpressionType type = typeOfExpressionWrapper(node.left, context);
 		const SimpleType& classType = getMemberOperatorType(makeArgument(node.left, removeReference(type)), node.isArrow, context);
-		result = makeUniqueSimpleType(classType);
+		result = ExpressionType(makeUniqueSimpleType(classType), false); // TODO: correct lvalueness
 		SYMBOLS_ASSERT(!isDependent(result));
 	}
 	void visit(const struct ClassMemberAccessExpression& node)
@@ -916,25 +922,25 @@ struct TypeOfVisitor : ExpressionNodeVisitor
 	}
 };
 
-inline UniqueTypeWrapper typeOfExpression(ExpressionNode* node, const InstantiationContext& context)
+inline ExpressionType typeOfExpression(ExpressionNode* node, const InstantiationContext& context)
 {
 #if 0
 	if(isPointerToMemberExpression(node)
 		|| isDependentPointerToMemberExpression(node))
 	{
-		return gUniqueTypeNull; // TODO
+		return gNullExpressionType; // TODO
 	}
 #endif
 	if(isOverloadedFunctionIdExpression(node))
 	{
 		// can't evaluate id-expression within function-call-expression
-		return gOverloaded; // do not evaluate the type!
+		return gOverloadedExpressionType; // do not evaluate the type!
 	}
 	if(isDependentIdExpression(node) // if attempting to evaluate type of id-expression with no context
 		&& getDependentIdExpression(node).qualifying == gUniqueTypeNull) // if this name is unqualified: e.g. call to named function, find via ADL
 	{
 		// must defer evaluation until function call expression is evaluated
-		return gOverloaded; // do not evaluate the type!
+		return gOverloadedExpressionType; // do not evaluate the type!
 	}
 
 	TypeOfVisitor visitor(context);

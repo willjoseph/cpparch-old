@@ -28,8 +28,8 @@ struct SemaLiteral : public SemaBase
 	SEMA_POLICY(cpp::string_literal, SemaPolicyIdentity)
 	void action(cpp::string_literal* symbol)
 	{
-		expression = makeConstantExpression(IntegralConstantExpression(getStringLiteralType(symbol), IntegralConstant()));
-		expression.isLvalue = true; // [expr.prim.general] A string literal is an lvalue
+		// [expr.prim.general] A string literal is an lvalue
+		expression = makeConstantExpression(IntegralConstantExpression(ExpressionType(getStringLiteralType(symbol), true), IntegralConstant()));
 	}
 };
 
@@ -47,7 +47,7 @@ struct SemaPrimaryExpression : public SemaBase
 {
 	SEMA_BOILERPLATE;
 
-	UniqueTypeId type;
+	ExpressionType type;
 	ExpressionWrapper expression;
 	IdentifierPtr id; // only valid when the expression is a (parenthesised) id-expression
 	TemplateArguments arguments; // only valid when the expression is a (qualified) template-id
@@ -80,7 +80,7 @@ struct SemaPrimaryExpression : public SemaBase
 		// or data member and a prvalue otherwise.
 		id = walker.id;
 		arguments = walker.arguments;
-		type = gUniqueTypeNull;
+		type = gNullExpressionType;
 		LookupResultRef declaration = walker.declaration;
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
@@ -91,7 +91,7 @@ struct SemaPrimaryExpression : public SemaBase
 
 		if(isUndeclared)
 		{
-			type = gUniqueTypeNull;
+			type = gNullExpressionType;
 			idEnclosing = 0;
 		}
 		else if(expression.p != 0
@@ -112,7 +112,7 @@ struct SemaPrimaryExpression : public SemaBase
 			}
 			else if(isOverloadedFunction(declaration))
 			{
-				type = gOverloaded;
+				type = gOverloadedExpressionType;
 			}
 
 			if(isMemberIdExpression(expression.p))
@@ -120,7 +120,6 @@ struct SemaPrimaryExpression : public SemaBase
 				expression.type = typeOfExpression(expression.p, getInstantiationContext());
 			}
 			SEMANTIC_ASSERT(expression.type == type);
-			expression.isLvalue = isLvalue(*declaration);
 		}
 		return true;
 	}
@@ -139,7 +138,7 @@ struct SemaPrimaryExpression : public SemaBase
 	{
 		SEMANTIC_ASSERT(enclosingType != 0);
 		// TODO: cv-qualifiers: change enclosingType to a UniqueType<SimpleType>
-		type = UniqueTypeWrapper(pushUniqueType(gUniqueTypes, makeUniqueSimpleType(*enclosingType).value, PointerType()));
+		type = ExpressionType(UniqueTypeWrapper(pushUniqueType(gUniqueTypes, makeUniqueSimpleType(*enclosingType).value, PointerType())), false); // non lvalue
 		/* 14.6.2.2-2
 		'this' is type-dependent if the class type of the enclosing member function is dependent
 		*/

@@ -134,16 +134,17 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, const InstantiationCon
 		//  - otherwise, if e is an lvalue, decltype(e) is T&, where T is the type of e;
 		//  - otherwise, decltype(e) is the type of e.
 		SYMBOLS_ASSERT(!type.expression.isTypeDependent); // TODO
-		UniqueTypeWrapper result = typeOfExpressionWrapper(type.expression, context);
+		ExpressionType result = typeOfExpressionWrapper(type.expression, context);
 		if(!type.expression.isParenthesised
 			&& (isIdExpression(type.expression)
 				|| isClassMemberAccessExpression(type.expression)))
 		{
 			return result;
 		}
-		if(type.expression.isLvalue)
+		if(result.isLvalue
+			&& !result.isReference())
 		{
-			result = pushType(result, ReferenceType());
+			result = ExpressionType(pushType(result, ReferenceType()), true);
 		}
 		return result;
 	}

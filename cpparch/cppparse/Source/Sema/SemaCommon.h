@@ -615,7 +615,7 @@ struct SemaContext : public AstAllocator<int>
 	Declaration globalDecl;
 	TypeRef globalType;
 	std::size_t declarationCount;
-	UniqueTypeWrapper typeInfoType;
+	ExpressionType typeInfoType;
 
 	SemaContext(ParserContext& parserContext, const AstAllocator<int>& allocator) :
 		AstAllocator<int>(allocator),
@@ -665,7 +665,7 @@ struct SemaState
 	DeclarationPtr qualifyingScope;
 	const SimpleType* qualifyingClass;
 	const SimpleType* memberClass;
-	UniqueTypeWrapper memberType;
+	ExpressionType memberType;
 	ExpressionWrapper objectExpression; // the lefthand side of a class member access expression
 	SafePtr<const TemplateParameters> templateParams;
 	ScopePtr templateParamScope;
@@ -702,10 +702,11 @@ struct SemaState
 		return InstantiationContext(getLocation(), enclosingType, enclosingFunction, enclosing);
 	}
 
-	UniqueTypeWrapper getTypeInfoType()
+	ExpressionType getTypeInfoType()
 	{
 		if(context.typeInfoType == gUniqueTypeNull)
 		{
+			// [expr.typeid] The result of a typeid expression is an lvalue of static type const std::type_info
 			Identifier stdId = makeIdentifier(context.parserContext.makeIdentifier("std"));
 			LookupResultRef declaration = ::findDeclaration(context.global, stdId, IsNestedName());
 			SEMANTIC_ASSERT(declaration != 0);
@@ -716,7 +717,7 @@ struct SemaState
 			SEMANTIC_ASSERT(declaration != 0);
 			SEMANTIC_ASSERT(isClass(*declaration));
 			Type type(declaration, context);
-			context.typeInfoType = makeUniqueType(type, InstantiationContext(Location(), 0, 0, 0), false);
+			context.typeInfoType = ExpressionType(makeUniqueType(type, InstantiationContext(Location(), 0, 0, 0), false), true); // lvalue
 			context.typeInfoType.value.setQualifiers(CvQualifiers(true, false));
 		}
 		return context.typeInfoType;
@@ -1016,14 +1017,18 @@ struct SemaState
 		return qualifyingScope->enclosed;
 	}
 
+	void clearMemberType()
+	{
+		memberType = gNullExpressionType;
+		objectExpression = ExpressionWrapper();
+	}
 	void clearQualifying()
 	{
 		qualifying_p = 0;
 		qualifyingScope = 0;
 		qualifyingClass = 0;
-		memberType = gUniqueTypeNull;
 		memberClass = 0;
-		objectExpression = ExpressionWrapper();
+		clearMemberType();
 	}
 
 	const TemplateParameters& getTemplateParams() const
@@ -1464,11 +1469,11 @@ struct SemaBase : public SemaState
 			setDependent(dependent, p->type.dependent);
 		}
 	}
-	static UniqueTypeWrapper binaryOperatorIntegralType(UniqueTypeWrapper left, UniqueTypeWrapper right)
+	static ExpressionType binaryOperatorIntegralType(Name operatorName, ExpressionType left, ExpressionType right)
 	{
 		SEMANTIC_ASSERT(!isFloating(left));
 		SEMANTIC_ASSERT(!isFloating(right));
-		return usualArithmeticConversions(left, right);
+		return ExpressionType(usualArithmeticConversions(left, right), false); // non lvalue
 	}
 
 	template<typename T>
@@ -1960,7 +1965,7 @@ struct SemaPolicyParameterDeclaration : SemaPolicyGeneric<SemaPush<SemaT, Commit
 struct SemaExpressionResult
 {
 	IdentifierPtr id; // only valid when the expression is a (parenthesised) id-expression
-	UniqueTypeId type;
+	ExpressionType type;
 	ExpressionWrapper expression;
 	/* 14.6.2.2-1
 	...an expression is type-dependent if any subexpression is type-dependent.

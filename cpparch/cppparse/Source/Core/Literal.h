@@ -68,7 +68,7 @@ inline IntegralConstantExpression parseIntegerLiteral(const char* value)
 {
 	char* suffix;
 	IntegralConstant result(strtol(value, &suffix, 0)); // TODO: handle overflow
-	return IntegralConstantExpression(getIntegerLiteralSuffixType(suffix), result);
+	return IntegralConstantExpression(ExpressionType(getIntegerLiteralSuffixType(suffix), false), result);
 }
 
 inline const char* getFloatingLiteralSuffix(const char* value)
@@ -106,7 +106,7 @@ inline IntegralConstantExpression parseFloatingLiteral(const char* value)
 {
 	char* suffix;
 	IntegralConstant result(strtod(value, &suffix)); // TODO: handle overflow
-	return IntegralConstantExpression(getFloatingLiteralSuffixType(suffix), result);
+	return IntegralConstantExpression(ExpressionType(getFloatingLiteralSuffixType(suffix), false), result);
 }
 
 inline const UniqueTypeId& getCharacterLiteralType(const char* value)
@@ -121,7 +121,7 @@ inline IntegralConstantExpression parseCharacterLiteral(const char* value)
 {
 	IntegralConstant result;
 	// TODO: parse character value
-	return IntegralConstantExpression(getCharacterLiteralType(value), result);
+	return IntegralConstantExpression(ExpressionType(getCharacterLiteralType(value), false), result);
 }
 
 inline const UniqueTypeId& getNumericLiteralType(cpp::numeric_literal* symbol)
@@ -140,7 +140,7 @@ inline const UniqueTypeId& getNumericLiteralType(cpp::numeric_literal* symbol)
 
 inline IntegralConstantExpression parseBooleanLiteral(const char* value)
 {
-	return IntegralConstantExpression(gBool, IntegralConstant(*value == 't' ? 1 : 0));
+	return IntegralConstantExpression(ExpressionType(gBool, false), IntegralConstant(*value == 't' ? 1 : 0));
 }
 
 inline IntegralConstantExpression parseNumericLiteral(cpp::numeric_literal* symbol)

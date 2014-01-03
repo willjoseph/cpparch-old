@@ -1,6 +1,4 @@
 
-#if BUILD_STANDALONE
-
 #include "OverloadResolve.h"
 #include "TypeUnique.h"
 
@@ -55,7 +53,7 @@ ParameterTypes addOverload(OverloadResolver& resolver, const Declaration& declar
 		{
 			return ParameterTypes();
 		}
-		resolver.add(FunctionOverload(const_cast<Declaration*>(&declaration), type), parameters, isEllipsis, context.enclosingType);
+		resolver.add(FunctionOverload(const_cast<Declaration*>(&declaration), getFunctionCallExpressionType(type)), parameters, isEllipsis, context.enclosingType);
 		return parameters;
 	}
 
@@ -131,7 +129,7 @@ ParameterTypes addOverload(OverloadResolver& resolver, const Declaration& declar
 		substitute(substituted2, substituted1, setEnclosingTypeSafe(context, &specialization));
 		type = substitute(type, setEnclosingTypeSafe(context, &specialization)); // substitute the return type. TODO: should wait until overload is chosen?
 
-		resolver.add(FunctionOverload(const_cast<Declaration*>(&declaration), type), substituted2, isEllipsis, context.enclosingType, functionTemplate);
+		resolver.add(FunctionOverload(const_cast<Declaration*>(&declaration), getFunctionCallExpressionType(type)), substituted2, isEllipsis, context.enclosingType, functionTemplate);
 		return substituted2;
 	}
 	catch(TypeError&)
@@ -142,4 +140,3 @@ ParameterTypes addOverload(OverloadResolver& resolver, const Declaration& declar
 	return ParameterTypes();
 }
 
-#endif

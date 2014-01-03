@@ -44,7 +44,7 @@ const StandardConversionSequence STANDARDCONVERSIONSEQUENCE_INVALID = StandardCo
 
 // 4.5 Integral Promotions
 // TODO: handle bitfield types?
-inline const UniqueTypeId& promoteToIntegralType(const UniqueTypeId& type)
+inline UniqueTypeWrapper promoteToIntegralType(UniqueTypeWrapper type)
 {
 	if(isEqual(type, gChar)
 		|| isEqual(type, gSignedChar)
@@ -131,6 +131,10 @@ inline UniqueTypeWrapper applyArrayToPointerConversion(UniqueTypeWrapper type)
 	type.push_front(PointerType());
 	return type;
 }
+inline ExpressionType applyArrayToPointerConversion(ExpressionType type)
+{
+	return ExpressionType(applyArrayToPointerConversion(UniqueTypeWrapper(type)), false);
+}
 
 // T() -> T(*)()
 inline UniqueTypeWrapper applyFunctionToPointerConversion(UniqueTypeWrapper type)
@@ -139,8 +143,12 @@ inline UniqueTypeWrapper applyFunctionToPointerConversion(UniqueTypeWrapper type
 	type.push_front(PointerType());
 	return type;
 }
+inline ExpressionType applyFunctionToPointerConversion(ExpressionType type)
+{
+	return ExpressionType(applyFunctionToPointerConversion(UniqueTypeWrapper(type)), false);
+}
 
-inline UniqueTypeWrapper applyLvalueToRvalueConversion(UniqueTypeWrapper type)
+inline ExpressionType applyLvalueToRvalueConversion(ExpressionType type)
 {
 	if(type.isArray())
 	{
@@ -150,7 +158,7 @@ inline UniqueTypeWrapper applyLvalueToRvalueConversion(UniqueTypeWrapper type)
 	{
 		return applyFunctionToPointerConversion(type);
 	}
-	return type;
+	return ExpressionType(type, false); // non lvalue
 }
 
 inline CvQualifiers makeQualificationAdjustment(UniqueTypeId to, UniqueTypeId from)
@@ -417,7 +425,7 @@ inline StandardConversionSequence makeScsExactMatch(To target, UniqueTypeWrapper
 
 // 13.3.3.1 [over.best.ics]
 template<typename To>
-inline StandardConversionSequence makeStandardConversionSequence(To to, UniqueTypeWrapper from, const InstantiationContext& context, bool isNullPointerConstant = false, bool isLvalue = false)
+inline StandardConversionSequence makeStandardConversionSequence(To to, ExpressionType from, const InstantiationContext& context, bool isNullPointerConstant = false)
 {
 	SYMBOLS_ASSERT(to != gUniqueTypeNull);
 	SYMBOLS_ASSERT(from != gUniqueTypeNull);

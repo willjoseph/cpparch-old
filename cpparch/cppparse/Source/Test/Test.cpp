@@ -1248,7 +1248,7 @@ const InstantiationContext gDefaultInstantiationContext = InstantiationContext(L
 template<typename To, typename From, typename Matched = void>
 struct TestIcsRank
 {
-	static void apply(IcsRank expected, bool isNullPointerConstant = false, bool isLvalue = false)
+	static void apply(IcsRank expected, bool isNullPointerConstant = false, bool isLvalue = true)
 	{
 		IcsRank rank = getIcsRank(MakeType<To>::apply(), MakeType<From>::apply(), gDefaultInstantiationContext, isNullPointerConstant, isLvalue);
 		SYMBOLS_ASSERT(rank == expected);
@@ -1257,7 +1257,7 @@ struct TestIcsRank
 	{
 		UniqueTypeWrapper from = MakeType<From>::apply();
 		ExpressionNodeGeneric<ExplicitTypeExpression> transientExpression = ExplicitTypeExpression(from);
-		Argument argument = makeArgument(ExpressionWrapper(&transientExpression, false), from);
+		Argument argument = makeArgument(ExpressionWrapper(&transientExpression, false), ExpressionType(from, true));
 		ImplicitConversion conversion = makeImplicitConversionSequence(TargetType(MakeType<To>::apply()), argument, gDefaultInstantiationContext);
 		IcsRank rank = getIcsRank(conversion.sequence.rank);
 		SYMBOLS_ASSERT(rank == expected);

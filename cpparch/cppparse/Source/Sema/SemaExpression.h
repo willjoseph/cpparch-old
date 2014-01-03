@@ -95,8 +95,8 @@ struct SemaConditionalExpression : public SemaBase
 	Dependent valueDependent;
 	ExpressionWrapper left;
 	ExpressionWrapper right;
-	UniqueTypeWrapper leftType;
-	UniqueTypeWrapper rightType;
+	ExpressionType leftType;
+	ExpressionType rightType;
 	SemaConditionalExpression(const SemaState& state)
 		: SemaBase(state)
 	{
@@ -146,15 +146,15 @@ struct SemaExpression : public SemaBase, SemaExpressionResult
 		);
 		if(!expression.isTypeDependent)
 		{
-			UniqueTypeWrapper left = removeReference(type);
-			UniqueTypeWrapper right = removeReference(walker.type);
+			ExpressionType left = removeReference(type);
+			ExpressionType right = removeReference(walker.type);
 			type = typeOfBinaryExpression<typeOp>(getOverloadedOperatorId(symbol),
 				makeArgument(leftExpression, left), makeArgument(walker.expression, right),
 				getInstantiationContext());
 			SYMBOLS_ASSERT(type != gUniqueTypeNull);
 			SYMBOLS_ASSERT(type == expression.type);
 		}
-		ExpressionType<T>::set(symbol, type);
+		ExpressionTypeHelper<T>::set(symbol, type);
 	}
 	template<typename T>
 	void walkBinaryArithmeticExpression(T* symbol, const SemaExpressionResult& walker)
@@ -252,18 +252,8 @@ struct SemaExpression : public SemaBase, SemaExpressionResult
 	SEMA_POLICY(cpp::pm_expression_default, SemaPolicyPushSrc<struct SemaExpression>)
 	void action(cpp::pm_expression_default* symbol, const SemaExpressionResult& walker)
 	{
-		bool isLvalue =
-			// [expr.mptr.oper]
-			// The expression E1->*E2 is converted into the equivalent form (*(E1)).*E2.
-			symbol->op->id == cpp::pm_operator::ARROWSTAR // the result of unary operator* is an lvalue
-			// [expr.mptr.oper]
-			// The result of a .* expression whose second operand is a pointer to a data member is of the same value
-			// category (3.10) as its first operand. The result of a .* expression whose second operand is a pointer to a
-			// member function is a prvalue.
-			|| expression.isLvalue;
 		walkBinaryExpression<binaryOperatorMemberPointer>(symbol, walker);
 		id = 0; // not a parenthesised id-expression, expression is not 'call to named function' [over.call.func]
-		expression.isLvalue = isLvalue;
 	}
 	SEMA_POLICY(cpp::assignment_expression, SemaPolicyPushSrc<struct SemaExpression>)
 	void action(cpp::assignment_expression* symbol, const SemaExpressionResult& walker) // expression_list, assignment_expression_suffix, conditional_expression_suffix
@@ -317,7 +307,7 @@ struct SemaExpression : public SemaBase, SemaExpressionResult
 		}
 		else
 		{
-			type = gUniqueTypeNull;
+			type = gNullExpressionType;
 		}
 
 
@@ -327,7 +317,6 @@ struct SemaExpression : public SemaBase, SemaExpressionResult
 			isDependent(typeDependent),
 			isDependent(valueDependent)
 		);
-		expression.isLvalue = symbol->op->id == cpp::unary_operator::STAR;
 		if(!expression.isTypeDependent)
 		{
 			SYMBOLS_ASSERT(expression.type == type);
@@ -354,7 +343,7 @@ struct SemaExpression : public SemaBase, SemaExpressionResult
 	SEMA_POLICY(cpp::new_expression_placement, SemaPolicyPushSrc<struct SemaExplicitTypeExpression>)
 	void action(cpp::new_expression_placement* symbol, const SemaExplicitTypeExpressionResult& walker)
 	{
-		type = getUniqueTypeSafe(walker.type);
+		type = ExpressionType(getUniqueTypeSafe(walker.type), false); // non lvalue
 		// [expr.new] The new expression attempts to create an object of the type-id or new-type-id to which it is applied. The type shall be a complete type...
 		requireCompleteObjectType(type, getInstantiationContext());
 		type.push_front(PointerType());
@@ -369,7 +358,7 @@ struct SemaExpression : public SemaBase, SemaExpressionResult
 	SEMA_POLICY(cpp::new_expression_default, SemaPolicyPushSrc<struct SemaExplicitTypeExpression>)
 	void action(cpp::new_expression_default* symbol, const SemaExplicitTypeExpressionResult& walker)
 	{
-		type = getUniqueTypeSafe(walker.type);
+		type = ExpressionType(getUniqueTypeSafe(walker.type), false); // non lvalue
 		// [expr.new] The new expression attempts to create an object of the type-id or new-type-id to which it is applied. The type shall be a complete type...
 		requireCompleteObjectType(type, getInstantiationContext());
 		type.push_front(PointerType());
@@ -384,7 +373,7 @@ struct SemaExpression : public SemaBase, SemaExpressionResult
 	SEMA_POLICY(cpp::cast_expression_default, SemaPolicyPushSrc<struct SemaExplicitTypeExpression>)
 	void action(cpp::cast_expression_default* symbol, const SemaExplicitTypeExpressionResult& walker)
 	{
-		type = getUniqueTypeSafe(walker.type);
+		type = ExpressionType(getUniqueTypeSafe(walker.type), false); // non lvalue
 		// [basic.lval] An expression which holds a temporary object resulting from a cast to a non-reference type is an rvalue
 		requireCompleteObjectType(type, getInstantiationContext());
 		Dependent tmp(walker.typeDependent);
@@ -427,7 +416,7 @@ struct SemaExpression : public SemaBase, SemaExpressionResult
 		// [temp.dep.expr] Expressions of the following form [sizeof(expr)] are never type-dependent (because the type of the expression cannot be dependent)
 		// [temp.dep.constexpr] Expressions of the following form [sizeof(expr)] are value-dependent if the unary-expression is type-dependent
 		addDependent(valueDependent, walker.typeDependent);
-		type = gUnsignedInt;
+		type = ExpressionType(gUnsignedInt, false); // non lvalue
 		expression = makeExpression(SizeofExpression(walker.expression), true, false, isDependent(valueDependent));
 		if(!expression.isTypeDependent)
 		{
@@ -439,21 +428,23 @@ struct SemaExpression : public SemaBase, SemaExpressionResult
 	void action(cpp::unary_expression_sizeoftype* symbol, const SemaSizeofTypeExpression& walker)
 	{
 		addDependent(valueDependent, walker.valueDependent);
-		type = gUnsignedInt;
+		type = ExpressionType(gUnsignedInt, false); // non lvalue
 		expression = walker.expression;
 		setExpressionType(symbol, type);
 	}
 	SEMA_POLICY(cpp::delete_expression, SemaPolicyPushSrc<struct SemaExpression>)
 	void action(cpp::delete_expression* symbol, const SemaExpressionResult& walker)
 	{
-		type = gVoid; // TODO: check compliance: type of delete-expression
+		// TODO: check compliance: type of delete-expression
+		type = ExpressionType(gVoid, false); // non lvalue
 		expression = ExpressionWrapper();
 		setExpressionType(symbol, type);
 	}
 	SEMA_POLICY(cpp::throw_expression, SemaPolicyPushSrc<struct SemaExpression>)
 	void action(cpp::throw_expression* symbol, const SemaExpressionResult& walker)
 	{
-		type = gVoid; // [except] A throw-expression is of type void.
+		// [except] A throw-expression is of type void.
+		type = ExpressionType(gVoid, false); // non lvalue
 		expression = ExpressionWrapper();
 	}
 };

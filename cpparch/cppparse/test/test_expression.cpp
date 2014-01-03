@@ -101,15 +101,15 @@ namespace N382
 
 namespace N383
 {
-	STATIC_ASSERT_IS_SAME(decltype(true), bool);
-	STATIC_ASSERT_IS_SAME(decltype(false), bool);
-	STATIC_ASSERT_IS_SAME(decltype(0), int);
-	STATIC_ASSERT_IS_SAME(decltype(0.f), float);
-	STATIC_ASSERT_IS_SAME(decltype(0.0), double);
-	STATIC_ASSERT_IS_SAME(decltype(0l), long);
-	// STATIC_ASSERT_IS_SAME(decltype(0ll), long long); // TODO: long long
+	ASSERT_EXPRESSION_TYPE(true, bool);
+	ASSERT_EXPRESSION_TYPE(false, bool);
+	ASSERT_EXPRESSION_TYPE(0, int);
+	ASSERT_EXPRESSION_TYPE(0.f, float);
+	ASSERT_EXPRESSION_TYPE(0.0, double);
+	ASSERT_EXPRESSION_TYPE(0l, long);
+	// ASSERT_EXPRESSION_TYPE(0ll, long long); // TODO: long long
 
-	STATIC_ASSERT_IS_SAME(decltype(int()), int);
+	ASSERT_EXPRESSION_TYPE(int(), int);
 
 	// The type denoted by decltype(e) is defined as follows:
 	//  - if e is an unparenthesized id-expression or an unparenthesized class member access (5.2.5), decltype(e)
@@ -128,24 +128,28 @@ namespace N383
 	int i;
 	const int ci = 0;
 	A a;
+	A* p;
 
 	enum E { VALUE };
 
-	STATIC_ASSERT_IS_SAME(decltype(i), int); // unparenthesized id-expression
-	STATIC_ASSERT_IS_SAME(decltype(ci), const int); // unparenthesized id-expression
-	STATIC_ASSERT_IS_SAME(decltype(f), int()); // unparenthesized id-expression (not overloaded)
-	STATIC_ASSERT_IS_SAME(decltype(a.m), int); // unparenthesized class-member-access
-	STATIC_ASSERT_IS_SAME(decltype(VALUE), E); // unparenthesized id-expression
+	ASSERT_EXPRESSION_TYPE(i, int); // unparenthesized id-expression
+	ASSERT_EXPRESSION_TYPE(ci, const int); // unparenthesized id-expression
+	ASSERT_EXPRESSION_TYPE(f, int()); // unparenthesized id-expression (not overloaded)
+	ASSERT_EXPRESSION_TYPE(a.m, int); // unparenthesized class-member-access
+	ASSERT_EXPRESSION_TYPE(p->m, int); // unparenthesized class-member-access
+	ASSERT_EXPRESSION_TYPE(VALUE, E); // unparenthesized id-expression
 
-	STATIC_ASSERT_IS_SAME(decltype((i)), int&); // yields a reference because 'i' is an lvalue
-	STATIC_ASSERT_IS_SAME(decltype((ci)), const int&); // yields a reference because 'ci' is an lvalue
-	STATIC_ASSERT_IS_SAME(decltype((f)), int(&)()); // yields a reference because 'f' is an lvalue
-	STATIC_ASSERT_IS_SAME(decltype((a.m)), int&); // yields a reference because 'a.m' is an lvalue
-	STATIC_ASSERT_IS_SAME(decltype((VALUE)), E); // does not yield a reference because 'VALUE' is not an lvalue
 
-	STATIC_ASSERT_IS_SAME(decltype(f()), int); // not an lvalue
-	STATIC_ASSERT_IS_SAME(decltype(A()), A);
-	STATIC_ASSERT_IS_SAME(decltype(E()), E);
+	ASSERT_EXPRESSION_TYPE((i), int&); // yields a reference because 'i' is an lvalue
+	ASSERT_EXPRESSION_TYPE((ci), const int&); // yields a reference because 'ci' is an lvalue
+	ASSERT_EXPRESSION_TYPE((f), int(&)()); // yields a reference because 'f' is an lvalue
+	ASSERT_EXPRESSION_TYPE((a.m), int&); // yields a reference because 'a.m' is an lvalue
+	ASSERT_EXPRESSION_TYPE((p->m), int&);
+	ASSERT_EXPRESSION_TYPE((VALUE), E); // does not yield a reference because 'VALUE' is not an lvalue
+
+	ASSERT_EXPRESSION_TYPE(f(), int); // not an lvalue
+	ASSERT_EXPRESSION_TYPE(A(), A);
+	ASSERT_EXPRESSION_TYPE(E(), E);
 }
 
 
@@ -190,14 +194,251 @@ namespace N351 // test nondependent non-type template parameter in constant-expr
 	ASSERT_EXPRESSION_TYPE(A<false>::value, const int); // check that the expression type is successfully evaluated
 }
 
-namespace N368 // test evaluation of type of conditional operator with null-pointer and function-pointer
+namespace N317 // test evaluation of type of conditional expression with null-pointer and pointer
 {
-	typedef void(*F)();
+	int* p;
+	ASSERT_EXPRESSION_TYPE(true ? 0 : p, int*);
+}
+
+namespace N368 // test evaluation of type of conditional expression with null-pointer and function-pointer
+{
 	void f();
-	void g()
+	ASSERT_EXPRESSION_TYPE(false ? 0 : f, void(*)()); // 'f' is not overloaded, its type can be resolved to 'void()'
+}
+
+
+namespace N323 // test evaluation of type of additive expression with pointer operand
+{
+	enum E
 	{
-		ASSERT_EXPRESSION_TYPE(false ? 0 : f, F); // 'f' is not overloaded, its type can be resolved to 'void()'
-	}
+		VALUE
+	};
+
+	const char p[1] = "";
+	ASSERT_EXPRESSION_TYPE(p + VALUE, const char*);
+}
+
+namespace N319 // test evaluation of type of additive expression with enum operand
+{
+	enum E
+	{
+	};
+
+	ASSERT_EXPRESSION_TYPE(E() + 1, int);
+}
+
+
+namespace N310 // test evaluation of type of expression involving overloaded operator->
+{
+	struct B
+	{
+		int m;
+	};
+
+	struct A
+	{
+		B* operator->();
+	};
+
+	A a;
+	ASSERT_EXPRESSION_TYPE((a->m), int&);
+};
+
+namespace N322 // test overload resolution
+{
+	int f(const char*);
+	void f(bool);
+
+	ASSERT_EXPRESSION_TYPE(f(""), int); // calls 'f(const char*)'
+}
+
+
+namespace N333 // test overload resolution with direct-reference-binding and user-defined-conversion
+{
+	struct A
+	{
+		operator const int&()const;
+		operator int&();
+	};
+
+	int f(const int& x, const A& y);
+	bool f(int, int);
+
+
+	int i;
+	A a;
+	ASSERT_EXPRESSION_TYPE(f(i, a), int); // calls 'f(const int&, const A&)' - because it is a better candidate than 'f(int, int)'
+}
+
+namespace N313 // test overload resolution with user-defined-conversion to const reference
+{
+	struct S
+	{
+		operator const int&();
+	};
+
+	int f(const int&);
+
+	ASSERT_EXPRESSION_TYPE(f(S()), int); // overload resolution chooses conversion 'S::operator const int&()'
+}
+
+namespace N308 // test overload resolution with viable and non-viable user-defined-conversion
+{
+	struct S
+	{
+		operator int*();
+		operator int();
+	};
+
+	int f(int);
+
+	ASSERT_EXPRESSION_TYPE(f(S()), int); // overload resolution chooses conversion 'S::operator int()'
+}
+
+namespace N312 // test overload resolution with user-defined-conversion to pointer
+{
+	struct B
+	{
+		operator int*();
+	};
+
+
+	int f(int*);
+
+	ASSERT_EXPRESSION_TYPE(f(B()), int); // overload resolution chooses conversion 'B::operator int*()'
+}
+
+namespace N282 // test overload resolution with multiple converting constructors
+{
+	struct S
+	{
+		S(int);
+		S(float);
+		~S();
+	};
+
+	int f(S);
+
+	ASSERT_EXPRESSION_TYPE(f(0), int); // calls 'S(int)'
+}
+
+namespace N304 // test overload resolution with multiple converting constructor templates
+{
+	template<class T>
+	class A
+	{
+	public:
+		typedef A<T> _Myt;
+		typedef const T* const_pointer;
+		A();
+		A(const _Myt&);
+		A(const T*);
+		template<class _It>
+		A(_It, _It);
+		template<class _It>
+		A(const_pointer, const_pointer);
+	};
+
+	int f(A<char>);
+
+	const char* s = "";
+	ASSERT_EXPRESSION_TYPE(f(s), int); // calls 'A<char>(const char*)'
+}
+
+namespace N305 // test overload resolution with converting constructor template
+{
+	template<class T>
+	struct A
+	{
+		A();
+		A(const T*);
+	};
+
+	int f(A<char>);
+
+	const char* s = "";
+	ASSERT_EXPRESSION_TYPE(f(s), int); // calls 'A<char>(const char*)'
+}
+
+namespace N311 // test overload resolution with user-defined-conversion template
+{
+	template<typename T>
+	struct B
+	{
+		operator T*() const;
+	};
+
+	struct D : B<int>
+	{
+	};
+
+	int f(int*);
+
+	const D& d = D();
+	ASSERT_EXPRESSION_TYPE(f(d), int); // overload resolution chooses conversion 'B<int>::operator int*()'
+}
+
+namespace N314 // test overload resolution with overloaded function templates
+{
+	template<typename X>
+	int* f(X&, int*);
+	template<typename X, typename T>
+	void* f(X&, T*);
+
+	int x;
+	int* p;
+	ASSERT_EXPRESSION_TYPE(f(x, p), int*); // overload resolution chooses 'f<int>(int&, int*)'
+}
+
+namespace N315 // test overload resolution with overloaded member function templates
+{
+	struct A
+	{
+		template<typename X>
+		static int* f(X&, int*);
+		template<typename X, typename T>
+		void* f(X&, T*);
+	};
+
+	int x;
+	A a;
+	int* p;
+	ASSERT_EXPRESSION_TYPE(a.f(x, p), int*); // overload resolution chooses 'A::f<int>(int&, int*)'
+}
+
+namespace N316 // test overload resolution with overloaded function templates and class hierarchy
+{
+	template<typename>
+	struct C
+	{
+	};
+
+	struct I
+	{
+	};
+
+	struct B : I
+	{
+	};
+
+	struct D : B
+	{
+	};
+
+	struct A
+	{
+		template<typename X, typename T>
+		static T* f(C<X>&, T*);
+		template<typename X>
+		B* f(C<X>&, B*);
+		template<typename X>
+		I* f(C<X>&, I*);
+	};
+
+	C<int> c;
+	A a;
+	D* p;
+	ASSERT_EXPRESSION_TYPE(a.f(c, p), D*); // overload resolution chooses 'A::f<int, D>(C<int>&, D*)'
 }
 
 namespace N367 // test overload resolution of overloaded operator+ with pointer-to-overloaded-function argument
@@ -249,7 +490,24 @@ namespace N366 // test function call with pointer-to-overloaded-function argumen
 
 	int g(void(*)(int));
 
-	int i = g(f); // 'f' is overloaded, the correct overload 'f(int)' should be chosen
+	ASSERT_EXPRESSION_TYPE(g(f), int); // 'f' is overloaded, the correct overload 'f(int)' should be chosen
+}
+
+namespace N281 // test template argument deduction and return-type substitution in call to function-template
+{
+	template<class U>
+	inline U f(const U&_Val);
+
+	ASSERT_EXPRESSION_TYPE(f(char(0xba)), char);
+}
+
+namespace N284 // test template argument deduction and return-type substitution in call to function-template
+{
+	template<class T>
+	int f(const T&);
+
+	const int& i = 0;
+	ASSERT_EXPRESSION_TYPE(f(i), int);
 }
 
 namespace N298 // test template argument deduction and return-type substitution in call to function-template 
@@ -259,6 +517,79 @@ namespace N298 // test template argument deduction and return-type substitution 
 
 	int a;
 	ASSERT_EXPRESSION_TYPE(f(&a), int); // calls f(const int*)
+}
+
+namespace N296 // test template argument deduction for pointer to class-template parameter
+{
+	template<typename T>
+	struct S
+	{
+	};
+
+	template<typename T>
+	T f(const S<T>*);
+
+	struct A : S<int>
+	{
+	};
+
+	A a;
+	ASSERT_EXPRESSION_TYPE(f(&a), int); // calls f(const S<int>*)
+}
+
+namespace N293 // test template argument deduction for reference to class-template parameter
+{
+	template<typename T>
+	struct S
+	{
+	};
+
+	template<typename T>
+	T f(const S<T>&);
+
+	S<int> s;
+	ASSERT_EXPRESSION_TYPE(f(s), int); // calls f(const S<int>&)
+}
+
+namespace N294 // test template argument deduction for reference to class-template parameter
+{
+	template<typename T>
+	struct S
+	{
+	};
+
+	template<typename T>
+	T f(const S<T>&);
+
+	struct A : S<int>
+	{
+	};
+
+	A a;
+	ASSERT_EXPRESSION_TYPE(f(a), int); // calls f(const S<int>&)
+}
+
+namespace N295 // test template argument deduction for overloaded operator*
+{
+	struct S
+	{
+	};
+
+	template<typename T>
+	int operator*(const T&);
+
+	S s;
+	ASSERT_EXPRESSION_TYPE(*s, int); // calls operator*(const S&);
+}
+
+
+namespace N300 // test template argument deduction for parameter with additional cv-qualification
+{
+	template<typename T>
+	T f(const T*const*);
+
+	int** a;
+	ASSERT_EXPRESSION_TYPE(f(a), int); // calls f(const int*const*)
 }
 
 namespace N326 // test non-type template argument deduction and return-type substitution in call to function template
@@ -341,8 +672,46 @@ namespace N332 // test overload resolution of friend function overloaded operato
 	ASSERT_EXPRESSION_TYPE(i < a, int); // calls 'B<A>::operator<(const int&, const A&)' via argument dependent lookup - because it is a better candidate than built-in 'operator<(int, int)'
 }
 
+namespace N330 // test viability of built-in operator< called with an object convertible to built in type
+{
+	struct A
+	{
+		operator const int&()const;
+		operator int&(); // implicit-object parameter is better conversion from 'A&' because no 'added qualification'
+	};
+
+	int i;
+	A a;
+	ASSERT_EXPRESSION_TYPE(i < a, bool); // calls built-in operator<(int, int), via conversion function 'A::operator int&()'
+}
+
+namespace N325 // test viability of built-in operator&& called with an object convertible to built in type
+{
+	struct A
+	{
+		bool operator()();
+	};
+
+	A a;
+
+	ASSERT_EXPRESSION_TYPE(true && a(), bool);
+}
+
+namespace N324 // test viability of built-in operator!= called with an object convertible to built in type
+{
+	struct A
+	{
+		operator int*();
+	};
+
+	A a;
+
+	ASSERT_EXPRESSION_TYPE(a != 0, bool);
+}
+
+
 //-----------------------------------------------------------------------------
-// name lookup for friend declaration
+// explicit specialization
 
 namespace N157 // test choice of correct explicit specialization by function type
 {
@@ -417,6 +786,22 @@ namespace N378 // test name lookup for namespace-scope redeclaration of class fi
 	struct B; // redeclares 'B'
 
 	B* b; // unqualified name lookup finds 'B'
+}
+
+namespace N329 // test name lookup for overloaded operator declared as friend
+{
+	template<class T>
+	struct A
+	{
+		friend int operator==(const T&x, const T&y);
+	};
+
+	enum E
+	{
+	};
+
+	E e;
+	ASSERT_EXPRESSION_TYPE(e == e, bool); // name lookup should not find 'A<T>::operator=='
 }
 
 //-----------------------------------------------------------------------------
@@ -583,3 +968,5 @@ namespace N335 // check type of pointer-to-member id-expression
 	ASSERT_EXPRESSION_TYPE((&a)->*m, int&); // lvalue
 	ASSERT_EXPRESSION_TYPE(A().*m, int); // not lvalue
 }
+
+
