@@ -71,7 +71,7 @@ inline bool isType(const Declaration& type)
 
 inline bool isFunction(const Declaration& declaration)
 {
-	return declaration.enclosed != 0 && declaration.enclosed->type == SCOPETYPE_PROTOTYPE;
+	return declaration.enclosed != 0 && declaration.enclosed->type == SCOPETYPE_FUNCTION;
 }
 
 inline bool isMember(const Declaration& declaration)

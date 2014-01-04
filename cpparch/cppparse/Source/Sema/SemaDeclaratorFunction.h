@@ -34,7 +34,7 @@ struct SemaParameterDeclarationClause : public SemaBase
 	SemaParameterDeclarationClause(const SemaState& state)
 		: SemaBase(state)
 	{
-		pushScope(newScope(makeIdentifier("$prototype"), SCOPETYPE_PROTOTYPE));
+		pushScope(newScope(makeIdentifier("$prototype"), SCOPETYPE_FUNCTION));
 		if(templateParamScope != 0)
 		{
 			// insert the template-parameter scope to enclose the declarator scope

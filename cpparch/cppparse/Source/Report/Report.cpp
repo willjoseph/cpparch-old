@@ -190,7 +190,7 @@ inline bool isObjectDefinition(const Declaration& declaration)
 
 inline bool isFunctionParameter(const Declaration& declaration)
 {
-	return declaration.scope != 0 && declaration.scope->type == SCOPETYPE_PROTOTYPE;
+	return declaration.scope != 0 && declaration.scope->type == SCOPETYPE_FUNCTION;
 }
 
 struct DependencyBuilder

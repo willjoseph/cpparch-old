@@ -22,11 +22,11 @@ extern UniqueNames gUniqueNames;
 enum ScopeType
 {
 	SCOPETYPE_UNKNOWN,
-	SCOPETYPE_NAMESPACE,
-	SCOPETYPE_PROTOTYPE,
-	SCOPETYPE_LOCAL,
-	SCOPETYPE_CLASS,
-	SCOPETYPE_TEMPLATE,
+	SCOPETYPE_NAMESPACE, // contains class, enum, object or function declarations
+	SCOPETYPE_FUNCTION, // contains declarations of function parameters
+	SCOPETYPE_LOCAL, // contains statements
+	SCOPETYPE_CLASS, // contains member declarations
+	SCOPETYPE_TEMPLATE, // contains template parameter declarations
 };
 
 extern size_t gScopeCount;
@@ -283,7 +283,7 @@ inline Scope* getEnclosingFunction(Scope* scope)
 {
 	for(; scope != 0; scope = scope->parent)
 	{
-		if(scope->type == SCOPETYPE_PROTOTYPE)
+		if(scope->type == SCOPETYPE_FUNCTION)
 		{
 			return scope;
 		}
