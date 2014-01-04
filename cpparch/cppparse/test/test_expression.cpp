@@ -969,4 +969,197 @@ namespace N335 // check type of pointer-to-member id-expression
 	ASSERT_EXPRESSION_TYPE(A().*m, int); // not lvalue
 }
 
+namespace N328 // test SFINAE to remove overload candidate with enable_if in function call
+{
+	template<bool B, class T=void>
+	struct enable_if_c
+	{
+		typedef T type;
+	};
+	template<class T>
+	struct enable_if_c<false, T>
+	{
+	};
+	template<class Cond, class T=void>
+	struct enable_if: public enable_if_c<Cond::value, T>
+	{
+	};
 
+	template< class T >
+	struct is_int { static const bool value = false; };
+
+	template<>
+	struct is_int<int>
+	{
+		static const bool value=true;
+
+	};
+
+	template<class T>
+	int f(T, typename enable_if<is_int<T> >::type* = 0); // SFINAE
+
+	bool f(float);
+
+	ASSERT_EXPRESSION_TYPE(f(false), bool); // calls 'f(float)' because argument is not int
+	ASSERT_EXPRESSION_TYPE(f(0), int); // calls 'f<int>(int)'
+}
+
+
+namespace N297 // test template argument deduction with template base class parameter
+{
+	template<typename T>
+	struct C
+	{
+	};
+	template<typename T>
+	struct B : public C<T>
+	{
+	};
+	struct A : public B<A>
+	{
+	};
+
+	template<typename T>
+	T operator*(const C<T>&);
+
+	A a;
+	ASSERT_EXPRESSION_TYPE(*a, A); // calls operator*(const C<A>)
+}
+
+
+namespace N279 // test template argument deduction with argument types that both decay to pointer
+{
+	template<class T>
+	T f(T, T);
+
+	char buffer[1];
+	ASSERT_EXPRESSION_TYPE(f(buffer, buffer+1), char*); // calls f<char*>(char*, char*)
+}
+
+
+namespace N276 // test dereference of pointer to function before calling it
+{
+	typedef int(*F)();
+
+	F p;
+	ASSERT_EXPRESSION_TYPE((*p)(), int);
+}
+
+namespace N280 // test overload resolution with enum promotion to int
+{
+	enum E
+	{
+	};
+
+	int f(int);
+	bool f(unsigned int);
+
+	ASSERT_EXPRESSION_TYPE(f(E(0)), int); // f(int) is a better match
+}
+
+namespace N275 // test template argument deduction with parameter T* and function-pointer argument
+{
+	template<class T>
+	inline T* f(T*);
+
+	typedef void(*F)();
+
+	F p;
+	ASSERT_EXPRESSION_TYPE(f(p), F); // calls f<void(*)()>(void(*)())
+}
+
+namespace N273 // test call of overloaded operator[]
+{
+	struct A
+	{
+		int operator[](int);
+	};
+
+	A a;
+	ASSERT_EXPRESSION_TYPE(a[0], int);
+}
+
+namespace N272 // test call of function with ellipsis parameter list
+{
+	int f(...);
+
+	ASSERT_EXPRESSION_TYPE(f(1), int);
+}
+
+
+namespace N264 // test partial ordering of function templates
+{
+	template<typename T>
+	int f(const T*);
+
+	template<typename T>
+	bool f(T*);
+
+	const char* p;
+	ASSERT_EXPRESSION_TYPE(f(p), int); // calls f<char>(const char*)
+}
+
+
+namespace N234 // test SFINAE with explicitly specified template argument for function template overloads with both type and non-type parameter.
+{
+	template<int i>
+	int f();
+
+	template<typename T>
+	T f();
+
+	ASSERT_EXPRESSION_TYPE(f<bool>(), bool);
+	ASSERT_EXPRESSION_TYPE(f<0>(), int);
+}
+
+namespace N123 // test type substitution for return type that depends on a template parameter
+{
+	template<typename T>
+	struct S
+	{
+		typedef T Type;
+
+		Type f();
+	};
+
+	template<typename U>
+	typename S<U>::Type S<U>::f();
+
+	S<int> s;
+	ASSERT_EXPRESSION_TYPE(s.f(), int);
+}
+
+
+namespace N235 // test template argument deduction with TT<T> parameter, with explicitly specified template argument for T
+{
+	template<typename T, template<class> class TT>
+	TT<T> f(TT<T>);
+
+	template<class T>
+	struct S
+	{
+	};
+
+	S<int> s;
+	ASSERT_EXPRESSION_TYPE(f<int>(s), S<int>);
+}
+
+namespace N177 // test template argument deduction with TT<int> parameter
+{
+	template<template<class> class TT>
+	TT<int> f(TT<int>);
+
+	template<class T>
+	struct S
+	{
+	};
+
+	S<int> s;
+	ASSERT_EXPRESSION_TYPE(f(s), S<int>);
+}
+
+namespace N233 // test implicit conversion of null-pointer-constant to pointer in function call expression
+{
+	int f(char*);
+	ASSERT_EXPRESSION_TYPE(f(0), int); // null-pointer-constant matches T*
+}

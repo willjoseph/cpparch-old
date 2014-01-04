@@ -318,7 +318,7 @@ inline bool deduceTemplateArguments(UniqueTypeWrapper parameter, UniqueTypeWrapp
 
 		if(!parameter.isDependent())
 		{
-			if(!isSameType(parameter, argument))
+			if(!isEqualTypeElement(parameter, argument))
 			{
 				return false; // the deduced A must be identical to A: e.g. T* <- int*, S<T> <- S<int>
 			}

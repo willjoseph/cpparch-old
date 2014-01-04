@@ -8,6 +8,7 @@
 struct SimpleType;
 struct InstantiationContext;
 
+// ----------------------------------------------------------------------------
 inline ExpressionWrapper makeArgument(ExpressionWrapper expression, ExpressionType type)
 {
 	ExpressionWrapper result(expression);
@@ -18,6 +19,7 @@ typedef ExpressionWrapper Argument;
 typedef std::vector<Argument> Arguments;
 
 
+// ----------------------------------------------------------------------------
 struct IntegralConstantExpression
 {
 	ExpressionType type;
@@ -44,6 +46,7 @@ inline ExpressionWrapper makeConstantExpression(const IntegralConstantExpression
 }
 
 
+// ----------------------------------------------------------------------------
 struct CastExpression
 {
 	UniqueTypeWrapper type;
@@ -73,6 +76,7 @@ inline const CastExpression& getCastExpression(ExpressionNode* node)
 }
 
 
+// ----------------------------------------------------------------------------
 struct DependentIdExpression
 {
 	Name name;
@@ -106,6 +110,7 @@ inline const DependentIdExpression& getDependentIdExpression(ExpressionNode* nod
 }
 
 
+// ----------------------------------------------------------------------------
 struct IdExpression
 {
 	DeclarationInstanceRef declaration;
@@ -141,6 +146,7 @@ inline const IdExpression& getIdExpression(ExpressionNode* node)
 }
 
 
+// ----------------------------------------------------------------------------
 struct NonTypeTemplateParameter
 {
 	DeclarationPtr declaration;
@@ -171,6 +177,7 @@ inline const NonTypeTemplateParameter& getNonTypeTemplateParameter(ExpressionNod
 	return static_cast<const ExpressionNodeGeneric<NonTypeTemplateParameter>*>(node)->value;
 }
 
+// ----------------------------------------------------------------------------
 struct SizeofExpression
 {
 	// [expr.sizeof] The operand is ... an expression, which is not evaluated
@@ -202,6 +209,7 @@ inline bool operator<(const SizeofTypeExpression& left, const SizeofTypeExpressi
 }
 
 
+// ----------------------------------------------------------------------------
 typedef IntegralConstant (*UnaryIceOp)(IntegralConstant);
 
 struct UnaryExpression
@@ -233,6 +241,7 @@ inline const UnaryExpression& getUnaryExpression(ExpressionNode* node)
 	return static_cast<const ExpressionNodeGeneric<UnaryExpression>*>(node)->value;
 }
 
+// ----------------------------------------------------------------------------
 typedef IntegralConstant (*BinaryIceOp)(IntegralConstant, IntegralConstant);
 typedef ExpressionType (*BinaryTypeOp)(Name operatorName, Argument first, Argument second, const InstantiationContext& context);
 
@@ -260,6 +269,7 @@ inline bool operator<(const BinaryExpression& left, const BinaryExpression& righ
 		: left.second.p < right.second.p;
 }
 
+// ----------------------------------------------------------------------------
 typedef IntegralConstant (*TernaryIceOp)(IntegralConstant, IntegralConstant, IntegralConstant);
 
 struct TernaryExpression
@@ -285,6 +295,7 @@ inline bool operator<(const TernaryExpression& left, const TernaryExpression& ri
 		: left.third.p < right.third.p;
 }
 
+// ----------------------------------------------------------------------------
 typedef bool (*UnaryTypeTraitsOp)(UniqueTypeWrapper);
 typedef bool (*BinaryTypeTraitsOp)(UniqueTypeWrapper, UniqueTypeWrapper, const InstantiationContext& context);
 
@@ -306,6 +317,7 @@ inline bool operator<(const TypeTraitsUnaryExpression& left, const TypeTraitsUna
 		: left.type < right.type;
 }
 
+// ----------------------------------------------------------------------------
 struct TypeTraitsBinaryExpression
 {
 	Name traitName;
@@ -331,6 +343,7 @@ inline bool operator<(const TypeTraitsBinaryExpression& left, const TypeTraitsBi
 
 
 
+// ----------------------------------------------------------------------------
 struct ExplicitTypeExpression
 {
 	UniqueTypeWrapper type;
@@ -357,6 +370,7 @@ inline const ExplicitTypeExpression& getExplicitTypeExpression(ExpressionNode* n
 }
 
 
+// ----------------------------------------------------------------------------
 struct DependentObjectExpression
 {
 	ExpressionWrapper left;
@@ -385,6 +399,7 @@ inline const DependentObjectExpression& getDependentObjectExpression(ExpressionN
 }
 
 
+// ----------------------------------------------------------------------------
 struct ObjectExpression
 {
 	const SimpleType* classType;
@@ -412,6 +427,7 @@ inline const ObjectExpression& getObjectExpression(ExpressionNode* node)
 }
 
 
+// ----------------------------------------------------------------------------
 struct ClassMemberAccessExpression
 {
 	ExpressionWrapper left; // ObjectExpression or DependentObjectExpression
@@ -440,6 +456,7 @@ inline const ClassMemberAccessExpression& getClassMemberAccessExpression(Express
 }
 
 
+// ----------------------------------------------------------------------------
 // id-expression ( expression-list )
 // overload resolution is required if the lefthand side is
 // - a (parenthesised) id-expression
@@ -461,6 +478,7 @@ inline bool operator<(const FunctionCallExpression& left, const FunctionCallExpr
 }
 
 
+// ----------------------------------------------------------------------------
 struct SubscriptExpression
 {
 	ExpressionWrapper left;
@@ -478,6 +496,7 @@ inline bool operator<(const SubscriptExpression& left, const SubscriptExpression
 }
 
 
+// ----------------------------------------------------------------------------
 struct PostfixOperatorExpression
 {
 	Name operatorName;
@@ -495,6 +514,7 @@ inline bool operator<(const PostfixOperatorExpression& left, const PostfixOperat
 }
 
 
+// ----------------------------------------------------------------------------
 inline bool isPointerToMemberExpression(ExpressionNode* expression)
 {
 	if(!isUnaryExpression(expression))

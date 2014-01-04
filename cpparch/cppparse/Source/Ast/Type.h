@@ -171,7 +171,7 @@ inline bool isSpecialization(const Declaration& declaration)
 
 
 // ----------------------------------------------------------------------------
-
+// Returns the primary template for the given template declaration.
 inline Declaration* findPrimaryTemplate(Declaration* declaration)
 {
 	SYMBOLS_ASSERT(declaration->isTemplate);
@@ -188,6 +188,7 @@ inline Declaration* findPrimaryTemplate(Declaration* declaration)
 }
 
 
+// Returns the most recent redeclaration of the given declaration.
 inline const DeclarationInstance& findLastDeclaration(const DeclarationInstance& instance, Declaration* declaration)
 {
 	for(const DeclarationInstance* p = &instance; p != 0; p = p->overloaded)
@@ -201,13 +202,14 @@ inline const DeclarationInstance& findLastDeclaration(const DeclarationInstance&
 }
 
 
+// Returns the most recent redeclaration of the primary template for the given template declaration
 inline const DeclarationInstance& findPrimaryTemplateLastDeclaration(const DeclarationInstance& instance)
 {
 	return findLastDeclaration(instance, findPrimaryTemplate(instance));
 }
 
 
-// returns the most recent declaration that is not a redeclaration
+// Returns the most recently declared overload of the given declaration that is not a redeclaration.
 inline Declaration* findOverloaded(const DeclarationInstance& instance)
 {
 	for(const DeclarationInstance* p = &instance; p != 0; p = p->overloaded)
@@ -220,33 +222,13 @@ inline Declaration* findOverloaded(const DeclarationInstance& instance)
 	return 0;
 }
 
-// ----------------------------------------------------------------------------
-struct Parameter
-{
-	DeclarationPtr declaration;
-	cpp::default_argument* defaultArgument;
-	Parameter(Declaration* declaration, cpp::default_argument* defaultArgument)
-		: declaration(declaration), defaultArgument(defaultArgument)
-	{
-	}
-};
-
-struct Parameters : std::vector<Parameter>
-{
-	bool isEllipsis;
-	Parameters() : isEllipsis(false)
-	{
-	}
-};
-
 
 // ----------------------------------------------------------------------------
-
 typedef UniqueTypeWrapper UniqueTypeId;
 
 const UniqueTypeId gUniqueTypeNull = UniqueTypeId(UNIQUETYPE_NULL);
 
-inline bool isEqual(const UniqueTypeId& l, const UniqueTypeId& r)
+inline bool isEqual(UniqueTypeWrapper l, UniqueTypeWrapper r)
 {
 	return l.value == r.value;
 }
@@ -257,17 +239,22 @@ inline UniqueType getInner(UniqueType type)
 	return type->next;
 }
 
-inline bool isEqualInner(const UniqueTypeId& l, const UniqueTypeId& r)
+inline bool isEqualInner(UniqueTypeWrapper l, UniqueTypeWrapper r)
 {
 	return getInner(l.value) == getInner(r.value);
 }
 
-inline bool isSameType(const UniqueTypeId& l, const UniqueTypeId& r)
+// Returns true if both sides are of the same element type.
+// e.g. both are references, both are pointers, or both are functions.
+inline bool isEqualTypeElement(UniqueTypeWrapper l, UniqueTypeWrapper r)
 {
 	return isEqual(getTypeInfo(*l.value), getTypeInfo(*r.value));
 }
 
 
+// ----------------------------------------------------------------------------
+// Represents a non-type template argument value. 
+// The type of the parameter is intentionally ignored in comparisons.
 struct NonType : IntegralConstant
 {
 	explicit NonType(IntegralConstant value)
@@ -276,7 +263,6 @@ struct NonType : IntegralConstant
 	}
 };
 
-// ignoring type when comparing non-type template parameter
 inline bool operator<(const NonType& left, const NonType& right)
 {
 	return left.value < right.value;
@@ -289,6 +275,7 @@ inline const NonType& getNonTypeValue(UniqueType type)
 }
 
 
+// ----------------------------------------------------------------------------
 #if 1
 typedef SharedVector<UniqueTypeWrapper> UniqueTypeArray;
 #else
@@ -356,6 +343,7 @@ typedef std::vector<Location> InstanceLocations; // temporary scaffolding!
 // type refer to the same external object or function, and their template template-arguments refer to the same
 // template.
 
+// Represents a class, enumeration, union or fundamental type.
 struct SimpleType
 {
 	std::size_t uniqueId;
@@ -406,6 +394,7 @@ inline const SimpleType& getSimpleType(UniqueType type)
 	return static_cast<const TypeElementGeneric<SimpleType>*>(type.getPointer())->value;
 }
 
+// ----------------------------------------------------------------------------
 #if 0
 struct Namespace
 {
@@ -429,6 +418,10 @@ inline bool operator<(const Namespace& left, const Namespace& right)
 }
 #endif
 
+// ----------------------------------------------------------------------------
+// Represents a template-template-argument
+// Tmpl
+// C::Tmpl
 struct TemplateTemplateArgument
 {
 	DeclarationPtr declaration; // the primary declaration of the template template argument
@@ -451,7 +444,8 @@ inline const TemplateTemplateArgument& getTemplateTemplateArgument(UniqueType ty
 }
 
 
-// represents a template-parameter (or template-template-parameter)
+// ----------------------------------------------------------------------------
+// Represents a template-parameter (or template-template-parameter)
 // T
 // TT
 // TT<> (TODO)
@@ -485,7 +479,9 @@ inline const DependentType& getDependentType(UniqueType type)
 	return static_cast<const TypeElementGeneric<DependentType>*>(type.getPointer())->value;
 }
 
-
+// ----------------------------------------------------------------------------
+// Represents the name of a type that depends on a template parameter.
+// Name lookup is deferred until the enclosing template is instantiated.
 struct DependentTypename
 {
 	Name name; // the type name
@@ -512,7 +508,9 @@ inline bool operator<(const DependentTypename& left, const DependentTypename& ri
 		: left.templateArguments < right.templateArguments;
 }
 
-
+// ----------------------------------------------------------------------------
+// Represents a non-type template argument expression with a value that depends on a template parameter.
+// Evaluation is deferred until the enclosing template is instantiated.
 struct DependentNonType
 {
 	UniqueExpression expression;
@@ -528,6 +526,7 @@ inline bool operator<(const DependentNonType& left, const DependentNonType& righ
 }
 
 
+// ----------------------------------------------------------------------------
 struct DeclaratorPointerType
 {
 	CvQualifiers qualifiers;
@@ -540,6 +539,7 @@ struct DeclaratorPointerType
 	}
 };
 
+// Can be combined with other types to form T*
 struct PointerType
 {
 	PointerType()
@@ -552,10 +552,12 @@ inline bool operator<(const PointerType& left, const PointerType& right)
 	return false;
 }
 
+// ----------------------------------------------------------------------------
 struct DeclaratorReferenceType
 {
 };
 
+// Can be combined with other types to form T&
 struct ReferenceType
 {
 };
@@ -565,6 +567,7 @@ inline bool operator<(const ReferenceType& left, const ReferenceType& right)
 	return false;
 }
 
+// ----------------------------------------------------------------------------
 struct DeclaratorMemberPointerType
 {
 	Type type;
@@ -575,9 +578,10 @@ struct DeclaratorMemberPointerType
 	}
 };
 
+// Can be combined with other types to form T C::*
 struct MemberPointerType
 {
-	UniqueTypeWrapper type;
+	UniqueTypeWrapper type; // the type of the class
 	MemberPointerType(UniqueTypeWrapper type)
 		: type(type)
 	{
@@ -600,6 +604,7 @@ inline bool operator<(const MemberPointerType& left, const MemberPointerType& ri
 	return left.type < right.type;
 }
 
+// ----------------------------------------------------------------------------
 typedef std::vector<ExpressionWrapper> ArrayRank;
 
 struct DeclaratorArrayType
@@ -611,9 +616,10 @@ struct DeclaratorArrayType
 	}
 };
 
+// Can be combined with other types to form T[size]
 struct ArrayType
 {
-	std::size_t size;
+	std::size_t size; // the size of the array
 	ArrayType(std::size_t size)
 		: size(size)
 	{
@@ -631,6 +637,25 @@ inline const ArrayType& getArrayType(UniqueType type)
 	return static_cast<const TypeElementGeneric<ArrayType>*>(type.getPointer())->value;
 }
 
+// ----------------------------------------------------------------------------
+struct Parameter
+{
+	DeclarationPtr declaration;
+	cpp::default_argument* defaultArgument;
+	Parameter(Declaration* declaration, cpp::default_argument* defaultArgument)
+		: declaration(declaration), defaultArgument(defaultArgument)
+	{
+	}
+};
+
+struct Parameters : std::vector<Parameter>
+{
+	bool isEllipsis;
+	Parameters() : isEllipsis(false)
+	{
+	}
+};
+
 struct DeclaratorFunctionType
 {
 	Parameters parameters;
@@ -646,10 +671,11 @@ struct DeclaratorFunctionType
 
 typedef UniqueTypeArray ParameterTypes;
 
+// Can be combined with other types to form T(parameters)
 struct FunctionType
 {
-	ParameterTypes parameterTypes;
-	bool isEllipsis;
+	ParameterTypes parameterTypes; // the types of the function parameters
+	bool isEllipsis; // true if the parameter list ends in ellipsis
 	FunctionType()
 		: isEllipsis(false)
 	{
@@ -695,8 +721,7 @@ inline const ParameterTypes& getParameterTypes(UniqueType type)
 
 
 // ----------------------------------------------------------------------------
-
-
+// The context at the point of instantiation.
 struct InstantiationContext
 {
 	Location source;
@@ -728,7 +753,8 @@ inline UniqueTypeWrapper makeUniqueSimpleType(const SimpleType& type)
 }
 
 // ----------------------------------------------------------------------------
-
+// Enabled compile-time polymorphism depending on whether a type is built-in or user-defined.
+// Note that built-in types generally have a global lifetime.
 template<bool builtIn>
 struct UniqueTypeGeneric : UniqueTypeWrapper
 {
@@ -739,7 +765,6 @@ struct UniqueTypeGeneric : UniqueTypeWrapper
 	{
 	}
 };
-
 
 typedef UniqueTypeGeneric<true> BuiltInType; 
 
@@ -754,13 +779,13 @@ struct BuiltInTypeId : BuiltInType
 };
 
 
-
-
+// ----------------------------------------------------------------------------
+// Returns true if the given type depends on a template parameter.
+// Generally used only for debugging purposes.
 inline bool isDependent(UniqueTypeWrapper type)
 {
 	return type.value->isDependent;
 }
-
 
 inline bool isDependent(const UniqueTypeArray& types)
 {
@@ -773,7 +798,6 @@ inline bool isDependent(const UniqueTypeArray& types)
 	}
 	return false;
 }
-
 
 inline bool isDependent(const SimpleType& type)
 {
@@ -819,28 +843,29 @@ inline bool isDependent(const T&)
 }
 
 
-
-inline const SimpleType* findEnclosingType(const SimpleType& enclosing, Scope* scope)
+// ----------------------------------------------------------------------------
+// Returns the base class or enclosing class that directly contains the given scope.
+inline const SimpleType* findEnclosingType(const SimpleType& enclosingType, Scope* scope)
 {
 	SYMBOLS_ASSERT(scope != 0);
 	if(scope->type == SCOPETYPE_TEMPLATE)
 	{
-		return enclosing.declaration->templateParamScope == scope
-			? &enclosing
+		return enclosingType.declaration->templateParamScope == scope
+			? &enclosingType
 			: 0; // don't search base classes for template-parameter
 	}
 
-	if(enclosing.declaration->enclosed == scope)
+	if(enclosingType.declaration->enclosed == scope)
 	{
-		return &enclosing;
+		return &enclosingType;
 	}
 
-	if(enclosing.declaration->enclosed != 0) // TODO: 'enclosing' may be incomplete if we're finding the enclosing type for a template default argument. 
+	if(enclosingType.declaration->enclosed != 0) // TODO: 'enclosingType' may be incomplete if we're finding the enclosing type for a template default argument. 
 	{
-		SYMBOLS_ASSERT(enclosing.instantiated); // the enclosing type should have been instantiated by this point
+		SYMBOLS_ASSERT(enclosingType.instantiated); // the enclosing type should have been instantiated by this point
 	}
 
-	for(UniqueBases::const_iterator i = enclosing.bases.begin(); i != enclosing.bases.end(); ++i)
+	for(UniqueBases::const_iterator i = enclosingType.bases.begin(); i != enclosingType.bases.end(); ++i)
 	{
 		const SimpleType* result = findEnclosingType(*(*i), scope);
 		if(result != 0)
@@ -851,10 +876,11 @@ inline const SimpleType* findEnclosingType(const SimpleType& enclosing, Scope* s
 	return 0;
 }
 
-inline const SimpleType* findEnclosingType(const SimpleType* enclosing, Scope* scope)
+// Returns the base class or enclosing class that directly contains the given scope.
+inline const SimpleType* findEnclosingType(const SimpleType* enclosingType, Scope* scope)
 {
 	SYMBOLS_ASSERT(scope != 0);
-	for(const SimpleType* i = enclosing; i != 0; i = (*i).enclosing)
+	for(const SimpleType* i = enclosingType; i != 0; i = (*i).enclosing)
 	{
 		const SimpleType* result = findEnclosingType(*i, scope);
 		if(result != 0)
@@ -865,7 +891,7 @@ inline const SimpleType* findEnclosingType(const SimpleType* enclosing, Scope* s
 	return 0;
 }
 
-
+// Returns the enclosing template class/function that directly contains the given template parameter scope.
 inline const SimpleType* findEnclosingTemplate(const SimpleType* enclosing, Scope* scope)
 {
 	SYMBOLS_ASSERT(scope != 0);
@@ -881,24 +907,19 @@ inline const SimpleType* findEnclosingTemplate(const SimpleType* enclosing, Scop
 	return 0;
 }
 
+// Returns the enclosing template class/function that directly contains the given template parameter scope.
 inline const SimpleType* findEnclosingTemplate(const InstantiationContext& context, Scope* scope)
 {
 	return findEnclosingTemplate(context.enclosingFunction != 0 ? context.enclosingFunction : context.enclosingType, scope);
 }
 
 
+// ----------------------------------------------------------------------------
 const ExpressionType gNullExpressionType = ExpressionType(gUniqueTypeNull, false);
+extern BuiltInTypeId gOverloaded; // represents the type of an expression referring to a set of overloaded functions
+const ExpressionType gOverloadedExpressionType = ExpressionType(gOverloaded, false);
 
 // [expr] If an expression initially has the type "reference to T", the type is adjusted to "T" prior to any further analysis.
-inline ExpressionType removeReference(ExpressionType type)
-{
-	if(type.isReference())
-	{
-		type.pop_front();
-	}
-	return type;
-}
-
 inline UniqueTypeWrapper removeReference(UniqueTypeWrapper type)
 {
 	if(type.isReference())
@@ -907,11 +928,24 @@ inline UniqueTypeWrapper removeReference(UniqueTypeWrapper type)
 	}
 	return type;
 }
+inline ExpressionType removeReference(ExpressionType type)
+{
+	return ExpressionType(removeReference(UniqueTypeWrapper(type)), type.isLvalue);
+}
 
-
-
+// Returns the adjusted function parameter type for the given type.
+// This adjusted type is used when comparing function declarations for equivalence.
 inline UniqueTypeWrapper adjustFunctionParameter(UniqueTypeWrapper type)
 {
+	// [dcl.fct]
+	// The type of a function is determined using the following rules. The
+	// type of each parameter is determined from its own decl-specifier-seq and declarator. After determining the
+	// type of each parameter, any parameter of type "array of T" or "function returning T" is adjusted to be
+	// "pointer to T" or "pointer to function returning T," respectively. After producing the list of parameter
+	// types, several transformations take place upon these types to determine the function type. Any cv-qualifier
+	// modifying a parameter type is deleted. [Example: the type void(*)(const int) becomes
+	// void(*)(int) —end example] Such cv-qualifiers affect only the definition of the parameter within the
+	// body of the function; they do not affect the function type.
 	UniqueTypeWrapper result(type.value.getPointer());  // ignore cv-qualifiers
 	if(type.isFunction()) // T() becomes T(*)()
 	{
@@ -1019,9 +1053,5 @@ struct ExpressionTypeHelper<T, true>
 	}
 };
 
-
-
-extern BuiltInTypeId gOverloaded;
-const ExpressionType gOverloadedExpressionType = ExpressionType(gOverloaded, false);
 
 #endif

@@ -54,7 +54,7 @@ const std::size_t VISIBILITY_ALL = UINT_MAX;
 struct DeclarationInstance : DeclarationPtr
 {
 	Identifier* name; // the identifier used in this declaration.
-	const DeclarationInstance* overloaded; // the previously declared overload of this name (which may or may not refer to the same entity.)
+	const DeclarationInstance* overloaded; // the previous declaration that shares the same name (which may or may not refer to the same entity.)
 	const DeclarationInstance* redeclared; // the previous declaration that refers to the same entity.
 	std::size_t visibility; // every declaration declared before this has a lesser value
 	DeclarationInstance()
@@ -97,7 +97,8 @@ inline const DeclarationInstance& getDeclaration(const Identifier& id)
 	return *id.dec.p;
 }
 
-
+// behaves as a reference to a DeclarationInstance
+// provides same interface as DeclarationInstance via forwarding
 struct DeclarationInstanceRef
 {
 	const DeclarationInstance* p;
@@ -175,7 +176,7 @@ struct Scope : public ScopeCounter
 	Scopes usingDirectives;
 	typedef List<DeclarationPtr, AstAllocator<int> > DeclarationList;
 	DeclarationList declarationList;
-	size_t templateDepth;
+	size_t templateDepth; // if this scope is a template parameter scope, indicates the template nesting level, otherwise zero
 
 	Scope(const AstAllocator<int>& allocator, const Identifier& name, ScopeType type = SCOPETYPE_UNKNOWN)
 		: parent(0), name(name), enclosedScopeCount(0), declarations(allocator), type(type), bases(allocator), usingDirectives(allocator), declarationList(allocator), templateDepth(0)

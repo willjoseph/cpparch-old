@@ -1,16 +1,4 @@
 
-namespace Temptest
-{
-	struct A
-	{
-		A& operator++(int);
-	};
-
-	A a;
-	decltype(a++) x = a; // calls 'A::operator++(int)'
-}
-
-
 namespace N83 // test parse of explicit call of implicitly declared assignment operator
 {
 	class C
@@ -759,54 +747,8 @@ namespace N338 // test parse of unary operator applied to operand with enum type
 	int k = +E();
 }
 
-namespace N328
-{
-	template<bool B, class T=void>
-	struct enable_if_c
-	{
-		typedef T type;
-	};
-	template<class T>
-	struct enable_if_c<false, T>
-	{
-	};
-	template<class Cond, class T=void>
-	struct enable_if: public enable_if_c<Cond::value, T>
-	{
-	};
 
-	enum errc_t
-	{
-	};
-
-	template< class T >
-	struct is_error_condition_enum { static const bool value = false; };
-
-	template<>
-	struct is_error_condition_enum<errc_t>
-	{
-		static const bool value=true;
-	
-	};
-
-	class error_condition
-	{
-	public:
-		template<class ErrorConditionEnum>
-		error_condition(ErrorConditionEnum e, typename enable_if<is_error_condition_enum<ErrorConditionEnum> >::type* =0);
-		inline friend bool operator==(const error_condition&lhs, const error_condition&rhs);
-	};
-	struct A
-	{
-		inline friend bool operator==(const A&lhs, const A&rhs);
-	};
-	inline bool operator!=(const A&lhs, const A&rhs)
-	{
-		return !(lhs==rhs); // SFINAE: attempts and fails substitution of 'error_condition::error_condition<A>(A)' 
-	}
-}
-
-namespace N222
+namespace N222 // test determination of dependentness for 'this' within the definition of a member function of a class-template
 {
 	template<typename T>
 	struct B : T
@@ -832,6 +774,7 @@ namespace N222
 	}
 }
 
+#if 0 // TODO: this is invalid?
 namespace N318
 {
 	int f(int*);
@@ -840,12 +783,12 @@ namespace N318
 	int g(int* p)
 	{
 		const int i = x;
-		return f(true ? i : p);
+		return f(true ? i : p); // error: operands to ?: have different types 'int' and 'int*'
 	}
 
 	int i = g<0>(0);
 }
-
+#endif
 
 namespace N307
 {
@@ -962,31 +905,22 @@ namespace N203
 }
 #endif
 
-namespace N297
+namespace N291 // test parse of  function template definition with return type that depends on template parameter of enclosing type
 {
-	template<typename DerivedT>
-	struct parser
+	template<class T>
+	class S
 	{
+		S& f();
 	};
-	template<typename DerivedT>
-	struct char_parser: public parser<DerivedT>
-	{
-	};
-	struct anychar_parser: public char_parser<anychar_parser>
-	{
-	};
-	anychar_parser const anychar_p=anychar_parser();
 
-	template<typename S>
-	S operator*(parser<S>const&a);
-
-	void f()
+	template<class T>
+	S<T>& S<T>::f()
 	{
-		*anychar_p;
+		return *this;
 	}
 }
 
-namespace N292
+namespace N292 // test parse of member function template definition with return type that depends on template parameter of enclosing type
 {
 	template<class T>
 	class S
@@ -1003,32 +937,17 @@ namespace N292
 	}
 }
 
-namespace N291
+namespace N290 // test parse of expression containing id-expression which depends on a template parameter
 {
-	template<class T>
-	class S
-	{
-		S& f();
-	};
-
-	template<class T>
-	S<T>& S<T>::f()
-	{
-		return *this;
-	}
-}
-
-namespace N290
-{
-	template<typename A>
-	struct parser
+	template<typename T>
+	struct A
 	{
 	};
 
-	template<typename A>
-	inline void operator%(parser<A>const&a, char b)
+	template<typename T>
+	inline void operator%(const A<T>& a, char b)
 	{
-		*(b>>a.derived());
+		*(b >> a.dependent()); // name lookup is deferred because the type of 'a' is dependent
 	}
 }
 
@@ -1123,28 +1042,7 @@ namespace N286
 }
 
 
-namespace N279
-{
-	template<class T>
-	inline int f(T _First, T _Last);
-
-	char buffer[1];
-	int i = f(buffer, buffer+1);
-}
-
-namespace N280
-{
-	enum E
-	{
-	};
-
-	int f(int);
-	int f(unsigned int);
-	
-	int i = f(E(0));
-}
-
-namespace N277
+namespace N277 // test that 'this' is correctly determined to be dependent within the definition of a class template
 {
 	template<class T>
 	struct S
@@ -1152,50 +1050,6 @@ namespace N277
 		void f()
 		{
 			this->dependent();
-		}
-	};
-}
-
-namespace N276
-{
-	typedef void(*event_callback)(int);
-	struct _Fnarray
-	{
-		event_callback _Pfn;
-	};
-	struct S
-	{
-		void _Callfns()
-		{
-			_Fnarray*_Ptr = 0;
-			(*_Ptr->_Pfn)(0);
-		}
-	};
-}
-
-namespace N275
-{
-	template<class _InIt>
-	inline void _Debug_pointer(_InIt&)
-	{
-	}
-	template<class _Ty>
-	inline void _Debug_pointer(const _Ty*_First)
-	{
-	}
-	template<class _Ty>
-	inline void _Debug_pointer(_Ty*_First)
-	{
-	}
-
-	struct ios_base;
-
-	template<class _Elem, class _Traits>
-	class basic_ostream
-	{
-		void operator<<(ios_base&(*_Pfn)(ios_base&))
-		{
-			_Debug_pointer(_Pfn);
 		}
 	};
 }
@@ -1231,23 +1085,6 @@ namespace N274
 	};
 }
 
-namespace N273
-{
-	struct A
-	{
-		int operator[](int);
-	};
-
-	A a;
-	int i = a[0];
-}
-
-namespace N272
-{
-	int f(...);
-
-	int i = f(1);
-}
 
 
 namespace N270
@@ -1324,24 +1161,6 @@ namespace N265
 		}
 	};
 }
-
-namespace N264
-{
-	template<typename T>
-	int f(const T*, const wchar_t*, unsigned int)
-	{
-		return 0;
-	}
-	template<typename T>
-	int f(T*, const wchar_t*, unsigned int)
-	{
-		return 0;
-	}
-
-	const char* p;
-	int i = f(p, L"", 0);
-}
-
 
 namespace N263
 {
@@ -1675,47 +1494,6 @@ namespace N096
 	}
 }
 
-namespace N234
-{
-	template<int i>
-	int f()
-	{
-		return 0;
-	}
-
-	template<typename T>
-	typename T::Result f()
-	{
-		return 0;
-	}
-
-	template<typename T>
-	struct S
-	{
-		typedef int Result;
-	};
-
-	int a = f<S<int> >();
-	int b = f<0>(); // SFINAE during overload resolution
-}
-
-namespace N123
-{
-	template<typename T>
-	struct S
-	{
-		typedef T Type;
-
-		Type f();
-	};
-
-	template<typename U>
-	typename S<U>::Type S<U>::f();
-
-	S<int> s;
-	int i = s.f(); // return type is 'int'
-}
-
 
 namespace N240
 {
@@ -1825,52 +1603,6 @@ namespace N152
 		static const int value = I<sizeof(f(3))>::dependent;
 		static const int x = sizeof(f(3).x);
 	};
-}
-
-namespace N235
-{
-	template<typename T, template<class> class TT>
-	void f(TT<T>)
-	{
-	}
-
-	template<class T>
-	struct S
-	{
-	};
-
-	void g()
-	{
-		S<int> s;
-		f<int>(s);
-	}
-}
-
-namespace N177
-{
-	template<template<class> class TT>
-	void f(TT<int>)
-	{
-	}
-
-	template<class T>
-	struct S
-	{
-	};
-
-	void g()
-	{
-		S<int> s;
-		f(s);
-	}
-}
-
-namespace N233
-{
-	void f(char*)
-	{
-		f(0); // null-pointer-constant matches T*
-	}
 }
 
 
