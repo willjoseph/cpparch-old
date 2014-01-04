@@ -263,7 +263,8 @@ namespace N383
 
 	ASSERT_EXPRESSION_TYPE(i = 0, int&);
 
-	ASSERT_EXPRESSION_TYPE((a, 0), int); // comma operator
+	ASSERT_EXPRESSION_TYPE((i, 0), int); // comma operator
+	ASSERT_EXPRESSION_TYPE((0, i), int&); // comma operator
 
 }
 
