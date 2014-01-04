@@ -437,7 +437,7 @@ struct SemaExpression : public SemaBase, SemaExpressionResult
 	{
 		// TODO: check compliance: type of delete-expression
 		type = ExpressionType(gVoid, false); // non lvalue
-		expression = ExpressionWrapper();
+		expression = makeExpression(ExplicitTypeExpression(type));
 		setExpressionType(symbol, type);
 	}
 	SEMA_POLICY(cpp::throw_expression, SemaPolicyPushSrc<struct SemaExpression>)
@@ -445,7 +445,7 @@ struct SemaExpression : public SemaBase, SemaExpressionResult
 	{
 		// [except] A throw-expression is of type void.
 		type = ExpressionType(gVoid, false); // non lvalue
-		expression = ExpressionWrapper();
+		expression = makeExpression(ExplicitTypeExpression(type));
 	}
 };
 

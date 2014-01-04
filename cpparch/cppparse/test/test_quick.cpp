@@ -1334,22 +1334,6 @@ namespace N156
 	S<__int64> a;
 }
 
-namespace N154
-{
-	template<typename T>
-	T f()
-	{
-		return T();
-	}
-
-	struct S
-	{
-		int m;
-	};
-
-	int i = f<S>().m; // 'f<S>()' should have type 'S'
-};
-
 namespace N142
 {
 	template<typename T>
@@ -1814,20 +1798,6 @@ namespace N126
 	};
 }
 
-namespace N127
-{
-	template<typename T>
-	struct S
-	{
-		static T f(T t)
-		{
-			return t;
-		}
-	};
-
-	int i = S<int>::f(0); // type of 'S<int>::f' should be 'int(int)'
-}
-
 namespace N032
 {
 	template<typename T>
@@ -1860,23 +1830,6 @@ namespace N125
 	};
 
 	S<M>* s; // does not require instantiation of S, but requires instantiation of default argument
-}
-
-namespace N124
-{
-	struct S
-	{
-		typedef int Type;
-	};
-
-	template<typename T>
-	typename T::Type f(T)
-	{
-		return 0;
-	}
-
-	S s;
-	int i = f(s); // return type is 'int'
 }
 
 namespace N122
@@ -1986,29 +1939,6 @@ namespace N113
 
 	//template<typename T>
 	//void D::g();
-}
-
-namespace N112
-{
-	template<typename T>
-	struct S
-	{
-		typedef typename T::Type Type;
-		void f(Type)
-		{
-		}
-	};
-
-	struct A
-	{
-		typedef int Type;
-	};
-
-	void test()
-	{
-		S<A> s;
-		s.f(0); // should link to N112.S.f(int)
-	}
 }
 
 namespace N111
@@ -2212,25 +2142,8 @@ namespace N105
 {
 	void f();
 	void f(int);
-	void (*p)() = f; // TODO: [over.over]
+	void (*p)() = f;
 }
-
-namespace N104 // quick test of expression type reporting
-{
-	const int*const f();
-	int i = f; // type of expression should be  'const int*const()'
-}
-namespace N103 // quick test of expression type reporting
-{
-	const int*const f();
-	int i = f(); // type of expression should be  'const int*const'
-}
-namespace N102 // quick test of expression type reporting
-{
-	const int& f();
-	int i = f(); // type of expression should be  'const int&'
-}
-
 
 namespace N101
 {
@@ -2262,23 +2175,6 @@ namespace N101
 	}
 }
 
-namespace N100
-{
-	namespace A
-	{
-		void f(int);
-	}
-
-	namespace B
-	{
-		using A::f;
-		void f(float);
-		void g()
-		{
-			f(0); // overload resolution should choose A::f(int)
-		}
-	}
-}
 namespace N099
 {
 	template<typename T>
@@ -2358,25 +2254,6 @@ namespace N095
 	}
 }
 
-namespace N094
-{
-	void f(float, ...);
-	void f(float, float);
-	void f(int, float)
-	{
-		f(0.f, 0.f); // overload resolution should choose f(float, float)
-	}
-}
-
-namespace N093
-{
-	void f(float, float);
-	void f(float, int = 37);
-	void f(int)
-	{
-		f(0.f); // overload resolution should choose f(float, int)
-	}
-}
 
 namespace N092
 {
@@ -2407,17 +2284,6 @@ namespace N091
 	}
 }
 
-namespace N089
-{
-	void f(bool, bool = false);
-	void f(int = 0);
-
-	void f()
-	{
-		f(0); // should call f(int)
-	}
-}
-
 namespace N090
 {
 	struct S
@@ -2437,15 +2303,6 @@ namespace N090
 		{
 		}
 	};
-}
-
-namespace N088
-{
-	void f(const wchar_t*);
-	void f()
-	{
-		f(L""); /// overload resolution should pick 'f(const wchar_t*)'
-	}
 }
 
 namespace N087
@@ -3226,74 +3083,6 @@ namespace N034
 	void (S::*const p)(int) const = &S::m; // const-ptr to const-member
 }
 
-// ------
-namespace N035
-{
-	void overloaded(void*);
-
-	void bleh()
-	{
-		overloaded(0);
-	}
-
-	typedef int* P;
-	P* pp;
-
-	struct S
-	{
-	} s;
-
-	S* f(S);
-	double* f(double);
-	float* f(float);
-	int* f(int);
-	long* f(long);
-	unsigned* f(unsigned);
-	unsigned long* f(unsigned long);
-	char* f(char);
-	wchar_t* f(wchar_t);
-	char** f(char*);
-	const char** f(const char*);
-	wchar_t** f(const wchar_t*);
-	long double* f(const long double);
-
-	void f()
-	{
-		&s;
-		S* p;
-		*p;
-		p + 3;
-
-		int i;
-		-i;
-		+i;
-		~i;
-		!i;
-
-		s, 0;
-		f(s);
-		f(9 * (8.2));
-		f(9 * 8.2);
-		f(3 * (9 * 8.2));
-		f(1 * 2U * 3.0);
-
-		f('\0');
-		f(L'\0');
-		f("");
-		f(L"");
-		f(0.1);
-		f(0.1f);
-		f(0.1l);
-		f(1);
-		f(1L);
-		f(1U);
-		f(1UL);
-		f(1l);
-		f(1u);
-		f(1ul);
-
-	}
-}
 
 namespace N036 // test parsing of type-id
 {

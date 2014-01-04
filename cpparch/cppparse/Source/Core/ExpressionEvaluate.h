@@ -595,7 +595,7 @@ inline ExpressionType getBuiltInUnaryOperatorReturnType(Name operatorName, Expre
 		return ExpressionType(promoteToIntegralType(type), false); // non lvalue
 	}
 	SYMBOLS_ASSERT(operatorName == gOperatorPlusPlusId || operatorName == gOperatorMinusMinusId);
-	return ExpressionType(type, false); // non lvalue
+	return ExpressionType(type, true); // lvalue
 }
 
 inline ExpressionType typeOfUnaryExpression(Name operatorName, Argument operand, const InstantiationContext& context)
@@ -652,12 +652,14 @@ inline ExpressionType typeOfPostfixOperatorExpression(Name operatorName, Argumen
 	FunctionOverload overload = findBestOverloadedOperator(id, arguments, context);
 	if(overload.declaration == &gUnknown)
 	{
-		// [expr.post.incr] The type of the operand shall be an arithmetic type or a pointer to a complete object type.
-		// The type of the result is the cv-unqualified version of the type of the operand.
+		// [expr.post.incr] The operand shall be a modifiable lvalue.
+		// The type of the operand shall be an arithmetic type or a pointer to a complete object type.
+		// The result is an rvalue. The type of the result is the cv-unqualified version of the type of the operand.
 		UniqueTypeWrapper type = operand.type;
+		// TODO: assert lvalue
 		type.value.setQualifiers(CvQualifiers());
 		requireCompleteObjectType(type, context);
-		return operand.type;
+		return ExpressionType(operand.type, false); // non lvalue
 	}
 	else
 	{

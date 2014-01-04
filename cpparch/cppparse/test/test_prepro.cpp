@@ -1,4 +1,10 @@
 
+namespace Temptest
+{
+	int* p;
+	int* q = p++;
+}
+
 namespace N83 // test parse of explicit call of implicitly declared assignment operator
 {
 	class C

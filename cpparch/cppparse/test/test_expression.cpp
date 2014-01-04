@@ -104,10 +104,24 @@ namespace N383
 	ASSERT_EXPRESSION_TYPE(true, bool);
 	ASSERT_EXPRESSION_TYPE(false, bool);
 	ASSERT_EXPRESSION_TYPE(0, int);
+	ASSERT_EXPRESSION_TYPE(0u, unsigned);
+	ASSERT_EXPRESSION_TYPE(0l, long);
+	ASSERT_EXPRESSION_TYPE(0ul, unsigned long);
+	ASSERT_EXPRESSION_TYPE(0U, unsigned);
+	ASSERT_EXPRESSION_TYPE(0L, long);
+	ASSERT_EXPRESSION_TYPE(0UL, unsigned long);
 	ASSERT_EXPRESSION_TYPE(0.f, float);
 	ASSERT_EXPRESSION_TYPE(0.0, double);
-	ASSERT_EXPRESSION_TYPE(0l, long);
+	ASSERT_EXPRESSION_TYPE(0.l, long double);
 	// ASSERT_EXPRESSION_TYPE(0ll, long long); // TODO: long long
+	ASSERT_EXPRESSION_TYPE('\0', char);
+	ASSERT_EXPRESSION_TYPE(L'\0', wchar_t);
+	//ASSERT_EXPRESSION_TYPE("", const char(&)[1]); // TODO: array size for string literal
+	//ASSERT_EXPRESSION_TYPE(L"", const wchar_t*(&)[1]);
+	ASSERT_EXPRESSION_TYPE(9 * (8.2), double);
+	ASSERT_EXPRESSION_TYPE(9 * 8.2, double);
+	ASSERT_EXPRESSION_TYPE(3 * (9 * 8.2), double);
+	ASSERT_EXPRESSION_TYPE(1 * 2U * 3.0, double);
 
 	ASSERT_EXPRESSION_TYPE(int(), int);
 
@@ -121,14 +135,18 @@ namespace N383
 
 	struct A
 	{
+		int f();
 		int m;
 	};
 
 	int f();
+	int& r();
 	int i;
 	const int ci = 0;
 	A a;
 	A* p;
+	int A::* pm;
+	int (A::* pmf)();
 
 	enum E { VALUE };
 
@@ -147,9 +165,106 @@ namespace N383
 	ASSERT_EXPRESSION_TYPE((p->m), int&);
 	ASSERT_EXPRESSION_TYPE((VALUE), E); // does not yield a reference because 'VALUE' is not an lvalue
 
+	struct C
+	{
+		void f()
+		{
+			ASSERT_EXPRESSION_TYPE(this, C*); // not an lvalue
+		}
+		void f() const
+		{
+			// TODO: 'this' should be const
+			//ASSERT_EXPRESSION_TYPE(this, const C*); // not an lvalue
+		}
+		static void s();
+	};
+	C c;
+
+	// postfix expressions
+	ASSERT_EXPRESSION_TYPE(p[0], A&); // lvalue
 	ASSERT_EXPRESSION_TYPE(f(), int); // not an lvalue
+	ASSERT_EXPRESSION_TYPE(r(), int&); // lvalue
+	ASSERT_EXPRESSION_TYPE(c.f(), void); // not an lvalue
+	ASSERT_EXPRESSION_TYPE(int(), int);
 	ASSERT_EXPRESSION_TYPE(A(), A);
 	ASSERT_EXPRESSION_TYPE(E(), E);
+	ASSERT_EXPRESSION_TYPE(E(), E);
+	ASSERT_EXPRESSION_TYPE(c.s, void());
+	//ASSERT_EXPRESSION_TYPE((c.s), void()); // TODO
+	ASSERT_EXPRESSION_TYPE(p++, A*);
+	ASSERT_EXPRESSION_TYPE(p--, A*);
+	ASSERT_EXPRESSION_TYPE(i++, int);
+	ASSERT_EXPRESSION_TYPE(i--, int);
+
+	struct B : A
+	{
+		virtual ~B();
+	};
+	B* b;
+	ASSERT_EXPRESSION_TYPE(dynamic_cast<A*>(b), A*);
+	ASSERT_EXPRESSION_TYPE(dynamic_cast<A&>(*b), A&);
+	ASSERT_EXPRESSION_TYPE(static_cast<float>(0), float);
+	ASSERT_EXPRESSION_TYPE(static_cast<A*>(b), A*);
+	ASSERT_EXPRESSION_TYPE(static_cast<A&>(*b), A&);
+	ASSERT_EXPRESSION_TYPE(reinterpret_cast<A*>(b), A*);
+	ASSERT_EXPRESSION_TYPE(reinterpret_cast<A&>(*b), A&);
+	ASSERT_EXPRESSION_TYPE(const_cast<const A*>(p), const A*);
+	ASSERT_EXPRESSION_TYPE(const_cast<const A&>(*p), const A&);
+
+	// unary expressions
+	ASSERT_EXPRESSION_TYPE(++p, A*&);
+	ASSERT_EXPRESSION_TYPE(--p, A*&);
+	ASSERT_EXPRESSION_TYPE(++i, int&);
+	ASSERT_EXPRESSION_TYPE(--i, int&);
+	ASSERT_EXPRESSION_TYPE(*p, A&);
+	ASSERT_EXPRESSION_TYPE(&a, A*);
+	ASSERT_EXPRESSION_TYPE(+i, int);
+	ASSERT_EXPRESSION_TYPE(-i, int);
+	ASSERT_EXPRESSION_TYPE(!i, bool);
+	ASSERT_EXPRESSION_TYPE(~i, int);
+	ASSERT_EXPRESSION_TYPE(sizeof(0), size_t);
+	ASSERT_EXPRESSION_TYPE(sizeof(int), size_t);
+	ASSERT_EXPRESSION_TYPE(new int, int*);
+	ASSERT_EXPRESSION_TYPE(new int[1], int*);
+	ASSERT_EXPRESSION_TYPE(delete p, void);
+
+	// cast
+	ASSERT_EXPRESSION_TYPE((A*)b, A*);
+	ASSERT_EXPRESSION_TYPE((A&)*b, A&);
+
+	// pm
+	ASSERT_EXPRESSION_TYPE(a.*pm, int&);
+	ASSERT_EXPRESSION_TYPE(p->*pm, int&);
+	ASSERT_EXPRESSION_TYPE((a.*pmf)(), int);
+	ASSERT_EXPRESSION_TYPE((p->*pmf)(), int);
+
+	ASSERT_EXPRESSION_TYPE(i * 3, int);
+	ASSERT_EXPRESSION_TYPE(i + 3, int);
+	ASSERT_EXPRESSION_TYPE(p + 3, A*);
+	//ASSERT_EXPRESSION_TYPE(p - p, ptrdiff_t); // TODO: ptrdiff_t
+
+	ASSERT_EXPRESSION_TYPE(i << 3, int);
+	ASSERT_EXPRESSION_TYPE(i < 3, bool);
+	ASSERT_EXPRESSION_TYPE(i == 3, bool);
+	ASSERT_EXPRESSION_TYPE(i & 3, int);
+
+	ASSERT_EXPRESSION_TYPE(i * VALUE, int);
+	ASSERT_EXPRESSION_TYPE(i + VALUE, int);
+	ASSERT_EXPRESSION_TYPE(p + VALUE, A*);
+
+	ASSERT_EXPRESSION_TYPE(i << VALUE, int);
+	ASSERT_EXPRESSION_TYPE(i < VALUE, bool);
+	ASSERT_EXPRESSION_TYPE(i == VALUE, bool);
+	ASSERT_EXPRESSION_TYPE(i & VALUE, int);
+
+	ASSERT_EXPRESSION_TYPE(i && 3, bool);
+
+	ASSERT_EXPRESSION_TYPE(false ? 0 : 0, int);
+
+	ASSERT_EXPRESSION_TYPE(i = 0, int&);
+
+	ASSERT_EXPRESSION_TYPE((a, 0), int); // comma operator
+
 }
 
 
@@ -1162,4 +1277,126 @@ namespace N233 // test implicit conversion of null-pointer-constant to pointer i
 {
 	int f(char*);
 	ASSERT_EXPRESSION_TYPE(f(0), int); // null-pointer-constant matches T*
+}
+
+namespace N154 // test template argument deduction with T parameter
+{
+	template<typename T>
+	T f();
+
+	ASSERT_EXPRESSION_TYPE(f<int>(), int); // calls 'f<int>()'
+};
+
+
+namespace N124 // test type substitution in function call expression for function with dependent type
+{
+	struct S
+	{
+		typedef int Type;
+	};
+
+	template<typename T>
+	typename T::Type f(T);
+
+	S s;
+	ASSERT_EXPRESSION_TYPE(f(s), int); // return type is 'int'
+}
+
+namespace N127 // test type substitution in function call expression for member function which depends on a template parameter of the enclosing class template
+{
+	template<typename T>
+	struct S
+	{
+		static T f(T t)
+		{
+			return t;
+		}
+	};
+
+	ASSERT_EXPRESSION_TYPE(S<int>::f(0), int); // type of 'S<int>::f' should be 'int(int)'
+}
+
+
+namespace N112 // test type substitution in function call expression for member function which indirectly depends on a template parameter of the enclosing class template
+{
+	template<typename T>
+	struct S
+	{
+		typedef typename T::Type Type;
+		int f(Type);
+	};
+
+	struct A
+	{
+		typedef int Type;
+	};
+
+	S<A> s;
+	ASSERT_EXPRESSION_TYPE(s.f(0), int); // calls S::f(int)
+}
+
+namespace N104
+{
+	int const f(); // const is ignored
+	ASSERT_EXPRESSION_TYPE(f, int const()); // const is also ignored here!
+}
+
+namespace N103
+{
+	int const f(); // const is ignored
+	ASSERT_EXPRESSION_TYPE(f(), int);
+}
+
+namespace N102
+{
+	const int& f();
+	ASSERT_EXPRESSION_TYPE(f(), const int&);
+}
+
+
+namespace N100 // test using declaration
+{
+	namespace A
+	{
+		int f(int);
+	}
+
+	namespace B
+	{
+		using A::f;
+		float f(float);
+		ASSERT_EXPRESSION_TYPE(f(0), int); // overload resolution should choose A::f(int)
+	}
+}
+
+
+namespace N089
+{
+	void f(bool, bool = false);
+	int f(int = 0);
+
+	ASSERT_EXPRESSION_TYPE(f(0), int); // should call f(int)
+}
+
+namespace N094
+{
+	void f(float, ...);
+	int f(float, float);
+	void f(int, float);
+	ASSERT_EXPRESSION_TYPE(f(0.f, 0.f), int); // overload resolution should choose f(float, float)
+}
+
+namespace N093
+{
+	void f(float, float);
+	int f(float, int = 37);
+	void f(int);
+	ASSERT_EXPRESSION_TYPE(f(0.f), int); // overload resolution should choose f(float, int)
+}
+
+namespace N088
+{
+	int f(const wchar_t*);
+	void f();
+	ASSERT_EXPRESSION_TYPE(f(L""), int); /// overload resolution should pick 'f(const wchar_t*)'
 }
