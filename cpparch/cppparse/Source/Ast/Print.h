@@ -224,6 +224,13 @@ struct SymbolPrinter : TypeElementVisitor, ExpressionNodeVisitor
 		printExpression(element.expression);
 		visitTypeElement();
 	}
+	void visit(const DependentDecltype& element)
+	{
+		printer.out << "decltype(";
+		printExpression(element.expression);
+		printer.out << ")";
+		visitTypeElement();
+	}
 	void visit(const TemplateTemplateArgument& element)
 	{
 		printName(element.declaration);

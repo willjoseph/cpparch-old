@@ -95,7 +95,7 @@ struct SemaPrimaryExpression : public SemaBase
 			idEnclosing = 0;
 		}
 		else if(expression.p != 0
-			&& !isDependent(typeDependent))
+			&& !isDependentOld(typeDependent))
 		{
 			UniqueTypeWrapper qualifyingType = makeUniqueQualifying(walker.qualifying, getInstantiationContext());
 			const SimpleType* qualifyingClass = qualifyingType == gUniqueTypeNull ? 0 : &getSimpleType(qualifyingType.value);
@@ -143,7 +143,7 @@ struct SemaPrimaryExpression : public SemaBase
 		'this' is type-dependent if the class type of the enclosing member function is dependent
 		*/
 		addDependent(typeDependent, enclosingDependent);
-		expression = makeExpression(ExplicitTypeExpression(type), false, isDependent(typeDependent));
+		expression = makeExpression(ExplicitTypeExpression(type), false, isDependentOld(typeDependent));
 		if(!expression.isTypeDependent)
 		{
 			SYMBOLS_ASSERT(expression.type == type);

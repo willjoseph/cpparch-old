@@ -81,7 +81,7 @@ struct SemaSizeofTypeExpression : public SemaBase
 
 		UniqueTypeId type = getUniqueTypeSafe(walker.type);
 
-		expression = makeExpression(SizeofTypeExpression(type), true, false, isDependent(valueDependent));
+		expression = makeExpression(SizeofTypeExpression(type), true, false, isDependentOld(valueDependent));
 		SYMBOLS_ASSERT(expression.type == gUnsignedInt);
 		setExpressionType(symbol, type);
 	}
@@ -141,8 +141,8 @@ struct SemaExpression : public SemaBase, SemaExpressionResult
 		ExpressionWrapper leftExpression = expression;
 		expression = makeExpression(BinaryExpression(getOverloadedOperatorId(symbol), iceOp, typeOfBinaryExpression<typeOp>, expression, walker.expression),
 			expression.isConstant && walker.expression.isConstant && iceOp != 0,
-			isDependent(typeDependent),
-			isDependent(valueDependent)
+			isDependentOld(typeDependent),
+			isDependentOld(valueDependent)
 		);
 		if(!expression.isTypeDependent)
 		{
@@ -190,8 +190,8 @@ struct SemaExpression : public SemaBase, SemaExpressionResult
 		addDependent(valueDependent, walker.valueDependent);
 		expression = makeExpression(TernaryExpression(conditional, expression, walker.left, walker.right),
 			expression.isConstant && walker.left.isConstant && walker.right.isConstant,
-			isDependent(typeDependent),
-			isDependent(valueDependent)
+			isDependentOld(typeDependent),
+			isDependentOld(valueDependent)
 		);
 		if(!expression.isTypeDependent)
 		{
@@ -291,7 +291,7 @@ struct SemaExpression : public SemaBase, SemaExpressionResult
 	void action(cpp::unary_expression_op* symbol)
 	{
 		id = 0; // not a parenthesised id-expression, expression is not 'call to named function' [over.call.func]
-		if(!isDependent(typeDependent))
+		if(!isDependentOld(typeDependent))
 		{
 			SEMANTIC_ASSERT(type != gUniqueTypeNull);
 			SEMANTIC_ASSERT(!::isDependent(type)); // can't resolve operator overloads if type is dependent
@@ -314,8 +314,8 @@ struct SemaExpression : public SemaBase, SemaExpressionResult
 		UnaryIceOp iceOp = getUnaryIceOp(symbol);
 		expression = makeExpression(UnaryExpression(getOverloadedOperatorId(symbol->op), iceOp, expression),
 			expression.isConstant && iceOp != 0,
-			isDependent(typeDependent),
-			isDependent(valueDependent)
+			isDependentOld(typeDependent),
+			isDependentOld(valueDependent)
 		);
 		if(!expression.isTypeDependent)
 		{
@@ -344,11 +344,10 @@ struct SemaExpression : public SemaBase, SemaExpressionResult
 	void action(cpp::new_expression_placement* symbol, const SemaExplicitTypeExpressionResult& walker)
 	{
 		type = ExpressionType(getUniqueTypeSafe(walker.type), false); // non lvalue
-		// [expr.new] The new expression attempts to create an object of the type-id or new-type-id to which it is applied. The type shall be a complete type...
-		requireCompleteObjectType(type, getInstantiationContext());
 		type.push_front(PointerType());
 		addDependent(typeDependent, walker.typeDependent);
-		expression = makeExpression(ExplicitTypeExpression(type), false, isDependent(typeDependent));
+		// [expr.new] The new expression attempts to create an object of the type-id or new-type-id to which it is applied. The type shall be a complete type...
+		expression = makeExpression(ExplicitTypeExpression(type, true), false, isDependentOld(typeDependent));
 		if(!expression.isTypeDependent)
 		{
 			SYMBOLS_ASSERT(expression.type == type);
@@ -360,10 +359,9 @@ struct SemaExpression : public SemaBase, SemaExpressionResult
 	{
 		type = ExpressionType(getUniqueTypeSafe(walker.type), false); // non lvalue
 		// [expr.new] The new expression attempts to create an object of the type-id or new-type-id to which it is applied. The type shall be a complete type...
-		requireCompleteObjectType(type, getInstantiationContext());
 		type.push_front(PointerType());
 		addDependent(typeDependent, walker.typeDependent);
-		expression = makeExpression(ExplicitTypeExpression(type), false, isDependent(typeDependent));
+		expression = makeExpression(ExplicitTypeExpression(type, true), false, isDependentOld(typeDependent));
 		if(!expression.isTypeDependent)
 		{
 			SYMBOLS_ASSERT(expression.type == type);
@@ -373,14 +371,13 @@ struct SemaExpression : public SemaBase, SemaExpressionResult
 	SEMA_POLICY(cpp::cast_expression_default, SemaPolicyPushSrc<struct SemaExplicitTypeExpression>)
 	void action(cpp::cast_expression_default* symbol, const SemaExplicitTypeExpressionResult& walker)
 	{
-		type = ExpressionType(getUniqueTypeSafe(walker.type), false); // non lvalue
 		// [basic.lval] An expression which holds a temporary object resulting from a cast to a non-reference type is an rvalue
-		requireCompleteObjectType(type, getInstantiationContext());
+		type = ExpressionType(getUniqueTypeSafe(walker.type), false); // non lvalue
 		Dependent tmp(walker.typeDependent);
 		addDependent(valueDependent, tmp);
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
-		expression = makeExpression(CastExpression(type, walker.expression), walker.expression.isConstant, isDependent(typeDependent), isDependent(valueDependent));
+		expression = makeExpression(CastExpression(type, walker.expression), walker.expression.isConstant, isDependentOld(typeDependent), isDependentOld(valueDependent));
 		if(!expression.isTypeDependent)
 		{
 			SYMBOLS_ASSERT(expression.type == type);
@@ -417,7 +414,7 @@ struct SemaExpression : public SemaBase, SemaExpressionResult
 		// [temp.dep.constexpr] Expressions of the following form [sizeof(expr)] are value-dependent if the unary-expression is type-dependent
 		addDependent(valueDependent, walker.typeDependent);
 		type = ExpressionType(gUnsignedInt, false); // non lvalue
-		expression = makeExpression(SizeofExpression(walker.expression), true, false, isDependent(valueDependent));
+		expression = makeExpression(SizeofExpression(walker.expression), true, false, isDependentOld(valueDependent));
 		if(!expression.isTypeDependent)
 		{
 			SYMBOLS_ASSERT(expression.type == type);
@@ -476,21 +473,16 @@ struct SemaStaticAssertDeclaration : public SemaBase
 		SEMANTIC_ASSERT(!expression.isNonStaticMemberName); // TODO: report non-fatal error: "expected expression convertible to bool"
 		if(expression.isValueDependent)
 		{
-			// TODO: add expression to list in enclosing template class/function for evaluation during template instantiation
 			SEMANTIC_ASSERT(!string_equal(message, "\"?evaluated\"")); // assert if we were expecting a non-dependent expression
+
+			// add expression to list in enclosing template class/function for evaluation during template instantiation
+			SimpleType* enclosingClass = const_cast<SimpleType*>(getEnclosingType(enclosingType));
+			enclosingClass->childExpressions.push_back(DeferredExpression(expression, TokenValue(message)));
+			enclosingClass->childExpressionLocations.push_back(getLocation());
 		}
 		else
 		{
-			// evaluate expression
-			bool failed = evaluateExpression(expression, getInstantiationContext()).value == 0;
-			// [dcl.dcl] If the value of the expression when so converted is true, the
-			// declaration has no effect. Otherwise, the program is ill-formed, and the resulting diagnostic message (1.4)
-			// shall include the text of the string-literal
-			if(failed)
-			{
-				std::cout << "error: " << message << std::endl;
-			}
-			SEMANTIC_ASSERT(!failed || string_equal(message, "\"?false\"")); // TODO: report non-fatal error: "<message>"
+			evaluateStaticAssert(expression, message, getInstantiationContext());
 		}
 	}
 };

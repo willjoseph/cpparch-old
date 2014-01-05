@@ -22,6 +22,7 @@ struct TypeElementVisitor
 	virtual void visit(const struct DependentType&) = 0;
 	virtual void visit(const struct DependentTypename&) = 0;
 	virtual void visit(const struct DependentNonType&) = 0;
+	virtual void visit(const struct DependentDecltype&) = 0;
 	virtual void visit(const struct TemplateTemplateArgument&) = 0;
 	virtual void visit(const struct NonType&) = 0;
 	virtual void visit(const struct SimpleType&) = 0;
@@ -210,6 +211,7 @@ struct UniqueTypeWrapper
 	{
 		return isDependentType()
 			|| isEqual(getTypeInfo(*value), getTypeInfo<TypeElementGeneric<DependentTypename> >())
+			|| isEqual(getTypeInfo(*value), getTypeInfo<TypeElementGeneric<DependentDecltype> >())
 			|| isDependentNonType();
 	}
 	bool isNonType() const

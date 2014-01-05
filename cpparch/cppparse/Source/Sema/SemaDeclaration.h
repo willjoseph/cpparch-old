@@ -91,7 +91,7 @@ struct SemaDeclarationSuffix : public SemaBase
 			{
 				type.typeSequence.push_back(DeclaratorFunctionType(Parameters(), conversionFunctionQualifiers));
 			}
-			DeclarationPtr tmpDependent = type.dependent;
+			Dependent tmpDependent = type.dependent;
 			setDependent(type.dependent, typeDependent);
 			makeUniqueTypeSafe(type);
 			if(enclosed == 0
@@ -165,7 +165,7 @@ struct SemaDeclarationSuffix : public SemaBase
 	{
 		if(walker.id != 0)
 		{
-			DeclarationPtr tmpDependent = type.dependent;
+			Dependent tmpDependent = type.dependent;
 			setDependent(type.dependent, typeDependent);
 			makeUniqueTypeSafe(type);
 
@@ -281,7 +281,7 @@ struct SemaDeclarationSuffix : public SemaBase
 	void action(cpp::constant_expression* symbol, const SemaExpressionResult& walker) // member_declarator_bitfield
 	{
 		SEMANTIC_ASSERT(declaration != 0);
-		SEMANTIC_ASSERT(isDependent(walker.valueDependent) || walker.expression.isConstant); // TODO: non-fatal error: expected constant expression
+		SEMANTIC_ASSERT(isDependentOld(walker.valueDependent) || walker.expression.isConstant); // TODO: non-fatal error: expected constant expression
 		declaration->initializer = walker.expression;
 		addDependent(declaration->valueDependent, walker.valueDependent);
 	}

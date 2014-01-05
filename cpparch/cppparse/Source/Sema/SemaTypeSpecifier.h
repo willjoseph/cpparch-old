@@ -96,7 +96,7 @@ struct SemaDecltypeSpecifier : public SemaBase, SemaDecltypeSpecifierResult
 	{
 	}
 	SEMA_POLICY(cpp::expression, SemaPolicyPush<struct SemaExpression>)
-		void action(cpp::expression* symbol, const SemaExpressionResult& walker)
+	void action(cpp::expression* symbol, const SemaExpressionResult& walker)
 	{
 		type.declaration = &gUnknown;
 		type.expression = walker.expression;

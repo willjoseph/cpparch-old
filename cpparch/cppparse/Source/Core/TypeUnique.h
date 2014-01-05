@@ -125,28 +125,11 @@ inline UniqueTypeWrapper makeUniqueType(const Type& type, const InstantiationCon
 {
 	if(type.expression) // decltype(expression)
 	{
-		// [dcl.type.simple]
-		// The type denoted by decltype(e) is defined as follows:
-		//  - if e is an unparenthesized id-expression or an unparenthesized class member access (5.2.5), decltype(e)
-		//  	is the type of the entity named by e. If there is no such entity, or if e names a set of overloaded functions,
-		//  	the program is ill-formed;
-		//  - otherwise, if e is an xvalue, decltype(e) is T&&, where T is the type of e;
-		//  - otherwise, if e is an lvalue, decltype(e) is T&, where T is the type of e;
-		//  - otherwise, decltype(e) is the type of e.
-		SYMBOLS_ASSERT(!type.expression.isTypeDependent); // TODO
-		ExpressionType result = typeOfExpressionWrapper(type.expression, context);
-		if(!type.expression.isParenthesised
-			&& (isIdExpression(type.expression)
-				|| isClassMemberAccessExpression(type.expression)))
+		if(type.expression.isTypeDependent)
 		{
-			return result;
+			return pushType(gUniqueTypeNull, DependentDecltype(type.expression));
 		}
-		if(result.isLvalue
-			&& !result.isReference())
-		{
-			result = ExpressionType(pushType(result, ReferenceType()), true);
-		}
-		return result;
+		return typeOfDecltypeSpecifier(type.expression, context);
 	}
 	// the type in which template-arguments are looked up: returns qualifying type if specified, else returns enclosingType
 	UniqueTypeWrapper qualifying;

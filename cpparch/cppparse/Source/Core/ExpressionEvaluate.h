@@ -13,6 +13,7 @@
 #include "KoenigLookup.h"
 #include "TypeSubstitute.h"
 #include "OverloadResolve.h"
+#include "Common/Util.h"
 
 inline ExpressionWrapper makeConstantExpressionZero()
 {
@@ -1183,6 +1184,44 @@ inline ExpressionType typeOfFunctionCallExpression(Argument left, const Argument
 #endif
 	SYMBOLS_ASSERT(!::isDependent(overload.type));
 	return overload.type;
+}
+
+inline UniqueTypeWrapper typeOfDecltypeSpecifier(const ExpressionWrapper& expression, const InstantiationContext& context)
+{
+	// [dcl.type.simple]
+	// The type denoted by decltype(e) is defined as follows:
+	//  - if e is an unparenthesized id-expression or an unparenthesized class member access (5.2.5), decltype(e)
+	//  	is the type of the entity named by e. If there is no such entity, or if e names a set of overloaded functions,
+	//  	the program is ill-formed;
+	//  - otherwise, if e is an xvalue, decltype(e) is T&&, where T is the type of e;
+	//  - otherwise, if e is an lvalue, decltype(e) is T&, where T is the type of e;
+	//  - otherwise, decltype(e) is the type of e.
+	ExpressionType result = typeOfExpressionWrapper(expression, context);
+	if(!expression.isParenthesised
+		&& (isIdExpression(expression)
+		|| isClassMemberAccessExpression(expression)))
+	{
+		return result;
+	}
+	if(result.isLvalue
+		&& !result.isReference())
+	{
+		result = ExpressionType(pushType(result, ReferenceType()), true);
+	}
+	return result;
+}
+
+inline void evaluateStaticAssert(const ExpressionWrapper& expression, const char* message, const InstantiationContext& context)
+{
+	bool failed = evaluateExpression(expression, context).value == 0;
+	// [dcl.dcl] If the value of the expression when so converted is true, the
+	// declaration has no effect. Otherwise, the program is ill-formed, and the resulting diagnostic message (1.4)
+	// shall include the text of the string-literal
+	if(failed)
+	{
+		std::cout << "error: " << message << std::endl;
+	}
+	SYMBOLS_ASSERT(!failed || string_equal(message, "\"?false\"")); // TODO: report non-fatal error: "<message>"
 }
 
 

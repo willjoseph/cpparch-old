@@ -32,7 +32,7 @@ struct SemaEnumeratorDefinition : public SemaBase
 	SEMA_POLICY(cpp::constant_expression, SemaPolicyPush<struct SemaExpression>)
 	void action(cpp::constant_expression* symbol, const SemaExpressionResult& walker)
 	{
-		SEMANTIC_ASSERT(isDependent(walker.valueDependent) || walker.expression.isConstant); // TODO: non-fatal error: expected constant expression
+		SEMANTIC_ASSERT(isDependentOld(walker.valueDependent) || walker.expression.isConstant); // TODO: non-fatal error: expected constant expression
 		declaration->initializer = walker.expression;
 		addDependent(declaration->valueDependent, walker.valueDependent);
 	}
@@ -85,7 +85,7 @@ struct SemaEnumSpecifier : public SemaBase, SemaEnumSpecifierResult
 		makeUniqueTypeSafe(enumerator.type);
 		if(enumerator.initializer.p != 0)
 		{
-			SEMANTIC_ASSERT(isDependent(enumerator.valueDependent) || enumerator.initializer.isConstant);
+			SEMANTIC_ASSERT(isDependentOld(enumerator.valueDependent) || enumerator.initializer.isConstant);
 			value = enumerator.initializer;
 		}
 		else

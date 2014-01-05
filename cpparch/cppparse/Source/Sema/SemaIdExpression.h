@@ -219,14 +219,14 @@ struct SemaIdExpression : public SemaQualified
 	}
 	bool commit()
 	{
-		UniqueTypeWrapper qualifyingType = makeUniqueQualifying(qualifying, getInstantiationContext(), isDependent(qualifying.get_ref()));
+		UniqueTypeWrapper qualifyingType = makeUniqueQualifying(qualifying, getInstantiationContext(), isDependentOld(qualifying.get_ref()));
 
 		TemplateArgumentsInstance templateArguments;
-		makeUniqueTemplateArguments(arguments, templateArguments, getInstantiationContext(), isDependent(arguments));
+		makeUniqueTemplateArguments(arguments, templateArguments, getInstantiationContext(), isDependentOld(arguments));
 
 		expression = ExpressionWrapper();
 
-		if(isDependent(typeDependent)
+		if(isDependentOld(typeDependent)
 			|| objectExpressionIsDependent())
 		{
 			setDecoration(id, gDependentObjectInstance);
@@ -274,7 +274,7 @@ struct SemaIdExpression : public SemaQualified
 				setDecoration(id, declaration);
 			}
 
-			SEMANTIC_ASSERT(!isDependent(qualifying.get_ref()));
+			SEMANTIC_ASSERT(!isDependentOld(qualifying.get_ref()));
 
 			const SimpleType* qualifyingClass = qualifyingType == gUniqueTypeNull ? 0 : &getSimpleType(qualifyingType.value);
 			SEMANTIC_ASSERT(qualifyingClass == this->qualifyingClass);
@@ -282,8 +282,8 @@ struct SemaIdExpression : public SemaQualified
 			SEMANTIC_ASSERT(declaration->templateParameter == INDEX_INVALID || qualifying.empty()); // template params cannot be qualified
 			expression = declaration->templateParameter == INDEX_INVALID
 				// TODO: check compliance: id-expression cannot be compared for equivalence unless it names a non-type template-parameter
-				? makeExpression(IdExpression(declaration, qualifyingClass, templateArguments), false, isDependent(typeDependent), isDependent(valueDependent))
-				: makeExpression(NonTypeTemplateParameter(declaration, getUniqueType(declaration->type)), true, isDependent(typeDependent), isDependent(valueDependent));
+				? makeExpression(IdExpression(declaration, qualifyingClass, templateArguments), false, isDependentOld(typeDependent), isDependentOld(valueDependent))
+				: makeExpression(NonTypeTemplateParameter(declaration, getUniqueType(declaration->type)), true, isDependentOld(typeDependent), isDependentOld(valueDependent));
 
 			expression.isNonStaticMemberName = isMember(*declaration) && !isStatic(*declaration);
 			expression.isQualifiedNonStaticMemberName = expression.isNonStaticMemberName && qualifyingType != gUniqueTypeNull;

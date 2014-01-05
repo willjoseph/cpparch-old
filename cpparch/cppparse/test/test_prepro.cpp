@@ -1,8 +1,29 @@
 
 namespace Temptest
 {
-	int* p;
-	int* q = p++;
+	template<typename T>
+	struct C
+	{
+		T m;
+	};
+
+	template<typename T, T i>
+	struct A
+	{
+		typedef A<int, 0> Self;
+		T m;
+		const T cm = 0;
+		static T sm;
+		static T* p;
+		static C<T> c;
+		static C<T>* pc;
+		static C<T>& rc;
+
+		typedef decltype(pc->m) Type;
+	};
+
+	// instantiate
+	typedef A<int, 0>::Type Type;
 }
 
 namespace N83 // test parse of explicit call of implicitly declared assignment operator

@@ -135,6 +135,20 @@ typedef SafePtr<Scope> ScopePtr;
 
 const size_t INDEX_INVALID = size_t(-1);
 
+
+// refers to the innermost template scope that a name/type/expression depends on
+struct Dependent : DeclarationPtr
+{
+	Dependent()
+		: DeclarationPtr(0)
+	{
+	}
+	explicit Dependent(Declaration* p)
+		: DeclarationPtr(p)
+	{
+	}
+};
+
 struct Type
 {
 	IdentifierPtr id;
@@ -142,14 +156,14 @@ struct Type
 	TemplateArguments templateArguments; // may be non-empty if this is a template
 	Qualifying qualifying;
 	ExpressionWrapper expression; // for decltype(expression)
-	DeclarationPtr dependent;
+	Dependent dependent;
 	ScopePtr enclosingTemplate;
 	UniqueType unique;
 	bool isDependent; // true if the type is dependent in the context in which it was parsed
 	bool isImplicitTemplateId; // true if this is a template but the template-argument-clause has not been specified
 	bool isEnclosingClass; // true if this is the type of an enclosing class
 	Type(Declaration* declaration, const AstAllocator<int>& allocator)
-		: id(0), declaration(declaration), templateArguments(allocator), qualifying(allocator), dependent(0), enclosingTemplate(0), unique(0), isDependent(false), isImplicitTemplateId(false), isEnclosingClass(false)
+		: id(0), declaration(declaration), templateArguments(allocator), qualifying(allocator), enclosingTemplate(0), unique(0), isDependent(false), isImplicitTemplateId(false), isEnclosingClass(false)
 	{
 	}
 	void swap(Type& other)
@@ -213,17 +227,8 @@ struct TypeId : Type
 
 #define TYPE_NULL TypeId(0, AST_ALLOCATOR_NULL)
 
+
 // ----------------------------------------------------------------------------
-// dependent-name
-
-// refers to the innermost template scope that a name/type/expression depends on
-struct Dependent : DeclarationPtr
-{
-	Dependent() : DeclarationPtr(0)
-	{
-	}
-};
-
 
 
 struct Location : Source

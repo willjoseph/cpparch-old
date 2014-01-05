@@ -253,6 +253,10 @@ struct SubstituteVisitor : TypeElementVisitor
 		IntegralConstant value = evaluateExpression(element.expression, context);
 		type.push_front(NonType(value));
 	}
+	virtual void visit(const DependentDecltype& element)
+	{
+		type = typeOfDecltypeSpecifier(element.expression, context);
+	}
 	virtual void visit(const TemplateTemplateArgument& element)
 	{
 		type.push_front(element);

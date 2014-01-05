@@ -133,7 +133,7 @@ struct SemaDeclaratorArray : public SemaBase
 	SEMA_POLICY(cpp::constant_expression, SemaPolicyPush<struct SemaExpression>)
 	void action(cpp::constant_expression* symbol, const SemaExpressionResult& walker)
 	{
-		SEMANTIC_ASSERT(isDependent(walker.valueDependent) || walker.expression.isConstant); // TODO: non-fatal error: expected constant expression
+		SEMANTIC_ASSERT(isDependentOld(walker.valueDependent) || walker.expression.isConstant); // TODO: non-fatal error: expected constant expression
 		// [temp.dep.constexpr] An identifier is value-dependent if it is:- a constant with integral or enumeration type and is initialized with an expression that is value-dependent.
 		addDependent(valueDependent, walker.valueDependent);
 		expression = walker.expression;

@@ -112,6 +112,10 @@ struct DeduceVisitor : TypeElementVisitor
 			commit(getNonTypeTemplateParameter(element.expression).declaration->templateParameter);
 		}
 	}
+	virtual void visit(const DependentDecltype& element)
+	{
+		// cannot deduce from decltype(e)
+	}
 	virtual void visit(const TemplateTemplateArgument& element)
 	{
 		// cannot deduce from name of primary template

@@ -813,11 +813,14 @@ struct TypeOfVisitor : ExpressionNodeVisitor
 	}
 	void visit(const CastExpression& node)
 	{
+		UniqueTypeWrapper type = substitute(node.type, context);
 		// [expr.cast]
 		// The result of the expression (T) cast-expression is of type T. The result is an lvalue if T is a reference
 		// type, otherwise the result is an rvalue.
-		result = ExpressionType(node.type, node.type.isReference());
+		// [basic.lval] An expression which holds a temporary object resulting from a cast to a non-reference type is an rvalue
+		result = ExpressionType(type, type.isReference());
 		SYMBOLS_ASSERT(!isDependent(result));
+		requireCompleteObjectType(result, context);
 	}
 	void visit(const NonTypeTemplateParameter& node)
 	{
@@ -874,11 +877,16 @@ struct TypeOfVisitor : ExpressionNodeVisitor
 	}
 	void visit(const struct ExplicitTypeExpression& node)
 	{
+		UniqueTypeWrapper type = substitute(node.type, context);
 		// [expr.cast]
 		// The result of the expression (T) cast-expression is of type T. The result is an lvalue if T is a reference
 		// type, otherwise the result is an rvalue.
-		result = ExpressionType(node.type, node.type.isReference());
+		result = ExpressionType(type, type.isReference());
 		SYMBOLS_ASSERT(!isDependent(result));
+		if(node.isCompleteTypeRequired)
+		{
+			requireCompleteObjectType(result, context);
+		}
 	}
 	void visit(const struct ObjectExpression& node)
 	{

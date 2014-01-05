@@ -28,7 +28,7 @@ struct SemaUsingDeclaration : public SemaQualified
 	bool action(cpp::unqualified_id* symbol, const SemaUnqualifiedId& walker)
 	{
 		if(!isTypename
-			&& !isDependent(qualifying_p))
+			&& !isDependentOld(qualifying_p))
 		{
 			LookupResultRef declaration = walker.declaration;
 			if(declaration == &gUndeclared

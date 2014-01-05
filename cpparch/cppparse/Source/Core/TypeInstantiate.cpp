@@ -399,6 +399,26 @@ std::size_t instantiateClass(const SimpleType& instanceConst, const Instantiatio
 					instance.children.push_back(substituted);
 				}
 			}
+			if(!original.childExpressions.empty()
+				&& &instance != &original) // TODO: this will be an assert when instantiateClass is no longer called at the beginning of a template-definition
+			{
+				SYMBOLS_ASSERT(instance.declaration->isComplete);
+				instance.childExpressions.reserve(original.childExpressions.size());
+				InstanceLocations::const_iterator l = original.childExpressionLocations.begin();
+				for(InstantiatedExpressions::const_iterator i = original.childExpressions.begin(); i != original.childExpressions.end(); ++i, ++l)
+				{
+					InstantiationContext childContext(*l, &instance, 0, context.enclosingScope);
+					const DeferredExpression& expression = *i;
+#if 0 // TODO: evaluate type of expressions?
+					ExpressionType type = typeOfExpressionWrapper(expression, childContext);
+					SYMBOLS_ASSERT(!isDependent(type));
+#endif
+					if(expression.message != NAME_NULL)
+					{
+						evaluateStaticAssert(expression, expression.message.c_str(), childContext);
+					}
+				}
+			}
 
 			instance.hasCopyAssignmentOperator = hasCopyAssignmentOperator(instance, context);
 		}

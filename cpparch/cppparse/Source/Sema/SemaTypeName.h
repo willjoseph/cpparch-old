@@ -72,7 +72,7 @@ struct SemaTypeName : public SemaBase
 	bool action(cpp::identifier* symbol)
 	{
 		LookupResultRef declaration = gDependentTypeInstance;
-		if(!isDependent(qualifying_p))
+		if(!isDependentOld(qualifying_p))
 		{
 			declaration = findDeclaration(symbol->value, makeLookupFilter(filter));
 			if(declaration == &gUndeclared)

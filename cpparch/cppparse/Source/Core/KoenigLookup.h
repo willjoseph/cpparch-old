@@ -109,6 +109,9 @@ struct KoenigVisitor : TypeElementVisitor
 	virtual void visit(const DependentNonType& element)
 	{
 	}
+	virtual void visit(const DependentDecltype& element)
+	{
+	}
 	virtual void visit(const TemplateTemplateArgument& element)
 	{
 		if(element.enclosing != 0)

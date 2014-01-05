@@ -306,6 +306,18 @@ struct UniqueTypeArray : std::vector<UniqueTypeWrapper>
 #endif
 typedef UniqueTypeArray TemplateArgumentsInstance;
 typedef std::vector<UniqueTypeWrapper> InstantiatedTypes;
+
+struct DeferredExpression : ExpressionWrapper
+{
+	DeferredExpression(const ExpressionWrapper& expression, TokenValue message)
+		: ExpressionWrapper(expression), message(message)
+	{
+	}
+	TokenValue message; // if non-null, this is a static_assert
+};
+
+typedef std::vector<DeferredExpression> InstantiatedExpressions;
+
 typedef std::vector<const struct SimpleType*> UniqueBases;
 
 struct ChildInstantiation
@@ -355,7 +367,9 @@ struct SimpleType
 	UniqueBases bases;
 	size_t size;
 	InstantiatedTypes children; // the dependent types in the specialization
+	InstantiatedExpressions childExpressions; // the dependent expressions in the specialization
 	InstanceLocations childLocations; // temporary scaffolding!
+	InstanceLocations childExpressionLocations; // temporary scaffolding!
 	bool instantiated;
 	bool instantiating;
 	bool allowLookup;
@@ -523,6 +537,26 @@ struct DependentNonType
 inline bool operator<(const DependentNonType& left, const DependentNonType& right)
 {
 	return left.expression < right.expression;
+}
+
+// ----------------------------------------------------------------------------
+// Represents a decltype-specifier with a dependent expression.
+// Evaluation of the expression is deferred until the enclosing template is instantiated.
+struct DependentDecltype
+{
+	ExpressionWrapper expression;
+	DependentDecltype(ExpressionWrapper expression)
+		: expression(expression)
+	{
+	}
+};
+
+inline bool operator<(const DependentDecltype& left, const DependentDecltype& right)
+{
+	// [temp.type]`
+	// If an expression e involves a template parameter, decltype(e) denotes a unique dependent type. Two such
+	// decltype-specifiers refer to the same type only if their expressions are equivalent
+	return left.expression.p < right.expression.p;
 }
 
 
@@ -832,6 +866,10 @@ inline bool isDependent(const DependentTypename&)
 	return true;
 }
 inline bool isDependent(const DependentNonType&)
+{
+	return true;
+}
+inline bool isDependent(const DependentDecltype&)
 {
 	return true;
 }

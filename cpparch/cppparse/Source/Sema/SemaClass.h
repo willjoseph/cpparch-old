@@ -210,7 +210,7 @@ struct SemaClassSpecifier : public SemaBase, SemaClassSpecifierResult
 		{
 			setDependentEnclosingTemplate(type.dependent, declaration);
 		}
-		type.isDependent = isDependent(type);
+		type.isDependent = isDependentOld(type);
 		type.isImplicitTemplateId = declaration->isTemplate;
 		type.isEnclosingClass = true;
 		bool isExplicitSpecialization = isSpecialization && declaration->templateParams.empty();
@@ -339,7 +339,7 @@ struct SemaMemberDeclaratorBitfield : public SemaBase
 	SEMA_POLICY(cpp::constant_expression, SemaPolicyPush<struct SemaExpression>)
 	void action(cpp::constant_expression* symbol, const SemaExpressionResult& walker)
 	{
-		SEMANTIC_ASSERT(isDependent(walker.valueDependent) || walker.expression.isConstant); // TODO: non-fatal error: expected constant expression
+		SEMANTIC_ASSERT(isDependentOld(walker.valueDependent) || walker.expression.isConstant); // TODO: non-fatal error: expected constant expression
 	}
 };
 

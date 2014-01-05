@@ -60,6 +60,19 @@ namespace N371
 }
 #endif
 
+namespace N385 // test deferred evaluation of static_assert
+{
+	template<bool b>
+	class A
+	{
+		static_assert(!b, "");
+		static_assert(b, "?false");
+
+		typedef int Type;
+	};
+
+	typedef A<false>::Type Type;
+}
 
 namespace cppp
 {
@@ -77,7 +90,7 @@ namespace cppp
 
 }
 
-#define STATIC_ASSERT(e) static_assert(e, "?evaluated")
+#define STATIC_ASSERT(e) static_assert(e, "")
 #define IS_SAME(T, U) cppp::is_same<T, U>::value
 #define STATIC_ASSERT_IS_SAME(T, U) STATIC_ASSERT(IS_SAME(T, U))
 #define STATIC_ASSERT_IS_DIFFERENT(T, U) STATIC_ASSERT(!IS_SAME(T, U))
@@ -268,22 +281,99 @@ namespace N383
 
 }
 
+#if 0 // TODO
+namespace N384
+{
+	int f(int);
+	int& fr(int);
+
+	template<typename T>
+	struct C
+	{
+		T m;
+		T mf();
+		T& mfr();
+		T f();
+		static T smf();
+	};
+
+	template<typename T, T i>
+	struct A
+	{
+		typedef A<int, 0> Self;
+		T m;
+		const T cm = 0;
+		static T sm;
+		static T* p;
+		static C<T> c;
+		static C<T>* pc;
+		static C<T>& rc;
+
+
+		ASSERT_EXPRESSION_TYPE(i, int); // unparenthesized id-expression
+		ASSERT_EXPRESSION_TYPE(m, int);
+		ASSERT_EXPRESSION_TYPE(cm, const int);
+		ASSERT_EXPRESSION_TYPE(sm, int);
+		ASSERT_EXPRESSION_TYPE(c.m, int); // TODO: fails
+		ASSERT_EXPRESSION_TYPE(pc->m, int);
+		ASSERT_EXPRESSION_TYPE(rc.m, int);
+		ASSERT_EXPRESSION_TYPE(c.smf, int());
+
+		ASSERT_EXPRESSION_TYPE((i), int); // not lvalue
+		ASSERT_EXPRESSION_TYPE((m), int&);
+		ASSERT_EXPRESSION_TYPE((cm), const int&);
+		ASSERT_EXPRESSION_TYPE((sm), int&);
+		ASSERT_EXPRESSION_TYPE((c.m), int&);
+		ASSERT_EXPRESSION_TYPE((pc->m), int&);
+		ASSERT_EXPRESSION_TYPE((rc.m), int&);
+		ASSERT_EXPRESSION_TYPE((c.smf), int());
+
+		int mf()
+		{
+			ASSERT_EXPRESSION_TYPE(this, Self*);
+		}
+		int mfc() const
+		{
+			ASSERT_EXPRESSION_TYPE(this, const Self*);
+		}
+
+		ASSERT_EXPRESSION_TYPE(p[0], int&);
+		ASSERT_EXPRESSION_TYPE(f(i), int);
+		ASSERT_EXPRESSION_TYPE(fr(i), int&);
+		ASSERT_EXPRESSION_TYPE(c.f(), int);
+		ASSERT_EXPRESSION_TYPE(T(), int);
+		ASSERT_EXPRESSION_TYPE(C<T>(), C<int>);
+		ASSERT_EXPRESSION_TYPE(p++, int*);
+		ASSERT_EXPRESSION_TYPE(p--, int*);
+		ASSERT_EXPRESSION_TYPE(sm++, int);
+		ASSERT_EXPRESSION_TYPE(sm--, int);
+
+		typedef int Type;
+	};
+
+	// instantiate
+	typedef A<int, 0>::Type Type;
+	A<int, 0> a;
+	int i = a.mf();
+	int j = a.mfc();
+}
+#endif
 
 namespace N344 // non-dependent non-type-template-parameter
 {
 	template<bool b, bool func()>
 	void f()
 	{
-		ASSERT_EXPRESSION_TYPE(b, bool); // type of 'b' is not dependent and can be resolved during initial parse
-		ASSERT_EXPRESSION_TYPE(func(), bool); // type of 'func' is not dependent and can be resolved during initial parse
+		static_assert(sizeof(b), "?evaluated"); // type of 'b' is not dependent and can be resolved during initial parse
+		static_assert(sizeof(func()), "?evaluated"); // type of 'func' is not dependent and can be resolved during initial parse
 	}
 
 	template<bool b, bool func()>
 	struct A
 	{
 #ifdef _CPPP_TEST // msvc 2010 fails this test
-		ASSERT_EXPRESSION_TYPE(b, bool); // type of 'b' is not dependent and can be resolved during initial parse
-		ASSERT_EXPRESSION_TYPE(func(), bool); // type of 'func' is not dependent and can be resolved during initial parse
+		static_assert(sizeof(b), "?evaluated"); // type of 'b' is not dependent and can be resolved during initial parse
+		static_assert(sizeof(func()), "?evaluated"); // type of 'func' is not dependent and can be resolved during initial parse
 #endif
 	};
 }

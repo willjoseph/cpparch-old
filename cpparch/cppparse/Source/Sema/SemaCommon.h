@@ -731,7 +731,7 @@ struct SemaState
 	}
 	bool allowNameLookup() const
 	{
-		if(isDependent(qualifying_p))
+		if(isDependentOld(qualifying_p))
 		{
 			return false;
 		}
@@ -1105,41 +1105,41 @@ struct SemaState
 	}
 
 
-	bool isDependent(Declaration* dependent) const
+	bool isDependentOld(Declaration* dependent) const
 	{
 		return ::isDependentImpl(dependent, enclosing, templateParamScope);
 	}
-	bool isDependent(const Type& type) const
+	bool isDependentOld(const Type& type) const
 	{
-		return isDependent(type.dependent);
+		return isDependentOld(type.dependent);
 	}
-	bool isDependent(const Types& bases) const
+	bool isDependentOld(const Types& bases) const
 	{
-		DeclarationPtr dependent(0);
+		Dependent dependent;
 		setDependent(dependent, bases);
-		return isDependent(dependent);
+		return isDependentOld(dependent);
 	}
-	bool isDependent(const TypePtr& qualifying) const
+	bool isDependentOld(const TypePtr& qualifying) const
 	{
-		DeclarationPtr dependent(0);
+		Dependent dependent;
 		setDependent(dependent, qualifying.get());
-		return isDependent(dependent);
+		return isDependentOld(dependent);
 	}
-	bool isDependent(const TemplateArguments& arguments) const
+	bool isDependentOld(const TemplateArguments& arguments) const
 	{
-		DeclarationPtr dependent(0);
+		Dependent dependent;
 		setDependent(dependent, arguments);
-		return isDependent(dependent);
+		return isDependentOld(dependent);
 	}
-	bool isDependent(const Dependent& dependent) const
+	bool isDependentOld(const Dependent& dependent) const
 	{
-		return isDependent(static_cast<Declaration*>(dependent));
+		return isDependentOld(static_cast<Declaration*>(dependent));
 	}
 	// the dependent-scope is the outermost template-definition
-	void setDependent(DeclarationPtr& dependent, Declaration* candidate) const
+	void setDependent(Dependent& dependent, Declaration* candidate) const
 	{
-		SEMANTIC_ASSERT(dependent == DeclarationPtr(0) || isDependent(dependent));
-		if(!isDependent(candidate))
+		SEMANTIC_ASSERT(dependent == DeclarationPtr(0) || isDependentOld(dependent));
+		if(!isDependentOld(candidate))
 		{
 			return;
 		}
@@ -1149,9 +1149,9 @@ struct SemaState
 		{
 			return; // already dependent on outer template
 		}
-		dependent = candidate; // the candidate template-parameter is within the current dependent-scope
+		dependent = Dependent(candidate); // the candidate template-parameter is within the current dependent-scope
 	}
-	void setDependentEnclosingTemplate(DeclarationPtr& dependent, Declaration* enclosingTemplate) const
+	void setDependentEnclosingTemplate(Dependent& dependent, Declaration* enclosingTemplate) const
 	{
 		if(enclosingTemplate != 0)
 		{
@@ -1165,7 +1165,7 @@ struct SemaState
 			}
 		}
 	}
-	void setDependent(DeclarationPtr& dependent, Declaration& declaration) const
+	void setDependent(Dependent& dependent, Declaration& declaration) const
 	{
 		if(declaration.templateParameter != INDEX_INVALID)
 		{
@@ -1185,7 +1185,7 @@ struct SemaState
 
 		setDependent(dependent, declaration.valueDependent);
 	}
-	void setDependent(DeclarationPtr& dependent, const Type* qualifying) const
+	void setDependent(Dependent& dependent, const Type* qualifying) const
 	{
 		if(qualifying == 0)
 		{
@@ -1194,18 +1194,18 @@ struct SemaState
 		setDependent(dependent, qualifying->dependent);
 		setDependent(dependent, qualifying->qualifying.get());
 	}
-	void setDependent(DeclarationPtr& dependent, const Qualifying& qualifying) const
+	void setDependent(Dependent& dependent, const Qualifying& qualifying) const
 	{
 		setDependent(dependent, qualifying.get());
 	}
-	void setDependent(DeclarationPtr& dependent, const Types& bases) const
+	void setDependent(Dependent& dependent, const Types& bases) const
 	{
 		for(Types::const_iterator i = bases.begin(); i != bases.end(); ++i)
 		{
 			setDependent(dependent, (*i).dependent);
 		}
 	}
-	void setDependent(DeclarationPtr& dependent, const TemplateArguments& arguments) const
+	void setDependent(Dependent& dependent, const TemplateArguments& arguments) const
 	{
 		for(TemplateArguments::const_iterator i = arguments.begin(); i != arguments.end(); ++i)
 		{
@@ -1213,7 +1213,7 @@ struct SemaState
 			setDependent(dependent, (*i).valueDependent);
 		}
 	}
-	void setDependent(DeclarationPtr& dependent, const Parameters& parameters) const
+	void setDependent(Dependent& dependent, const Parameters& parameters) const
 	{
 		for(Parameters::const_iterator i = parameters.begin(); i != parameters.end(); ++i)
 		{
@@ -1455,7 +1455,7 @@ struct SemaBase : public SemaState
 
 	LookupResultRef lookupTemplate(const Identifier& id, LookupFilter filter)
 	{
-		if(!isDependent(qualifying_p))
+		if(!isDependentOld(qualifying_p))
 		{
 			return LookupResultRef(findDeclaration(id, filter));
 		}
@@ -1480,7 +1480,7 @@ struct SemaBase : public SemaState
 	void makeUniqueTypeImpl(T& type)
 	{
 		SYMBOLS_ASSERT(type.unique == 0); // type must not be uniqued twice
-		type.isDependent = isDependent(type)
+		type.isDependent = isDependentOld(type)
 			|| objectExpressionIsDependent(); // this occurs when uniquing the dependent type name in a nested name-specifier in a class-member-access expression
 		type.unique = makeUniqueType(type, getInstantiationContext(), type.isDependent).value;
 	}
@@ -1495,7 +1495,7 @@ struct SemaBase : public SemaState
 	UniqueTypeWrapper getUniqueTypeSafe(const TypeId& type)
 	{
 		SEMANTIC_ASSERT(type.unique != 0); // type must have previously been uniqued by makeUniqueTypeImpl
-		return type.isDependent ? gUniqueTypeNull : UniqueTypeWrapper(type.unique);
+		return UniqueTypeWrapper(type.unique);
 	}
 };
 
@@ -2169,7 +2169,7 @@ struct SemaQualified : public SemaBase, SemaQualifyingResult
 			{
 				qualifyingScope = declaration;
 			}
-			else if(isDependent(qualifying_p))
+			else if(isDependentOld(qualifying_p))
 			{
 				qualifyingScope = 0;
 			}

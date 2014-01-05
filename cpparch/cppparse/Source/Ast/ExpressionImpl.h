@@ -347,8 +347,9 @@ inline bool operator<(const TypeTraitsBinaryExpression& left, const TypeTraitsBi
 struct ExplicitTypeExpression
 {
 	UniqueTypeWrapper type;
-	ExplicitTypeExpression(UniqueTypeWrapper type)
-		: type(type)
+	bool isCompleteTypeRequired;
+	ExplicitTypeExpression(UniqueTypeWrapper type, bool isCompleteTypeRequired = false)
+		: type(type), isCompleteTypeRequired(isCompleteTypeRequired)
 	{
 	}
 };
