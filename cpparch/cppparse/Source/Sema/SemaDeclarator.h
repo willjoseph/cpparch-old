@@ -273,7 +273,7 @@ struct SemaDeclarator : public SemaBase
 			{
 				// 'this' is dependent within a template-definition (except for an explicit-specialization)
 				// NOTE: depends on state of 'enclosing', modified above!
-				setDependent(enclosingDependent, enclosingType->declaration->templateParams.back().declaration);
+				setDependentImpl(enclosingDependent, enclosingType->declaration->templateParams.back().declaration);
 			}
 		}
 

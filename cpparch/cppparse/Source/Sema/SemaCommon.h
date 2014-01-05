@@ -1136,7 +1136,7 @@ struct SemaState
 		return isDependentOld(static_cast<Declaration*>(dependent));
 	}
 	// the dependent-scope is the outermost template-definition
-	void setDependent(Dependent& dependent, Declaration* candidate) const
+	void setDependentImpl(Dependent& dependent, Declaration* candidate) const
 	{
 		SEMANTIC_ASSERT(dependent == DeclarationPtr(0) || isDependentOld(dependent));
 		if(!isDependentOld(candidate))
@@ -1161,7 +1161,7 @@ struct SemaState
 			if(!enclosingTemplate->templateParams.empty()) // if the enclosing template class is not an explicit specialization
 			{
 				// depend on the template parameter(s) of the enclosing template class
-				setDependent(dependent, enclosingTemplate->templateParams.back().declaration);
+				setDependentImpl(dependent, enclosingTemplate->templateParams.back().declaration);
 			}
 		}
 	}
@@ -1169,11 +1169,11 @@ struct SemaState
 	{
 		if(declaration.templateParameter != INDEX_INVALID)
 		{
-			setDependent(dependent, &declaration);
+			setDependentImpl(dependent, &declaration);
 		}
 		else if(declaration.specifiers.isTypedef)
 		{
-			setDependent(dependent, declaration.type.dependent);
+			setDependentImpl(dependent, declaration.type.dependent);
 		}
 		else if(isClass(declaration)
 			&& isComplete(declaration))
@@ -1183,7 +1183,7 @@ struct SemaState
 
 		setDependentEnclosingTemplate(dependent, findEnclosingClassTemplate(&declaration));
 
-		setDependent(dependent, declaration.valueDependent);
+		setDependentImpl(dependent, declaration.valueDependent);
 	}
 	void setDependent(Dependent& dependent, const Type* qualifying) const
 	{
@@ -1191,7 +1191,7 @@ struct SemaState
 		{
 			return;
 		}
-		setDependent(dependent, qualifying->dependent);
+		setDependentImpl(dependent, qualifying->dependent);
 		setDependent(dependent, qualifying->qualifying.get());
 	}
 	void setDependent(Dependent& dependent, const Qualifying& qualifying) const
@@ -1202,27 +1202,27 @@ struct SemaState
 	{
 		for(Types::const_iterator i = bases.begin(); i != bases.end(); ++i)
 		{
-			setDependent(dependent, (*i).dependent);
+			setDependentImpl(dependent, (*i).dependent);
 		}
 	}
 	void setDependent(Dependent& dependent, const TemplateArguments& arguments) const
 	{
 		for(TemplateArguments::const_iterator i = arguments.begin(); i != arguments.end(); ++i)
 		{
-			setDependent(dependent, (*i).type.dependent);
-			setDependent(dependent, (*i).valueDependent);
+			setDependentImpl(dependent, (*i).type.dependent);
+			setDependentImpl(dependent, (*i).valueDependent);
 		}
 	}
 	void setDependent(Dependent& dependent, const Parameters& parameters) const
 	{
 		for(Parameters::const_iterator i = parameters.begin(); i != parameters.end(); ++i)
 		{
-			setDependent(dependent, (*i).declaration->type.dependent);
+			setDependentImpl(dependent, (*i).declaration->type.dependent);
 		}
 	}
 	void setDependent(Type& type, Declaration* declaration) const
 	{
-		setDependent(type.dependent, declaration);
+		setDependentImpl(type.dependent, declaration);
 	}
 	void setDependent(Type& type) const
 	{
@@ -1238,13 +1238,13 @@ struct SemaState
 	void addDependentType(Dependent& dependent, Declaration* declaration)
 	{
 		Declaration* old = dependent.p;
-		setDependent(dependent, declaration->type.dependent);
+		setDependentImpl(dependent, declaration->type.dependent);
 		SEMANTIC_ASSERT(old == 0 || dependent.p != 0);
 	}
 	void addDependent(Dependent& dependent, const Type& type)
 	{
 		Declaration* old = dependent.p;
-		setDependent(dependent, type.dependent);
+		setDependentImpl(dependent, type.dependent);
 		SEMANTIC_ASSERT(old == 0 || dependent.p != 0);
 	}
 	void addDependent(Dependent& dependent, Scope* scope)
@@ -1256,7 +1256,7 @@ struct SemaState
 	void addDependent(Dependent& dependent, const Dependent& other)
 	{
 		Declaration* old = dependent.p;
-		setDependent(dependent, other);
+		setDependentImpl(dependent, other);
 		SEMANTIC_ASSERT(old == 0 || dependent.p != 0);
 	}
 };
@@ -1466,7 +1466,7 @@ struct SemaBase : public SemaState
 	{
 		for(Declaration* p = declaration; p != 0; p = p->overloaded)
 		{
-			setDependent(dependent, p->type.dependent);
+			addDependent(dependent, p->type);
 		}
 	}
 	static ExpressionType binaryOperatorIntegralType(Name operatorName, ExpressionType left, ExpressionType right)

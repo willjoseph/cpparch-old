@@ -92,7 +92,7 @@ struct SemaDeclarationSuffix : public SemaBase
 				type.typeSequence.push_back(DeclaratorFunctionType(Parameters(), conversionFunctionQualifiers));
 			}
 			Dependent tmpDependent = type.dependent;
-			setDependent(type.dependent, typeDependent);
+			addDependent(type.dependent, typeDependent);
 			makeUniqueTypeSafe(type);
 			if(enclosed == 0
 				&& templateParamScope != 0)
@@ -166,7 +166,7 @@ struct SemaDeclarationSuffix : public SemaBase
 		if(walker.id != 0)
 		{
 			Dependent tmpDependent = type.dependent;
-			setDependent(type.dependent, typeDependent);
+			addDependent(type.dependent, typeDependent);
 			makeUniqueTypeSafe(type);
 
 			DeclarationInstanceRef instance = pointOfDeclaration(context, enclosing, *walker.id, type, 0, seq.specifiers); // 3.3.1.1

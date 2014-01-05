@@ -35,7 +35,7 @@ struct SemaTypeId : public SemaBase, SemaTypeIdResult
 	{
 		type.typeSequence = walker.typeSequence;
 		// [temp.dep.type] A type is dependent if it is a compound type constructed from any dependent type
-		setDependent(type.dependent, walker.dependent);
+		addDependent(type.dependent, walker.dependent);
 	}
 	SEMA_POLICY(cpp::conversion_declarator, SemaPolicyPush<struct SemaDeclarator>)
 	void action(cpp::conversion_declarator* symbol, SemaDeclarator& walker)
@@ -43,7 +43,7 @@ struct SemaTypeId : public SemaBase, SemaTypeIdResult
 		walker.pushPointerType(symbol->op);
 		type.typeSequence = walker.typeSequence;
 		// [temp.dep.type] A type is dependent if it is a compound type constructed from any dependent type
-		setDependent(type.dependent, walker.dependent);
+		addDependent(type.dependent, walker.dependent);
 	}
 };
 
@@ -71,7 +71,7 @@ struct SemaNewType : public SemaBase, SemaNewTypeResult
 	{
 		addDependent(valueDependent, walker.valueDependent);
 		type.typeSequence = walker.typeSequence;
-		setDependent(type.dependent, walker.dependent);
+		addDependent(type.dependent, walker.dependent);
 		// new T
 		// new T*
 		// new T[variable]
