@@ -224,8 +224,6 @@ struct SemaIdExpression : public SemaQualified
 		TemplateArgumentsInstance templateArguments;
 		makeUniqueTemplateArguments(arguments, templateArguments, getInstantiationContext(), isDependentOld(arguments));
 
-		expression = ExpressionWrapper();
-
 		if(isDependentOld(typeDependent)
 			|| objectExpressionIsDependent())
 		{

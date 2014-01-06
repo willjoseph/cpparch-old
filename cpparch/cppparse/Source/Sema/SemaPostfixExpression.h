@@ -164,9 +164,7 @@ struct SemaPostfixExpression : public SemaBase
 		else
 		{
 			memberType = type;
-			objectExpression = makeExpression(ExplicitTypeExpression(type),
-				false, isDependentOld(typeDependent), isDependentOld(valueDependent)
-				);
+			objectExpression = expression;
 			SEMANTIC_ASSERT(objectExpression.isTypeDependent || !::isDependent(type));
 		}
 	}
@@ -206,8 +204,7 @@ struct SemaPostfixExpression : public SemaBase
 		type = ExpressionType(getUniqueTypeSafe(walker.type), false); // non lvalue
 		if(symbol->op->id != cpp::cast_operator::DYNAMIC)
 		{
-			Dependent tmp(walker.typeDependent);
-			addDependent(valueDependent, tmp);
+			addDependent(valueDependent, walker.typeDependent);
 		}
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
@@ -300,7 +297,6 @@ struct SemaPostfixExpression : public SemaBase
 				id->dec.deferred = true;
 			}
 			type = gNullExpressionType;
-			expression = ExpressionWrapper();
 		}
 		else
 		{
@@ -349,9 +345,10 @@ struct SemaPostfixExpression : public SemaBase
 				}
 			}
 			type = typeOfFunctionCallExpression(makeArgument(expression, type), walker.arguments, getInstantiationContext());
-			expression = makeExpression(FunctionCallExpression(expression, walker.arguments), false, isDependentOld(typeDependent), isDependentOld(valueDependent));
-			SYMBOLS_ASSERT(expression.type == type);
 		}
+		expression = makeExpression(FunctionCallExpression(expression, walker.arguments), false, isDependentOld(typeDependent), isDependentOld(valueDependent));
+		SYMBOLS_ASSERT(expression.type == type);
+
 		setExpressionType(symbol, type);
 		// TODO: set of pointers-to-function
 		id = 0; // don't perform overload resolution for a(x)(x);
@@ -370,10 +367,7 @@ struct SemaPostfixExpression : public SemaBase
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
 
-		expression = ExpressionWrapper();
-
-		if(walker.expression.p != 0
-			&& !isDependentOld(typeDependent))
+		if(!isDependentOld(typeDependent))
 		{
 			SEMANTIC_ASSERT(objectExpression.p != 0);
 			SEMANTIC_ASSERT(!objectExpression.isTypeDependent); // the object-expression should not be dependent
@@ -386,15 +380,19 @@ struct SemaPostfixExpression : public SemaBase
 			type = typeOfIdExpression(qualifyingClass, declaration, setEnclosingTypeSafe(getInstantiationContext(), walker.memberClass));
 			idEnclosing = isSpecialMember(*declaration) ? 0 : getIdExpressionClass(qualifyingClass, declaration, walker.memberClass);
 
-			expression = makeExpression(ClassMemberAccessExpression(walker.objectExpression, walker.expression),
-				false, isDependentOld(typeDependent), isDependentOld(valueDependent)
-				);
 			if(isOverloadedFunction(declaration))
 			{
 				type = gOverloadedExpressionType;
 			}
-			SYMBOLS_ASSERT(expression.type == type);
 		}
+
+		SEMANTIC_ASSERT(walker.expression.p != 0);
+		expression = makeExpression(
+			ClassMemberAccessExpression(walker.objectExpression, walker.expression),
+			false, isDependentOld(typeDependent), isDependentOld(valueDependent)
+		);
+
+		SYMBOLS_ASSERT(expression.type == type);
 
 		setExpressionType(symbol, type);
 		updateMemberType();
@@ -421,7 +419,6 @@ struct SemaPostfixExpression : public SemaBase
 		if(isDependentOld(typeDependent))
 		{
 			type = gNullExpressionType;
-			expression = ExpressionWrapper();
 		}
 		else
 		{
@@ -430,10 +427,11 @@ struct SemaPostfixExpression : public SemaBase
 				getOverloadedOperatorId(symbol),
 				makeArgument(expression, type),
 				getInstantiationContext());
-
-			expression = makeExpression(PostfixOperatorExpression(getOverloadedOperatorId(symbol), expression));
-			SYMBOLS_ASSERT(expression.type == type);
 		}
+
+		expression = makeExpression(PostfixOperatorExpression(getOverloadedOperatorId(symbol), expression), false, isDependentOld(typeDependent));
+		SYMBOLS_ASSERT(expression.type == type);
+
 		setExpressionType(symbol, type);
 		id = 0;
 		updateMemberType();

@@ -351,6 +351,7 @@ struct ExplicitTypeExpression
 	ExplicitTypeExpression(UniqueTypeWrapper type, bool isCompleteTypeRequired = false)
 		: type(type), isCompleteTypeRequired(isCompleteTypeRequired)
 	{
+		SYMBOLS_ASSERT(type != gUniqueTypeNull);
 	}
 };
 

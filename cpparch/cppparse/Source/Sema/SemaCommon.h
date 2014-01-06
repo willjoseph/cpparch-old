@@ -1105,9 +1105,15 @@ struct SemaState
 	}
 
 
-	bool isDependentOld(Declaration* dependent) const
+	bool isDependentImpl(Declaration* dependent) const
 	{
 		return ::isDependentImpl(dependent, enclosing, templateParamScope);
+	}
+	bool isDependentOld(const Dependent& dependent) const
+	{
+		bool result = isDependentImpl(dependent);
+		SEMANTIC_ASSERT(result == (dependent.p != 0));
+		return result;
 	}
 	bool isDependentOld(const Type& type) const
 	{
@@ -1131,15 +1137,11 @@ struct SemaState
 		setDependent(dependent, arguments);
 		return isDependentOld(dependent);
 	}
-	bool isDependentOld(const Dependent& dependent) const
-	{
-		return isDependentOld(static_cast<Declaration*>(dependent));
-	}
 	// the dependent-scope is the outermost template-definition
 	void setDependentImpl(Dependent& dependent, Declaration* candidate) const
 	{
 		SEMANTIC_ASSERT(dependent == DeclarationPtr(0) || isDependentOld(dependent));
-		if(!isDependentOld(candidate))
+		if(!isDependentImpl(candidate))
 		{
 			return;
 		}
@@ -1229,6 +1231,12 @@ struct SemaState
 		setDependent(type.dependent, *type.declaration);
 	}
 
+	void addDependent(Dependent& dependent, const Dependent& other)
+	{
+		Declaration* old = dependent.p;
+		setDependentImpl(dependent, other);
+		SEMANTIC_ASSERT(old == 0 || dependent.p != 0);
+	}
 	void addDependentName(Dependent& dependent, Declaration* declaration)
 	{
 		Declaration* old = dependent.p;
@@ -1237,27 +1245,11 @@ struct SemaState
 	}
 	void addDependentType(Dependent& dependent, Declaration* declaration)
 	{
-		Declaration* old = dependent.p;
-		setDependentImpl(dependent, declaration->type.dependent);
-		SEMANTIC_ASSERT(old == 0 || dependent.p != 0);
+		addDependent(dependent, declaration->type.dependent);
 	}
 	void addDependent(Dependent& dependent, const Type& type)
 	{
-		Declaration* old = dependent.p;
-		setDependentImpl(dependent, type.dependent);
-		SEMANTIC_ASSERT(old == 0 || dependent.p != 0);
-	}
-	void addDependent(Dependent& dependent, Scope* scope)
-	{
-		Declaration* old = dependent.p;
-		setDependent(dependent, scope->bases);
-		SEMANTIC_ASSERT(old == 0 || dependent.p != 0);
-	}
-	void addDependent(Dependent& dependent, const Dependent& other)
-	{
-		Declaration* old = dependent.p;
-		setDependentImpl(dependent, other);
-		SEMANTIC_ASSERT(old == 0 || dependent.p != 0);
+		addDependent(dependent, type.dependent);
 	}
 };
 

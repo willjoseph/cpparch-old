@@ -373,9 +373,8 @@ struct SemaExpression : public SemaBase, SemaExpressionResult
 	{
 		// [basic.lval] An expression which holds a temporary object resulting from a cast to a non-reference type is an rvalue
 		type = ExpressionType(getUniqueTypeSafe(walker.type), false); // non lvalue
-		Dependent tmp(walker.typeDependent);
-		addDependent(valueDependent, tmp);
 		addDependent(typeDependent, walker.typeDependent);
+		addDependent(valueDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
 		expression = makeExpression(CastExpression(type, walker.expression), walker.expression.isConstant, isDependentOld(typeDependent), isDependentOld(valueDependent));
 		if(!expression.isTypeDependent)
