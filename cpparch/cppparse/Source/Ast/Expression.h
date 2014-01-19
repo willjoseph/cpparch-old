@@ -123,11 +123,13 @@ struct IntegralConstant
 struct ExpressionType : UniqueTypeWrapper
 {
 	bool isLvalue; // true if the expression is an lvalue
-	ExpressionType() : isLvalue(false)
+	bool isNonStaticMemberName; // true if the expression is an id-expression naming a non-static member
+	bool isMutable; // true if the expression is an id-expression naming a mutable object
+	ExpressionType() : isLvalue(false), isNonStaticMemberName(false), isMutable(false)
 	{
 	}
 	ExpressionType(UniqueTypeWrapper type, bool isLvalue)
-		: UniqueTypeWrapper(type), isLvalue(isLvalue)
+		: UniqueTypeWrapper(type), isLvalue(isLvalue), isNonStaticMemberName(false), isMutable(false)
 	{
 	}
 };

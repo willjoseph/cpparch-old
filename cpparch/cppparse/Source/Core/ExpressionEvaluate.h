@@ -762,13 +762,22 @@ inline ExpressionType typeOfIdExpression(const SimpleType* qualifying, const Dec
 
 	const SimpleType* idEnclosing = getIdExpressionClass(qualifying, declaration, context.enclosingType);
 	// a member function template may have a type which depends on its template parameters
+	if(isMemberObject(*declaration) // if this is a member
+		&& UniqueTypeWrapper(declaration->type.unique).isFunction()) // .. function
+	{
+		return gOverloadedExpressionType; // overload resolution is required
+	}
 	UniqueTypeWrapper type = getUniqueType(declaration->type, setEnclosingType(context, idEnclosing), declaration->isTemplate);
-	return ExpressionType(type, isLvalue(*declaration));
+	ExpressionType result(type, isLvalue(*declaration));
+	result.isNonStaticMemberName = isMemberObject(*declaration)
+		&& !isStatic(*declaration);
+	result.isMutable = declaration->specifiers.isMutable;
+	return result;
 }
 
 ExpressionType getOverloadedMemberOperatorType(ExpressionType operand, const InstantiationContext& context);
 
-inline const SimpleType& getMemberOperatorType(Argument operand, bool isArrow, const InstantiationContext& context)
+inline ExpressionType getMemberOperatorType(Argument operand, bool isArrow, const InstantiationContext& context)
 {
 	ExpressionType type = operand.type;
 	if(isArrow)
@@ -784,16 +793,17 @@ inline const SimpleType& getMemberOperatorType(Argument operand, bool isArrow, c
 	if(isPointer)
 	{
 		type.pop_front();
+		type.isLvalue = true; // E1->E2 is transformed to (*E1).E2, and (*E) is always lvalue.
 	}
 	// the left-hand side is (pointer-to) operand
 	SYMBOLS_ASSERT(type.isSimple());
-	const SimpleType& result = getSimpleType(type.value);
-	if(isClass(*result.declaration)) // if this is a class type. Note: special case where it might not be a class: (0).~decltype(0)();
+	const SimpleType& classType = getSimpleType(type.value);
+	if(isClass(*classType.declaration)) // if this is a class type. Note: special case where it might not be a class: (0).~decltype(0)();
 	{
 		// [expr.ref] [the type of the operand-expression shall be complete]
-		instantiateClass(result, context);
+		instantiateClass(classType, context);
 	}
-	return result;
+	return type;
 }
 
 inline ExpressionType binaryOperatorArithmeticType(Name operatorName, ExpressionType left, ExpressionType right)
@@ -993,6 +1003,17 @@ inline ExpressionType typeOfSubscriptExpression(Argument left, Argument right, c
 	return ExpressionType(type, true);
 }
 
+inline ExpressionType typeOfEnclosingClass(const InstantiationContext& context)
+{
+	Scope* scope = getEnclosingFunction(context.enclosingScope);
+	SYMBOLS_ASSERT(scope != 0); // TODO: report non-fatal error: 'this' allowed only within function body
+	Declaration* declaration = getFunctionDeclaration(scope);
+	UniqueTypeWrapper functionType = getUniqueType(declaration->type, context, true);
+	ExpressionType result(makeUniqueSimpleType(*context.enclosingType), true);
+	result.value.setQualifiers(functionType.value.getQualifiers());
+	return result;
+}
+
 inline ExpressionType typeOfFunctionCallExpression(Argument left, const Arguments& arguments, const InstantiationContext& context)
 {
 	ExpressionWrapper expression = left;
@@ -1002,9 +1023,10 @@ inline ExpressionType typeOfFunctionCallExpression(Argument left, const Argument
 
 	if(isDependentIdExpression(expression)) // if this is an expression of the form 'undeclared-id(args)', the name must be found via ADL 
 	{
+		SYMBOLS_ASSERT(type == gUniqueTypeNull); // check that the id-expression names an overloaded function
 		SYMBOLS_ASSERT(!arguments.empty()); // check that the argument-list was not empty
 		SYMBOLS_ASSERT(getDependentIdExpression(expression).templateArguments.empty()); // cannot be a template-id
-		SYMBOLS_ASSERT(getDependentIdExpression(expression).qualifying == gUniqueTypeNull); // cannot be qualified
+		SYMBOLS_ASSERT(getDependentIdExpression(expression).qualifying == gOverloaded); // cannot be qualified
 
 		Identifier id;
 		id.value = getDependentIdExpression(expression).name;
@@ -1092,7 +1114,9 @@ inline ExpressionType typeOfFunctionCallExpression(Argument left, const Argument
 	SYMBOLS_ASSERT(declaration.p != 0);
 
 	// if this is a qualified member-function-call, the class type of the object-expression
-	const SimpleType* memberClass = isClassMemberAccess ? getObjectExpression(getClassMemberAccessExpression(expression).left).classType : 0;
+	ExpressionWrapper objectExpression = isClassMemberAccess ? getClassMemberAccessExpression(expression).left : ExpressionWrapper();
+	ExpressionType objectExpressionType = objectExpression.p != 0 ? typeOfExpressionWrapper(objectExpression, context) : gNullExpressionType;
+	const SimpleType* memberClass = objectExpressionType != gUniqueTypeNull ? &getSimpleType(objectExpressionType.value) : 0;
 
 	if(declaration.p == &gDestructorInstance)
 	{
@@ -1123,7 +1147,7 @@ inline ExpressionType typeOfFunctionCallExpression(Argument left, const Argument
 	// if this is a member-function-call, the type of the class containing the member
 	const SimpleType* memberEnclosing = getIdExpressionClass(idExpression.enclosing, idExpression.declaration, memberClass != 0 ? memberClass : context.enclosingType);
 
-	ExpressionNodeGeneric<ObjectExpression> transientExpression = ObjectExpression(0);
+	ExpressionNodeGeneric<ObjectExpression> transientExpression = ObjectExpression(gNullExpressionType);
 	Arguments augmentedArguments;
 	if(isMember(*declaration))
 	{
@@ -1131,20 +1155,21 @@ inline ExpressionType typeOfFunctionCallExpression(Argument left, const Argument
 		SYMBOLS_ASSERT(memberClass != 0 || context.enclosingType != 0 || isStatic(*declaration));
 		SYMBOLS_ASSERT(memberClass == 0 || memberClass != &gDependentSimpleType);
 
-		const SimpleType& classType = memberClass != 0
-			? *memberClass // qualified-function-call (member access expression)
-			// unqualified function call
-			: context.enclosingType != 0
-			// If the keyword 'this' is in scope and refers to the class of that member function, or a derived class thereof,
-			// then the function call is transformed into a normalized qualified function call using (*this) as the postfix-expression
-			// to the left of the . operator.
-			? *context.enclosingType // implicit '(*this).'
-			// If the keyword 'this' is not in scope or refers to another class, then name resolution found a static member of some
-			// class T. In this case, all overloaded declarations of the function name in T become candidate functions and
-			// a contrived object of type T becomes the implied object argument
-			: *memberEnclosing;
-		transientExpression = ObjectExpression(&classType);
-		augmentedArguments.push_back(makeArgument(ExpressionWrapper(&transientExpression, false), ExpressionType(makeUniqueSimpleType(classType), true))); // TODO: lvalueness of expression on left of '.'
+		if(memberClass == 0) // unqualified function call
+		{
+			objectExpressionType = context.enclosingType != 0
+				// If the keyword 'this' is in scope and refers to the class of that member function, or a derived class thereof,
+				// then the function call is transformed into a normalized qualified function call using (*this) as the postfix-expression
+				// to the left of the . operator.
+				? typeOfEnclosingClass(context) // implicit '(*this).'
+				// If the keyword 'this' is not in scope or refers to another class, then name resolution found a static member of some
+				// class T. In this case, all overloaded declarations of the function name in T become candidate functions and
+				// a contrived object of type T becomes the implied object argument
+				: ExpressionType(makeUniqueSimpleType(*memberEnclosing), true);
+			transientExpression = ObjectExpression(objectExpressionType);
+			objectExpression = ExpressionWrapper(&transientExpression, false);
+		}
+		augmentedArguments.push_back(makeArgument(objectExpression, objectExpressionType));
 	}
 
 	augmentedArguments.insert(augmentedArguments.end(), arguments.begin(), arguments.end());
@@ -1186,6 +1211,45 @@ inline ExpressionType typeOfFunctionCallExpression(Argument left, const Argument
 	return overload.type;
 }
 
+inline ExpressionType typeOfClassMember(UniqueTypeWrapper type, const ExpressionWrapper& right, const InstantiationContext& context)
+{
+	SYMBOLS_ASSERT(!isDependent(type));
+	const SimpleType& classType = getSimpleType(type.value);
+	return typeOfExpression(right, setEnclosingTypeSafe(context, &classType));
+}
+
+inline ExpressionType typeOfClassMemberAccessExpression(const ExpressionWrapper& left, const ExpressionWrapper& right, const InstantiationContext& context)
+{
+	// [expr.ref]
+	// If E2 is declared to have type "reference to T," then E1.E2 is an lvalue; the type of E1.E2 is T. Otherwise,
+	// one of the following rules applies.
+	//	- If E2 is a static data member and the type of E2 is T, then E1.E2 is an lvalue; the expression designates
+	//	the named member of the class. The type of E1.E2 is T.
+	//	- If E2 is a non-static data member and the type of E1 is "cq1 vq1 X", and the type of E2 is "cq2 vq2 T",
+	//		the expression designates the named member of the object designated by the first expression. If E1 is
+	//		an lvalue, then E1.E2 is an lvalue; if E1 is an xvalue, then E1.E2 is an xvalue; otherwise, it is a prvalue.
+	//		Let the notation vq12 stand for the "union" of vq1 and vq2 ; that is, if vq1 or vq2 is volatile, then
+	//		vq12 is volatile. Similarly, let the notation cq12 stand for the "union" of cq1 and cq2 ; that is, if cq1
+	//		or cq2 is const, then cq12 is const. If E2 is declared to be a mutable member, then the type of E1.E2
+	//		is "vq12 T". If E2 is not declared to be a mutable member, then the type of E1.E2 is "cq12 vq12 T".
+	//	- If E2 is a (possibly overloaded) member function, function overload resolution (13.3) is used to determine
+	//		whether E1.E2 refers to a static or a non-static member function.
+	ExpressionType type = typeOfExpressionWrapper(left, context);
+	ExpressionType result = typeOfClassMember(type, right, context);
+	if(result.isNonStaticMemberName)
+	{
+		result.isLvalue = type.isLvalue;
+		CvQualifiers qualifiers = type.value.getQualifiers();
+		if(result.isMutable)
+		{
+			SYMBOLS_ASSERT(!result.value.getQualifiers().isConst); // TODO: non-fatal error: can't be both const and mutable
+			qualifiers.isConst = false;
+		}
+		result.value.addQualifiers(qualifiers);
+	}
+	return result;
+}
+
 inline UniqueTypeWrapper typeOfDecltypeSpecifier(const ExpressionWrapper& expression, const InstantiationContext& context)
 {
 	// [dcl.type.simple]
@@ -1196,13 +1260,19 @@ inline UniqueTypeWrapper typeOfDecltypeSpecifier(const ExpressionWrapper& expres
 	//  - otherwise, if e is an xvalue, decltype(e) is T&&, where T is the type of e;
 	//  - otherwise, if e is an lvalue, decltype(e) is T&, where T is the type of e;
 	//  - otherwise, decltype(e) is the type of e.
-	ExpressionType result = typeOfExpressionWrapper(expression, context);
 	if(!expression.isParenthesised
 		&& (isIdExpression(expression)
 		|| isClassMemberAccessExpression(expression)))
 	{
-		return result;
+		if(isClassMemberAccessExpression(expression))
+		{
+			const ClassMemberAccessExpression& cma = getClassMemberAccessExpression(expression);
+			ExpressionType type = typeOfExpressionWrapper(cma.left, context);
+			return typeOfClassMember(type, cma.right, context);
+		}
+		return typeOfExpressionWrapper(expression, context); // return the type of the id-expression;
 	}
+	ExpressionType result = typeOfExpressionWrapper(expression, context);
 	if(result.isLvalue
 		&& !result.isReference())
 	{

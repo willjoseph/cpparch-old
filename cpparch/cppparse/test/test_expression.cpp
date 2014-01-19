@@ -150,6 +150,8 @@ namespace N383
 	{
 		int f();
 		int m;
+		mutable int mm;
+		const int cm = 0;
 	};
 
 	int f();
@@ -157,6 +159,7 @@ namespace N383
 	int i;
 	const int ci = 0;
 	A a;
+	const A ca = A();
 	A* p;
 	int A::* pm;
 	int (A::* pmf)();
@@ -167,16 +170,25 @@ namespace N383
 	ASSERT_EXPRESSION_TYPE(ci, const int); // unparenthesized id-expression
 	ASSERT_EXPRESSION_TYPE(f, int()); // unparenthesized id-expression (not overloaded)
 	ASSERT_EXPRESSION_TYPE(a.m, int); // unparenthesized class-member-access
-	ASSERT_EXPRESSION_TYPE(p->m, int); // unparenthesized class-member-access
 	ASSERT_EXPRESSION_TYPE(VALUE, E); // unparenthesized id-expression
+	ASSERT_EXPRESSION_TYPE(p->m, int); // unparenthesized class-member-access
+	ASSERT_EXPRESSION_TYPE(a.cm, const int);
+	ASSERT_EXPRESSION_TYPE(ca.m, int);
+	ASSERT_EXPRESSION_TYPE(ca.cm, const int);
+	ASSERT_EXPRESSION_TYPE(ca.mm, int);
 
 
 	ASSERT_EXPRESSION_TYPE((i), int&); // yields a reference because 'i' is an lvalue
 	ASSERT_EXPRESSION_TYPE((ci), const int&); // yields a reference because 'ci' is an lvalue
 	ASSERT_EXPRESSION_TYPE((f), int(&)()); // yields a reference because 'f' is an lvalue
+	ASSERT_EXPRESSION_TYPE((VALUE), E); // does not yield a reference because 'VALUE' is not an lvalue
 	ASSERT_EXPRESSION_TYPE((a.m), int&); // yields a reference because 'a.m' is an lvalue
 	ASSERT_EXPRESSION_TYPE((p->m), int&);
-	ASSERT_EXPRESSION_TYPE((VALUE), E); // does not yield a reference because 'VALUE' is not an lvalue
+	ASSERT_EXPRESSION_TYPE((A().m), int); // not an lvalue
+	ASSERT_EXPRESSION_TYPE((a.cm), const int&);
+	ASSERT_EXPRESSION_TYPE((ca.m), const int&);
+	ASSERT_EXPRESSION_TYPE((ca.cm), const int&);
+	ASSERT_EXPRESSION_TYPE((ca.mm), int&);
 
 	struct C
 	{
@@ -202,8 +214,8 @@ namespace N383
 	ASSERT_EXPRESSION_TYPE(A(), A);
 	ASSERT_EXPRESSION_TYPE(E(), E);
 	ASSERT_EXPRESSION_TYPE(E(), E);
-	ASSERT_EXPRESSION_TYPE(c.s, void());
-	//ASSERT_EXPRESSION_TYPE((c.s), void()); // TODO
+	//ASSERT_EXPRESSION_TYPE(c.s, void()); // illegal: type is 'unresolved function overload set'
+	//ASSERT_EXPRESSION_TYPE((c.s), void()); // illegal: type is 'unresolved function overload set'
 	ASSERT_EXPRESSION_TYPE(p++, A*);
 	ASSERT_EXPRESSION_TYPE(p--, A*);
 	ASSERT_EXPRESSION_TYPE(i++, int);
@@ -458,6 +470,19 @@ namespace N322 // test overload resolution
 	ASSERT_EXPRESSION_TYPE(f(""), int); // calls 'f(const char*)'
 }
 
+namespace N391 // test overload resolution based on cv-qualification of implicit object argument
+{
+	struct A
+	{
+		float f();
+		int f() const;
+	};
+
+	A a;
+	ASSERT_EXPRESSION_TYPE(a.f(), float);
+	const A ca = A();
+	ASSERT_EXPRESSION_TYPE(ca.f(), int);
+}
 
 namespace N333 // test overload resolution with direct-reference-binding and user-defined-conversion
 {
@@ -993,6 +1018,7 @@ namespace N378 // test name lookup for namespace-scope redeclaration of class fi
 
 	B* b; // unqualified name lookup finds 'B'
 }
+
 
 namespace N329 // test name lookup for overloaded operator declared as friend
 {

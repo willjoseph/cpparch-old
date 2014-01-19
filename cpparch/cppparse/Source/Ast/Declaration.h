@@ -16,12 +16,13 @@ struct DeclSpecifiers
 	bool isStatic;
 	bool isExtern;
 	bool isExplicit;
+	bool isMutable;
 	DeclSpecifiers()
-		: isTypedef(false), isFriend(false), isStatic(false), isExtern(false), isExplicit(false)
+		: isTypedef(false), isFriend(false), isStatic(false), isExtern(false), isExplicit(false), isMutable(false)
 	{
 	}
 	DeclSpecifiers(bool isTypedef, bool isFriend, bool isStatic, bool isExtern)
-		: isTypedef(isTypedef), isFriend(isFriend), isStatic(isStatic), isExtern(isExtern), isExplicit(false)
+		: isTypedef(isTypedef), isFriend(isFriend), isStatic(isStatic), isExtern(isExtern), isExplicit(false), isMutable(false)
 	{
 	}
 };

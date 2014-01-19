@@ -16,10 +16,12 @@ inline IntegralConstant evaluateIdExpression(const IdExpression& node, const Ins
 
 inline IdExpression substituteIdExpression(const DependentIdExpression& node, const InstantiationContext& context)
 {
-	SYMBOLS_ASSERT(node.qualifying != gUniqueTypeNull);
+	SYMBOLS_ASSERT(node.qualifying != gOverloaded); // assert that this is not the name of an undeclared identifier (to be looked up via ADL)
 	SYMBOLS_ASSERT(context.enclosingType != 0);
 
-	UniqueTypeWrapper substituted = substitute(node.qualifying, context);
+	UniqueTypeWrapper substituted = node.qualifying != gUniqueTypeNull // if this id is qualified by a dependent type
+		? substitute(node.qualifying, context)
+		: makeUniqueSimpleType(*context.enclosingType); // else in a dependent class-member-access 'd.m', enclosingType contains the class type of the object expression
 	const SimpleType* qualifyingType = substituted.isSimple() ? &getSimpleType(substituted.value) : 0;
 
 	if(qualifyingType == 0
@@ -261,10 +263,8 @@ inline void printOverloads(OverloadResolver& resolver, const OverloadSet& overlo
 	for(OverloadSet::const_iterator i = overloads.begin(); i != overloads.end(); ++i)
 	{
 		const Overload& overload = *i;
-		addOverload(resolver, *overload.declaration, setEnclosingType(context, overload.memberEnclosing));
-
 		const Declaration* p = overload.declaration;
-		const ParameterTypes parameters = addOverload(resolver, *p, context);
+		const ParameterTypes parameters = addOverload(resolver, *p, setEnclosingType(context, overload.memberEnclosing));
 		printPosition(p->getName().source);
 		std::cout << "(";
 		bool separator = false;
@@ -890,22 +890,18 @@ struct TypeOfVisitor : ExpressionNodeVisitor
 	}
 	void visit(const struct ObjectExpression& node)
 	{
-		result = ExpressionType(makeUniqueSimpleType(*node.classType), false); // TODO: correct lvalueness
+		result = node.type;
 		SYMBOLS_ASSERT(!isDependent(result));
 	}
 	void visit(const struct DependentObjectExpression& node)
 	{
 		ExpressionType type = typeOfExpressionWrapper(node.left, context);
-		const SimpleType& classType = getMemberOperatorType(makeArgument(node.left, removeReference(type)), node.isArrow, context);
-		result = ExpressionType(makeUniqueSimpleType(classType), false); // TODO: correct lvalueness
+		result = getMemberOperatorType(makeArgument(node.left, removeReference(type)), node.isArrow, context);
 		SYMBOLS_ASSERT(!isDependent(result));
 	}
 	void visit(const struct ClassMemberAccessExpression& node)
 	{
-		UniqueTypeWrapper type = typeOfExpressionWrapper(node.left, context);
-		SYMBOLS_ASSERT(!isDependent(type)); // TODO: substitute dependent
-		const SimpleType& classType = getSimpleType(type.value);
-		result = typeOfExpression(node.right, setEnclosingTypeSafe(context, &classType));
+		result = typeOfClassMemberAccessExpression(node.left, node.right, context);
 		SYMBOLS_ASSERT(!isDependent(result));
 	}
 	void visit(const struct FunctionCallExpression& node)
@@ -945,10 +941,11 @@ inline ExpressionType typeOfExpression(ExpressionNode* node, const Instantiation
 		return gOverloadedExpressionType; // do not evaluate the type!
 	}
 	if(isDependentIdExpression(node) // if attempting to evaluate type of id-expression with no context
-		&& getDependentIdExpression(node).qualifying == gUniqueTypeNull) // if this name is unqualified: e.g. call to named function, find via ADL
+		&& getDependentIdExpression(node).qualifying == gOverloaded) // and this name was undeclared at point of parse
 	{
-		// must defer evaluation until function call expression is evaluated
-		return gOverloadedExpressionType; // do not evaluate the type!
+		// e.g. dependent call to named function f(d), find 'f' via ADL
+		// must defer evaluation until enclosing expression is evaluated
+		return gNullExpressionType; // do not evaluate the type!
 	}
 
 	TypeOfVisitor visitor(context);

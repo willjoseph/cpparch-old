@@ -514,6 +514,7 @@ inline bool isEquivalent(const Declaration& declaration, const Declaration& othe
 			SYMBOLS_ASSERT(r.isFunction()); // TODO: non-fatal error: 'id' previously declared as non-function, second declaration is a function
 			return declaration.isTemplate == other.isTemplate // early out
 				&& isEquivalentTemplateParameters(declaration.templateParams, other.templateParams)
+				&& l.value.getQualifiers() == r.value.getQualifiers()
 				// [over.load] Function declarations that differ only in the return type cannot be overloaded.
 				&& (declaration.getName().value == gConversionFunctionId
 				? isReturnTypeEqual(l, r) // return-types match
@@ -570,13 +571,6 @@ inline bool findScope(Scope* scope, Scope* other)
 		return true;
 	}
 	return findScope(scope->parent, other);
-}
-
-inline Declaration* getClassDeclaration(Scope* scope)
-{
-	SYMBOLS_ASSERT(scope);
-	SYMBOLS_ASSERT(scope->type == SCOPETYPE_CLASS);
-	return getDeclaration(scope->name);
 }
 
 inline Declaration* findEnclosingClassTemplate(Declaration* dependent)

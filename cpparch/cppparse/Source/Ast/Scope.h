@@ -97,6 +97,7 @@ inline const DeclarationInstance& getDeclaration(const Identifier& id)
 	return *id.dec.p;
 }
 
+
 // behaves as a reference to a DeclarationInstance
 // provides same interface as DeclarationInstance via forwarding
 struct DeclarationInstanceRef
@@ -290,6 +291,20 @@ inline Scope* getEnclosingFunction(Scope* scope)
 		}
 	}
 	return 0;
+}
+
+inline Declaration* getClassDeclaration(Scope* scope)
+{
+	SYMBOLS_ASSERT(scope);
+	SYMBOLS_ASSERT(scope->type == SCOPETYPE_CLASS);
+	return getDeclaration(scope->name);
+}
+
+inline Declaration* getFunctionDeclaration(Scope* scope)
+{
+	SYMBOLS_ASSERT(scope);
+	SYMBOLS_ASSERT(scope->type == SCOPETYPE_FUNCTION);
+	return getDeclaration(scope->name);
 }
 
 

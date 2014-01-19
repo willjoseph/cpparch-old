@@ -1,6 +1,8 @@
 
 namespace Temptest
 {
+
+#if 0
 	template<typename T>
 	struct C
 	{
@@ -24,6 +26,7 @@ namespace Temptest
 
 	// instantiate
 	typedef A<int, 0>::Type Type;
+#endif
 }
 
 namespace N83 // test parse of explicit call of implicitly declared assignment operator

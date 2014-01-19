@@ -51,12 +51,18 @@ struct SemaPrimaryExpression : public SemaBase
 	ExpressionWrapper expression;
 	IdentifierPtr id; // only valid when the expression is a (parenthesised) id-expression
 	TemplateArguments arguments; // only valid when the expression is a (qualified) template-id
+#if 0
 	const SimpleType* idEnclosing; // may be valid when the above id-expression is a qualified-id
+#endif
 	Dependent typeDependent;
 	Dependent valueDependent;
 	bool isUndeclared;
 	SemaPrimaryExpression(const SemaState& state)
-		: SemaBase(state), id(0), arguments(context), idEnclosing(0), isUndeclared(false)
+		: SemaBase(state), id(0), arguments(context)
+#if 0
+		, idEnclosing(0)
+#endif
+		, isUndeclared(false)
 	{
 	}
 	SEMA_POLICY(cpp::literal, SemaPolicyPush<struct SemaLiteral>)
@@ -92,7 +98,9 @@ struct SemaPrimaryExpression : public SemaBase
 		if(isUndeclared)
 		{
 			type = gNullExpressionType;
+#if 0
 			idEnclosing = 0;
+#endif
 		}
 		else if(expression.p != 0
 			&& !isDependentOld(typeDependent))
@@ -100,7 +108,9 @@ struct SemaPrimaryExpression : public SemaBase
 			UniqueTypeWrapper qualifyingType = makeUniqueQualifying(walker.qualifying, getInstantiationContext());
 			const SimpleType* qualifyingClass = qualifyingType == gUniqueTypeNull ? 0 : &getSimpleType(qualifyingType.value);
 			type = typeOfIdExpression(qualifyingClass, declaration, getInstantiationContext());
+#if 0
 			idEnclosing = isSpecialMember(*declaration) ? 0 : getIdExpressionClass(qualifyingClass, declaration, enclosingType);
+#endif
 
 			if(!type.isFunction()) // if the id-expression refers to a function, overload resolution depends on the parameter types; defer evaluation of type
 			{
@@ -137,8 +147,7 @@ struct SemaPrimaryExpression : public SemaBase
 	void action(cpp::primary_expression_builtin* symbol)
 	{
 		SEMANTIC_ASSERT(enclosingType != 0);
-		// TODO: cv-qualifiers: change enclosingType to a UniqueType<SimpleType>
-		type = ExpressionType(UniqueTypeWrapper(pushUniqueType(gUniqueTypes, makeUniqueSimpleType(*enclosingType).value, PointerType())), false); // non lvalue
+		type = ExpressionType(pushType(typeOfEnclosingClass(getInstantiationContext()), PointerType()), false); // non lvalue
 		/* 14.6.2.2-2
 		'this' is type-dependent if the class type of the enclosing member function is dependent
 		*/

@@ -404,9 +404,9 @@ inline const DependentObjectExpression& getDependentObjectExpression(ExpressionN
 // ----------------------------------------------------------------------------
 struct ObjectExpression
 {
-	const SimpleType* classType;
-	ObjectExpression(const SimpleType* classType)
-		: classType(classType)
+	ExpressionType type;
+	ObjectExpression(const ExpressionType& type)
+		: type(type)
 	{
 	}
 };

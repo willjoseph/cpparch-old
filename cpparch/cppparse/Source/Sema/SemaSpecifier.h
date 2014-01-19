@@ -86,6 +86,10 @@ struct SemaDeclSpecifierSeq : public SemaBase
 		{
 			seq.specifiers.isExtern = true;
 		}
+		else if(symbol->id == cpp::storage_class_specifier::MUTABLE)
+		{
+			seq.specifiers.isMutable = true;
+		}
 	}
 	SEMA_POLICY(cpp::cv_qualifier, SemaPolicyIdentity)
 	void action(cpp::cv_qualifier* symbol)

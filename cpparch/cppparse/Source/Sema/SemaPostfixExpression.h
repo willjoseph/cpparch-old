@@ -80,16 +80,15 @@ struct SemaPostfixExpressionMember : public SemaQualified
 		{
 			// [expr] If an expression initially has the type "reference to T", the type is adjusted to "T" prior to any further analysis.
 			ExpressionType operand = removeReference(memberType);
-			memberClass = &getMemberOperatorType(makeArgument(expression, operand), isArrow, getInstantiationContext());
+			ExpressionType type = getMemberOperatorType(makeArgument(expression, operand), isArrow, getInstantiationContext());
+			memberClass = &getSimpleType(type.value);
 
-			objectExpression = makeExpression(ObjectExpression(memberClass));
+			objectExpression = makeExpression(ObjectExpression(type));
 		}
-#if 0
 		else
 		{
-			objectExpression = makeExpression(DependentObjectExpression(objectExpression, isArrow));
+			objectExpression = makeExpression(DependentObjectExpression(objectExpression, isArrow), false, true);
 		}
-#endif
 	}
 	void action(cpp::terminal<boost::wave::T_TEMPLATE> symbol)
 	{
@@ -146,12 +145,18 @@ struct SemaPostfixExpression : public SemaBase
 	ExpressionWrapper expression;
 	IdentifierPtr id; // only valid when the expression is a (parenthesised) id-expression
 	TemplateArguments arguments; // only valid when the expression is a (qualified) template-id
+#if 0
 	const SimpleType* idEnclosing; // may be valid when the above id-expression is a qualified-id
+#endif
 	Dependent typeDependent;
 	Dependent valueDependent;
 	bool isUndeclared;
 	SemaPostfixExpression(const SemaState& state)
-		: SemaBase(state), id(0), arguments(context), idEnclosing(0), isUndeclared(false)
+		: SemaBase(state), id(0), arguments(context)
+#if 0
+		, idEnclosing(0)
+#endif
+		, isUndeclared(false)
 	{
 	}
 	void updateMemberType()
@@ -177,7 +182,9 @@ struct SemaPostfixExpression : public SemaBase
 		addDependent(valueDependent, walker.valueDependent);
 		id = walker.id;
 		arguments = walker.arguments;
+#if 0
 		idEnclosing = walker.idEnclosing;
+#endif
 		isUndeclared = walker.isUndeclared;
 		setExpressionType(symbol, type);
 		updateMemberType();
@@ -300,6 +307,7 @@ struct SemaPostfixExpression : public SemaBase
 		}
 		else
 		{
+#if 0
 			{ // consistency checking
 				SEMANTIC_ASSERT(isUndeclared == isDependentIdExpression(expression));
 				SEMANTIC_ASSERT(!isUndeclared || getDependentIdExpression(expression).name == id->value);
@@ -344,6 +352,7 @@ struct SemaPostfixExpression : public SemaBase
 					}
 				}
 			}
+#endif
 			type = typeOfFunctionCallExpression(makeArgument(expression, type), walker.arguments, getInstantiationContext());
 		}
 		expression = makeExpression(FunctionCallExpression(expression, walker.arguments), false, isDependentOld(typeDependent), isDependentOld(valueDependent));
@@ -352,7 +361,9 @@ struct SemaPostfixExpression : public SemaBase
 		setExpressionType(symbol, type);
 		// TODO: set of pointers-to-function
 		id = 0; // don't perform overload resolution for a(x)(x);
+#if 0
 		idEnclosing = 0;
+#endif
 		updateMemberType();
 		isUndeclared = false; // for an expression of the form 'undeclared-id(args)'
 	}
@@ -367,6 +378,7 @@ struct SemaPostfixExpression : public SemaBase
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
 
+#if 0
 		if(!isDependentOld(typeDependent))
 		{
 			SEMANTIC_ASSERT(objectExpression.p != 0);
@@ -378,13 +390,16 @@ struct SemaPostfixExpression : public SemaBase
 			UniqueTypeWrapper qualifyingType = makeUniqueQualifying(walker.qualifying, getInstantiationContext());
 			const SimpleType* qualifyingClass = qualifyingType == gUniqueTypeNull ? 0 : &getSimpleType(qualifyingType.value);
 			type = typeOfIdExpression(qualifyingClass, declaration, setEnclosingTypeSafe(getInstantiationContext(), walker.memberClass));
+#if 0
 			idEnclosing = isSpecialMember(*declaration) ? 0 : getIdExpressionClass(qualifyingClass, declaration, walker.memberClass);
+#endif
 
 			if(isOverloadedFunction(declaration))
 			{
 				type = gOverloadedExpressionType;
 			}
 		}
+#endif
 
 		SEMANTIC_ASSERT(walker.expression.p != 0);
 		expression = makeExpression(
@@ -392,7 +407,11 @@ struct SemaPostfixExpression : public SemaBase
 			false, isDependentOld(typeDependent), isDependentOld(valueDependent)
 		);
 
+#if 1
+		type = expression.type;
+#else
 		SYMBOLS_ASSERT(expression.type == type);
+#endif
 
 		setExpressionType(symbol, type);
 		updateMemberType();
