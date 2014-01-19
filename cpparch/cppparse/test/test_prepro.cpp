@@ -1,6 +1,27 @@
 
 namespace Temptest
 {
+	enum
+	{
+		TokenTypeMask
+	};
+
+	enum
+	{
+		T_LAST_TOKEN_ID, T_LAST_TOKEN=((T_LAST_TOKEN_ID)&~TokenTypeMask)
+	};
+
+#if 0 // TODO: add test
+	template<typename T>
+	struct A
+	{
+		int m;
+		void f()
+		{
+			dependent(m);
+		};
+	};
+#endif
 
 #if 0
 	template<typename T>
@@ -757,10 +778,11 @@ namespace N278 // test determination of type-dependent-ness for qualified-id ref
 	{
 		void f()
 		{
-			!C::f().dependent; // dependent
-			&C::f().dependent; // dependent
-			typedef S<sizeof(C::m)>::Type Type1; // typename not required
+			!C::f().dependent; // dependent: transformed to '(*this).C::f()'
+			&C::f().dependent; // dependent: transformed to '(*this).C::f()'
+			typedef typename S<sizeof(C::m)>::Type Type1; // typename required? transformed to '(*this).C::m'
 			typedef S<sizeof(&C::m)>::Type Type2; // typename not required
+			T::m.dependent();
 		}
 	};
 }

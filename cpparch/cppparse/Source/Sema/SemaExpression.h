@@ -291,6 +291,17 @@ struct SemaExpression : public SemaBase, SemaExpressionResult
 	void action(cpp::unary_expression_op* symbol)
 	{
 		id = 0; // not a parenthesised id-expression, expression is not 'call to named function' [over.call.func]
+
+		UnaryIceOp iceOp = getUnaryIceOp(symbol);
+		expression = makeExpression(UnaryExpression(getOverloadedOperatorId(symbol->op), iceOp, expression),
+			expression.isConstant && iceOp != 0,
+			isDependentOld(typeDependent),
+			isDependentOld(valueDependent)
+		);
+
+#if 1
+		type = expression.type;
+#else
 		if(!isDependentOld(typeDependent))
 		{
 			SEMANTIC_ASSERT(type != gUniqueTypeNull);
@@ -309,18 +320,11 @@ struct SemaExpression : public SemaBase, SemaExpressionResult
 		{
 			type = gNullExpressionType;
 		}
-
-
-		UnaryIceOp iceOp = getUnaryIceOp(symbol);
-		expression = makeExpression(UnaryExpression(getOverloadedOperatorId(symbol->op), iceOp, expression),
-			expression.isConstant && iceOp != 0,
-			isDependentOld(typeDependent),
-			isDependentOld(valueDependent)
-		);
 		if(!expression.isTypeDependent)
 		{
 			SYMBOLS_ASSERT(expression.type == type);
 		}
+#endif
 		setExpressionType(symbol, type);
 	}
 	/* 14.6.2.2-3

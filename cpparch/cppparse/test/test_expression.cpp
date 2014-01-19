@@ -184,7 +184,7 @@ namespace N383
 	ASSERT_EXPRESSION_TYPE((VALUE), E); // does not yield a reference because 'VALUE' is not an lvalue
 	ASSERT_EXPRESSION_TYPE((a.m), int&); // yields a reference because 'a.m' is an lvalue
 	ASSERT_EXPRESSION_TYPE((p->m), int&);
-	ASSERT_EXPRESSION_TYPE((A().m), int); // not an lvalue
+	ASSERT_EXPRESSION_TYPE((A().m), int); // not an lvalue because 'A()' is not an lvalue
 	ASSERT_EXPRESSION_TYPE((a.cm), const int&);
 	ASSERT_EXPRESSION_TYPE((ca.m), const int&);
 	ASSERT_EXPRESSION_TYPE((ca.cm), const int&);
@@ -195,13 +195,26 @@ namespace N383
 		void f()
 		{
 			ASSERT_EXPRESSION_TYPE(this, C*); // not an lvalue
+			ASSERT_EXPRESSION_TYPE(m, int);
+			ASSERT_EXPRESSION_TYPE((m), int&);
+			ASSERT_EXPRESSION_TYPE(C::m, int);
+			ASSERT_EXPRESSION_TYPE((C::m), int&);
+			ASSERT_EXPRESSION_TYPE(&C::m, int(C::*));
 		}
 		void f() const
 		{
-			// TODO: 'this' should be const
-			//ASSERT_EXPRESSION_TYPE(this, const C*); // not an lvalue
+			ASSERT_EXPRESSION_TYPE(this, const C*); // not an lvalue
+			ASSERT_EXPRESSION_TYPE(m, int);
+			ASSERT_EXPRESSION_TYPE((m), const int&);
+			ASSERT_EXPRESSION_TYPE(C::m, int);
+			ASSERT_EXPRESSION_TYPE((C::m), const int&);
+			ASSERT_EXPRESSION_TYPE(&C::m, int(C::*));
 		}
 		static void s();
+		int m;     
+		ASSERT_EXPRESSION_TYPE(m, int);
+		ASSERT_EXPRESSION_TYPE((m), int&);
+
 	};
 	C c;
 
@@ -294,6 +307,19 @@ namespace N383
 }
 
 #if 0 // TODO
+namespace N393
+{
+	struct A
+	{
+		template<typename T>
+		T f();
+	};
+
+	ASSERT_EXPRESSION_TYPE(&A::f<int>, int(A::*)());
+}
+#endif
+
+#if 0 // TODO
 namespace N384
 {
 	int f(int);
@@ -369,6 +395,26 @@ namespace N384
 	int i = a.mf();
 	int j = a.mfc();
 }
+
+namespace N392
+{
+	struct C
+	{
+		int m;
+		static int ms;
+	};
+
+	template<typename T>
+	struct A
+	{
+		ASSERT_EXPRESSION_TYPE(&T::m, int(C::*));
+		ASSERT_EXPRESSION_TYPE(&T::ms, int*);
+		typedef int Type;
+	};
+
+	typedef A<C>::Type Type;
+}
+
 #endif
 
 namespace N344 // non-dependent non-type-template-parameter

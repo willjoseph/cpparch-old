@@ -97,7 +97,7 @@ struct SemaPostfixExpressionMember : public SemaQualified
 	SEMA_POLICY_ARGS(cpp::id_expression, SemaPolicyPushBool<struct SemaIdExpression>, isTemplate)
 	void action(cpp::id_expression* symbol, SemaIdExpression& walker)
 	{
-		bool isObjectName = walker.commit();
+		bool isObjectName = walker.commit(true);
 		SEMANTIC_ASSERT(isObjectName); // TODO: non-fatal error: expected object name
 		id = walker.id;
 		arguments = walker.arguments;
@@ -389,7 +389,7 @@ struct SemaPostfixExpression : public SemaBase
 			// TODO: [expr.ref] inherit const/volatile from object-expression type if member is non-static
 			UniqueTypeWrapper qualifyingType = makeUniqueQualifying(walker.qualifying, getInstantiationContext());
 			const SimpleType* qualifyingClass = qualifyingType == gUniqueTypeNull ? 0 : &getSimpleType(qualifyingType.value);
-			type = typeOfIdExpression(qualifyingClass, declaration, setEnclosingTypeSafe(getInstantiationContext(), walker.memberClass));
+			type = typeOfIdExpression(qualifyingClass, declaration, true, setEnclosingTypeSafe(getInstantiationContext(), walker.memberClass));
 #if 0
 			idEnclosing = isSpecialMember(*declaration) ? 0 : getIdExpressionClass(qualifyingClass, declaration, walker.memberClass);
 #endif

@@ -107,7 +107,7 @@ struct SemaPrimaryExpression : public SemaBase
 		{
 			UniqueTypeWrapper qualifyingType = makeUniqueQualifying(walker.qualifying, getInstantiationContext());
 			const SimpleType* qualifyingClass = qualifyingType == gUniqueTypeNull ? 0 : &getSimpleType(qualifyingType.value);
-			type = typeOfIdExpression(qualifyingClass, declaration, getInstantiationContext());
+			type = typeOfIdExpression(qualifyingClass, declaration, false, getInstantiationContext());
 #if 0
 			idEnclosing = isSpecialMember(*declaration) ? 0 : getIdExpressionClass(qualifyingClass, declaration, enclosingType);
 #endif
@@ -127,6 +127,8 @@ struct SemaPrimaryExpression : public SemaBase
 
 			if(isMemberIdExpression(expression.p))
 			{
+				// TODO: id-expression transformed into class-member-access is dependent if 'this' is dependent
+				// addDependent(typeDependent, enclosingDependent); // expression is dependent if 'this' is dependent
 				expression.type = typeOfExpression(expression.p, getInstantiationContext());
 			}
 			SEMANTIC_ASSERT(expression.type == type);

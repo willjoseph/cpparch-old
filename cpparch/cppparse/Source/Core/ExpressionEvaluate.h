@@ -390,10 +390,12 @@ inline ExpressionType typeOfExpressionWrapper(const ExpressionWrapper& expressio
 	{
 		return type;
 	}
-	SYMBOLS_ASSERT(type == expression.type);
+	SYMBOLS_ASSERT(context.ignoreClassMemberAccess // TODO: type may differ from evaluation at point of parse
+		|| type == expression.type);
 
+	// TODO: move into typeOfExpression?
 	// [basic.lval] Class prvalues can have cv-qualified types; non-class prvalues always have cv-unqualified types
-	if(!expression.type.isLvalue // if this is a prvalue
+	if(!type.isLvalue // if this is a prvalue
 		&& !isClass(type)) // and is not a class
 	{
 		type.value.setQualifiers(CvQualifiers()); // remove cv-qualifiers
@@ -747,7 +749,32 @@ inline ExpressionType makeCopyAssignmentOperatorType(const SimpleType& classType
 	return ExpressionType(type, true);
 }
 
-inline ExpressionType typeOfIdExpression(const SimpleType* qualifying, const DeclarationInstance& declaration, const InstantiationContext& context)
+inline ExpressionType typeOfEnclosingClass(const InstantiationContext& context)
+{
+	Scope* scope = getEnclosingFunction(context.enclosingScope);
+	SYMBOLS_ASSERT(scope != 0); // TODO: report non-fatal error: 'this' allowed only within function body
+	Declaration* declaration = getFunctionDeclaration(scope);
+	UniqueTypeWrapper functionType = getUniqueType(declaration->type, context, true);
+	ExpressionType result(makeUniqueSimpleType(*context.enclosingType), true);
+	result.value.setQualifiers(functionType.value.getQualifiers());
+	return result;
+}
+
+inline ExpressionType typeOfNonStaticClassMemberAccessExpression(ExpressionType left, ExpressionType right)
+{
+	ExpressionType result = right;
+	result.isLvalue = left.isLvalue;
+	CvQualifiers qualifiers = left.value.getQualifiers();
+	if(right.isMutable)
+	{
+		SYMBOLS_ASSERT(!right.value.getQualifiers().isConst); // TODO: non-fatal error: can't be both const and mutable
+		qualifiers.isConst = false;
+	}
+	result.value.addQualifiers(qualifiers);
+	return result;
+}
+
+inline ExpressionType typeOfIdExpression(const SimpleType* qualifying, const DeclarationInstance& declaration, bool isClassMemberAccess, const InstantiationContext& context)
 {
 	if(declaration == gDestructorInstance.p)
 	{
@@ -769,9 +796,16 @@ inline ExpressionType typeOfIdExpression(const SimpleType* qualifying, const Dec
 	}
 	UniqueTypeWrapper type = getUniqueType(declaration->type, setEnclosingType(context, idEnclosing), declaration->isTemplate);
 	ExpressionType result(type, isLvalue(*declaration));
-	result.isNonStaticMemberName = isMemberObject(*declaration)
-		&& !isStatic(*declaration);
 	result.isMutable = declaration->specifiers.isMutable;
+
+	if(!isClassMemberAccess // if the id-expression is not part of a class-member-access syntax
+		&& !context.ignoreClassMemberAccess
+		&& isMember(*declaration) && !isStatic(*declaration) // and the id-expression names a non-static member
+		&& context.enclosingType != 0 && getEnclosingFunction(context.enclosingScope) != 0) // in a context where 'this' can be used
+	{
+		result = typeOfNonStaticClassMemberAccessExpression(typeOfEnclosingClass(context), result);
+	}
+
 	return result;
 }
 
@@ -1003,17 +1037,6 @@ inline ExpressionType typeOfSubscriptExpression(Argument left, Argument right, c
 	return ExpressionType(type, true);
 }
 
-inline ExpressionType typeOfEnclosingClass(const InstantiationContext& context)
-{
-	Scope* scope = getEnclosingFunction(context.enclosingScope);
-	SYMBOLS_ASSERT(scope != 0); // TODO: report non-fatal error: 'this' allowed only within function body
-	Declaration* declaration = getFunctionDeclaration(scope);
-	UniqueTypeWrapper functionType = getUniqueType(declaration->type, context, true);
-	ExpressionType result(makeUniqueSimpleType(*context.enclosingType), true);
-	result.value.setQualifiers(functionType.value.getQualifiers());
-	return result;
-}
-
 inline ExpressionType typeOfFunctionCallExpression(Argument left, const Arguments& arguments, const InstantiationContext& context)
 {
 	ExpressionWrapper expression = left;
@@ -1211,12 +1234,6 @@ inline ExpressionType typeOfFunctionCallExpression(Argument left, const Argument
 	return overload.type;
 }
 
-inline ExpressionType typeOfClassMember(UniqueTypeWrapper type, const ExpressionWrapper& right, const InstantiationContext& context)
-{
-	SYMBOLS_ASSERT(!isDependent(type));
-	const SimpleType& classType = getSimpleType(type.value);
-	return typeOfExpression(right, setEnclosingTypeSafe(context, &classType));
-}
 
 inline ExpressionType typeOfClassMemberAccessExpression(const ExpressionWrapper& left, const ExpressionWrapper& right, const InstantiationContext& context)
 {
@@ -1235,17 +1252,13 @@ inline ExpressionType typeOfClassMemberAccessExpression(const ExpressionWrapper&
 	//	- If E2 is a (possibly overloaded) member function, function overload resolution (13.3) is used to determine
 	//		whether E1.E2 refers to a static or a non-static member function.
 	ExpressionType type = typeOfExpressionWrapper(left, context);
-	ExpressionType result = typeOfClassMember(type, right, context);
-	if(result.isNonStaticMemberName)
+	SYMBOLS_ASSERT(!isDependent(type));
+	const SimpleType& classType = getSimpleType(type.value);
+	ExpressionType result = typeOfExpression(right, setEnclosingTypeSafe(context, &classType));
+	if(right.isNonStaticMemberName
+		&& !context.ignoreClassMemberAccess)
 	{
-		result.isLvalue = type.isLvalue;
-		CvQualifiers qualifiers = type.value.getQualifiers();
-		if(result.isMutable)
-		{
-			SYMBOLS_ASSERT(!result.value.getQualifiers().isConst); // TODO: non-fatal error: can't be both const and mutable
-			qualifiers.isConst = false;
-		}
-		result.value.addQualifiers(qualifiers);
+		result = typeOfNonStaticClassMemberAccessExpression(type, result);
 	}
 	return result;
 }
@@ -1264,13 +1277,9 @@ inline UniqueTypeWrapper typeOfDecltypeSpecifier(const ExpressionWrapper& expres
 		&& (isIdExpression(expression)
 		|| isClassMemberAccessExpression(expression)))
 	{
-		if(isClassMemberAccessExpression(expression))
-		{
-			const ClassMemberAccessExpression& cma = getClassMemberAccessExpression(expression);
-			ExpressionType type = typeOfExpressionWrapper(cma.left, context);
-			return typeOfClassMember(type, cma.right, context);
-		}
-		return typeOfExpressionWrapper(expression, context); // return the type of the id-expression;
+		InstantiationContext modifiedContext = context;
+		modifiedContext.ignoreClassMemberAccess = true;
+		return typeOfExpressionWrapper(expression, modifiedContext); // return the type of the id-expression;
 	}
 	ExpressionType result = typeOfExpressionWrapper(expression, context);
 	if(result.isLvalue

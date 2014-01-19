@@ -762,8 +762,9 @@ struct InstantiationContext
 	const SimpleType* enclosingType;
 	const SimpleType* enclosingFunction;
 	ScopePtr enclosingScope;
+	bool ignoreClassMemberAccess; // true if the id-expression is the unparenthesised operand of decltype() or part of a pointer-to-member expression
 	InstantiationContext(Location source, const SimpleType* enclosingType, const SimpleType* enclosingFunction, ScopePtr enclosingScope)
-		: source(source), enclosingType(enclosingType), enclosingFunction(enclosingFunction), enclosingScope(enclosingScope)
+		: source(source), enclosingType(enclosingType), enclosingFunction(enclosingFunction), enclosingScope(enclosingScope), ignoreClassMemberAccess(false)
 	{
 	}
 };
