@@ -132,6 +132,11 @@ inline bool isEnum(const Declaration& declaration)
 	return declaration.type.declaration == &gEnum;
 }
 
+inline bool isEnumerator(const Declaration& declaration)
+{
+	return isEnum(*declaration.type.declaration);
+}
+
 inline bool isComplete(const Declaration& declaration)
 {
 	return declaration.enclosed != 0;
@@ -762,9 +767,8 @@ struct InstantiationContext
 	const SimpleType* enclosingType;
 	const SimpleType* enclosingFunction;
 	ScopePtr enclosingScope;
-	bool ignoreClassMemberAccess; // true if the id-expression is the unparenthesised operand of decltype() or part of a pointer-to-member expression
 	InstantiationContext(Location source, const SimpleType* enclosingType, const SimpleType* enclosingFunction, ScopePtr enclosingScope)
-		: source(source), enclosingType(enclosingType), enclosingFunction(enclosingFunction), enclosingScope(enclosingScope), ignoreClassMemberAccess(false)
+		: source(source), enclosingType(enclosingType), enclosingFunction(enclosingFunction), enclosingScope(enclosingScope)
 	{
 	}
 };

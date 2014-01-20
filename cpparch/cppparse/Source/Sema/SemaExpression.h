@@ -123,8 +123,9 @@ struct SemaExpression : public SemaBase, SemaExpressionResult
 {
 	SEMA_BOILERPLATE;
 
+	bool isAddressOf;
 	SemaExpression(const SemaState& state)
-		: SemaBase(state)
+		: SemaBase(state), isAddressOf(false)
 	{
 	}
 
@@ -144,6 +145,9 @@ struct SemaExpression : public SemaBase, SemaExpressionResult
 			isDependentOld(typeDependent),
 			isDependentOld(valueDependent)
 		);
+#if 1
+		type = expression.type;
+#else
 		if(!expression.isTypeDependent)
 		{
 			ExpressionType left = removeReference(type);
@@ -154,6 +158,7 @@ struct SemaExpression : public SemaBase, SemaExpressionResult
 			SYMBOLS_ASSERT(type != gUniqueTypeNull);
 			SYMBOLS_ASSERT(type == expression.type);
 		}
+#endif
 		ExpressionTypeHelper<T>::set(symbol, type);
 	}
 	template<typename T>
@@ -271,6 +276,11 @@ struct SemaExpression : public SemaBase, SemaExpressionResult
 	{
 		setExpressionType(symbol, type);
 	}
+	SEMA_POLICY(cpp::unary_operator, SemaPolicyIdentity)
+	void action(cpp::unary_operator* symbol)
+	{
+		isAddressOf = symbol->id == cpp::unary_operator::AND;
+	}
 	SEMA_POLICY(cpp::postfix_expression, SemaPolicyPushSrcChecked<struct SemaPostfixExpression>)
 	bool action(cpp::postfix_expression* symbol, const SemaPostfixExpression& walker)
 	{
@@ -285,6 +295,11 @@ struct SemaExpression : public SemaBase, SemaExpressionResult
 		addDependent(valueDependent, walker.valueDependent);
 		//setDependent(dependent, walker.dependent); // TODO:
 		setExpressionType(symbol, type);
+		bool isPointerToMember = isAddressOf && expression.isQualifiedNonStaticMemberName;
+		if(!isPointerToMember) // if the expression does not form a pointer to member
+		{
+			expression = makeTransformedIdExpression(expression, typeDependent, valueDependent);
+		}
 		return true;
 	}
 	SEMA_POLICY(cpp::unary_expression_op, SemaPolicyIdentity)

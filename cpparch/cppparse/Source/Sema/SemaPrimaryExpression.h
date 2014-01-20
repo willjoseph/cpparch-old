@@ -107,7 +107,7 @@ struct SemaPrimaryExpression : public SemaBase
 		{
 			UniqueTypeWrapper qualifyingType = makeUniqueQualifying(walker.qualifying, getInstantiationContext());
 			const SimpleType* qualifyingClass = qualifyingType == gUniqueTypeNull ? 0 : &getSimpleType(qualifyingType.value);
-			type = typeOfIdExpression(qualifyingClass, declaration, false, getInstantiationContext());
+			type = typeOfIdExpression(qualifyingClass, declaration, getInstantiationContext());
 #if 0
 			idEnclosing = isSpecialMember(*declaration) ? 0 : getIdExpressionClass(qualifyingClass, declaration, enclosingType);
 #endif

@@ -97,7 +97,7 @@ struct SemaPostfixExpressionMember : public SemaQualified
 	SEMA_POLICY_ARGS(cpp::id_expression, SemaPolicyPushBool<struct SemaIdExpression>, isTemplate)
 	void action(cpp::id_expression* symbol, SemaIdExpression& walker)
 	{
-		bool isObjectName = walker.commit(true);
+		bool isObjectName = walker.commit();
 		SEMANTIC_ASSERT(isObjectName); // TODO: non-fatal error: expected object name
 		id = walker.id;
 		arguments = walker.arguments;
@@ -252,6 +252,8 @@ struct SemaPostfixExpression : public SemaBase
 	SEMA_POLICY(cpp::postfix_expression_subscript, SemaPolicyPushSrc<struct SemaSubscript>)
 	void action(cpp::postfix_expression_subscript* symbol, const SemaSubscript& walker)
 	{
+		expression = makeTransformedIdExpression(expression, typeDependent, valueDependent);
+
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
 		id = 0; // don't perform overload resolution for a[i](x);
@@ -280,6 +282,8 @@ struct SemaPostfixExpression : public SemaBase
 	SEMA_POLICY(cpp::postfix_expression_call, SemaPolicyPushSrc<struct SemaArgumentList>)
 	void action(cpp::postfix_expression_call* symbol, const SemaArgumentList& walker)
 	{
+		expression = makeTransformedIdExpression(expression, typeDependent, valueDependent);
+
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
 
@@ -371,6 +375,8 @@ struct SemaPostfixExpression : public SemaBase
 	SEMA_POLICY(cpp::postfix_expression_member, SemaPolicyPushSrc<struct SemaPostfixExpressionMember>)
 	void action(cpp::postfix_expression_member* symbol, const SemaPostfixExpressionMember& walker)
 	{
+		expression = makeTransformedIdExpression(expression, typeDependent, valueDependent);
+
 		id = walker.id; // perform overload resolution for a.m(x);
 		arguments = walker.arguments;
 		type = gNullExpressionType;
@@ -435,6 +441,8 @@ struct SemaPostfixExpression : public SemaBase
 	SEMA_POLICY(cpp::postfix_operator, SemaPolicySrc)
 	void action(cpp::postfix_operator* symbol)
 	{
+		expression = makeTransformedIdExpression(expression, typeDependent, valueDependent);
+
 		if(isDependentOld(typeDependent))
 		{
 			type = gNullExpressionType;

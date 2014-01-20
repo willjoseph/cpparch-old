@@ -306,6 +306,29 @@ namespace N383
 
 }
 
+namespace N395
+{
+	struct A
+	{
+		static const int VALUE = 0;
+	};
+	A a;
+	ASSERT_EXPRESSION_TYPE(A::VALUE, const int);
+	ASSERT_EXPRESSION_TYPE(a.VALUE, const int); // TODO: clang fails to treat this as an unparenthesised class-member-access
+}
+
+namespace N394
+{
+	template<typename T>
+	struct A
+	{
+		T m;
+	};
+	A<int> a;
+	ASSERT_EXPRESSION_TYPE(A<int>::m, int);
+	ASSERT_EXPRESSION_TYPE(a.m, int);
+}
+
 #if 0 // TODO
 namespace N393
 {

@@ -1483,6 +1483,20 @@ struct SemaBase : public SemaState
 		SEMANTIC_ASSERT(type.unique != 0); // type must have previously been uniqued by makeUniqueTypeImpl
 		return UniqueTypeWrapper(type.unique);
 	}
+
+	ExpressionWrapper makeTransformedIdExpression(const ExpressionWrapper& expression, Dependent& typeDependent, Dependent& valueDependent)
+	{
+		if(!isTransformedIdExpression(expression, getInstantiationContext()))
+		{
+			return expression;
+		}
+		addDependent(typeDependent, enclosingDependent); // TODO: NOT dependent if not a member of the current instantiation and current instantiation has no dependent base class 
+		ExpressionType objectExpressionType = typeOfEnclosingClass(getInstantiationContext());
+		ExpressionWrapper left = makeExpression(ObjectExpression(objectExpressionType));
+		return makeExpression(
+			ClassMemberAccessExpression(left, expression),
+			false, expression.isTypeDependent, expression.isValueDependent);
+	}
 };
 
 

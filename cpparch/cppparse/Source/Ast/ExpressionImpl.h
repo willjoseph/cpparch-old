@@ -82,9 +82,8 @@ struct DependentIdExpression
 	Name name;
 	UniqueTypeWrapper qualifying;
 	TemplateArgumentsInstance templateArguments;
-	bool isClassMemberAccess;
-	DependentIdExpression(Name name, UniqueTypeWrapper qualifying, TemplateArgumentsInstance templateArguments, bool isClassMemberAccess)
-		: name(name), qualifying(qualifying), templateArguments(templateArguments), isClassMemberAccess(isClassMemberAccess)
+	DependentIdExpression(Name name, UniqueTypeWrapper qualifying, TemplateArgumentsInstance templateArguments)
+		: name(name), qualifying(qualifying), templateArguments(templateArguments)
 	{
 		SYMBOLS_ASSERT(qualifying.value.p != 0);
 	}
@@ -94,8 +93,6 @@ inline bool operator<(const DependentIdExpression& left, const DependentIdExpres
 {
 	return left.name != right.name
 		? left.name < right.name
-		: left.isClassMemberAccess != right.isClassMemberAccess
-		? left.isClassMemberAccess < right.isClassMemberAccess
 		: left.qualifying != right.qualifying
 		? left.qualifying < right.qualifying
 		: left.templateArguments < right.templateArguments;
@@ -119,9 +116,8 @@ struct IdExpression
 	DeclarationInstanceRef declaration;
 	const SimpleType* enclosing;
 	TemplateArgumentsInstance templateArguments;
-	bool isClassMemberAccess;
-	IdExpression(DeclarationInstanceRef declaration, const SimpleType* enclosing, const TemplateArgumentsInstance& templateArguments, bool isClassMemberAccess)
-		: declaration(declaration), enclosing(enclosing), templateArguments(templateArguments), isClassMemberAccess(isClassMemberAccess)
+	IdExpression(DeclarationInstanceRef declaration, const SimpleType* enclosing, const TemplateArgumentsInstance& templateArguments)
+		: declaration(declaration), enclosing(enclosing), templateArguments(templateArguments)
 	{
 	}
 };

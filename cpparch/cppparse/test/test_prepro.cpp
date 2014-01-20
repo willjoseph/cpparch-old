@@ -1,14 +1,32 @@
 
 namespace Temptest
 {
-	enum
+	struct C
 	{
-		TokenTypeMask
+		int m;
 	};
 
-	enum
+	template<int i>
+	struct S
 	{
-		T_LAST_TOKEN_ID, T_LAST_TOKEN=((T_LAST_TOKEN_ID)&~TokenTypeMask)
+		typedef int Type;
+	};
+
+
+	template<typename T>
+	struct B : C
+	{
+	};
+
+	template<typename T>
+	struct A : B<T>
+	{
+		int m;
+		void f()
+		{
+			typedef S<sizeof(&C::m)>::Type Type2; // typename not required
+			typedef typename S<sizeof(&m)>::Type Type3; // typename required
+		}
 	};
 
 #if 0 // TODO: add test

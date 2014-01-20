@@ -390,8 +390,7 @@ inline ExpressionType typeOfExpressionWrapper(const ExpressionWrapper& expressio
 	{
 		return type;
 	}
-	SYMBOLS_ASSERT(context.ignoreClassMemberAccess // TODO: type may differ from evaluation at point of parse
-		|| type == expression.type);
+	SYMBOLS_ASSERT(type == expression.type);
 
 	// TODO: move into typeOfExpression?
 	// [basic.lval] Class prvalues can have cv-qualified types; non-class prvalues always have cv-unqualified types
@@ -774,7 +773,7 @@ inline ExpressionType typeOfNonStaticClassMemberAccessExpression(ExpressionType 
 	return result;
 }
 
-inline ExpressionType typeOfIdExpression(const SimpleType* qualifying, const DeclarationInstance& declaration, bool isClassMemberAccess, const InstantiationContext& context)
+inline ExpressionType typeOfIdExpression(const SimpleType* qualifying, const DeclarationInstance& declaration, const InstantiationContext& context)
 {
 	if(declaration == gDestructorInstance.p)
 	{
@@ -794,17 +793,10 @@ inline ExpressionType typeOfIdExpression(const SimpleType* qualifying, const Dec
 	{
 		return gOverloadedExpressionType; // overload resolution is required
 	}
+	// a member of a class template may have a type which depends on a template parameter
 	UniqueTypeWrapper type = getUniqueType(declaration->type, setEnclosingType(context, idEnclosing), declaration->isTemplate);
 	ExpressionType result(type, isLvalue(*declaration));
 	result.isMutable = declaration->specifiers.isMutable;
-
-	if(!isClassMemberAccess // if the id-expression is not part of a class-member-access syntax
-		&& !context.ignoreClassMemberAccess
-		&& isMember(*declaration) && !isStatic(*declaration) // and the id-expression names a non-static member
-		&& context.enclosingType != 0 && getEnclosingFunction(context.enclosingScope) != 0) // in a context where 'this' can be used
-	{
-		result = typeOfNonStaticClassMemberAccessExpression(typeOfEnclosingClass(context), result);
-	}
 
 	return result;
 }
@@ -1138,8 +1130,8 @@ inline ExpressionType typeOfFunctionCallExpression(Argument left, const Argument
 
 	// if this is a qualified member-function-call, the class type of the object-expression
 	ExpressionWrapper objectExpression = isClassMemberAccess ? getClassMemberAccessExpression(expression).left : ExpressionWrapper();
-	ExpressionType objectExpressionType = objectExpression.p != 0 ? typeOfExpressionWrapper(objectExpression, context) : gNullExpressionType;
-	const SimpleType* memberClass = objectExpressionType != gUniqueTypeNull ? &getSimpleType(objectExpressionType.value) : 0;
+	ExpressionType objectExpressionType = isClassMemberAccess ? typeOfExpressionWrapper(objectExpression, context) : gNullExpressionType;
+	const SimpleType* memberClass = isClassMemberAccess ? &getSimpleType(objectExpressionType.value) : 0;
 
 	if(declaration.p == &gDestructorInstance)
 	{
@@ -1235,6 +1227,13 @@ inline ExpressionType typeOfFunctionCallExpression(Argument left, const Argument
 }
 
 
+inline bool isTransformedIdExpression(const ExpressionWrapper& expression, const InstantiationContext& context)
+{
+	return expression.isNonStaticMemberName // the id-expression names a non-static member
+		&& context.enclosingType != 0
+		&& getEnclosingFunction(context.enclosingScope) != 0; // in a context where 'this' can be used
+}
+
 inline ExpressionType typeOfClassMemberAccessExpression(const ExpressionWrapper& left, const ExpressionWrapper& right, const InstantiationContext& context)
 {
 	// [expr.ref]
@@ -1255,8 +1254,7 @@ inline ExpressionType typeOfClassMemberAccessExpression(const ExpressionWrapper&
 	SYMBOLS_ASSERT(!isDependent(type));
 	const SimpleType& classType = getSimpleType(type.value);
 	ExpressionType result = typeOfExpression(right, setEnclosingTypeSafe(context, &classType));
-	if(right.isNonStaticMemberName
-		&& !context.ignoreClassMemberAccess)
+	if(right.isNonStaticMemberName)
 	{
 		result = typeOfNonStaticClassMemberAccessExpression(type, result);
 	}
@@ -1277,9 +1275,15 @@ inline UniqueTypeWrapper typeOfDecltypeSpecifier(const ExpressionWrapper& expres
 		&& (isIdExpression(expression)
 		|| isClassMemberAccessExpression(expression)))
 	{
-		InstantiationContext modifiedContext = context;
-		modifiedContext.ignoreClassMemberAccess = true;
-		return typeOfExpressionWrapper(expression, modifiedContext); // return the type of the id-expression;
+		if(isClassMemberAccessExpression(expression))
+		{
+			const ClassMemberAccessExpression& cma = getClassMemberAccessExpression(expression);
+			ExpressionType type = typeOfExpressionWrapper(cma.left, context);
+			SYMBOLS_ASSERT(!isDependent(type));
+			const SimpleType& classType = getSimpleType(type.value);
+			return typeOfExpressionWrapper(cma.right, setEnclosingTypeSafe(context, &classType));
+		}
+		return typeOfExpressionWrapper(expression, context); // return the type of the id-expression;
 	}
 	ExpressionType result = typeOfExpressionWrapper(expression, context);
 	if(result.isLvalue

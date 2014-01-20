@@ -18,9 +18,8 @@ inline IdExpression substituteIdExpression(const DependentIdExpression& node, co
 {
 	SYMBOLS_ASSERT(node.qualifying != gOverloaded); // assert that this is not the name of an undeclared identifier (to be looked up via ADL)
 	SYMBOLS_ASSERT(context.enclosingType != 0);
-	SYMBOLS_ASSERT(node.isClassMemberAccess || node.qualifying != gUniqueTypeNull);
 
-	UniqueTypeWrapper substituted = node.isClassMemberAccess // if this id-expression is part of class-member-access
+	UniqueTypeWrapper substituted = node.qualifying == gUniqueTypeNull // if this id-expression is part of class-member-access
 		? makeUniqueSimpleType(*context.enclosingType) // else in a dependent class-member-access 'd.m', enclosingType contains the class type of the object expression
 		: substitute(node.qualifying, context);
 	const SimpleType* qualifyingType = substituted.isSimple() ? &getSimpleType(substituted.value) : 0;
@@ -42,7 +41,7 @@ inline IdExpression substituteIdExpression(const DependentIdExpression& node, co
 	}
 
 	// TODO: substitute template arguments, in case of template-id when making pointer-to-function
-	return IdExpression(declaration, qualifyingType, TemplateArgumentsInstance(), node.isClassMemberAccess);
+	return IdExpression(declaration, qualifyingType, TemplateArgumentsInstance());
 }
 
 inline IntegralConstant evaluateIdExpression(const DependentIdExpression& node, const InstantiationContext& context)
@@ -830,12 +829,12 @@ struct TypeOfVisitor : ExpressionNodeVisitor
 	void visit(const DependentIdExpression& node)
 	{
 		const IdExpression expression = substituteIdExpression(node, context);
-		result = typeOfIdExpression(expression.enclosing, expression.declaration, expression.isClassMemberAccess, context);
+		result = typeOfIdExpression(expression.enclosing, expression.declaration, context);
 		SYMBOLS_ASSERT(!isDependent(result));
 	}
 	void visit(const IdExpression& node)
 	{
-		result = typeOfIdExpression(node.enclosing, node.declaration, node.isClassMemberAccess, context);
+		result = typeOfIdExpression(node.enclosing, node.declaration, context);
 		SYMBOLS_ASSERT(!isDependent(result));
 	}
 	void visit(const SizeofExpression& node)
@@ -949,13 +948,7 @@ inline ExpressionType typeOfExpression(ExpressionNode* node, const Instantiation
 		return gNullExpressionType; // do not evaluate the type!
 	}
 
-	InstantiationContext modifiedContext = context;
-	if(isPointerToMemberExpression(node))
-	{
-		modifiedContext.ignoreClassMemberAccess = true;
-	}
-
-	TypeOfVisitor visitor(modifiedContext);
+	TypeOfVisitor visitor(context);
 	node->accept(visitor);
 	return visitor.result;
 }
