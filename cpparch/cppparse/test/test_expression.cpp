@@ -308,13 +308,47 @@ namespace N383
 
 namespace N395
 {
+	template<int>
+	struct B
+	{
+	};
+
 	struct A
 	{
 		static const int VALUE = 0;
+		typedef B<VALUE> Type; // 'VALUE' is an integral constant expression
+		void f()
+		{
+			// typedef B<(*this).VALUE> Type; // '(*this).VALUE' is an integral constant expression  (C++11)
+			typedef B<VALUE> Type; // 'VALUE' is an integral constant expression
+  			typedef B<A::VALUE> Type; // 'A::VALUE' is an integral constant expression        
+		}
 	};
+	typedef B<A::VALUE> Type; // 'A::VALUE' is an integral constant expression
 	A a;
+	//typedef B<a.VALUE> Type; // 'a.VALUE' is an integral constant expression (C++11)
+	//typedef B<A().VALUE> Type; // 'A().VALUE' is an integral constant expression in (C++11)
+
 	ASSERT_EXPRESSION_TYPE(A::VALUE, const int);
-	ASSERT_EXPRESSION_TYPE(a.VALUE, const int); // TODO: clang fails to treat this as an unparenthesised class-member-access
+	ASSERT_EXPRESSION_TYPE(a.VALUE, const int);
+
+	template<typename T>
+	struct C
+	{
+		static const T VALUE = 0;
+		typedef B<VALUE> Type; // 'VALUE' is an integral constant expression
+		void f()
+		{
+			// typedef B<(*this).VALUE> Type; // '(*this).VALUE' is an integral constant expression (C++11)
+			typedef B<VALUE> Type; // 'VALUE' is an integral constant expression
+			typedef B<C::VALUE> Type; // 'C::VALUE' is an integral constant expression
+			// typedef B<f().VALUE> Type4; // allowed by bug in clang/gcc?
+		}
+	};
+	C<int> c;
+	//typedef B<c.VALUE> Type; // 'c.VALUE' is an integral constant expression (C++11)
+
+	typedef C<int>::Type Type; // force instantiation
 }
 
 namespace N394

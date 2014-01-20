@@ -442,8 +442,7 @@ struct ClassMemberAccessExpression
 
 inline bool operator<(const ClassMemberAccessExpression& left, const ClassMemberAccessExpression& right)
 {
-	SYMBOLS_ASSERT(false);
-	return false;
+	return left.right.p < right.right.p; // a class-member-access may be an integral constant expression if the righthand side is an integral constant expression
 }
 
 inline bool isClassMemberAccessExpression(ExpressionNode* node)
