@@ -194,12 +194,14 @@ namespace N383
 	{
 		void f()
 		{
+			ASSERT_EXPRESSION_TYPE(&(C::m), int*);
+			ASSERT_EXPRESSION_TYPE(&C::m, int(C::*));
+
 			ASSERT_EXPRESSION_TYPE(this, C*); // not an lvalue
 			ASSERT_EXPRESSION_TYPE(m, int);
 			ASSERT_EXPRESSION_TYPE((m), int&);
 			ASSERT_EXPRESSION_TYPE(C::m, int);
 			ASSERT_EXPRESSION_TYPE((C::m), int&);
-			ASSERT_EXPRESSION_TYPE(&C::m, int(C::*));
 		}
 		void f() const
 		{
@@ -208,7 +210,6 @@ namespace N383
 			ASSERT_EXPRESSION_TYPE((m), const int&);
 			ASSERT_EXPRESSION_TYPE(C::m, int);
 			ASSERT_EXPRESSION_TYPE((C::m), const int&);
-			ASSERT_EXPRESSION_TYPE(&C::m, int(C::*));
 		}
 		static void s();
 		int m;     
@@ -364,7 +365,16 @@ namespace N394
 }
 
 #if 0 // TODO
-namespace N393
+namespace N395 // [temp.arg.explicit]
+{
+	template<typename T>
+	T f();
+
+	ASSERT_EXPRESSION_TYPE(f<int>, int());
+	ASSERT_EXPRESSION_TYPE(&f<int>, int(*)());
+}
+
+namespace N393 // [temp.arg.explicit]
 {
 	struct A
 	{

@@ -2,6 +2,12 @@
 #include "OverloadResolve.h"
 #include "TypeUnique.h"
 
+struct FunctionSignature
+{
+	ParameterTypes parameterTypes;
+	UniqueTypeWrapper returnType;
+};
+
 ParameterTypes addOverload(OverloadResolver& resolver, const Declaration& declaration, const InstantiationContext& context)
 {
 	SYMBOLS_ASSERT(!isMember(declaration)
@@ -13,10 +19,10 @@ ParameterTypes addOverload(OverloadResolver& resolver, const Declaration& declar
 	SYMBOLS_ASSERT(type.isFunction());
 
 	const FunctionType& function = getFunctionType(type.value);
-	ParameterTypes parameters;
+	FunctionSignature result;
 	bool hasImplicitObjectParameter = isMember(declaration)
 		&& declaration.type.declaration != &gCtor;
-	parameters.reserve(function.parameterTypes.size() + hasImplicitObjectParameter);
+	result.parameterTypes.reserve(function.parameterTypes.size() + hasImplicitObjectParameter);
 	if(hasImplicitObjectParameter)
 	{
 		// [over.match.funcs]
@@ -35,14 +41,14 @@ ParameterTypes addOverload(OverloadResolver& resolver, const Declaration& declar
 			implicitObjectParameter.value.setQualifiers(type.value.getQualifiers());
 			implicitObjectParameter.push_front(ReferenceType());
 		}
-		parameters.push_back(implicitObjectParameter);
+		result.parameterTypes.push_back(implicitObjectParameter);
 	}
 	bool isEllipsis = function.isEllipsis;
 	for(ParameterTypes::const_iterator p = function.parameterTypes.begin(); p != function.parameterTypes.end(); ++p)
 	{
-		parameters.push_back(*p);
+		result.parameterTypes.push_back(*p);
 	}
-	type.pop_front();
+	result.returnType = popType(type);
 
 	if(!declaration.isTemplate)
 	{
@@ -53,8 +59,8 @@ ParameterTypes addOverload(OverloadResolver& resolver, const Declaration& declar
 		{
 			return ParameterTypes();
 		}
-		resolver.add(FunctionOverload(const_cast<Declaration*>(&declaration), getFunctionCallExpressionType(type)), parameters, isEllipsis, context.enclosingType);
-		return parameters;
+		resolver.add(FunctionOverload(const_cast<Declaration*>(&declaration), getFunctionCallExpressionType(result.returnType)), result.parameterTypes, isEllipsis, context.enclosingType);
+		return result.parameterTypes;
 	}
 
 	if(declaration.isSpecialization) // function template specializations don't take part in overload resolution?
@@ -63,7 +69,7 @@ ParameterTypes addOverload(OverloadResolver& resolver, const Declaration& declar
 	}
 
 	FunctionTemplate functionTemplate;
-	functionTemplate.parameters.swap(parameters);
+	functionTemplate.parameters.swap(result.parameterTypes);
 	makeUniqueTemplateParameters(declaration.templateParams, functionTemplate.templateParameters, context, true);
 
 	if(resolver.arguments.size() > functionTemplate.parameters.size())
@@ -104,8 +110,8 @@ ParameterTypes addOverload(OverloadResolver& resolver, const Declaration& declar
 	try
 	{
 		// substitute the template-parameters in the function's parameter list with the explicitly specified template-arguments
-		ParameterTypes substituted1;
-		substitute(substituted1, functionTemplate.parameters, setEnclosingTypeSafe(context, &specialization));
+		ParameterTypes parameterTypes;
+		substitute(parameterTypes, functionTemplate.parameters, setEnclosingTypeSafe(context, &specialization));
 		// TODO: [temp.deduct]
 		// After this substitution is performed, the function parameter type adjustments described in 8.3.5 are performed.
 
@@ -119,18 +125,17 @@ ParameterTypes addOverload(OverloadResolver& resolver, const Declaration& declar
 		specialization.templateArguments.resize(resolver.templateArguments == 0 ? 0 : resolver.templateArguments->size()); // preserve the explicitly specified arguments
 		specialization.templateArguments.resize(functionTemplate.templateParameters.size(), gUniqueTypeNull);
 		// NOTE: in rare circumstances, deduction may cause implicit instantiations, which occur at the point of overload resolution 
-		if(!deduceFunctionCall(substituted1, arguments, specialization.templateArguments, resolver.context))
+		if(!deduceFunctionCall(parameterTypes, arguments, specialization.templateArguments, resolver.context))
 		{
 			return ParameterTypes(); // deduction failed
 		}
 
 		// substitute the template-parameters in the function's parameter list with the deduced template-arguments
-		ParameterTypes substituted2;
-		substitute(substituted2, substituted1, setEnclosingTypeSafe(context, &specialization));
-		type = substitute(type, setEnclosingTypeSafe(context, &specialization)); // substitute the return type. TODO: should wait until overload is chosen?
+		substitute(result.parameterTypes, parameterTypes, setEnclosingTypeSafe(context, &specialization));
+		result.returnType = substitute(result.returnType, setEnclosingTypeSafe(context, &specialization)); // substitute the return type. TODO: should wait until overload is chosen?
 
-		resolver.add(FunctionOverload(const_cast<Declaration*>(&declaration), getFunctionCallExpressionType(type)), substituted2, isEllipsis, context.enclosingType, functionTemplate);
-		return substituted2;
+		resolver.add(FunctionOverload(const_cast<Declaration*>(&declaration), getFunctionCallExpressionType(result.returnType)), result.parameterTypes, isEllipsis, context.enclosingType, functionTemplate);
+		return result.parameterTypes;
 	}
 	catch(TypeError&)
 	{
