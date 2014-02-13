@@ -105,24 +105,29 @@ struct SemaPrimaryExpression : public SemaBase
 		else if(expression.p != 0
 			&& !isDependentOld(typeDependent))
 		{
-			UniqueTypeWrapper qualifyingType = makeUniqueQualifying(walker.qualifying, getInstantiationContext());
-			const SimpleType* qualifyingClass = qualifyingType == gUniqueTypeNull ? 0 : &getSimpleType(qualifyingType.value);
-			type = typeOfIdExpression(qualifyingClass, declaration, getInstantiationContext());
-#if 0
-			idEnclosing = isSpecialMember(*declaration) ? 0 : getIdExpressionClass(qualifyingClass, declaration, enclosingType);
-#endif
-
-			if(!type.isFunction()) // if the id-expression refers to a function, overload resolution depends on the parameter types; defer evaluation of type
-			{
-				// [expr.const]
-				// An integral constant-expression can involve only ... enumerators, const variables or static
-				// data members of integral or enumeration types initialized with constant expressions, non-type template
-				// parameters of integral or enumeration types
-				expression.isConstant |= (isIntegralConstant(type) && declaration->initializer.isConstant); // TODO: determining whether the expression is constant depends on the type of the expression!
-			}
-			else if(isOverloadedFunction(declaration))
+			if(isOverloadedFunction(declaration))
 			{
 				type = gOverloadedExpressionType;
+			}
+			else
+			{
+				UniqueTypeWrapper qualifyingType = makeUniqueQualifying(walker.qualifying, getInstantiationContext());
+				const SimpleType* qualifyingClass = qualifyingType == gUniqueTypeNull ? 0 : &getSimpleType(qualifyingType.value);
+				TemplateArgumentsInstance templateArguments;
+				makeUniqueTemplateArguments(arguments, templateArguments, getInstantiationContext(), isDependentOld(arguments));
+				type = typeOfIdExpression(qualifyingClass, declaration, templateArguments, getInstantiationContext());
+#if 0
+				idEnclosing = isSpecialMember(*declaration) ? 0 : getIdExpressionClass(qualifyingClass, declaration, enclosingType);
+#endif
+
+				if(!type.isFunction()) // if the id-expression refers to a function, overload resolution depends on the parameter types; defer evaluation of type
+				{
+					// [expr.const]
+					// An integral constant-expression can involve only ... enumerators, const variables or static
+					// data members of integral or enumeration types initialized with constant expressions, non-type template
+					// parameters of integral or enumeration types
+					expression.isConstant |= (isIntegralConstant(type) && declaration->initializer.isConstant); // TODO: determining whether the expression is constant depends on the type of the expression!
+				}
 			}
 
 			if(isMemberIdExpression(expression.p))

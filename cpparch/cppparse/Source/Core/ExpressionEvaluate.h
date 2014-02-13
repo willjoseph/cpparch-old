@@ -362,7 +362,6 @@ inline bool isLvalue(const Declaration& declaration)
 {
 	return isObject(declaration) // functions, variables and data members are lvalues
 		&& declaration.templateParameter == INDEX_INVALID // template parameters are not lvalues
-		&& !(isMemberFunction(declaration) && !isStatic(declaration)) // non-static member functions are not lvalues
 		&& !isEnum(UniqueTypeWrapper(declaration.type.unique)); // enumerators are not lvalues
 }
 
@@ -435,23 +434,6 @@ inline const SimpleType* getIdExpressionClass(const SimpleType* qualifying, cons
 
 
 
-
-struct Overload
-{
-	const Declaration* declaration;
-	const SimpleType* memberEnclosing;
-	Overload(const Declaration* declaration, const SimpleType* memberEnclosing)
-		: declaration(declaration), memberEnclosing(memberEnclosing)
-	{
-	}
-};
-
-inline bool operator==(const Overload& left, const Overload& right)
-{
-	return left.declaration == right.declaration
-		&& left.memberEnclosing == right.memberEnclosing;
-}
-
 typedef std::vector<Overload> OverloadSet;
 
 inline void addUniqueOverload(OverloadSet& result, const Overload& overload)
@@ -475,6 +457,7 @@ inline bool isOverloaded(const DeclarationInstance& declaration)
 		}
 		if(p->isTemplate)
 		{
+			// [over.over]
 			// A use of an overloaded function name without arguments is resolved in certain contexts to a function, a
 			// pointer to function or a pointer to member function for a specific function from the overload set. A function
 			// template name is considered to name a set of overloaded functions in such contexts.
@@ -773,7 +756,7 @@ inline ExpressionType typeOfNonStaticClassMemberAccessExpression(ExpressionType 
 	return result;
 }
 
-inline ExpressionType typeOfIdExpression(const SimpleType* qualifying, const DeclarationInstance& declaration, const InstantiationContext& context)
+inline ExpressionType typeOfIdExpression(const SimpleType* qualifying, const DeclarationInstance& declaration, const TemplateArgumentsInstance& templateArguments, const InstantiationContext& context)
 {
 	if(declaration == gDestructorInstance.p)
 	{
@@ -786,13 +769,10 @@ inline ExpressionType typeOfIdExpression(const SimpleType* qualifying, const Dec
 		return makeCopyAssignmentOperatorType(*idEnclosing);
 	}
 
+	SYMBOLS_ASSERT(!isOverloadedFunction(declaration)); // cannot resolve overloaded function without arguments
+
 	const SimpleType* idEnclosing = getIdExpressionClass(qualifying, declaration, context.enclosingType);
-	// a member function template may have a type which depends on its template parameters
-	if(isMemberObject(*declaration) // if this is a member
-		&& UniqueTypeWrapper(declaration->type.unique).isFunction()) // .. function
-	{
-		return gOverloadedExpressionType; // overload resolution is required
-	}
+
 	// a member of a class template may have a type which depends on a template parameter
 	UniqueTypeWrapper type = getUniqueType(declaration->type, setEnclosingType(context, idEnclosing), declaration->isTemplate);
 	ExpressionType result(type, isLvalue(*declaration));

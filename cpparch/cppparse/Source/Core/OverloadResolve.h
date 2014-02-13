@@ -38,63 +38,8 @@ struct FunctionOverload
 	}
 };
 
-inline ExpressionType selectOverloadedFunction(UniqueTypeWrapper to, Argument from, const InstantiationContext& context)
-{
-	// [over.over]
-	// A use of an overloaded function name without arguments is resolved in certain contexts to a function, a
-	// pointer to function or a pointer to member function for a specific function from the overload set.
-	if(!to.isPointer()
-		&& !to.isReference()
-		&& !to.isMemberPointer())
-	{
-		return from.type;
-	}
-	UniqueTypeWrapper target = popType(to);
-	if(!target.isFunction())
-	{
-		return from.type;
-	}
-	// the target is a function type
-	UniqueTypeWrapper overloaded = from.type;
-	if(overloaded.isPointer()
-		|| overloaded.isMemberPointer())
-	{
-		overloaded = popType(overloaded);
-	}
-	if(overloaded != gOverloaded)
-	{
-		return from.type;
-	}
-	ExpressionNode* node = from.p;
-	if(isUnaryExpression(node))
-	{
-		SYMBOLS_ASSERT(getUnaryExpression(node).operatorName == gOperatorAndId);
-		node = getUnaryExpression(node).first;
-	}
-	SYMBOLS_ASSERT(isIdExpression(node));
-	// the source type is an overloaded function, or is a pointer to an overloaded function
-	// select matching function from overload set;
-	const IdExpression& idExpression = getIdExpression(node);
-	DeclarationInstanceRef declaration = idExpression.declaration;
-	for(Declaration* p = findOverloaded(declaration); p != 0; p = p->overloaded)
-	{
-		if(p->specifiers.isFriend)
-		{
-			continue; // ignore (namespace-scope) friend functions
-		}
-		if(p->isTemplate)
-		{
-			continue; // TODO: template argument deduction
-		}
-		UniqueTypeWrapper type = getUniqueType(p->type, context, p->isTemplate);
-		SYMBOLS_ASSERT(type.isFunction());
-		if(type == target)
-		{
-			return getFunctionCallExpressionType(type);
-		}
-	}
-	return gOverloadedExpressionType; // no matching function in overload set
-}
+inline ExpressionType selectOverloadedFunction(UniqueTypeWrapper to, Argument from, const InstantiationContext& context);
+inline ExpressionType selectOverloadedFunctionImpl(UniqueTypeWrapper target, Argument from, const InstantiationContext& context);
 
 template<typename To>
 FunctionOverload findBestConversionFunction(To to, Argument from, const InstantiationContext& context, bool isNullPointerConstant = false);
@@ -600,13 +545,42 @@ struct OverloadResolver
 };
 
 
-ParameterTypes addOverload(OverloadResolver& resolver, const Declaration& declaration, const InstantiationContext& context);
+
+struct Overload
+{
+	const Declaration* declaration;
+	const SimpleType* memberEnclosing;
+	Overload(const Declaration* declaration, const SimpleType* memberEnclosing)
+		: declaration(declaration), memberEnclosing(memberEnclosing)
+	{
+	}
+};
+
+inline bool operator==(const Overload& left, const Overload& right)
+{
+	return left.declaration == right.declaration
+		&& left.memberEnclosing == right.memberEnclosing;
+}
+
+struct FunctionSignature : FunctionType, FunctionTemplate
+{
+	UniqueTypeWrapper returnType;
+
+	const FunctionType& getFunctionType() const
+	{
+		return *this;
+	}
+};
+
+FunctionSignature substituteFunctionId(const Overload& overload, const Arguments& arguments, const TemplateArgumentsInstance* templateArguments, const InstantiationContext& context);
+ParameterTypes addOverload(OverloadResolver& resolver, const Overload& overload);
 
 
 
 template<typename To>
-inline void addConversionFunctionOverloads(OverloadResolver& resolver, const SimpleType& classType, To to, const InstantiationContext& context)
+inline void addConversionFunctionOverloads(OverloadResolver& resolver, const SimpleType& classType, To to)
 {
+	InstantiationContext& context = resolver.context;
 	instantiateClass(classType, context); // searching for overloads requires a complete type
 	Identifier id;
 	extern Name gConversionFunctionId; // TODO
@@ -684,7 +658,7 @@ inline void addConversionFunctionOverloads(OverloadResolver& resolver, const Sim
 				}
 			}
 
-			addOverload(resolver, *p, setEnclosingTypeSafe(context, memberEnclosing));
+			addOverload(resolver, Overload(p, memberEnclosing));
 		}
 	}
 }
@@ -732,7 +706,7 @@ FunctionOverload findBestConversionFunction(To to, Argument from, const Instanti
 					continue;
 				}
 
-				addOverload(resolver, *p, setEnclosingTypeSafe(context, memberEnclosing)); // will reject constructors that cannot be called with a single argument, because they are not viable.
+				addOverload(resolver, Overload(p, memberEnclosing)); // will reject constructors that cannot be called with a single argument, because they are not viable.
 			}
 		}
 	}
@@ -740,7 +714,7 @@ FunctionOverload findBestConversionFunction(To to, Argument from, const Instanti
 	if(isClass(from.type)
 		&& isComplete(from.type)) // can only convert from a class that is complete
 	{
-		addConversionFunctionOverloads(resolver, getSimpleType(from.type.value), to, context);
+		addConversionFunctionOverloads(resolver, getSimpleType(from.type.value), to);
 	}
 
 	// TODO: return-type of constructor should be 'to'

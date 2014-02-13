@@ -1,31 +1,14 @@
 
 namespace Temptest
 {
-	struct C
+	struct error_condition
 	{
-		int m;
-	};
-
-	template<int i>
-	struct S
-	{
-		typedef int Type;
-	};
-
-
-	template<typename T>
-	struct B : C
-	{
-	};
-
-	template<typename T>
-	struct A : B<T>
-	{
-		int m;
+		static void unspecified_bool_true()
+		{
+		}
 		void f()
 		{
-			typedef S<sizeof(&C::m)>::Type Type2; // typename not required
-			typedef typename S<sizeof(&m)>::Type Type3; // typename required
+			return false ? 0 : unspecified_bool_true;
 		}
 	};
 

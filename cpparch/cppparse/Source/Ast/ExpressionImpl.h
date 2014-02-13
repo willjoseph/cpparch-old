@@ -115,6 +115,7 @@ struct IdExpression
 {
 	DeclarationInstanceRef declaration;
 	const SimpleType* enclosing;
+	// TODO: handle empty template-argument list '<>'. If specified, overload resolution should ignore non-templates
 	TemplateArgumentsInstance templateArguments;
 	IdExpression(DeclarationInstanceRef declaration, const SimpleType* enclosing, const TemplateArgumentsInstance& templateArguments)
 		: declaration(declaration), enclosing(enclosing), templateArguments(templateArguments)

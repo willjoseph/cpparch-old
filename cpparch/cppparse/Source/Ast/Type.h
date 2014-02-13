@@ -767,6 +767,10 @@ struct InstantiationContext
 	const SimpleType* enclosingType;
 	const SimpleType* enclosingFunction;
 	ScopePtr enclosingScope;
+	InstantiationContext()
+		: enclosingType(0), enclosingFunction(0), enclosingScope(0)
+	{
+	}
 	InstantiationContext(Location source, const SimpleType* enclosingType, const SimpleType* enclosingFunction, ScopePtr enclosingScope)
 		: source(source), enclosingType(enclosingType), enclosingFunction(enclosingFunction), enclosingScope(enclosingScope)
 	{

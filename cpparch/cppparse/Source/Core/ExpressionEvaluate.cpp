@@ -212,20 +212,20 @@ IntegralConstant evaluate(ExpressionNode* node, const InstantiationContext& cont
 
 
 
-inline void addOverloads(OverloadResolver& resolver, const DeclarationInstance& declaration, const InstantiationContext& context)
+inline void addOverloads(OverloadResolver& resolver, const DeclarationInstance& declaration, const SimpleType* memberEnclosing)
 {
 	for(Declaration* p = findOverloaded(declaration); p != 0; p = p->overloaded)
 	{
-		addOverload(resolver, *p, context);
+		addOverload(resolver, Overload(p, memberEnclosing));
 	}
 }
 
-inline void addOverloads(OverloadResolver& resolver, const OverloadSet& overloads, const InstantiationContext& context)
+inline void addOverloads(OverloadResolver& resolver, const OverloadSet& overloads)
 {
 	for(OverloadSet::const_iterator i = overloads.begin(); i != overloads.end(); ++i)
 	{
 		const Overload& overload = *i;
-		addOverload(resolver, *overload.declaration, setEnclosingType(context, overload.memberEnclosing));
+		addOverload(resolver, overload);
 	}
 }
 
@@ -249,7 +249,7 @@ ExpressionType getOverloadedMemberOperatorType(ExpressionType operand, const Ins
 	{
 		const SimpleType* memberEnclosing = findEnclosingType(&classType, declaration->scope); // find the base class which contains the member-declaration
 		SYMBOLS_ASSERT(memberEnclosing != 0);
-		addOverloads(resolver, declaration, setEnclosingTypeSafe(context, memberEnclosing));
+		addOverloads(resolver, declaration, memberEnclosing);
 	}
 
 	FunctionOverload result = resolver.get();
@@ -263,9 +263,8 @@ inline void printOverloads(OverloadResolver& resolver, const OverloadSet& overlo
 	for(OverloadSet::const_iterator i = overloads.begin(); i != overloads.end(); ++i)
 	{
 		const Overload& overload = *i;
-		const Declaration* p = overload.declaration;
-		const ParameterTypes parameters = addOverload(resolver, *p, setEnclosingType(context, overload.memberEnclosing));
-		printPosition(p->getName().source);
+		const ParameterTypes parameters = addOverload(resolver, overload);
+		printPosition(overload.declaration->getName().source);
 		std::cout << "(";
 		bool separator = false;
 		for(ParameterTypes::const_iterator i = parameters.begin(); i != parameters.end(); ++i)
@@ -287,7 +286,7 @@ inline FunctionOverload findBestOverloadedFunction(const OverloadSet& overloads,
 {
 	SYMBOLS_ASSERT(!overloads.empty());
 	OverloadResolver resolver(arguments, templateArguments, context);
-	addOverloads(resolver, overloads, context);
+	addOverloads(resolver, overloads);
 
 	if(resolver.ambiguous != 0)
 	{
@@ -769,7 +768,7 @@ inline FunctionOverload findBestOverloadedOperator(const Identifier& id, const A
 		{
 			const SimpleType* memberEnclosing = findEnclosingType(&operand, declaration->scope); // find the base class which contains the member-declaration
 			SYMBOLS_ASSERT(memberEnclosing != 0);
-			addOverloads(resolver, declaration, setEnclosingTypeSafe(context, memberEnclosing));
+			addOverloads(resolver, declaration, memberEnclosing);
 		}
 	}
 	// - The set of non-member candidates is the result of the unqualified lookup of operator@ in the context
@@ -787,7 +786,7 @@ inline FunctionOverload findBestOverloadedOperator(const Identifier& id, const A
 		addOverloaded(overloads, declaration);
 	}
 	addArgumentDependentOverloads(overloads, id, arguments);
-	addOverloads(resolver, overloads, setEnclosingType(context, 0));
+	addOverloads(resolver, overloads);
 
 	// TODO: 13.3.1.2: built-in operators for overload resolution
 	// These are relevant either when the operand has a user-defined conversion to a non-class type, or is an enum that can be converted to an arithmetic type
@@ -829,12 +828,12 @@ struct TypeOfVisitor : ExpressionNodeVisitor
 	void visit(const DependentIdExpression& node)
 	{
 		const IdExpression expression = substituteIdExpression(node, context);
-		result = typeOfIdExpression(expression.enclosing, expression.declaration, context);
+		result = typeOfIdExpression(expression.enclosing, expression.declaration, expression.templateArguments, context);
 		SYMBOLS_ASSERT(!isDependent(result));
 	}
 	void visit(const IdExpression& node)
 	{
-		result = typeOfIdExpression(node.enclosing, node.declaration, context);
+		result = typeOfIdExpression(node.enclosing, node.declaration, node.templateArguments, context);
 		SYMBOLS_ASSERT(!isDependent(result));
 	}
 	void visit(const SizeofExpression& node)

@@ -384,6 +384,63 @@ namespace N393 // [temp.arg.explicit]
 
 	ASSERT_EXPRESSION_TYPE(&A::f<int>, int(A::*)());
 }
+
+namespace N396 // test SFINAE for function template id
+{
+	template<typename T, typename U = int() >
+	struct B
+	{
+		typedef int Type;
+	};
+
+	template<typename T>
+	int f1();
+
+	template<typename T, typename U>
+	int f2();
+
+	template<int i>
+	int f3();
+
+	// SFINAE: too few template parameters
+	template<typename T>
+	struct B<T, decltype(f2<T>)>
+	{
+	};
+
+	// SFINAE: too many template parameters
+	template<typename T>
+	struct B<T, decltype(f1<T, T>)>
+	{
+	};
+
+	// SFINAE: expected non-type parameter
+	template<typename T>
+	struct B<T, decltype(f3<T>)>
+	{
+	};
+
+
+	STATIC_ASSERT_IS_SAME(B<int>::Type, int);
+}
+
+
+namespace N397 // [temp.arg.explicit] test evaluation of type of dependent function template id
+{   
+	template<typename T>
+	T f();
+
+	template<typename T>
+	struct A
+	{
+		typedef int Type;
+		ASSERT_EXPRESSION_TYPE(f<T>, int());
+		ASSERT_EXPRESSION_TYPE(&f<T>, int(*)());
+	};
+
+	typedef A<int>::Type Type; // force instantiation
+}
+
 #endif
 
 #if 0 // TODO
