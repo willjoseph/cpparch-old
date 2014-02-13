@@ -337,7 +337,7 @@ inline FunctionOverload findBestOverloadedFunction(const OverloadSet& overloads,
 inline void addBuiltInOperatorOverload(OverloadResolver& resolver, UniqueTypeWrapper type)
 {
 	const ParameterTypes& parameters = getParameterTypes(type.value);
-	resolver.add(FunctionOverload(&gUnknown, getFunctionCallExpressionType(popType(type))), parameters, false, 0);
+	resolver.add(FunctionOverload(&gUnknown, getFunctionCallExpressionType(popType(type))), parameters, false, CvQualifiers(), 0);
 }
 
 inline void addBuiltInOperatorOverloads(OverloadResolver& resolver, BuiltInTypeArrayRange overloads)

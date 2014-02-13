@@ -3,7 +3,7 @@
 #include "TypeUnique.h"
 
 
-FunctionSignature substituteFunctionId(const Overload& overload, const Arguments& arguments, const TemplateArgumentsInstance* templateArguments, const InstantiationContext& context)
+FunctionSignature substituteFunctionId(const Overload& overload, const UniqueTypeArray& argumentTypes, const TemplateArgumentsInstance* templateArguments, const InstantiationContext& context)
 {
 	const Declaration& declaration = *overload.declaration;
 	SYMBOLS_ASSERT(!isMember(declaration)
@@ -16,35 +16,10 @@ FunctionSignature substituteFunctionId(const Overload& overload, const Arguments
 
 	const FunctionType& function = getFunctionType(type.value);
 	FunctionSignature result;
-	bool hasImplicitObjectParameter = isMember(declaration)
-		&& declaration.type.declaration != &gCtor;
-	result.parameterTypes.reserve(function.parameterTypes.size() + hasImplicitObjectParameter);
-	if(hasImplicitObjectParameter)
-	{
-		// [over.match.funcs]
-		// a member function is considered to have an extra parameter, called the implicit object parameter, which
-		// represents the object for which the member function has been called. For the purposes of overload resolution,
-		// both static and non-static member functions have an implicit object parameter, but constructors do not.
-		SYMBOLS_ASSERT(isClass(*overload.memberEnclosing->declaration));
-		// For static member functions, the implicit object parameter is considered to match any object
-		UniqueTypeWrapper implicitObjectParameter = gImplicitObjectParameter;
-		if(!isStatic(declaration))
-		{
-			// For non-static member functions, the type of the implicit object parameter is "reference to cv X" where X is
-			// the class of which the function is a member and cv is the cv-qualification on the member function declaration.
-			// TODO: conversion-functions, non-conversions introduced by using-declaration
-			implicitObjectParameter = makeUniqueSimpleType(*overload.memberEnclosing);
-			implicitObjectParameter.value.setQualifiers(type.value.getQualifiers());
-			implicitObjectParameter.push_front(ReferenceType());
-		}
-		result.parameterTypes.push_back(implicitObjectParameter);
-	}
 	result.isEllipsis = function.isEllipsis;
-	for(ParameterTypes::const_iterator p = function.parameterTypes.begin(); p != function.parameterTypes.end(); ++p)
-	{
-		result.parameterTypes.push_back(*p);
-	}
+	result.parameterTypes = function.parameterTypes;
 	result.returnType = popType(type);
+	result.qualifiers = type.value.getQualifiers();
 
 	if(!declaration.isTemplate)
 	{
@@ -59,7 +34,7 @@ FunctionSignature substituteFunctionId(const Overload& overload, const Arguments
 	result.parameters.swap(result.parameterTypes);
 	makeUniqueTemplateParameters(declaration.templateParams, result.templateParameters, InstantiationContext(), true);
 
-	if(arguments.size() > result.parameters.size())
+	if(argumentTypes.size() > result.parameters.size())
 	{
 		return FunctionSignature(); // more arguments than parameters. TODO: same for non-template?
 	}
@@ -104,7 +79,7 @@ FunctionSignature substituteFunctionId(const Overload& overload, const Arguments
 		// After this substitution is performed, the function parameter type adjustments described in 8.3.5 are performed.
 
 		specialization.templateArguments.resize(templateArguments == 0 ? 0 : templateArguments->size()); // preserve the explicitly specified arguments
-		if(arguments.size() == std::size_t(hasImplicitObjectParameter)) // if there are no arguments from which to deduce template parameters
+		if(argumentTypes.empty()) // if there are no arguments from which to deduce template parameters
 		{
 			if(specialization.templateArguments.size() < result.templateParameters.size()) // if the number of explicitly specified template arguments is less than the number of template parameters
 			{
@@ -114,13 +89,6 @@ FunctionSignature substituteFunctionId(const Overload& overload, const Arguments
 		else
 		{
 			specialization.templateArguments.resize(result.templateParameters.size(), gUniqueTypeNull); // prepare to deduce the remaining template arguments
-
-			UniqueTypeArray argumentTypes;
-			argumentTypes.reserve(arguments.size());
-			for(Arguments::const_iterator a = arguments.begin(); a != arguments.end(); ++a)
-			{
-				argumentTypes.push_back((*a).type);
-			}
 
 			// NOTE: in rare circumstances, deduction may cause implicit instantiations, which occur at the point of overload resolution
 			if(!deduceFunctionCall(parameters, argumentTypes, specialization.templateArguments, context))
@@ -153,29 +121,36 @@ ParameterTypes addOverload(OverloadResolver& resolver, const Overload& overload)
 		// otherwise be used.
 		return ParameterTypes();
 	}
-	FunctionSignature result = substituteFunctionId(overload, resolver.arguments, resolver.templateArguments, resolver.context);
-	if(result.returnType == gUniqueTypeNull)
+
+	bool hasImplicitObjectParameter = isMember(*overload.declaration)
+		&& overload.declaration->type.declaration != &gCtor;
+
+	UniqueTypeArray argumentTypes;
+	argumentTypes.reserve(resolver.arguments.size());
+	for(Arguments::const_iterator a = resolver.arguments.begin() + hasImplicitObjectParameter; a != resolver.arguments.end(); ++a)
+	{
+		argumentTypes.push_back((*a).type);
+	}
+
+	FunctionSignature result = substituteFunctionId(overload, argumentTypes, resolver.templateArguments, resolver.context);
+	if(result.returnType == gUniqueTypeNull) // if substitution failed
 	{
 		return ParameterTypes();
 	}
-	resolver.add(FunctionOverload(const_cast<Declaration*>(overload.declaration), getFunctionCallExpressionType(result.returnType)), result.parameterTypes, result.isEllipsis, overload.memberEnclosing, result);
+
+	resolver.add(FunctionOverload(const_cast<Declaration*>(overload.declaration), getFunctionCallExpressionType(result.returnType)), result.parameterTypes, result.isEllipsis, result.qualifiers, overload.memberEnclosing, result);
 	return result.parameterTypes;
 }
 
-
-inline ExpressionType selectOverloadedFunctionImpl(UniqueTypeWrapper target, Argument from, const InstantiationContext& context)
+// f<int> -> int()
+// &f<int> -> int(*)()
+// C::mf<int> -> int() [ill-formed if not part of unary address-of]
+// &C::mf<int> -> int(C::*)()
+inline ExpressionType selectOverloadedFunctionImpl(UniqueTypeWrapper target, const IdExpression& expression, const InstantiationContext& context)
 {
-	ExpressionNode* node = from.p;
-	if(isUnaryExpression(node))
-	{
-		SYMBOLS_ASSERT(getUnaryExpression(node).operatorName == gOperatorAndId);
-		node = getUnaryExpression(node).first;
-	}
-	SYMBOLS_ASSERT(isIdExpression(node));
 	// the source type is an overloaded function, or is a pointer to an overloaded function
 	// select matching function from overload set;
-	const IdExpression& idExpression = getIdExpression(node);
-	DeclarationInstanceRef declaration = idExpression.declaration;
+	DeclarationInstanceRef declaration = expression.declaration;
 	for(Declaration* p = findOverloaded(declaration); p != 0; p = p->overloaded)
 	{
 		if(p->specifiers.isFriend)
@@ -189,14 +164,8 @@ inline ExpressionType selectOverloadedFunctionImpl(UniqueTypeWrapper target, Arg
 		}
 		else
 		{
-			Arguments arguments;
-			if(!isStatic(*declaration) // if the declaration is a non-static..
-				&& isMember(*declaration)) // .. member
-			{
-				arguments.push_back(Argument()); // add dummy implicit object argument
-			}
-			const SimpleType* idEnclosing = getIdExpressionClass(idExpression.enclosing, declaration, context.enclosingType);
-			FunctionSignature result = substituteFunctionId(Overload(declaration, idEnclosing), arguments, &idExpression.templateArguments, context);
+			const SimpleType* idEnclosing = getIdExpressionClass(expression.enclosing, declaration, context.enclosingType);
+			FunctionSignature result = substituteFunctionId(Overload(declaration, idEnclosing), UniqueTypeArray(), &expression.templateArguments, context);
 			if(result.returnType == gUniqueTypeNull)
 			{
 				continue; // substitution failed
@@ -232,7 +201,7 @@ inline ExpressionType selectOverloadedFunction(UniqueTypeWrapper to, Argument fr
 	// the target is a function type
 	UniqueTypeWrapper overloaded = from.type;
 	if(overloaded.isPointer()
-		|| overloaded.isMemberPointer()) // TODO: match non-static-member vs static-member?
+		|| overloaded.isMemberPointer()) // TODO: select non-static-member over static-member?
 	{
 		overloaded = popType(overloaded);
 	}
@@ -240,5 +209,12 @@ inline ExpressionType selectOverloadedFunction(UniqueTypeWrapper to, Argument fr
 	{
 		return from.type;
 	}
-	return selectOverloadedFunctionImpl(target, from, context);
+	ExpressionNode* node = from.p;
+	if(isUnaryExpression(node))
+	{
+		SYMBOLS_ASSERT(getUnaryExpression(node).operatorName == gOperatorAndId);
+		node = getUnaryExpression(node).first;
+	}
+	SYMBOLS_ASSERT(isIdExpression(node));
+	return selectOverloadedFunctionImpl(target, getIdExpression(node), context);
 }

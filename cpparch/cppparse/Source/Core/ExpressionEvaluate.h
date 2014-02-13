@@ -769,7 +769,15 @@ inline ExpressionType typeOfIdExpression(const SimpleType* qualifying, const Dec
 		return makeCopyAssignmentOperatorType(*idEnclosing);
 	}
 
-	SYMBOLS_ASSERT(!isOverloadedFunction(declaration)); // cannot resolve overloaded function without arguments
+	if(isOverloadedFunction(declaration))
+	{
+		// [temp.arg.explicit]
+		// In contexts where deduction is done and fails, or in contexts where deduction
+		// is not done, if a template argument list is specified and it, along with any default template arguments,
+		// identifies a single function template specialization, then the template-id is an lvalue for the function template
+		// specialization.
+		return selectOverloadedFunctionImpl(gUniqueTypeNull, IdExpression(declaration, qualifying, templateArguments), context);
+	}
 
 	const SimpleType* idEnclosing = getIdExpressionClass(qualifying, declaration, context.enclosingType);
 

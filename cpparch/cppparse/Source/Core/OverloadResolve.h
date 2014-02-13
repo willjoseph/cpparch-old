@@ -39,7 +39,7 @@ struct FunctionOverload
 };
 
 inline ExpressionType selectOverloadedFunction(UniqueTypeWrapper to, Argument from, const InstantiationContext& context);
-inline ExpressionType selectOverloadedFunctionImpl(UniqueTypeWrapper target, Argument from, const InstantiationContext& context);
+inline ExpressionType selectOverloadedFunctionImpl(UniqueTypeWrapper target, const IdExpression& expression, const InstantiationContext& context);
 
 template<typename To>
 FunctionOverload findBestConversionFunction(To to, Argument from, const InstantiationContext& context, bool isNullPointerConstant = false);
@@ -249,11 +249,12 @@ struct FunctionTemplate
 {
 	ParameterTypes parameters;
 	UniqueTypeArray templateParameters;
-	FunctionTemplate()
+	bool isStaticMember;
+	FunctionTemplate() : isStaticMember(false)
 	{
 	}
 	FunctionTemplate(const ParameterTypes& parameters, const UniqueTypeArray& templateParameters)
-		: parameters(parameters), templateParameters(templateParameters)
+		: parameters(parameters), templateParameters(templateParameters), isStaticMember(false)
 	{
 	}
 };
@@ -280,13 +281,15 @@ inline bool isMoreSpecialized(const FunctionTemplate& left, const FunctionTempla
 	SYMBOLS_ASSERT(left.parameters.size() == right.parameters.size());
 	UniqueTypeArray::const_iterator l = left.parameters.begin();
 	UniqueTypeArray::const_iterator r = right.parameters.begin();
-	if(*l == gImplicitObjectParameter // if the left template is a static member
-		|| *r == gImplicitObjectParameter) // or the right template is a static member
+#if 0 // implicit object argument is no longer included in parameter list
+	if(left.isStaticMember // if the left template is a static member
+		|| right.isStaticMember) // or the right template is a static member
 	{
 		// ignore the first parameter
 		++l;
 		++r;
 	}
+#endif
 	for(; l != left.parameters.end(); ++l, ++r)
 	{
 		UniqueTypeWrapper leftType = *l;
@@ -353,8 +356,8 @@ inline bool isBetter(const CandidateFunction& l, const CandidateFunction& r)
 {
 	SYMBOLS_ASSERT(l.conversions.size() == r.conversions.size());
 	std::size_t first = 0;
-	if((!l.parameters.empty() && l.parameters.front() == gImplicitObjectParameter) // if the left function is a static member
-		|| (!r.parameters.empty() && r.parameters.front() == gImplicitObjectParameter)) // or the right function is a static member
+	if(l.isStaticMember // if the left function is a static member
+		|| r.isStaticMember) // or the right function is a static member
 	{
 		// [over.match.best]
 		// If a function is a static member function [...] the first argument, the implied object parameter, has no effect
@@ -454,26 +457,41 @@ struct OverloadResolver
 		bool isNullPointerConstant = !from.isValueDependent && from.isConstant && evaluateExpression(from, context).value == 0;
 		return makeImplicitConversionSequence(to, from, context, isNullPointerConstant, isUserDefinedConversion);
 	}
-	void add(const FunctionOverload& overload, const ParameterTypes& parameters, bool isEllipsis, const SimpleType* memberEnclosing, FunctionTemplate& functionTemplate = FunctionTemplate())
+	void add(const FunctionOverload& overload, const ParameterTypes& parameters, bool isEllipsis, CvQualifiers qualifiers, const SimpleType* memberEnclosing, FunctionTemplate& functionTemplate = FunctionTemplate())
 	{
+		bool hasImplicitObjectParameter = isMember(*overload.declaration)
+			&& overload.declaration->type.declaration != &gCtor;
+
 		CandidateFunction candidate(overload, functionTemplate);
 		candidate.conversions.reserve(best.conversions.size());
 
-		ParameterTypes::const_iterator p = parameters.begin();
 		Arguments::const_iterator a = arguments.begin();
 
-		if(isMember(*overload.declaration)
-			&& overload.declaration->type.declaration != &gCtor)
+		if(hasImplicitObjectParameter)
 		{
-			SYMBOLS_ASSERT(p != parameters.end());
-			UniqueTypeWrapper implicitObjectParameter = *p++;
-			SYMBOLS_ASSERT(a != arguments.end());
-			const Argument& impliedObjectArgument = *a++;
 			// [over.match.funcs]
 			// a member function is considered to have an extra parameter, called the implicit object parameter, which
 			// represents the object for which the member function has been called. For the purposes of overload resolution,
 			// both static and non-static member functions have an implicit object parameter, but constructors do not.
 			SYMBOLS_ASSERT(isClass(*memberEnclosing->declaration));
+			// For static member functions, the implicit object parameter is considered to match any object
+			UniqueTypeWrapper implicitObjectParameter = gImplicitObjectParameter;
+			if(!isStatic(*overload.declaration))
+			{
+				// For non-static member functions, the type of the implicit object parameter is "reference to cv X" where X is
+				// the class of which the function is a member and cv is the cv-qualification on the member function declaration.
+				// TODO: conversion-functions, non-conversions introduced by using-declaration
+				implicitObjectParameter = makeUniqueSimpleType(*memberEnclosing);
+				implicitObjectParameter.value.setQualifiers(qualifiers);
+				implicitObjectParameter.push_front(ReferenceType());
+			}
+			else
+			{
+				candidate.isStaticMember = true;
+			}
+
+			SYMBOLS_ASSERT(a != arguments.end());
+			const Argument& impliedObjectArgument = *a++;
 			if(!isStatic(*overload.declaration))
 			{
 				// [over.match.funcs]
@@ -496,7 +514,7 @@ struct OverloadResolver
 			}
 		}
 
-		if(arguments.size() < parameters.size())
+		if(arguments.size() < parameters.size() + hasImplicitObjectParameter)
 		{
 			if(overload.declaration == &gUnknown)
 			{
@@ -506,7 +524,7 @@ struct OverloadResolver
 			const Parameters& defaults = getParameters(overload.declaration->type);
 			Parameters::const_iterator d = defaults.begin();
 			std::advance(d, argumentCount);
-			for(ParameterTypes::const_iterator i = p + argumentCount; i != parameters.end(); ++i)
+			for(ParameterTypes::const_iterator i = parameters.begin() + argumentCount; i != parameters.end(); ++i)
 			{
 				SYMBOLS_ASSERT(d != defaults.end());
 				if((*d).defaultArgument == 0) // TODO: catch this earlier
@@ -521,7 +539,7 @@ struct OverloadResolver
 			}
 		}
 
-		for(; a != arguments.end() && p != parameters.end(); ++a, ++p)
+		for(ParameterTypes::const_iterator p = parameters.begin(); a != arguments.end() && p != parameters.end(); ++a, ++p)
 		{
 			candidate.conversions.push_back(makeConversion(*p, *a)); // TODO: l-value
 		}
@@ -565,6 +583,7 @@ inline bool operator==(const Overload& left, const Overload& right)
 struct FunctionSignature : FunctionType, FunctionTemplate
 {
 	UniqueTypeWrapper returnType;
+	CvQualifiers qualifiers;
 
 	const FunctionType& getFunctionType() const
 	{
@@ -572,7 +591,7 @@ struct FunctionSignature : FunctionType, FunctionTemplate
 	}
 };
 
-FunctionSignature substituteFunctionId(const Overload& overload, const Arguments& arguments, const TemplateArgumentsInstance* templateArguments, const InstantiationContext& context);
+FunctionSignature substituteFunctionId(const Overload& overload, const UniqueTypeArray& argumentTypes, const TemplateArgumentsInstance* templateArguments, const InstantiationContext& context);
 ParameterTypes addOverload(OverloadResolver& resolver, const Overload& overload);
 
 

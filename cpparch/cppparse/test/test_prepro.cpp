@@ -1,6 +1,14 @@
 
 namespace Temptest
 {
+#if 0
+	template<typename T>
+	T f();
+
+	int(*g)() = f<int>;
+#endif
+
+#if 0 // TODO: add test
 	struct error_condition
 	{
 		static void unspecified_bool_true()
@@ -11,6 +19,7 @@ namespace Temptest
 			return false ? 0 : unspecified_bool_true;
 		}
 	};
+#endif
 
 #if 0 // TODO: add test
 	template<typename T>

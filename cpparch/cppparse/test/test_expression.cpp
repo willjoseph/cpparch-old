@@ -343,7 +343,7 @@ namespace N395
 			// typedef B<(*this).VALUE> Type; // '(*this).VALUE' is an integral constant expression (C++11)
 			typedef B<VALUE> Type; // 'VALUE' is an integral constant expression
 			typedef B<C::VALUE> Type; // 'C::VALUE' is an integral constant expression
-			// typedef B<f().VALUE> Type4; // allowed by bug in clang/gcc?
+			// typedef B<f().VALUE> Type4; // ill-formed? no diagnostic from clang/gcc
 		}
 	};
 	C<int> c;
