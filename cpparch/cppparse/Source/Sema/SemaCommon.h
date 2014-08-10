@@ -1374,7 +1374,7 @@ struct SemaBase : public SemaState
 			&& type.declaration != &gCtor) // ignore constructor
 		{
 			SimpleType* enclosingClass = const_cast<SimpleType*>(getEnclosingType(enclosingType));
-			std::size_t size = 0;
+			TypeLayout layout = TYPELAYOUT_NONE;
 			if(!type.isDependent)
 			{
 				if(!(parent->type == SCOPETYPE_CLASS && isStatic(*declaration)) // ignore static member
@@ -1382,7 +1382,7 @@ struct SemaBase : public SemaState
 					&& (uniqueType.isSimple() || uniqueType.isArray()))
 				{
 					// TODO: accurate sizeof
-					size = requireCompleteObjectType(uniqueType, getInstantiationContext());
+					layout = requireCompleteObjectType(uniqueType, getInstantiationContext());
 				}
 			}
 			else if(enclosingClass != 0
@@ -1395,7 +1395,7 @@ struct SemaBase : public SemaState
 			}
 			if(enclosingClass != 0)
 			{
-				enclosingClass->size += size;
+				enclosingClass->layout = addMember(enclosingClass->layout, layout);
 			}
 		}
 
@@ -1582,12 +1582,8 @@ struct CommitEnable
 };
 
 
-template<typename SemaT, typename Inner>
-struct SemaInner
-{
-};
 
-
+// Inner policy which pushes a new semantic context onto the stack.
 template<typename Inner, typename Commit = CommitNull, typename Args = Args0>
 struct SemaPush : Args
 {
@@ -1598,57 +1594,13 @@ struct SemaPush : Args
 	}
 };
 
+// Specialization for zero arguments (does not derive from Args>
 template<typename Inner, typename Commit>
 struct SemaPush<Inner, Commit, Args0>
 {
 	typedef SemaPush ArgsType;
 };
 
-
-template<typename SemaT, typename Inner, typename Commit>
-struct SemaInner<SemaT, SemaPush<Inner, Commit, Args0> >
-{
-	typedef Inner Type;
-	Inner sema;
-	SemaInner(SemaT& walker, const SemaPush<Inner, Commit, Args0>& args)
-		: sema(walker.getState())
-	{
-	}
-	Inner& get()
-	{
-		return sema;
-	}
-};
-
-template<typename SemaT, typename Inner, typename Commit, typename A1>
-struct SemaInner<SemaT, SemaPush<Inner, Commit, Args1<A1> > >
-{
-	typedef Inner Type;
-	Inner sema;
-	SemaInner(SemaT& walker, const SemaPush<Inner, Commit, Args1<A1> >& args)
-		: sema(walker.getState(), args.a1)
-	{
-	}
-	Inner& get()
-	{
-		return sema;
-	}
-};
-
-template<typename SemaT, typename Inner, typename Commit, typename A1, typename A2>
-struct SemaInner<SemaT, SemaPush<Inner, Commit, Args2<A1, A2> > >
-{
-	typedef Inner Type;
-	Inner sema;
-	SemaInner(SemaT& walker, const SemaPush<Inner, Commit, Args2<A1, A2> >& args)
-		: sema(walker.getState(), args.a1, args.a2)
-	{
-	}
-	Inner& get()
-	{
-		return sema;
-	}
-};
 
 
 template<typename SemaT, LexTokenId ID, typename U = void>
@@ -1709,24 +1661,12 @@ struct Once
 	}
 };
 
+// Inner policy which continues with the current semantic context.
 struct SemaIdentity
 {
 	typedef SemaIdentity ArgsType;
 };
 
-template<typename SemaT>
-struct SemaInner<SemaT, SemaIdentity>
-{
-	typedef SemaT Type;
-	SemaT& sema;
-	SemaInner(SemaT& walker, const SemaIdentity&) : sema(walker)
-	{
-	}
-	SemaT& get()
-	{
-		 return sema;
-	}
-};
 
 
 template<typename SemaT>

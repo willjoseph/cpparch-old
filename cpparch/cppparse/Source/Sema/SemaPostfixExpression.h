@@ -80,10 +80,11 @@ struct SemaPostfixExpressionMember : public SemaQualified
 		{
 			// [expr] If an expression initially has the type "reference to T", the type is adjusted to "T" prior to any further analysis.
 			ExpressionType operand = removeReference(memberType);
-			ExpressionType type = getMemberOperatorType(makeArgument(expression, operand), isArrow, getInstantiationContext());
+			ExpressionType type = getMemberOperatorType(makeArgument(objectExpression, operand), isArrow, getInstantiationContext());
 			memberClass = &getSimpleType(type.value);
 
-			objectExpression = makeExpression(ObjectExpression(type));
+			// offsetof hack: treat the object expression as constant if it is "(T*)->"
+			objectExpression = makeExpression(ObjectExpression(type), isNullPointerCastExpression(objectExpression) && isArrow);
 		}
 		else
 		{
@@ -134,6 +135,40 @@ struct SemaTypeTraitsIntrinsic : public SemaBase
 		setExpressionType(symbol, type);
 
 		(first == gUniqueTypeNull ? first : second) = type;
+	}
+};
+
+struct SemaOffsetof : public SemaBase
+{
+	SEMA_BOILERPLATE;
+
+	Dependent valueDependent;
+	UniqueTypeWrapper type;
+	ExpressionWrapper member;
+	SemaOffsetof(const SemaState& state)
+		: SemaBase(state)
+	{
+	}
+	void action(cpp::terminal<boost::wave::T_LEFTPAREN> symbol)
+	{
+		// debugging
+	}
+	SEMA_POLICY(cpp::type_id, SemaPolicyPushCommit<struct SemaTypeId>)
+	void action(cpp::type_id* symbol, const SemaTypeIdResult& walker)
+	{
+		walker.committed.test();
+		// [support.types] The expression offsetof(type, member-designator) is never type-dependent and it is value-dependent if and only if type is dependent.
+		addDependent(valueDependent, walker.type);
+
+		type = UniqueTypeWrapper(walker.type.unique);
+		setExpressionType(symbol, type);
+	}
+	SEMA_POLICY(cpp::id_expression, SemaPolicyPush<struct SemaIdExpression>)
+	void action(cpp::id_expression* symbol, SemaIdExpression& walker)
+	{
+		bool isObjectName = walker.commit();
+		SEMANTIC_ASSERT(isObjectName); // TODO: non-fatal error: expected object name
+		member = walker.expression;
 	}
 };
 
@@ -410,7 +445,8 @@ struct SemaPostfixExpression : public SemaBase
 		SEMANTIC_ASSERT(walker.expression.p != 0);
 		expression = makeExpression(
 			ClassMemberAccessExpression(walker.objectExpression, walker.expression),
-			false, isDependentOld(typeDependent), isDependentOld(valueDependent)
+			walker.objectExpression.isConstant, // is true when this is part of the offsetof macro
+			isDependentOld(typeDependent), isDependentOld(valueDependent)
 		);
 
 #if 1
@@ -481,6 +517,14 @@ struct SemaPostfixExpression : public SemaBase
 		BinaryTypeTraitsOp operation = getBinaryTypeTraitsOp(symbol->trait);
 		Name name = getTypeTraitName(symbol);
 		expression = makeExpression(TypeTraitsBinaryExpression(name, operation, walker.first, walker.second), true, false, isDependentOld(valueDependent));
+		SYMBOLS_ASSERT(expression.type == type);
+	}
+	SEMA_POLICY(cpp::postfix_expression_offsetof, SemaPolicyPush<struct SemaOffsetof>)
+	void action(cpp::postfix_expression_offsetof* symbol, const SemaOffsetof& walker)
+	{
+		addDependent(valueDependent, walker.valueDependent);
+		type = ExpressionType(gUnsignedInt, false);
+		expression = makeExpression(OffsetofExpression(walker.type, walker.member), true, false, isDependentOld(valueDependent));
 		SYMBOLS_ASSERT(expression.type == type);
 	}
 };

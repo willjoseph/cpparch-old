@@ -252,16 +252,16 @@ inline void dumpTemplateInstantiations(const SimpleType& instance, bool root = f
 	instance.visited = false;
 }
 
-inline std::size_t addBase(SimpleType& instance, UniqueTypeWrapper base, const InstantiationContext& context)
+inline TypeLayout addBase(SimpleType& instance, UniqueTypeWrapper base, const InstantiationContext& context)
 {
 	SYMBOLS_ASSERT(!isDependent(base));
 	SYMBOLS_ASSERT(base.isSimple());
 	const SimpleType& objectType = getSimpleType(base.value);
-	std::size_t size = instantiateClass(objectType, setEnclosingTypeSafe(context, &instance));
+	TypeLayout layout = instantiateClass(objectType, setEnclosingTypeSafe(context, &instance));
 	SYMBOLS_ASSERT(isClass(*objectType.declaration));
 	SYMBOLS_ASSERT(objectType.declaration->enclosed != 0); // this can occur when the primary template is incomplete, and a specialization was not chosen
 	instance.bases.push_back(&objectType);
-	return size;
+	return layout;
 }
 
 inline bool isTemplate(const SimpleType& instance)
@@ -310,7 +310,7 @@ inline bool hasCopyAssignmentOperator(const SimpleType& classType, const Instant
 }
 
 
-std::size_t instantiateClass(const SimpleType& instanceConst, const InstantiationContext& context, bool allowDependent)
+TypeLayout instantiateClass(const SimpleType& instanceConst, const InstantiationContext& context, bool allowDependent)
 {
 	SimpleType& instance = const_cast<SimpleType&>(instanceConst);
 	SYMBOLS_ASSERT(isClass(*instance.declaration));
@@ -323,7 +323,7 @@ std::size_t instantiateClass(const SimpleType& instanceConst, const Instantiatio
 
 	if(instance.instantiated)
 	{
-		return instance.size;
+		return instance.layout;
 	}
 	try
 	{
@@ -356,14 +356,13 @@ std::size_t instantiateClass(const SimpleType& instanceConst, const Instantiatio
 			std::cout << "instantiateClass failed: ";
 			printType(instance);
 			std::cout << std::endl;
-			return 0; // TODO: this can occur when the primary template is incomplete, and a specialization was not chosen
+			return TYPELAYOUT_NONE; // TODO: this can occur when the primary template is incomplete, and a specialization was not chosen
 		}
 
 		SYMBOLS_ASSERT(instance.declaration->type.unique != 0);
 		// the is the (possibly dependent) unique type of the unspecialized (template) class on which this specialization is based
 		const SimpleType& original = getSimpleType(instance.declaration->type.unique);
 
-		instance.size = 4; // TODO: get size of built-in types
 		SYMBOLS_ASSERT(instance.declaration->enclosed != 0);
 		Types& bases = instance.declaration->enclosed->bases;
 		instance.bases.reserve(std::distance(bases.begin(), bases.end()));
@@ -380,7 +379,7 @@ std::size_t instantiateClass(const SimpleType& instanceConst, const Instantiatio
 				// this occurs during 'instantiation' of a template class definition, in which case we postpone instantiation of this dependent base
 				continue;
 			}
-			instance.size += addBase(instance, base, baseContext);
+			instance.layout = addMember(instance.layout, addBase(instance, base, baseContext));
 		}
 		instance.allowLookup = true; // prevent searching bases during lookup within incomplete instantiation
 		if(!allowDependent)
@@ -450,6 +449,6 @@ std::size_t instantiateClass(const SimpleType& instanceConst, const Instantiatio
 		}
 		throw;
 	}
-	return instance.size;
+	return instance.layout;
 }
 

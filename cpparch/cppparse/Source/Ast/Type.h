@@ -351,6 +351,30 @@ struct ChildInstantiations : std::vector<ChildInstantiation>
 };
 
 
+struct TypeLayout
+{
+	std::size_t size;
+	std::size_t align;
+	TypeLayout(std::size_t size, std::size_t align) : size(size), align(align)
+	{
+	}
+};
+
+inline TypeLayout addMember(const TypeLayout& layout, const TypeLayout& member)
+{
+	return TypeLayout(
+		layout.size + member.size, // temporary hack: produce consistent sizeof while ignoring alignment
+		std::max(layout.align, member.align));
+}
+
+inline TypeLayout makeArray(const TypeLayout& layout, std::size_t count)
+{
+	return TypeLayout(layout.size * count, layout.align);
+}
+
+
+const TypeLayout TYPELAYOUT_NONE = TypeLayout(0, 0);
+
 typedef std::vector<Location> InstanceLocations; // temporary scaffolding!
 
 // 14.4 Type equivalence [temp.type]
@@ -370,7 +394,7 @@ struct SimpleType
 	TemplateArgumentsInstance deducedArguments; // the deduced arguments for the partial-specialization's template-parameters
 	const SimpleType* enclosing; // the enclosing template
 	UniqueBases bases;
-	size_t size;
+	TypeLayout layout;
 	InstantiatedTypes children; // the dependent types in the specialization
 	InstantiatedExpressions childExpressions; // the dependent expressions in the specialization
 	InstanceLocations childLocations; // temporary scaffolding!
@@ -384,8 +408,8 @@ struct SimpleType
 	Location instantiation;
 	ChildInstantiations childInstantiations; // not copied by copy-constructor
 
-	SimpleType(Declaration* declaration, const SimpleType* enclosing)
-		: uniqueId(0), primary(declaration), declaration(declaration), enclosing(enclosing), size(0),
+	SimpleType(Declaration* declaration, const SimpleType* enclosing, TypeLayout layout = TYPELAYOUT_NONE)
+		: uniqueId(0), primary(declaration), declaration(declaration), enclosing(enclosing), layout(layout),
 		instantiated(false), instantiating(false), allowLookup(false), hasCopyAssignmentOperator(false),
 		visited(false), dumped(false)
 	{
@@ -813,9 +837,9 @@ typedef UniqueTypeGeneric<true> BuiltInType;
 
 struct BuiltInTypeId : BuiltInType
 {
-	BuiltInTypeId(Declaration* declaration, const AstAllocator<int>& allocator)
+	BuiltInTypeId(Declaration* declaration, const AstAllocator<int>& allocator, TypeLayout layout = TYPELAYOUT_NONE)
 	{
-		value = pushBuiltInType(value, SimpleType(declaration, 0));
+		value = pushBuiltInType(value, SimpleType(declaration, 0, layout));
 		declaration->type.unique = value;
 		declaration->isComplete = true;
 	}

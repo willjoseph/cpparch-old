@@ -34,6 +34,70 @@
 
 
 // ----------------------------------------------------------------------------
+
+// Wrapper for a reference to a newly pushed semantic context constructed with no arguments.
+template<typename SemaT, typename Inner, typename Commit>
+struct SemaInner<SemaT, SemaPush<Inner, Commit, Args0> >
+{
+	typedef Inner Type;
+	Inner sema;
+	SemaInner(SemaT& walker, const SemaPush<Inner, Commit, Args0>& args)
+		: sema(walker.getState())
+	{
+	}
+	Inner& get()
+	{
+		return sema;
+	}
+};
+
+// Wrapper for a reference to a newly pushed semantic context constructed with one argument.
+template<typename SemaT, typename Inner, typename Commit, typename A1>
+struct SemaInner<SemaT, SemaPush<Inner, Commit, Args1<A1> > >
+{
+	typedef Inner Type;
+	Inner sema;
+	SemaInner(SemaT& walker, const SemaPush<Inner, Commit, Args1<A1> >& args)
+		: sema(walker.getState(), args.a1)
+	{
+	}
+	Inner& get()
+	{
+		return sema;
+	}
+};
+
+// Wrapper for a reference to a newly pushed semantic context constructed with two arguments.
+template<typename SemaT, typename Inner, typename Commit, typename A1, typename A2>
+struct SemaInner<SemaT, SemaPush<Inner, Commit, Args2<A1, A2> > >
+{
+	typedef Inner Type;
+	Inner sema;
+	SemaInner(SemaT& walker, const SemaPush<Inner, Commit, Args2<A1, A2> >& args)
+		: sema(walker.getState(), args.a1, args.a2)
+	{
+	}
+	Inner& get()
+	{
+		return sema;
+	}
+};
+
+// Wrapper for a reference to the current semantic context.
+template<typename SemaT>
+struct SemaInner<SemaT, SemaIdentity>
+{
+	typedef SemaT Type;
+	SemaT& sema;
+	SemaInner(SemaT& walker, const SemaIdentity&) : sema(walker)
+	{
+	}
+	SemaT& get()
+	{
+		return sema;
+	}
+};
+
 // ----------------------------------------------------------------------------
 
 

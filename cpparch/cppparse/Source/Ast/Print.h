@@ -141,6 +141,10 @@ struct SymbolPrinter : TypeElementVisitor, ExpressionNodeVisitor
 	{
 		// TODO
 	}
+	void visit(const struct OffsetofExpression& node)
+	{
+		// TODO
+	}
 	void visit(const struct FunctionCallExpression& node)
 	{
 		// TODO

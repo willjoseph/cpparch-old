@@ -438,8 +438,8 @@ struct DependencyBuilder
 		{
 			type.pop_front(); // [expr] If an expression initially has the type "reference to T", the type is adjusted to "T" prior to any further analysis.
 		}
-		if(symbol->id == cpp::unary_operator::PLUSPLUS
-			|| symbol->id == cpp::unary_operator::MINUSMINUS)
+		if(symbol->id == cpp::postfix_operator::PLUSPLUS
+			|| symbol->id == cpp::postfix_operator::MINUSMINUS)
 		{
 			// [expr.post.incr] The type of the operand shall be an arithmetic type or a pointer to a complete object type.
 			if(type.isPointer())

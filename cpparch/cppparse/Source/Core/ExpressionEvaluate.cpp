@@ -121,14 +121,14 @@ struct EvaluateVisitor : ExpressionNodeVisitor
 		ExpressionType type = typeOfExpression(node.operand, context);
 		// [expr] If an expression initially has the type "reference to T", the type is adjusted to "T" prior to any further analysis.
 		// [expr.sizeof] The sizeof operator shall not be applied to an expression that has function or incomplete type.
-		result = IntegralConstant(requireCompleteObjectType(removeReference(type), context));
+		result = IntegralConstant(requireCompleteObjectType(removeReference(type), context).size);
 	}
 	void visit(const SizeofTypeExpression& node)
 	{
 		// TODO: type-substitution for dependent node.type
 		// [expr] If an expression initially has the type "reference to T", the type is adjusted to "T" prior to any further analysis.
 		// [expr.sizeof] The sizeof operator shall not be applied to an expression that has function or incomplete type... or to the parenthesized name of such types.
-		result = IntegralConstant(requireCompleteObjectType(removeReference(node.type), context));
+		result = IntegralConstant(requireCompleteObjectType(removeReference(node.type), context).size);
 	}
 	void visit(const UnaryExpression& node)
 	{
@@ -172,8 +172,8 @@ struct EvaluateVisitor : ExpressionNodeVisitor
 	}
 	void visit(const struct ObjectExpression& node)
 	{
-		// cannot be a constant expression
-		SYMBOLS_ASSERT(false);
+		// occurs when this within the offsetof macro
+		result = IntegralConstant(0);
 	}
 	void visit(const struct DependentObjectExpression& node)
 	{
@@ -182,8 +182,12 @@ struct EvaluateVisitor : ExpressionNodeVisitor
 	}
 	void visit(const struct ClassMemberAccessExpression& node)
 	{
-		// cannot be a constant expression
-		SYMBOLS_ASSERT(false);
+		// occurs when this within the offsetof macro
+		result = IntegralConstant(0);
+	}
+	void visit(const struct OffsetofExpression& node)
+	{
+		result = IntegralConstant(0); // TODO
 	}
 	void visit(const struct FunctionCallExpression& node)
 	{
@@ -737,7 +741,7 @@ inline FunctionOverload findBestOverloadedOperator(const Identifier& id, const A
 {
 	Arguments::const_iterator i = arguments.begin();
 	UniqueTypeWrapper left = (*i++).type;
-	UniqueTypeWrapper right = i == arguments.end() ? gUniqueTypeNull : (*i).type;
+	UniqueTypeWrapper right = i == arguments.end() ? gUniqueTypeNull : UniqueTypeWrapper((*i).type);
 	if(!isClass(left) && !isEnumeration(left)
 		&& !isClass(right) && !isEnumeration(right)) // if the operand does not have class or enum type
 	{
@@ -902,6 +906,10 @@ struct TypeOfVisitor : ExpressionNodeVisitor
 	{
 		result = typeOfClassMemberAccessExpression(node.left, node.right, context);
 		SYMBOLS_ASSERT(!isDependent(result));
+	}
+	void visit(const struct OffsetofExpression& node)
+	{
+		result = ExpressionType(gUnsignedInt, false); // non lvalue
 	}
 	void visit(const struct FunctionCallExpression& node)
 	{

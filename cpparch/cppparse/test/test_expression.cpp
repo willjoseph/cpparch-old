@@ -1,4 +1,90 @@
 
+#if 0 // TODO: bug: failure to perform implicit conversion
+namespace N388
+{
+	template<bool b>
+	struct A
+	{
+	};
+
+	template<bool b, int N>
+	struct C;
+
+	template<bool b>
+	struct C<b, 1>
+	{
+		C(A<b>)
+		{
+		}
+	};
+	template<bool b>
+	struct C<b, 2>
+	{
+		typedef A<b> Value;
+		C(Value, Value)
+		{
+		}
+	};
+
+	struct B : A<true>
+	{
+	};
+
+	template<bool b>
+	bool f(C<b, 1>);
+
+	bool b = f<true>(B());
+}
+#endif
+
+#if 0 // TODO: bug: failure to resolve overloaded built-in operator==(int, int)
+namespace N387
+{
+	struct A
+	{
+		enum { VALUE } id;
+	};
+
+	struct B
+	{
+		enum { VALUE } id;
+	};
+
+	A a;
+
+	bool b = a.id == B::VALUE; // should silently succeed, though a warning would be nice..
+}
+#endif
+
+namespace N386
+{
+#define STATIC_ASSERT_SIZEOF(e, expected) static_assert(sizeof(e) == expected, "")
+	STATIC_ASSERT_SIZEOF(bool, 1);
+	STATIC_ASSERT_SIZEOF(char, 1);
+	STATIC_ASSERT_SIZEOF(short, 2);
+	STATIC_ASSERT_SIZEOF(int, 4);
+	STATIC_ASSERT_SIZEOF(float, 4);
+	STATIC_ASSERT_SIZEOF(double, 8);
+	STATIC_ASSERT_SIZEOF(long long int, 8);
+
+	enum E
+	{
+	};
+	STATIC_ASSERT_SIZEOF(E, 4);
+
+	struct S
+	{
+		int i;
+	};
+	STATIC_ASSERT_SIZEOF(S, 4);
+
+	struct A
+	{
+		float f;
+		int i;
+	};
+	STATIC_ASSERT_SIZEOF(A, 8);
+}
 
 namespace N372
 {

@@ -1301,6 +1301,21 @@ inline void evaluateStaticAssert(const ExpressionWrapper& expression, const char
 	SYMBOLS_ASSERT(!failed || string_equal(message, "\"?false\"")); // TODO: report non-fatal error: "<message>"
 }
 
+// returns true if the given expression is "(S*)0"
+inline bool isNullPointerCastExpression(const ExpressionWrapper& expression)
+{
+	if(!isCastExpression(expression))
+	{
+		return false;
+	}
+	const CastExpression& castExpression = getCastExpression(expression);
+	if(castExpression.operand.p == 0 // T()
+		|| !isIntegralConstantExpression(castExpression.operand))
+	{
+		return false;
+	}
+	return getIntegralConstantExpression(castExpression.operand).value.value == 0;
+}
 
 
 #endif

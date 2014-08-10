@@ -1193,6 +1193,12 @@ inline T* addDeferredParse(Parser& parser, ListType& deferred, ContextType& walk
 }
 
 
+// Wrapper for the current semantic context (must be explicitly specialised in order to be used!)
+template<typename SemaT, typename Inner>
+struct SemaInner
+{
+};
+
 template<typename SemaT>
 class ParserGeneric : public ParserOpaque
 {

@@ -85,7 +85,6 @@ void runTest(const Test& test)
 
 		add_macro_definition(lexer, "_CPPP_TEST", true);
 
-
 		for(const CharConstPointer* p = test.definitions.first; p != test.definitions.last; ++p)
 		{
 			add_macro_definition(lexer, *p, true);

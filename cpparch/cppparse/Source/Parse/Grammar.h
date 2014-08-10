@@ -545,14 +545,15 @@ namespace cpp
 	struct postfix_expression_prefix : choice<postfix_expression_prefix>
 	{
 		typedef TYPELIST1(postfix_expression) Bases;
-		VISITABLE_BASE(TYPELIST7(
+		VISITABLE_BASE(TYPELIST8(
 			SYMBOLFWD(primary_expression),
 			SYMBOLFWD(postfix_expression_construct),
 			SYMBOLFWD(postfix_expression_cast),
 			SYMBOLFWD(postfix_expression_typeid),
 			SYMBOLFWD(postfix_expression_typeidtype),
 			SYMBOLFWD(postfix_expression_typetraits_unary),
-			SYMBOLFWD(postfix_expression_typetraits_binary)
+			SYMBOLFWD(postfix_expression_typetraits_binary),
+			SYMBOLFWD(postfix_expression_offsetof)
 		));
 	};
 
@@ -1483,6 +1484,19 @@ namespace cpp
 		terminal<boost::wave::T_RIGHTPAREN> rp;
 		FOREACH6(trait, lp, first, comma, second, rp);
 	};
+
+	struct postfix_expression_offsetof
+	{
+		typedef TYPELIST1(postfix_expression_prefix) Bases;
+		terminal<boost::wave::T_BUILTIN_OFFSETOF> key;
+		terminal<boost::wave::T_LEFTPAREN> lp;
+		symbol_required<type_id> type;
+		terminal<boost::wave::T_COMMA> comma;
+		symbol_required<id_expression> member;
+		terminal<boost::wave::T_RIGHTPAREN> rp;
+		FOREACH6(key, lp, type, comma, member, rp);
+	};
+
 
 	struct new_type : choice<new_type>
 	{

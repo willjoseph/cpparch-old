@@ -6,27 +6,40 @@
 #include "NameLookup.h"
 #include "Ast/Print.h"
 
-std::size_t instantiateClass(const SimpleType& instanceConst, const InstantiationContext& context, bool allowDependent = false);
+TypeLayout instantiateClass(const SimpleType& instanceConst, const InstantiationContext& context, bool allowDependent = false);
 
 
-inline std::size_t requireCompleteObjectType(UniqueTypeWrapper type, const InstantiationContext& context)
+inline TypeLayout requireCompleteObjectType(UniqueTypeWrapper type, const InstantiationContext& context)
 {
-	std::size_t count = 1;
-	while(type.isArray()
+	if(type.isArray()
 		&& getArrayType(type.value).size != 0)
 	{
-		count *= getArrayType(type.value).size;
+		std::size_t count = getArrayType(type.value).size;
 		type.pop_front(); // arrays of known size are complete object types
+		return makeArray(requireCompleteObjectType(type, context), count);
 	}
-	if(type.isSimple())
+	else if(type.isPointer())
+	{
+		return TypeLayout(4, 4); // TODO: x64
+	}
+	else if(type.isMemberPointer())
+	{
+		return TypeLayout(4, 4); // TODO: x64, size depends on class
+	}
+	else if(type.isSimple())
 	{
 		const SimpleType& objectType = getSimpleType(type.value);
 		if(isClass(*objectType.declaration))
 		{
-			return instantiateClass(objectType, context) * count;
+			return instantiateClass(objectType, context);
 		}
+		if(isEnum(*objectType.declaration))
+		{
+			return TypeLayout(4, 4); // TODO: x64, variable enum size
+		}
+		return objectType.layout;
 	}
-	return 4; // TODO: size of non-object types
+	return TYPELAYOUT_NONE; // this type has no meaningful layout (e.g. incomplete array, reference, function)
 }
 
 

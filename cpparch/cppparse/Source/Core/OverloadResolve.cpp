@@ -10,7 +10,7 @@ FunctionSignature substituteFunctionId(const Overload& overload, const UniqueTyp
 		|| &declaration == gCopyAssignmentOperatorInstance.p
 		|| overload.memberEnclosing->declaration->enclosed == declaration.scope);
 	UniqueTypeWrapper type = &declaration == gCopyAssignmentOperatorInstance.p
-		? makeCopyAssignmentOperatorType(*overload.memberEnclosing)
+		? UniqueTypeWrapper(makeCopyAssignmentOperatorType(*overload.memberEnclosing))
 		: getUniqueType(declaration.type, setEnclosingType(context, overload.memberEnclosing), declaration.isTemplate);
 	SYMBOLS_ASSERT(type.isFunction());
 

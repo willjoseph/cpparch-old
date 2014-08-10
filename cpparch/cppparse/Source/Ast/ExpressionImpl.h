@@ -45,6 +45,17 @@ inline ExpressionWrapper makeConstantExpression(const IntegralConstantExpression
 	return result;
 }
 
+inline bool isIntegralConstantExpression(ExpressionNode* node)
+{
+	return isEqual(getTypeInfo(*node), getTypeInfo<ExpressionNodeGeneric<IntegralConstantExpression> >());
+}
+
+inline const IntegralConstantExpression& getIntegralConstantExpression(ExpressionNode* node)
+{
+	SYMBOLS_ASSERT(isIntegralConstantExpression(node));
+	return static_cast<const ExpressionNodeGeneric<IntegralConstantExpression>*>(node)->value;
+}
+
 
 // ----------------------------------------------------------------------------
 struct CastExpression
@@ -457,6 +468,24 @@ inline const ClassMemberAccessExpression& getClassMemberAccessExpression(Express
 	return static_cast<const ExpressionNodeGeneric<ClassMemberAccessExpression>*>(node)->value;
 }
 
+
+// ----------------------------------------------------------------------------
+struct OffsetofExpression
+{
+	UniqueTypeWrapper type;
+	ExpressionWrapper member;
+	OffsetofExpression(UniqueTypeWrapper type, ExpressionWrapper member)
+		: type(type), member(member)
+	{
+	}
+};
+
+inline bool operator<(const OffsetofExpression& left, const OffsetofExpression& right)
+{
+	return left.type != right.type
+		? left.type < right.type
+		: left.member.p < right.member.p;
+}
 
 // ----------------------------------------------------------------------------
 // id-expression ( expression-list )

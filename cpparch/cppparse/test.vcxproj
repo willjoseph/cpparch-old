@@ -153,6 +153,7 @@
     <ClCompile Include="test\test_incomplete.cpp" />
     <ClCompile Include="test\test_internal.cpp" />
     <ClCompile Include="test\test_lexer.cpp" />
+    <ClCompile Include="test\test_offsetof.cpp" />
     <ClCompile Include="test\test_prepro.cpp" />
     <ClCompile Include="test\test_redeclared.cpp" />
     <ClCompile Include="test\test_typelist.cpp" />

@@ -134,6 +134,7 @@ LexTokenId LEXER_INTRINSIC_IDS[] = {
 	boost::wave::T_IS_STANDARD_LAYOUT,
 	boost::wave::T_IS_LITERAL_TYPE,
 	boost::wave::T_UNDERLYING_TYPE,
+	boost::wave::T_BUILTIN_OFFSETOF,
 };
 
 LexTokenValue LEXER_INTRINSIC_VALUES[] = {
@@ -160,6 +161,7 @@ LexTokenValue LEXER_INTRINSIC_VALUES[] = {
 	"__is_standard_layout",
 	"__is_literal_type",
 	"__underlying_type",
+	"__builtin_offsetof",
 };
 
 LexTokenId getLexerIntrinsicId(const char* value)

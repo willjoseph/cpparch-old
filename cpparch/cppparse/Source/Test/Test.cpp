@@ -417,9 +417,11 @@ BuiltInType gUnaryLogicalOperatorTypeArray[] = {
 };
 BuiltInTypeArrayRange gUnaryLogicalOperatorTypes = ARRAY_RANGE(gUnaryLogicalOperatorTypeArray);
 
+typedef TypeTuple<true, 1> BuiltInType1;
+typedef TypeTuple<true, 2> BuiltInType2;
 
-#define MAKE_GENERICTYPE1(substitute, placeholder) BuiltInGenericType1(substitute<true>(placeholder), &substitute<false>)
-#define MAKE_GENERICTYPE2(substitute, placeholder) BuiltInGenericType2(substitute<true>(placeholder), &substitute<false>)
+#define MAKE_GENERICTYPE1(substitute, placeholder) BuiltInGenericType1(substitute<true>(BuiltInType1(placeholder)), &substitute<false>)
+#define MAKE_GENERICTYPE2(substitute, first, second) BuiltInGenericType2(substitute<true>(BuiltInType2(first, second)), &substitute<false>)
 
 BuiltInType gPtrDiffT = gSignedLongLongInt;
 
@@ -500,10 +502,8 @@ BuiltInGenericType1 gEqualityOperatorTypeArray[] = {
 };
 BuiltInGenericType1ArrayRange gEqualityOperatorTypes = ARRAY_RANGE(gEqualityOperatorTypeArray);
 
-typedef TypeTuple<true, 2> BuiltInType2;
-
 BuiltInGenericType2 gMemberPointerOperatorTypeArray[] = {
-	MAKE_GENERICTYPE2(makeMemberPointerOperatorType, BuiltInType2(gPointerToClassPlaceholder, gPointerToMemberPlaceholder)),
+	MAKE_GENERICTYPE2(makeMemberPointerOperatorType, gPointerToClassPlaceholder, gPointerToMemberPlaceholder),
 };
 BuiltInGenericType2ArrayRange gMemberPointerOperatorTypes = ARRAY_RANGE(gMemberPointerOperatorTypeArray);
 

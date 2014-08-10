@@ -28,6 +28,7 @@ struct ExpressionNodeVisitor
 	virtual void visit(const struct ObjectExpression&) = 0; // transformed 'c.'
 	virtual void visit(const struct DependentObjectExpression&) = 0; // 'dependent->' or 'dependent.'
 	virtual void visit(const struct ClassMemberAccessExpression&) = 0;
+	virtual void visit(const struct OffsetofExpression&) = 0;
 	virtual void visit(const struct FunctionCallExpression&) = 0;
 	virtual void visit(const struct SubscriptExpression&) = 0;
 	virtual void visit(const struct PostfixOperatorExpression&) = 0;
@@ -140,7 +141,6 @@ struct ExpressionWrapper : ExpressionPtr
 	bool isConstant;
 	bool isTypeDependent;
 	bool isValueDependent;
-	bool isNullPointerConstant;
 	bool isTemplateArgumentAmbiguity; // [temp.arg] In a template argument, an ambiguity between a typeid and an expression is resolved to a typeid
 	bool isNonStaticMemberName;
 	bool isQualifiedNonStaticMemberName;
@@ -150,7 +150,6 @@ struct ExpressionWrapper : ExpressionPtr
 		, isConstant(false)
 		, isTypeDependent(false)
 		, isValueDependent(false)
-		, isNullPointerConstant(false)
 		, isTemplateArgumentAmbiguity(false)
 		, isNonStaticMemberName(false)
 		, isQualifiedNonStaticMemberName(false)
@@ -162,7 +161,6 @@ struct ExpressionWrapper : ExpressionPtr
 		, isConstant(isConstant)
 		, isTypeDependent(isTypeDependent)
 		, isValueDependent(isValueDependent)
-		, isNullPointerConstant(false)
 		, isTemplateArgumentAmbiguity(false)
 		, isNonStaticMemberName(false)
 		, isQualifiedNonStaticMemberName(false)
