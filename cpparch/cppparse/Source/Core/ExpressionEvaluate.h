@@ -389,6 +389,12 @@ inline ExpressionType typeOfExpressionWrapper(const ExpressionWrapper& expressio
 	{
 		return type;
 	}
+#if 0 // TODO: test what this change does
+	if(expression.type == gOverloadedExpressionType) // if evaluation of type of overloaded function was deferred 
+	{
+		return type; // evaluate it now
+	}
+#endif
 	SYMBOLS_ASSERT(type == expression.type);
 
 	// TODO: move into typeOfExpression?

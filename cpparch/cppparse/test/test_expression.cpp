@@ -364,7 +364,7 @@ namespace N394
 	ASSERT_EXPRESSION_TYPE(a.m, int);
 }
 
-#if 0 // TODO
+#if 0 // TODO: determine type of template-id which identifies a single function template specialization
 namespace N395 // [temp.arg.explicit]
 {
 	template<typename T>
@@ -443,7 +443,7 @@ namespace N397 // [temp.arg.explicit] test evaluation of type of dependent funct
 
 #endif
 
-#if 0 // TODO
+#if 0 // TODO: defer evaluation of type of dependent expression to point of instantiation
 namespace N384
 {
 	int f(int);
