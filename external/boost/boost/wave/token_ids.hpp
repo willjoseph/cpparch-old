@@ -323,6 +323,9 @@ enum token_id {
 	T_STATIC_ASSERT = TOKEN_FROM_ID(453, KeywordTokenType),
 	T_THREAD_LOCAL = TOKEN_FROM_ID(454, KeywordTokenType),
 
+	// offsetof
+	T_BUILTIN_OFFSETOF = TOKEN_FROM_ID(455, KeywordTokenType),
+
     T_LAST_TOKEN_ID,
     T_LAST_TOKEN = ID_FROM_TOKEN(T_LAST_TOKEN_ID),
 
