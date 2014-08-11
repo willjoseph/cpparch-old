@@ -1,4 +1,18 @@
 
+namespace N389
+{
+	template<int i>
+	struct A
+	{
+	};
+
+	template<int i>
+	struct B
+	{
+		typedef typename A<int(i)>::Type Type; // 'int(i)' is value-dependent
+	};
+}
+
 #if 0 // TODO: bug: failure to perform implicit conversion
 namespace N388
 {

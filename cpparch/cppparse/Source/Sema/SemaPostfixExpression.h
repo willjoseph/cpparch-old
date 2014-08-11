@@ -228,9 +228,10 @@ struct SemaPostfixExpression : public SemaBase
 	void action(cpp::postfix_expression_construct* symbol, const SemaExplicitTypeExpressionResult& walker)
 	{
 		addDependent(typeDependent, walker.typeDependent);
+		addDependent(valueDependent, walker.valueDependent);
 		// [basic.lval] An expression which holds a temporary object resulting from a cast to a non-reference type is an rvalue
 		type = ExpressionType(getUniqueTypeSafe(walker.type), false); // non lvalue
-		expression = makeExpression(CastExpression(type, walker.expression), walker.expression.isConstant, isDependentOld(typeDependent), false);
+		expression = makeExpression(CastExpression(type, walker.expression), walker.expression.isConstant, isDependentOld(typeDependent), isDependentOld(valueDependent));
 		expression.isTemplateArgumentAmbiguity = symbol->args == 0;
 		if(!expression.isTypeDependent)
 		{
@@ -250,7 +251,7 @@ struct SemaPostfixExpression : public SemaBase
 		}
 		addDependent(typeDependent, walker.typeDependent);
 		addDependent(valueDependent, walker.valueDependent);
-		expression = makeExpression(CastExpression(type, walker.expression), walker.expression.isConstant, isDependentOld(typeDependent), isDependentOld(valueDependent)); // TODO: can this be value-dependent?
+		expression = makeExpression(CastExpression(type, walker.expression), walker.expression.isConstant, isDependentOld(typeDependent), isDependentOld(valueDependent));
 		if(!expression.isTypeDependent)
 		{
 			SYMBOLS_ASSERT(expression.type == type);
