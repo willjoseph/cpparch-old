@@ -313,7 +313,10 @@ inline bool hasCopyAssignmentOperator(const SimpleType& classType, const Instant
 TypeLayout instantiateClass(const SimpleType& instanceConst, const InstantiationContext& context, bool allowDependent)
 {
 	SimpleType& instance = const_cast<SimpleType&>(instanceConst);
-	SYMBOLS_ASSERT(isClass(*instance.declaration));
+	if(!isClass(*instance.declaration))
+	{
+		throw TypeErrorBase(context.source);
+	}
 
 	if(context.enclosingType != 0)
 	{

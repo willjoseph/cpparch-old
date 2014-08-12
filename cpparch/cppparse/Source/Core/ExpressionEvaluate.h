@@ -1166,7 +1166,7 @@ inline ExpressionType typeOfFunctionCallExpression(Argument left, const Argument
 
 		if(memberClass == 0) // unqualified function call
 		{
-			objectExpressionType = context.enclosingType != 0
+			objectExpressionType = context.enclosingType != 0 && getEnclosingFunction(context.enclosingScope) != 0
 				// If the keyword 'this' is in scope and refers to the class of that member function, or a derived class thereof,
 				// then the function call is transformed into a normalized qualified function call using (*this) as the postfix-expression
 				// to the left of the . operator.

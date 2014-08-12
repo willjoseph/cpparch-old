@@ -34,9 +34,10 @@ FunctionSignature substituteFunctionId(const Overload& overload, const UniqueTyp
 	result.parameters.swap(result.parameterTypes);
 	makeUniqueTemplateParameters(declaration.templateParams, result.templateParameters, InstantiationContext(), true);
 
-	if(argumentTypes.size() > result.parameters.size())
+	if(!function.isEllipsis // if the function accepts a specific number of arguments
+		&& argumentTypes.size() > result.parameters.size()) // and we are given more arguments than parameters
 	{
-		return FunctionSignature(); // more arguments than parameters. TODO: same for non-template?
+		return FunctionSignature(); // early out. TODO: same for non-template?
 	}
 
 	// [temp.deduct] When an explicit template argument list is specified, the template arguments must be compatible with the template parameter list
