@@ -1,4 +1,33 @@
 
+
+#if 1
+namespace N390 // technique used in boost::is_class
+{
+	template<bool b>
+	struct A
+	{
+		static const bool value = b;
+	};
+
+	template<typename T>
+	struct B
+	{
+		template<class U>
+		static int f(void(U::*)(void));
+		template<class U>
+		static bool f(...);
+		static const bool value = sizeof(f<T>(0)) == sizeof(int); // SFINAE during overload resolution for static member B<T>::f
+	};
+
+	struct C
+	{
+	};
+
+	static_assert(B<C>::value == true, "");
+	static_assert(B<int>::value == false, "");
+}
+#endif
+
 namespace N389
 {
 	template<int i>
