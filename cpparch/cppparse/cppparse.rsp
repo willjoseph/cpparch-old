@@ -72,4 +72,4 @@ C:\Program Files\Microsoft Visual Studio 8\VC\BIN\cl.exe
 .\Source\Sema\SemaTypeSpecifier.cpp
 .\Source\Test\Test.cpp
 /I .\msvc-8.0\INCLUDE
-/I C:\Program Files\Microsoft SDKs\Windows\v7.1\Include
+/I .\platform\ws03sp2\INCLUDE
