@@ -898,6 +898,7 @@ Token* Lexer::read(Token* first, Token* last)
 					break;
 				}
 #if 1//def _DEBUG
+				if(*context.get_hooks().getSourcePath().absolute.c_str() != '$')
 				{
 					ProfileScope profile(gProfileDiagnose);
 					printer.printToken(token, token.get_value().c_str());
